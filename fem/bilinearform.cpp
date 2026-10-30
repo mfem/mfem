@@ -1319,6 +1319,7 @@ void BilinearForm::Update(FiniteElementSpace *nfes)
    mat_e = NULL;
    FreeElementMatrices();
    static_cond.reset();
+   typed_system_mat.Clear();
 
    if (full_update)
    {

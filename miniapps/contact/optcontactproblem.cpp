@@ -10,9 +10,243 @@
 // CONTRIBUTING.md for details.
 
 #include "optcontactproblem.hpp"
+#include "tribol/mesh/CouplingScheme.hpp"
+#include "solver_utils.hpp"
+#include "general/scan.hpp"
+#include <algorithm>
 
 namespace mfem
 {
+
+namespace
+{
+
+class ScopedHypreHostPolicy
+{
+private:
+#if MFEM_HYPRE_VERSION >= 22600
+   HYPRE_MemoryLocation old_memory = HYPRE_MEMORY_HOST;
+   HYPRE_ExecutionPolicy old_execution = HYPRE_EXEC_HOST;
+   bool restore = false;
+#endif
+
+public:
+   ScopedHypreHostPolicy()
+   {
+#if MFEM_HYPRE_VERSION >= 22600
+      if (HYPRE_Initialized())
+      {
+         HYPRE_GetMemoryLocation(&old_memory);
+         HYPRE_GetExecutionPolicy(&old_execution);
+         HYPRE_SetMemoryLocation(HYPRE_MEMORY_HOST);
+         HYPRE_SetExecutionPolicy(HYPRE_EXEC_HOST);
+         restore = true;
+      }
+#elif defined(HYPRE_USING_GPU)
+      MFEM_ABORT("The contact miniapp requires HYPRE 2.26 or newer when "
+                 "HYPRE is GPU-enabled.");
+#endif
+   }
+
+   void Restore()
+   {
+#if MFEM_HYPRE_VERSION >= 22600
+      if (restore)
+      {
+         HYPRE_SetMemoryLocation(old_memory);
+         HYPRE_SetExecutionPolicy(old_execution);
+         restore = false;
+      }
+#endif
+   }
+
+   ~ScopedHypreHostPolicy() { Restore(); }
+};
+
+void AssembleScalarLumpedMass(ParFiniteElementSpace &fes, Vector &lump)
+{
+   ParGridFunction one_gf(&fes);
+   one_gf = 1.0;
+   GridFunctionCoefficient one(&one_gf);
+   ParLinearForm mass_lump(&fes);
+   mass_lump.AddDomainIntegrator(new DomainLFIntegrator(one));
+   mass_lump.UseFastAssembly(Device::IsEnabled());
+   mass_lump.Assemble();
+
+   lump.SetSize(fes.GetTrueVSize());
+   lump.UseDevice(true);
+   mass_lump.ParallelAssemble(lump);
+}
+
+void AssembleVectorLumpedMass(ParFiniteElementSpace &fes, Vector &lump)
+{
+   ParGridFunction one_gf(&fes);
+   one_gf = 1.0;
+   VectorGridFunctionCoefficient one_v(&one_gf);
+   ParLinearForm mass_lump(&fes);
+   mass_lump.AddDomainIntegrator(new VectorDomainLFIntegrator(one_v));
+   mass_lump.UseFastAssembly(Device::IsEnabled());
+   mass_lump.Assemble();
+
+   lump.SetSize(fes.GetTrueVSize());
+   lump.UseDevice(true);
+   mass_lump.ParallelAssemble(lump);
+}
+
+HypreParMatrix *StackContactJacobians(
+   const Array<HypreParMatrix *> &blocks)
+{
+   MFEM_VERIFY(blocks.Size() > 0, "No contact Jacobians to stack.");
+
+   const bool use_dev = Device::IsEnabled();
+   MPI_Comm comm = blocks[0]->GetComm();
+   const HYPRE_BigInt global_num_cols = blocks[0]->GetGlobalNumCols();
+   const int local_num_cols = blocks[0]->Width();
+   const HYPRE_BigInt col_start = blocks[0]->ColPart()[0];
+   const HYPRE_BigInt col_end = blocks[0]->ColPart()[1];
+
+   int num_rows = 0;
+   int diag_nnz = 0;
+   int offd_nnz = 0;
+   std::vector<int> row_offsets(blocks.Size() + 1, 0);
+   std::vector<int> diag_offsets(blocks.Size() + 1, 0);
+   std::vector<int> offd_offsets(blocks.Size() + 1, 0);
+   std::vector<HYPRE_BigInt> offd_col_map;
+
+   for (int b = 0; b < blocks.Size(); b++)
+   {
+      const HypreParMatrix &block = *blocks[b];
+      MFEM_VERIFY(block.GetComm() == comm &&
+                  block.GetGlobalNumCols() == global_num_cols &&
+                  block.Width() == local_num_cols &&
+                  block.ColPart()[0] == col_start &&
+                  block.ColPart()[1] == col_end,
+                  "Incompatible contact Jacobian column partitions.");
+
+      num_rows += block.Height();
+      diag_nnz += block.GetDiagMemoryData().Capacity();
+      offd_nnz += block.GetOffdMemoryData().Capacity();
+      row_offsets[b + 1] = num_rows;
+      diag_offsets[b + 1] = diag_nnz;
+      offd_offsets[b + 1] = offd_nnz;
+
+      HYPRE_BigInt *block_col_map = nullptr;
+      HYPRE_Int block_num_offd_cols = 0;
+      block.GetOffdColMap(block_col_map, block_num_offd_cols);
+      if (block_num_offd_cols)
+      {
+         offd_col_map.insert(offd_col_map.end(), block_col_map,
+                             block_col_map + block_num_offd_cols);
+      }
+   }
+
+   std::sort(offd_col_map.begin(), offd_col_map.end());
+   offd_col_map.erase(std::unique(offd_col_map.begin(), offd_col_map.end()),
+                      offd_col_map.end());
+   std::vector<Array<int>> old_to_new(blocks.Size());
+
+   SparseMatrix *diag = new SparseMatrix;
+   diag->OverrideSize(num_rows, local_num_cols);
+   diag->GetMemoryI().New(num_rows + 1, Device::GetDeviceMemoryType());
+   diag->GetMemoryJ().New(diag_nnz, Device::GetDeviceMemoryType());
+   diag->GetMemoryData().New(diag_nnz, Device::GetDeviceMemoryType());
+
+   SparseMatrix *offd = new SparseMatrix;
+   offd->OverrideSize(num_rows, static_cast<int>(offd_col_map.size()));
+   offd->GetMemoryI().New(num_rows + 1, Device::GetDeviceMemoryType());
+   offd->GetMemoryJ().New(offd_nnz, Device::GetDeviceMemoryType());
+   offd->GetMemoryData().New(offd_nnz, Device::GetDeviceMemoryType());
+
+   HYPRE_Int *diag_i = diag->WriteI(use_dev);
+   HYPRE_Int *diag_j = diag->WriteJ(use_dev);
+   real_t *diag_data = diag->WriteData(use_dev);
+   HYPRE_Int *offd_i = offd->WriteI(use_dev);
+   HYPRE_Int *offd_j = offd->WriteJ(use_dev);
+   real_t *offd_data = offd->WriteData(use_dev);
+
+   for (int b = 0; b < blocks.Size(); b++)
+   {
+      const HypreParMatrix &block = *blocks[b];
+      const int block_rows = block.Height();
+      const int block_diag_nnz = diag_offsets[b + 1] - diag_offsets[b];
+      const int block_offd_nnz = offd_offsets[b + 1] - offd_offsets[b];
+      const HYPRE_Int *block_diag_i =
+         mfem::Read(block.GetDiagMemoryI(), block_rows + 1, use_dev);
+      const HYPRE_Int *block_diag_j =
+         mfem::Read(block.GetDiagMemoryJ(), block_diag_nnz, use_dev);
+      const real_t *block_diag_data =
+         mfem::Read(block.GetDiagMemoryData(), block_diag_nnz, use_dev);
+      const HYPRE_Int *block_offd_i =
+         mfem::Read(block.GetOffdMemoryI(), block_rows + 1, use_dev);
+      const HYPRE_Int *block_offd_j =
+         mfem::Read(block.GetOffdMemoryJ(), block_offd_nnz, use_dev);
+      const real_t *block_offd_data =
+         mfem::Read(block.GetOffdMemoryData(), block_offd_nnz, use_dev);
+
+      const int row_offset = row_offsets[b];
+      const int diag_offset = diag_offsets[b];
+      const int offd_offset = offd_offsets[b];
+      mfem::forall(block_rows + 1, [=] MFEM_HOST_DEVICE (int i)
+      {
+         diag_i[row_offset + i] = diag_offset + block_diag_i[i];
+         offd_i[row_offset + i] = offd_offset + block_offd_i[i];
+      });
+      mfem::forall(block_diag_nnz, [=] MFEM_HOST_DEVICE (int i)
+      {
+         diag_j[diag_offset + i] = block_diag_j[i];
+         diag_data[diag_offset + i] = block_diag_data[i];
+      });
+
+      HYPRE_BigInt *block_col_map = nullptr;
+      HYPRE_Int block_num_offd_cols = 0;
+      block.GetOffdColMap(block_col_map, block_num_offd_cols);
+      old_to_new[b].SetSize(block_num_offd_cols);
+      for (int i = 0; i < block_num_offd_cols; i++)
+      {
+         old_to_new[b][i] = std::lower_bound(offd_col_map.begin(),
+                                             offd_col_map.end(),
+                                             block_col_map[i]) -
+                            offd_col_map.begin();
+      }
+      old_to_new[b].UseDevice(use_dev);
+      const int *old_to_new_data = old_to_new[b].Read(use_dev);
+      mfem::forall(block_offd_nnz, [=] MFEM_HOST_DEVICE (int i)
+      {
+         offd_j[offd_offset + i] = old_to_new_data[block_offd_j[i]];
+         offd_data[offd_offset + i] = block_offd_data[i];
+      });
+   }
+
+   HYPRE_BigInt local_num_rows = num_rows;
+   HYPRE_BigInt row_end = 0;
+   MPI_Scan(&local_num_rows, &row_end, 1,
+            MPITypeMap<HYPRE_BigInt>::mpi_type, MPI_SUM, comm);
+   HYPRE_BigInt row_starts[2] = {row_end - local_num_rows, row_end};
+   HYPRE_BigInt global_num_rows = 0;
+   MPI_Allreduce(&local_num_rows, &global_num_rows, 1,
+                 MPITypeMap<HYPRE_BigInt>::mpi_type, MPI_SUM, comm);
+   HYPRE_BigInt col_starts[2] = {col_start, col_end};
+
+   HYPRE_BigInt *offd_col_map_data = nullptr;
+   if (!offd_col_map.empty())
+   {
+      offd_col_map_data = Memory<HYPRE_BigInt>(offd_col_map.size());
+      std::copy(offd_col_map.begin(), offd_col_map.end(), offd_col_map_data);
+   }
+
+   HypreParMatrix *stacked = new HypreParMatrix(
+      comm, global_num_rows, global_num_cols, row_starts, col_starts,
+      diag, offd, offd_col_map_data, true);
+   stacked->CopyRowStarts();
+   stacked->CopyColStarts();
+   stacked->SetOwnerFlags(stacked->OwnsDiag(), stacked->OwnsOffd(),
+                          offd_col_map_data ? 1 : 0);
+   // Set the CSR memory location before HYPRE propagates it to new matrices.
+   stacked->HypreRead();
+   return stacked;
+}
+
+}
 
 void OptContactProblem::ReleaseMemory()
 {
@@ -22,8 +256,6 @@ void OptContactProblem::ReleaseMemory()
    delete NegId; NegId = nullptr;
    delete Iu; Iu = nullptr;
    delete negIu; negIu = nullptr;
-   delete Mv; Mv = nullptr;
-   delete Mcs; Mcs = nullptr;
    if (dcdu)
    {
       delete dcdu;
@@ -34,9 +266,41 @@ void OptContactProblem::ReleaseMemory()
 void OptContactProblem::ComputeGapJacobian()
 {
    if (J) { delete J; }
-   J = const_cast<HypreParMatrix *>(SetupTribol(problem->GetMesh(),coords,
-                                                problem->GetEssentialDofs(),
-                                                mortar_attrs, nonmortar_attrs,gapv, tribol_ratio));
+   // One Tribol coupling scheme per contact interface. The gap Jacobians are
+   // stacked row-wise, and the gaps and lumped masses are concatenated in the
+   // same order (StackContactJacobians stacks local rows block by block).
+   const int npairs = contact_pairs.size();
+   Array<HypreParMatrix *> Js(npairs);
+   std::vector<Vector> gaps(npairs), mcslumps(npairs);
+   int ngap = 0;
+   for (int i = 0; i < npairs; i++)
+   {
+      gaps[i].UseDevice(true);
+      mcslumps[i].UseDevice(true);
+      Js[i] = SetupTribol(problem->GetMesh(), coords,
+                          problem->GetEssentialDofs(),
+                          contact_pairs[i].first, contact_pairs[i].second,
+                          gaps[i], mcslumps[i], tribol_ratio);
+      ngap += gaps[i].Size();
+   }
+
+   gapv.SetSize(ngap);
+   Mcslump.SetSize(ngap);
+   for (int i = 0, offset = 0; i < npairs; offset += gaps[i].Size(), i++)
+   {
+      gapv.SetVector(gaps[i], offset);
+      Mcslump.SetVector(mcslumps[i], offset);
+   }
+
+   if (npairs == 1)
+   {
+      J = Js[0];
+   }
+   else
+   {
+      J = StackContactJacobians(Js);
+      for (int i = 0; i < npairs; i++) { delete Js[i]; }
+   }
 
    dof_starts.SetSize(2);
    dof_starts[0] = J->ColPart()[0];
@@ -60,14 +324,32 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
                                      const std::set<int> & nonmortar_attrs_,
                                      real_t tribol_ratio_,
                                      bool bound_constraints_)
-   : problem(problem_), mortar_attrs(mortar_attrs_),
-     nonmortar_attrs(nonmortar_attrs_),
+   : OptContactProblem(problem_, { {mortar_attrs_, nonmortar_attrs_}},
+tribol_ratio_, bound_constraints_)
+{ }
+
+OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
+                                     const std::vector<std::pair<std::set<int>, std::set<int>>> &
+                                     contact_pairs_,
+                                     real_t tribol_ratio_,
+                                     bool bound_constraints_)
+   : problem(problem_), contact_pairs(contact_pairs_),
      tribol_ratio(tribol_ratio_),
      bound_constraints(bound_constraints_)
 {
    comm = problem->GetComm();
    vfes = problem->GetFESpace();
    block_offsetsg.SetSize(4);
+
+   grad_ref.UseDevice(true);
+   xref.UseDevice(true);
+   xrefbc.UseDevice(true);
+   gapv.UseDevice(true);
+   Mvlump.UseDevice(true);
+   Mcslumpfull.UseDevice(true);
+   Mcslump.UseDevice(true);
+   dl.UseDevice(true);
+   eps.UseDevice(true);
 }
 
 void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
@@ -76,16 +358,16 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    ReleaseMemory();
 
    coords = coords_;
-   xref.SetDataAndSize(xref_.GetData(), xref_.Size());
+   xref.NewMemoryAndSize(xref_.GetMemory(), xref_.Size(), false);
+   xref.UseDevice(true);
 
    ComputeGapJacobian();
 
    problem->Getxrefbc(xrefbc);
    const Array<int> & ess_tdof_list = problem->GetEssentialDofs();
-   Vector ess_values;
-
+   Vector ess_values; ess_values.UseDevice(true);
    xrefbc.GetSubVector(ess_tdof_list, ess_values);
-   xrefbc=xref;
+   xrefbc = xref;
    xrefbc.SetSubVector(ess_tdof_list, ess_values);
 
    if (problem->IsNonlinear())
@@ -104,36 +386,19 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    block_offsetsg[3] = dimU;
    block_offsetsg.PartialSum();
 
-   Vector diagVec(dimU); diagVec = 0.0;
-   SparseMatrix * tempSparse;
-
+   Vector diagVec(dimU); diagVec.UseDevice(true); diagVec = 0.0;
    diagVec = 1.0;
-   tempSparse = new SparseMatrix(diagVec);
-   Iu = new HypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(), tempSparse);
-   HypreStealOwnership(*Iu, *tempSparse);
-   delete tempSparse;
+   Iu = MakeDiagonalHypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
+                                   diagVec);
 
    diagVec = -1.0;
-   tempSparse = new SparseMatrix(diagVec);
-   negIu = new HypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
-                              tempSparse);
-   HypreStealOwnership(*negIu, *tempSparse);
-   delete tempSparse;
+   negIu = MakeDiagonalHypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
+                                      diagVec);
 
    dimM = dimG;
    dimC = dimM;
 
-   ParBilinearForm MassForm(vfes);
-   MassForm.AddDomainIntegrator(new VectorMassIntegrator);
-   MassForm.Assemble();
-
-   Array<int> empty_tdof_list;
-   Mv = new HypreParMatrix();
-   MassForm.FormSystemMatrix(empty_tdof_list,*Mv);
-
-   Vector onev(Mv->Width()); onev = 1.0;
-   Mvlump.SetSize(Mv->Height());
-   Mv->Mult(onev, Mvlump);
+   AssembleVectorLumpedMass(*vfes, Mvlump);
 
    if (!dl.Size())
    {
@@ -167,11 +432,9 @@ HypreParMatrix * OptContactProblem::Dmc(const BlockVector &)
 {
    if (!NegId)
    {
-      Vector negone(dimM); negone = -1.0;
-      SparseMatrix diag(negone);
-      NegId = new HypreParMatrix(comm, GetGlobalNumConstraints(),
-                                 GetConstraintsStarts(), &diag);
-      HypreStealOwnership(*NegId, diag);
+      Vector negone(dimM); negone.UseDevice(true); negone = -1.0;
+      NegId = MakeDiagonalHypreParMatrix(comm, GetGlobalNumConstraints(),
+                                         GetConstraintsStarts(), negone);
    }
    return NegId;
 }
@@ -186,25 +449,53 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
          Jt->EliminateRows(problem->GetEssentialDofs());
       }
       int hJt = Jt->Height();
-      SparseMatrix mergedJt;
-      Jt->MergeDiagAndOffd(mergedJt);
-      Array<int> nonzerorows;
-      for (int i = 0; i<hJt; i++)
-      {
-         if (!mergedJt.RowIsEmpty(i))
-         {
-            nonzerorows.Append(i);
-         }
-      }
-      int nrows_c = nonzerorows.Size();
-      SparseMatrix Pct(nrows_c,vfes->GlobalTrueVSize());
+      const bool use_dev = Device::IsEnabled();
+      const HYPRE_Int *Jt_diag_i =
+         mfem::Read(Jt->GetDiagMemoryI(), hJt + 1, use_dev);
+      const HYPRE_Int *Jt_offd_i =
+         mfem::Read(Jt->GetOffdMemoryI(), hJt + 1, use_dev);
+      Array<int> row_ids(hJt), row_flags(hJt), nonzerorows(hJt),
+            num_nonzerorows(1);
+      row_ids.UseDevice(use_dev);
+      row_flags.UseDevice(use_dev);
+      nonzerorows.UseDevice(use_dev);
+      num_nonzerorows.UseDevice(use_dev);
 
-      for (int i = 0; i<nrows_c; i++)
+      int *row_ids_data = row_ids.Write(use_dev);
+      int *row_flags_data = row_flags.Write(use_dev);
+      mfem::forall(hJt, [=] MFEM_HOST_DEVICE (int i)
       {
-         int col = nonzerorows[i]+vfes->GetMyTDofOffset();
-         Pct.Set(i,col,1.0);
+         row_ids_data[i] = i;
+         row_flags_data[i] = (Jt_diag_i[i+1] > Jt_diag_i[i]) ||
+                             (Jt_offd_i[i+1] > Jt_offd_i[i]);
+      });
+
+      CopyFlagged(use_dev, row_ids.Read(use_dev), row_flags.Read(use_dev),
+                  nonzerorows.Write(use_dev),
+                  num_nonzerorows.Write(use_dev), hJt);
+      int nrows_c = num_nonzerorows.HostRead()[0];
+      nonzerorows.SetSize(nrows_c);
+      SparseMatrix Pct;
+      Pct.OverrideSize(nrows_c, vfes->GetTrueVSize());
+      Pct.GetMemoryI().New(nrows_c + 1, Device::GetDeviceMemoryType());
+      Pct.GetMemoryJ().New(nrows_c, Device::GetDeviceMemoryType());
+      Pct.GetMemoryData().New(nrows_c, Device::GetDeviceMemoryType());
+
+      {
+         int *I = Pct.WriteI(use_dev);
+         int *J = Pct.WriteJ(use_dev);
+         real_t *A = Pct.WriteData(use_dev);
+         const int *rows = nonzerorows.Read(use_dev);
+         mfem::forall(nrows_c + 1, [=] MFEM_HOST_DEVICE (int i)
+         {
+            I[i] = i;
+         });
+         mfem::forall(nrows_c, [=] MFEM_HOST_DEVICE (int i)
+         {
+            J[i] = rows[i];
+            A[i] = 1.0;
+         });
       }
-      Pct.Finalize();
 
       HYPRE_BigInt rows_c[2];
 
@@ -223,31 +514,23 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
                     MPITypeMap<HYPRE_BigInt>::mpi_type,
                     MPI_SUM,comm);
 
-      HYPRE_BigInt * J;
-#ifndef HYPRE_BIGINT
-      J = Pct.GetJ();
-#else
-      J = new HYPRE_BigInt[Pct.NumNonZeroElems()];
-      for (int i = 0; i < Pct.NumNonZeroElems(); i++)
-      {
-         J[i] = Pct.GetJ()[i];
-      }
-#endif
-      HypreParMatrix * P_ct = new HypreParMatrix(comm, nrows_c, glob_nrows_c,
-                                                 glob_ncols_c, Pct.GetI(), J,
-                                                 Pct.GetData(), rows_c,vfes->GetTrueDofOffsets());
+      HypreParMatrix *P_ct = new HypreParMatrix(comm, glob_nrows_c,
+                                                glob_ncols_c, rows_c,
+                                                vfes->GetTrueDofOffsets(),
+                                                &Pct);
+      HypreStealOwnership(*P_ct, Pct);
+      // Rectangular construction leaves HYPRE's CSR memory location unset.
+      // Transpose must see the location matching the assembled CSR pointers.
+      P_ct->HypreRead();
       Pc = P_ct->Transpose();
       delete P_ct;
-#ifdef HYPRE_BIGINT
-      delete [] J;
-#endif
    }
    return Pc;
 }
 
 void OptContactProblem::g(const Vector & d, Vector & gd)
 {
-   Vector temp(dimU); temp = 0.0;
+   Vector temp(dimU); temp.UseDevice(true); temp = 0.0;
    temp.Set(1.0, d);
    temp.Add(-1.0, xref);
    J->Mult(temp, gd);
@@ -259,12 +542,19 @@ void OptContactProblem::g(const Vector & d, Vector & gd)
 //           [ eps - (d - dl) ]
 void OptContactProblem::c(const BlockVector & x, Vector & y)
 {
+   x.SyncToBlocks();
    const Vector disp  = x.GetBlock(0);
    const Vector slack = x.GetBlock(1);
 
    if (bound_constraints_activated)
    {
-      BlockVector yblock(block_offsetsg); yblock = 0.0;
+      BlockVector yblock(block_offsetsg);
+      yblock.UseDevice(true);
+      for (int i = 0; i < yblock.NumBlocks(); i++)
+      {
+         yblock.GetBlock(i).UseDevice(true);
+      }
+      yblock = 0.0;
 
       g(disp, yblock.GetBlock(0));
       yblock.GetBlock(1).Set( 1.0, disp );
@@ -272,6 +562,7 @@ void OptContactProblem::c(const BlockVector & x, Vector & y)
       yblock.GetBlock(2).Set(-1.0, yblock.GetBlock(1));
       yblock.GetBlock(1).Add(1.0, eps);
       yblock.GetBlock(2).Add(1.0, eps);
+      yblock.SyncFromBlocks();
       y.Set(1.0, yblock);
       y.Add(-1.0, slack);
    }
@@ -284,14 +575,18 @@ void OptContactProblem::c(const BlockVector & x, Vector & y)
 
 real_t OptContactProblem::CalcObjective(const BlockVector & x, int & eval_err)
 {
+   x.SyncToBlocks();
    return E(x.GetBlock(0), eval_err);
 }
 
 void OptContactProblem::CalcObjectiveGrad(const BlockVector & x,
                                           BlockVector & y)
 {
+   x.SyncToBlocks();
+   y.SyncToBlocks();
    DdE(x.GetBlock(0), y.GetBlock(0));
    y.GetBlock(1) = 0.0;
+   y.SyncFromBlocks();
 }
 
 real_t OptContactProblem::E(const Vector & d, int & eval_err)
@@ -300,8 +595,8 @@ real_t OptContactProblem::E(const Vector & d, int & eval_err)
    {
       // (d - xref)^T [ 1/2 K * (d - xref) + gradEQP] + EQP
       real_t energy = 0.0;
-      Vector dx(dimU); dx = 0.0;
-      Vector temp(dimU); temp = 0.0;
+      Vector dx(dimU); dx.UseDevice(true); dx = 0.0;
+      Vector temp(dimU); temp.UseDevice(true); temp = 0.0;
       dx.Set(1.0, d);
       dx.Add(-1.0, xrefbc);
       Kref->Mult(dx, temp);
@@ -337,7 +632,7 @@ void OptContactProblem::DdE(const Vector & d, Vector & gradE)
    if (problem->IsNonlinear())
    {
       // KQP * (d - xref) + gradEQP
-      Vector dx(dimU); dx = 0.0;
+      Vector dx(dimU); dx.UseDevice(true); dx = 0.0;
       dx.Set(1.0, d);
       dx.Add(-1.0, xrefbc);
       Kref->Mult(dx, gradE);
@@ -357,20 +652,24 @@ HypreParMatrix * OptContactProblem::DddE(const Vector & d)
 void OptContactProblem::SetDisplacement(const Vector & dx,
                                         bool activate_constraints)
 {
+   const bool use_dev = eps.UseDevice() || dx.UseDevice();
+   real_t *eps_data = eps.ReadWrite(use_dev);
    if (activate_constraints)
    {
       eps_min = std::max(eps_min, GlobalLpNorm(infinity(), eps.Normlinf(), comm));
-      for (int j = 0; j < dimU; j++)
+      const real_t eps_floor = eps_min;
+      mfem::forall(dimU, [=] MFEM_HOST_DEVICE (int j)
       {
-         eps(j) = std::max(eps_min, eps(j));
-      }
+         eps_data[j] = fmax(eps_floor, eps_data[j]);
+      });
    }
    else
    {
-      for (int j = 0; j < dimU; j++)
+      const real_t *dx_data = dx.Read(use_dev);
+      mfem::forall(dimU, [=] MFEM_HOST_DEVICE (int j)
       {
-         eps(j) = std::max(eps(j), std::abs(dx(j)));
-      }
+         eps_data[j] = fmax(eps_data[j], fabs(dx_data[j]));
+      });
    }
 }
 
@@ -389,14 +688,32 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
                                                 ParGridFunction * coords,
                                                 const Array<int> & ess_tdofs, const std::set<int> & mortar_attrs,
                                                 const std::set<int> & non_mortar_attrs,
-                                                Vector &gap, real_t ratio)
+                                                Vector &gap, Vector &mcslump,
+                                                real_t ratio)
 {
    axom::slic::SimpleLogger logger;
    axom::slic::setIsRoot(mfem::Mpi::Root());
 
+   // Tribol calls true/local dof transfers on the coordinate space. Clear the
+   // device transpose cached by those transfers and make the matrix itself
+   // host-current before changing HYPRE's global runtime policy.
+   HypreParMatrix *coords_prolongation =
+      coords->ParFESpace()->Dof_TrueDof_Matrix();
+   coords_prolongation->ResetTranspose();
+   coords_prolongation->HostRead();
+
+   // Tribol and its MFEM adapter are host-only in this build. Keep both
+   // HYPRE allocation and execution on the host for the complete Tribol
+   // lifetime; switching only the allocation policy leaves HYPRE kernels
+   // operating on host pointers.
+   ScopedHypreHostPolicy hypre_host_policy;
+
    int coupling_scheme_id = 0;
    int mesh1_id = 0; int mesh2_id = 1;
 
+   // Tribol's implicit mortar path is host-only. Make the coordinates current
+   // on the host before handing the grid function to Tribol.
+   coords->HostRead();
    tribol::registerMfemCouplingScheme(
       coupling_scheme_id, mesh1_id, mesh2_id,
       *pmesh, *coords, mortar_attrs, non_mortar_attrs,
@@ -410,19 +727,14 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
 
    tribol::setBinningProximityScale(coupling_scheme_id, ratio);
 
+   // Work around Tribol coupling containment to the topology-collapse ratio.
+   tribol::CouplingSchemeManager::getInstance().at(coupling_scheme_id)
+   .getParameters().len_collapse_ratio = 1e-12;
+
    // Access Tribol's pressure grid function (on the contact surface)
    auto& pressure = tribol::getMfemPressure(coupling_scheme_id);
 
-   ParBilinearForm acs_form(pressure.ParFESpace());
-   acs_form.AddDomainIntegrator(new MassIntegrator);
-   acs_form.Assemble();
-   Array<int> empty_tdof_list;
-   Mcs = new HypreParMatrix();
-   acs_form.FormSystemMatrix(empty_tdof_list,*Mcs);
-
-   Vector onecs(Mcs->Width()); onecs = 1.0;
-   Mcslumpfull.SetSize(Mcs->Height()); //Vector
-   Mcs->Mult(onecs, Mcslumpfull);
+   AssembleScalarLumpedMass(*pressure.ParFESpace(), Mcslumpfull);
 
    // Set Tribol options for Lagrange multiplier enforcement
    tribol::setLagrangeMultiplierOptions(
@@ -447,98 +759,298 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    HypreParMatrix * Me = Mfull->EliminateCols(ess_tdofs);
    delete Me;
 
-   int h = Mfull->Height();
-   SparseMatrix merged;
-   Mfull->MergeDiagAndOffd(merged);
-   Array<int> nonzero_rows;
+   FilteredContactMatrix filtered =
+      FilterContactMatrixAndGap(*Mfull, *pressure.ParFESpace(),
+                                coupling_scheme_id, gap, mcslump);
+   MPI_Comm matrix_comm = Mfull->GetComm();
 
-   real_t max_l1_row_norm = 0.0;
-   real_t rel_row_norm_threshold = 1.e-5;
-   for (int i = 0; i < h; i++)
+   A_blk.reset();
+   tribol::finalize();
+   hypre_host_policy.Restore();
+   coords_prolongation->HypreRead();
+
+   HypreParMatrix *M = new HypreParMatrix(matrix_comm,
+                                          filtered.global_num_rows,
+                                          filtered.global_num_cols,
+                                          filtered.row_starts,
+                                          filtered.col_starts,
+                                          filtered.diag,
+                                          filtered.offd,
+                                          filtered.offd_cmap,
+                                          true);
+   M->CopyRowStarts();
+   M->CopyColStarts();
+   M->SetOwnerFlags(M->OwnsDiag(), M->OwnsOffd(),
+                    filtered.offd_num_cols ? 1 : 0);
+   // Set the CSR memory location before HYPRE propagates it to new matrices.
+   M->HypreRead();
+   return M;
+}
+
+OptContactProblem::FilteredContactMatrix
+OptContactProblem::FilterContactMatrixAndGap(
+   HypreParMatrix &contact_matrix,
+   ParFiniteElementSpace &pfes,
+   int coupling_scheme_id,
+   Vector &gap, Vector &mcslump)
+{
+   const int h = contact_matrix.Height();
+   HYPRE_BigInt *offd_cmap = nullptr;
+   HYPRE_Int offd_num_cols = 0;
+   contact_matrix.GetOffdColMap(offd_cmap, offd_num_cols);
+
+   const bool use_dev = Device::IsEnabled();
+   const int diag_nnz = contact_matrix.GetDiagMemoryData().Capacity();
+   const int offd_nnz = contact_matrix.GetOffdMemoryData().Capacity();
+   const HYPRE_Int *diag_i =
+      mfem::Read(contact_matrix.GetDiagMemoryI(), h + 1, use_dev);
+   const real_t *diag_data =
+      mfem::Read(contact_matrix.GetDiagMemoryData(), diag_nnz, use_dev);
+   const HYPRE_Int *offd_i =
+      mfem::Read(contact_matrix.GetOffdMemoryI(), h + 1, use_dev);
+   const HYPRE_Int *diag_j =
+      mfem::Read(contact_matrix.GetDiagMemoryJ(), diag_nnz, use_dev);
+   const HYPRE_Int *offd_j =
+      mfem::Read(contact_matrix.GetOffdMemoryJ(), offd_nnz, use_dev);
+   const real_t *offd_data =
+      mfem::Read(contact_matrix.GetOffdMemoryData(), offd_nnz, use_dev);
+
+   Array<int> row_ids(h), row_flags(h), nonzero_rows(h), num_nonzero_rows(1);
+   Vector row_l1_norms(h);
+   row_ids.UseDevice(use_dev);
+   row_flags.UseDevice(use_dev);
+   nonzero_rows.UseDevice(use_dev);
+   num_nonzero_rows.UseDevice(use_dev);
+   row_l1_norms.UseDevice(true);
+
+   int *row_ids_data = row_ids.Write(use_dev);
+   real_t *row_l1_norms_data = row_l1_norms.Write(use_dev);
+   mfem::forall(h, [=] MFEM_HOST_DEVICE (int i)
    {
-      if (!merged.RowIsEmpty(i))
+      real_t row_l1_norm = 0.0;
+      for (int j = diag_i[i]; j < diag_i[i+1]; j++)
       {
-         max_l1_row_norm = std::max( max_l1_row_norm, merged.GetRowNorml1(i));
+         row_l1_norm += fabs(diag_data[j]);
       }
+      for (int j = offd_i[i]; j < offd_i[i+1]; j++)
+      {
+         row_l1_norm += fabs(offd_data[j]);
+      }
+      row_ids_data[i] = i;
+      row_l1_norms_data[i] = row_l1_norm;
+   });
+
+   const real_t max_l1_row_norm = h ? row_l1_norms.Max() : 0.0;
+   const real_t rel_row_norm_threshold = 1.e-5;
+   const real_t row_norm_threshold = rel_row_norm_threshold * max_l1_row_norm;
+   const real_t *row_l1_norms_read = row_l1_norms.Read(use_dev);
+   int *row_flags_data = row_flags.Write(use_dev);
+   mfem::forall(h, [=] MFEM_HOST_DEVICE (int i)
+   {
+      row_flags_data[i] = row_l1_norms_read[i] > row_norm_threshold;
+   });
+
+   CopyFlagged(use_dev, row_ids.Read(use_dev), row_flags.Read(use_dev),
+               nonzero_rows.Write(use_dev), num_nonzero_rows.Write(use_dev),
+               h);
+   const int hnew = num_nonzero_rows.HostRead()[0];
+   nonzero_rows.SetSize(hnew);
+
+   Array<int> diag_row_nnz(hnew), offd_row_nnz(hnew);
+   Array<int> diag_offsets(hnew + 1), offd_offsets(hnew + 1);
+   diag_row_nnz.UseDevice(use_dev);
+   offd_row_nnz.UseDevice(use_dev);
+   diag_offsets.UseDevice(use_dev);
+   offd_offsets.UseDevice(use_dev);
+
+   int *diag_offsets_data = diag_offsets.Write(use_dev);
+   int *offd_offsets_data = offd_offsets.Write(use_dev);
+   mfem::forall(1, [=] MFEM_HOST_DEVICE (int)
+   {
+      diag_offsets_data[0] = 0;
+      offd_offsets_data[0] = 0;
+   });
+   if (hnew)
+   {
+      int *diag_row_nnz_data = diag_row_nnz.Write(use_dev);
+      int *offd_row_nnz_data = offd_row_nnz.Write(use_dev);
+      const int *nonzero_rows_data = nonzero_rows.Read(use_dev);
+      mfem::forall(hnew, [=] MFEM_HOST_DEVICE (int i)
+      {
+         const int row = nonzero_rows_data[i];
+         diag_row_nnz_data[i] = diag_i[row+1] - diag_i[row];
+         offd_row_nnz_data[i] = offd_i[row+1] - offd_i[row];
+      });
+      InclusiveScan(use_dev, diag_row_nnz.Read(use_dev),
+                    diag_offsets_data + 1, hnew);
+      InclusiveScan(use_dev, offd_row_nnz.Read(use_dev),
+                    offd_offsets_data + 1, hnew);
    }
 
-   for (int i = 0; i<h; i++)
+   Array<int> filtered_nnz(2);
+   filtered_nnz.UseDevice(use_dev);
+   int *filtered_nnz_data = filtered_nnz.Write(use_dev);
+   mfem::forall(1, [=] MFEM_HOST_DEVICE (int)
    {
-      if (!merged.RowIsEmpty(i))
+      filtered_nnz_data[0] = diag_offsets_data[hnew];
+      filtered_nnz_data[1] = offd_offsets_data[hnew];
+   });
+   const int *filtered_nnz_host = filtered_nnz.HostRead();
+   const int diag_filtered_nnz = filtered_nnz_host[0];
+   const int offd_filtered_nnz = filtered_nnz_host[1];
+
+   Array<int> offd_col_ids(offd_num_cols), offd_col_flags(offd_num_cols),
+         offd_old_to_new(offd_num_cols), used_offd_cols(offd_num_cols),
+         num_used_offd_cols(1);
+   offd_col_ids.UseDevice(use_dev);
+   offd_col_flags.UseDevice(use_dev);
+   offd_old_to_new.UseDevice(use_dev);
+   used_offd_cols.UseDevice(use_dev);
+   num_used_offd_cols.UseDevice(use_dev);
+
+   int compact_offd_num_cols = 0;
+   if (offd_num_cols)
+   {
+      int *offd_col_ids_data = offd_col_ids.Write(use_dev);
+      int *offd_col_flags_data = offd_col_flags.Write(use_dev);
+      mfem::forall(offd_num_cols, [=] MFEM_HOST_DEVICE (int i)
       {
-         if (merged.GetRowNorml1(i) > rel_row_norm_threshold * max_l1_row_norm)
+         offd_col_ids_data[i] = i;
+         offd_col_flags_data[i] = 0;
+      });
+
+      const int *filtered_rows_data = nonzero_rows.Read(use_dev);
+      mfem::forall(hnew, [=] MFEM_HOST_DEVICE (int i)
+      {
+         const int row = filtered_rows_data[i];
+         for (int j = offd_i[row]; j < offd_i[row+1]; j++)
          {
-            nonzero_rows.Append(i);
+            AtomicAdd(offd_col_flags_data[offd_j[j]], 1);
          }
-      }
+      });
+      mfem::forall(offd_num_cols, [=] MFEM_HOST_DEVICE (int i)
+      {
+         offd_col_flags_data[i] = offd_col_flags_data[i] != 0;
+      });
+
+      ExclusiveScan(use_dev, offd_col_flags.Read(use_dev),
+                    offd_old_to_new.Write(use_dev), offd_num_cols, 0);
+      CopyFlagged(use_dev, offd_col_ids.Read(use_dev),
+                  offd_col_flags.Read(use_dev), used_offd_cols.Write(use_dev),
+                  num_used_offd_cols.Write(use_dev), offd_num_cols);
+      compact_offd_num_cols = num_used_offd_cols.HostRead()[0];
+      used_offd_cols.SetSize(compact_offd_num_cols);
    }
 
-   int hnew = nonzero_rows.Size();
-   SparseMatrix P(hnew,h);
+   SparseMatrix *diag = new SparseMatrix;
+   diag->OverrideSize(hnew, contact_matrix.Width());
+   diag->GetMemoryI().New(hnew + 1, Device::GetDeviceMemoryType());
+   diag->GetMemoryJ().New(diag_filtered_nnz, Device::GetDeviceMemoryType());
+   diag->GetMemoryData().New(diag_filtered_nnz, Device::GetDeviceMemoryType());
 
-   for (int i = 0; i<hnew; i++)
+   SparseMatrix *offd = new SparseMatrix;
+   offd->OverrideSize(hnew, compact_offd_num_cols);
+   offd->GetMemoryI().New(hnew + 1, Device::GetDeviceMemoryType());
+   offd->GetMemoryJ().New(offd_filtered_nnz, Device::GetDeviceMemoryType());
+   offd->GetMemoryData().New(offd_filtered_nnz, Device::GetDeviceMemoryType());
+
+   int *diag_filtered_i = diag->WriteI(use_dev);
+   int *offd_filtered_i = offd->WriteI(use_dev);
+   const int *diag_offsets_read = diag_offsets.Read(use_dev);
+   const int *offd_offsets_read = offd_offsets.Read(use_dev);
+   mfem::forall(hnew + 1, [=] MFEM_HOST_DEVICE (int i)
    {
-      int col = nonzero_rows[i];
-      P.Set(i,col,1.0);
-   }
-   P.Finalize();
+      diag_filtered_i[i] = diag_offsets_read[i];
+      offd_filtered_i[i] = offd_offsets_read[i];
+   });
 
-   SparseMatrix * reduced_merged = Mult(P,merged);
+   int *diag_filtered_j = diag->WriteJ(use_dev);
+   int *offd_filtered_j = offd->WriteJ(use_dev);
+   real_t *diag_filtered_data = diag->WriteData(use_dev);
+   real_t *offd_filtered_data = offd->WriteData(use_dev);
+   const int *filtered_rows_data = nonzero_rows.Read(use_dev);
+   const int *offd_old_to_new_data = offd_old_to_new.Read(use_dev);
+   mfem::forall(hnew, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int row = filtered_rows_data[i];
+      int row_nnz_offset = diag_offsets_read[i];
+      for (int j = diag_i[row]; j < diag_i[row+1]; j++)
+      {
+         diag_filtered_j[row_nnz_offset] = diag_j[j];
+         diag_filtered_data[row_nnz_offset] = diag_data[j];
+         row_nnz_offset++;
+      }
 
-   HYPRE_BigInt rows[2];
-   int nrows = reduced_merged->Height();
+      row_nnz_offset = offd_offsets_read[i];
+      for (int j = offd_i[row]; j < offd_i[row+1]; j++)
+      {
+         offd_filtered_j[row_nnz_offset] = offd_old_to_new_data[offd_j[j]];
+         offd_filtered_data[row_nnz_offset] = offd_data[j];
+         row_nnz_offset++;
+      }
+   });
+
+   const int nrows = hnew;
    HYPRE_BigInt nrows_bigint = nrows;
    HYPRE_BigInt row_offset;
    MPI_Scan(&nrows_bigint,&row_offset,1,MPITypeMap<HYPRE_BigInt>::mpi_type,
-            MPI_SUM,Mfull->GetComm());
+            MPI_SUM,contact_matrix.GetComm());
 
+   FilteredContactMatrix filtered;
    row_offset-=nrows;
-   rows[0] = row_offset;
-   rows[1] = row_offset+nrows;
-   HYPRE_BigInt glob_nrows;
-   MPI_Allreduce(&nrows_bigint, &glob_nrows,1,MPITypeMap<HYPRE_BigInt>::mpi_type,
-                 MPI_SUM,Mfull->GetComm());
+   filtered.row_starts[0] = row_offset;
+   filtered.row_starts[1] = row_offset+nrows;
+   filtered.col_starts[0] = contact_matrix.ColPart()[0];
+   filtered.col_starts[1] = contact_matrix.ColPart()[1];
 
-   HYPRE_BigInt glob_ncols = reduced_merged->Width();
+   MPI_Allreduce(&nrows_bigint, &filtered.global_num_rows,1,
+                 MPITypeMap<HYPRE_BigInt>::mpi_type,
+                 MPI_SUM,contact_matrix.GetComm());
+   filtered.global_num_cols = contact_matrix.GetGlobalNumCols();
+   filtered.offd_num_cols = compact_offd_num_cols;
 
-   HYPRE_BigInt * J;
-#ifndef HYPRE_BIGINT
-   J = reduced_merged->GetJ();
-#else
-   J = new HYPRE_BigInt[reduced_merged->NumNonZeroElems()];
-   for (int i = 0; i < reduced_merged->NumNonZeroElems(); i++)
+   if (compact_offd_num_cols)
    {
-      J[i] = reduced_merged->GetJ()[i];
+      const int *used_offd_cols_host = used_offd_cols.HostRead();
+      filtered.offd_cmap = Memory<HYPRE_BigInt>(compact_offd_num_cols);
+      for (int i = 0; i < compact_offd_num_cols; i++)
+      {
+         filtered.offd_cmap[i] = offd_cmap[used_offd_cols_host[i]];
+      }
    }
-#endif
 
-   HypreParMatrix * M = new HypreParMatrix(Mfull->GetComm(), nrows, glob_nrows,
-                                           glob_ncols, reduced_merged->GetI(), J,
-                                           reduced_merged->GetData(), rows, Mfull->ColPart());
-   delete reduced_merged;
-
-#ifdef HYPRE_BIGINT
-   delete [] J;
-#endif
+   filtered.diag = diag;
+   filtered.offd = offd;
 
    Vector gap_full;
    tribol::getMfemGap(coupling_scheme_id, gap_full);
+   gap_full.HostRead();
+   gap_full.UseDevice(true);
 
-   auto& P_submesh = *pressure.ParFESpace()->GetProlongationMatrix();
+   auto& P_submesh = *pfes.GetProlongationMatrix();
    Vector gap_true(P_submesh.Width());
+   gap_true.UseDevice(true);
 
    P_submesh.MultTranspose(gap_full,gap_true);
    gap.SetSize(nrows);
-   Mcslump.SetSize(nrows);
+   gap.UseDevice(true);
+   mcslump.SetSize(nrows);
+   mcslump.UseDevice(true);
 
-   for (int i = 0; i<nrows; i++)
+   const real_t *gap_true_data = gap_true.Read(use_dev);
+   const real_t *Mcslumpfull_data = Mcslumpfull.Read(use_dev);
+   real_t *gap_data = gap.Write(use_dev);
+   real_t *mcslump_data = mcslump.Write(use_dev);
+   const int *nonzero_rows_data = nonzero_rows.Read(use_dev);
+   mfem::forall(nrows, [=] MFEM_HOST_DEVICE (int i)
    {
-      gap[i] = gap_true[nonzero_rows[i]];
-      Mcslump(i) = Mcslumpfull(nonzero_rows[i]);
-   }
-   gap /= Mcslump;
-   tribol::finalize();
-   return M;
+      const int row = nonzero_rows_data[i];
+      gap_data[i] = gap_true_data[row];
+      mcslump_data[i] = Mcslumpfull_data[row];
+   });
+   gap /= mcslump;
+
+   return filtered;
 }
 
 }

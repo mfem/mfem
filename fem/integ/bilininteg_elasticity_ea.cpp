@@ -15,6 +15,16 @@
 
 namespace mfem
 {
+void ElasticityIntegrator::AssembleEA(const FiniteElementSpace &fes,
+                                      Vector &emat,
+                                      const bool add)
+{
+   if (fes.GetNE() == 0) { return; }
+   SetUpAssemblyData(fes);
+   internal::ElasticityAssembleEAVector(vdim, ndofs, *IntRule, *lambda_quad,
+                                        *mu_quad, *geom, *maps, emat, add);
+}
+
 void ElasticityComponentIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                                Vector &emat,
                                                const bool add)
@@ -23,6 +33,6 @@ void ElasticityComponentIntegrator::AssembleEA(const FiniteElementSpace &fes,
    const auto &ir = parent.q_space->GetIntRule(0);
    internal::ElasticityAssembleEA(parent.vdim, i_block, j_block, parent.ndofs, ir,
                                   *parent.lambda_quad, *parent.mu_quad,
-                                  *geom, *maps, emat);
+                                  *geom, *maps, emat, add);
 }
 }
