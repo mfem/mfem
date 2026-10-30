@@ -1059,21 +1059,33 @@ public:
 template <class Mesh, class Mask, class FieldSet, class Raster>
 class PhaseNewtonImpl : public mfem::NewtonSolver
 {
+   using Obj = ObjectiveOpImpl<Mesh, Mask, FieldSet, Raster>;
+   using Gn = GaussNewtonOpImpl<Mesh, Mask, FieldSet, Raster>;
+   using Cg = GaussNewtonCgImpl<Mesh, Mask, FieldSet, Raster>;
+
+   Obj *op;
+   Mask *phase;
+   Gn *mask_op;
+   Cg *step;
+   Vector *trial_field;
+   Vector *trial;
    mutable real_t J_log_prev = -1.0;
 
 public:
-   PhaseNewtonImpl() : mfem::NewtonSolver() {}
+   PhaseNewtonImpl(Obj &op_in, Mask &phase_in, Gn &mask_op_in, Cg &step_in,
+                   Vector &trial_field_in, Vector &trial_in)
+      : mfem::NewtonSolver(),
+        op(&op_in), phase(&phase_in), mask_op(&mask_op_in), step(&step_in),
+        trial_field(&trial_field_in), trial(&trial_in) {}
 
 #ifdef MFEM_USE_MPI
-   explicit PhaseNewtonImpl(MPI_Comm comm) : mfem::NewtonSolver(comm) {}
+   PhaseNewtonImpl(MPI_Comm comm, Obj &op_in, Mask &phase_in, Gn &mask_op_in,
+                   Cg &step_in, Vector &trial_field_in, Vector &trial_in)
+      : mfem::NewtonSolver(comm),
+        op(&op_in), phase(&phase_in), mask_op(&mask_op_in), step(&step_in),
+        trial_field(&trial_field_in), trial(&trial_in) {}
 #endif
 
-   ObjectiveOpImpl<Mesh, Mask, FieldSet, Raster> *op = nullptr;
-   Mask *phase = nullptr;
-   GaussNewtonOpImpl<Mesh, Mask, FieldSet, Raster> *mask_op = nullptr;
-   GaussNewtonCgImpl<Mesh, Mask, FieldSet, Raster> *step = nullptr;
-   Vector *trial_field = nullptr;
-   Vector *trial = nullptr;
    real_t alpha0 = 1.0;
    int max_outer = 0;
    mutable int gn_ran = 0;
@@ -1266,7 +1278,10 @@ public:
       cg.SetMaxIter(std::max(1, cg_max_iter));
       cg.SetPrintLevel(-1);
 
-      auto newton = make_newton();
+      GnCG step(cg, mask_op);
+      GF phi_trial(&mesh.Space());
+      auto newton = make_newton(op, mask, mask_op, step, fields.E_trial,
+                                phi_trial);
       newton.on_root = root;
       newton.iterative_mode = true;
       newton.SetRelTol(0.0);
@@ -1274,16 +1289,8 @@ public:
       newton.SetMaxIter(std::max(0, max_iter));
       newton.SetPrintLevel(-1);
       newton.SetInnerProduct(&mesh.Reducer());
-      GnCG step(cg, mask_op);
       newton.SetOperator(op);
       newton.SetSolver(step);
-      newton.op = &op;
-      newton.phase = &mask;
-      newton.mask_op = &mask_op;
-      newton.step = &step;
-      newton.trial_field = &fields.E_trial;
-      GF phi_trial(&mesh.Space());
-      newton.trial = &phi_trial;
       newton.alpha0 = (learning_rate > 0.0) ? learning_rate : 1.0;
       newton.max_outer = std::max(0, max_iter);
       StallControllerImpl<Mesh, Mask, FieldSet, Raster> stall;

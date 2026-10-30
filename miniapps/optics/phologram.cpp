@@ -534,7 +534,12 @@ int main(int argc, char *argv[]) try
                                                 extent_y, cfg.z_prop);
    },
    [] { return CGSolver(MPI_COMM_WORLD); },
-   [] { return PhaseRetrieval::Newton(MPI_COMM_WORLD); });
+   [](auto &op, auto &phase, auto &mask_op, auto &step,
+      auto &trial_field, auto &trial)
+   {
+      return PhaseRetrieval::Newton(MPI_COMM_WORLD, op, phase, mask_op, step,
+                                    trial_field, trial);
+   });
 
    // Get the phase mask
    const RealArray2D &phase = solver.MaskImage();

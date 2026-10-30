@@ -190,7 +190,12 @@ int main(int argc, char *argv[]) try
       return prop;
    },
    [] { return CGSolver(); },
-   [] { return PhaseRetrieval::Newton(); });
+   [](auto &op, auto &phase, auto &mask_op, auto &step,
+      auto &trial_field, auto &trial)
+   {
+      return PhaseRetrieval::Newton(op, phase, mask_op, step, trial_field,
+                                    trial);
+   });
 
    // Get the phase mask
    const RealArray2D &phase = solver.MaskImage();
