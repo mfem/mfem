@@ -30,9 +30,9 @@
 namespace mfem
 {
 
-int AmgXSolver::count = 0;
+MFEM_CONSTINIT int AmgXSolver::count = 0;
 
-AMGX_resources_handle AmgXSolver::rsrc = nullptr;
+MFEM_CONSTINIT AMGX_resources_handle AmgXSolver::rsrc = nullptr;
 
 AmgXSolver::AmgXSolver()
    : ConvergenceCheck(false) {};
