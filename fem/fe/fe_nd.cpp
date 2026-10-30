@@ -1327,6 +1327,988 @@ void ND_SegmentElement::ProjectIntegrated(VectorCoefficient &vc,
    }
 }
 
+
+const real_t NDPos_TetrahedronElement::tk[18] =
+{ 1.,0.,0.,  0.,1.,0.,  0.,0.,1.,  -1.,1.,0.,  -1.,0.,1.,  0.,-1.,1. };
+
+namespace
+{
+
+enum NDPosBasisType
+{
+   WHITNEY = 1,
+   GRADIENT,
+   FACE_BUBBLE,
+   CELL_BUBBLE
+};
+
+// lookup table for \nabla \lambda_i
+const real_t grad_lambda_3d[4][3] =
+{
+   {-1., -1., -1.}, {1., 0., 0.}, {0., 1., 0.}, {0., 0., 1.}
+};
+
+// lookup table for curl w_{ij}
+const real_t tangent_3d[4][4][3] =
+{
+   {
+      { 0.,  0.,  0.}, { 0., -1.,  1.},
+      { 1.,  0., -1.}, {-1.,  1.,  0.}
+   },
+   {
+      { 0.,  1., -1.}, { 0.,  0.,  0.},
+      { 0.,  0.,  1.}, { 0., -1.,  0.}
+   },
+   {
+      {-1.,  0.,  1.}, { 0.,  0., -1.},
+      { 0.,  0.,  0.}, { 1.,  0.,  0.}
+   },
+   {
+      { 1., -1.,  0.}, { 0.,  1.,  0.},
+      {-1.,  0.,  0.}, { 0.,  0.,  0.}
+   }
+};
+
+// This function returns the one-dimensional index of a tetrahedral Bernstein
+// basis function given its multi-index alpha. This is a necessary interface
+// for computing the Bernstein H(curl) basis functions, which are expressed
+// in terms of the scalar tetrahedral Bernstein basis functions where explicit
+// multi-indices are used to identify the corresponding scalar basis functions.
+int TetBernsteinMultiindexTo1D(int p, const int alpha[4])
+{
+   MFEM_ASSERT(p >= 0 && alpha[0] >= 0 && alpha[1] >= 0 &&
+               alpha[2] >= 0 && alpha[3] >= 0 &&
+               alpha[0] + alpha[1] + alpha[2] + alpha[3] == p,
+               "Invalid tetrahedral Bernstein multi-index.");
+   const int i = alpha[1];
+   const int j = alpha[2];
+   const int k = alpha[3];
+   const auto tri = [](int k) { return (k*(k + 1))/2; };
+   const auto tet = [](int k) { return (k*(k + 1)*(k + 2))/6; };
+   const int dof = tet(p + 1);
+   return dof - tet(p - k) - tri(p + 1 - k - j) + i;
+}
+
+} // anonymous namespace
+
+// Helper function to describe each Nedelec tetrahedral basis function.
+//    [out] type  : type of the basis function being described (1, 2, 3, or 4)
+//    [out] a0,a1,a2,a3 : components of the multi-index alpha, if relevant
+//    [out] v0, v1, v2  : vertex indices of the supporting edge or face, if relevant
+//    [out] ell         : type of non-gradient cell bubble, if relevant
+void NDPos_TetrahedronElement::BuildBasisDescriptors()
+{
+   type.Reserve(dof);
+   a0.Reserve(dof);
+   a1.Reserve(dof);
+   a2.Reserve(dof);
+   a3.Reserve(dof);
+   v0.Reserve(dof);
+   v1.Reserve(dof);
+   v2.Reserve(dof);
+   ell.Reserve(dof);
+
+   auto append = [this](int t, const int alpha[4], int i, int j, int k,
+                        int l)
+   {
+      type.Append(t);
+      a0.Append(alpha[0]); a1.Append(alpha[1]);
+      a2.Append(alpha[2]); a3.Append(alpha[3]);
+      v0.Append(i); v1.Append(j); v2.Append(k); ell.Append(l);
+   };
+   const int zero[4] = {0, 0, 0, 0};
+   typedef Geometry::Constants<Geometry::TETRAHEDRON> Tet;
+
+   // Edge-supported basis functions come in two forms:
+   //    1. Lowest-order Whitney forms (i.e. Type 1)
+   //    2. Edge-supported gradient fields (i.e. Type 2).
+   // The gradient fields have the form \nabla B^order_alpha, where,
+   // on edge (i,j), we have ai + aj = order, with ai, aj > 0.
+   for (int e = 0; e < 6; e++)
+   {
+      // lowest-order Whitney forms defined on the edge (i,j)
+      const int i = Tet::Edges[e][0], j = Tet::Edges[e][1];
+      append(WHITNEY, zero, i, j, -1, -1);
+
+      // edge-supported gradient fields
+      for (int m = 1; m < order; m++)
+      {
+         int alpha[4] = {0, 0, 0, 0};
+         alpha[i] = order - m;
+         alpha[j] = m;
+         append(GRADIENT, alpha, -1, -1, -1, -1);
+      }
+   }
+
+   // Face-supported basis functions also come in two forms:
+   //    1. Face-supported gradient fields (i.e. Type 2)
+   //    2. Non-gradient face bubbles (i.e. Type 3).
+   // The former have the form \nabla B^order_alpha, where, on
+   // face (i,j,k), we have ai + aj + ak = order, with ai, aj, ak > 0.
+   // These basis functions are determined entirely by the multiindex
+   // alpha. The latter has the form
+   //    order * B^{order-1}_alpha *
+   //       (ai * w_jk - aj * w_ik + ak * w_ij)
+   // and explicitly requires the vertex indices (i,j,k) of the face for
+   // evaluation. The non-gradient face bubbles are not linearly independent
+   // unless a single (arbitrary) multiindex is excluded. This multiindex
+   // is chosen to be (order-1)*e_2.
+   for (int f = 0; f < 4; f++)
+   {
+      const int i = Tet::FaceVert[f][0];
+      const int j = Tet::FaceVert[f][1];
+      const int k = Tet::FaceVert[f][2];
+      // face-supported gradient fields
+      for (int ai = 1; ai <= order - 2; ai++)
+      {
+         for (int aj = 1; aj <= order - ai - 1; aj++)
+         {
+            int alpha[4] = {0, 0, 0, 0};
+            alpha[i] = ai; alpha[j] = aj; alpha[k] = order - ai - aj;
+            append(GRADIENT, alpha, -1, -1, -1, -1);
+         }
+      }
+
+      // non-gradient face bubbles
+      const int p = order - 1;
+      for (int ai = 0; ai <= p; ai++)
+      {
+         for (int aj = 0; aj <= p - ai; aj++)
+         {
+            const int ak = p - ai - aj;
+            if (ak == p) { continue; }
+            int alpha[4] = {0, 0, 0, 0};
+            alpha[i] = ai; alpha[j] = aj; alpha[k] = ak;
+            append(FACE_BUBBLE, alpha, i, j, k, -1);
+         }
+      }
+   }
+
+   // Cell-supported basis functions also come in two forms:
+   //    1. Cell-supported gradient fields (i.e. Type 2)
+   //    2. Non-gradient cell bubbles (i.e. Type 4).
+   // The former have the form \nabla B^order_alpha, where
+   // a1 + a2 + a3 + a4 = order, with a1, a2, a3, a4 > 0. The latter
+   // have the form
+   //    (order+1) B^order_{alpha-e_l} * \nabla \lambda_l -
+   //    a_l / (order+1) * \nabla B^{order+1}_alpha, l=0,1,2,3.
+   // This set of functions is not linearly independent unless one
+   // direction is excluded (we elect to exclude l=3 here following [1]).
+   // Additionally, for l=2, the multiindices exclude all those not
+   // satisfying a3 = 1 is necessary otherwise the non-gradient cell bubbles
+   // partially overlap with the cell-supported gradient fields.
+
+   // cell-supported gradient fields
+   for (int i = 1; i <= order - 3; i++)
+   {
+      for (int j = 1; j <= order - i - 2; j++)
+      {
+         for (int k = 1; k <= order - i - j - 1; k++)
+         {
+            int alpha[4] = {i, j, k, order - i - j - k};
+            append(GRADIENT, alpha, -1, -1, -1, -1);
+         }
+      }
+   }
+
+   // non-gradient cell bubbles with l=0,1
+   const int degree = order + 1;
+   for (int l = 0; l < 2; l++)
+   {
+      for (int i = 1; i <= degree - 3; i++)
+         for (int j = 1; j <= degree - i - 2; j++)
+            for (int k = 1; k <= degree - i - j - 1; k++)
+            {
+               int alpha[4] = {i, j, k, degree - i - j - k};
+               append(CELL_BUBBLE, alpha, -1, -1, -1, l);
+            }
+   }
+   // non-gradient cell bubbles with l=2
+   for (int i = 1; i <= degree - 3; i++)
+      for (int j = 1; j <= degree - i - 2; j++)
+      {
+         const int k = 1;
+         const int last = degree - i - j - k;
+         if (last > 0)
+         {
+            int alpha[4] = {i, j, k, last};
+            append(CELL_BUBBLE, alpha, -1, -1, -1, 2);
+         }
+      }
+
+   MFEM_VERIFY(type.Size() == dof,
+               "Incorrect Nedelec tetrahedron basis dimension: "
+               << type.Size() << " != " << dof);
+}
+
+NDPos_TetrahedronElement::NDPos_TetrahedronElement(int p)
+   : VectorFiniteElement(3, Geometry::TETRAHEDRON,
+                         p*(p + 2)*(p + 3)/2, p,
+                         H_CURL, FunctionSpace::Pk),
+     dof2tk(dof), doftrans(p)
+{
+   MFEM_VERIFY(p >= 1, "NDPos tetrahedron order must be positive.");
+   is_nodal = false;
+   BuildBasisDescriptors();
+
+#ifndef MFEM_THREAD_SAFE
+   bernstein.SetSize((p + 1)*(p + 2)*(p + 3)/6);
+   curl_bernstein.SetSize(p*(p + 1)*(p + 2)/6);
+#endif
+
+   const real_t *eop = poly1d.OpenPoints(p - 1);
+   const real_t *fop = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
+   const real_t *iop = (p > 2) ? poly1d.OpenPoints(p - 3) : NULL;
+   const int pm1 = p - 1, pm2 = p - 2, pm3 = p - 3;
+   int o = 0;
+   for (int i = 0; i < p; i++)
+   { Nodes.IntPoint(o).Set3(eop[i], 0., 0.); dof2tk[o++] = 0; }
+   for (int i = 0; i < p; i++)
+   { Nodes.IntPoint(o).Set3(0., eop[i], 0.); dof2tk[o++] = 1; }
+   for (int i = 0; i < p; i++)
+   { Nodes.IntPoint(o).Set3(0., 0., eop[i]); dof2tk[o++] = 2; }
+   for (int i = 0; i < p; i++)
+   { Nodes.IntPoint(o).Set3(eop[pm1-i], eop[i], 0.); dof2tk[o++] = 3; }
+   for (int i = 0; i < p; i++)
+   { Nodes.IntPoint(o).Set3(eop[pm1-i], 0., eop[i]); dof2tk[o++] = 4; }
+   for (int i = 0; i < p; i++)
+   { Nodes.IntPoint(o).Set3(0., eop[pm1-i], eop[i]); dof2tk[o++] = 5; }
+
+   const int face_tangents[4][2] = {{3,4}, {2,1}, {0,2}, {1,0}};
+   for (int f = 0; f < 4; f++)
+      for (int j = 0; j <= pm2; j++)
+         for (int i = 0; i + j <= pm2; i++)
+         {
+            const real_t w = fop[i] + fop[j] + fop[pm2-i-j];
+            IntegrationPoint ip;
+            if (f == 0) { ip.Set3(fop[pm2-i-j]/w, fop[i]/w, fop[j]/w); }
+            if (f == 1) { ip.Set3(0., fop[j]/w, fop[i]/w); }
+            if (f == 2) { ip.Set3(fop[i]/w, 0., fop[j]/w); }
+            if (f == 3) { ip.Set3(fop[j]/w, fop[i]/w, 0.); }
+            Nodes.IntPoint(o) = ip; dof2tk[o++] = face_tangents[f][0];
+            Nodes.IntPoint(o) = ip; dof2tk[o++] = face_tangents[f][1];
+         }
+
+   for (int k = 0; k <= pm3; k++)
+      for (int j = 0; j + k <= pm3; j++)
+         for (int i = 0; i + j + k <= pm3; i++)
+         {
+            const real_t w = iop[i] + iop[j] + iop[k] +
+                             iop[pm3-i-j-k];
+            IntegrationPoint ip;
+            ip.Set3(iop[i]/w, iop[j]/w, iop[k]/w);
+            for (int d = 0; d < 3; d++)
+            { Nodes.IntPoint(o) = ip; dof2tk[o++] = d; }
+         }
+   MFEM_ASSERT(o == dof, "Incorrect NDPos interpolation point count.");
+
+   DenseMatrix sampling(dof);
+   DenseMatrix shape(dof, 3);
+   for (int m = 0; m < dof; m++)
+   {
+      CalcVShape(Nodes.IntPoint(m), shape);
+      const real_t *t = tk + 3*dof2tk[m];
+      for (int j = 0; j < dof; j++)
+      {
+         sampling(m,j) = shape(j,0) * t[0] + shape(j,1) * t[1] + shape(j,2) * t[2];
+      }
+   }
+   interpolation_inverse.Factor(sampling);
+}
+
+void NDPos_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
+                                          DenseMatrix &shape) const
+{
+   const int scalar_dof = (order + 1)*(order + 2)*(order + 3)/6;
+   MFEM_CONTRACT_VAR(scalar_dof);
+#ifdef MFEM_THREAD_SAFE
+   Vector bernstein(scalar_dof);
+#else
+   MFEM_ASSERT(bernstein.Size() == scalar_dof,
+               "Incorrect Bernstein scratch vector size.");
+#endif
+   H1Pos_TetrahedronElement::CalcShape(order, ip.x, ip.y, ip.z,
+                                       bernstein.GetData());
+   const real_t lambda[4] = {1_r - ip.x - ip.y - ip.z,
+                             ip.x, ip.y, ip.z
+                            };
+   shape.SetSize(dof, 3);
+   shape = 0.0;
+   for (int basis = 0; basis < dof; basis++)
+   {
+      const int alpha[4] = {a0[basis], a1[basis], a2[basis], a3[basis]};
+      // lowest-order Whitney edge elements (Type 1)
+      if (type[basis] == WHITNEY)
+      {
+         const int i = v0[basis], j = v1[basis];
+         for (int d = 0; d < 3; d++)
+         {
+            shape(basis,d) = lambda[i] * grad_lambda_3d[j][d] -
+                             lambda[j] * grad_lambda_3d[i][d];
+         }
+      }
+      // all gradient fields regardless of support (Type 2)
+      else if (type[basis] == GRADIENT)
+      {
+         // the Type 2 basis functions can be written in terms of the scalar Bernstein
+         // basis functions B^order_alpha using degree elevation:
+         //    \nabla B^order_alpha = \sum_{i=1}^4 \sum_{\ell=1}^4
+         //       (alpha_\ell - \delta_{i\ell} + 1) *
+         //       B^order_{alpha + e_\ell - e_i} * \nabla \lambda_i.
+         // See Table 6, Row 2 of [1] for more details.
+         for (int i = 0; i < 4; i++)
+         {
+            if (alpha[i] == 0) { continue; }
+            for (int l = 0; l < 4; l++)
+            {
+               int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
+               beta[i]--; beta[l]++;
+               const real_t coefficient = alpha[l] - (i == l) + 1;
+               const real_t b = bernstein[
+                                   TetBernsteinMultiindexTo1D(order, beta)];
+               for (int d = 0; d < 3; d++)
+               {
+                  shape(basis,d) += coefficient * b * grad_lambda_3d[i][d];
+               }
+            }
+         }
+      }
+      // all non-gradient face bubbles (Type 3). The Type 3 basis functions can be written
+      // in terms of the scalar Bernstein basis functions B^order_alpha:
+      //    \Phi^{F_\ell, order-1}_\alpha = \sum_{s \in \Sigma_\ell} c_{\alpha, \sigma} * B^order_{alpha + e_{s_i}},
+      // where F_\ell = {v0, v1, v2} are the vertices of the supporting face, \Sigma_\ell
+      // is the following set of permutations of the vertices of F_\ell:
+      //    \Sigma_\ell := {(v0, v1, v2), (v1, v2, v0), (v2, v0, v1)}
+      // and c_{\alpha, \sigma} is the coefficient
+      //    c_{\alpha, \sigma} := (alpha_{s_1} + 1) * (alpha_{s_3} * \nabla \lambda_{s_2} -
+      //                                               alpha_{s_2} * \nabla \lambda_{s_3}).
+      // See Table 6, Row 3 of [1] for more details.
+      else if (type[basis] == FACE_BUBBLE)
+      {
+         const int vertices[3] = {v0[basis], v1[basis], v2[basis]};
+         for (int s = 0; s < 3; s++)
+         {
+            const int i = vertices[s];
+            const int j = vertices[(s + 1)%3];
+            const int k = vertices[(s + 2)%3];
+            int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
+            beta[i]++;
+            const real_t b = bernstein[
+                                TetBernsteinMultiindexTo1D(order, beta)];
+            for (int d = 0; d < 3; d++)
+            {
+               shape(basis,d) += (alpha[i] + 1) * b *
+                                 (alpha[k]*grad_lambda_3d[j][d] -
+                                  alpha[j]*grad_lambda_3d[k][d]);
+            }
+         }
+      }
+      // all non-gradient cell bubbles (Type 4). The Type 4 basis functions can be written
+      // in terms of the scalar Bernstein basis functions B^order_alpha:
+      //    \Psi^{T, order}_\alpha = \sum_{i=0}^{3} c_{\alpha, \ell, i} * B^order_{alpha - e_i},
+      // where c_{\alpha, \ell, i} is the coefficient
+      //    c_{\alpha, \ell, i} :=
+      //       (delta_{i\ell} * (order+1) - \alpha_\ell) * \nabla \lambda_i.
+      // See Table 6, Row 4 of [1] for more details.
+      else
+      {
+         const int l = ell[basis];
+         for (int i = 0; i < 4; i++)
+         {
+            if (alpha[i] == 0) { continue; }
+            int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
+            beta[i]--;
+            const real_t b = bernstein[
+                                TetBernsteinMultiindexTo1D(order, beta)];
+            const real_t coefficient =
+               (i == l ? order + 1 : 0) - alpha[l];
+            for (int d = 0; d < 3; d++)
+            {
+               shape(basis,d) += coefficient * b * grad_lambda_3d[i][d];
+            }
+         }
+      }
+   }
+}
+
+void NDPos_TetrahedronElement::CalcCurlShape(
+   const IntegrationPoint &ip, DenseMatrix &curl_shape) const
+{
+   const int degree = order - 1;
+   const int scalar_dof = (degree + 1)*(degree + 2)*(degree + 3)/6;
+   MFEM_CONTRACT_VAR(scalar_dof);
+#ifdef MFEM_THREAD_SAFE
+   Vector curl_bernstein(scalar_dof);
+#else
+   MFEM_ASSERT(curl_bernstein.Size() == scalar_dof,
+               "Incorrect Bernstein curl scratch vector size.");
+#endif
+   H1Pos_TetrahedronElement::CalcShape(degree, ip.x, ip.y, ip.z,
+                                       curl_bernstein.GetData());
+   curl_shape.SetSize(dof, 3);
+   curl_shape = 0.0;
+   for (int basis = 0; basis < dof; basis++)
+   {
+      const int alpha[4] = {a0[basis], a1[basis], a2[basis], a3[basis]};
+      if (type[basis] == WHITNEY)
+      {
+         for (int d = 0; d < 3; d++)
+         {
+            curl_shape(basis,d) =
+               2.0 * tangent_3d[v0[basis]][v1[basis]][d];
+         }
+      }
+      else if (type[basis] == FACE_BUBBLE)
+      {
+         // curl of type 2 basis functions (Table 6, Row 3, last column in [1])
+         const int vertices[3] = {v0[basis], v1[basis], v2[basis]};
+         for (int s = 0; s < 3; s++)
+         {
+            const int i = vertices[s];
+            const int j = vertices[(s + 1)%3];
+            const int k = vertices[(s + 2)%3];
+            for (int q = 0; q < 3; q++)
+            {
+               const int m = vertices[q];
+               int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
+               beta[i]++; beta[m]--;
+               if (beta[m] < 0) { continue; }
+               const real_t b = curl_bernstein[
+                                   TetBernsteinMultiindexTo1D(degree, beta)];
+               for (int d = 0; d < 3; d++)
+               {
+                  curl_shape(basis,d) += order * (alpha[i] + 1) * b *
+                                         (alpha[k] * tangent_3d[m][j][d] -
+                                          alpha[j] * tangent_3d[m][k][d]);
+               }
+            }
+         }
+      }
+      else if (type[basis] == CELL_BUBBLE)
+      {
+         // curl of type 4 basis functions (Table 6, Row 4, last column in [1])
+         const int l = ell[basis];
+         for (int i = 0; i < 4; i++)
+         {
+            if (i == l) { continue; }
+            int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
+            beta[i]--; beta[l]--;
+            if (beta[i] < 0 || beta[l] < 0) { continue; }
+            const real_t b = curl_bernstein[
+                                TetBernsteinMultiindexTo1D(degree, beta)];
+            for (int d = 0; d < 3; d++)
+            {
+               curl_shape(basis,d) +=
+                  order*(order + 1) * b * tangent_3d[i][l][d];
+            }
+         }
+      }
+   }
+}
+
+void NDPos_TetrahedronElement::GetLocalInterpolation(
+   ElementTransformation &, DenseMatrix &) const
+{
+   MFEM_ABORT("NDPos local refinement interpolation is not implemented.");
+}
+
+void NDPos_TetrahedronElement::GetLocalRestriction(
+   ElementTransformation &, DenseMatrix &) const
+{
+   MFEM_ABORT("NDPos local refinement restriction is not implemented.");
+}
+
+void NDPos_TetrahedronElement::GetTransferMatrix(
+   const FiniteElement &, ElementTransformation &, DenseMatrix &) const
+{
+   MFEM_ABORT("NDPos finite-element transfer is not implemented.");
+}
+
+void NDPos_TetrahedronElement::Project(
+   VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
+{
+   Vector samples(dof);
+   Project_ND(tk, dof2tk, vc, Trans, samples);
+   interpolation_inverse.Mult(samples, dofs);
+}
+
+void NDPos_TetrahedronElement::ProjectFromNodes(
+   Vector &vc, ElementTransformation &Trans, Vector &dofs) const
+{
+   Vector samples(dof);
+   Project_ND(tk, dof2tk, vc, Trans, samples);
+   interpolation_inverse.Mult(samples, dofs);
+}
+
+void NDPos_TetrahedronElement::ProjectMatrixCoefficient(
+   MatrixCoefficient &mc, ElementTransformation &Trans, Vector &dofs) const
+{
+   Vector samples(dofs.Size());
+   ProjectMatrixCoefficient_ND(tk, dof2tk, mc, Trans, samples);
+   const int rows = samples.Size()/dof;
+   DenseMatrix sample_matrix(samples.GetData(), dof, rows);
+   DenseMatrix dof_matrix(dofs.GetData(), dof, rows);
+   interpolation_inverse.Mult(sample_matrix, dof_matrix);
+}
+
+void NDPos_TetrahedronElement::Project(
+   const FiniteElement &fe, ElementTransformation &Trans, DenseMatrix &I) const
+{
+   DenseMatrix samples;
+   Project_ND(tk, dof2tk, fe, Trans, samples);
+   interpolation_inverse.Mult(samples, I);
+}
+
+void NDPos_TetrahedronElement::ProjectGrad(
+   const FiniteElement &fe, ElementTransformation &Trans,
+   DenseMatrix &grad_matrix) const
+{
+   DenseMatrix samples;
+   ProjectGrad_ND(tk, dof2tk, fe, Trans, samples);
+   interpolation_inverse.Mult(samples, grad_matrix);
+}
+
+void NDPos_TetrahedronElement::ProjectCurl(
+   const FiniteElement &fe, ElementTransformation &Trans,
+   DenseMatrix &curl_matrix) const
+{
+   DenseMatrix samples;
+   ProjectCurl_ND(tk, dof2tk, fe, Trans, samples);
+   interpolation_inverse.Mult(samples, curl_matrix);
+}
+
+
+const real_t NDPos_TriangleElement::tk[8] =
+{ 1.,0.,  -1.,1.,  0.,-1.,  0.,1. };
+
+namespace
+{
+
+const real_t grad_lambda_2d[3][2] =
+{
+   {-1., -1.}, {1., 0.}, {0., 1.}
+};
+
+const real_t tangent_2d[3][3] =
+{
+   { 0.,  1., -1.},
+   {-1.,  0.,  1.},
+   { 1., -1.,  0.}
+};
+
+int TriBernsteinMultiindexTo1D(int p, const int alpha[3])
+{
+   MFEM_ASSERT(p >= 0 && alpha[0] >= 0 && alpha[1] >= 0 &&
+               alpha[2] >= 0 && alpha[0] + alpha[1] + alpha[2] == p,
+               "Invalid triangular Bernstein multi-index.");
+   const int i = alpha[1];
+   const int j = alpha[2];
+   const int p2p3 = 2*p + 3;
+   return ((p2p3 - j)*j)/2 + i;
+}
+
+} // anonymous namespace
+
+// In a triangle, the Nedelec basis functions are categorized into three types:
+//    1. Lowest-order Whitney edge functions.
+//    2. Gradient fields.
+//    3. Non-gradient face bubbles.
+// The gradient fields may be edge-supported or face-supported. Each of these
+// basis functions is constructed in the same way as on tetrahedrons.
+void NDPos_TriangleElement::BuildBasisDescriptors()
+{
+   type.Reserve(dof);
+   a0.Reserve(dof);
+   a1.Reserve(dof);
+   a2.Reserve(dof);
+   v0.Reserve(dof);
+   v1.Reserve(dof);
+   v2.Reserve(dof);
+
+   auto append = [this](int t, const int alpha[3], int i, int j, int k)
+   {
+      type.Append(t);
+      a0.Append(alpha[0]); a1.Append(alpha[1]); a2.Append(alpha[2]);
+      v0.Append(i); v1.Append(j); v2.Append(k);
+   };
+   const int zero[3] = {0, 0, 0};
+   typedef Geometry::Constants<Geometry::TRIANGLE> Tri;
+   // There are two types of edge-supported basis functions:
+   //    1. Lowest-order Whitney edge functions (i.e. Type 1).
+   //    2. Edge-supported gradient fields (i.e. Type 2).
+   // The latter have the form \nabla B^order_alpha, where
+   // alpha = (a1, a2, a3) with ai + aj = order and ai, aj > 0
+   // on edge (i,j).
+   for (int e = 0; e < 3; e++)
+   {
+      // lowest-order Whitney forms on edge (i,j)
+      const int i = Tri::Edges[e][0], j = Tri::Edges[e][1];
+      append(WHITNEY, zero, i, j, -1);
+
+      // edge-supported gradient fields
+      for (int m = 1; m < order; m++)
+      {
+         int alpha[3] = {0, 0, 0};
+         alpha[i] = order - m;
+         alpha[j] = m;
+         append(GRADIENT, alpha, -1, -1, -1);
+      }
+   }
+
+   // Face-supported gradient fields also come in two forms:
+   //    1. Face-supported gradient fields (i.e. Type 2).
+   //    2. Non-gradient face bubbles (i.e. Type 3).
+   // The former have the form \nabla B^order_alpha, where
+   // alpha = (a1, a2, a3) with ai + aj + ak = order and ai, aj, ak > 0
+   // for the face (i,j,k). These basis functions are determined solely by
+   // the multiindex alpha. The latter has the form
+   //    order * B^{order-1}_alpha * (ai * w_jk + ak * w_ij).
+   // Unlike in the case of tetrahedrons, we do not require the vertex
+   // indices here since each triangle consists of a single face.
+   for (int i = 1; i <= order - 2; i++)
+      for (int j = 1; j <= order - i - 1; j++)
+      {
+         // face-supported gradient fields
+         int alpha[3] = {i, j, order - i - j};
+         append(GRADIENT, alpha, -1, -1, -1);
+      }
+   const int p = order - 1;
+   // non-gradient face bubbles
+   for (int i = 0; i <= p; i++)
+      for (int j = 0; j <= p - i; j++)
+      {
+         int alpha[3] = {i, j, p - i - j};
+         if (alpha[2] == p) { continue; }
+         append(FACE_BUBBLE, alpha, 0, 1, 2);
+      }
+   MFEM_VERIFY(type.Size() == dof,
+               "Incorrect Nedelec triangle basis dimension.");
+}
+
+NDPos_TriangleElement::NDPos_TriangleElement(int p)
+   : VectorFiniteElement(2, Geometry::TRIANGLE, p*(p + 2), p,
+                         H_CURL, FunctionSpace::Pk),
+     dof2tk(dof), doftrans(p)
+{
+   MFEM_VERIFY(p >= 1, "NDPos triangle order must be positive.");
+   is_nodal = false;
+   BuildBasisDescriptors();
+#ifndef MFEM_THREAD_SAFE
+   bernstein.SetSize((p + 1)*(p + 2)/2);
+   curl_bernstein.SetSize(p*(p + 1)/2);
+#endif
+   const real_t *eop = poly1d.OpenPoints(p - 1);
+   const real_t *iop = (p > 1) ? poly1d.OpenPoints(p - 2) : NULL;
+   const int pm1 = p - 1, pm2 = p - 2;
+   int n = 0;
+   for (int i = 0; i < p; i++)
+   { Nodes.IntPoint(n).Set2(eop[i], 0.); dof2tk[n++] = 0; }
+   for (int i = 0; i < p; i++)
+   { Nodes.IntPoint(n).Set2(eop[pm1-i], eop[i]); dof2tk[n++] = 1; }
+   for (int i = 0; i < p; i++)
+   { Nodes.IntPoint(n).Set2(0., eop[pm1-i]); dof2tk[n++] = 2; }
+   for (int j = 0; j <= pm2; j++)
+      for (int i = 0; i + j <= pm2; i++)
+      {
+         const real_t w = iop[i] + iop[j] + iop[pm2-i-j];
+         IntegrationPoint ip;
+         ip.Set2(iop[i]/w, iop[j]/w);
+         Nodes.IntPoint(n) = ip; dof2tk[n++] = 0;
+         Nodes.IntPoint(n) = ip; dof2tk[n++] = 3;
+      }
+   MFEM_ASSERT(n == dof, "Incorrect NDPos triangle interpolation point count.");
+
+   DenseMatrix sampling(dof), shape(dof, 2);
+   for (int m = 0; m < dof; m++)
+   {
+      CalcVShape(Nodes.IntPoint(m), shape);
+      const real_t *t = tk + 2 * dof2tk[m];
+      for (int j = 0; j < dof; j++)
+      { sampling(m,j) = shape(j,0) * t[0] + shape(j,1) * t[1]; }
+   }
+   interpolation_inverse.Factor(sampling);
+}
+
+void NDPos_TriangleElement::CalcVShape(const IntegrationPoint &ip,
+                                       DenseMatrix &shape) const
+{
+   const int scalar_dof = (order + 1)*(order + 2)/2;
+   MFEM_CONTRACT_VAR(scalar_dof);
+#ifdef MFEM_THREAD_SAFE
+   Vector bernstein(scalar_dof);
+#else
+   MFEM_ASSERT(bernstein.Size() == scalar_dof,
+               "Incorrect Bernstein scratch vector size.");
+#endif
+   H1Pos_TriangleElement::CalcShape(order, ip.x, ip.y,
+                                    bernstein.GetData());
+   const real_t lambda[3] = {1_r - ip.x - ip.y, ip.x, ip.y};
+   shape.SetSize(dof, 2);
+   shape = 0.0;
+   for (int basis = 0; basis < dof; basis++)
+   {
+      const int alpha[3] = {a0[basis], a1[basis], a2[basis]};
+      if (type[basis] == WHITNEY)
+      {
+         const int i = v0[basis], j = v1[basis];
+         for (int d = 0; d < 2; d++)
+         {
+            shape(basis,d) = lambda[i] * grad_lambda_2d[j][d] -
+                             lambda[j] * grad_lambda_2d[i][d];
+         }
+      }
+      else if (type[basis] == GRADIENT)
+      {
+         // type 2 gradient fields with degree elevation
+         for (int i = 0; i < 3; i++)
+         {
+            if (alpha[i] == 0) { continue; }
+            for (int l = 0; l < 3; l++)
+            {
+               int beta[3] = {alpha[0], alpha[1], alpha[2]};
+               beta[i]--; beta[l]++;
+               const real_t coefficient = alpha[l] - (i == l) + 1;
+               const real_t b = bernstein[
+                                   TriBernsteinMultiindexTo1D(order, beta)];
+               for (int d = 0; d < 2; d++)
+               {
+                  shape(basis,d) += coefficient * b * grad_lambda_2d[i][d];
+               }
+            }
+         }
+      }
+      else
+      {
+         // type 3 non-gradient face bubbles
+         for (int s = 0; s < 3; s++)
+         {
+            const int i = s;
+            const int j = (s + 1)%3;
+            const int k = (s + 2)%3;
+            int beta[3] = {alpha[0], alpha[1], alpha[2]};
+            beta[i]++;
+            const real_t b = bernstein[
+                                TriBernsteinMultiindexTo1D(order, beta)];
+            for (int d = 0; d < 2; d++)
+            {
+               shape(basis,d) += (alpha[i] + 1) * b *
+                                 (alpha[k] * grad_lambda_2d[j][d] -
+                                  alpha[j] * grad_lambda_2d[k][d]);
+            }
+         }
+      }
+   }
+}
+
+void NDPos_TriangleElement::CalcCurlShape(
+   const IntegrationPoint &ip, DenseMatrix &curl_shape) const
+{
+   const int degree = order - 1;
+   const int scalar_dof = (degree + 1)*(degree + 2)/2;
+   MFEM_CONTRACT_VAR(scalar_dof);
+#ifdef MFEM_THREAD_SAFE
+   Vector curl_bernstein(scalar_dof);
+#else
+   MFEM_ASSERT(curl_bernstein.Size() == scalar_dof,
+               "Incorrect Bernstein curl scratch vector size.");
+#endif
+   H1Pos_TriangleElement::CalcShape(degree, ip.x, ip.y,
+                                    curl_bernstein.GetData());
+   curl_shape.SetSize(dof, 1);
+   curl_shape = 0.0;
+   for (int basis = 0; basis < dof; basis++)
+   {
+      const int alpha[3] = {a0[basis], a1[basis], a2[basis]};
+      if (type[basis] == WHITNEY)
+      {
+         curl_shape(basis,0) =
+            2.0*tangent_2d[v0[basis]][v1[basis]];
+      }
+      else if (type[basis] == FACE_BUBBLE)
+      {
+         // curl of type 3 basis functions
+         for (int s = 0; s < 3; s++)
+         {
+            const int i = s;
+            const int j = (s + 1)%3;
+            const int k = (s + 2)%3;
+            for (int q = 0; q < 3; q++)
+            {
+               int beta[3] = {alpha[0], alpha[1], alpha[2]};
+               beta[i]++; beta[q]--;
+               if (beta[q] < 0) { continue; }
+               const real_t b = curl_bernstein[
+                                   TriBernsteinMultiindexTo1D(degree, beta)];
+               curl_shape(basis,0) += order * (alpha[i] + 1) * b *
+                                      (alpha[k] * tangent_2d[q][j] -
+                                       alpha[j] * tangent_2d[q][k]);
+            }
+         }
+      }
+   }
+}
+
+void NDPos_TriangleElement::GetLocalInterpolation(
+   ElementTransformation &, DenseMatrix &) const
+{
+   MFEM_ABORT("NDPos local refinement interpolation is not implemented.");
+}
+
+void NDPos_TriangleElement::GetLocalRestriction(
+   ElementTransformation &, DenseMatrix &) const
+{
+   MFEM_ABORT("NDPos local refinement restriction is not implemented.");
+}
+
+void NDPos_TriangleElement::GetTransferMatrix(
+   const FiniteElement &, ElementTransformation &, DenseMatrix &) const
+{
+   MFEM_ABORT("NDPos finite-element transfer is not implemented.");
+}
+
+void NDPos_TriangleElement::Project(
+   VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
+{
+   Vector samples(dof);
+   Project_ND(tk, dof2tk, vc, Trans, samples);
+   interpolation_inverse.Mult(samples, dofs);
+}
+
+void NDPos_TriangleElement::ProjectFromNodes(
+   Vector &vc, ElementTransformation &Trans, Vector &dofs) const
+{
+   Vector samples(dof);
+   Project_ND(tk, dof2tk, vc, Trans, samples);
+   interpolation_inverse.Mult(samples, dofs);
+}
+
+void NDPos_TriangleElement::ProjectMatrixCoefficient(
+   MatrixCoefficient &mc, ElementTransformation &Trans, Vector &dofs) const
+{
+   Vector samples(dofs.Size());
+   ProjectMatrixCoefficient_ND(tk, dof2tk, mc, Trans, samples);
+   const int rows = samples.Size()/dof;
+   DenseMatrix sample_matrix(samples.GetData(), dof, rows);
+   DenseMatrix dof_matrix(dofs.GetData(), dof, rows);
+   interpolation_inverse.Mult(sample_matrix, dof_matrix);
+}
+
+void NDPos_TriangleElement::Project(
+   const FiniteElement &fe, ElementTransformation &Trans, DenseMatrix &I) const
+{
+   DenseMatrix samples;
+   Project_ND(tk, dof2tk, fe, Trans, samples);
+   interpolation_inverse.Mult(samples, I);
+}
+
+void NDPos_TriangleElement::ProjectGrad(
+   const FiniteElement &fe, ElementTransformation &Trans,
+   DenseMatrix &grad_matrix) const
+{
+   DenseMatrix samples;
+   ProjectGrad_ND(tk, dof2tk, fe, Trans, samples);
+   interpolation_inverse.Mult(samples, grad_matrix);
+}
+
+
+const real_t NDPos_SegmentElement::tk[1] = {1.};
+
+NDPos_SegmentElement::NDPos_SegmentElement(int p)
+   : VectorFiniteElement(1, Geometry::SEGMENT, p, p - 1,
+                         H_CURL, FunctionSpace::Pk),
+     dof2tk(dof)
+{
+   MFEM_VERIFY(p >= 1, "NDPos segment order must be positive.");
+   is_nodal = false;
+
+   const real_t *op = poly1d.OpenPoints(p - 1);
+   for (int i = 0; i < p; i++)
+   {
+      Nodes.IntPoint(i).x = op[i];
+      dof2tk[i] = 0;
+   }
+
+   DenseMatrix sampling(dof), shape(dof, 1);
+   for (int m = 0; m < dof; m++)
+   {
+      CalcVShape(Nodes.IntPoint(m), shape);
+      for (int j = 0; j < dof; j++) { sampling(m,j) = shape(j,0); }
+   }
+   interpolation_inverse.Factor(sampling);
+}
+
+void NDPos_SegmentElement::CalcVShape(const IntegrationPoint &ip,
+                                      DenseMatrix &shape) const
+{
+   Vector bernstein(dof + 1), derivative(dof + 1);
+   Poly_1D::CalcBernstein(dof, ip.x, bernstein, derivative);
+   shape.SetSize(dof, 1);
+   shape(0,0) = 1.0;
+   for (int m = 1; m < dof; m++) { shape(m,0) = derivative[m]; }
+}
+
+void NDPos_SegmentElement::GetLocalInterpolation(
+   ElementTransformation &, DenseMatrix &) const
+{
+   MFEM_ABORT("NDPos local refinement interpolation is not implemented.");
+}
+
+void NDPos_SegmentElement::GetLocalRestriction(
+   ElementTransformation &, DenseMatrix &) const
+{
+   MFEM_ABORT("NDPos local refinement restriction is not implemented.");
+}
+
+void NDPos_SegmentElement::GetTransferMatrix(
+   const FiniteElement &, ElementTransformation &, DenseMatrix &) const
+{
+   MFEM_ABORT("NDPos finite-element transfer is not implemented.");
+}
+
+void NDPos_SegmentElement::Project(
+   VectorCoefficient &vc, ElementTransformation &Trans, Vector &dofs) const
+{
+   Vector samples(dof);
+   Project_ND(tk, dof2tk, vc, Trans, samples);
+   interpolation_inverse.Mult(samples, dofs);
+}
+
+void NDPos_SegmentElement::ProjectFromNodes(
+   Vector &vc, ElementTransformation &Trans, Vector &dofs) const
+{
+   Vector samples(dof);
+   Project_ND(tk, dof2tk, vc, Trans, samples);
+   interpolation_inverse.Mult(samples, dofs);
+}
+
+void NDPos_SegmentElement::ProjectMatrixCoefficient(
+   MatrixCoefficient &mc, ElementTransformation &Trans, Vector &dofs) const
+{
+   Vector samples(dofs.Size());
+   ProjectMatrixCoefficient_ND(tk, dof2tk, mc, Trans, samples);
+   const int rows = samples.Size()/dof;
+   DenseMatrix sample_matrix(samples.GetData(), dof, rows);
+   DenseMatrix dof_matrix(dofs.GetData(), dof, rows);
+   interpolation_inverse.Mult(sample_matrix, dof_matrix);
+}
+
+void NDPos_SegmentElement::Project(
+   const FiniteElement &fe, ElementTransformation &Trans, DenseMatrix &I) const
+{
+   DenseMatrix samples;
+   Project_ND(tk, dof2tk, fe, Trans, samples);
+   interpolation_inverse.Mult(samples, I);
+}
+
+void NDPos_SegmentElement::ProjectGrad(
+   const FiniteElement &fe, ElementTransformation &Trans,
+   DenseMatrix &grad_matrix) const
+{
+   DenseMatrix samples;
+   ProjectGrad_ND(tk, dof2tk, fe, Trans, samples);
+   interpolation_inverse.Mult(samples, grad_matrix);
+}
+
 const real_t ND_WedgeElement::tk[15] =
 { 1.,0.,0., -1.,1.,0., 0.,-1.,0., 0.,0.,1., 0.,1.,0. };
 
