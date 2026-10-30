@@ -24,7 +24,6 @@
 #include "hologram.hpp"
 using namespace mfem;
 
-#include <algorithm>
 #include <cstdlib>
 
 namespace holo
@@ -48,8 +47,8 @@ public:
 
    PixelMesh(int pixels_x, int pixels_y, int order_in,
              real_t extent_x, real_t extent_y)
-      : fec(VerifyPixelOrder(pixels_x, pixels_y, order_in), /*dim=*/2,
-            BasisType::OpenHalfUniform),
+      : fec(VerifyPixelOrder(pixels_x, pixels_y, order_in),
+            2, BasisType::OpenHalfUniform),
         fec0(0, 2, BasisType::OpenHalfUniform),
         order(order_in),
         q1d(order_in + 1),
@@ -95,17 +94,11 @@ public:
 
    RowSum &Reducer() const { return rowSum; }
 
-   // Aborts: serial PixelMesh has no phase gather.
    void GatherDofs(const Vector &, Vector &) const
    {
-      MFEM_ABORT("serial PixelMesh has no phase gather");
+      MFEM_ABORT("Serial PixelMesh has no phase gather");
    }
 };
-
-// ----------------------------------------------------------------------------
-using PhaseRetrieval =
-   PhaseRetrievalImpl<PixelMesh, GridFunction,
-                      ComplexGridFunction, FresnelOp>;
 
 } // namespace holo
 
@@ -135,7 +128,7 @@ int main(int argc, char *argv[]) try
 
    const real_t wavelength = cfg.wavelength_nm * 1e-9;
 
-   // Configure the device, then pick the default propagator for that device.
+   // Configure the device, then pick the default propagator for that device
    Device device(cfg.device_config);
    if (!cfg.chose_propagator) { cfg.use_fft = holo::FftLinkedForDevice(); }
    args.PrintOptions(out);
@@ -149,17 +142,16 @@ int main(int argc, char *argv[]) try
    }
 
    const int img_w = gray.width, img_h = gray.height;
-   out << "Loaded " << img_w << "x" << img_h
-       << " from " << cfg.in_file << "\n";
+   mfem::out << "Loaded " << img_w << "x" << img_h
+             << " from " << cfg.in_file << "\n";
 
    // Compute mask's extent
    real_t extent_x, extent_y;
    holo::MaskExtent(img_w, img_h, extent_x, extent_y);
 
-   // Check the image size against the order and the propagator, the optics
-   // terms and the -gem memory
-   std::string imageError = holo::ImageError(img_w, img_h, cfg.order,
-                                              cfg.use_fft);
+   // Check the image size against the order and the propagator
+   std::string imageError =
+      holo::ImageError(img_w, img_h, cfg.order, cfg.use_fft);
    if (imageError.empty())
    {
       imageError = holo::OpticsError(cfg.wavelength_nm, cfg.z_prop, cfg.focal,
@@ -179,9 +171,13 @@ int main(int argc, char *argv[]) try
    auto amplitude = holo::GrayToReal2D(gray);
 
    // Create the solver
-   holo::PhaseRetrieval solver(std::move(amplitude), cfg.order, wavelength,
-                               extent_x, extent_y, cfg.z_prop, cfg.focal,
-                               cfg.use_fft);
+
+   using PhaseRetrieval =
+      holo::PhaseRetrievalImpl<holo::PixelMesh, GridFunction,
+      ComplexGridFunction, holo::FresnelOp>;
+   PhaseRetrieval solver(std::move(amplitude), cfg.order, wavelength,
+                         extent_x, extent_y, cfg.z_prop, cfg.focal,
+                         cfg.use_fft);
 
    // Solve the phase retrieval problem
    solver.Solve(cfg.nwt_max_iter, cfg.stall_pct * 0.01, 1.0, cfg.cgs_max_iter,
@@ -194,7 +190,7 @@ int main(int argc, char *argv[]) try
       return prop;
    },
    [] { return CGSolver(); },
-   [] { return holo::PhaseRetrieval::Newton(); });
+   [] { return PhaseRetrieval::Newton(); });
 
    // Get the phase mask
    const RealArray2D &phase = solver.MaskImage();

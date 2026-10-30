@@ -24,115 +24,12 @@
 #include "hologram.hpp"
 using namespace mfem;
 
-#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
 
 namespace holo
 {
-
-// ----------------------------------------------------------------------------
-// True on all ranks when error is empty on rank 0, which prints it otherwise
-inline bool RootOk(const std::string &error)
-{
-   int ok = error.empty() ? 1 : 0;
-   MPI_Bcast(&ok, 1, MPI_INT, 0, MPI_COMM_WORLD);
-   if (!ok && Mpi::Root()) { mfem::err << error << "\n"; }
-   return ok == 1;
-}
-
-// True when error is empty on all ranks,
-// otherwise rank 0 prints the error of the lowest rank with one
-inline bool AllOk(const std::string &error)
-{
-   const int size = Mpi::WorldSize(), rank = Mpi::WorldRank();
-   int first = error.empty() ? size : rank;
-   MPI_Allreduce(MPI_IN_PLACE, &first, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
-   if (first == size) { return true; }
-   std::string text = error;
-   if (first != 0 && (rank == first || rank == 0))
-   {
-      int length = static_cast<int>(error.size());
-      if (rank == first)
-      {
-         MPI_Send(&length, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-         MPI_Send(error.data(), length, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
-      }
-      else
-      {
-         MPI_Recv(&length, 1, MPI_INT, first, 0, MPI_COMM_WORLD,
-                  MPI_STATUS_IGNORE);
-         text.resize(static_cast<std::size_t>(length));
-         MPI_Recv(&text[0], length, MPI_CHAR, first, 1, MPI_COMM_WORLD,
-                  MPI_STATUS_IGNORE);
-      }
-   }
-   if (rank == 0) { mfem::err << text << "\n"; }
-   return false;
-}
-
-// Number of ranks sharing this rank's node, and of those using its GPU, by
-// PCI bus id
-inline void NodeRanks(int &nodeRanks, int &deviceRanks)
-{
-   constexpr int idSize = 32;
-   char busId[idSize] = "host";
-#if defined(MFEM_USE_CUDA)
-   if (Device::Allows(Backend::CUDA_MASK))
-   {
-      int dev = 0;
-      MFEM_GPU_CHECK(cudaGetDevice(&dev));
-      MFEM_GPU_CHECK(cudaDeviceGetPCIBusId(busId, idSize, dev));
-   }
-#elif defined(MFEM_USE_HIP)
-   if (Device::Allows(Backend::HIP_MASK))
-   {
-      int dev = 0;
-      MFEM_GPU_CHECK(hipGetDevice(&dev));
-      MFEM_GPU_CHECK(hipDeviceGetPCIBusId(busId, idSize, dev));
-   }
-#endif
-   MPI_Comm node;
-   MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL,
-                       &node);
-   MPI_Comm_size(node, &nodeRanks);
-   std::vector<char> ids(static_cast<std::size_t>(nodeRanks) * idSize);
-   MPI_Allgather(busId, idSize, MPI_CHAR, ids.data(), idSize, MPI_CHAR, node);
-   MPI_Comm_free(&node);
-   deviceRanks = 0;
-   for (int r = 0; r < nodeRanks; ++r)
-   {
-      const char *id = ids.data() + static_cast<std::size_t>(r) * idSize;
-      if (std::strncmp(busId, id, idSize) == 0) { ++deviceRanks; }
-   }
-}
-
-class ParRowSum : public RowSum
-{
-   const Array<int> &counts, &displs;
-   mutable Vector all;
-
-protected:
-   const real_t *AllRows(const Vector &local, int &rows) const override
-   {
-      if (Mpi::WorldSize() == 1) { return RowSum::AllRows(local, rows); }
-      rows = displs.Last() + counts.Last();
-      all.SetSize(rows);
-      // Add in global row order. MPI_Allreduce of the local totals would
-      // follow an order that changes with the rank count.
-      MPI_Allgatherv(const_cast<real_t *>(local.HostRead()), local.Size(),
-                     MPITypeMap<real_t>::mpi_type, all.HostWrite(),
-                     counts.GetData(), displs.GetData(),
-                     MPITypeMap<real_t>::mpi_type, MPI_COMM_WORLD);
-      return all.HostRead();
-   }
-
-public:
-   ParRowSum(int length, const Array<int> &rowCounts,
-             const Array<int> &rowDispls)
-      : RowSum(length), counts(rowCounts), displs(rowDispls) {}
-};
 
 // ----------------------------------------------------------------------------
 class PixelMesh
@@ -144,6 +41,30 @@ class PixelMesh
    const int order, q1d, nx, ny;
    const int y0, y1, elem0;
    Array<int> counts, displs, rowCounts, rowDispls;
+
+   class ParRowSum : public RowSum
+   {
+      const Array<int> &counts, &displs;
+      mutable Vector all;
+
+   protected:
+      const real_t *AllRows(const Vector &local, int &rows) const override
+      {
+         if (Mpi::WorldSize() == 1) { return RowSum::AllRows(local, rows); }
+         rows = displs.Last() + counts.Last();
+         all.SetSize(rows);
+         MPI_Allgatherv(const_cast<real_t *>(local.HostRead()), local.Size(),
+                        MPITypeMap<real_t>::mpi_type, all.HostWrite(),
+                        counts.GetData(), displs.GetData(),
+                        MPITypeMap<real_t>::mpi_type, MPI_COMM_WORLD);
+         return all.HostRead();
+      }
+
+   public:
+      ParRowSum(int length, const Array<int> &rowCounts,
+                const Array<int> &rowDispls)
+         : RowSum(length), counts(rowCounts), displs(rowDispls) {}
+   };
    mutable ParRowSum rowSum;
 
    static int RowBegin(int rows, int r, int np)
@@ -159,8 +80,8 @@ public:
 
    PixelMesh(int pixels_x, int pixels_y, int order_in,
              real_t extent_x, real_t extent_y)
-      : fec(VerifyPixelOrder(pixels_x, pixels_y, order_in), /*dim=*/2,
-            BasisType::OpenHalfUniform),
+      : fec(VerifyPixelOrder(pixels_x, pixels_y, order_in),
+            2, BasisType::OpenHalfUniform),
         fec0(0, 2, BasisType::OpenHalfUniform),
         order(order_in),
         q1d(order_in + 1),
@@ -287,31 +208,6 @@ public:
 };
 
 // ----------------------------------------------------------------------------
-// Copy between rows x nx local rows and the stage, which holds the local rows
-// split by the column block of each of the np ranks, rank by rank
-inline void StageTranspose(const Vector &src, Vector &dst, int rows, int nx,
-                           int np, bool toColumns)
-{
-   const int n = rows * nx;
-   const real_t *s = src.Read();
-   real_t *d = dst.Write();
-   mfem::forall(n, [=] MFEM_HOST_DEVICE (int idx)
-   {
-      const int i = idx / nx, c = idx - i * nx;
-      const int p = static_cast<int>(
-                       ((static_cast<long long>(c) + 1) * np - 1) / nx);
-      const int c0 = static_cast<int>((static_cast<long long>(nx) * p) / np);
-      const int c1 =
-         static_cast<int>((static_cast<long long>(nx) * (p + 1)) / np);
-      const int k = rows * c0 + i * (c1 - c0) + (c - c0);
-      const int from = toColumns ? idx : k, to = toColumns ? k : idx;
-      d[2 * to] = s[2 * from];
-      d[2 * to + 1] = s[2 * from + 1];
-   });
-}
-
-// Fresnel propagation of the local sample rows: the x factor on the local
-// rows, the y factor on a block of full columns after an all-to-all transpose
 class ParFresnel : public Operator
 {
    std::unique_ptr<FresnelOp> op;
@@ -326,7 +222,22 @@ class ParFresnel : public Operator
 
    void Transpose(const Vector &src, Vector &dst, bool toColumns) const
    {
-      StageTranspose(src, dst, rows, nx, np, toColumns);
+      const int n = rows * nx;
+      const real_t *s = src.Read();
+      real_t *d = dst.Write();
+      mfem::forall(n, [=] MFEM_HOST_DEVICE (int idx)
+      {
+         const int i = idx / nx, c = idx - i * nx;
+         const int p = static_cast<int>(
+                          ((static_cast<long long>(c) + 1) * np - 1) / nx);
+         const int c0 = static_cast<int>((static_cast<long long>(nx) * p) / np);
+         const int c1 =
+            static_cast<int>((static_cast<long long>(nx) * (p + 1)) / np);
+         const int k = rows * c0 + i * (c1 - c0) + (c - c0);
+         const int from = toColumns ? idx : k, to = toColumns ? k : idx;
+         d[2 * to] = s[2 * from];
+         d[2 * to + 1] = s[2 * from + 1];
+      });
    }
 
    void ToColumns(const Vector &y) const
@@ -422,9 +333,80 @@ public:
 };
 
 // ----------------------------------------------------------------------------
-using PhaseRetrieval =
-   PhaseRetrievalImpl<PixelMesh, ParGridFunction,
-                      ParComplexGridFunction, ParFresnel>;
+// True on all ranks when error is empty on rank 0, which prints it otherwise
+inline bool RootOk(const std::string &error)
+{
+   int ok = error.empty() ? 1 : 0;
+   MPI_Bcast(&ok, 1, MPI_INT, 0, MPI_COMM_WORLD);
+   if (!ok && Mpi::Root()) { mfem::err << error << "\n"; }
+   return ok == 1;
+}
+
+// True when error is empty on all ranks,
+// otherwise rank 0 prints the error of the lowest rank with one
+inline bool AllOk(const std::string &error)
+{
+   const int size = Mpi::WorldSize(), rank = Mpi::WorldRank();
+   int first = error.empty() ? size : rank;
+   MPI_Allreduce(MPI_IN_PLACE, &first, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+   if (first == size) { return true; }
+   std::string text = error;
+   if (first != 0 && (rank == first || rank == 0))
+   {
+      int length = static_cast<int>(error.size());
+      if (rank == first)
+      {
+         MPI_Send(&length, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
+         MPI_Send(error.data(), length, MPI_CHAR, 0, 1, MPI_COMM_WORLD);
+      }
+      else
+      {
+         MPI_Recv(&length, 1, MPI_INT, first, 0, MPI_COMM_WORLD,
+                  MPI_STATUS_IGNORE);
+         text.resize(static_cast<std::size_t>(length));
+         MPI_Recv(&text[0], length, MPI_CHAR, first, 1, MPI_COMM_WORLD,
+                  MPI_STATUS_IGNORE);
+      }
+   }
+   if (rank == 0) { mfem::err << text << "\n"; }
+   return false;
+}
+
+// Number of ranks sharing this rank's node, and of those using its GPU, by
+// PCI bus id
+inline void NodeRanks(int &nodeRanks, int &deviceRanks)
+{
+   constexpr int idSize = 32;
+   char busId[idSize] = "host";
+#if defined(MFEM_USE_CUDA)
+   if (Device::Allows(Backend::CUDA_MASK))
+   {
+      int dev = 0;
+      MFEM_GPU_CHECK(cudaGetDevice(&dev));
+      MFEM_GPU_CHECK(cudaDeviceGetPCIBusId(busId, idSize, dev));
+   }
+#elif defined(MFEM_USE_HIP)
+   if (Device::Allows(Backend::HIP_MASK))
+   {
+      int dev = 0;
+      MFEM_GPU_CHECK(hipGetDevice(&dev));
+      MFEM_GPU_CHECK(hipDeviceGetPCIBusId(busId, idSize, dev));
+   }
+#endif
+   MPI_Comm node;
+   MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL,
+                       &node);
+   MPI_Comm_size(node, &nodeRanks);
+   std::vector<char> ids(static_cast<std::size_t>(nodeRanks) * idSize);
+   MPI_Allgather(busId, idSize, MPI_CHAR, ids.data(), idSize, MPI_CHAR, node);
+   MPI_Comm_free(&node);
+   deviceRanks = 0;
+   for (int r = 0; r < nodeRanks; ++r)
+   {
+      const char *id = ids.data() + static_cast<std::size_t>(r) * idSize;
+      if (std::strncmp(busId, id, idSize) == 0) { ++deviceRanks; }
+   }
+}
 
 } // namespace holo
 
@@ -457,7 +439,7 @@ int main(int argc, char *argv[]) try
 
    const real_t wavelength = cfg.wavelength_nm * 1e-9;
 
-   // Configure the device, then pick the default propagator for that device.
+   // Configure the device, then pick the default propagator for that device
    Device device(cfg.device_config);
    if (!cfg.chose_propagator) { cfg.use_fft = holo::FftLinkedForDevice(); }
    if (Mpi::Root())
@@ -484,24 +466,22 @@ int main(int argc, char *argv[]) try
    if (!holo::RootOk(loadError)) { return EXIT_FAILURE; }
    int imgSize[2] = {gray.width, gray.height};
    MPI_Bcast(imgSize, 2, MPI_INT, 0, MPI_COMM_WORLD);
-
    const int img_w = imgSize[0], img_h = imgSize[1];
    if (Mpi::Root())
    {
-      out << "Loaded " << img_w << "x" << img_h
-          << " from " << cfg.in_file << "\n";
+      mfem::out << "Loaded " << img_w << "x" << img_h
+                << " from " << cfg.in_file << "\n";
    }
 
    // Compute mask's extent
    real_t extent_x, extent_y;
    holo::MaskExtent(img_w, img_h, extent_x, extent_y);
 
-   // Check the image size against the order, the propagator and the ranks,
-   // the optics terms and the -gem memory
-   int nodeRanks = 1, deviceRanks = 1;
-   holo::NodeRanks(nodeRanks, deviceRanks);
-   std::string imageError = holo::ImageError(img_w, img_h, cfg.order,
-                                              cfg.use_fft);
+   // Check the image size against the order and the propagator
+   int nodeRanks = 1, devRanks = 1;
+   holo::NodeRanks(nodeRanks, devRanks);
+   std::string imageError =
+      holo::ImageError(img_w, img_h, cfg.order, cfg.use_fft);
    if (imageError.empty() && Mpi::WorldSize() > img_h / (cfg.order + 1))
    {
       const int elemRows = img_h / (cfg.order + 1);
@@ -518,8 +498,8 @@ int main(int argc, char *argv[]) try
    }
    if (imageError.empty() && !cfg.use_fft)
    {
-      imageError = holo::GemMemoryError(img_w, img_h, cfg.gemMaxGib, nodeRanks,
-                                        deviceRanks);
+      imageError =
+         holo::GemMemoryError(img_w, img_h, cfg.gemMaxGib, nodeRanks, devRanks);
    }
    if (!holo::AllOk(imageError)) { return EXIT_FAILURE; }
 
@@ -533,9 +513,13 @@ int main(int argc, char *argv[]) try
    auto amplitude = holo::GrayToReal2D(gray);
 
    // Create the solver
-   holo::PhaseRetrieval solver(std::move(amplitude), cfg.order, wavelength,
-                               extent_x, extent_y, cfg.z_prop, cfg.focal,
-                               cfg.use_fft);
+   using PhaseRetrieval =
+      holo::PhaseRetrievalImpl<holo::PixelMesh, ParGridFunction,
+      ParComplexGridFunction, holo::ParFresnel>;
+
+   PhaseRetrieval solver(std::move(amplitude), cfg.order, wavelength,
+                         extent_x, extent_y, cfg.z_prop, cfg.focal,
+                         cfg.use_fft);
 
    // Solve the phase retrieval problem
    solver.Solve(cfg.nwt_max_iter, cfg.stall_pct * 0.01, 1.0, cfg.cgs_max_iter,
@@ -547,7 +531,7 @@ int main(int argc, char *argv[]) try
                                                 extent_y, cfg.z_prop);
    },
    [] { return CGSolver(MPI_COMM_WORLD); },
-   [] { return holo::PhaseRetrieval::Newton(MPI_COMM_WORLD); });
+   [] { return PhaseRetrieval::Newton(MPI_COMM_WORLD); });
 
    // Get the phase mask
    const RealArray2D &phase = solver.MaskImage();
