@@ -2098,6 +2098,7 @@ void DeviceGroupCommunicator::Exchange(const Array<T> &send_buf,
    const bool mpi_gpu_aware = Device::GetGPUAwareMPI();
    auto send_ptr = mpi_gpu_aware ? send_buf.Read() : send_buf.HostRead();
    auto recv_ptr = mpi_gpu_aware ? recv_buf.Write() : recv_buf.HostWrite();
+   if (mpi_gpu_aware) { MFEM_STREAM_SYNC; }
    num_requests = 0;
    for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
    {
