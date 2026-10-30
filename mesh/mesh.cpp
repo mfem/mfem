@@ -15522,6 +15522,14 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    const int NF   = fespace->GetNFbyType(type);
    const int NQ   = ir.GetNPoints();
 
+   if (fespace->GetNE() == 0 && NF == 0) { return; }
+
+   MFEM_VERIFY(fespace->GetNE() == 0 ||
+               (UsesTensorBasis(*fespace) &&
+                FaceQuadratureInterpolator::SupportsFESpace(*fespace)),
+               "FaceGeometricFactors requires a homogeneous tensor-product "
+               "nodal finite element space.");
+
    const FaceRestriction *face_restr = fespace->GetFaceRestriction(
                                           ElementDofOrdering::LEXICOGRAPHIC,
                                           type,
