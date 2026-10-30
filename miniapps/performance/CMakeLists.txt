@@ -21,7 +21,8 @@ else()
 endif()
 
 set(PERFORMANCE_CXX_OPTIONS)
-if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+if ((${CMAKE_CXX_COMPILER_ID} MATCHES "Clang") OR
+    (${CMAKE_CXX_COMPILER_ID} MATCHES "IntelLLVM"))
   list(APPEND PERFORMANCE_CXX_OPTIONS
     ${MFEM_PERF_CXX_ARCH_FLAGS}
     "-fcolor-diagnostics"
