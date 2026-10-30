@@ -84,7 +84,12 @@ struct complex_t
       const real_t ay = std::fabs(z.y);
       const real_t big = std::fmax(ax, ay);
       real_t mag;
-      if (big == 0)
+      // Both components infinite would make the ratio inf/inf.
+      if (std::isinf(ax) || std::isinf(ay))
+      {
+         mag = std::numeric_limits<real_t>::infinity();
+      }
+      else if (big == 0)
       {
          mag = -std::numeric_limits<real_t>::infinity();
       }

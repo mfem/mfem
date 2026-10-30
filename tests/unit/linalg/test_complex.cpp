@@ -283,6 +283,14 @@ TEST_CASE("complex_t range edges", "[Complex]")
       CheckClose(z, re, M_PI / 4, re * eps);
    }
 
+   SECTION("log of two infinities")
+   {
+      const complex_t z = log(complex_t(inf, inf));
+      REQUIRE(std::isinf(z.real()));
+      REQUIRE(z.real() > 0);
+      REQUIRE(std::fabs(z.imag() - M_PI / 4) <= eps);
+   }
+
    SECTION("tan of a large imaginary part")
    {
 #ifdef MFEM_USE_SINGLE
