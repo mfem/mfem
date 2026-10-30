@@ -30,6 +30,12 @@ void NonlinearForm::SetAssemblyLevel(AssemblyLevel assembly_level)
       case AssemblyLevel::PARTIAL:
          ext = new PANonlinearFormExtension(this);
          break;
+      case AssemblyLevel::ELEMENT:
+         ext = new EANonlinearFormExtension(this);
+         break;
+      case AssemblyLevel::FULL:
+         ext = new FANonlinearFormExtension(this);
+         break;
       case AssemblyLevel::LEGACY:
          // This is the default
          break;
