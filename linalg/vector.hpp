@@ -315,12 +315,11 @@ public:
        version. */
    const Memory<real_t> &GetMemory() const { return data; }
 
-   /// Update the memory location of the vector to match @a v.
-   void SyncMemory(const Vector &v) const { GetMemory().Sync(v.GetMemory()); }
+   /// @deprecated No-op; aliases share memory validity automatically.
+   MFEM_DEPRECATED void SyncMemory(const Vector &) const {}
 
-   /// Update the alias memory location of the vector to match @a v.
-   void SyncAliasMemory(const Vector &v) const
-   { GetMemory().SyncAlias(v.GetMemory(), Size()); }
+   /// @deprecated No-op; aliases share memory validity automatically.
+   MFEM_DEPRECATED void SyncAliasMemory(const Vector &) const {}
 
    /// Read the Vector data (host pointer) ownership flag.
    inline bool OwnsData() const { return data.OwnsHostPtr(); }

@@ -132,14 +132,11 @@ public:
       usedev = usedev_;
       MakeAlias(base_,offset_,size_);
    }
-   inline void SyncBase()
-   {
-      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSync not called");
-      base->Sync(*this);
-   }
+   /// @deprecated No-op; aliases share memory validity automatically.
+   MFEM_DEPRECATED inline void SyncBase() {}
    inline void SyncBaseAndReset()
    {
-      SyncBase();
+      MFEM_VERIFY(IsAliasForSync(),"MakeAliasForSync not called");
       base = nullptr;
       Reset();
    }

@@ -1050,11 +1050,13 @@ public:
    }
 
    /// @deprecated This is a no-op
+   [[deprecated]]
    void Sync(const Memory &other) const {}
 
    /// @deprecated This is a no-op. Note that previously this could copy data
    /// between host/device pointers; this is now deferred to the next call to
    /// Read/ReadWrite.
+   [[deprecated]]
    void SyncAlias(const Memory &base, int alias_size) const
    {
       MFEM_MEM_OP_DEBUG_SYNC_ALIAS(3, h_ptr, base.h_ptr,

@@ -768,11 +768,7 @@ void ComplexDPGWeakForm::RecoverFEMSolution(const Vector &X,
       // Private dofs back solve
       static_cond->ComputeSolution(X, x);
    }
-   else if (!P)
-   {
-      x.SyncMemory(X);
-   }
-   else
+   else if (P)
    {
       x.SetSize(2*P->Height());
       Vector X_r(const_cast<Vector &>(X), 0, X.Size()/2);

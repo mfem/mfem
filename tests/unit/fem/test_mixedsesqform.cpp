@@ -297,8 +297,6 @@ TEST_CASE("Parallel Mixed Sesquilinear Form",
    superlu.SetOperator(S_op);
    superlu.Mult(trueRHS, trueX);
 
-   trueX.GetBlock(0).SyncAliasMemory(trueX);
-   trueX.GetBlock(1).SyncAliasMemory(trueX);
 
    V.Distribute(trueX.GetBlock(0));
    A.Distribute(trueX.GetBlock(1));

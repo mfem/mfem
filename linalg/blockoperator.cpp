@@ -90,11 +90,6 @@ void BlockOperator::Mult(const Vector &x, Vector &y) const
          }
       }
    }
-
-   for (int iRow=0; iRow < nRowBlocks; ++iRow)
-   {
-      yblock.GetBlock(iRow).SyncAliasMemory(y);
-   }
 }
 
 // Action of the transpose operator
@@ -122,11 +117,6 @@ void BlockOperator::MultTranspose(const Vector &x, Vector &y) const
             yblock.GetBlock(iRow).Add(coef(jCol,iRow), tmp);
          }
       }
-   }
-
-   for (int iRow=0; iRow < nColBlocks; ++iRow)
-   {
-      yblock.GetBlock(iRow).SyncAliasMemory(y);
    }
 }
 
@@ -220,11 +210,6 @@ void BlockDiagonalPreconditioner::Mult(const Vector &x, Vector &y) const
          yblock.GetBlock(i) = xblock.GetBlock(i);
       }
    }
-
-   for (int i=0; i<nBlocks; ++i)
-   {
-      yblock.GetBlock(i).SyncAliasMemory(y);
-   }
 }
 
 // Action of the transpose operator
@@ -251,11 +236,6 @@ void BlockDiagonalPreconditioner::MultTranspose(const Vector & x,
       {
          yblock.GetBlock(i) = xblock.GetBlock(i);
       }
-   }
-
-   for (int i=0; i<nBlocks; ++i)
-   {
-      yblock.GetBlock(i).SyncAliasMemory(y);
    }
 }
 
@@ -342,11 +322,6 @@ void BlockLowerTriangularPreconditioner::Mult(const Vector &x,
          yblock.GetBlock(iRow) = tmp2;
       }
    }
-
-   for (int iRow=0; iRow < nBlocks; ++iRow)
-   {
-      yblock.GetBlock(iRow).SyncAliasMemory(y);
-   }
 }
 
 // Action of the transpose operator
@@ -387,11 +362,6 @@ void BlockLowerTriangularPreconditioner::MultTranspose(const Vector &x,
       {
          yblock.GetBlock(iRow) = tmp2;
       }
-   }
-
-   for (int iRow=nBlocks-1; iRow >=0; --iRow)
-   {
-      yblock.GetBlock(iRow).SyncAliasMemory(y);
    }
 }
 
