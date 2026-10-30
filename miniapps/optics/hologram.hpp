@@ -68,8 +68,9 @@ inline void HologramConfig::AddTo(mfem::OptionsParser &args)
    args.AddOption(&cgs_max_iter, "-cg", "--cg-iterations",
                   "Maximum CG iterations per Newton step (default 20).");
    args.AddOption(&order, "-p", "--order",
-                  "Pixel block degree. One block covers (order+1)^2 pixels "
-                  "(default 0).");
+                  "Pixel block degree. Both image dimensions must be "
+                  "divisible by order+1. The loader does no padding. One "
+                  "block covers (order+1)^2 pixels (default 0).");
    args.AddOption(&z_prop, "-z", "--z",
                   "Propagation distance in metres (default 0.80).");
    args.AddOption(&focal, "-f", "--focal",
