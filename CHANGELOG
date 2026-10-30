@@ -27,6 +27,9 @@ Meshing improvements
   refined on one side only: on parallel meshes, the edges on the unrefined side
   of essential boundaries were not essential, and on serial meshes, those of
   all interior boundaries were.
+- NURBS mesh HDF5 file I/O is now supported, by using mesh-explorer (option 'S')
+  or Mesh::SaveNURBSHDF5 for writing and the usual Mesh constructors or loaders
+  for reading.
 
 Linear and nonlinear solvers
 ----------------------------
