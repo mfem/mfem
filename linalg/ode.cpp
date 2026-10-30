@@ -1443,7 +1443,7 @@ void IMEXRK2::Step(Vector &x, real_t &t, real_t &dt)
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    f->Mult(x, k1_exp);
 
-   // K1_imp = f_imp(t + gamma*dt, y + gamma*dt*K1_imp), where y = x + gamma*dt*K1_ex. 
+   // K1_imp = f_imp(t + gamma*dt, y + gamma*dt*K1_imp), where y = x + gamma*dt*K1_ex.
    f->SetTime(t + gamma*dt);
    add(x, dt*gamma, k1_exp, y); // set y.
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
@@ -1492,7 +1492,7 @@ void IMEXRK2_3StageExplicit::Step(Vector &x, real_t &t, real_t &dt)
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_1);
    f->Mult(x, k1_exp);
 
-   // K1_imp = f_imp(t + gamma*dt, y + gamma*dt*K1_imp), where y = x + gamma*dt*K1_ex. 
+   // K1_imp = f_imp(t + gamma*dt, y + gamma*dt*K1_imp), where y = x + gamma*dt*K1_ex.
    f->SetTime(t + gamma*dt);
    add(x, dt*gamma, k1_exp, y);
    f->SetEvalMode(TimeDependentOperator::ADDITIVE_TERM_2);
