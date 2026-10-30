@@ -4147,13 +4147,15 @@ void FiniteElementSpace::GetTransferOperator(
    {
       if (!IsVariableOrder())
       {
-         Mesh::GeometryList elem_geoms(*mesh);
-
+         const CoarseFineTransformations &rtrans =
+            mesh->GetRefinementTransforms();
+         Array<Geometry::Type> parent_geometries;
+         rtrans.GetParentGeometries(parent_geometries);
          DenseMatrixStack localP[Geometry::NumGeom];
-         for (int i = 0; i < elem_geoms.Size(); i++)
+         for (int i = 0; i < parent_geometries.Size(); i++)
          {
-            GetLocalRefinementMatrices(coarse_fes, elem_geoms[i],
-                                       localP[elem_geoms[i]]);
+            const Geometry::Type geom = parent_geometries[i];
+            GetLocalRefinementMatrices(coarse_fes, geom, localP[geom]);
          }
          T.Reset(RefinementMatrix_main(coarse_fes.GetNDofs(),
                                        coarse_fes.GetElementToDofTable(),

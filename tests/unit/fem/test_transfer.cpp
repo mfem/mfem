@@ -822,6 +822,24 @@ TEST_CASE("Uniform pyramid refinement transfer", "[Transfer][Pyramid]")
    coarse_x -= coarse_exact;
    // Backward interpolation recovers the field on the coarse pyramid.
    REQUIRE(coarse_x.Normlinf() == Approx(0.0).margin(1e-12));
+
+   OperatorHandle matrix_free(Operator::ANY_TYPE);
+   OperatorHandle sparse(Operator::MFEM_SPARSEMAT);
+   fine_fes.GetTransferOperator(coarse_fes, matrix_free);
+   fine_fes.GetTransferOperator(coarse_fes, sparse);
+
+   Vector coarse_values(coarse_fes.GetVSize());
+   for (int i = 0; i < coarse_values.Size(); i++)
+   {
+      coarse_values(i) = (i%7 - 3)/7.0;
+   }
+   Vector matrix_free_values(fine_fes.GetVSize());
+   Vector sparse_values(fine_fes.GetVSize());
+   matrix_free->Mult(coarse_values, matrix_free_values);
+   sparse->Mult(coarse_values, sparse_values);
+   sparse_values -= matrix_free_values;
+   // Sparse and matrix-free transfers agree for arbitrary coarse DOF values.
+   REQUIRE(sparse_values.Normlinf() == Approx(0.0).margin(1e-12));
 }
 
 TEST_CASE("Uniform refinement with legacy RT0 collection", "[Transfer]")
