@@ -59,7 +59,7 @@ runs:
       run: |
         sed -i -e 's/CXX_STATIC_LIBRARY_LINKER__mfem_Release.*/CUSTOM_COMMAND/' build.ninja
         sed -i -e '/build tests\/unit\/all:/ s/tests\/unit\/[^ ]*unit_tests[^ ]*//g' build.ninja
-        sed -i -e '/^add_test(\[=\[\(unit_tests\|punit_tests\)\]=\]/ s/)/ "--input-file .\/list-test-names-${{matrix.tag}}" "--min-duration 1")/' tests/unit/CTestTestfile.cmake
+        sed -i -e '/^add_test(\[=\[\(unit_tests_cpu\|punit_tests_cpu_np=2\)\]=\]/ s/)/ "--input-file .\/list-test-names-${{matrix.tag}}" "--min-duration 1")/' tests/unit/CTestTestfile.cmake
       shell: bash
 
     - name: Copy Data
