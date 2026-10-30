@@ -75,12 +75,10 @@ set(XSDK_ENABLE_Fortran OFF)
 
 # Check if we need to enable C or Fortran.
 if (MFEM_USE_CONDUIT OR
-    MFEM_USE_SIDRE OR
     MFEM_USE_PETSC)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
-   #  * find_package(HDF5 REQUIRED) needed, in turn, by:
-   #    - find_package(AXOM REQUIRED)
+   #  * find_package(HDF5 REQUIRED) and
    #  * find_package(PETSc REQUIRED)
    set(XSDK_ENABLE_C ON)
 endif()
@@ -485,11 +483,6 @@ if (MFEM_USE_FMS)
     find_package(FMS REQUIRED fms)
 endif()
 
-# Axom/Sidre
-if (MFEM_USE_SIDRE)
-  find_package(Axom REQUIRED Axom)
-endif()
-
 # PUMI
 if (MFEM_USE_PUMI)
   # If PUMI_DIR was specified, only link to that directory,
@@ -587,7 +580,12 @@ endif()
 # Tribol
 if (MFEM_USE_TRIBOL)
   if (MFEM_USE_MPI)
-    find_package(Tribol REQUIRED tribol redecomp)
+    # Tribol's optional dependencies can contain imported CMake targets.
+    # Set up Tribol on each configure step to avoid stale target names.
+    unset(TRIBOL_FOUND CACHE)
+    unset(TRIBOL_LIBRARIES CACHE)
+    unset(TRIBOL_INCLUDE_DIRS CACHE)
+    find_package(Tribol REQUIRED tribol redecomp tribol_shared)
   else()
     message(FATAL_ERROR " *** Tribol requires that MPI be enabled.")
   endif()
@@ -636,7 +634,7 @@ find_package(Threads REQUIRED)
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
-    SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB HDF5
+    SUNDIALS PETSC SLEPC MUMPS FMS CONDUIT Ginkgo GNUTLS GSLIB HDF5
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 MKL_CPARDISO MKL_PARDISO AMGX MAGMA CUSPARSE CUBLAS CUDSS CALIPER CODIPACK
     BENCHMARK PARELAG TRIBOL MPI_CXX HIP HIPBLAS HIPSPARSE MOONOLITH BLITZ

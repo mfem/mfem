@@ -14,7 +14,7 @@
 #   - RAJA_LIBRARIES
 #   - RAJA_INCLUDE_DIRS
 
-if (RAJA_FOUND)
+if (RAJA_FOUND AND TARGET RAJA)
    return()
 endif()
 message(STATUS "Looking for RAJA ...")
