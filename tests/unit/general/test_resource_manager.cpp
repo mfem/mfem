@@ -15,7 +15,6 @@
 #include "general/forall.hpp"
 #include "general/resource_manager.hpp"
 
-#ifdef MFEM_USE_NEW_MEM_MANAGER
 using namespace mfem;
 
 TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
@@ -209,5 +208,3 @@ TEST_CASE("Resource Copy from inside a device-written region",
 
    src.Delete();
 }
-
-#endif

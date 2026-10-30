@@ -130,9 +130,6 @@ TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
    auto& inst = MemoryManager::Instance();
    std::ostream dev_null(&null_buffer);
    const auto n_ptr = inst.PrintPtrs(dev_null);
-#ifndef MFEM_USE_NEW_MEM_MANAGER
-   const auto n_alias = inst.PrintAliases(dev_null);
-#endif
    const auto pagesize = sysconf(_SC_PAGE_SIZE);
    REQUIRE(pagesize > 0);
 
@@ -140,18 +137,12 @@ TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
    {
       Aliases(n);
       REQUIRE(inst.PrintPtrs(dev_null) == n_ptr);
-#ifndef MFEM_USE_NEW_MEM_MANAGER
-      REQUIRE(inst.PrintAliases(dev_null) == n_alias);
-#endif
    }
 
    MmuCatch(pagesize / sizeof(real_t));
    ScanMemoryTypes();
 
    REQUIRE(inst.PrintPtrs(dev_null) == n_ptr);
-#ifndef MFEM_USE_NEW_MEM_MANAGER
-   REQUIRE(inst.PrintAliases(dev_null) == n_alias);
-#endif
 }
 #endif // _WIN32
 

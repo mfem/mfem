@@ -124,7 +124,6 @@ public:
    inline ~Array() { data.Delete(); }
 
 
-#ifdef MFEM_USE_NEW_MEM_MANAGER
    /// Creates and returns a temporary array. The result memory type will be
    /// @sa GetTemporaryMemorySpace(@a mt).
    static Array NewTemporary(int size,
@@ -133,7 +132,6 @@ public:
       Array res(size, GetTemporaryMemorySpace(mt));
       return res;
    }
-#endif
 
    /// Copy assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
@@ -924,10 +922,8 @@ inline void Array<T>::SetSize(int nsize, const T &initval)
       {
          GrowSize(nsize);
       }
-#ifdef MFEM_USE_NEW_MEM_MANAGER
       // resizing could have a fragmented memory validity
       data.Write(false, size, nsize - size);
-#endif
       for (int i = size; i < nsize; i++)
       {
          data[i] = initval;
@@ -982,12 +978,8 @@ template <class T>
 inline int Array<T>::Append(const T &el)
 {
    SetSize(size+1);
-#ifdef MFEM_USE_NEW_MEM_MANAGER
    // resizing could have a fragmented memory validity
    data.Write(false, size - 1, 1)[0] = el;
-#else
-   data[size-1] = el;
-#endif
    return size;
 }
 
@@ -998,7 +990,6 @@ inline int Array<T>::Append(const Array& els)
    const int to_append = els.Size();
 
    SetSize(size + to_append);
-#ifdef MFEM_USE_NEW_MEM_MANAGER
    Memory<T> orig;
    orig.MakeAlias(data, 0, old_size);
    Memory<T> dst;
@@ -1020,12 +1011,6 @@ inline int Array<T>::Append(const Array& els)
       // post: [0, size) have mixed validity
    }
    dst.CopyFrom(els.data, to_append);
-#else
-   for (int i = 0; i < to_append; i++)
-   {
-      data[old_size+i] = els[i];
-   }
-#endif
    return size;
 }
 
@@ -1033,11 +1018,9 @@ template <class T>
 inline int Array<T>::Prepend(const T &el)
 {
    SetSize(size + 1);
-#ifdef MFEM_USE_NEW_MEM_MANAGER
    // Resizing could have a fragmented memory validity.
    // Reads one entry more than strictly needed.
    data.HostReadWrite();
-#endif
    for (int i = size - 1; i > 0; i--)
    {
       data[i] = data[i-1];

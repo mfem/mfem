@@ -36,7 +36,6 @@
 #include <cstdlib>
 #include <tuple>
 
-#ifdef MFEM_USE_NEW_MEM_MANAGER
 #define MFEM_MMU_CPP
 #include "internal/mmu.cpp"
 
@@ -2539,5 +2538,3 @@ void MemoryManager::Unprotect(char *ptr, MemoryType loc, size_t offset,
    }
 }
 } // namespace mfem
-
-#endif

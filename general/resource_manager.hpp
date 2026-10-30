@@ -26,8 +26,6 @@
 #include <memory>
 #include <vector>
 
-#ifdef MFEM_USE_NEW_MEM_MANAGER
-
 #define MFEM_USE_TEMPORARY_WORK_BUFFERS
 
 namespace mfem
@@ -65,6 +63,14 @@ struct Allocator
 /// Adapter to allow MemoryManager to be used in place of std::allocator
 template <class T> class AllocatorAdaptor;
 
+/// MFEM's host and device memory manager.
+/** Tracks registered memory allocations, their associated host and device
+    pointers, and where each range of data is currently valid. Registered
+    Memory objects and their aliases share this validity information.
+
+    Access through Memory::Read(), Memory::Write(), and Memory::ReadWrite()
+    can allocate memory and copy data between host and device as needed.
+    Use Instance() to access the global memory manager. */
 class MemoryManager
 {
 private:
@@ -327,7 +333,9 @@ public:
 
    ~MemoryManager();
 
+   /// Return the default host MemoryType set by Configure().
    MemoryType GetHostMemoryType() const { return memory_types[0]; }
+   /// Return the default device MemoryType set by Configure().
    MemoryType GetDeviceMemoryType() const { return memory_types[1]; }
 
    MemoryType GetHostPinnedMemoryType() const { return memory_types[2]; }
@@ -342,15 +350,56 @@ public:
    }
    MemoryType GetTempManagedMemoryType() const { return temp_memory_types[3]; }
 
+   /// Return the dual MemoryType of @a mt.
+   /** The default dual memory types are:
+
+       memory type    | dual type
+       -------------- | --------------
+       HOST           | DEVICE
+       HOST_32        | DEVICE
+       HOST_64        | DEVICE
+       HOST_DEBUG     | DEVICE_DEBUG
+       HOST_UMPIRE    | DEVICE_UMPIRE
+       HOST_PINNED    | HOST_PINNED
+       MANAGED        | MANAGED
+       MANAGED_UMPIRE | MANAGED_UMPIRE
+       DEVICE         | HOST
+       DEVICE_DEBUG   | HOST_DEBUG
+       DEVICE_UMPIRE  | HOST_UMPIRE
+
+       Temporary memory types use the corresponding temporary dual types.
+       MemoryType::DEVICE_UMPIRE_2 is an alias for TEMP_DEVICE_UMPIRE.
+       The dual types can be modified before device configuration using
+       SetDualMemoryType() or by calling Device::SetMemoryTypes(). */
    static MemoryType GetDualMemoryType(MemoryType mt);
+
+   /// Set the dual memory type of @a mt to be @a dual_mt.
+   /** This method can only be called before configuration, i.e. before calling
+       Configure(), which is typically done during Device construction.
+
+       One type must be a host MemoryType and the other a device MemoryType.
+       Passing the same host type for both arguments is also allowed for pure
+       host execution; if that type is not also a device type, the dual is not
+       updated.
+
+       Changing a non-temporary type also updates its corresponding temporary
+       dual. This method does not change the reverse mapping from @a dual_mt
+       to @a mt. */
    static void SetDualMemoryType(MemoryType mt, MemoryType dual_mt);
 
    /// Forcibly deletes all device-type allocations (host-pinned, managed, and
    /// device)
    void Destroy();
 
+   /// Return the global memory manager instance.
    MFEM_ENZYME_INACTIVENOFREE static MemoryManager &Instance();
 
+   /// Configure the default host, device, host-pinned, and managed memory
+   /// types.
+   /** Called when configuring a Device. MemoryType::DEFAULT selects a type
+       appropriate for the enabled backends. The corresponding temporary
+       memory types are also configured, and the dual of @a host_loc is updated
+       to @a device_loc when the resolved types form a host/device pair. */
    void Configure(MemoryType host_loc = MemoryType::DEFAULT,
                   MemoryType device_loc = MemoryType::DEFAULT,
                   MemoryType hostpinned_loc = MemoryType::DEFAULT,
@@ -488,11 +537,51 @@ public:
    }
 };
 
-/// WARNING: In general using Memory is not thread safe, even when surrounded
-/// by an external synchronization mechanism like a mutex (due to calls into
-/// MemoryManager). The only operation which can be made thread-safe is
-/// operator[]; you will still need an external synchronization mechanism for
-/// parallel read/write, similar to raw pointer access.
+/// Class used by MFEM to store pointers to host and/or device memory.
+/** The template parameter T must be a plain-old-data (POD) type.
+
+    A Memory object can allocate memory or wrap externally allocated pointers
+    with a given MemoryType. Host and device pointers may refer to separate
+    allocations or to the same allocation, as with managed memory.
+
+    In many respects this class behaves like a pointer:
+    - Destruction does not delete the allocated memory. Call Delete() to free
+      the pointers owned by the object.
+    - New(), Wrap(), Reset(), and assignment replace the object's contents
+      without deleting its previous allocations.
+    In other respects this class differs from a pointer:
+    - Use MakeAlias() or CreateAlias() instead of pointer arithmetic.
+    - Const Memory objects expose read-only access to the data.
+    - Moving transfers the pointers and ownership flags and leaves the source
+      empty.
+    - Copying shares the pointers and copies ownership flags; it does not copy
+      the data. If both objects own the same allocation, the caller must resolve
+      the duplicate ownership using SetHostPtrOwner(), SetDevicePtrOwner(), or
+      ClearOwnerFlags() before deleting either object.
+
+    Read(), Write(), and ReadWrite() request access on host or device, either
+    directly or through a MemoryClass. They may allocate memory and copy data:
+    - Read() preserves the requested range's contents and makes it valid at
+      the requested location without invalidating the other location.
+    - ReadWrite() preserves the contents and makes the requested location the
+      only valid location for that range.
+    - Write() makes the requested location the only valid location for that
+      range without copying its previous contents.
+    Validity outside the requested range is unchanged. Registered copies and
+    aliases share validity information, so manual Sync() or SyncAlias() calls
+    are unnecessary.
+
+    operator[] and the implicit and explicit pointer conversions access host
+    memory without copying data or updating validity. The accessed host range
+    must already be valid; mutable access additionally requires that it be
+    invalid on device. Use HostRead(), HostWrite(), or HostReadWrite() to
+    establish the required validity before direct host access.
+
+    @warning In general using Memory is not thread safe, even when surrounded
+    by an external synchronization mechanism like a mutex (due to calls into
+    MemoryManager). The only operation which can be made thread-safe is
+    operator[]; you will still need an external synchronization mechanism for
+    parallel read/write, similar to raw pointer access. */
 template <class T> class Memory
 {
 protected:
@@ -580,29 +669,58 @@ protected:
    }
 
 public:
+   /// Construct an empty Memory object with the default host memory type.
    Memory() { MemoryManager::Instance(); };
+   /// Allocate @a size entries using the default host memory type.
    explicit Memory(int size);
+   /// Allocate @a count entries with MemoryType @a loc, without initializing
+   /// them.
+   /** The given memory location is marked valid. See New(size_t, MemoryType).
+       */
    Memory(size_t count, MemoryType loc);
+   /// Allocate @a count entries with the given host and device memory types.
+   /** The data is not initialized; the host location is marked valid. */
    Memory(size_t count, MemoryType hloc, MemoryType dloc);
+   /// Construct an empty Memory object with MemoryType @a mt.
    explicit Memory(MemoryType mt);
    Memory(MemoryType h_mt, MemoryType d_mt);
 
+   /// Wrap @a count entries at @a ptr using the default host memory type.
+   /** @a own determines whether Delete() will free @a ptr. */
    Memory(T *ptr, size_t count, bool own);
+   /// Wrap @a count entries at @a ptr with MemoryType @a loc.
+   /** @a ptr must be allocated appropriately for @a loc, which is marked valid.
+       @a own determines whether Delete() will free @a ptr. */
    Memory(T *ptr, size_t count, MemoryType loc, bool own);
+   /// Construct a non-owning alias of @a size entries of @a base at @a offset.
    Memory(const Memory &base, int offset, int size);
 
+   /// Share the pointers and copy the ownership flags of @a r, without copying
+   /// data.
    Memory(const Memory &r);
+   /// Transfer the pointers and ownership flags of @a r, leaving @a r empty.
    Memory(Memory &&r);
 
+   /// Share the pointers and copy the ownership flags of @a r, without copying
+   /// data.
+   /** The previous allocations of this object are not deleted. */
    Memory &operator=(const Memory &r);
+   /// Transfer the pointers and ownership flags of @a r, leaving @a r empty.
+   /** The previous allocations of this object are not deleted. */
    Memory &operator=(Memory &&r) noexcept;
 
+   /// Release this object's registration reference without deleting its
+   /// pointers.
+   /** Call Delete() to free owned allocations. */
    ~Memory();
 
+   /// Return the number of entries in this Memory object or alias.
    int Capacity() const { return static_cast<int>(size_); }
 
+   /// Return whether Delete() will free the host pointer.
    bool OwnsHostPtr() const { return flags & OWNS_HOST; }
 
+   /// Set or clear ownership of the host pointer for Delete().
    void SetHostPtrOwner(bool own) const
    {
       if (own)
@@ -615,8 +733,10 @@ public:
       }
    }
 
+   /// Return whether Delete() will free the device pointer.
    bool OwnsDevicePtr() const { return flags & OWNS_DEVICE; }
 
+   /// Set or clear ownership of the device pointer for Delete().
    void SetDevicePtrOwner(bool own) const
    {
       if (own)
@@ -629,12 +749,15 @@ public:
       }
    }
 
+   /// Clear the ownership flags for the host and device pointers.
    void ClearOwnerFlags() const
    {
       flags = static_cast<Flags>(flags & ~(OWNS_HOST | OWNS_DEVICE));
    }
 
+   /// Read the internal device flag.
    bool UseDevice() const { return flags & USE_DEVICE; }
+   /// Set the internal device flag.
    void UseDevice(bool use_dev) const
    {
       if (use_dev)
@@ -647,8 +770,14 @@ public:
       }
    }
 
+   /// Refer to @a size entries of @a base starting at @a offset, without
+   /// ownership.
+   /** Uses the same memory types as @a base. The range must fit within
+       base.Capacity(). The previous allocations of this object are not deleted.
+       */
    void MakeAlias(const Memory &base, int offset, int size);
 
+   /// Return a non-owning alias of @a size entries starting at @a offset.
    Memory CreateAlias(int offset, int size) const
    {
       Memory res;
@@ -656,6 +785,8 @@ public:
       return res;
    }
 
+   /// Return a non-owning alias from @a offset to the end of this Memory
+   /// object.
    Memory CreateAlias(int offset) const
    {
       Memory res;
@@ -663,6 +794,10 @@ public:
       return res;
    }
 
+   /// Set the device MemoryType to use, without allocating device memory.
+   /** Non-device types are ignored. Changing the type after device memory has
+       been allocated triggers an error. For a registered alias, this changes
+       the device type of the shared base allocation. */
    void SetDeviceMemoryType(MemoryType loc)
    {
       if (!IsDeviceMemory(loc))
@@ -689,27 +824,65 @@ public:
       }
    }
 
+   /// Make this object empty without deleting its current allocations.
+   /** Releases the registration reference and restores the default host type.
+       */
    void Reset();
 
+   /// Reset the object and set its host memory type to @a host_mt.
    void Reset(MemoryType host_mt);
 
+   /// Return true if the host pointer is null; default-constructed objects are
+   /// empty.
    bool Empty() const { return h_ptr == nullptr; }
 
+   /// Allocate @a size entries using the default host memory type.
+   /** The current allocations are not deleted. */
    void New(size_t size);
 
+   /// Allocate @a size entries with MemoryType @a loc.
+   /** The data is not initialized, but @a loc is marked valid.
+       MemoryType::DEFAULT selects the default host memory type.
+       For a host type, the device type is determined lazily using
+       MemoryManager::GetDualMemoryType(). For a device-only type, the host type
+       is set to its dual immediately. The current allocations are not deleted.
+       */
    void New(size_t size, MemoryType loc);
 
+   /// Allocate @a size entries with the given host and device memory types.
+   /** The data is not initialized; the host location is marked valid.
+       The current allocations are not deleted. */
    void New(size_t size, MemoryType hloc, MemoryType dloc);
 
+   /// Delete the owned host and device pointers and release their registration.
+   /** Use Reset() to make the object empty without deleting the allocations. */
    void Delete();
 
-   /// These functions should not be called if the pointer(s) being wrapped are
-   /// already registered.
+   /// Wrap @a size entries at @a ptr using the default host memory type.
+   /** @a own determines whether Delete() will free @a ptr. The pointer must not
+       already be registered; use CheckedWrap() in that case.
+       The current allocations are not deleted. */
    void Wrap(T *ptr, size_t size, bool own);
+   /// Wrap an externally allocated pointer with the given MemoryType @a loc.
+   /** @a ptr must be allocated appropriately for @a loc, which is marked valid.
+       @a own determines whether Delete() will free @a ptr. The pointer must not
+       already be registered; use CheckedWrap() in that case.
+       The current allocations are not deleted. */
    void Wrap(T *ptr, size_t size, MemoryType loc, bool own);
+   /// Wrap externally allocated host and device pointers with separate
+   /// ownership.
+   /** The pointers must be allocated appropriately for @a hloc and @a dloc.
+       @a own_host and @a own_device control deletion of each pointer by
+       Delete().
+       @a valid_host and @a valid_device specify the initial validity locations.
+       The pointers must not already be registered; use CheckedWrap() in that
+       case. The current allocations are not deleted. */
    void Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
              bool own_host, bool own_device, bool valid_host,
              bool valid_device);
+   /// Wrap host and device pointers with a common ownership flag.
+   /** Equivalent to the preceding overload with both ownership arguments set
+       to @a own. By default, only the device location is marked valid. */
    void Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
              bool own, bool valid_host = false, bool valid_device = true);
 
@@ -720,9 +893,22 @@ public:
    void CheckedWrap(T *h_ptr, T *d_ptr, size_t size, MemoryType loc, bool own,
                     bool valid_host, bool valid_device);
 
+   /// Get write-only access to @a size entries starting at @a offset.
+   /** @a on_device selects device access when true and host access when false.
+       The range must fit within Capacity(). Previous contents are not copied;
+       use ReadWrite() to preserve them. The other location is invalidated only
+       for the requested range. */
    MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(bool on_device, int offset, int size);
+   /// Get read-write access to @a size entries starting at @a offset.
+   /** @a on_device selects device access when true and host access when false.
+       The range must fit within Capacity(). If only read or only write access
+       is needed, use Read() or Write() instead to avoid unnecessary data copies
+       or invalidation. */
    MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(bool on_device, int offset,
                                             int size);
+   /// Get read-only access to @a size entries starting at @a offset.
+   /** The range must fit within Capacity(). Copies data as needed to make the
+       requested location valid without invalidating the other location. */
    MFEM_ENZYME_FN_LIKE_DYNCAST const T *Read(bool on_device, int offset,
                                              int size) const;
    MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(bool on_device, int size)
@@ -751,25 +937,46 @@ public:
       return Read(on_device, size_);
    }
 
+   /// Get write-only access to the entire host range without copying data.
    MFEM_ENZYME_FN_LIKE_DYNCAST T *HostWrite() { return Write(false, size_); }
+   /// Get read-write access to the entire host range, copying data as needed.
    MFEM_ENZYME_FN_LIKE_DYNCAST T *HostReadWrite()
    {
       return ReadWrite(false, size_);
    }
+   /// Get read-only access to the entire host range, copying data as needed.
    MFEM_ENZYME_FN_LIKE_DYNCAST const T *HostRead() const
    {
       return Read(false, size_);
    }
 
+   /// Direct host pointer access; requires host-only validity for the full
+   /// range.
+   /** Does not copy data or change validity. Returns nullptr for an empty
+       object. */
    MFEM_ENZYME_FN_LIKE_DYNCAST operator T *();
+   /// Direct read-only host pointer access; requires host validity for the full
+   /// range.
+   /** Does not copy data or change validity. Returns nullptr for an empty
+       object. */
    MFEM_ENZYME_FN_LIKE_DYNCAST operator const T *() const;
+   /// Direct host access with reinterpret_cast to U*, requiring host-only
+   /// validity.
    template <class U> explicit operator U *();
+   /// Direct read-only host access with reinterpret_cast to const U*.
+   /** Requires host validity for the full range. */
    template <class U> explicit operator const U *() const;
 
+   /// Get read-write access to a range using the given MemoryClass @a mc.
+   /** The range must fit within Capacity(). See ReadWrite(bool, int, int). */
    MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(MemoryClass mc, int offset,
                                             int size);
+   /// Get read-only access to a range using the given MemoryClass @a mc.
+   /** The range must fit within Capacity(). See Read(bool, int, int). */
    MFEM_ENZYME_FN_LIKE_DYNCAST const T *Read(MemoryClass mc, int offset,
                                              int size) const;
+   /// Get write-only access to a range using the given MemoryClass @a mc.
+   /** The range must fit within Capacity(). See Write(bool, int, int). */
    MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(MemoryClass mc, int offset, int size);
    MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(MemoryClass mc, int size)
    {
@@ -804,11 +1011,17 @@ public:
       return CheckRead(mc, 0, size);
    }
 
-   /// note: these do not check or update validity flags!
+   /// Access a host entry without copying data or updating validity.
+   /** The entry must be valid only on host. Debug builds check this condition.
+       */
    MFEM_ENZYME_FN_LIKE_DYNCAST T &operator[](size_t idx);
-   /// note: these do not check or update validity flags!
+   /// Access a read-only host entry without copying data or updating validity.
+   /** The entry must be valid on host. Debug builds check this condition. */
    MFEM_ENZYME_FN_LIKE_DYNCAST const T &operator[](size_t idx) const;
 
+   /// Delete an owned device pointer and invalidate its location.
+   /** If @a copy_to_host is true, first make the entire registered allocation
+       valid on host, copying data as needed. */
    void DeleteDevice(bool copy_to_host = true)
    {
       auto &inst = MemoryManager::Instance();
@@ -848,6 +1061,11 @@ public:
                                    alias_size * sizeof(T));
    }
 
+   /// Return a MemoryType in which the entire range is valid, preferring
+   /// device.
+   /** Returns MemoryType::DEFAULT if neither location holds a fully valid
+       range.
+       For an empty or unregistered object, returns GetHostMemoryType(). */
    MemoryType GetMemoryType() const
    {
       if (h_ptr == nullptr)
@@ -866,8 +1084,10 @@ public:
       }
    }
 
+   /// Return the host MemoryType of this object.
    MemoryType GetHostMemoryType() const { return h_mt; }
 
+   /// Return the device MemoryType, or MemoryType::DEFAULT if not registered.
    MemoryType GetDeviceMemoryType() const
    {
       auto &inst = MemoryManager::Instance();
@@ -878,6 +1098,7 @@ public:
       return MemoryType::DEFAULT;
    }
 
+   /// Return true if the entire range is valid on host.
    bool HostIsValid() const
    {
       auto &inst = MemoryManager::Instance();
@@ -889,6 +1110,7 @@ public:
       return h_ptr != nullptr;
    }
 
+   /// Return true if the entire range is valid on device.
    bool DeviceIsValid() const
    {
       auto &inst = MemoryManager::Instance();
@@ -899,6 +1121,7 @@ public:
       }
       return false;
    }
+   /// Copy @a size entries from @a src to this object.
    /// Pre-conditions:
    /// - size <= src.Capacity() and size <= this->Capacity()
    /// This is copied to everywhere this is valid! This means if this is
@@ -906,18 +1129,31 @@ public:
    /// neither is valid then no data is copied. Use this->Write/ReadWrite
    /// prior to CopyFrom to specify which buffer to copy into.
    void CopyFrom(const Memory &src, int size);
+   /// Copy @a size entries from a host pointer to this object's valid
+   /// locations.
+   /** @a size must not exceed Capacity(). See CopyFrom() for destination
+       validity. */
    void CopyFromHost(const T *src, int size);
 
-   /// Equivalent to dst.CopyFrom(*this, size)
+   /// Copy @a size entries to @a dst, equivalent to dst.CopyFrom(*this, size).
+   /** @a size must not exceed Capacity() of either object. */
    void CopyTo(Memory &dst, int size) const;
+   /// Copy @a size entries to the host pointer @a dst.
+   /** @a size must not exceed Capacity(). */
    void CopyToHost(T *dst, int size) const;
 
+   /// Print the registered allocation's pointers and validity ranges for
+   /// debugging.
    void PrintFlags() const
    {
       auto &inst = MemoryManager::Instance();
       inst.PrintSegment(segment);
    }
 
+   /// Compare @a size entries when the range is valid on both host and device.
+   /** Useful for debugging. Returns the result of std::memcmp(), or zero if
+       either location is invalid or the pointers refer to the same allocation.
+       @a size must not exceed Capacity(). */
    int CompareHostAndDevice(int size) const
    {
       auto &inst = MemoryManager::Instance();
@@ -1897,7 +2133,6 @@ template <class T> template <class U> Memory<T>::operator const U *() const
 }
 
 } // namespace mfem
-#endif
 
 namespace mfem
 {
@@ -1948,14 +2183,12 @@ public:
       else
       {
          base_mem.flags = view.data.flags;
-#ifdef MFEM_USE_NEW_MEM_MANAGER
          if (!base_mem.segment)
          {
             // Transfer the reference if registration occurred through the view.
             base_mem.segment = view.data.segment;
             view.data.segment = 0;
          }
-#endif
       }
       view.data.Reset();
    }

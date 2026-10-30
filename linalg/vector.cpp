@@ -1237,12 +1237,8 @@ void Vector::DeleteAt(const Array<int> &indices)
       const bool use_dev = UseDevice();
 
       // extra entry for number of selected out
-#ifdef MFEM_USE_NEW_MEM_MANAGER
       Array<int> workspace(size + 1,
                            MemoryManager::Instance().GetTempHostMemoryType());
-#else
-      Array<int> workspace(size + 1);
-#endif
       const auto d_flag = workspace.Write(use_dev);
       mfem::forall_switch(use_dev, size,
       [=] MFEM_HOST_DEVICE(int i) { d_flag[i] = true; });
