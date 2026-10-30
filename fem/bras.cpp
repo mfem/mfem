@@ -16,6 +16,7 @@
 #endif
 #include "../general/forall.hpp"
 #include "../linalg/batched/batched.hpp"
+#include <limits>
 
 namespace mfem
 {
@@ -595,12 +596,15 @@ void BRASPreconditioner::SetupTensor(Vector &w)
    const int nd = nd_s*vdim;
    const IntegrationPoint &center = Geometries.GetCenter(geom);
    DenseMatrix J, JtJ(dim);
+   // The relative tolerance of the affine and orthogonality checks, about
+   // 1e-12 in double precision.
+   const real_t rtol = 1e4*std::numeric_limits<real_t>::epsilon();
    for (int e = 0; e < ne; e++)
    {
       ElementTransformation &T = *fes->GetElementTransformation(e);
       T.SetIntPoint(&center);
       J = T.Jacobian();
-      const real_t tol = 1e-12*J.MaxMaxNorm();
+      const real_t tol = rtol*J.MaxMaxNorm();
       const IntegrationRule &ir = IntRules.Get(geom, 2*T.Order());
       for (int k = 0; k < ir.GetNPoints(); k++)
       {
@@ -621,7 +625,7 @@ void BRASPreconditioner::SetupTensor(Vector &w)
          for (int j = 0; j < i; j++)
          {
             MFEM_VERIFY(std::abs(JtJ(i,j)) <=
-                        1e-12*std::sqrt(JtJ(i,i)*JtJ(j,j)), prefix << "the "
+                        rtol*std::sqrt(JtJ(i,i)*JtJ(j,j)), prefix << "the "
                         "Jacobian of element " << e << " does not have "
                         "orthogonal columns, which ND and RT spaces require");
          }
@@ -831,7 +835,7 @@ void BRASPreconditioner::SetupChebyshev()
    // Keep the interval nondegenerate: if A_W is diagonal on the free DOFs
    // (e.g. when all the hanging DOFs depend only on essential DOFs), the
    // spectrum is {1}, a = b = 1, and any interval containing 1 is valid.
-   cheb_b = std::max({safety*b, 1.0, (1.0 + 1e-6)*a});
+   cheb_b = std::max({safety*b, 1.0_r, (1.0_r + 1e-6_r)*a});
 }
 
 // Let P_0 be P restricted to the columns of the free (non-essential) true

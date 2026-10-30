@@ -196,14 +196,14 @@ protected:
    /// The diagonal of $D_W = P_0^T W P_0$ (an L-vector): the sum of the
    /// weights of the element DOFs of each L-DOF.
    Vector dl;
-   /// Only if @ref nc: the L-vector equal to 1 on the J rows of $P_L$ and 0
-   /// on the H rows, and the L-vector equal to @ref dl on the H rows (that
-   /// is, $\Lambda_h$) and 0 on the J rows.
+   /// Only if @ref nc is true: the L-vector equal to 1 on the J rows of $P_L$
+   /// and 0 on the H rows, and the L-vector equal to @ref dl on the H rows
+   /// (that is, $\Lambda_h$) and 0 on the J rows.
    Vector jmask, hdl;
-   /// Only if @ref nc: the inverse of $\Lambda_u$ (a T-vector), and the same
-   /// with the essential DOFs set to zero.
+   /// Only if @ref nc is true: the inverse of $\Lambda_u$ (a T-vector), and
+   /// the same with the essential DOFs set to zero.
    Vector lu_inv, lu_scale;
-   /// Only if @ref nc: an interval [a, b] containing the spectrum of
+   /// Only if @ref nc is true: an interval [a, b] containing the spectrum of
    /// $S A_W$, used by NCMethod::CHEBYSHEV.
    real_t cheb_a = 1.0, cheb_b = 1.0;
 

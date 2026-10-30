@@ -598,7 +598,7 @@ DenseMatrix ReferenceNC(const Reference &r, NCMethod method, int degree)
          for (int j = 0; j < nt; j++) { v(j) = s(j)*Av(j); }
          v /= v.Norml2();
       }
-      b = std::max({1.1*b, 1.0, (1.0 + 1e-6)*a});
+      b = std::max({1.1_r*b, 1.0_r, (1.0_r + 1e-6_r)*a});
 
       // The Chebyshev semi-iteration for A_0 Q = I, with preconditioner S,
       // from Q = 0, gives the matrix Q = q_k(A_0).

@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
       real_t radius = infinity();
       for (int d = 0; d < sdim; d++)
       {
-         radius = min(radius, 0.25*(pmax(d) - pmin(d)));
+         radius = min(radius, 0.25_r*(pmax(d) - pmin(d)));
       }
       for (int l = 0; l < amr_steps; l++)
       {
