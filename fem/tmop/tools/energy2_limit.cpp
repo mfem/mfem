@@ -26,6 +26,7 @@ void TMOP_EnergyPA_C0_2D(const real_t lim_normal,
                          const int NE,
                          const DeviceTensor<5, const real_t> &J,
                          const ConstDeviceMatrix &W,
+                         const bool integ_over_target,
                          const real_t *b,
                          const real_t *bld,
                          const DeviceTensor<4, const real_t> &X0,
@@ -64,7 +65,8 @@ void TMOP_EnergyPA_C0_2D(const real_t lim_normal,
          MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
             const real_t *Jtr = &J(0, 0, qx, qy, e);
-            const real_t detJtr = kernels::Det<2>(Jtr);
+            const real_t detJtr =
+               integ_over_target ? kernels::Det<2>(Jtr) : 1.0;
             const real_t weight = W(qx, qy) * detJtr;
             const real_t coeff0 = const_c0 ? C0(0, 0, 0) : C0(qx, qy, e);
 
@@ -100,6 +102,7 @@ void TMOP_EnergyPA_AdaptLim_2D(const real_t lim_normal,
                                const int NE,
                                const DeviceTensor<5, const real_t> &J,
                                const ConstDeviceMatrix &W,
+                               const bool integ_over_target,
                                const real_t *b,
                                const ConstDeviceCube &ALFmF0,
                                DeviceTensor<3> &E,
@@ -127,7 +130,8 @@ void TMOP_EnergyPA_AdaptLim_2D(const real_t lim_normal,
          MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
             const real_t *Jtr = &J(0, 0, qx, qy, e);
-            const real_t detJtr = kernels::Det<2>(Jtr);
+            const real_t detJtr =
+               integ_over_target ? kernels::Det<2>(Jtr) : 1.0;
             const real_t weight = W(qx, qy) * detJtr;
 
             const real_t diff = ralf(qy, qx)  / adapt_lim_delta_max;
@@ -171,8 +175,8 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
 
-   TMOPEnergyCoef2D::Run(d, q, ln, LD, const_c0, C0, NE, J, W, b, bld, XL, X, E,
-                         exp_lim, d, q);
+   TMOPEnergyCoef2D::Run(d, q, ln, LD, const_c0, C0, NE, J, W,
+                         integ_over_target, b, bld, XL, X, E, exp_lim, d, q);
    return PA.E * PA.O;
 }
 
@@ -213,8 +217,8 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_2D() const
                        ? Reshape(ALC_all + c, 1, 1, 1)
                        : Reshape(ALC_all + c * ALC_stride, q, q, NE);
       const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, NE);
-      TMOPEnergyAdaptLim2D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, b,
-                                ALFmF0, E, d, q);
+      TMOPEnergyAdaptLim2D::Run(d, q, ln, delta_max, const_coeff, ALC, NE,
+                                J, W, integ_over_target, b, ALFmF0, E, d, q);
       energy += PA.E * PA.O;
    }
 

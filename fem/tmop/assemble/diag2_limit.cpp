@@ -75,6 +75,7 @@ void TMOP_AssembleDiagPA_AdaptLim_2D(const real_t lim_normal,
                                      const int NE,
                                      const DeviceTensor<5, const real_t> &J,
                                      const ConstDeviceMatrix &W,
+                                     const bool integ_over_target,
                                      const real_t *b,
                                      const DeviceTensor<4, const real_t> &ALF_grad,
                                      const DeviceTensor<5, const real_t> &ALF_hess,
@@ -117,7 +118,8 @@ void TMOP_AssembleDiagPA_AdaptLim_2D(const real_t lim_normal,
                   const real_t bb = By * By;
 
                   const real_t *Jtr = &J(0, 0, qx, qy, e);
-                  const real_t detJtr = kernels::Det<2>(Jtr);
+                  const real_t detJtr =
+                     integ_over_target ? kernels::Det<2>(Jtr) : 1.0;
                   const real_t weight = W(qx, qy) * detJtr;
                   const real_t coeff = const_coeff ? ALC(0,0,0) : ALC(qx, qy, e);
                   const real_t factor = weight * coeff * normal_inv_delta_sq;
@@ -212,7 +214,8 @@ void TMOP_Integrator::AssembleDiagonalPA_AdaptLim_2D(Vector &diagonal) const
       const auto ALF_hess = Reshape(ALFH_all + c * ALFH_stride, 2, 2, q, q, NE);
 
       TMOPAssembleDiagAdaptLim2D::Run(d, q, ln, delta_max, const_coeff, ALC, NE,
-                                      J, W, B, ALF_grad, ALF_hess, ALFmF0, D, d, q);
+                                      J, W, integ_over_target, B, ALF_grad,
+                                      ALF_hess, ALFmF0, D, d, q);
    }
 }
 
