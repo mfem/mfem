@@ -95,6 +95,34 @@ private:
    bool usedev;
 public:
    PetscMemory()                      { Reset(); }
+   /// Wrap the current PETSc buffer, sharing an existing registration if present.
+   void WrapPointer(real_t *ptr, int size, bool on_device)
+   {
+      CheckedWrap(ptr, size, on_device ? MemoryType::DEVICE : MemoryType::HOST,
+                  false);
+      // Own any device buffer allocated by MFEM for an unregistered host pointer.
+      EnsureRegistered();
+   }
+   /// Import a PETSc buffer without changing validity until its mask is applied.
+   void CopyFromPetsc(const real_t *ptr, bool on_device) const
+   {
+      if (!size_) { return; }
+      real_t *dst = GetRawPointer(on_device);
+      const auto mt = on_device ? GetDeviceMemoryType() : GetHostMemoryType();
+      MemoryManager::Instance().MemCopy(dst, ptr, size_ * sizeof(real_t), mt,
+                                        on_device ? MemoryType::DEVICE :
+                                        MemoryType::HOST);
+   }
+   /// Export a valid MFEM buffer to PETSc without changing MFEM validity.
+   void CopyToPetsc(real_t *ptr, bool on_device) const
+   {
+      if (!size_) { return; }
+      const real_t *src = GetRawPointer(on_device);
+      const auto mt = on_device ? GetDeviceMemoryType() : GetHostMemoryType();
+      MemoryManager::Instance().MemCopy(ptr, src, size_ * sizeof(real_t),
+                                        on_device ? MemoryType::DEVICE :
+                                        MemoryType::HOST, mt);
+   }
    void SetHostValid() const
    {
       const_cast<PetscMemory *>(this)->SetHostValidity(0, size_, true);
@@ -177,8 +205,11 @@ protected:
    // Set Vec type from Device type
    void SetVecType_();
 
-   // Update Memory flags from PETSc offloadmask
+   // Import PETSc data and validity when returning to MFEM.
    void SetFlagsFromMask_() const;
+
+   // Export MFEM data and validity before calling PETSc.
+   void UpdateVecFromFlags_() const;
 
 public:
    /// Creates vector with given global size and partitioning of the columns.
@@ -233,7 +264,10 @@ public:
    /// Returns the global number of rows
    PetscInt GlobalSize() const;
 
-   /// Typecasting to PETSc's Vec type
+   /// Typecasting to PETSc's Vec type.
+   /** Call UpdateVecFromFlags() before using MFEM changes through PETSc, and
+       UpdateMemoryFromVec() after PETSc changes before accessing them through
+       MFEM. */
    operator petsc::Vec() const { return x; }
 
    /// Typecasting to PETSc object
@@ -297,8 +331,13 @@ public:
    /** @brief Completes the operation started with PlaceMemory */
    void ResetMemory();
 
-   /** @brief Update PETSc's Vec after having accessed its data via GetMemory() */
+   /// Export MFEM data and validity to PETSc, including changes through aliases.
+   /** A read-locked Vec remains authoritative and is left unchanged. Export
+       MFEM changes before locking the Vec for use as a PETSc input. */
    void UpdateVecFromFlags();
+
+   /// Import PETSc data and validity after modifying the Vec through PETSc.
+   void UpdateMemoryFromVec() const { SetFlagsFromMask_(); }
 
    /// Set random values
    void Randomize(PetscInt seed = 0);

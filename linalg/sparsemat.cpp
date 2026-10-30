@@ -220,7 +220,7 @@ SparseMatrix::SparseMatrix(Memory<int> i, Memory<int> j, Memory<real_t> data,
    NodesMem = NULL;
 #endif
 
-   if (!A)
+   if (A.Empty())
    {
       const int nnz = *I.Read(false, height, 1);
       A.New(nnz);

@@ -1209,8 +1209,8 @@ template <class T> void Memory<T>::New(size_t size)
    {
       inst.Erase(segment);
       segment = 0;
-      offset_ = 0;
    }
+   offset_ = 0;
    h_mt = inst.GetHostMemoryType();
    if (h_mt == MemoryType::HOST)
    {
@@ -1265,8 +1265,8 @@ void Memory<T>::New_(size_t size, MemoryType hloc, MemoryType dloc,
    {
       inst.Erase(segment);
       segment = 0;
-      offset_ = 0;
    }
+   offset_ = 0;
    h_mt = hloc;
    if (hloc == MemoryType::HOST)
    {
@@ -1375,7 +1375,8 @@ template <class T> void Memory<T>::Delete()
          }
          h_ptr = nullptr;
       }
-      // segment and offset_ should already be zero
+      // An unregistered alias no longer refers to a range after deletion.
+      offset_ = 0;
       size_ = 0;
    }
 }
@@ -1549,8 +1550,8 @@ template <class T> void Memory<T>::Wrap(T *ptr, size_t size, bool own)
    {
       inst.Erase(segment);
       segment = 0;
-      offset_ = 0;
    }
+   offset_ = 0;
    h_ptr = ptr;
    size_ = size;
    flags = own ? OWNS_HOST : NONE;
@@ -1636,8 +1637,8 @@ void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
    {
       inst.Erase(segment);
       segment = 0;
-      offset_ = 0;
    }
+   offset_ = 0;
    h_ptr = h_ptr_;
    h_mt = hloc;
    size_ = size;
@@ -1699,7 +1700,6 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
       inst.Erase(segment);
    }
    h_ptr = base.h_ptr + offset;
-   offset_ = base.offset_ + offset;
    size_ = size;
    h_mt = base.h_mt;
    // Copy the flags from 'base' and resets both OWNS_HOST and OWNS_DEVICE
@@ -1728,6 +1728,9 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
       }
    }
    segment = base.segment;
+   // An unregistered alias uses h_ptr as its own allocation origin. Only
+   // registered aliases need an offset relative to the shared segment.
+   offset_ = segment ? base.offset_ + offset : 0;
    if (segment)
    {
       ++inst.storage.GetSegment(segment).ref_count;
@@ -1809,8 +1812,8 @@ template <class T> void Memory<T>::Reset(MemoryType host_mt)
    {
       inst.Erase(segment);
       segment = 0;
-      offset_ = 0;
    }
+   offset_ = 0;
    h_ptr = nullptr;
    size_ = 0;
    flags = NONE;

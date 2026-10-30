@@ -27,6 +27,83 @@ public:
 };
 }
 
+TEST_CASE("Resource aliases reset offsets when detached or registered",
+          "[Resource Manager][GPU]")
+{
+   auto &inst = MemoryManager::Instance();
+   const MemoryType d_mt = IsDeviceMemory(inst.GetDeviceMemoryType()) ?
+                           inst.GetDeviceMemoryType() : MemoryType::DEVICE_DEBUG;
+   Memory<int> base(8, MemoryType::HOST);
+   auto original = base.HostWrite();
+   for (int i = 0; i < 8; ++i) { original[i] = 10 + i; }
+   auto alias = base.CreateAlias(2, 3);
+   Memory<int> external_memory(4);
+   auto external = external_memory.HostWrite();
+   constexpr size_t external_bytes = 4 * sizeof(int);
+   int *external_device = nullptr;
+   bool detached = true;
+
+   SECTION("Allocate with explicit host and device types")
+   {
+      alias.New(4, MemoryType::HOST, d_mt);
+   }
+   SECTION("Allocate with the default host type, then register")
+   {
+      alias.New(4);
+      alias.SetDeviceMemoryType(d_mt);
+   }
+   SECTION("Allocate with an explicit host type, then register")
+   {
+      alias.New(4, MemoryType::HOST);
+      alias.SetDeviceMemoryType(d_mt);
+   }
+   SECTION("Wrap a host pointer, then register")
+   {
+      alias.Wrap(external, 4, false);
+      alias.SetDeviceMemoryType(d_mt);
+   }
+   SECTION("Wrap a typed host pointer, then register")
+   {
+      alias.Wrap(external, 4, inst.GetHostMemoryType(), false);
+      alias.SetDeviceMemoryType(d_mt);
+   }
+   SECTION("Wrap separate host and device pointers")
+   {
+      external_device = reinterpret_cast<int *>(inst.Alloc(external_bytes, d_mt));
+      alias.Wrap(external, external_device, 4, inst.GetHostMemoryType(), d_mt,
+                 false, true, false);
+   }
+   SECTION("Register a nested alias without reallocating")
+   {
+      auto nested = alias.CreateAlias(1, 2);
+      nested.SetDeviceMemoryType(d_mt);
+      const auto ptr = nested.Read(true);
+      REQUIRE(ptr != nullptr);
+      REQUIRE(nested.HostRead() == original + 3);
+      REQUIRE(nested.HostRead()[0] == 13);
+      REQUIRE(nested.HostRead()[1] == 14);
+      nested.Delete();
+      detached = false;
+   }
+
+   if (detached)
+   {
+      REQUIRE(alias.Capacity() == 4);
+      auto hptr = alias.HostWrite();
+      for (int i = 0; i < 4; ++i) { hptr[i] = 40 + i; }
+      auto dptr = alias.ReadWrite(true);
+      forall(4, [=] MFEM_HOST_DEVICE(int i) { dptr[i] += 10; });
+      const auto result = alias.HostRead();
+      for (int i = 0; i < 4; ++i) { REQUIRE(result[i] == 50 + i); }
+   }
+   const auto unchanged = base.HostRead();
+   for (int i = 0; i < 8; ++i) { REQUIRE(unchanged[i] == 10 + i); }
+   alias.Delete();
+   inst.Dealloc(reinterpret_cast<char *>(external_device), external_bytes, d_mt);
+   external_memory.Delete();
+   base.Delete();
+}
+
 TEST_CASE("Resource raw pointers preserve validity and do not copy data",
           "[Resource Manager][GPU]")
 {

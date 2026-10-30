@@ -16,6 +16,37 @@
 namespace mfem
 {
 
+TEST_CASE("SparseMatrix memory constructor preserves data validity",
+          "[SparseMatrix][GPU]")
+{
+   int rows[2] = {0, 1};
+   int columns[1] = {0};
+   Memory<int> i(rows, 2, MemoryType::HOST, false);
+   Memory<int> j(columns, 1, MemoryType::HOST, false);
+   auto &inst = MemoryManager::Instance();
+   const MemoryType d_mt = IsDeviceMemory(inst.GetDeviceMemoryType()) ?
+                           inst.GetDeviceMemoryType() : MemoryType::DEVICE_DEBUG;
+   Memory<real_t> values(1, MemoryType::HOST, d_mt);
+   values.HostWrite()[0] = 42.0;
+   bool host_valid = true;
+
+   SECTION("Device-valid data")
+   {
+      auto ptr = values.Write(true);
+      forall(1, [=] MFEM_HOST_DEVICE(int) { ptr[0] = 42.0; });
+      host_valid = false;
+   }
+   SECTION("Data valid on both host and device")
+   {
+      values.Read(true);
+   }
+
+   SparseMatrix matrix(std::move(i), std::move(j), std::move(values), 1, 1, true);
+   REQUIRE(matrix.GetMemoryData().HostIsValid() == host_valid);
+   REQUIRE(matrix.GetMemoryData().DeviceIsValid());
+   REQUIRE(matrix.GetMemoryData().HostRead()[0] == MFEM_Approx(42.0));
+}
+
 TEST_CASE("SparseMatrixAbsMult", "[SparseMatrixAbsMult]")
 {
    int dim = 2;
