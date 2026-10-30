@@ -547,7 +547,7 @@ protected:
    SparseMatrix *VariableOrderRefinementMatrix(const int coarse_ndofs,
                                                const Table &coarse_elem_dof) const;
 
-   void GetLocalRefinementMatrices(Geometry::Type geom,
+   void GetLocalRefinementMatrices(Geometry::Type parent_geom,
                                    DenseMatrixStack &localP) const;
    void GetLocalDerefinementMatrices(Geometry::Type geom,
                                      DenseTensor &localR) const;
@@ -570,7 +570,7 @@ protected:
        of coarse_fes. Finally, it assumes that the spaces this and coarse_fes are
        NOT variable-order spaces. */
    void GetLocalRefinementMatrices(const FiniteElementSpace &coarse_fes,
-                                   Geometry::Type geom,
+                                   Geometry::Type parent_geom,
                                    DenseMatrixStack &localP) const;
 
    /// Help function for constructors + Load().

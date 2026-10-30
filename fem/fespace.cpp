@@ -1671,12 +1671,30 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    Array<int> dofs, coarse_dofs, coarse_vdofs;
    Vector row;
 
-   SparseMatrix *P = new SparseMatrix(GetVSize(), coarse_ndofs*vdim);
+   const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
+
+   // Fixed-width CSR is valid when all used parents have the same DOF count,
+   // even if their children have different geometries or DOF counts.
+   int coarse_ldof = -1;
+   for (int k = 0; k < mesh->GetNE(); k++)
+   {
+      const int ldof = coarse_elem_dof.RowSize(rtrans.embeddings[k].parent);
+      if (coarse_ldof < 0) { coarse_ldof = ldof; }
+      else if (coarse_ldof != ldof) { coarse_ldof = -1; break; }
+   }
+
+   SparseMatrix *P;
+   if (coarse_ldof >= 0)
+   {
+      P = new SparseMatrix(GetVSize(), coarse_ndofs*vdim, coarse_ldof);
+   }
+   else
+   {
+      P = new SparseMatrix(GetVSize(), coarse_ndofs*vdim);
+   }
 
    Array<int> mark(P->Height());
    mark = 0;
-
-   const CoarseFineTransformations &rtrans = mesh->GetRefinementTransforms();
 
    for (int k = 0; k < mesh->GetNE(); k++)
    {
@@ -1708,7 +1726,7 @@ SparseMatrix *FiniteElementSpace::RefinementMatrix_main(
    }
 
    MFEM_ASSERT(mark.Sum() == P->Height(), "Not all rows of P set.");
-   P->Finalize();
+   if (coarse_ldof < 0) { P->Finalize(); }
    return P;
 }
 
