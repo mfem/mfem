@@ -1160,7 +1160,7 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
          const char *data_name = data_xml->Attribute("Name");
          const bool is_material = StringCompare(data_name, "material");
          const bool is_attribute = StringCompare(data_name, "attribute");
-         if (is_material || (is_attribute && attributes_xml == NULL))
+         if (is_material || (is_attribute && attributes_xml == nullptr))
          {
             attributes_xml = data_xml;
          }
