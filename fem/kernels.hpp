@@ -52,7 +52,7 @@ template <int VDIM, int DIM, int N>
 using vd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, N, 0, 0>;
 
 // on GPU, SetMaxOf is a no-op, for minimal register usage
-constexpr int SetMaxOf(int n) { return n; }
+MFEM_CONSTEVAL int SetMaxOf(int n) { return n; }
 #else
 template <int N>
 using s_regs2d_t = mfem::future::tensor<real_t, N, N>;
@@ -74,12 +74,12 @@ using vd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N, N>;
 
 // on CPU, get next multiple of 4, allowing better alignments
 template <int N>
-constexpr int NextMultipleOf(int n)
+MFEM_CONSTEVAL int NextMultipleOf(int n)
 {
    static_assert(N > 0 && (N & (N - 1)) == 0, "N must be a power of 2");
    return (n + (N - 1)) & ~(N - 1);
 }
-constexpr int SetMaxOf(int n) { return NextMultipleOf<4>(n); }
+MFEM_CONSTEVAL int SetMaxOf(int n) { return NextMultipleOf<4>(n); }
 #endif // CUDA/HIP && DEVICE_COMPILE
 
 /// Load 2D matrix into shared memory

@@ -866,7 +866,7 @@ inline void PAHcurlHdivApplyTranspose3D(const int d1d,
 
 namespace curlinterp
 {
-constexpr int NBZ3D(int ndof_o, int nquad_o, int mdq)
+MFEM_CONSTEVAL int NBZ3D(int ndof_o, int nquad_o, int mdq)
 {
    if (ndof_o <= 0 || nquad_o <= 0)
    {
