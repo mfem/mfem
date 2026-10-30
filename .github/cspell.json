@@ -1,0 +1,38 @@
+{
+  "version": "0.2",
+  "globRoot": "..",
+  "language": "en-US,en-GB",
+  "useGitignore": true,
+  "enableGlobDot": true,
+  "files": ["**/*.{cpp,hpp,c,h,cu,cuh,md,dox}"],
+  "ignorePaths": [
+    "data/**",
+    "tests/unit/data/**",
+    "tests/unit/catch.hpp",
+    "fem/picojson.h"
+  ],
+  "minWordLength": 3,
+  "unknownWords": "report-common-typos",
+  "overrides": [
+    {
+      "filename": "**/*.{cpp,hpp,c,h,cu,cuh}",
+      "includeRegExpList": ["CStyleComment"],
+      "dictionaries": ["!cpp", "!cpp-compound-words"]
+    }
+  ],
+  "words": [
+    "Bulle",
+    "Comput",
+    "Equil",
+    "fom",
+    "fpt",
+    "lod",
+    "nce",
+    "Norml2",
+    "Numer",
+    "hypre_BoomerAMGCoarseParms",
+    "rhe",
+    "siz",
+    "stip"
+  ]
+}

@@ -176,3 +176,27 @@ jobs:
         run: |
           echo "::warning::branch-history check failed, but the" \
             "'branch-history-override' label is set."
+
+  spellcheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: |
+      (github.event_name == 'push' ||
+       github.event_name == 'workflow_dispatch' ||
+       github.event.pull_request.head.repo.full_name != github.repository)
+    steps:
+      - name: checkout mfem
+        uses: actions/checkout@v6
+
+      - name: Check spelling in comments and documentation
+        uses: streetsidesoftware/cspell-action@ce1816e4ce36532956ac6e983737392774b6e169 # v9.2.0
+        with:
+          config: .github/cspell.json
+          use_cspell_files: true
+          check_dot_files: true
+          incremental_files_only: false
+          report: typos
+          inline: error
+          strict: true
+          summary: true
