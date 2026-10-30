@@ -41,16 +41,16 @@
 #endif
 #endif
 
-namespace holo
-{
-
 using mfem::real_t;
 using mfem::Vector;
 using mfem::operator""_r;
 
 using complex_t = mfem::complex_t;
-
+using RealArray2D = mfem::Array2D<mfem::real_t>;
 using ComplexArray1D = mfem::Array<complex_t>;
+
+namespace holo
+{
 
 // Product a * b when it fits in an int, otherwise -1
 inline int CheckedIntProduct(std::size_t a, std::size_t b)
@@ -75,8 +75,9 @@ public:
       MFEM_VERIFY(num_rows >= 0 && num_cols >= 0,
                   "ComplexArray2D: negative size "
                   << num_rows << "x" << num_cols);
-      const int size = CheckedIntProduct(static_cast<std::size_t>(num_rows),
-                                         static_cast<std::size_t>(num_cols));
+      const int size =
+         CheckedIntProduct(static_cast<std::size_t>(num_rows),
+                           static_cast<std::size_t>(num_cols));
       MFEM_VERIFY(size >= 0, "ComplexArray2D: " << num_rows << "x"
                   << num_cols << " entries exceed the int size limit");
       rows = num_rows;
@@ -118,7 +119,7 @@ static_assert(sizeof(complex_t) == sizeof(fftw_cpx));
 } // namespace
 #endif
 
-// Fresnel propagation on an complex pixel image.
+// Fresnel propagation on an complex pixel image ------------------------------
 class FresnelOp : public mfem::Operator
 {
 protected:
@@ -443,7 +444,7 @@ inline void FillAdjointWeights(const ComplexArray1D &fr,
 }
 
 // ----------------------------------------------------------------------------
-/** Circulant embedding of the Toeplitz Fresnel weights. */
+// Circulant embedding of the Toeplitz Fresnel weights
 class ToeplitzFft
 {
 public:
