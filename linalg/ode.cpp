@@ -1509,7 +1509,7 @@ void IMEXRK2_3StageExplicit::Step(Vector &x, real_t &t, real_t &dt)
    y.Add(dt*(1-delta), k2_exp);
    y.Add(dt*(1-gamma), k_imp);
 
-   // update x
+   // update x with current value of k_imp
    x.Add(dt*(1-gamma), k_imp);
 
    // K2_imp = f_imp(t + dt, y + gamma*dt*K2_imp).
