@@ -17,6 +17,112 @@
 
 using namespace mfem;
 
+TEST_CASE("Resource CheckedWrap host and device pointers",
+          "[Resource Manager][GPU]")
+{
+   auto &inst = MemoryManager::Instance();
+   const MemoryType d_mt = IsDeviceMemory(inst.GetDeviceMemoryType()) ?
+                           inst.GetDeviceMemoryType() : MemoryType::DEVICE_DEBUG;
+   const MemoryType h_mt = d_mt == MemoryType::DEVICE_DEBUG ?
+                           MemoryType::HOST_DEBUG : inst.GetHostMemoryType();
+   constexpr int n = 8;
+
+   SECTION("Unregistered buffers and rewrapping the only reference")
+   {
+      auto hptr = h_mt == MemoryType::HOST ? new int[n] :
+                  reinterpret_cast<int *>(inst.Alloc(n * sizeof(int), h_mt));
+      auto dptr = reinterpret_cast<int *>(inst.Alloc(n * sizeof(int), d_mt));
+      forall(n, [=] MFEM_HOST_DEVICE(int i) { dptr[i] = 10 + i; });
+
+      Memory<int> wrapped;
+      wrapped.CheckedWrap(hptr, dptr, n, h_mt, true, false, true);
+      REQUIRE(wrapped.OwnsHostPtr());
+      REQUIRE(wrapped.OwnsDevicePtr());
+      REQUIRE_FALSE(wrapped.HostIsValid());
+      REQUIRE(wrapped.DeviceIsValid());
+      // Existing validity must survive even when the supplied flags differ.
+      wrapped.CheckedWrap(hptr, dptr, n, h_mt, true, true, false);
+      REQUIRE_FALSE(wrapped.HostIsValid());
+      REQUIRE(wrapped.DeviceIsValid());
+      const auto ptr = wrapped.HostRead();
+      for (int i = 0; i < n; ++i) { REQUIRE(ptr[i] == 10 + i); }
+      wrapped.Delete();
+   }
+
+   SECTION("Registered subrange shares validity with its base")
+   {
+      Memory<int> base(n, h_mt, d_mt);
+      const auto hptr = base.HostWrite();
+      const auto dptr = base.Write(true);
+      forall(n, [=] MFEM_HOST_DEVICE(int i) { dptr[i] = 20 + i; });
+
+      Memory<int> wrapped;
+      wrapped.CheckedWrap(hptr + 2, dptr + 2, 3, h_mt, false, true, false);
+      REQUIRE(wrapped.Capacity() == 3);
+      REQUIRE_FALSE(wrapped.OwnsHostPtr());
+      REQUIRE_FALSE(wrapped.OwnsDevicePtr());
+      REQUIRE_FALSE(wrapped.HostIsValid());
+      REQUIRE(wrapped.DeviceIsValid());
+      const auto ptr = wrapped.HostRead();
+      REQUIRE(ptr == hptr + 2);
+      for (int i = 0; i < 3; ++i) { REQUIRE(ptr[i] == 22 + i); }
+
+      auto region = base.CreateAlias(2, 3);
+      region.HostWrite()[0] = 99;
+      REQUIRE_FALSE(wrapped.DeviceIsValid());
+      const auto result = wrapped.Read(true);
+      int values[3];
+      wrapped.CopyToHost(values, 3);
+      REQUIRE(result == dptr + 2);
+      REQUIRE(values[0] == 99);
+      REQUIRE(values[1] == 23);
+      REQUIRE(values[2] == 24);
+      wrapped.Delete();
+      REQUIRE(base.Read(true) == dptr);
+      base.Delete();
+   }
+
+   SECTION("Shared host and device pointer")
+   {
+      auto ptr = new int[n];
+      Memory<int> base;
+      base.Wrap(ptr, ptr, n, MemoryType::HOST, MemoryType::HOST, true,
+                true, false);
+      Memory<int> wrapped;
+      wrapped.CheckedWrap(ptr + 1, ptr + 1, n - 1, MemoryType::HOST,
+                          false, false, true);
+      REQUIRE(wrapped.HostRead() == ptr + 1);
+      REQUIRE_FALSE(wrapped.DeviceIsValid());
+      wrapped.Delete();
+      base.Delete();
+   }
+
+   SECTION("Empty buffers")
+   {
+      Memory<int> wrapped;
+      wrapped.CheckedWrap(nullptr, nullptr, 0, h_mt, false, true, false);
+      REQUIRE(wrapped.Empty());
+      REQUIRE(wrapped.Capacity() == 0);
+      wrapped.Delete();
+   }
+
+#ifdef MFEM_USE_EXCEPTIONS
+   SECTION("Mismatched pointers and out-of-bounds ranges")
+   {
+      Memory<int> base(n, h_mt, d_mt);
+      const auto hptr = base.HostWrite();
+      const auto dptr = base.Write(true);
+      Memory<int> wrapped;
+      REQUIRE_THROWS(wrapped.CheckedWrap(hptr, dptr + 1, n - 1, h_mt,
+                                         false, false, true));
+      REQUIRE_THROWS(wrapped.CheckedWrap(hptr + 2, dptr + 2, n, h_mt,
+                                         false, false, true));
+      REQUIRE(wrapped.Empty());
+      base.Delete();
+   }
+#endif
+}
+
 TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")
 {
    Memory<int> tmp(100, MemoryType::HOST);

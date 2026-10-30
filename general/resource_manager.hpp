@@ -890,6 +890,11 @@ public:
    /// already registered.
    void CheckedWrap(T *ptr, size_t size, bool own);
    void CheckedWrap(T *ptr, size_t size, MemoryType loc, bool own);
+   /// Wrap host and device pointers, reusing an existing registration if found.
+   /** @a loc is the host memory type; its dual is used for new device buffers.
+       Registered pointers must refer to the same range. Existing shared
+       validity is preserved; @a valid_host and @a valid_device apply only to
+       newly registered buffers. */
    void CheckedWrap(T *h_ptr, T *d_ptr, size_t size, MemoryType loc, bool own,
                     bool valid_host, bool valid_device);
 
@@ -1459,6 +1464,74 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
 {
    auto &inst = MemoryManager::Instance();
    CheckedWrap(ptr, size, inst.GetHostMemoryType(), own);
+}
+
+template <class T>
+void Memory<T>::CheckedWrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType loc,
+                            bool own, bool valid_host, bool valid_device)
+{
+   auto &inst = MemoryManager::Instance();
+   MFEM_VERIFY(IsHostMemory(loc), "expected a host memory type");
+   auto find_segment = [&](T *ptr, bool on_device, size_t &offset) -> size_t
+   {
+      if (!ptr) { return 0; }
+      const auto &mapped = inst.segment_maps[on_device];
+      auto iter = mapped.upper_bound(ptr);
+      if (iter == mapped.begin()) { return 0; }
+      --iter;
+      const auto &seg = inst.storage.GetSegment(iter->second);
+      const char *p = reinterpret_cast<const char *>(ptr);
+      if (p >= seg.lowers[on_device] + seg.nbytes) { return 0; }
+      const size_t byte_offset = p - seg.lowers[on_device];
+      MFEM_VERIFY(byte_offset % sizeof(T) == 0,
+                  "registered pointer is not aligned to an entry");
+      MFEM_VERIFY(size <= (size_t(seg.nbytes) - byte_offset) / sizeof(T),
+                  "requested size exceeds previously registered aliased "
+                  "pointer size");
+      offset = byte_offset / sizeof(T);
+      return iter->second;
+   };
+
+   size_t h_offset = 0, d_offset = 0;
+   const size_t h_segment = find_segment(h_ptr_, false, h_offset);
+   const size_t d_segment = find_segment(d_ptr, true, d_offset);
+   const size_t new_segment = h_segment ? h_segment : d_segment;
+   if (!new_segment)
+   {
+      offset_ = 0;
+      Wrap(h_ptr_, d_ptr, size, loc, inst.GetDualMemoryType(loc), own,
+           valid_host, valid_device);
+      return;
+   }
+
+   auto &seg = inst.storage.GetSegment(new_segment);
+   const size_t new_offset = h_segment ? h_offset : d_offset;
+   MFEM_VERIFY(!h_segment || !d_segment ||
+               (h_segment == d_segment && h_offset == d_offset),
+               "host and device pointers refer to different registered ranges");
+   MFEM_VERIFY(h_ptr_ == reinterpret_cast<T *>(seg.lowers[0]) + new_offset,
+               "host pointer does not match the registered allocation");
+   MFEM_VERIFY(!d_ptr ||
+               (seg.lowers[1] &&
+                d_ptr == reinterpret_cast<T *>(seg.lowers[1]) + new_offset),
+               "device pointer does not match the registered allocation");
+
+   // Keep the registration alive when rewrapping its only reference.
+   ++seg.ref_count;
+   if (segment) { inst.Erase(segment); }
+   h_ptr = h_ptr_;
+   h_mt = seg.mtypes[0];
+   size_ = size;
+   offset_ = new_offset;
+   segment = new_segment;
+   flags = own ? static_cast<Flags>(OWNS_HOST | OWNS_DEVICE) : NONE;
+   if (own)
+   {
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                            "wrap own " << (int)h_mt << ", " << false);
+      MFEM_MEM_OP_DEBUG_ADD(0, d_ptr, d_ptr + size,
+                            "wrap own " << (int)seg.mtypes[1] << ", " << false);
+   }
 }
 
 template <class T> void Memory<T>::Wrap(T *ptr, size_t size, bool own)

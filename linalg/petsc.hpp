@@ -97,10 +97,22 @@ private:
    bool usedev;
 public:
    PetscMemory()                      { Reset(); base = nullptr; }
-   void SetHostValid() const          { SetHostValidity(0, size_, true); }
-   void SetDeviceValid() const        { SetDeviceValidity(0, size_, true); }
-   void SetHostInvalid() const        { SetHostValidity(0, size_, false); }
-   void SetDeviceInvalid() const      { SetDeviceValidity(0, size_, false); }
+   void SetHostValid() const
+   {
+      const_cast<PetscMemory *>(this)->SetHostValidity(0, size_, true);
+   }
+   void SetDeviceValid() const
+   {
+      const_cast<PetscMemory *>(this)->SetDeviceValidity(0, size_, true);
+   }
+   void SetHostInvalid() const
+   {
+      const_cast<PetscMemory *>(this)->SetHostValidity(0, size_, false);
+   }
+   void SetDeviceInvalid() const
+   {
+      const_cast<PetscMemory *>(this)->SetDeviceValidity(0, size_, false);
+   }
    inline bool IsAliasForSync() const
    {
       if (base)
