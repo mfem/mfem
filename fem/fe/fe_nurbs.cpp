@@ -22,7 +22,7 @@ using namespace std;
 void NURBS1DFiniteElement::SetOrder() const
 {
    order = kv[0]->GetOrder();
-   dof = order + 1;
+   SetDof(order + 1);
 
    weights.SetSize(dof);
    shape_x.SetSize(dof);
@@ -137,7 +137,7 @@ void NURBS2DFiniteElement::SetOrder() const
    d2shape_y.SetSize(orders[1]+1);
 
    order = max(orders[0], orders[1]);
-   dof = (orders[0] + 1)*(orders[1] + 1);
+   SetDof((orders[0] + 1)*(orders[1] + 1));
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
@@ -331,7 +331,7 @@ void NURBS3DFiniteElement::SetOrder() const
    d2shape_z.SetSize(orders[2]+1);
 
    order = max(max(orders[0], orders[1]), orders[2]);
-   dof = (orders[0] + 1)*(orders[1] + 1)*(orders[2] + 1);
+   SetDof((orders[0] + 1)*(orders[1] + 1)*(orders[2] + 1));
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
@@ -607,8 +607,8 @@ void NURBS_HDiv2DFiniteElement::SetOrder() const
    d2shape1_y.SetSize(orders[1]+2);
 
    order = max(orders[0]+1, orders[1]+1);
-   dof = (orders[0] + 2)*(orders[1] + 1)
-         + (orders[1] + 1)*(orders[1] + 2);
+   SetDof((orders[0] + 2)*(orders[1] + 1)
+          + (orders[1] + 1)*(orders[1] + 2));
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
@@ -795,9 +795,9 @@ void NURBS_HDiv3DFiniteElement::SetOrder() const
    d2shape1_z.SetSize(orders[2]+2);
 
    order = max(orders[0]+1, max( orders[1]+1, orders[2]+1));
-   dof = (orders[0] + 2)*(orders[1] + 1)*(orders[2] + 1) +
-         (orders[0] + 1)*(orders[1] + 2)*(orders[2] + 1) +
-         (orders[0] + 1)*(orders[1] + 1)*(orders[2] + 2);
+   SetDof( (orders[0] + 2)*(orders[1] + 1)*(orders[2] + 1) +
+           (orders[0] + 1)*(orders[1] + 2)*(orders[2] + 1) +
+           (orders[0] + 1)*(orders[1] + 1)*(orders[2] + 2));
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
@@ -1079,8 +1079,8 @@ void NURBS_HCurl2DFiniteElement::SetOrder() const
    d2shape1_y.SetSize(orders[1]+2);
 
    order = max(orders[0]+1, orders[1]+1);
-   dof = (orders[0] + 1)*(orders[1] + 2)
-         + (orders[1] + 2)*(orders[1] + 1);
+   SetDof ( (orders[0] + 1)*(orders[1] + 2)
+            + (orders[1] + 2)*(orders[1] + 1));
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
