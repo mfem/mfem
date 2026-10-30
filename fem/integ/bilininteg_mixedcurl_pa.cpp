@@ -1347,10 +1347,18 @@ void MixedVectorWeakCurlIntegrator::AssemblePA(const FiniteElementSpace
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    mapsC = &test_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
    mapsO = &test_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+   mapsTrialC = &trial_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+   mapsTrialO = &trial_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
    dofs1D = mapsC->ndof;
+   dofs1Dtrial = mapsTrialC->ndof;
    quad1D = mapsC->nqpt;
+   same_basis = (&trial_el->GetBasis1D() == &test_el->GetBasis1D() &&
+                 &trial_el->GetOpenBasis1D() == &test_el->GetOpenBasis1D());
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+   MFEM_VERIFY(dofs1Dtrial == mapsTrialO->ndof + 1 &&
+               quad1D == mapsTrialO->nqpt,
+               "Trial/test tensor-product map size mismatch.");
 
    testType = test_el->GetDerivType();
    trialType = trial_el->GetDerivType();
@@ -1410,42 +1418,49 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
             case 0x23:
                return internal::SmemPAHcurlL2ApplyTranspose3D<2,3>(
                          dofs1D, quad1D, ndata,
-                         ne, mapsO->B, mapsC->B,
-                         mapsC->G, pa_data, x, y);
+                         ne, mapsTrialO->B, mapsTrialC->B,
+                         mapsO->Bt, mapsC->Bt, mapsC->Gt,
+                         !same_basis, pa_data, x, y);
             case 0x34:
                return internal::SmemPAHcurlL2ApplyTranspose3D<3,4>(
                          dofs1D, quad1D, ndata,
-                         ne, mapsO->B, mapsC->B,
-                         mapsC->G, pa_data, x, y);
+                         ne, mapsTrialO->B, mapsTrialC->B,
+                         mapsO->Bt, mapsC->Bt, mapsC->Gt,
+                         !same_basis, pa_data, x, y);
             case 0x45:
                return internal::SmemPAHcurlL2ApplyTranspose3D<4,5>(
                          dofs1D, quad1D, ndata,
-                         ne, mapsO->B, mapsC->B,
-                         mapsC->G, pa_data, x, y);
+                         ne, mapsTrialO->B, mapsTrialC->B,
+                         mapsO->Bt, mapsC->Bt, mapsC->Gt,
+                         !same_basis, pa_data, x, y);
             case 0x56:
                return internal::SmemPAHcurlL2ApplyTranspose3D<5,6>(
                          dofs1D, quad1D, ndata,
-                         ne, mapsO->B, mapsC->B,
-                         mapsC->G, pa_data, x, y);
+                         ne, mapsTrialO->B, mapsTrialC->B,
+                         mapsO->Bt, mapsC->Bt, mapsC->Gt,
+                         !same_basis, pa_data, x, y);
             default:
                return internal::SmemPAHcurlL2ApplyTranspose3D(
                          dofs1D, quad1D, ndata, ne,
-                         mapsO->B, mapsC->B,
-                         mapsC->G, pa_data, x, y);
+                         mapsTrialO->B, mapsTrialC->B,
+                         mapsO->Bt, mapsC->Bt, mapsC->Gt,
+                         !same_basis, pa_data, x, y);
          }
       }
       else
       {
-         internal::PAHcurlL2ApplyTranspose3D(dofs1D, quad1D, ndata, ne, mapsO->B,
-                                             mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->Gt,
+         internal::PAHcurlL2ApplyTranspose3D(dofs1D, quad1D, ndata, ne,
+                                             mapsTrialO->B, mapsTrialC->B,
+                                             mapsO->Bt, mapsC->Bt, mapsC->Gt,
                                              pa_data, x, y);
       }
    }
    else if (testType == mfem::FiniteElement::CURL &&
             trialType == mfem::FiniteElement::DIV && dim == 3)
    {
-      internal::PAHcurlHdivApplyTranspose3D(dofs1D, dofs1D, quad1D, ne, mapsO->B,
-                                            mapsC->B, mapsO->Bt, mapsC->Bt,
+      internal::PAHcurlHdivApplyTranspose3D(dofs1D, dofs1Dtrial, quad1D, ne,
+                                            mapsTrialO->B, mapsTrialC->B,
+                                            mapsO->Bt, mapsC->Bt,
                                             mapsC->Gt, pa_data, x, y);
    }
    else
@@ -1460,9 +1475,10 @@ void MixedVectorWeakCurlIntegrator::AddMultTransposePA(const Vector &x,
    if (testType == mfem::FiniteElement::CURL &&
        trialType == mfem::FiniteElement::DIV && dim == 3)
    {
-      internal::PAHcurlHdivApply3D(dofs1D, dofs1D, quad1D, ne, mapsO->B,
-                                   mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->G,
-                                   pa_data, x, y);
+      internal::PAHcurlHdivApply3D(dofs1D, dofs1Dtrial, quad1D, ne,
+                                   mapsO->B, mapsC->B,
+                                   mapsTrialO->Bt, mapsTrialC->Bt,
+                                   mapsC->G, pa_data, x, y);
    }
    else
    {
