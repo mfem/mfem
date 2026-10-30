@@ -252,20 +252,12 @@ void MFEMFinalizePetsc()
 
 const mfem::real_t* PetscMemory::GetHostPointer() const
 {
-   int oflags = flags;
-   SetHostValid();
-   const mfem::real_t *v = mfem::Read(*this,Capacity(),false);
-   flags = oflags;
-   return v;
+   return GetRawPointer(false);
 }
 
 const mfem::real_t* PetscMemory::GetDevicePointer() const
 {
-   int oflags = flags;
-   SetDeviceValid();
-   const mfem::real_t *v = mfem::Read(*this,Capacity(),true);
-   flags = oflags;
-   return v;
+   return GetRawPointer(true);
 }
 
 // PetscParVector methods

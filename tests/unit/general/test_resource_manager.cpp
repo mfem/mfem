@@ -17,6 +17,197 @@
 
 using namespace mfem;
 
+namespace
+{
+class RawPointerMemory : public Memory<int>
+{
+public:
+   using Memory<int>::Memory;
+   using Memory<int>::GetRawPointer;
+};
+}
+
+TEST_CASE("Resource raw pointers preserve validity and do not copy data",
+          "[Resource Manager][GPU]")
+{
+   auto &inst = MemoryManager::Instance();
+   const MemoryType d_mt = IsDeviceMemory(inst.GetDeviceMemoryType()) ?
+                           inst.GetDeviceMemoryType() : MemoryType::DEVICE_DEBUG;
+   const MemoryType h_mt = d_mt == MemoryType::DEVICE_DEBUG ?
+                           MemoryType::HOST_DEBUG : inst.GetHostMemoryType();
+   constexpr int n = 8;
+   RawPointerMemory mem(n, h_mt, d_mt);
+   auto hptr = mem.HostWrite();
+   for (int i = 0; i < n; ++i) { hptr[i] = 10 + i; }
+
+   SECTION("Retrieve pointers from an unregistered host allocation")
+   {
+      RawPointerMemory host(n, MemoryType::HOST);
+      auto ptr = host.HostWrite();
+      REQUIRE(host.GetRawPointer(false) == ptr);
+      REQUIRE(host.GetRawPointer(true) != nullptr);
+      REQUIRE(host.HostIsValid());
+      REQUIRE_FALSE(host.DeviceIsValid());
+      REQUIRE(host.OwnsHostPtr());
+      REQUIRE_FALSE(host.UseDevice());
+      host.Delete();
+   }
+
+   SECTION("Allocate an invalid device buffer")
+   {
+      const auto &cmem = mem;
+      auto dptr = cmem.GetRawPointer(true);
+      REQUIRE(dptr != nullptr);
+      REQUIRE(cmem.GetRawPointer(true) == dptr);
+      REQUIRE(mem.HostIsValid());
+      REQUIRE_FALSE(mem.DeviceIsValid());
+      REQUIRE(mem.OwnsDevicePtr());
+      REQUIRE_FALSE(mem.UseDevice());
+      // The next read must still copy the valid host data to the new buffer.
+      REQUIRE(mem.Read(true) == dptr);
+      int result[n];
+      inst.MemCopy(result, dptr, sizeof(result), MemoryType::HOST, d_mt);
+      for (int i = 0; i < n; ++i) { REQUIRE(result[i] == 10 + i); }
+   }
+
+   SECTION("Retrieve stale host and device buffers through an alias")
+   {
+      auto dptr = mem.Write(true);
+      forall(n, [=] MFEM_HOST_DEVICE(int i) { dptr[i] = 30 + i; });
+      RawPointerMemory alias(mem, 2, 3);
+      REQUIRE(alias.GetRawPointer(false) == hptr + 2);
+      REQUIRE_FALSE(mem.HostIsValid());
+      REQUIRE_FALSE(alias.HostIsValid());
+      REQUIRE(mem.DeviceIsValid());
+      REQUIRE(alias.DeviceIsValid());
+      for (int i = 2; i < 5; ++i) { REQUIRE(hptr[i] == 10 + i); }
+
+      hptr = mem.HostWrite();
+      for (int i = 0; i < n; ++i) { hptr[i] = 50 + i; }
+      REQUIRE(alias.GetRawPointer(true) == dptr + 2);
+      REQUIRE(mem.HostIsValid());
+      REQUIRE(alias.HostIsValid());
+      REQUIRE_FALSE(mem.DeviceIsValid());
+      REQUIRE_FALSE(alias.DeviceIsValid());
+      int result[3];
+      inst.MemCopy(result, dptr + 2, sizeof(result), MemoryType::HOST, d_mt);
+      for (int i = 0; i < 3; ++i) { REQUIRE(result[i] == 32 + i); }
+      alias.Reset();
+   }
+   mem.Delete();
+
+   RawPointerMemory empty;
+   REQUIRE(empty.GetRawPointer(false) == nullptr);
+   REQUIRE(empty.GetRawPointer(true) == nullptr);
+}
+
+TEST_CASE("Resource CheckedWrap preserves its only registration",
+          "[Resource Manager][GPU]")
+{
+   auto &inst = MemoryManager::Instance();
+   const MemoryType d_mt = IsDeviceMemory(inst.GetDeviceMemoryType()) ?
+                           inst.GetDeviceMemoryType() : MemoryType::DEVICE_DEBUG;
+   const MemoryType h_mt = d_mt == MemoryType::DEVICE_DEBUG ?
+                           MemoryType::HOST_DEBUG : inst.GetHostMemoryType();
+   constexpr int n = 8;
+   Memory<int> mem(n, h_mt, d_mt);
+   const auto hptr = mem.HostWrite();
+   const auto dptr = mem.Write(true);
+   forall(n, [=] MFEM_HOST_DEVICE(int i) { dptr[i] = 30 + i; });
+
+   mem.CheckedWrap(hptr, n, h_mt, true);
+   REQUIRE_FALSE(mem.HostIsValid());
+   REQUIRE(mem.DeviceIsValid());
+   REQUIRE(mem.Read(true) == dptr);
+   mem.CheckedWrap(dptr, n, d_mt, true);
+   REQUIRE_FALSE(mem.HostIsValid());
+   REQUIRE(mem.DeviceIsValid());
+   REQUIRE(mem.OwnsHostPtr());
+   REQUIRE(mem.OwnsDevicePtr());
+   const auto result = mem.HostRead();
+   REQUIRE(result == hptr);
+   for (int i = 0; i < n; ++i) { REQUIRE(result[i] == 30 + i); }
+   mem.Delete();
+}
+
+#if defined(MFEM_USE_SUNDIALS) && \
+    (defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP))
+TEST_CASE("SUNDIALS frees registered buffers individually",
+          "[Resource Manager][SUNDIALS][GPU]")
+{
+   auto alloc = [](SUNMemoryHelper helper, size_t size, SUNMemoryType type)
+   {
+      SUNMemory mem = nullptr;
+#if SUNDIALS_VERSION_MAJOR >= 6
+      REQUIRE(SundialsMemHelper::SundialsMemHelper_Alloc(
+                 helper, &mem, size, type, nullptr) == 0);
+#else
+      REQUIRE(SundialsMemHelper::SundialsMemHelper_Alloc(
+                 helper, &mem, size, type) == 0);
+#endif
+      return mem;
+   };
+   auto dealloc = [](SUNMemoryHelper helper, SUNMemory mem)
+   {
+#if SUNDIALS_VERSION_MAJOR >= 6
+      REQUIRE(SundialsMemHelper::SundialsMemHelper_Dealloc(
+                 helper, mem, nullptr) == 0);
+#else
+      REQUIRE(SundialsMemHelper::SundialsMemHelper_Dealloc(helper, mem) == 0);
+#endif
+   };
+
+   constexpr size_t n = 32;
+   SUNMemory host, device, managed, empty;
+   SUNMemoryHelper clone;
+   {
+      SundialsMemHelper helper(Sundials::GetContext());
+      host = alloc(helper, n, SUNMEMTYPE_HOST);
+      device = alloc(helper, n, SUNMEMTYPE_DEVICE);
+      managed = alloc(helper, n, SUNMEMTYPE_UVM);
+      empty = alloc(helper, 0, SUNMEMTYPE_DEVICE);
+      clone = SUNMemoryHelper_Clone(helper);
+      REQUIRE(clone != nullptr);
+   }
+
+   auto &inst = MemoryManager::Instance();
+   const auto h_mt = inst.GetHostMemoryType();
+   const auto d_mt = inst.GetDeviceMemoryType();
+   auto hptr = static_cast<char *>(host->ptr);
+   auto dptr = static_cast<char *>(device->ptr);
+   Memory<char> registered;
+   if (h_mt != d_mt)
+   {
+      registered.Wrap(hptr, dptr, n, h_mt, d_mt, false, false, true);
+   }
+   else
+   {
+      registered.Wrap(hptr, n, h_mt, false);
+   }
+   forall(n, [=] MFEM_HOST_DEVICE(int i) { dptr[i] = 42; });
+
+   SECTION("Host freed first")
+   {
+      dealloc(clone, host);
+      char result[n];
+      inst.MemCopy(result, dptr, n, MemoryType::HOST, d_mt);
+      for (size_t i = 0; i < n; ++i) { REQUIRE(result[i] == 42); }
+      dealloc(clone, device);
+   }
+   SECTION("Device freed first")
+   {
+      dealloc(clone, device);
+      char source[n] = {};
+      inst.MemCopy(hptr, source, n, h_mt, MemoryType::HOST);
+      dealloc(clone, host);
+   }
+   registered.Reset();
+   dealloc(clone, managed);
+   dealloc(clone, empty);
+   REQUIRE(SUNMemoryHelper_Destroy(clone) == 0);
+}
+#endif
+
 TEST_CASE("Resource CheckedWrap host and device pointers",
           "[Resource Manager][GPU]")
 {

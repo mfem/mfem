@@ -609,6 +609,13 @@ protected:
 
    void EnsureRegistered() const;
 
+   /// Return the host or device pointer without copying data or changing validity.
+   /** Allocate the requested buffer if needed, and allow access to this object's
+       range when using the debug device. The returned data may be invalid;
+       callers must update validity explicitly after writing through the pointer.
+       Empty objects return nullptr. */
+   T *GetRawPointer(bool on_device) const;
+
    void New_(size_t size, MemoryType hloc, MemoryType dloc, bool valid_host);
 
    size_t SegmentRefCount() const
@@ -1377,12 +1384,7 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size,
                                                MemoryType loc, bool own)
 {
    auto &inst = MemoryManager::Instance();
-   if (segment)
-   {
-      inst.Erase(segment);
-      segment = 0;
-      offset_ = 0;
-   }
+   const size_t old_segment = segment;
    // look for existing host-accessible ptr
    auto search_for = [&inst](void *p, size_t nbytes, size_t idx,
                              const std::map<const void *, size_t> &mapped,
@@ -1450,6 +1452,12 @@ template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size,
       {
          Wrap(ptr, size, loc, own);
       }
+   }
+   // Acquire the new reference before releasing the old one, since both can
+   // refer to the same registration and this may be its only reference.
+   if (found && old_segment)
+   {
+      inst.Erase(old_segment);
    }
 #ifdef MFEM_ENABLE_MEM_OP_DEBUG
    if (own)
@@ -1905,6 +1913,32 @@ template <class T> void Memory<T>::EnsureRegistered() const
                      size_ * sizeof(T), h_mt, MemoryType::DEFAULT, true, false);
       flags = static_cast<Flags>(flags | OWNS_DEVICE);
    }
+}
+
+template <class T> T *Memory<T>::GetRawPointer(bool on_device) const
+{
+   if (!size_) { return nullptr; }
+   if (on_device) { EnsureRegistered(); }
+   if (!segment) { return h_ptr; }
+
+   auto &inst = MemoryManager::Instance();
+   auto &seg = inst.storage.GetSegment(segment);
+   if (!seg.lowers[on_device])
+   {
+      if (seg.mtypes[on_device] == MemoryType::DEFAULT ||
+          seg.mtypes[on_device] == MemoryType::PRESERVE)
+      {
+         seg.mtypes[on_device] = inst.GetDualMemoryType(seg.mtypes[!on_device]);
+      }
+      seg.lowers[on_device] = inst.Alloc(seg.nbytes, seg.mtypes[on_device]);
+      inst.segment_maps[on_device].emplace(seg.lowers[on_device], segment);
+      MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[on_device],
+                            seg.lowers[on_device] + seg.nbytes,
+                            "alloc " << (int)seg.mtypes[on_device]);
+   }
+   inst.Unprotect(seg.lowers[on_device], seg.mtypes[on_device],
+                  offset_ * sizeof(T), size_ * sizeof(T));
+   return reinterpret_cast<T *>(seg.lowers[on_device]) + offset_;
 }
 
 template <class T> T *Memory<T>::Write(bool on_device, int offset, int size)
