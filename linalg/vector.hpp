@@ -77,7 +77,16 @@ inline real_t rand_real()
 #endif
 }
 
-/// Vector data type.
+/** @brief Vector data type.
+
+    @warning GetData(), direct entry access (Elem(), operator(), operator[]),
+    and STL iterators access host data without synchronizing it or updating its
+    validity flags. Before reading after device operations, call HostRead().
+    Before modifying existing values on the host, call HostReadWrite(); use
+    HostWrite() only when overwriting all entries. Prefer the pointers returned
+    by these methods. With separate host and device memory, unsynchronized
+    direct access can read stale data or discard host changes in later device
+    operations. */
 class Vector
 {
 protected:
@@ -238,7 +247,10 @@ public:
    inline int Capacity() const { return data.Capacity(); }
 
    /// Return a pointer to the beginning of the Vector data.
-   /** @warning This method should be used with caution as it gives write access
+   /** This is a host pointer; the method does not synchronize data or update
+       memory validity flags. Use HostRead() for reading, HostReadWrite() for
+       modifying existing values, or HostWrite() for a complete overwrite.
+       @warning This method should be used with caution as it gives write access
        to the data of const-qualified Vector%s. */
    inline real_t *GetData() const
    { return const_cast<real_t*>((const real_t*)data); }
