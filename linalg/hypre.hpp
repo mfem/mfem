@@ -460,6 +460,10 @@ private:
    // Delete all owned data. Does not perform re-initialization with defaults.
    void Destroy();
 
+   // Exchange all state with other; both objects are left valid. Used to
+   // implement the copy and move operations.
+   void Swap(HypreParMatrix &other);
+
    void Read(MemoryClass mc) const;
    void ReadWrite(MemoryClass mc);
    // The Boolean flags are used in Destroy().
@@ -600,8 +604,18 @@ public:
                   const HYPRE_BigInt *cols); // constructor with 9 arguments
 
    /** @brief Copy constructor for a ParCSR matrix which creates a deep copy of
-       structure and data from @a P. */
+       structure and data from @a P. An empty @a P gives an empty matrix. */
    HypreParMatrix(const HypreParMatrix &P);
+
+   /// Deep copy assignment, matching the semantics of the copy constructor.
+   HypreParMatrix &operator=(const HypreParMatrix &P);
+
+   /// Move constructor: takes over the hypre handles of @a P, leaving it empty.
+   HypreParMatrix(HypreParMatrix &&P) noexcept;
+
+   /** @brief Move assignment: destroys the current matrix and takes over the
+       hypre handles of @a P, leaving @a P empty. */
+   HypreParMatrix &operator=(HypreParMatrix &&P) noexcept;
 
    /// Make this HypreParMatrix a reference to 'master'
    void MakeRef(const HypreParMatrix &master);

@@ -242,6 +242,101 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
    }
 }
 
+TEST_CASE("HypreParMatrixCopyAndMove",
+          "[Parallel], [HypreParMatrixCopyAndMove]")
+{
+   Mesh smesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
+   ParMesh mesh(MPI_COMM_WORLD, smesh);
+   smesh.Clear();
+   H1_FECollection fec(1, 2);
+   ParFiniteElementSpace fespace(&mesh, &fec);
+   ParBilinearForm a(&fespace);
+   a.AddDomainIntegrator(new MassIntegrator);
+   a.Assemble();
+   a.Finalize();
+
+   std::unique_ptr<HypreParMatrix> A(a.ParallelAssemble());
+
+   Vector x(A->Width()), y(A->Height()), y2(A->Height());
+   x = 1.0;
+   A->Mult(x, y);
+   const real_t ynorm = y.Norml2();
+
+   SECTION("CopyAssignmentIsDeep")
+   {
+      HypreParMatrix B;
+      B = *A;
+      B.Mult(x, y2);
+      REQUIRE(y2.Norml2() == MFEM_Approx(ynorm));
+      // B has to own its own data, so it still works once A is gone
+      A.reset();
+      B.Mult(x, y2);
+      REQUIRE(y2.Norml2() == MFEM_Approx(ynorm));
+   }
+
+   SECTION("CopyAssignmentReplacesTheOldData")
+   {
+      // both sides own data, so the assignment frees the old target
+      HypreParMatrix B(*A), C(*A);
+      B = C;
+      B.Mult(x, y2);
+      REQUIRE(y2.Norml2() == MFEM_Approx(ynorm));
+   }
+
+   SECTION("CopyOfAnEmptyMatrixIsEmpty")
+   {
+      HypreParMatrix E;
+      HypreParMatrix F(E);
+      REQUIRE(F.Height() == 0);
+      REQUIRE(F.Width() == 0);
+   }
+
+   SECTION("AssigningAnEmptyMatrixClearsTheTarget")
+   {
+      HypreParMatrix B(*A), E;
+      B = E;
+      REQUIRE(B.Height() == 0);
+      // the cleared matrix is still usable
+      B = *A;
+      B.Mult(x, y2);
+      REQUIRE(y2.Norml2() == MFEM_Approx(ynorm));
+   }
+
+   SECTION("SelfAssignment")
+   {
+      HypreParMatrix *self = A.get();
+      *self = *self;
+      self->Mult(x, y2);
+      REQUIRE(y2.Norml2() == MFEM_Approx(ynorm));
+   }
+
+   SECTION("MoveTakesOverTheHandles")
+   {
+      HypreParMatrix B;
+      B = std::move(*A);
+      B.Mult(x, y2);
+      REQUIRE(y2.Norml2() == MFEM_Approx(ynorm));
+      HypreParMatrix C(std::move(B));
+      C.Mult(x, y2);
+      REQUIRE(y2.Norml2() == MFEM_Approx(ynorm));
+      HypreParMatrix D(C); // non-empty target for the move assignment
+      D = std::move(C);
+      D.Mult(x, y2);
+      REQUIRE(y2.Norml2() == MFEM_Approx(ynorm));
+      // the sources are left empty but valid
+      REQUIRE(B.Height() == 0);
+      REQUIRE(C.Height() == 0);
+   }
+
+   SECTION("AssigningAnEmptyMatrixToAnEmptyOne")
+   {
+      HypreParMatrix E, F;
+      E = F;
+      E = std::move(F);
+      REQUIRE(E.Height() == 0);
+   }
+}
+
 #endif // MFEM_USE_MPI
 
 } // namespace mfem
