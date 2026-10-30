@@ -114,6 +114,7 @@ set(UNIT_TESTS_SRCS
   fem/test_col_lag_der.cpp
   fem/test_datacollection.cpp
   fem/test_derefine.cpp
+  fem/test_bras.cpp
   fem/test_dgmassinv.cpp
   fem/test_doftrans.cpp
   fem/test_domain_int.cpp

@@ -64,6 +64,7 @@ set(SRCS
   complex_fem.cpp
   convergence.cpp
   datacollection.cpp
+  bras.cpp
   dgmassinv.cpp
   doftrans.cpp
   dfem/doperator.cpp
@@ -216,6 +217,7 @@ set(HDRS
   complex_fem.hpp
   convergence.hpp
   datacollection.hpp
+  bras.hpp
   dgmassinv.hpp
   dgmassinv_kernels.hpp
   doftrans.hpp
