@@ -709,6 +709,127 @@ void RajaSeqWrap(const int N, HBODY &&h_body)
 }
 
 
+#if defined(MFEM_USE_ENZYME) && defined(MFEM_USE_CUDA_OR_HIP_LANG)
+/// \cond DO_NOT_DOCUMENT
+template <typename BODY> struct DerivativeKernelWrapperStruct
+{
+   MFEM_DEVICE static void Wrap1DEnzymeBody(BODY *body, const int k)
+   {
+      (*body)(k);
+   }
+
+   __global__ static void FwdLaunch(const int N, BODY body, BODY d_body)
+   {
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
+      const int k = blockDim.x * blockIdx.x + threadIdx.x;
+#else
+      const int k = hipBlockDim_x * hipBlockIdx_x + hipThreadIdx_x;
+#endif
+      if (k >= N)
+      {
+         return;
+      }
+
+      __enzyme_fwddiff<void>(
+         (void*)Wrap1DEnzymeBody, enzyme_dup,
+         (void*)&body, (void*)&d_body, enzyme_const, k, enzyme_runtime_activity);
+   }
+
+   __global__ static void Launch(const int N, BODY body)
+   {
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
+      const int k = blockDim.x * blockIdx.x + threadIdx.x;
+#else
+      const int k = hipBlockDim_x * hipBlockIdx_x + hipThreadIdx_x;
+#endif
+      if (k >= N)
+      {
+         return;
+      }
+      body(k);
+   }
+};
+
+template <const int BLCK, typename DBODY> struct GpuWrap1DStruct
+{
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
+   static constexpr int ACTUAL_BLCK = BLCK == 0 ? MFEM_CUDA_BLOCKS : BLCK;
+#else
+   static constexpr int ACTUAL_BLCK = BLCK == 0 ? MFEM_HIP_BLOCKS : BLCK;
+#endif
+
+   static void __attribute__((always_inline)) Call(const int N, DBODY *body)
+   {
+      if (N == 0)
+      {
+         return;
+      }
+      const int GRID = (N + ACTUAL_BLCK - 1) / ACTUAL_BLCK;
+      DerivativeKernelWrapperStruct<DBODY>::Launch<<<GRID, ACTUAL_BLCK>>>(N, *body);
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
+      MFEM_GPU_CHECK(cudaGetLastError());
+#else
+      MFEM_GPU_CHECK(hipGetLastError());
+#endif
+   }
+
+   static void __attribute__((always_inline)) FwdCall(const int N, int dN,
+                                                      DBODY *body,
+                                                      DBODY *d_body)
+   {
+      MFEM_CONTRACT_VAR(dN);
+      if (N == 0)
+      {
+         return;
+      }
+      const int GRID = (N + ACTUAL_BLCK - 1) / ACTUAL_BLCK;
+      DerivativeKernelWrapperStruct<DBODY>::FwdLaunch<<<GRID, ACTUAL_BLCK>>>(
+         N, *body, *d_body);
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
+      MFEM_GPU_CHECK(cudaGetLastError());
+#else
+      MFEM_GPU_CHECK(hipGetLastError());
+#endif
+   }
+
+   inline static void *__enzyme_register_derivative_GpuWrap1D[2] =
+   {
+      (void *)&Call, (void *)&FwdCall
+   };
+};
+
+template <const int BLCK, typename DBODY>
+void __attribute__((always_inline)) GpuWrap1DWithEnzyme(const int N,
+                                                        DBODY &&d_body)
+{
+   // TODO
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_CUDA) && defined(__CUDACC__)
+   if (Device::Allows(Backend::RAJA_CUDA))
+   {
+      MFEM_ABORT("Enzyme forall does not support Backend::RAJA_CUDA.");
+   }
+#endif
+
+#if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_HIP) && defined(__HIP__)
+   if (Device::Allows(Backend::RAJA_HIP))
+   {
+      MFEM_ABORT("Enzyme forall does not support Backend::RAJA_HIP.");
+   }
+#endif
+
+   using DBODY_BASE = std::remove_reference_t<DBODY>;
+   // Taking the address forces instantiation/emission of the registration
+   // global for this lambda type so Enzyme can find the custom
+   // derivative before trying to differentiate the GPU runtime launch
+   // inside it.
+   [[maybe_unused]] auto *enzyme_registration =
+      &GpuWrap1DStruct<BLCK, DBODY_BASE>::__enzyme_register_derivative_GpuWrap1D;
+   MFEM_CONTRACT_VAR(enzyme_registration);
+   GpuWrap1DStruct<BLCK, DBODY_BASE>::Call(N, &d_body);
+}
+/// \endcond
+#endif
+
 /// CUDA backend
 #if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 
@@ -812,14 +933,6 @@ void CuWrap3DLaunchBounds(const int N, DBODY &&d_body,
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
-#ifdef MFEM_USE_ENZYME
-/// \cond DO_NOT_DOCUMENT
-template <const int BLCK, typename DBODY>
-void __attribute__((always_inline)) CuWrap1DWithEnzyme(const int N,
-                                                       DBODY &&d_body);
-/// \endcond
-#endif
-
 template <int Dim, int MAX_THREADS_PER_BLOCK> struct CuWrap;
 
 template <int MAX_THREADS_PER_BLOCK>
@@ -877,92 +990,6 @@ struct CuWrap<3, MAX_THREADS_PER_BLOCK>
       CuWrap3DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z, G);
    }
 };
-
-#ifdef MFEM_USE_ENZYME
-/// \cond DO_NOT_DOCUMENT
-template <typename BODY> struct DerivativeKernelWrapperStruct
-{
-   MFEM_DEVICE static void CuWrap1DEnzymeBody(BODY *body, const int k)
-   {
-      (*body)(k);
-   }
-
-   __global__ static void FwdLaunch(const int N, BODY body, BODY d_body)
-   {
-      const int k = blockDim.x * blockIdx.x + threadIdx.x;
-      if (k >= N)
-      {
-         return;
-      }
-
-      __enzyme_fwddiff<void>(
-         (void*)CuWrap1DEnzymeBody, enzyme_dup,
-         (void*)&body, (void*)&d_body, enzyme_const, k, enzyme_runtime_activity);
-   }
-
-   __global__ static void Launch(const int N, BODY body)
-   {
-      const int k = blockDim.x * blockIdx.x + threadIdx.x;
-      if (k >= N)
-      {
-         return;
-      }
-      body(k);
-   }
-};
-
-template <const int BLCK, typename DBODY> struct CuWrap1DStruct
-{
-   static constexpr int ACTUAL_BLCK = BLCK == 0 ? MFEM_CUDA_BLOCKS : BLCK;
-
-   static void __attribute__((always_inline)) Call(const int N, DBODY *body)
-   {
-      if (N == 0)
-      {
-         return;
-      }
-      const int GRID = (N + ACTUAL_BLCK - 1) / ACTUAL_BLCK;
-      DerivativeKernelWrapperStruct<DBODY>::Launch<<<GRID, ACTUAL_BLCK>>>(N, *body);
-      MFEM_GPU_CHECK(cudaGetLastError());
-   }
-
-   static void __attribute__((always_inline)) FwdCall(const int N, int dN,
-                                                      DBODY *body,
-                                                      DBODY *d_body)
-   {
-      MFEM_CONTRACT_VAR(dN);
-      if (N == 0)
-      {
-         return;
-      }
-      const int GRID = (N + ACTUAL_BLCK - 1) / ACTUAL_BLCK;
-      DerivativeKernelWrapperStruct<DBODY>::FwdLaunch<<<GRID, ACTUAL_BLCK>>>(N, *body,
-                                                                             *d_body);
-      MFEM_GPU_CHECK(cudaGetLastError());
-   }
-
-   inline static void *__enzyme_register_derivative_CuWrap1D[2] =
-   {
-      (void *)&Call, (void *)&FwdCall
-   };
-};
-
-template <const int BLCK, typename DBODY>
-void __attribute__((always_inline)) CuWrap1DWithEnzyme(const int N,
-                                                       DBODY &&d_body)
-{
-   using DBODY_BASE = std::remove_reference_t<DBODY>;
-   // Taking the address forces instantiation/emission of the registration
-   // global for this lambda type so Enzyme can find the custom
-   // derivative before trying to differentiate the CUDA runtime launch
-   // inside it.
-   [[maybe_unused]] auto *enzyme_registration =
-      &CuWrap1DStruct<BLCK, DBODY_BASE>::__enzyme_register_derivative_CuWrap1D;
-   MFEM_CONTRACT_VAR(enzyme_registration);
-   CuWrap1DStruct<BLCK, DBODY_BASE>::Call(N, &d_body);
-}
-/// \endcond
-#endif
 
 #endif // defined(MFEM_USE_CUDA) && defined(__CUDACC__)
 
@@ -1151,7 +1178,18 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::RAJA_CUDA is allowed, use it
    if (Device::Allows(Backend::RAJA_CUDA))
    {
-      return RajaCuWrap<DIM, MAX_THREADS_PER_BLOCK>::run(N, d_body, X, Y, Z, G);
+      if constexpr (use_enzyme)
+      {
+#ifdef MFEM_USE_ENZYME
+         return GpuWrap1DWithEnzyme<MAX_THREADS_PER_BLOCK>(N, d_body);
+#else
+         MFEM_ABORT("Enzyme not available");
+#endif
+      }
+      else
+      {
+         return RajaCuWrap<DIM, MAX_THREADS_PER_BLOCK>::run(N, d_body, X, Y, Z, G);
+      }
    }
 #endif
 
@@ -1159,7 +1197,18 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::RAJA_HIP is allowed, use it
    if (Device::Allows(Backend::RAJA_HIP))
    {
-      return RajaHipWrap<DIM, MAX_THREADS_PER_BLOCK>::run(N, d_body, X, Y, Z, G);
+      if constexpr (use_enzyme)
+      {
+#ifdef MFEM_USE_ENZYME
+         return GpuWrap1DWithEnzyme<MAX_THREADS_PER_BLOCK>(N, d_body);
+#else
+         MFEM_ABORT("Enzyme not available");
+#endif
+      }
+      else
+      {
+         return RajaHipWrap<DIM, MAX_THREADS_PER_BLOCK>::run(N, d_body, X, Y, Z, G);
+      }
    }
 #endif
 
@@ -1174,9 +1223,7 @@ inline void ForallWrap(const bool use_dev, const int N,
                        "Enzyme CUDA Wrappers are only implemented "
                        "for one dimensional thread blocks");
 
-         constexpr int BLCK = MAX_THREADS_PER_BLOCK == 0 ? MFEM_CUDA_BLOCKS :
-                              MAX_THREADS_PER_BLOCK;
-         return CuWrap1DWithEnzyme<BLCK>(N, d_body);
+         return GpuWrap1DWithEnzyme<MAX_THREADS_PER_BLOCK>(N, d_body);
 #else
          MFEM_ABORT("Enzyme not available");
 #endif
@@ -1189,6 +1236,18 @@ inline void ForallWrap(const bool use_dev, const int N,
    // If Backend::HIP is allowed, use it
    if (Device::Allows(Backend::HIP))
    {
+      if constexpr (use_enzyme)
+      {
+#ifdef MFEM_USE_ENZYME
+         static_assert(DIM == 1,
+                       "Enzyme HIP Wrappers are only implemented "
+                       "for one dimensional thread blocks");
+
+         return GpuWrap1DWithEnzyme<MAX_THREADS_PER_BLOCK>(N, d_body);
+#else
+         MFEM_ABORT("Enzyme not available");
+#endif
+      }
       return HipWrap<DIM, MAX_THREADS_PER_BLOCK>::run(N, d_body, X, Y, Z, G);
    }
 #endif
@@ -1198,12 +1257,32 @@ inline void ForallWrap(const bool use_dev, const int N,
 
 #if defined(MFEM_USE_RAJA) && defined(RAJA_ENABLE_OPENMP)
    // If Backend::RAJA_OMP is allowed, use it
-   if (Device::Allows(Backend::RAJA_OMP)) { return RajaOmpWrap(N, h_body); }
+   if (Device::Allows(Backend::RAJA_OMP))
+   {
+      if constexpr (use_enzyme)
+      {
+         MFEM_ABORT("Enzyme forall does not support Backend::RAJA_OMP.");
+      }
+      else
+      {
+         return RajaOmpWrap(N, h_body);
+      }
+   }
 #endif
 
 #ifdef MFEM_USE_OPENMP
    // If Backend::OMP is allowed, use it
-   if (Device::Allows(Backend::OMP)) { return OmpWrap(N, h_body); }
+   if (Device::Allows(Backend::OMP))
+   {
+      if constexpr (use_enzyme)
+      {
+         MFEM_ABORT("Enzyme forall does not support Backend::OMP.");
+      }
+      else
+      {
+         return OmpWrap(N, h_body);
+      }
+   }
 #endif
 
 #ifdef MFEM_USE_RAJA
