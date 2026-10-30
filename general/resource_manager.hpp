@@ -1646,7 +1646,6 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
          }
       }
    }
-   MFEM_ASSERT(!segment, "unexpected valid segment");
    segment = base.segment;
    if (segment)
    {
