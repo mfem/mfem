@@ -535,6 +535,59 @@ public:
    void AssembleGradDiagonalPA(Vector &diag) const override;
 };
 
+/** @brief Performs common assembly setup for vector integrators whose action
+    is the divergence of a stress computed from the displacement gradient at
+    quadrature points.
+
+    For partial assembly (PA), AssemblePA() records the FiniteElementSpace,
+    selects a default integration rule when none was provided, creates a
+    QuadratureSpace and a @a vdim x @a vdim QuadratureFunction workspace
+    (q_space and q_vec), and obtains the DofToQuad maps (matching the E-vector
+    ordering) and the Jacobian GeometricFactors for that rule. The space must
+    use Ordering::byNODES and its vector dimension must equal the mesh
+    dimension.
+
+    A derived integrator must implement AddMultPA(). It may override
+    AssemblePA() to perform additional setup (e.g. projecting coefficients
+    onto q_space), in which case it should call this class's AssemblePA()
+    first.
+
+    @tparam Base The integrator base class. The member definitions are
+    compiled in fem/integ/nonlininteg_stress_divergence_pa.cpp, so each
+    supported Base requires an explicit instantiation there. */
+template <typename Base>
+class StressDivergenceIntegrator : public Base
+{
+protected:
+   /// Set up the quadrature space
+   void SetUpQuadratureSpace();
+
+   using Base::IntRule;
+
+#ifndef MFEM_THREAD_SAFE
+   Vector shape;
+   DenseMatrix dshape, gshape, pelmat;
+   Vector divshape;
+#endif
+
+   // PA extension
+   const FiniteElementSpace *fespace = nullptr;   ///< Not owned.
+
+   const DofToQuad *maps = nullptr;         ///< Not owned
+   const GeometricFactors *geom = nullptr;  ///< Not owned
+   int vdim = 0, ndofs = 0;
+
+   std::unique_ptr<QuadratureSpace> q_space;
+   /// Workspace vector
+   std::unique_ptr<QuadratureFunction> q_vec;
+public:
+   StressDivergenceIntegrator(const IntegrationRule *ir = nullptr) : Base(ir) {}
+
+   using Base::AssemblePA;
+   void AssemblePA(const FiniteElementSpace &fes) override;
+   void AddMultPA(const Vector &x, Vector &y) const override = 0;
+};
+
 }
 
 #endif
