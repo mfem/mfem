@@ -46,11 +46,15 @@ public:
    using std::runtime_error::runtime_error;
 };
 
-/// Read a PNG file and expand it to 8-bit RGB. The file is read on the host.
+/// Read a PNG file on the host and expand it to 8-bit RGB.
+/// Only 8-bit, non-interlaced images are accepted. Alpha is discarded,
+/// and each decoded buffer is capped at 256 MiB.
 [[nodiscard]] inline image read(const std::string &path);
 
 /// Read a PNG from host memory and expand it to 8-bit RGB.
 /// The pointer is used in place. Device memory is not transferred.
+/// Only 8-bit, non-interlaced images are accepted. Alpha is discarded,
+/// and each decoded buffer is capped at 256 MiB.
 [[nodiscard]] inline image read(const unsigned char *bytes, std::size_t size);
 
 /// Write an 8-bit RGB buffer as a PNG file.
