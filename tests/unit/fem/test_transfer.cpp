@@ -308,6 +308,46 @@ TEST_CASE("Transfer Fallback", "[Transfer]")
    REQUIRE(x_test.Normlinf() <= 1e-12 * x_ref.Normlinf());
 }
 
+// Successive tensor-product transfers share one coarse space but use
+// different fine node sets. Each must match the general operator.
+TEST_CASE("Tensor Product Transfer Shared Coarse Space", "[Transfer]")
+{
+   auto vdim = GENERATE(1, 2);
+   auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   const int dim = 2, c_order = 2, f_order = 4;
+   CAPTURE(vdim, ordering);
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   H1_FECollection c_fec(c_order, dim);
+   FiniteElementSpace c_fes(&mesh, &c_fec, vdim, ordering);
+
+   for (int btype : {BasisType::GaussLobatto, BasisType::ClosedUniform})
+   {
+      CAPTURE(btype);
+      H1_FECollection f_fec(f_order, dim, btype);
+      FiniteElementSpace f_fes(&mesh, &f_fec, vdim, ordering);
+
+      PRefinementTransferOperator ref(c_fes, f_fes);
+      TensorProductPRefinementTransferOperator test(c_fes, f_fes);
+
+      Vector x(c_fes.GetVSize()), y(f_fes.GetVSize());
+      x.Randomize(1);
+      y.Randomize(2);
+
+      Vector y_ref(f_fes.GetVSize()), y_test(f_fes.GetVSize());
+      ref.Mult(x, y_ref);
+      test.Mult(x, y_test);
+      y_test -= y_ref;
+      REQUIRE(y_test.Normlinf() <= 1e-12 * y_ref.Normlinf());
+
+      Vector x_ref(c_fes.GetVSize()), x_test(c_fes.GetVSize());
+      ref.MultTranspose(y, x_ref);
+      test.MultTranspose(y, x_test);
+      x_test -= x_ref;
+      REQUIRE(x_test.Normlinf() <= 1e-12 * x_ref.Normlinf());
+   }
+}
+
 TEST_CASE("InterpolationGridTransfer Round Trip", "[Transfer]")
 {
    auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,

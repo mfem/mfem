@@ -2673,23 +2673,26 @@ TensorProductPRefinementTransferOperator(
    const Array<int>& hdofmap = htel->GetDofMap();
 
    const IntegrationRule& ir = hFESpace.GetTypicalFE()->GetNodes();
-   IntegrationRule irLex = ir;
-
-   // The quadrature points, or equivalently, the dofs of the high order space
-   // must be sorted in lexicographical order
-   for (int i = 0; i < ir.GetNPoints(); ++i)
-   {
-      int j = hdofmap[i] >=0 ? hdofmap[i] : -1 - hdofmap[i];
-      irLex.IntPoint(i) = ir.IntPoint(j);
-   }
 
    NE = lFESpace.GetNE();
-   const DofToQuad& maps = el.GetDofToQuad(irLex, DofToQuad::TENSOR);
+   D1D = el.GetOrder() + 1;
+   Q1D = hFESpace.GetTypicalFE()->GetOrder() + 1;
 
-   D1D = maps.ndof;
-   Q1D = maps.nqpt;
-   B = maps.B;
-   Bt = maps.Bt;
+   // Evaluate the 1D coarse basis at the 1D fine nodes. The first Q1D fine
+   // dofs in lexicographic order lie along the x axis. The basis is evaluated
+   // directly because a cached DofToQuad would key on a temporary rule.
+   B.SetSize(Q1D * D1D);
+   Bt.SetSize(D1D * Q1D);
+   Vector values(D1D);
+   for (int q = 0; q < Q1D; ++q)
+   {
+      const int j = hdofmap[q] >= 0 ? hdofmap[q] : -1 - hdofmap[q];
+      ltel->GetBasis1D().Eval(ir.IntPoint(j).x, values);
+      for (int d = 0; d < D1D; ++d)
+      {
+         B[q + Q1D*d] = Bt[d + D1D*q] = values(d);
+      }
+   }
    MFEM_VERIFY(dim == 2 || dim == 3,
                "TensorProductPRefinementTransferOperator requires a 2D or 3D "
                "mesh");
