@@ -418,8 +418,8 @@ auto qfunction_wrapper(func_t &f, arg_ts...args)
    {
       if constexpr (is_tensor_array<std::decay_t<decltype(a)>>::value)
       {
-         __enzyme_integer(&a.dyn_sizes, sizeof(a.dyn_sizes));
-         __enzyme_integer(&a.strides, sizeof(a.strides));
+         MFEM_ENZYME_INTEGER(a.dyn_sizes);
+         MFEM_ENZYME_INTEGER(a.strides);
       }
    }(args), ...);
 #endif

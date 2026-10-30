@@ -64,7 +64,10 @@ MFEM_HOST_DEVICE
 return_type __enzyme_fwddiff(Args...);
 
 // Type hint: the @a size bytes at @a ptr hold integers.
-extern "C" MFEM_HOST_DEVICE void __enzyme_integer(void *ptr, std::size_t size);
+extern "C" MFEM_HOST_DEVICE __attribute__((enzyme_nofree))
+void __enzyme_integer(void *ptr, std::size_t size);
+
+#define MFEM_ENZYME_INTEGER(x)   __enzyme_integer((void *)&(x), sizeof(x))
 
 #define MFEM_ENZYME_INACTIVENOFREE   __attribute__((enzyme_inactive, enzyme_nofree))
 #define MFEM_ENZYME_INACTIVE   __attribute__((enzyme_inactive))
@@ -75,6 +78,7 @@ extern "C" MFEM_HOST_DEVICE void __enzyme_integer(void *ptr, std::size_t size);
 #define MFEM_ENZYME_INACTIVENOFREE
 #define MFEM_ENZYME_INACTIVE
 #define MFEM_ENZYME_FN_LIKE(x)
+#define MFEM_ENZYME_INTEGER(x)
 
 #endif // MFEM_USE_ENZYME
 
