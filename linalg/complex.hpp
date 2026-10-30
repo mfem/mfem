@@ -64,9 +64,18 @@ struct complex_t
       if (q.y == 0) { return complex_t{std::exp(q.x), q.y}; }
       const real_t c = std::cos(q.y);
       const real_t s = std::sin(q.y);
-      const real_t m = std::fmax(std::fabs(c), std::fabs(s));
-      const real_t e = std::exp(q.x + std::log(m));
-      return complex_t{(c / m) * e, (s / m) * e};
+      // Scale each factor alone so one overflow does not erase the other.
+      real_t re = 0;
+      if (c != 0)
+      {
+         re = std::copysign(std::exp(q.x + std::log(std::fabs(c))), c);
+      }
+      real_t im = 0;
+      if (s != 0)
+      {
+         im = std::copysign(std::exp(q.x + std::log(std::fabs(s))), s);
+      }
+      return complex_t{re, im};
    }
 
    friend MFEM_HOST_DEVICE complex_t log(const complex_t &z)

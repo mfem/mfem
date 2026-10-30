@@ -368,6 +368,25 @@ TEST_CASE("complex_t range edges", "[Complex]")
       CheckClose(z, mag, mag, mag * eps);
    }
 
+   SECTION("exp with unequal component magnitudes")
+   {
+#ifdef MFEM_USE_SINGLE
+      const real_t x = 90;
+      const real_t y = 1e-20;
+      const real_t expect_im = 1.2204048004197384e19;
+#else
+      const real_t x = 710;
+      const real_t y = 1e-20;
+      const real_t expect_im = 2.23399476616163e288;
+#endif
+      const complex_t z = exp(complex_t(x, y));
+      REQUIRE(std::isinf(z.real()));
+      REQUIRE(z.real() > 0);
+      REQUIRE(std::isfinite(z.imag()));
+      const real_t tol = std::fabs(expect_im) * real_t{1e-6};
+      REQUIRE(std::fabs(z.imag() - expect_im) <= tol);
+   }
+
 #ifndef MFEM_USE_SINGLE
    SECTION("division with an underflowed ratio")
    {
