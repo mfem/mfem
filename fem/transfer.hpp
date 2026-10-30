@@ -197,10 +197,13 @@ struct CoefficientWithOrder
     well-defined, the number of fine dofs (in a coarse element) should not be
     smaller than the number of coarse dofs.
 
-    Element assembly currently requires uniform parent and child element
+    @note Element assembly currently requires uniform parent and child element
     layouts. When element assembly is requested for an unsupported layout,
     such as a pyramid refined into pyramid and tetrahedron children, standard
-    assembly is used and a warning is issued. */
+    assembly is used and a warning is issued.
+
+    @note Element assembly in parallel does not currently handle distributed
+    meshes with empty local mesh partitions. */
 class L2ProjectionGridTransfer : public GridTransfer
 {
    // Must be public due to host device lambdas
@@ -253,7 +256,7 @@ public:
       void BuildHo2Lor(int nel_ho, int nel_lor,
                        const CoarseFineTransformations& cf_tr);
 
-      void ElemMixedMass(Geometry::Type geom, const FiniteElement& fe_ho,
+      void ElemMixedMass(Geometry::Type child_geom, const FiniteElement& fe_ho,
                          const FiniteElement& fe_lor, ElementTransformation* tr_ho,
                          ElementTransformation* tr_lor,
                          IntegrationPointTransformation& ip_tr,
