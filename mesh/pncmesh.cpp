@@ -2865,9 +2865,10 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
 void ParNCMesh::SendRebalanceDofs(int old_ndofs,
                                   const Table &old_element_dofs,
                                   long old_global_offset,
-                                  FiniteElementSpace *space)
+                                  FiniteElementSpace *space,
+                                  const Table *old_element_fos)
 {
-   Array<int> dofs;
+   Array<int> dofs, fos;
    int vdim = space->GetVDim();
 
    // fill messages (prepared by Rebalance) with element DOFs
@@ -2876,6 +2877,7 @@ void ParNCMesh::SendRebalanceDofs(int old_ndofs,
    {
       RebalanceDofMessage &msg = it->second;
       msg.dofs.clear();
+      msg.fos.clear();
       int ne = static_cast<int>(msg.elem_ids.size());
       if (ne)
       {
@@ -2886,6 +2888,13 @@ void ParNCMesh::SendRebalanceDofs(int old_ndofs,
          old_element_dofs.GetRow(msg.elem_ids[i], dofs);
          space->DofsToVDofs(dofs, old_ndofs);
          msg.dofs.insert(msg.dofs.end(), dofs.begin(), dofs.end());
+
+         if (old_element_fos)
+         {
+            old_element_fos->GetRow(msg.elem_ids[i], fos);
+            msg.fos.push_back(fos.Size());
+            msg.fos.insert(msg.fos.end(), fos.begin(), fos.end());
+         }
       }
       msg.dof_offset = old_global_offset;
    }
@@ -2895,7 +2904,8 @@ void ParNCMesh::SendRebalanceDofs(int old_ndofs,
 }
 
 
-void ParNCMesh::RecvRebalanceDofs(Array<int> &elements, Array<long> &dofs)
+void ParNCMesh::RecvRebalanceDofs(Array<int> &elements, Array<long> &dofs,
+                                  Table *fos)
 {
    // receive from the same ranks as in last Rebalance()
    RebalanceDofMessage::RecvAll(recv_rebalance_dofs, MyComm);
@@ -2912,20 +2922,46 @@ void ParNCMesh::RecvRebalanceDofs(Array<int> &elements, Array<long> &dofs)
 
    elements.SetSize(ne);
    dofs.SetSize(nd);
+   if (fos) { fos->MakeI(ne); }
 
-   // copy element indices and their DOFs
+   // copy element indices and their DOFs, keeping the DOF signs
    ne = nd = 0;
    for (it = recv_rebalance_dofs.begin(); it != recv_rebalance_dofs.end(); ++it)
    {
       RebalanceDofMessage &msg = it->second;
-      for (unsigned i = 0; i < msg.elem_ids.size(); i++)
+      for (unsigned i = 0, j = 0; i < msg.elem_ids.size(); i++, ne++)
       {
-         elements[ne++] = msg.elem_ids[i];
+         elements[ne] = msg.elem_ids[i];
+         if (fos && j < msg.fos.size())
+         {
+            fos->AddColumnsInRow(ne, msg.fos[j]);
+            j += msg.fos[j] + 1;
+         }
       }
       for (unsigned i = 0; i < msg.dofs.size(); i++)
       {
-         dofs[nd++] = msg.dof_offset + msg.dofs[i];
+         const long dof = msg.dof_offset + UnsignIndex(msg.dofs[i]);
+         dofs[nd++] = (msg.dofs[i] >= 0) ? dof : -1 - dof;
       }
+   }
+
+   if (fos)
+   {
+      fos->MakeJ();
+      ne = 0;
+      for (const auto &rank_msg : recv_rebalance_dofs)
+      {
+         const RebalanceDofMessage &msg = rank_msg.second;
+         for (unsigned i = 0, j = 0; i < msg.elem_ids.size(); i++, ne++)
+         {
+            if (j < msg.fos.size())
+            {
+               fos->AddConnections(ne, msg.fos.data() + j + 1, msg.fos[j]);
+               j += msg.fos[j] + 1;
+            }
+         }
+      }
+      fos->ShiftUpI();
    }
 
    RebalanceDofMessage::WaitAllSent(send_rebalance_dofs);
@@ -3533,6 +3569,7 @@ void ParNCMesh::RebalanceDofMessage::Encode(int)
    eset.Dump(stream);
    write<long>(stream, dof_offset);
    write_dofs(stream, dofs);
+   write_dofs(stream, fos);
 
    stream.str().swap(data);
 }
@@ -3544,6 +3581,7 @@ void ParNCMesh::RebalanceDofMessage::Decode(int)
    eset.Load(stream);
    dof_offset = read<long>(stream);
    read_dofs(stream, dofs);
+   read_dofs(stream, fos);
 
    data.clear();
 
@@ -3602,7 +3640,8 @@ void ParNCMesh::Trim()
 
 std::size_t ParNCMesh::RebalanceDofMessage::MemoryUsage() const
 {
-   return (elem_ids.capacity() + dofs.capacity()) * sizeof(int);
+   return (elem_ids.capacity() + dofs.capacity() + fos.capacity()) *
+          sizeof(int);
 }
 
 template<typename K, typename V>
