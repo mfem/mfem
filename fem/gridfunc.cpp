@@ -2963,6 +2963,8 @@ void GridFunction::ProjectCoefficientElementL2_(VectorCoefficient &vcoeff,
             MFEM_WARNING("Error in inverting element local matrix");
          }
 
+         doftrans.TransformPrimal(elvect);
+
          // Scale
          elvect *= elwght;
 
