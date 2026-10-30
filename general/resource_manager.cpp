@@ -2436,7 +2436,7 @@ void MemoryManager::SetValidity(size_t segment, size_t offset, size_t nbytes,
                                 bool host_valid, bool device_valid)
 {
    SetHostValidity(segment, offset, nbytes, host_valid);
-   SetDeviceValidity(segment, offset, nbytes, host_valid);
+   SetDeviceValidity(segment, offset, nbytes, device_valid);
 }
 
 #ifdef MFEM_USE_UMPIRE

@@ -647,8 +647,8 @@ protected:
                      static_cast<size_t>(offset + count) <= size_,
                      "out of bounds");
          auto &inst = MemoryManager::Instance();
-         inst.SetHostValidity(segment, (offset_ + offset) * sizeof(T),
-                              count * sizeof(T), valid);
+         inst.SetDeviceValidity(segment, (offset_ + offset) * sizeof(T),
+                                count * sizeof(T), valid);
       }
    }
 
