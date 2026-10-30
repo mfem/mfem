@@ -368,6 +368,16 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                 BasisType::GetType(name[3]),
                                 BasisType::GetType(name[4]));
    }
+   else if (!strncmp(name, "BRT_", 4))
+   {
+      fec = new BrokenRT_FECollection(atoi(name + 8), atoi(name + 4));
+   }
+   else if (!strncmp(name, "BRT@", 4))
+   {
+      fec = new BrokenRT_FECollection(atoi(name + 11), atoi(name + 7),
+                                      BasisType::GetType(name[4]),
+                                      BasisType::GetType(name[5]));
+   }
    else if (!strncmp(name, "ND_Trace_", 9))
    {
       fec = new ND_Trace_FECollection(atoi(name + 13), atoi(name + 9));
@@ -2519,9 +2529,28 @@ L2_FECollection::~L2_FECollection()
    }
 }
 
+RT_FECollection::RT_FECollection(
+   const int p, const int dim, const int cb_type, const int ob_type)
+   : RT_FECollection(p, dim, true, cb_type, ob_type)
+{
+   if (cb_type == BasisType::GaussLobatto &&
+       ob_type == BasisType::GaussLegendre)
+   {
+      snprintf(rt_name, 32, "RT_%dD_P%d", dim, p);
+   }
+   else
+   {
+      snprintf(rt_name, 32, "RT@%c%c_%dD_P%d",
+               (int)BasisType::GetChar(cb_type),
+               (int)BasisType::GetChar(ob_type), dim, p);
+   }
+}
 
+// This is a general protected constructor used by both, RT_FECollection
+// and BrokenRT_FECollection
 RT_FECollection::RT_FECollection(const int order, const int dim,
-                                 const int cb_type, const int ob_type)
+                                 const bool faces, const int cb_type,
+                                 const int ob_type)
    : FiniteElementCollection(order + 1)
    , dim(dim)
    , cb_type(cb_type)
@@ -2544,18 +2573,7 @@ RT_FECollection::RT_FECollection(const int order, const int dim,
       MFEM_ABORT("unknown open BasisType: " << ob_name);
    }
 
-   InitFaces(p, dim, FiniteElement::INTEGRAL, true);
-
-   if (cb_type == BasisType::GaussLobatto &&
-       ob_type == BasisType::GaussLegendre)
-   {
-      snprintf(rt_name, 32, "RT_%dD_P%d", dim, p);
-   }
-   else
-   {
-      snprintf(rt_name, 32, "RT@%c%c_%dD_P%d", (int)BasisType::GetChar(cb_type),
-               (int)BasisType::GetChar(ob_type), dim, p);
-   }
+   InitFaces(p, dim, FiniteElement::INTEGRAL, true, faces);
 
    const int pp1 = p + 1;
    if (dim == 2)
@@ -2609,8 +2627,8 @@ RT_FECollection::RT_FECollection(const int p, const int dim,
 }
 
 void RT_FECollection::InitFaces(const int p, const int dim_,
-                                const int map_type,
-                                const bool signs)
+                                const int map_type, const bool signs,
+                                const bool faces)
 {
    int op_type = BasisType::GetQuadrature1D(ob_type);
 
@@ -2637,6 +2655,8 @@ void RT_FECollection::InitFaces(const int p, const int dim_,
    {
       QuadDofOrd[i] = NULL;
    }
+
+   if (!faces) { return; }
 
    if (dim_ == 2)
    {
@@ -2779,6 +2799,40 @@ RT_FECollection::~RT_FECollection()
    }
 }
 
+BrokenRT_FECollection::BrokenRT_FECollection(
+   const int p, const int dim, const int cb_type, const int ob_type)
+   : RT_FECollection(p, dim, false, cb_type, ob_type)
+{
+   if (cb_type == BasisType::GaussLobatto &&
+       ob_type == BasisType::GaussLegendre)
+   {
+      snprintf(rt_name, 32, "BRT_%dD_P%d", dim, p);
+   }
+   else
+   {
+      snprintf(rt_name, 32, "BRT@%c%c_%dD_P%d",
+               (int)BasisType::GetChar(cb_type),
+               (int)BasisType::GetChar(ob_type), dim, p);
+   }
+}
+
+
+FiniteElementCollection *BrokenRT_FECollection::GetTraceCollection() const
+{
+   int tr_dim, tr_p;
+   if (!strncmp(rt_name, "BRT_", 4))
+   {
+      tr_dim = atoi(rt_name + 4);
+      tr_p = atoi(rt_name + 8);
+   }
+   else // rt_name = BRT@.._.D_P*
+   {
+      tr_dim = atoi(rt_name + 7);
+      tr_p = atoi(rt_name + 11);
+   }
+   return new RT_Trace_FECollection(tr_p, tr_dim, FiniteElement::INTEGRAL,
+                                    ob_type);
+}
 
 RT_Trace_FECollection::RT_Trace_FECollection(const int p, const int dim,
                                              const int map_type,
