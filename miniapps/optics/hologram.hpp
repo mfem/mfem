@@ -60,7 +60,9 @@ inline void HologramConfig::AddTo(mfem::OptionsParser &args)
    args.AddOption(&holo_file, "-o", "--output", "Hologram sRGB PNG.");
    args.AddOption(&mask_file, "-m", "--mask", "Phase-mask PNG.");
    args.AddOption(&wavelength_nm, "-w", "--wavelength",
-                  "Wavelength in nanometres (default 532).");
+                  "Wavelength in nanometres (default 532). Any positive "
+                  "value is accepted. The hologram PNG is black outside "
+                  "380 to 780 nm.");
    args.AddOption(&nwt_max_iter, "-mi", "--max-iterations",
                   "Maximum Newton iterations (default 50).");
    args.AddOption(&cgs_max_iter, "-cg", "--cg-iterations",

@@ -237,5 +237,6 @@ The mask PNG encodes this wrapped phase as an HSV hue $(\varphi+\pi)/(2\pi)$
 at full saturation and value. The hologram PNG replays unit-amplitude
 $e^{i\varphi}$ through the lens and `FresnelOp::Propagate`, then encodes the
 intensity $|V|^2$ of that unscaled field as a CIE 1931 2° monochromatic sRGB
-color at the chosen wavelength. The white point is the 99.5th percentile of
-the intensity.
+color at the chosen wavelength. Any positive wavelength is accepted, and
+the hologram PNG is black outside 380 to 780 nm. The white point is the
+99.5th percentile of the intensity.
