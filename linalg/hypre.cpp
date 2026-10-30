@@ -778,9 +778,6 @@ static inline void SyncBackCSR(SparseMatrix *csr, MemoryIJData &mem_csr)
 }
 #endif
 
-/// @deprecated No-op; aliases share memory validity automatically.
-MFEM_DEPRECATED static inline void SyncBackBoolCSR(Table *, MemoryIJData &) {}
-
 /// @brief Return the size of the partitioning arrays, see @ref
 /// hypre_partitioning_descr.
 static int GetPartitioningArraySize(MPI_Comm comm)
