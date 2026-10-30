@@ -224,13 +224,11 @@ struct DerefineMatrixOpMultFunctor
                sum += sign * bsptr[boptr[k] + i + j * block_height] *
                       xptr[this->IndexX(col, vdim, k)];
             }
-#if defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)
             if (Atomic)
             {
-               atomicAdd(yptr + this->IndexY(row, vdim), sum);
+               AtomicAdd(yptr[this->IndexY(row, vdim)], sum);
             }
             else
-#endif
             {
                yptr[this->IndexY(row, vdim)] += sum;
             }
