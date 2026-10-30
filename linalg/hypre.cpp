@@ -763,12 +763,9 @@ static void CopyCSR_J(const int nnz, const MemoryIJData &mem_csr,
 #endif
 
 // Method called after hypre_CSRMatrixReorder()
-#ifndef HYPRE_BIGINT
-MFEM_DEPRECATED
-#endif
+#ifdef HYPRE_BIGINT
 static inline void SyncBackCSR(SparseMatrix *csr, MemoryIJData &mem_csr)
 {
-#ifdef HYPRE_BIGINT
    const MemoryClass hypre_mc = GetHypreMemoryClass();
    const bool data_shallow = CanShallowCopy(csr->GetMemoryData(), hypre_mc);
 
@@ -778,8 +775,8 @@ static inline void SyncBackCSR(SparseMatrix *csr, MemoryIJData &mem_csr)
       // value used in CopyConvertMemory() in CopyCSR().
       CopyCSR_J(csr->GetMemoryJ().Capacity(), mem_csr, csr->GetMemoryJ());
    }
-#endif
 }
+#endif
 
 /// @deprecated No-op; aliases share memory validity automatically.
 MFEM_DEPRECATED static inline void SyncBackBoolCSR(Table *, MemoryIJData &) {}
