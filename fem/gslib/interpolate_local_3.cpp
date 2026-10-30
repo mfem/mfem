@@ -36,14 +36,19 @@ namespace mfem
 using gslib::lagrange_eval;
 
 template<int T_D1D = 0>
-static void InterpolateLocal3DKernel(const double *const gf_in,
-                                     int *const el,
-                                     double *const r,
+static void InterpolateLocal3DKernel(const bool use_dev,
+                                     const double *const gf_in,
+                                     const unsigned int *const el,
+                                     const double *const r,
                                      double *const int_out,
                                      const int npt,
                                      const int ncomp,
                                      double *gll1D,
                                      double *lagcoeff,
+                                     const unsigned int *const code,
+                                     const unsigned int *const proc,
+                                     const int my_rank,
+                                     const int out_ordering,
                                      const int pN = 0)
 {
    const int Nfields = ncomp;
@@ -52,11 +57,17 @@ static void InterpolateLocal3DKernel(const double *const gf_in,
    const int p_Np = D1D*D1D*D1D;
    MFEM_VERIFY(MD1 <= DofQuadLimits::MAX_D1D,
                "Increase Max allowable polynomial order.");
-   MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
+   MFEM_VERIFY(D1D > 0, "Polynomial order not specified.");
+   MFEM_VERIFY(D1D <= MD1, "D1D exceeds the allocated workspace size.");
 #define MAXC(a, b) (((a) > (b)) ? (a) : (b))
    const int nThreadsy = MAXC(D1D, 3);
-   mfem::forall_2D(npt, D1D, nThreadsy, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall_2D_switch(use_dev, npt, D1D, nThreadsy,
+                          [=] MFEM_HOST_DEVICE (int i)
    {
+      // Optional mask: skip points that were not found or that belong to
+      // another rank. The whole thread block returns together.
+      if (code && (code[i] == CODE_NOT_FOUND || proc[i] != my_rank)) { return; }
+
       MFEM_SHARED double wtr[3*MD1];
       MFEM_SHARED double sums[MD1*MD1];
 
@@ -100,7 +111,9 @@ static void InterpolateLocal3DKernel(const double *const gf_in,
                {
                   sumv += sums[jj];
                }
-               int_out[i + fld * npt] = sumv;
+               const int oidx = (out_ordering == Ordering::byNODES) ?
+                                i + fld*npt : i*Nfields + fld;
+               int_out[oidx] = sumv;
             }
          }
          MFEM_SYNC_THREAD;
@@ -109,45 +122,58 @@ static void InterpolateLocal3DKernel(const double *const gf_in,
 }
 
 void FindPointsGSLIB::InterpolateLocal3(const Vector &field_in,
-                                        Array<int> &gsl_elem_dev_l,
-                                        Vector &gsl_ref_l,
+                                        const Array<unsigned int> &elem,
+                                        const Vector &ref,
                                         Vector &field_out,
-                                        int npt, int ncomp,
-                                        int dof1Dsol)
+                                        int npt, int ncomp, int dof1Dsol,
+                                        int out_ordering,
+                                        const Array<unsigned int> *code,
+                                        const Array<unsigned int> *proc,
+                                        int my_rank)
 {
    if (npt == 0) { return; }
-   bool use_dev = field_in.UseDevice();
-   auto pfin = field_in.Read(use_dev);
-   auto pgsle = gsl_elem_dev_l.ReadWrite(use_dev);
-   auto pgslr = gsl_ref_l.ReadWrite(use_dev);
-   auto pfout = field_out.Write(use_dev);
-   auto pgll = DEV.gll1d_sol.ReadWrite(use_dev);
-   auto plcf = DEV.lagcoeff_sol.ReadWrite(use_dev);
+   MFEM_ASSERT((code == nullptr) == (proc == nullptr),
+               "code and proc must be given together.");
+   // All arrays are accessed in the memory space selected by field_in.
+   const bool use_dev = field_in.UseDevice();
+   auto pfin  = field_in.Read(use_dev);
+   auto pelem = elem.Read(use_dev);
+   auto pref  = ref.Read(use_dev);
+   // With a mask, the entries of field_out that are not evaluated are kept.
+   auto pout  = code ? field_out.ReadWrite(use_dev) : field_out.Write(use_dev);
+   auto pcode = code ? code->Read(use_dev) : nullptr;
+   auto pproc = proc ? proc->Read(use_dev) : nullptr;
+   auto pgll  = DEV.gll1d_sol.ReadWrite(use_dev);
+   auto plcf  = DEV.lagcoeff_sol.ReadWrite(use_dev);
    switch (dof1Dsol)
    {
       case 2:
-         InterpolateLocal3DKernel<2>(pfin, pgsle, pgslr, pfout,
-                                     npt, ncomp, pgll, plcf);
+         InterpolateLocal3DKernel<2>(use_dev, pfin, pelem, pref, pout, npt,
+                                     ncomp, pgll, plcf, pcode, pproc, my_rank,
+                                     out_ordering);
          break;
       case 3:
-         InterpolateLocal3DKernel<3>(pfin, pgsle, pgslr, pfout,
-                                     npt, ncomp, pgll, plcf);
+         InterpolateLocal3DKernel<3>(use_dev, pfin, pelem, pref, pout, npt,
+                                     ncomp, pgll, plcf, pcode, pproc, my_rank,
+                                     out_ordering);
          break;
       case 4:
-         InterpolateLocal3DKernel<4>(pfin, pgsle, pgslr, pfout,
-                                     npt, ncomp, pgll, plcf);
+         InterpolateLocal3DKernel<4>(use_dev, pfin, pelem, pref, pout, npt,
+                                     ncomp, pgll, plcf, pcode, pproc, my_rank,
+                                     out_ordering);
          break;
       case 5:
-         InterpolateLocal3DKernel<5>(pfin, pgsle, pgslr, pfout,
-                                     npt, ncomp, pgll, plcf);
+         InterpolateLocal3DKernel<5>(use_dev, pfin, pelem, pref, pout, npt,
+                                     ncomp, pgll, plcf, pcode, pproc, my_rank,
+                                     out_ordering);
          break;
       default:
-         InterpolateLocal3DKernel(pfin, pgsle, pgslr, pfout,
-                                  npt, ncomp, pgll, plcf, dof1Dsol);
+         InterpolateLocal3DKernel(use_dev, pfin, pelem, pref, pout, npt,
+                                  ncomp, pgll, plcf, pcode, pproc, my_rank,
+                                  out_ordering, dof1Dsol);
          break;
    }
 }
-
 
 #undef MAXC
 #undef CODE_INTERNAL
@@ -155,11 +181,14 @@ void FindPointsGSLIB::InterpolateLocal3(const Vector &field_in,
 #undef CODE_NOT_FOUND
 #else
 void FindPointsGSLIB::InterpolateLocal3(const Vector &field_in,
-                                        Array<int> &gsl_elem_dev_l,
-                                        Vector &gsl_ref_l,
+                                        const Array<unsigned int> &elem,
+                                        const Vector &ref,
                                         Vector &field_out,
-                                        int npt, int ncomp,
-                                        int dof1Dsol) {};
+                                        int npt, int ncomp, int dof1Dsol,
+                                        int out_ordering,
+                                        const Array<unsigned int> *code,
+                                        const Array<unsigned int> *proc,
+                                        int my_rank) { }
 #endif
 } // namespace mfem
 
