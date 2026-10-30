@@ -221,6 +221,133 @@ TEST_CASE("Transfer", "[Transfer]")
    delete c_fec;
 }
 
+enum class PTransferCase { H1_1D, L2, H1Positive, H1HighOrder, H1Mixed };
+
+std::string PTransferCaseName(PTransferCase c)
+{
+   switch (c)
+   {
+      case PTransferCase::H1_1D: return "1D H1";
+      case PTransferCase::L2: return "L2";
+      case PTransferCase::H1Positive: return "H1 Positive";
+      case PTransferCase::H1HighOrder: return "H1 high order";
+      case PTransferCase::H1Mixed: return "H1 mixed mesh";
+   }
+   return "";
+}
+
+// Spaces for which TransferOperator falls back to PRefinementTransferOperator
+// because the tensor-product kernels do not support them.
+TEST_CASE("Transfer Fallback", "[Transfer]")
+{
+   auto tcase = GENERATE(PTransferCase::H1_1D, PTransferCase::L2,
+                         PTransferCase::H1Positive, PTransferCase::H1HighOrder,
+                         PTransferCase::H1Mixed);
+   auto vdim = GENERATE(1, 2);
+   auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+
+   const int dim = (tcase == PTransferCase::H1_1D) ? 1 : 2;
+   const int c_order = 2;
+   const int f_order = (tcase == PTransferCase::H1HighOrder)
+                       ? DeviceDofQuadLimits::Get().MAX_Q1D : 2*c_order;
+   CAPTURE(PTransferCaseName(tcase), vdim, ordering, c_order, f_order);
+
+   Mesh mesh;
+   if (tcase == PTransferCase::H1Mixed)
+   {
+      mesh = Mesh::LoadFromFile("../../data/square-mixed.mesh");
+   }
+   else if (dim == 1)
+   {
+      mesh = Mesh::MakeCartesian1D(3);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   }
+
+   std::unique_ptr<FiniteElementCollection> c_fec, f_fec;
+   switch (tcase)
+   {
+      case PTransferCase::H1_1D:
+      case PTransferCase::H1HighOrder:
+      case PTransferCase::H1Mixed:
+         c_fec.reset(new H1_FECollection(c_order, dim));
+         f_fec.reset(new H1_FECollection(f_order, dim));
+         break;
+      case PTransferCase::L2:
+         c_fec.reset(new L2_FECollection(c_order, dim));
+         f_fec.reset(new L2_FECollection(f_order, dim));
+         break;
+      case PTransferCase::H1Positive:
+         c_fec.reset(new H1Pos_FECollection(c_order, dim));
+         f_fec.reset(new H1Pos_FECollection(f_order, dim));
+         break;
+   }
+
+   FiniteElementSpace c_fes(&mesh, c_fec.get(), vdim, ordering);
+   FiniteElementSpace f_fes(&mesh, f_fec.get(), vdim, ordering);
+
+   PRefinementTransferOperator ref(c_fes, f_fes);
+   TransferOperator test(c_fes, f_fes);
+
+   Vector x(c_fes.GetVSize()), y(f_fes.GetVSize());
+   x.Randomize(1);
+   y.Randomize(2);
+
+   Vector y_ref(f_fes.GetVSize()), y_test(f_fes.GetVSize());
+   ref.Mult(x, y_ref);
+   test.Mult(x, y_test);
+   y_test -= y_ref;
+   REQUIRE(y_test.Normlinf() <= 1e-12 * y_ref.Normlinf());
+
+   Vector x_ref(c_fes.GetVSize()), x_test(c_fes.GetVSize());
+   ref.MultTranspose(y, x_ref);
+   test.MultTranspose(y, x_test);
+   x_test -= x_ref;
+   REQUIRE(x_test.Normlinf() <= 1e-12 * x_ref.Normlinf());
+}
+
+// Successive tensor-product transfers share one coarse space but use
+// different fine node sets. Each must match the general operator.
+TEST_CASE("Tensor Product Transfer Shared Coarse Space", "[Transfer]")
+{
+   auto vdim = GENERATE(1, 2);
+   auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   const int dim = 2, c_order = 2, f_order = 4;
+   CAPTURE(vdim, ordering);
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   H1_FECollection c_fec(c_order, dim);
+   FiniteElementSpace c_fes(&mesh, &c_fec, vdim, ordering);
+
+   for (int btype : {BasisType::GaussLobatto, BasisType::ClosedUniform})
+   {
+      CAPTURE(btype);
+      H1_FECollection f_fec(f_order, dim, btype);
+      FiniteElementSpace f_fes(&mesh, &f_fec, vdim, ordering);
+
+      PRefinementTransferOperator ref(c_fes, f_fes);
+      TensorProductPRefinementTransferOperator test(c_fes, f_fes);
+
+      Vector x(c_fes.GetVSize()), y(f_fes.GetVSize());
+      x.Randomize(1);
+      y.Randomize(2);
+
+      Vector y_ref(f_fes.GetVSize()), y_test(f_fes.GetVSize());
+      ref.Mult(x, y_ref);
+      test.Mult(x, y_test);
+      y_test -= y_ref;
+      REQUIRE(y_test.Normlinf() <= 1e-12 * y_ref.Normlinf());
+
+      Vector x_ref(c_fes.GetVSize()), x_test(c_fes.GetVSize());
+      ref.MultTranspose(y, x_ref);
+      test.MultTranspose(y, x_test);
+      x_test -= x_ref;
+      REQUIRE(x_test.Normlinf() <= 1e-12 * x_ref.Normlinf());
+   }
+}
+
 TEST_CASE("InterpolationGridTransfer Round Trip", "[Transfer]")
 {
    auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,
