@@ -192,6 +192,7 @@ set(UNIT_TESTS_SRCS
   fem/specializations/test_qinterp_tensoreval.cpp
   fem/specializations/test_qinterp_eval_hdiv.cpp
   enzyme/compatibility.cpp
+  miniapps/test_fresnel.cpp
   # The following are tested separately (keep the comment as a reminder).
   # This list can be updated using (in bash):
   #    for d in miniapps ceed; do ls -1 $d/*.cpp; done
@@ -216,6 +217,23 @@ endif()
 
 add_library(unit_tests_srcs OBJECT ${UNIT_TESTS_SRCS})
 target_link_libraries(unit_tests_srcs PUBLIC mfem)
+# Fresnel FFT comparison. Without FFTW the dense adjoint check still runs.
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND AND NOT MFEM_USE_SINGLE)
+   pkg_check_modules(HOLO_TEST_FFTW3 QUIET fftw3)
+endif()
+find_path(HOLO_TEST_FFTW_INCLUDE_DIR fftw3.h
+   HINTS ${HOLO_TEST_FFTW3_INCLUDE_DIRS})
+find_library(HOLO_TEST_FFTW_LIBRARY NAMES fftw3
+   HINTS ${HOLO_TEST_FFTW3_LIBRARY_DIRS})
+if(HOLO_TEST_FFTW_INCLUDE_DIR AND HOLO_TEST_FFTW_LIBRARY
+   AND NOT MFEM_USE_SINGLE)
+   set_property(SOURCE miniapps/test_fresnel.cpp APPEND PROPERTY
+      COMPILE_DEFINITIONS HOLO_USE_CPU_FFT)
+   target_include_directories(unit_tests_srcs PRIVATE
+      ${HOLO_TEST_FFTW_INCLUDE_DIR})
+   target_link_libraries(unit_tests_srcs PUBLIC ${HOLO_TEST_FFTW_LIBRARY})
+endif()
 add_dependencies(unit_tests_srcs
       ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
 
