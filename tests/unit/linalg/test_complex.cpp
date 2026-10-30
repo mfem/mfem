@@ -325,6 +325,38 @@ TEST_CASE("complex_t range edges", "[Complex]")
       REQUIRE(std::fabs(z.imag()) <= 2);
    }
 
+   SECTION("sin and cos past the hyperbolic overflow")
+   {
+#ifdef MFEM_USE_SINGLE
+      const real_t y = 89.5;
+      const real_t expect = 2.617050263660361e38;
+#else
+      const real_t y = 710.5;
+      const real_t expect = 1.3022201128602145e308;
+#endif
+      const complex_t s = sin(complex_t(M_PI / 4, y));
+      const complex_t c = cos(complex_t(M_PI / 4, y));
+      const real_t tol = expect * real_t{1e-6};
+      REQUIRE(std::isfinite(s.real()));
+      REQUIRE(std::isfinite(s.imag()));
+      REQUIRE(std::isfinite(c.real()));
+      REQUIRE(std::isfinite(c.imag()));
+      CheckClose(s, expect, expect, tol);
+      CheckClose(c, expect, -expect, tol);
+   }
+
+   SECTION("sin and cos of a pure imaginary overflow")
+   {
+      const complex_t s = sin(complex_t(0, 1000));
+      const complex_t c = cos(complex_t(0, 1000));
+      REQUIRE(s.real() == 0);
+      REQUIRE(std::isinf(s.imag()));
+      REQUIRE(s.imag() > 0);
+      REQUIRE(std::isinf(c.real()));
+      REQUIRE(c.real() > 0);
+      REQUIRE(c.imag() == 0);
+   }
+
    SECTION("exp near the top of the range")
    {
       const real_t x = std::log(mx) + real_t{0.25};

@@ -92,16 +92,33 @@ struct complex_t
       return exp(s * log(z));
    }
 
+   // trig * cosh(|y|) or |trig| * sinh(|y|). A zero trig factor stays zero.
+   static MFEM_HOST_DEVICE real_t HypScale(real_t trig, real_t ay, bool sinh)
+   {
+      if (trig == 0) { return 0; }
+      const real_t em2 = std::exp(-2 * ay);
+      const real_t corr = sinh ? (1 - em2) : (1 + em2);
+      const real_t ln =
+         ay + std::log(std::fabs(trig)) - std::log(real_t{2});
+      return std::copysign(std::exp(ln) * corr, trig);
+   }
+
    friend MFEM_HOST_DEVICE complex_t sin(const complex_t &z)
    {
-      return complex_t{std::sin(z.x) * std::cosh(z.y),
-                       std::cos(z.x) * std::sinh(z.y)};
+      const real_t s = std::sin(z.x);
+      const real_t c = std::cos(z.x);
+      const real_t ay = std::fabs(z.y);
+      const real_t sy = std::copysign(real_t{1}, z.y);
+      return complex_t{HypScale(s, ay, false), HypScale(sy * c, ay, true)};
    }
 
    friend MFEM_HOST_DEVICE complex_t cos(const complex_t &z)
    {
-      return complex_t{std::cos(z.x) * std::cosh(z.y),
-                       -std::sin(z.x) * std::sinh(z.y)};
+      const real_t s = std::sin(z.x);
+      const real_t c = std::cos(z.x);
+      const real_t ay = std::fabs(z.y);
+      const real_t sy = std::copysign(real_t{1}, z.y);
+      return complex_t{HypScale(c, ay, false), HypScale(-sy * s, ay, true)};
    }
 
    friend MFEM_HOST_DEVICE complex_t tan(const complex_t &z)
