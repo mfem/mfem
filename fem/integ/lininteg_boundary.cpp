@@ -174,7 +174,6 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
                             Vector &y)
 {
    MFEM_ASSERT(!(normals && flux), "Invalid arguments.");
-   if (fes.GetNBE() == 0) { return; }
    Mesh &mesh = *fes.GetMesh();
    const int dim = mesh.Dimension();
    const FiniteElement &el = *fes.GetTypicalBE();
@@ -183,6 +182,8 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
    const int d = maps.ndof, q = maps.nqpt;
    int flags = FaceGeometricFactors::DETERMINANTS;
    if (normals || flux) { flags |= FaceGeometricFactors::NORMALS; }
+   // Geometry setup can create mesh nodes collectively, so ranks without
+   // boundary elements must participate too.
    const FaceGeometricFactors *geom = mesh.GetFaceGeometricFactors(
                                          ir, flags, FaceType::Boundary, mt);
    auto ker = (dim == 2) ? BLFEvalAssemble2D<> : BLFEvalAssemble3D<>;
@@ -261,12 +262,11 @@ void VectorBoundaryFluxLFIntegrator::AssembleDevice(
    const Array<int> &markers,
    Vector &b)
 {
-   if (fes.GetNBE() == 0) { return; }
    Mesh &mesh = *fes.GetMesh();
    MFEM_VERIFY(fes.GetVDim() == mesh.Dimension(),
                "The vector dimension of the space must equal the mesh "
                "dimension.");
-   const FiniteElement &fe = *fes.GetBE(0);
+   const FiniteElement &fe = *fes.GetTypicalBE();
    const Geometry::Type gtype = fe.GetGeomType();
    // Same default integration rule as AssembleRHSElementVect
    const IntegrationRule &ir =
