@@ -28,6 +28,7 @@ option(MFEM_USE_EXCEPTIONS "Enable the use of exceptions" OFF)
 option(MFEM_USE_ZLIB "Enable zlib for compressed data streams." OFF)
 option(MFEM_USE_LIBUNWIND "Enable backtrace for errors." OFF)
 option(MFEM_USE_LAPACK "Enable LAPACK usage" OFF)
+option(MFEM_USE_LAPACKE "Enable LAPACKE and ALGOIM polynomial quadrature" OFF)
 option(MFEM_THREAD_SAFE "Enable thread safety" OFF)
 option(MFEM_USE_OPENMP "Enable the OpenMP backend" OFF)
 option(MFEM_USE_LEGACY_OPENMP "Enable legacy OpenMP usage" OFF)
@@ -258,7 +259,7 @@ set(UMPIRE_DIR "${MFEM_DIR}/../umpire" CACHE PATH "Path to Umpire")
 set(CALIPER_DIR "${MFEM_DIR}/../caliper" CACHE PATH "Path to Caliper")
 set(BLITZ_DIR "${MFEM_DIR}/../blitz" CACHE PATH "Path to Blitz")
 set(ALGOIM_DIR "${MFEM_DIR}/../algoim" CACHE PATH "Path to Algoim")
-set(Algoim_REQUIRED_PACKAGES "Blitz" CACHE STRING
+set(Algoim_REQUIRED_PACKAGES "" CACHE STRING
     "Packages that ALGOIM depends on.")
 
 set(BENCHMARK_DIR "${MFEM_DIR}/../google-benchmark" CACHE PATH

@@ -102,7 +102,7 @@ endif()
 if (MFEM_USE_SINGLE)
   list(APPEND SKIP_TESTS ex33.cpp ex33p.cpp)
 endif()
-if (NOT MFEM_USE_LAPACK)
+if (NOT MFEM_USE_ALGOIM)
   list(APPEND SKIP_TESTS ex38.cpp)
 endif()
 
