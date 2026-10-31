@@ -209,9 +209,6 @@ class ParFresnel : public Operator
 
    void Transpose(const Vector &src, Vector &dst, bool toColumns) const
    {
-      const int nx = this->nx;
-      const int np = this->np;
-      const int rows = this->rows;
       const int n = rows * nx;
       const real_t *s = src.Read();
       real_t *d = dst.Write();
