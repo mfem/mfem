@@ -194,6 +194,7 @@ Vector &Vector::operator=(const real_t *v)
 
 Vector &Vector::operator=(const Vector &v)
 {
+   if (this == &v) { return *this; }
 #if 0
    SetSize(v.Size(), v.data.GetMemoryType());
    data.CopyFrom(v.data, v.Size());
@@ -203,8 +204,13 @@ Vector &Vector::operator=(const Vector &v)
    const bool vuse = v.UseDevice();
    const bool use_dev = UseDevice() || vuse;
    if (use_dev != vuse) { v.UseDevice(use_dev); }
-   // keep 'data' where it is, unless 'use_dev' is true
-   if (use_dev) { Write(); }
+   // Make the source readable before invalidating the destination's host
+   // range, since the two vectors may share the same registration.
+   if (use_dev)
+   {
+      v.Read(true);
+      Write();
+   }
    data.CopyFrom(v.data, v.Size());
    if (use_dev != vuse) { v.UseDevice(vuse); }
 #endif

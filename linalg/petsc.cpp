@@ -682,6 +682,10 @@ Vector * PetscParVector::GlobalVector() const
 
 PetscParVector& PetscParVector::operator=(PetscScalar d)
 {
+   ierr = VecSetErrorIfLocked(x,1); PCHKERRQ(x,ierr);
+   // MFEM writes may leave PETSc's cached zero norm stale. Invalidate it
+   // before VecSet can use that cache to skip a zero assignment.
+   ierr = __mfem_PetscObjectStateIncrease((PetscObject)x); PCHKERRQ(x,ierr);
    ierr = VecSet(x,d); PCHKERRQ(x,ierr);
    SetFlagsFromMask_();
    return *this;

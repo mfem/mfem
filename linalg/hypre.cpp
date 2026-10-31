@@ -158,14 +158,14 @@ inline void HypreParVector::_SetDataAndSize_()
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
 #if !defined(HYPRE_USING_GPU)
    SetDataAndSize(hypre_VectorData(x_loc),
-                  internal::to_int(hypre_VectorSize(x_loc)));
+                  internal::to_int(hypre_VectorSize(x_loc)), true);
 #else
    size = internal::to_int(hypre_VectorSize(x_loc));
    MemoryType mt = (hypre_VectorMemoryLocation(x_loc) == HYPRE_MEMORY_HOST
                     ? MemoryType::HOST : GetHypreMemoryType());
    if (hypre_VectorData(x_loc) != NULL)
    {
-      data.Wrap(hypre_VectorData(x_loc), size, mt, false);
+      data.CheckedWrap(hypre_VectorData(x_loc), size, mt, false);
    }
    else
    {
@@ -363,7 +363,7 @@ HypreParVector& HypreParVector::operator=(HypreParVector &&y)
 void HypreParVector::SetData(real_t *data_)
 {
    hypre_VectorData(hypre_ParVectorLocalVector(x)) = data_;
-   Vector::SetData(data_);
+   Vector::SetData(data_, true);
 }
 
 void HypreParVector::HypreRead() const
@@ -824,9 +824,9 @@ signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
 {
    const int nr1 = internal::to_int(h_mat->num_rows) + 1;
    const int nnz = internal::to_int(h_mat->num_nonzeros);
-   mem.I.Wrap(h_mat->i, nr1, h_mat_mt, own_ija);
-   mem.J.Wrap(h_mat->j, nnz, h_mat_mt, own_ija);
-   mem.data.Wrap(h_mat->data, nnz, h_mat_mt, own_ija);
+   mem.I.CheckedWrap(h_mat->i, nr1, h_mat_mt, own_ija);
+   mem.J.CheckedWrap(h_mat->j, nnz, h_mat_mt, own_ija);
+   mem.data.CheckedWrap(h_mat->data, nnz, h_mat_mt, own_ija);
    const MemoryClass hypre_mc = GetHypreMemoryClass();
    if (!CanShallowCopy(mem.I, hypre_mc))
    {
@@ -2334,9 +2334,9 @@ void HypreParMatrix::DropSmallEntries(real_t tol)
       Vector row;
       for (HYPRE_Int r = 0; r < local_num_rows; r++)
       {
-         row.SetDataAndSize(diag_d + diag_I[r], diag_I[r+1]-diag_I[r]);
+         row.SetDataAndSize(diag_d + diag_I[r], diag_I[r+1]-diag_I[r], true);
          real_t l2_row_norm = row.Norml2();
-         row.SetDataAndSize(offd_d + offd_I[r], offd_I[r+1]-offd_I[r]);
+         row.SetDataAndSize(offd_d + offd_I[r], offd_I[r+1]-offd_I[r], true);
          l2_row_norm = std::hypot(l2_row_norm, row.Norml2());
          max_l2_row_norm = std::max(max_l2_row_norm, l2_row_norm);
       }

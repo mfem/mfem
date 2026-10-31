@@ -1721,10 +1721,9 @@ void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
          base.segment = inst.Insert(reinterpret_cast<char *>(base.h_ptr),
                                     nullptr, base.size_ * sizeof(T), base.h_mt,
                                     MemoryType::DEFAULT, true, false);
-         if (base.flags & OWNS_HOST)
-         {
-            base.flags = static_cast<Flags>(base.flags | OWNS_DEVICE);
-         }
+         // The base owns any device buffer allocated by MFEM for this new
+         // registration, even when its host storage is borrowed.
+         base.flags = static_cast<Flags>(base.flags | OWNS_DEVICE);
       }
    }
    segment = base.segment;
@@ -1770,12 +1769,13 @@ template <class T> Memory<T>::Memory(MemoryType mt) : Memory()
 }
 
 template <class T>
-Memory<T>::Memory(MemoryType h_mt, MemoryType d_mt) : Memory()
+Memory<T>::Memory(MemoryType hloc, MemoryType dloc) : Memory()
 {
-   if (d_mt != MemoryType::DEFAULT)
+   h_mt = hloc;
+   if (dloc != MemoryType::DEFAULT)
    {
       auto &inst = MemoryManager::Instance();
-      segment = inst.Insert(nullptr, nullptr, 0, h_mt, d_mt, false, false);
+      segment = inst.Insert(nullptr, nullptr, 0, h_mt, dloc, false, false);
    }
 }
 

@@ -27,6 +27,18 @@ public:
 };
 }
 
+TEST_CASE("Empty resource memory preserves explicit host and device types",
+          "[Resource Manager]")
+{
+   const auto d_mt = GENERATE(MemoryType::DEFAULT, MemoryType::DEVICE);
+   Memory<int> mem(MemoryType::HOST_64, d_mt);
+   REQUIRE(mem.Empty());
+   REQUIRE(mem.Capacity() == 0);
+   REQUIRE(mem.GetHostMemoryType() == MemoryType::HOST_64);
+   REQUIRE(mem.GetMemoryType() == MemoryType::HOST_64);
+   REQUIRE(mem.GetDeviceMemoryType() == d_mt);
+}
+
 TEST_CASE("Resource aliases reset offsets when detached or registered",
           "[Resource Manager][GPU]")
 {
@@ -389,6 +401,28 @@ TEST_CASE("Resource CheckedWrap host and device pointers",
       base.Delete();
    }
 #endif
+}
+
+TEST_CASE("Aliases of borrowed host memory own MFEM device storage",
+          "[Resource Manager][GPU]")
+{
+   auto &inst = MemoryManager::Instance();
+   if (!IsDeviceMemory(inst.GetDeviceMemoryType())) { return; }
+
+   int external[8] = {};
+   Memory<int> base(external, 8, MemoryType::HOST, false);
+   auto alias = base.CreateAlias(2, 3);
+   auto ptr = alias.Write(true);
+   forall(3, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 10 + i; });
+   const auto result = alias.HostRead();
+   for (int i = 0; i < 3; ++i) { REQUIRE(result[i] == 10 + i); }
+   REQUIRE_FALSE(base.OwnsHostPtr());
+   REQUIRE(base.OwnsDevicePtr());
+   REQUIRE_FALSE(alias.OwnsHostPtr());
+   REQUIRE_FALSE(alias.OwnsDevicePtr());
+   alias.Reset();
+   base.Delete();
+   for (int i = 0; i < 3; ++i) { REQUIRE(external[i + 2] == 10 + i); }
 }
 
 TEST_CASE("Resource Aliasing", "[Resource Manager][GPU]")

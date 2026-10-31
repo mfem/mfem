@@ -113,6 +113,28 @@ TEST_CASE("PETSc vector operations synchronize MFEM data",
    REQUIRE(x.HostRead()[0] == MFEM_Approx(14.0));
 }
 
+TEST_CASE("PETSc zero assignment overwrites MFEM writes",
+          "[Parallel][PETSc][GPU]")
+{
+   EnsurePetscSession();
+   PetscParVector x(MPI_COMM_WORLD, PetscInt(4 * Mpi::WorldSize()));
+   x = 0.0;
+
+   SECTION("Host writes")
+   {
+      x.HostReadWrite()[0] = 99.0;
+   }
+   SECTION("Device writes")
+   {
+      auto ptr = x.Write(true);
+      forall(4, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 99.0; });
+   }
+
+   x = 0.0;
+   const auto result = x.HostRead();
+   for (int i = 0; i < 4; ++i) { REQUIRE(result[i] == MFEM_Approx(0.0)); }
+}
+
 #if PETSC_VERSION_GE(3,11,0)
 TEST_CASE("PETSc read-locked vectors remain usable as sources",
           "[Parallel][PETSc][GPU]")

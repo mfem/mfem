@@ -11,6 +11,7 @@
 
 #include "unit_tests.hpp"
 #include "mfem.hpp"
+#include <sstream>
 
 namespace mfem
 {
@@ -165,6 +166,111 @@ TEST_CASE("HypreParVector Move Assignment", "[Parallel], [HypreParVector]")
 }
 
 #endif // HYPRE_USING_GPU
+
+TEST_CASE("HypreParVector reuses registered raw buffers",
+          "[HypreParVector][GPU]")
+{
+   auto &inst = MemoryManager::Instance();
+   const auto d_mt = IsDeviceMemory(inst.GetDeviceMemoryType()) ?
+                     inst.GetDeviceMemoryType() : MemoryType::DEVICE_DEBUG;
+   Vector base(8, MemoryType::HOST);
+   base.GetMemory().SetDeviceMemoryType(d_mt);
+   auto host = base.HostWrite();
+   for (int i = 0; i < 8; ++i) { host[i] = i; }
+   const auto device = base.Read(true);
+   hypre_Vector local = {};
+   hypre_VectorSize(&local) = 4;
+   hypre_VectorData(&local) = host + 2;
+#if MFEM_HYPRE_VERSION >= 21800
+   hypre_VectorMemoryLocation(&local) = HYPRE_MEMORY_HOST;
+#endif
+#ifdef HYPRE_USING_GPU
+   SECTION("Borrow a device pointer")
+   {
+      hypre_VectorData(&local) = const_cast<real_t *>(device) + 2;
+      hypre_VectorMemoryLocation(&local) = HYPRE_MEMORY_DEVICE;
+   }
+   SECTION("Borrow a host pointer") {}
+#endif
+   // Borrow local HYPRE structures; these wrapper operations need no MPI calls.
+   hypre_ParVector native = {};
+   hypre_ParVectorLocalVector(&native) = &local;
+   std::ostringstream sink;
+   const int registrations = inst.PrintPtrs(sink);
+   {
+      HypreParVector wrapped(reinterpret_cast<HYPRE_ParVector>(&native));
+      REQUIRE(wrapped.Read(true) == device + 2);
+      REQUIRE(inst.PrintPtrs(sink) == registrations);
+      auto ptr = wrapped.Write(true);
+      forall(4, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 90.0 + i; });
+      REQUIRE_FALSE(base.GetMemory().HostIsValid());
+      REQUIRE(base.HostRead()[2] == 90.0);
+
+      wrapped.SetData(base.HostReadWrite() + 4);
+      REQUIRE(wrapped.Read(true) == device + 4);
+      REQUIRE(inst.PrintPtrs(sink) == registrations);
+   }
+   Vector checked(base.HostReadWrite() + 2, 4, true);
+   REQUIRE(checked.Read(true) == device + 2);
+   REQUIRE(inst.PrintPtrs(sink) == registrations);
+   REQUIRE(base.HostRead()[2] == 90.0);
+}
+
+TEST_CASE("HypreParMatrix reuses registered CSR buffers",
+          "[HypreParMatrix][GPU]")
+{
+   auto &inst = MemoryManager::Instance();
+   const auto d_mt = IsDeviceMemory(inst.GetDeviceMemoryType()) ?
+                     inst.GetDeviceMemoryType() : MemoryType::DEVICE_DEBUG;
+   Array<HYPRE_Int> rows(3, MemoryType::HOST), cols(2, MemoryType::HOST),
+         offd_rows(3, MemoryType::HOST);
+   Array<real_t> values(2, MemoryType::HOST);
+   rows[0] = 0; rows[1] = 1; rows[2] = 2;
+   cols[0] = 0; cols[1] = 1;
+   offd_rows = 0;
+   values[0] = 1.0; values[1] = 2.0;
+   rows.GetMemory().SetDeviceMemoryType(d_mt);
+   cols.GetMemory().SetDeviceMemoryType(d_mt);
+   offd_rows.GetMemory().SetDeviceMemoryType(d_mt);
+   values.GetMemory().SetDeviceMemoryType(d_mt);
+   const auto device_rows = rows.Read(true);
+   const auto device_cols = cols.Read(true);
+   const auto device_offd_rows = offd_rows.Read(true);
+   const auto device_values = values.Read(true);
+   hypre_CSRMatrix diag = {}, offd = {};
+   diag.num_rows = diag.num_cols = offd.num_rows = 2;
+   diag.num_nonzeros = 2;
+   diag.i = const_cast<HYPRE_Int *>(rows.HostRead());
+   diag.j = const_cast<HYPRE_Int *>(cols.HostRead());
+   diag.data = const_cast<real_t *>(values.HostRead());
+   offd.i = const_cast<HYPRE_Int *>(offd_rows.HostRead());
+#if MFEM_HYPRE_VERSION >= 21800
+   diag.memory_location = offd.memory_location = HYPRE_MEMORY_HOST;
+#endif
+   hypre_ParCSRMatrix native = {};
+   native.diag = &diag;
+   native.offd = &offd;
+   native.last_row_index = native.last_col_diag = 1;
+   std::ostringstream sink;
+   const int registrations = inst.PrintPtrs(sink);
+   {
+      HypreParMatrix wrapped(&native, false);
+      REQUIRE(wrapped.GetDiagMemoryI().Read(true) == device_rows);
+      REQUIRE(wrapped.GetDiagMemoryJ().Read(true) == device_cols);
+      REQUIRE(wrapped.GetOffdMemoryI().Read(true) == device_offd_rows);
+      REQUIRE(wrapped.GetDiagMemoryData().Read(true) == device_values);
+      REQUIRE(inst.PrintPtrs(sink) == registrations);
+      auto ptr = wrapped.GetDiagMemoryData().Write(true);
+      forall(2, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = 90.0 + i; });
+      REQUIRE_FALSE(values.GetMemory().HostIsValid());
+      REQUIRE(values.HostRead()[0] == 90.0);
+   }
+   Memory<real_t> checked;
+   checked.CheckedWrap(const_cast<real_t *>(values.HostRead()), 2, false);
+   REQUIRE(checked.Read(true) == device_values);
+   REQUIRE(inst.PrintPtrs(sink) == registrations);
+   REQUIRE(values.HostRead()[1] == 91.0);
+}
 
 TEST_CASE("ParNormlp", "[Parallel], [HypreParVector], [GPU]")
 {
