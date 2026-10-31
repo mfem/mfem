@@ -20,7 +20,7 @@ namespace mfem::future
 class ParameterSpace
 {
 public:
-   ParameterSpace(int vdim = 1) : vdim(vdim) {}
+   ParameterSpace(int vdim = 1) : vdim(vdim) { dtq.FE = nullptr; dtq.IntRule = nullptr; }
 
    /// @brief Get vector dimension at each point
    ///
@@ -43,7 +43,7 @@ public:
    /// Get spatial dimension
    ///
    /// returns always 1.
-   int Dimension() const
+   constexpr int Dimension() const
    {
       return 1;
    }
@@ -65,7 +65,7 @@ public:
    /// It should not be used by a user.
    ///
    /// returns identity by default that is lazy evaluated.
-   virtual const Operator* GetElementRestriction(ElementDofOrdering o) const
+   virtual const Operator* GetElementRestriction(ElementDofOrdering) const
    {
       if (!elem_restr)
       {
@@ -74,11 +74,14 @@ public:
       return elem_restr.get();
    }
 
+   virtual const Operator* GetB() const = 0;
+
+   virtual const Operator* GetBt() const = 0;
+
 protected:
    int vdim;
    DofToQuad dtq;
-   mutable std::unique_ptr<Operator> prolongation;
-   mutable std::unique_ptr<Operator> elem_restr;
+   mutable std::unique_ptr<Operator> prolongation, elem_restr, B, Bt;
 };
 
 /// @brief Uniform parameter space
