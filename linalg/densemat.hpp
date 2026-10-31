@@ -334,11 +334,29 @@ public:
 
    void GetRow(int r, Vector &row) const;
    void GetColumn(int c, Vector &col) const;
-   real_t *GetColumn(int col) { return data + col*height; }
-   const real_t *GetColumn(int col) const { return data + col*height; }
+   real_t *GetColumn(int col)
+   {
+#ifdef MFEM_DEBUG
+      return data.GetMemory().CheckReadWrite(false, col * height, height);
+#else
+      return &data[col * height];
+#endif
+   }
+   const real_t *GetColumn(int col) const
+   {
+#ifdef MFEM_DEBUG
+      return data.GetMemory().CheckRead(false, col * height, height);
+#else
+      return &data[col * height];
+#endif
+   }
 
    void GetColumnReference(int c, Vector &col)
-   { col.SetDataAndSize(data + c * height, height); }
+   {
+      /// make an alias of our data
+      col.NewMemoryAndSize(Memory<real_t>(data.GetMemory(), c * height, height),
+                           height, false);
+   }
 
    void SetRow(int r, const real_t* row);
    void SetRow(int r, const Vector &row);

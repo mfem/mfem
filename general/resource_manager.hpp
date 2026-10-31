@@ -1,0 +1,2322 @@
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+#ifndef MFEM_RESOURCE_MANAGER_HPP
+#define MFEM_RESOURCE_MANAGER_HPP
+
+#include "mem_manager.hpp"
+
+#include "rb_tree.hpp"
+
+#include "internal/reusable_storage.hpp"
+
+#include <algorithm>
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <map>
+#include <memory>
+#include <vector>
+
+#define MFEM_USE_TEMPORARY_WORK_BUFFERS
+
+namespace mfem
+{
+
+/// @return true if mt is a temporary memory type
+MFEM_EXPORT inline bool IsTemporaryMemorySpace(MemoryType mt)
+{
+   if (mt < MemoryType::SIZE)
+   {
+      return ((int)mt) & 1;
+   }
+   return false;
+}
+
+/// Gets the the temporary memory type associated with the type @a mt.
+/// If @a mt is a temporary memory type, then it is returned as-is.
+MFEM_EXPORT inline MemoryType GetTemporaryMemorySpace(MemoryType mt)
+{
+   return static_cast<MemoryType>((int)mt | 1);
+}
+
+struct Allocator
+{
+   virtual void Alloc(void **ptr, size_t nbytes) = 0;
+   virtual void Dealloc(void *ptr, size_t nbytes) = 0;
+
+   virtual void Protect(void *ptr, size_t nbytes) {}
+   virtual void Unprotect(void *ptr, size_t nbytes) {}
+
+   virtual void Clear() {}
+   virtual ~Allocator() = default;
+};
+
+/// Adapter to allow MemoryManager to be used in place of std::allocator
+template <class T> class AllocatorAdaptor;
+
+/// MFEM's host and device memory manager.
+/** Tracks registered memory allocations, their associated host and device
+    pointers, and where each range of data is currently valid. Registered
+    Memory objects and their aliases share this validity information.
+
+    Access through Memory::Read(), Memory::Write(), and Memory::ReadWrite()
+    can allocate memory and copy data between host and device as needed.
+    Use Instance() to access the global memory manager. */
+class MemoryManager
+{
+private:
+   // used to only track when invalid
+   struct RBase : RBTree<RBase>
+   {
+      struct Node
+      {
+         enum Flags
+         {
+            // used for red-black tree balancing, internal
+            RED_COLOR = 1 << 0,
+            VALID = 1 << 1,
+            NONE = 0,
+         };
+         // 0 is null, i>0 refers to nodes[i-1]
+         size_t parent = 0;
+         size_t child[2] = {0, 0};
+         ptrdiff_t offset;
+         Flags flag = Flags::NONE;
+
+         bool IsValid() const { return flag & VALID; }
+         void SetValid() { flag = static_cast<Flags>(flag | VALID); }
+         void SetInvalid() { flag = static_cast<Flags>(flag & ~VALID); }
+         void SetBlack() { flag = static_cast<Flags>(flag & ~RED_COLOR); }
+         void SetRed() { flag = static_cast<Flags>(flag | RED_COLOR); }
+         void CopyColor(const Node &o)
+         {
+            flag =
+               static_cast<Flags>((flag & ~RED_COLOR) | (o.flag & RED_COLOR));
+         }
+
+         bool IsRed() const { return flag & RED_COLOR; }
+      };
+      struct Segment
+      {
+         char *lowers[2] = {nullptr, nullptr};
+         ptrdiff_t nbytes = 0;
+         size_t roots[2] = {0, 0};
+         MemoryType mtypes[2] = {MemoryType::DEFAULT, MemoryType::DEFAULT};
+         size_t ref_count = 1;
+      };
+      internal::ReusableStorage<Node> nodes;
+      internal::ReusableStorage<Segment> segments;
+
+      using RBTree<RBase>::Insert;
+      using RBTree<RBase>::Erase;
+      using RBTree<RBase>::First;
+      using RBTree<RBase>::Visit;
+      using RBTree<RBase>::Next;
+
+      Node &GetNode(size_t curr) { return nodes.Get(curr); }
+      const Node &GetNode(size_t curr) const { return nodes.Get(curr); }
+
+      Segment &GetSegment(size_t curr) { return segments.Get(curr); }
+      const Segment &GetSegment(size_t curr) const
+      {
+         return segments.Get(curr);
+      }
+
+      auto CompareNodes(size_t a, size_t b) const
+      {
+         auto &na = GetNode(a);
+         auto &nb = GetNode(b);
+         return nb.offset - na.offset;
+      }
+
+      void InsertDuplicate(size_t a, size_t b);
+
+      /// Insert a validity transition marker for a given @a segment
+      size_t InsertMarker(size_t segment, ptrdiff_t offset, bool on_device,
+                          bool valid);
+   };
+
+   void PrintSegment(size_t segment);
+
+private:
+   template <class T> friend class Memory;
+   template <class T> friend class AllocatorAdaptor;
+
+   MemoryManager();
+
+   RBase storage;
+   void EraseNode(size_t &root, size_t idx);
+   std::array<std::unique_ptr<Allocator>, MemoryTypeSize> allocs_storage;
+   std::array<Allocator *, MemoryTypeSize> allocs = {nullptr};
+   // host, device, host-pinned, managed
+   std::array<MemoryType, 4> memory_types =
+   {
+      MemoryType::HOST, MemoryType::HOST, MemoryType::HOST, MemoryType::HOST
+   };
+   std::array<MemoryType, 4> temp_memory_types =
+   {
+      MemoryType::TEMP_HOST, MemoryType::TEMP_HOST, MemoryType::TEMP_HOST,
+      MemoryType::TEMP_HOST
+   };
+
+   std::array<MemoryType, MemoryTypeSize> dual_map =
+   {
+      /* HOST                 */ MemoryType::DEVICE,
+      /* TEMP_HOST            */ MemoryType::TEMP_DEVICE,
+      /* HOST_32              */ MemoryType::DEVICE,
+      /* TEMP_HOST_32         */ MemoryType::TEMP_DEVICE,
+      /* HOST_64              */ MemoryType::DEVICE,
+      /* TEMP_HOST_64         */ MemoryType::TEMP_DEVICE,
+      /* HOST_DEBUG           */ MemoryType::DEVICE_DEBUG,
+      /* TEMP_HOST_DEBUG      */ MemoryType::TEMP_DEVICE_DEBUG,
+      /* HOST_UMPIRE          */ MemoryType::DEVICE_UMPIRE,
+      /* TEMP_HOST_UMPIRE     */ MemoryType::TEMP_DEVICE_UMPIRE,
+      /* HOST_PINNED          */ MemoryType::HOST_PINNED,
+      /* TEMP_HOST_PINNED     */ MemoryType::TEMP_HOST_PINNED,
+      /* MANAGED              */ MemoryType::MANAGED,
+      /* TEMP_MANAGED         */ MemoryType::TEMP_MANAGED,
+      /* UMPIRE MANAGED       */ MemoryType::MANAGED_UMPIRE,
+      /* TEMP_UMPIRE MANAGED  */ MemoryType::TEMP_MANAGED_UMPIRE,
+      /* DEVICE               */ MemoryType::HOST,
+      /* TEMP_DEVICE          */ MemoryType::TEMP_HOST,
+      /* DEVICE_DEBUG         */ MemoryType::HOST_DEBUG,
+      /* TEMP_DEVICE_DEBUG    */ MemoryType::TEMP_HOST_DEBUG,
+      /* DEVICE_UMPIRE        */ MemoryType::HOST_UMPIRE,
+      /* TEMP_DEVICE_UMPIRE   */ MemoryType::TEMP_HOST_UMPIRE,
+   };
+
+   // 0 holds host, host-pinned, and managed memory spaces
+   // 1 holds device-only memory spaces
+   std::map<const void *, size_t> segment_maps[2];
+
+   /// remove all validity markers for a segment
+   void ClearSegment(size_t segment);
+   void ClearSegment(RBase::Segment &seg);
+
+   void ClearSegment(RBase::Segment &seg, bool on_device);
+   void ClearSegment(size_t segment, bool on_device);
+
+   size_t FindMarker(size_t segment, ptrdiff_t offset, bool on_device);
+
+   /// calls func(begin, end, valid) for each section between [start, stop)
+   /// returns early if func returns true
+   template <class F>
+   void CheckValid(size_t segment, bool on_device, ptrdiff_t start,
+                   ptrdiff_t stop, F &&func);
+
+   /// @a curr is a marker node index
+   template <class F>
+   void CheckValid(size_t curr, ptrdiff_t start, ptrdiff_t stop, F &&func);
+
+   template <class F>
+   void MarkValid(size_t segment, bool on_device, ptrdiff_t start,
+                  ptrdiff_t stop, F &&func);
+
+   template <class F>
+   void MarkInvalid(size_t segment, bool on_device, ptrdiff_t start,
+                    ptrdiff_t stop, F &&func);
+
+   size_t Insert(char *hptr, char *dptr, size_t nbytes, MemoryType hloc,
+                 MemoryType dloc, bool valid_host, bool valid_device);
+
+   /// Decreases reference count on @a segment
+   void Erase(size_t segment);
+
+   MemoryType GetMemoryType(size_t segment, size_t offset, size_t nbytes);
+
+   bool IsValid(size_t segment, size_t offset, size_t nbytes, bool on_device);
+
+   bool CheckRead(size_t segment, size_t offset, size_t nbytes, bool on_device);
+   bool CheckReadWrite(size_t segment, size_t offset, size_t nbytes,
+                       bool on_device);
+
+   MFEM_ENZYME_FN_LIKE_DYNCAST const char *Read(size_t segment, size_t offset,
+                                                size_t nbytes, bool on_device);
+   MFEM_ENZYME_FN_LIKE_DYNCAST char *Write(size_t segment, size_t offset,
+                                           size_t nbytes, bool on_device);
+   MFEM_ENZYME_FN_LIKE_DYNCAST char *ReadWrite(size_t segment, size_t offset,
+                                               size_t nbytes, bool on_device);
+
+   MFEM_ENZYME_FN_LIKE_DYNCAST const char *Read(size_t segment, size_t offset,
+                                                size_t nbytes, MemoryClass mc);
+   MFEM_ENZYME_FN_LIKE_DYNCAST char *Write(size_t segment, size_t offset,
+                                           size_t nbytes, MemoryClass mc);
+   MFEM_ENZYME_FN_LIKE_DYNCAST char *ReadWrite(size_t segment, size_t offset,
+                                               size_t nbytes, MemoryClass mc);
+
+   /// src0 is the preferred copy-from location
+   size_t CopyImpl(char **dst, MemoryType dloc, ptrdiff_t dst_offset,
+                   size_t marker, size_t nbytes, const char *src0,
+                   const char *src1, MemoryType sloc0, MemoryType sloc1,
+                   ptrdiff_t src_offset, size_t marker0, size_t marker1,
+                   RBase::Segment *dseg, size_t dsegment, bool on_device);
+
+   /// copies to the part of dst_seg which is valid
+   void Copy(size_t dst_seg, size_t src_seg, size_t dst_offset,
+             size_t src_offset, size_t nbytes);
+
+   void Unprotect(char *ptr, MemoryType loc, size_t offset, size_t nbytes);
+   void Protect(char *ptr, MemoryType loc, size_t offset, size_t nbytes);
+
+   void CopyFromHost(size_t segment, size_t offset, const char *src,
+                     size_t nbytes);
+
+   void CopyToHost(size_t segment, size_t offset, char *dst, size_t nbytes);
+
+   int CompareHostDevice(size_t segment, size_t offset, size_t nbytes);
+
+   /// @a copy_segs first is start offset, second is stop offset
+   void BatchMemCopy(
+      char *dst, const char *src, MemoryType dst_loc, MemoryType src_loc,
+      const std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
+      AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
+      &copy_segs);
+
+   /// @a copy_segs is flattened of length 3 * num segments
+   /// order: src offset, dst offset, nbytes
+   void BatchMemCopy2(
+      char *dst, const char *src, MemoryType dst_loc, MemoryType src_loc,
+      const std::vector<ptrdiff_t, AllocatorAdaptor<ptrdiff_t>> &copy_segs);
+
+   void SetDeviceMemoryType(size_t segment, MemoryType loc);
+
+   void SetHostValidity(size_t segment, size_t offset, size_t nbytes,
+                        bool valid);
+
+   void SetDeviceValidity(size_t segment, size_t offset, size_t nbytes,
+                          bool valid);
+
+   void SetValidity(size_t segment, size_t offset, size_t nbytes,
+                    bool host_valid, bool device_valid);
+
+   /// Update the dual memory type of @a mt to be @a dual_mt.
+   void UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt);
+
+   /// Host and device allocator names for Umpire.
+#ifdef MFEM_USE_UMPIRE
+   std::string h_umpire_name = "MFEM_HOST";
+   std::string d_umpire_name = "MFEM_DEVICE";
+   std::string d_umpire_2_name = "MFEM_DEVICE_2";
+
+   std::string managed_umpire_name = "MFEM_MANAGED";
+   std::string temp_managed_umpire_name = "MFEM_TEMP_MANAGED";
+
+   void SetUmpireHostAllocatorName_(const char *h_name);
+   void SetUmpireDeviceAllocatorName_(const char *d_name);
+   void SetUmpireDevice2AllocatorName_(const char *d_name);
+
+   void SetUmpireManagedAllocatorName_(const char *d_name);
+   void SetUmpireTempManagedAllocatorName_(const char *d_name);
+#endif
+   void EnsureAlloc(MemoryType mt);
+
+   static bool RWOnDevice(MemoryClass mc)
+   {
+      if (IsHostMemory(mfem::GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
+      {
+         return false;
+      }
+      return true;
+   }
+
+public:
+   MemoryManager(const MemoryManager &) = delete;
+
+   ~MemoryManager();
+
+   /// Return the default host MemoryType set by Configure().
+   MemoryType GetHostMemoryType() const { return memory_types[0]; }
+   /// Return the default device MemoryType set by Configure().
+   MemoryType GetDeviceMemoryType() const { return memory_types[1]; }
+
+   MemoryType GetHostPinnedMemoryType() const { return memory_types[2]; }
+   MemoryType GetManagedMemoryType() const { return memory_types[3]; }
+
+   MemoryType GetTempHostMemoryType() const { return temp_memory_types[0]; }
+   MemoryType GetTempDeviceMemoryType() const { return temp_memory_types[1]; }
+
+   MemoryType GetTempHostPinnedMemoryType() const
+   {
+      return temp_memory_types[2];
+   }
+   MemoryType GetTempManagedMemoryType() const { return temp_memory_types[3]; }
+
+   /// Return the dual MemoryType of @a mt.
+   /** The default dual memory types are:
+
+       memory type    | dual type
+       -------------- | --------------
+       HOST           | DEVICE
+       HOST_32        | DEVICE
+       HOST_64        | DEVICE
+       HOST_DEBUG     | DEVICE_DEBUG
+       HOST_UMPIRE    | DEVICE_UMPIRE
+       HOST_PINNED    | HOST_PINNED
+       MANAGED        | MANAGED
+       MANAGED_UMPIRE | MANAGED_UMPIRE
+       DEVICE         | HOST
+       DEVICE_DEBUG   | HOST_DEBUG
+       DEVICE_UMPIRE  | HOST_UMPIRE
+
+       Temporary memory types use the corresponding temporary dual types.
+       MemoryType::DEVICE_UMPIRE_2 is an alias for TEMP_DEVICE_UMPIRE.
+       The dual types can be modified before device configuration using
+       SetDualMemoryType() or by calling Device::SetMemoryTypes(). */
+   static MemoryType GetDualMemoryType(MemoryType mt);
+
+   /// Set the dual memory type of @a mt to be @a dual_mt.
+   /** This method can only be called before configuration, i.e. before calling
+       Configure(), which is typically done during Device construction.
+
+       One type must be a host MemoryType and the other a device MemoryType.
+       Passing the same host type for both arguments is also allowed for pure
+       host execution; if that type is not also a device type, the dual is not
+       updated.
+
+       Changing a non-temporary type also updates its corresponding temporary
+       dual. This method does not change the reverse mapping from @a dual_mt
+       to @a mt. */
+   static void SetDualMemoryType(MemoryType mt, MemoryType dual_mt);
+
+   /// Forcibly deletes all device-type allocations (host-pinned, managed, and
+   /// device)
+   void Destroy();
+
+   /// Return the global memory manager instance.
+   MFEM_ENZYME_INACTIVENOFREE static MemoryManager &Instance();
+
+   /// Configure the default host, device, host-pinned, and managed memory
+   /// types.
+   /** Called when configuring a Device. MemoryType::DEFAULT selects a type
+       appropriate for the enabled backends. The corresponding temporary
+       memory types are also configured, and the dual of @a host_loc is updated
+       to @a device_loc when the resolved types form a host/device pair. */
+   void Configure(MemoryType host_loc = MemoryType::DEFAULT,
+                  MemoryType device_loc = MemoryType::DEFAULT,
+                  MemoryType hostpinned_loc = MemoryType::DEFAULT,
+                  MemoryType managed_loc = MemoryType::DEFAULT);
+
+   /// same restrictions as std::memcpy: dst and src should not overlap
+   void MemCopy(void *dst, const void *src, size_t nbytes, MemoryType dst_loc,
+                MemoryType src_loc);
+   void MemCopyAsync(void *dst, const void *src, size_t nbytes,
+                     MemoryType dst_loc, MemoryType src_loc);
+
+   /// raw deallocation of a buffer
+   /// @a nbytes and @a type must be the same as passed to the original call to
+   /// @sa Alloc
+   void Dealloc(char *ptr, size_t nbytes, MemoryType type);
+   /// Raw unregistered allocation of a buffer
+   char *Alloc(size_t nbytes, MemoryType type);
+
+   /// Prints all pointers known by the memory manager,
+   /// returning the number of printed pointers
+   int PrintPtrs(std::ostream &out = mfem::out);
+
+   /// no-op
+   [[deprecated]] int PrintAliases(std::ostream & = mfem::out) { return -1; }
+
+#ifdef MFEM_USE_UMPIRE
+   /// Set the host Umpire allocator name used with MemoryType::HOST_UMPIRE
+   static void SetUmpireHostAllocatorName(const char *h_name)
+   {
+      Instance().SetUmpireHostAllocatorName_(h_name);
+   }
+   /// Set the device Umpire allocator name used with MemoryType::DEVICE_UMPIRE
+   static void SetUmpireDeviceAllocatorName(const char *d_name)
+   {
+      Instance().SetUmpireDeviceAllocatorName_(d_name);
+   }
+   /// Set the device Umpire allocator name used with
+   /// MemoryType::DEVICE_UMPIRE_2
+   static void SetUmpireDevice2AllocatorName(const char *d_name)
+   {
+      Instance().SetUmpireDevice2AllocatorName_(d_name);
+   }
+
+   /// Get the host Umpire allocator name used with MemoryType::HOST_UMPIRE
+   static const char *GetUmpireHostAllocatorName()
+   {
+      return Instance().h_umpire_name.c_str();
+   }
+   /// Get the device Umpire allocator name used with MemoryType::DEVICE_UMPIRE
+   static const char *GetUmpireDeviceAllocatorName()
+   {
+      return Instance().d_umpire_name.c_str();
+   }
+   /// Get the device Umpire allocator name used with
+   /// MemoryType::DEVICE_UMPIRE_2
+   static const char *GetUmpireDevice2AllocatorName()
+   {
+      return Instance().d_umpire_2_name.c_str();
+   }
+
+   /// Set the device Umpire allocator name used with MemoryType::DEVICE_UMPIRE
+   static void SetUmpireManagedAllocatorName(const char *d_name)
+   {
+      Instance().SetUmpireManagedAllocatorName_(d_name);
+   }
+   /// Set the device Umpire allocator name used with
+   /// MemoryType::DEVICE_UMPIRE_2
+   static void SetUmpireTempManagedAllocatorName(const char *d_name)
+   {
+      Instance().SetUmpireTempManagedAllocatorName_(d_name);
+   }
+
+   /// Get the device Umpire allocator name used with MemoryType::MANAGED_UMPIRE
+   static const char *GetUmpireManagedAllocatorName()
+   {
+      return Instance().managed_umpire_name.c_str();
+   }
+   /// Get the device Umpire allocator name used with
+   /// MemoryType::TEMP_MANAGED_UMPIRE
+   static const char *GetUmpireTempManagedAllocatorName()
+   {
+      return Instance().temp_managed_umpire_name.c_str();
+   }
+#endif
+};
+
+/// C++ custom allocator interface for memory manager allocators
+template <class T> class AllocatorAdaptor
+{
+   int idx = 0;
+
+   template <class U> friend class AllocatorAdaptor;
+
+public:
+   using value_type = T;
+   using size_type = size_t;
+   using difference_type = ptrdiff_t;
+   using propagate_on_container_move_assignment = std::true_type;
+
+   AllocatorAdaptor(MemoryType loc = MemoryType::HOST)
+   {
+      idx = static_cast<int>(loc);
+   }
+
+   AllocatorAdaptor(const AllocatorAdaptor &) = default;
+
+   template <class U>
+   AllocatorAdaptor(const AllocatorAdaptor<U> &o) : idx(o.idx)
+   {}
+
+   AllocatorAdaptor &operator=(const AllocatorAdaptor &) = default;
+
+   template <class U> AllocatorAdaptor &operator=(const AllocatorAdaptor<U> &o)
+   {
+      idx = o.idx;
+      return *this;
+   }
+
+   T *allocate(size_t n)
+   {
+      auto &inst = MemoryManager::Instance();
+      void *res;
+      inst.EnsureAlloc(static_cast<MemoryType>(idx));
+      inst.allocs[idx]->Alloc(&res, n * sizeof(T));
+      return static_cast<T *>(res);
+   }
+
+   void deallocate(T *ptr, size_t n)
+   {
+      auto &inst = MemoryManager::Instance();
+      if (inst.allocs[idx])
+      {
+         inst.allocs[idx]->Dealloc(ptr, n * sizeof(T));
+      }
+   }
+};
+
+/// Class used by MFEM to store pointers to host and/or device memory.
+/** The template parameter T must be a plain-old-data (POD) type.
+
+    A Memory object can allocate memory or wrap externally allocated pointers
+    with a given MemoryType. Host and device pointers may refer to separate
+    allocations or to the same allocation, as with managed memory.
+
+    In many respects this class behaves like a pointer:
+    - Destruction does not delete the allocated memory. Call Delete() to free
+      the pointers owned by the object.
+    - New(), Wrap(), Reset(), and assignment replace the object's contents
+      without deleting its previous allocations.
+    In other respects this class differs from a pointer:
+    - Use MakeAlias() or CreateAlias() instead of pointer arithmetic.
+    - Const Memory objects expose read-only access to the data.
+    - Moving transfers the pointers and ownership flags and leaves the source
+      empty.
+    - Copying shares the pointers and copies ownership flags; it does not copy
+      the data. If both objects own the same allocation, the caller must resolve
+      the duplicate ownership using SetHostPtrOwner(), SetDevicePtrOwner(), or
+      ClearOwnerFlags() before deleting either object.
+
+    Read(), Write(), and ReadWrite() request access on host or device, either
+    directly or through a MemoryClass. They may allocate memory and copy data:
+    - Read() preserves the requested range's contents and makes it valid at
+      the requested location without invalidating the other location.
+    - ReadWrite() preserves the contents and makes the requested location the
+      only valid location for that range.
+    - Write() makes the requested location the only valid location for that
+      range without copying its previous contents.
+    Validity outside the requested range is unchanged. Registered copies and
+    aliases share validity information, so manual Sync() or SyncAlias() calls
+    are unnecessary.
+
+    operator[] and the implicit and explicit pointer conversions access host
+    memory without copying data or updating validity. The accessed host range
+    must already be valid; mutable access additionally requires that it be
+    invalid on device. Use HostRead(), HostWrite(), or HostReadWrite() to
+    establish the required validity before direct host access.
+
+    @warning In general using Memory is not thread safe, even when surrounded
+    by an external synchronization mechanism like a mutex (due to calls into
+    MemoryManager). The only operation which can be made thread-safe is
+    operator[]; you will still need an external synchronization mechanism for
+    parallel read/write, similar to raw pointer access. */
+template <class T> class Memory
+{
+protected:
+   template <class U> friend class Memory;
+   template <class U> friend class MemoryView;
+   T *h_ptr = nullptr;
+   /// offset and size are in terms of number of entries of size T.
+   /// offset is only used for registered aliases.
+   size_t size_ = 0;
+   size_t offset_ = 0;
+   /// only non-zero if registered. If segment == 0 and h_ptr != nullptr, then
+   /// this is an un-registered Memory
+   mutable size_t segment = 0;
+   enum Flags : unsigned char
+   {
+      NONE = 0,
+      OWNS_HOST = 1 << 1,
+      OWNS_DEVICE = 1 << 2,
+      USE_DEVICE = 1 << 3,
+   };
+   MemoryType h_mt = MemoryManager::Instance().GetHostMemoryType();
+   mutable Flags flags = NONE;
+
+   friend class MemoryManager;
+
+   void EnsureRegistered() const;
+
+   /// Return the host or device pointer without copying data or changing validity.
+   /** Allocate the requested buffer if needed, and allow access to this object's
+       range when using the debug device. The returned data may be invalid;
+       callers must update validity explicitly after writing through the pointer.
+       Empty objects return nullptr. */
+   T *GetRawPointer(bool on_device) const;
+
+   void New_(size_t size, MemoryType hloc, MemoryType dloc, bool valid_host);
+
+   size_t SegmentRefCount() const
+   {
+      if (segment)
+      {
+         auto &inst = MemoryManager::Instance();
+         auto &seg = inst.storage.GetSegment(segment);
+         return seg.ref_count;
+      }
+      return 0;
+   }
+
+   /// Only changes validity if registered
+   void SetHostValidity(int offset, int count, bool valid)
+   {
+      if (segment)
+      {
+         MFEM_ASSERT(count >= 0, "negative count");
+         MFEM_ASSERT(offset >= 0 &&
+                     static_cast<size_t>(offset + count) <= size_,
+                     "out of bounds");
+         auto &inst = MemoryManager::Instance();
+         inst.SetHostValidity(segment, (offset_ + offset) * sizeof(T),
+                              count * sizeof(T), valid);
+      }
+   }
+
+   /// Only changes validity if registered
+   void SetDeviceValidity(int offset, int count, bool valid)
+   {
+      if (segment)
+      {
+         MFEM_ASSERT(count >= 0, "negative count");
+         MFEM_ASSERT(offset >= 0 &&
+                     static_cast<size_t>(offset + count) <= size_,
+                     "out of bounds");
+         auto &inst = MemoryManager::Instance();
+         inst.SetDeviceValidity(segment, (offset_ + offset) * sizeof(T),
+                                count * sizeof(T), valid);
+      }
+   }
+
+   /// Only changes validity if registered
+   void SetValidity(int offset, int count, bool host_valid,
+                    bool device_valid)
+   {
+      if (segment)
+      {
+         MFEM_ASSERT(count >= 0, "negative count");
+         MFEM_ASSERT(offset >= 0 &&
+                     static_cast<size_t>(offset + count) <= size_,
+                     "out of bounds");
+         auto &inst = MemoryManager::Instance();
+         inst.SetValidity(segment, (offset_ + offset) * sizeof(T),
+                          count * sizeof(T), host_valid, device_valid);
+      }
+   }
+
+public:
+   /// Construct an empty Memory object with the default host memory type.
+   Memory() { MemoryManager::Instance(); };
+   /// Allocate @a size entries using the default host memory type.
+   explicit Memory(int size);
+   /// Allocate @a count entries with MemoryType @a loc, without initializing
+   /// them.
+   /** The given memory location is marked valid. See New(size_t, MemoryType).
+       */
+   Memory(size_t count, MemoryType loc);
+   /// Allocate @a count entries with the given host and device memory types.
+   /** The data is not initialized; the host location is marked valid. */
+   Memory(size_t count, MemoryType hloc, MemoryType dloc);
+   /// Construct an empty Memory object with MemoryType @a mt.
+   explicit Memory(MemoryType mt);
+   Memory(MemoryType h_mt, MemoryType d_mt);
+
+   /// Wrap @a count entries at @a ptr using the default host memory type.
+   /** @a own determines whether Delete() will free @a ptr. */
+   Memory(T *ptr, size_t count, bool own);
+   /// Wrap @a count entries at @a ptr with MemoryType @a loc.
+   /** @a ptr must be allocated appropriately for @a loc, which is marked valid.
+       @a own determines whether Delete() will free @a ptr. */
+   Memory(T *ptr, size_t count, MemoryType loc, bool own);
+   /// Construct a non-owning alias of @a size entries of @a base at @a offset.
+   Memory(const Memory &base, int offset, int size);
+
+   /// Share the pointers and copy the ownership flags of @a r, without copying
+   /// data.
+   Memory(const Memory &r);
+   /// Transfer the pointers and ownership flags of @a r, leaving @a r empty.
+   Memory(Memory &&r);
+
+   /// Share the pointers and copy the ownership flags of @a r, without copying
+   /// data.
+   /** The previous allocations of this object are not deleted. */
+   Memory &operator=(const Memory &r);
+   /// Transfer the pointers and ownership flags of @a r, leaving @a r empty.
+   /** The previous allocations of this object are not deleted. */
+   Memory &operator=(Memory &&r) noexcept;
+
+   /// Release this object's registration reference without deleting its
+   /// pointers.
+   /** Call Delete() to free owned allocations. */
+   ~Memory();
+
+   /// Return the number of entries in this Memory object or alias.
+   int Capacity() const { return static_cast<int>(size_); }
+
+   /// Return whether Delete() will free the host pointer.
+   bool OwnsHostPtr() const { return flags & OWNS_HOST; }
+
+   /// Set or clear ownership of the host pointer for Delete().
+   void SetHostPtrOwner(bool own) const
+   {
+      if (own)
+      {
+         flags = static_cast<Flags>(flags | OWNS_HOST);
+      }
+      else
+      {
+         flags = static_cast<Flags>(flags & ~OWNS_HOST);
+      }
+   }
+
+   /// Return whether Delete() will free the device pointer.
+   bool OwnsDevicePtr() const { return flags & OWNS_DEVICE; }
+
+   /// Set or clear ownership of the device pointer for Delete().
+   void SetDevicePtrOwner(bool own) const
+   {
+      if (own)
+      {
+         flags = static_cast<Flags>(flags | OWNS_DEVICE);
+      }
+      else
+      {
+         flags = static_cast<Flags>(flags & ~OWNS_DEVICE);
+      }
+   }
+
+   /// Clear the ownership flags for the host and device pointers.
+   void ClearOwnerFlags() const
+   {
+      flags = static_cast<Flags>(flags & ~(OWNS_HOST | OWNS_DEVICE));
+   }
+
+   /// Read the internal device flag.
+   bool UseDevice() const { return flags & USE_DEVICE; }
+   /// Set the internal device flag.
+   void UseDevice(bool use_dev) const
+   {
+      if (use_dev)
+      {
+         flags = static_cast<Flags>(flags | USE_DEVICE);
+      }
+      else
+      {
+         flags = static_cast<Flags>(flags & ~USE_DEVICE);
+      }
+   }
+
+   /// Refer to @a size entries of @a base starting at @a offset, without
+   /// ownership.
+   /** Uses the same memory types as @a base. The range must fit within
+       base.Capacity(). The previous allocations of this object are not deleted.
+       */
+   void MakeAlias(const Memory &base, int offset, int size);
+
+   /// Return a non-owning alias of @a size entries starting at @a offset.
+   Memory CreateAlias(int offset, int size) const
+   {
+      Memory res;
+      res.MakeAlias(*this, offset, size);
+      return res;
+   }
+
+   /// Return a non-owning alias from @a offset to the end of this Memory
+   /// object.
+   Memory CreateAlias(int offset) const
+   {
+      Memory res;
+      res.MakeAlias(*this, offset, size_ - offset);
+      return res;
+   }
+
+   /// Set the device MemoryType to use, without allocating device memory.
+   /** Non-device types are ignored. Changing the type after device memory has
+       been allocated triggers an error. For a registered alias, this changes
+       the device type of the shared base allocation. */
+   void SetDeviceMemoryType(MemoryType loc)
+   {
+      if (!IsDeviceMemory(loc))
+      {
+         return;
+      }
+      auto &inst = MemoryManager::Instance();
+      if (!segment)
+      {
+         if (h_ptr == nullptr)
+         {
+            MFEM_VERIFY(size_ == 0, "internal error");
+         }
+         else
+         {
+            segment = inst.Insert(reinterpret_cast<char *>(h_ptr), nullptr,
+                                  size_ * sizeof(T), h_mt, loc, true, false);
+            flags = static_cast<Flags>(flags | OWNS_DEVICE);
+         }
+      }
+      else
+      {
+         inst.SetDeviceMemoryType(segment, loc);
+      }
+   }
+
+   /// Make this object empty without deleting its current allocations.
+   /** Releases the registration reference and restores the default host type.
+       */
+   void Reset();
+
+   /// Reset the object and set its host memory type to @a host_mt.
+   void Reset(MemoryType host_mt);
+
+   /// Return true if the host pointer is null; default-constructed objects are
+   /// empty.
+   bool Empty() const { return h_ptr == nullptr; }
+
+   /// Allocate @a size entries using the default host memory type.
+   /** The current allocations are not deleted. */
+   void New(size_t size);
+
+   /// Allocate @a size entries with MemoryType @a loc.
+   /** The data is not initialized, but @a loc is marked valid.
+       MemoryType::DEFAULT selects the default host memory type.
+       For a host type, the device type is determined lazily using
+       MemoryManager::GetDualMemoryType(). For a device-only type, the host type
+       is set to its dual immediately. The current allocations are not deleted.
+       */
+   void New(size_t size, MemoryType loc);
+
+   /// Allocate @a size entries with the given host and device memory types.
+   /** The data is not initialized; the host location is marked valid.
+       The current allocations are not deleted. */
+   void New(size_t size, MemoryType hloc, MemoryType dloc);
+
+   /// Delete the owned host and device pointers and release their registration.
+   /** Use Reset() to make the object empty without deleting the allocations. */
+   void Delete();
+
+   /// Wrap @a size entries at @a ptr using the default host memory type.
+   /** @a own determines whether Delete() will free @a ptr. The pointer must not
+       already be registered; use CheckedWrap() in that case.
+       The current allocations are not deleted. */
+   void Wrap(T *ptr, size_t size, bool own);
+   /// Wrap an externally allocated pointer with the given MemoryType @a loc.
+   /** @a ptr must be allocated appropriately for @a loc, which is marked valid.
+       @a own determines whether Delete() will free @a ptr. The pointer must not
+       already be registered; use CheckedWrap() in that case.
+       The current allocations are not deleted. */
+   void Wrap(T *ptr, size_t size, MemoryType loc, bool own);
+   /// Wrap externally allocated host and device pointers with separate
+   /// ownership.
+   /** The pointers must be allocated appropriately for @a hloc and @a dloc.
+       @a own_host and @a own_device control deletion of each pointer by
+       Delete().
+       @a valid_host and @a valid_device specify the initial validity locations.
+       The pointers must not already be registered; use CheckedWrap() in that
+       case. The current allocations are not deleted. */
+   void Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
+             bool own_host, bool own_device, bool valid_host,
+             bool valid_device);
+   /// Wrap host and device pointers with a common ownership flag.
+   /** Equivalent to the preceding overload with both ownership arguments set
+       to @a own. By default, only the device location is marked valid. */
+   void Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc, MemoryType dloc,
+             bool own, bool valid_host = false, bool valid_device = true);
+
+   /// These functions can be called if the pointer(s) being wrapped are
+   /// already registered.
+   void CheckedWrap(T *ptr, size_t size, bool own);
+   void CheckedWrap(T *ptr, size_t size, MemoryType loc, bool own);
+   /// Wrap host and device pointers, reusing an existing registration if found.
+   /** @a loc is the host memory type; its dual is used for new device buffers.
+       Registered pointers must refer to the same range. Existing shared
+       validity is preserved; @a valid_host and @a valid_device apply only to
+       newly registered buffers. */
+   void CheckedWrap(T *h_ptr, T *d_ptr, size_t size, MemoryType loc, bool own,
+                    bool valid_host, bool valid_device);
+
+   /// Get write-only access to @a size entries starting at @a offset.
+   /** @a on_device selects device access when true and host access when false.
+       The range must fit within Capacity(). Previous contents are not copied;
+       use ReadWrite() to preserve them. The other location is invalidated only
+       for the requested range. */
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(bool on_device, int offset, int size);
+   /// Get read-write access to @a size entries starting at @a offset.
+   /** @a on_device selects device access when true and host access when false.
+       The range must fit within Capacity(). If only read or only write access
+       is needed, use Read() or Write() instead to avoid unnecessary data copies
+       or invalidation. */
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(bool on_device, int offset,
+                                            int size);
+   /// Get read-only access to @a size entries starting at @a offset.
+   /** The range must fit within Capacity(). Copies data as needed to make the
+       requested location valid without invalidating the other location. */
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *Read(bool on_device, int offset,
+                                             int size) const;
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(bool on_device, int size)
+   {
+      return Write(on_device, 0, size);
+   }
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(bool on_device, int size)
+   {
+      return ReadWrite(on_device, 0, size);
+   }
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *Read(bool on_device, int size) const
+   {
+      return Read(on_device, 0, size);
+   }
+
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(bool on_device = true)
+   {
+      return Write(on_device, size_);
+   }
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(bool on_device = true)
+   {
+      return ReadWrite(on_device, size_);
+   }
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *Read(bool on_device = true) const
+   {
+      return Read(on_device, size_);
+   }
+
+   /// Get write-only access to the entire host range without copying data.
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *HostWrite() { return Write(false, size_); }
+   /// Get read-write access to the entire host range, copying data as needed.
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *HostReadWrite()
+   {
+      return ReadWrite(false, size_);
+   }
+   /// Get read-only access to the entire host range, copying data as needed.
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *HostRead() const
+   {
+      return Read(false, size_);
+   }
+
+   /// Direct host pointer access; requires host-only validity for the full
+   /// range.
+   /** Does not copy data or change validity. Returns nullptr for an empty
+       object. */
+   MFEM_ENZYME_FN_LIKE_DYNCAST operator T *();
+   /// Direct read-only host pointer access; requires host validity for the full
+   /// range.
+   /** Does not copy data or change validity. Returns nullptr for an empty
+       object. */
+   MFEM_ENZYME_FN_LIKE_DYNCAST operator const T *() const;
+   /// Direct host access with reinterpret_cast to U*, requiring host-only
+   /// validity.
+   template <class U> explicit operator U *();
+   /// Direct read-only host access with reinterpret_cast to const U*.
+   /** Requires host validity for the full range. */
+   template <class U> explicit operator const U *() const;
+
+   /// Get read-write access to a range using the given MemoryClass @a mc.
+   /** The range must fit within Capacity(). See ReadWrite(bool, int, int). */
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(MemoryClass mc, int offset,
+                                            int size);
+   /// Get read-only access to a range using the given MemoryClass @a mc.
+   /** The range must fit within Capacity(). See Read(bool, int, int). */
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *Read(MemoryClass mc, int offset,
+                                             int size) const;
+   /// Get write-only access to a range using the given MemoryClass @a mc.
+   /** The range must fit within Capacity(). See Write(bool, int, int). */
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(MemoryClass mc, int offset, int size);
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *ReadWrite(MemoryClass mc, int size)
+   {
+      return ReadWrite(mc, 0, size);
+   }
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *Read(MemoryClass mc, int size) const
+   {
+      return Read(mc, 0, size);
+   }
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *Write(MemoryClass mc, int size)
+   {
+      return Write(mc, 0, size);
+   }
+
+   /// Check ReadWrite/Write/Read do not update any validity flags, instead they
+   /// fail if the required validity flags are not satisfied.
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *CheckReadWrite(bool on_dev, int offset,
+                                                 int size);
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *CheckRead(bool on_dev, int offset,
+                                                  int size) const;
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *CheckReadWrite(MemoryClass mc, int offset,
+                                                 int size);
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *CheckRead(MemoryClass mc, int offset,
+                                                  int size) const;
+   MFEM_ENZYME_FN_LIKE_DYNCAST T *CheckReadWrite(MemoryClass mc, int size)
+   {
+      return CheckReadWrite(mc, 0, size);
+   }
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T *CheckRead(MemoryClass mc,
+                                                  int size) const
+   {
+      return CheckRead(mc, 0, size);
+   }
+
+   /// Access a host entry without copying data or updating validity.
+   /** The entry must be valid only on host. Debug builds check this condition.
+       */
+   MFEM_ENZYME_FN_LIKE_DYNCAST T &operator[](size_t idx);
+   /// Access a read-only host entry without copying data or updating validity.
+   /** The entry must be valid on host. Debug builds check this condition. */
+   MFEM_ENZYME_FN_LIKE_DYNCAST const T &operator[](size_t idx) const;
+
+   /// Delete an owned device pointer and invalidate its location.
+   /** If @a copy_to_host is true, first make the entire registered allocation
+       valid on host, copying data as needed. */
+   void DeleteDevice(bool copy_to_host = true)
+   {
+      auto &inst = MemoryManager::Instance();
+      if (segment)
+      {
+         auto &seg = inst.storage.GetSegment(segment);
+         if (copy_to_host)
+         {
+            // ensure the full segment is valid on host
+            inst.Read(segment, 0, seg.nbytes, false);
+         }
+         if (seg.lowers[1] != seg.lowers[0] && seg.lowers[1])
+         {
+            if (OwnsDevicePtr())
+            {
+               MFEM_MEM_OP_DEBUG_REMOVE2(1, seg.lowers[1],
+                                         seg.lowers[1] + seg.nbytes,
+                                         "dealloc " << (int)seg.mtypes[1]);
+               inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1]);
+               inst.segment_maps[1].erase(seg.lowers[1]);
+               seg.lowers[1] = nullptr;
+               inst.SetValidity(segment, 0, seg.nbytes, true, false);
+            }
+         }
+      }
+   }
+
+   /// @deprecated This is a no-op
+   [[deprecated]]
+   void Sync(const Memory &other) const {}
+
+   /// @deprecated This is a no-op. Note that previously this could copy data
+   /// between host/device pointers; this is now deferred to the next call to
+   /// Read/ReadWrite.
+   [[deprecated]]
+   void SyncAlias(const Memory &base, int alias_size) const
+   {
+      MFEM_MEM_OP_DEBUG_SYNC_ALIAS(3, h_ptr, base.h_ptr,
+                                   alias_size * sizeof(T));
+   }
+
+   /// Return a MemoryType in which the entire range is valid, preferring
+   /// device.
+   /** Returns MemoryType::DEFAULT if neither location holds a fully valid
+       range.
+       For an empty or unregistered object, returns GetHostMemoryType(). */
+   MemoryType GetMemoryType() const
+   {
+      if (h_ptr == nullptr)
+      {
+         return h_mt;
+      }
+      auto &inst = MemoryManager::Instance();
+      if (segment)
+      {
+         return inst.GetMemoryType(segment, offset_ * sizeof(T),
+                                   size_ * sizeof(T));
+      }
+      else
+      {
+         return h_mt;
+      }
+   }
+
+   /// Return the host MemoryType of this object.
+   MemoryType GetHostMemoryType() const { return h_mt; }
+
+   /// Return the device MemoryType, or MemoryType::DEFAULT if not registered.
+   MemoryType GetDeviceMemoryType() const
+   {
+      auto &inst = MemoryManager::Instance();
+      if (segment)
+      {
+         return inst.storage.GetSegment(segment).mtypes[1];
+      }
+      return MemoryType::DEFAULT;
+   }
+
+   /// Return true if the entire range is valid on host.
+   bool HostIsValid() const
+   {
+      auto &inst = MemoryManager::Instance();
+      if (segment)
+      {
+         return inst.IsValid(segment, offset_ * sizeof(T), size_ * sizeof(T),
+                             false);
+      }
+      return h_ptr != nullptr;
+   }
+
+   /// Return true if the entire range is valid on device.
+   bool DeviceIsValid() const
+   {
+      auto &inst = MemoryManager::Instance();
+      if (segment)
+      {
+         return inst.IsValid(segment, offset_ * sizeof(T), size_ * sizeof(T),
+                             true);
+      }
+      return false;
+   }
+   /// Copy @a size entries from @a src to this object.
+   /// Pre-conditions:
+   /// - size <= src.Capacity() and size <= this->Capacity()
+   /// This is copied to everywhere this is valid! This means if this is
+   /// valid on both host and device data is copied twice, and conversely if
+   /// neither is valid then no data is copied. Use this->Write/ReadWrite
+   /// prior to CopyFrom to specify which buffer to copy into.
+   void CopyFrom(const Memory &src, int size);
+   /// Copy @a size entries from a host pointer to this object's valid
+   /// locations.
+   /** @a size must not exceed Capacity(). See CopyFrom() for destination
+       validity. */
+   void CopyFromHost(const T *src, int size);
+
+   /// Copy @a size entries to @a dst, equivalent to dst.CopyFrom(*this, size).
+   /** @a size must not exceed Capacity() of either object. */
+   void CopyTo(Memory &dst, int size) const;
+   /// Copy @a size entries to the host pointer @a dst.
+   /** @a size must not exceed Capacity(). */
+   void CopyToHost(T *dst, int size) const;
+
+   /// Print the registered allocation's pointers and validity ranges for
+   /// debugging.
+   void PrintFlags() const
+   {
+      auto &inst = MemoryManager::Instance();
+      inst.PrintSegment(segment);
+   }
+
+   /// Compare @a size entries when the range is valid on both host and device.
+   /** Useful for debugging. Returns the result of std::memcmp(), or zero if
+       either location is invalid or the pointers refer to the same allocation.
+       @a size must not exceed Capacity(). */
+   int CompareHostAndDevice(int size) const
+   {
+      auto &inst = MemoryManager::Instance();
+      return inst.CompareHostDevice(segment, offset_ * sizeof(T),
+                                    size * sizeof(T));
+   }
+
+   /// For internal use only.
+   /// U* must be reinterpret_cast-able to T*
+   template <class U> inline void CopyConvertPtr(const Memory<U> &base);
+};
+
+template <typename T>
+template <class U>
+inline void Memory<T>::CopyConvertPtr(const Memory<U> &base)
+{
+   auto &inst = MemoryManager::Instance();
+   if (segment)
+   {
+      inst.Erase(segment);
+   }
+   h_ptr = reinterpret_cast<T *>(base.h_ptr);
+   size_ = base.size_;
+   offset_ = base.offset_;
+   segment = base.segment;
+   if (segment)
+   {
+      auto &seg = inst.storage.GetSegment(segment);
+      ++seg.ref_count;
+   }
+   h_mt = base.h_mt;
+   flags = static_cast<Flags>(base.flags);
+}
+
+template <class T> void Memory<T>::New(size_t size)
+{
+   auto &inst = MemoryManager::Instance();
+   if (segment)
+   {
+      inst.Erase(segment);
+      segment = 0;
+   }
+   offset_ = 0;
+   h_mt = inst.GetHostMemoryType();
+   if (h_mt == MemoryType::HOST)
+   {
+      h_ptr = new T[size];
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                            "alloc " << (int)h_mt << ", " << false);
+   }
+   else
+   {
+      h_ptr = reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), h_mt));
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                            "alloc " << (int)h_mt << ", " << false);
+   }
+   flags = OWNS_HOST;
+   size_ = size;
+}
+
+template <class T> void Memory<T>::New(size_t size, MemoryType loc)
+{
+   auto &inst = MemoryManager::Instance();
+   if (loc == MemoryType::DEFAULT)
+   {
+      loc = inst.GetHostMemoryType();
+   }
+   MemoryType hloc;
+   MemoryType dloc = MemoryType::DEFAULT;
+   if (IsHostMemory(loc))
+   {
+      hloc = loc;
+      New_(size, hloc, dloc, true);
+   }
+   else
+   {
+      hloc = inst.GetDualMemoryType(loc);
+      dloc = loc;
+      New_(size, hloc, dloc, false);
+   }
+}
+
+template <class T>
+void Memory<T>::New(size_t size, MemoryType hloc, MemoryType dloc)
+{
+   New_(size, hloc, dloc, true);
+}
+
+template <class T>
+void Memory<T>::New_(size_t size, MemoryType hloc, MemoryType dloc,
+                     bool valid_host)
+{
+   auto &inst = MemoryManager::Instance();
+   if (segment)
+   {
+      inst.Erase(segment);
+      segment = 0;
+   }
+   offset_ = 0;
+   h_mt = hloc;
+   if (hloc == MemoryType::HOST)
+   {
+      h_ptr = new T[size];
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size, "alloc " << (int)h_mt);
+   }
+   else
+   {
+      h_ptr = reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), hloc));
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size, "alloc " << (int)h_mt);
+   }
+   flags = OWNS_HOST;
+   if (hloc == dloc ||
+       (dloc == MemoryType::DEFAULT && hloc == inst.GetDualMemoryType(hloc)))
+   {
+      MFEM_ASSERT(!segment, "unexpected valid segment");
+      segment = inst.Insert(reinterpret_cast<char *>(h_ptr),
+                            reinterpret_cast<char *>(h_ptr), size * sizeof(T),
+                            h_mt, dloc, valid_host, !valid_host);
+      flags = static_cast<Flags>(flags | OWNS_DEVICE);
+   }
+   else if (dloc != MemoryType::DEFAULT)
+   {
+      MFEM_ASSERT(!segment, "unexpected valid segment");
+      segment =
+         inst.Insert(reinterpret_cast<char *>(h_ptr), nullptr, size * sizeof(T),
+                     h_mt, dloc, valid_host, !valid_host);
+      flags = static_cast<Flags>(flags | OWNS_DEVICE);
+   }
+   size_ = size;
+}
+
+template <class T> void Memory<T>::Delete()
+{
+   if (segment)
+   {
+      auto &inst = MemoryManager::Instance();
+      if ((flags & OWNS_DEVICE))
+      {
+         auto &seg = inst.storage.GetSegment(segment);
+         MFEM_ASSERT(offset_ == 0, "should not have any offset");
+         MFEM_ASSERT(size_ * sizeof(T) == size_t(seg.nbytes),
+                     "should not refer to a subsection");
+         if (seg.lowers[0] != seg.lowers[1])
+         {
+            MFEM_MEM_OP_DEBUG_REMOVE2(1, seg.lowers[1],
+                                      seg.lowers[1] + seg.nbytes,
+                                      "dealloc " << (int)seg.mtypes[1]);
+            inst.Dealloc(seg.lowers[1], seg.nbytes, seg.mtypes[1]);
+            inst.segment_maps[1].erase(seg.lowers[1]);
+         }
+         seg.lowers[1] = nullptr;
+      }
+      if (h_ptr && (flags & OWNS_HOST))
+      {
+         MFEM_ASSERT(offset_ == 0, "unexpected non-zero offset");
+
+         auto &seg = inst.storage.GetSegment(segment);
+         if (seg.lowers[0] == nullptr)
+         {
+            // de-allocated by inst.Destroy()
+            h_ptr = reinterpret_cast<T *>(seg.lowers[0]);
+         }
+         MFEM_ASSERT(seg.mtypes[0] == h_mt, "host memory type mismatch");
+         MFEM_ASSERT((void *)h_ptr == (void *)seg.lowers[0],
+                     "host memory pointer mismatch");
+         // MFEM_ASSERT(flags & OWNS_DEVICE, "expected to also own device");
+         MFEM_ASSERT(offset_ == 0, "should not have any offset");
+         MFEM_ASSERT(size_ * sizeof(T) == size_t(seg.nbytes),
+                     "should not refer to a subsection");
+         inst.segment_maps[0].erase(seg.lowers[0]);
+         seg.lowers[0] = nullptr;
+         if (h_mt == MemoryType::HOST)
+         {
+            MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
+                                      "dealloc " << (int)h_mt);
+            delete[] h_ptr;
+         }
+         else
+         {
+            MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
+                                      "dealloc " << (int)h_mt);
+            inst.Dealloc(reinterpret_cast<char *>(h_ptr), size_ * sizeof(T),
+                         h_mt);
+         }
+      }
+      Reset(h_mt);
+   }
+   else
+   {
+      if (flags & OWNS_HOST)
+      {
+         if (h_mt == MemoryType::HOST)
+         {
+            MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
+                                      "dealloc " << (int)h_mt);
+            delete[] h_ptr;
+         }
+         else
+         {
+            MFEM_MEM_OP_DEBUG_REMOVE2(1, h_ptr, h_ptr + size_,
+                                      "dealloc " << (int)h_mt);
+            auto &inst = MemoryManager::Instance();
+            inst.Dealloc(reinterpret_cast<char *>(h_ptr), size_ * sizeof(T),
+                         h_mt);
+         }
+         h_ptr = nullptr;
+      }
+      // An unregistered alias no longer refers to a range after deletion.
+      offset_ = 0;
+      size_ = 0;
+   }
+}
+
+template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size,
+                                               MemoryType loc, bool own)
+{
+   auto &inst = MemoryManager::Instance();
+   const size_t old_segment = segment;
+   // look for existing host-accessible ptr
+   auto search_for = [&inst](void *p, size_t nbytes, size_t idx,
+                             const std::map<const void *, size_t> &mapped,
+                             bool &found)
+   {
+      auto iter = mapped.upper_bound(p);
+      if (iter == mapped.begin())
+      {
+         // p is before any registered host-accessible pointers
+         found = false;
+      }
+      else
+      {
+         auto tmp = iter;
+         --tmp;
+         // tmp->first <= p, check stops
+         auto &seg = inst.storage.GetSegment(tmp->second);
+         if (p < seg.lowers[idx] + seg.nbytes)
+         {
+            MFEM_ASSERT(reinterpret_cast<char *>(p) - seg.lowers[idx] +
+                        nbytes <=
+                        static_cast<size_t>(seg.nbytes),
+                        "requested size exceeds previously registered aliased "
+                        "pointer size");
+            found = true;
+            return tmp;
+         }
+         else
+         {
+            found = false;
+         }
+      }
+      return iter;
+   };
+   bool found;
+   // look for host-accessible pointer first
+   auto iter =
+      search_for(ptr, size * sizeof(T), 0, inst.segment_maps[0], found);
+   if (found)
+   {
+      h_ptr = ptr;
+      size_ = size;
+      offset_ = ptr - reinterpret_cast<const T *>(iter->first);
+      segment = iter->second;
+      auto &seg = inst.storage.GetSegment(segment);
+      h_mt = seg.mtypes[0];
+      ++seg.ref_count;
+      flags = own ? static_cast<Flags>(OWNS_HOST | OWNS_DEVICE) : NONE;
+   }
+   else
+   {
+      iter = search_for(ptr, size * sizeof(T), 1, inst.segment_maps[1], found);
+      if (found)
+      {
+         size_ = size;
+         offset_ = ptr - reinterpret_cast<const T *>(iter->first);
+         segment = iter->second;
+         auto &seg = inst.storage.GetSegment(segment);
+         h_ptr = reinterpret_cast<T *>(seg.lowers[0]) + offset_;
+         h_mt = seg.mtypes[0];
+         ++seg.ref_count;
+         flags = own ? static_cast<Flags>(OWNS_HOST | OWNS_DEVICE) : NONE;
+      }
+      else
+      {
+         Wrap(ptr, size, loc, own);
+      }
+   }
+   // Acquire the new reference before releasing the old one, since both can
+   // refer to the same registration and this may be its only reference.
+   if (found && old_segment)
+   {
+      inst.Erase(old_segment);
+   }
+#ifdef MFEM_ENABLE_MEM_OP_DEBUG
+   if (own)
+   {
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                            "wrap own " << (int)h_mt << ", " << false);
+   }
+#endif
+}
+
+template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size, bool own)
+{
+   auto &inst = MemoryManager::Instance();
+   CheckedWrap(ptr, size, inst.GetHostMemoryType(), own);
+}
+
+template <class T>
+void Memory<T>::CheckedWrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType loc,
+                            bool own, bool valid_host, bool valid_device)
+{
+   auto &inst = MemoryManager::Instance();
+   MFEM_VERIFY(IsHostMemory(loc), "expected a host memory type");
+   auto find_segment = [&](T *ptr, bool on_device, size_t &offset) -> size_t
+   {
+      if (!ptr) { return 0; }
+      const auto &mapped = inst.segment_maps[on_device];
+      auto iter = mapped.upper_bound(ptr);
+      if (iter == mapped.begin()) { return 0; }
+      --iter;
+      const auto &seg = inst.storage.GetSegment(iter->second);
+      const char *p = reinterpret_cast<const char *>(ptr);
+      if (p >= seg.lowers[on_device] + seg.nbytes) { return 0; }
+      const size_t byte_offset = p - seg.lowers[on_device];
+      MFEM_VERIFY(byte_offset % sizeof(T) == 0,
+                  "registered pointer is not aligned to an entry");
+      MFEM_VERIFY(size <= (size_t(seg.nbytes) - byte_offset) / sizeof(T),
+                  "requested size exceeds previously registered aliased "
+                  "pointer size");
+      offset = byte_offset / sizeof(T);
+      return iter->second;
+   };
+
+   size_t h_offset = 0, d_offset = 0;
+   const size_t h_segment = find_segment(h_ptr_, false, h_offset);
+   const size_t d_segment = find_segment(d_ptr, true, d_offset);
+   const size_t new_segment = h_segment ? h_segment : d_segment;
+   if (!new_segment)
+   {
+      offset_ = 0;
+      Wrap(h_ptr_, d_ptr, size, loc, inst.GetDualMemoryType(loc), own,
+           valid_host, valid_device);
+      return;
+   }
+
+   auto &seg = inst.storage.GetSegment(new_segment);
+   const size_t new_offset = h_segment ? h_offset : d_offset;
+   MFEM_VERIFY(!h_segment || !d_segment ||
+               (h_segment == d_segment && h_offset == d_offset),
+               "host and device pointers refer to different registered ranges");
+   MFEM_VERIFY(h_ptr_ == reinterpret_cast<T *>(seg.lowers[0]) + new_offset,
+               "host pointer does not match the registered allocation");
+   MFEM_VERIFY(!d_ptr ||
+               (seg.lowers[1] &&
+                d_ptr == reinterpret_cast<T *>(seg.lowers[1]) + new_offset),
+               "device pointer does not match the registered allocation");
+
+   // Keep the registration alive when rewrapping its only reference.
+   ++seg.ref_count;
+   if (segment) { inst.Erase(segment); }
+   h_ptr = h_ptr_;
+   h_mt = seg.mtypes[0];
+   size_ = size;
+   offset_ = new_offset;
+   segment = new_segment;
+   flags = own ? static_cast<Flags>(OWNS_HOST | OWNS_DEVICE) : NONE;
+   if (own)
+   {
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                            "wrap own " << (int)h_mt << ", " << false);
+      MFEM_MEM_OP_DEBUG_ADD(0, d_ptr, d_ptr + size,
+                            "wrap own " << (int)seg.mtypes[1] << ", " << false);
+   }
+}
+
+template <class T> void Memory<T>::Wrap(T *ptr, size_t size, bool own)
+{
+   auto &inst = MemoryManager::Instance();
+   if (segment)
+   {
+      inst.Erase(segment);
+      segment = 0;
+   }
+   offset_ = 0;
+   h_ptr = ptr;
+   size_ = size;
+   flags = own ? OWNS_HOST : NONE;
+   h_mt = inst.GetHostMemoryType();
+#ifdef MFEM_ENABLE_MEM_OP_DEBUG
+   if (own)
+   {
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                            "wrap own " << (int)h_mt << ", " << false);
+   }
+#endif
+}
+
+template <class T>
+void Memory<T>::Wrap(T *ptr, size_t size, MemoryType loc, bool own)
+{
+   auto &inst = MemoryManager::Instance();
+   T *h_ptr_ = nullptr;
+   T *d_ptr_ = nullptr;
+   MemoryType hloc = MemoryType::DEFAULT;
+   MemoryType dloc = MemoryType::DEFAULT;
+   bool own_host = false;
+   bool own_device = false;
+   bool valid_host = true;
+   bool valid_device = false;
+   if (IsHostMemory(loc))
+   {
+      hloc = loc;
+      h_ptr_ = ptr;
+      own_host = own;
+      own_device = own;
+   }
+   else
+   {
+      MFEM_ASSERT(int(loc) < MemoryTypeSize, "invalid loc");
+      hloc = inst.GetDualMemoryType(loc);
+      dloc = loc;
+      d_ptr_ = ptr;
+      own_host = true;
+      own_device = own;
+      valid_host = false;
+      valid_device = true;
+      if (hloc != dloc)
+      {
+         if (hloc == MemoryType::HOST)
+         {
+            h_ptr_ = new T[size];
+            MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                                  "wrap own " << (int)hloc << ", " << false);
+         }
+         else
+         {
+            h_ptr_ = reinterpret_cast<T *>(inst.Alloc(size * sizeof(T), hloc));
+            MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                                  "wrap own " << (int)hloc << ", " << false);
+         }
+      }
+      else
+      {
+         h_ptr_ = d_ptr_;
+      }
+   }
+
+   Wrap(h_ptr_, d_ptr_, size, hloc, dloc, own_host, own_device, valid_host,
+        valid_device);
+}
+
+template <class T>
+void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
+                     MemoryType dloc, bool own, bool valid_host,
+                     bool valid_device)
+{
+   Wrap(h_ptr_, d_ptr, size, hloc, dloc, own, own, valid_host, valid_device);
+}
+
+template <class T>
+void Memory<T>::Wrap(T *h_ptr_, T *d_ptr, size_t size, MemoryType hloc,
+                     MemoryType dloc, bool own_host, bool own_device,
+                     bool valid_host, bool valid_device)
+{
+   auto &inst = MemoryManager::Instance();
+   if (segment)
+   {
+      inst.Erase(segment);
+      segment = 0;
+   }
+   offset_ = 0;
+   h_ptr = h_ptr_;
+   h_mt = hloc;
+   size_ = size;
+   flags = NONE;
+   if (hloc == dloc ||
+       (dloc == MemoryType::DEFAULT && hloc == inst.GetDualMemoryType(hloc)))
+   {
+      MFEM_ASSERT(d_ptr == nullptr || d_ptr == h_ptr,
+                  "expected h_ptr == d_ptr or d_ptr == nullptr");
+      d_ptr = h_ptr;
+      dloc = hloc;
+   }
+   if (d_ptr)
+   {
+      MFEM_ASSERT(!segment, "unexpected valid segment");
+      if (dloc == MemoryType::DEFAULT)
+      {
+         MFEM_ASSERT(int(hloc) < MemoryTypeSize, "invalid hloc");
+         dloc = inst.GetDualMemoryType(hloc);
+      }
+      MFEM_ASSERT(h_ptr != nullptr,
+                  "Cannot wrap d_ptr != nullptr with h_ptr == nullptr");
+      segment = inst.Insert(reinterpret_cast<char *>(h_ptr),
+                            reinterpret_cast<char *>(d_ptr), size * sizeof(T),
+                            hloc, dloc, valid_host, valid_device);
+   }
+   if (own_host)
+   {
+      flags = static_cast<Flags>(flags | OWNS_HOST);
+      MFEM_MEM_OP_DEBUG_ADD(0, h_ptr, h_ptr + size,
+                            "wrap own " << (int)hloc << ", " << false);
+   }
+   if (own_device)
+   {
+      flags = static_cast<Flags>(flags | OWNS_DEVICE);
+      MFEM_MEM_OP_DEBUG_ADD(0, d_ptr, d_ptr + size,
+                            "wrap own " << (int)dloc << ", " << false);
+   }
+}
+
+template <class T>
+void Memory<T>::MakeAlias(const Memory &base, int offset, int size)
+{
+   MFEM_ASSERT(0 <= offset, "invalid offset = " << offset);
+   MFEM_ASSERT(0 <= size, "invalid size = " << size);
+   MFEM_ASSERT(size_t(offset + size) <= base.size_,
+               "invalid offset + size = "
+               << offset + size << " > base capacity = " << base.size_);
+   if (&base == this)
+   {
+      MFEM_ASSERT(offset == 0 && size_t(size) == size_,
+                  "Cannot MakeAlias(*this)");
+      return;
+   }
+
+   auto &inst = MemoryManager::Instance();
+   if (segment)
+   {
+      inst.Erase(segment);
+   }
+   h_ptr = base.h_ptr + offset;
+   size_ = size;
+   h_mt = base.h_mt;
+   // Copy the flags from 'base' and resets both OWNS_HOST and OWNS_DEVICE
+   flags = static_cast<Flags>(base.flags & ~(OWNS_HOST | OWNS_DEVICE));
+   if (!base.segment)
+   {
+      if (
+#if !defined(HYPRE_USING_GPU)
+         IsDeviceMemory(inst.GetDeviceMemoryType())
+#elif MFEM_HYPRE_VERSION < 23100
+         // When HYPRE_USING_GPU is defined and HYPRE < 2.31.0, we always
+         // register the 'base'
+         true
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+         (IsDeviceMemory(inst.GetDeviceMemoryType()) || HypreUsingGPU())
+#endif
+      )
+      {
+         base.segment = inst.Insert(reinterpret_cast<char *>(base.h_ptr),
+                                    nullptr, base.size_ * sizeof(T), base.h_mt,
+                                    MemoryType::DEFAULT, true, false);
+         // The base owns any device buffer allocated by MFEM for this new
+         // registration, even when its host storage is borrowed.
+         base.flags = static_cast<Flags>(base.flags | OWNS_DEVICE);
+      }
+   }
+   segment = base.segment;
+   // An unregistered alias uses h_ptr as its own allocation origin. Only
+   // registered aliases need an offset relative to the shared segment.
+   offset_ = segment ? base.offset_ + offset : 0;
+   if (segment)
+   {
+      ++inst.storage.GetSegment(segment).ref_count;
+   }
+}
+
+template <class T> Memory<T>::Memory(int count) { New(count); }
+
+template <class T> Memory<T>::Memory(size_t count, MemoryType loc)
+{
+   New(count, loc);
+}
+
+template <class T>
+Memory<T>::Memory(size_t count, MemoryType hloc, MemoryType dloc)
+{
+   New(count, hloc, dloc);
+}
+
+template <class T> Memory<T>::Memory(MemoryType mt) : Memory()
+{
+   auto &inst = MemoryManager::Instance();
+   MemoryType dloc = MemoryType::DEFAULT;
+   if (IsHostMemory(mt))
+   {
+      h_mt = mt;
+   }
+   else
+   {
+      dloc = mt;
+      h_mt = inst.GetDualMemoryType(dloc);
+   }
+   if (dloc != MemoryType::DEFAULT)
+   {
+      segment = inst.Insert(nullptr, nullptr, 0, h_mt, dloc, false, false);
+   }
+}
+
+template <class T>
+Memory<T>::Memory(MemoryType hloc, MemoryType dloc) : Memory()
+{
+   h_mt = hloc;
+   if (dloc != MemoryType::DEFAULT)
+   {
+      auto &inst = MemoryManager::Instance();
+      segment = inst.Insert(nullptr, nullptr, 0, h_mt, dloc, false, false);
+   }
+}
+
+template <class T> Memory<T>::Memory(T *ptr, size_t count, bool own)
+{
+   // ensure MemoryManager instance exists
+   MemoryManager::Instance();
+   Wrap(ptr, count, own);
+}
+
+template <class T>
+Memory<T>::Memory(T *ptr, size_t count, MemoryType loc, bool own)
+{
+   // ensure MemoryManager instance exists
+   MemoryManager::Instance();
+   Wrap(ptr, count, loc, own);
+}
+
+template <class T> Memory<T>::Memory(const Memory &base, int offset, int size)
+{
+   MakeAlias(base, offset, size);
+}
+
+template <class T> void Memory<T>::Reset()
+{
+   auto &inst = MemoryManager::Instance();
+   Reset(inst.GetHostMemoryType());
+}
+
+template <class T> void Memory<T>::Reset(MemoryType host_mt)
+{
+   auto &inst = MemoryManager::Instance();
+   if (segment)
+   {
+      inst.Erase(segment);
+      segment = 0;
+   }
+   offset_ = 0;
+   h_ptr = nullptr;
+   size_ = 0;
+   flags = NONE;
+   h_mt = host_mt;
+}
+
+template <class T>
+Memory<T>::Memory(const Memory &r)
+   : h_ptr(r.h_ptr), size_(r.size_), offset_(r.offset_), segment(r.segment),
+     h_mt(r.h_mt), flags(r.flags)
+{
+   auto &inst = MemoryManager::Instance();
+   if (segment)
+   {
+      auto &seg = inst.storage.GetSegment(segment);
+      ++seg.ref_count;
+   }
+   // Old copy constructor semantics closer to "move" so no else case is needed.
+}
+
+template <class T>
+Memory<T>::Memory(Memory &&r)
+   : h_ptr(r.h_ptr), size_(r.size_), offset_(r.offset_), segment(r.segment),
+     h_mt(r.h_mt), flags(r.flags)
+{
+   r.h_ptr = nullptr;
+   r.size_ = 0;
+   r.offset_ = 0;
+   r.segment = 0;
+   r.flags = NONE;
+}
+
+template <class T> Memory<T> &Memory<T>::operator=(const Memory &r)
+{
+   if (&r != this)
+   {
+      auto &inst = MemoryManager::Instance();
+      if (segment)
+      {
+         inst.Erase(segment);
+      }
+      h_ptr = r.h_ptr;
+      size_ = r.size_;
+      offset_ = r.offset_;
+      segment = r.segment;
+      h_mt = r.h_mt;
+      flags = r.flags;
+      if (segment)
+      {
+         auto &seg = inst.storage.GetSegment(segment);
+         ++seg.ref_count;
+      }
+      // old copy assign semantics closer to "move" so no else case is needed
+   }
+   return *this;
+}
+
+template <class T> Memory<T> &Memory<T>::operator=(Memory &&r) noexcept
+{
+   if (&r != this)
+   {
+      if (segment)
+      {
+         auto &inst = MemoryManager::Instance();
+         inst.Erase(segment);
+      }
+      h_ptr = r.h_ptr;
+      size_ = r.size_;
+      offset_ = r.offset_;
+      segment = r.segment;
+      h_mt = r.h_mt;
+      flags = r.flags;
+      r.h_ptr = nullptr;
+      r.size_ = 0;
+      r.offset_ = 0;
+      r.segment = 0;
+      r.flags = NONE;
+   }
+   return *this;
+}
+
+template <class T> void Memory<T>::EnsureRegistered() const
+{
+   auto &inst = MemoryManager::Instance();
+   if (h_ptr && !segment &&
+#if !defined(HYPRE_USING_GPU)
+       IsDeviceMemory(inst.GetDeviceMemoryType())
+#elif MFEM_HYPRE_VERSION < 23100
+       // When HYPRE_USING_GPU is defined and HYPRE < 2.31.0, we always
+       // register the 'base'
+       true
+#else // HYPRE_USING_GPU is defined and MFEM_HYPRE_VERSION >= 23100
+       (IsDeviceMemory(inst.GetDeviceMemoryType()) || HypreUsingGPU())
+#endif
+      )
+   {
+      MFEM_ASSERT(!segment, "unexpected valid segment");
+      segment =
+         inst.Insert(reinterpret_cast<char *>(h_ptr), nullptr,
+                     size_ * sizeof(T), h_mt, MemoryType::DEFAULT, true, false);
+      flags = static_cast<Flags>(flags | OWNS_DEVICE);
+   }
+}
+
+template <class T> T *Memory<T>::GetRawPointer(bool on_device) const
+{
+   if (!size_) { return nullptr; }
+   if (on_device) { EnsureRegistered(); }
+   if (!segment) { return h_ptr; }
+
+   auto &inst = MemoryManager::Instance();
+   auto &seg = inst.storage.GetSegment(segment);
+   if (!seg.lowers[on_device])
+   {
+      if (seg.mtypes[on_device] == MemoryType::DEFAULT ||
+          seg.mtypes[on_device] == MemoryType::PRESERVE)
+      {
+         seg.mtypes[on_device] = inst.GetDualMemoryType(seg.mtypes[!on_device]);
+      }
+      seg.lowers[on_device] = inst.Alloc(seg.nbytes, seg.mtypes[on_device]);
+      inst.segment_maps[on_device].emplace(seg.lowers[on_device], segment);
+      MFEM_MEM_OP_DEBUG_ADD(0, seg.lowers[on_device],
+                            seg.lowers[on_device] + seg.nbytes,
+                            "alloc " << (int)seg.mtypes[on_device]);
+   }
+   inst.Unprotect(seg.lowers[on_device], seg.mtypes[on_device],
+                  offset_ * sizeof(T), size_ * sizeof(T));
+   return reinterpret_cast<T *>(seg.lowers[on_device]) + offset_;
+}
+
+template <class T> T *Memory<T>::Write(bool on_device, int offset, int size)
+{
+   MFEM_ASSERT(size >= 0, "Requested Memory::Write negative size");
+   MFEM_ASSERT(offset >= 0 && static_cast<size_t>(offset + size) <= size_,
+               "Requested Memory::Write exceeds memory bounds");
+   MFEM_MEM_OP_DEBUG_USE(5, h_ptr + offset, h_ptr + offset + size,
+                         " Write Request");
+   MFEM_MEM_OP_BENCH_SCOPE(2, true);
+   auto &inst = MemoryManager::Instance();
+   if (on_device)
+   {
+      EnsureRegistered();
+   }
+   if (segment)
+   {
+      return reinterpret_cast<T *>(inst.Write(
+                                      segment, (offset + offset_) * sizeof(T), size * sizeof(T), on_device));
+   }
+   MFEM_MEM_OP_DEBUG_USE(5, h_ptr + offset, h_ptr + offset + size, " Write");
+   return h_ptr + offset;
+}
+
+template <class T> T *Memory<T>::ReadWrite(bool on_device, int offset, int size)
+{
+   MFEM_ASSERT(size >= 0, "Requested Memory::ReadWrite negative size");
+   MFEM_ASSERT(offset >= 0 && static_cast<size_t>(offset + size) <= size_,
+               "Requested Memory::ReadWrite exceeds memory bounds");
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr + offset, h_ptr + offset + size,
+                         " ReadWrite Request");
+   MFEM_MEM_OP_BENCH_SCOPE(0, true);
+   auto &inst = MemoryManager::Instance();
+   if (on_device)
+   {
+      EnsureRegistered();
+   }
+   if (segment)
+   {
+      return reinterpret_cast<T *>(inst.ReadWrite(
+                                      segment, (offset_ + offset) * sizeof(T), size * sizeof(T), on_device));
+   }
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr + offset, h_ptr + offset + size,
+                         " ReadWrite");
+   return h_ptr + offset;
+}
+
+template <class T>
+const T *Memory<T>::Read(bool on_device, int offset, int size) const
+{
+   MFEM_ASSERT(size >= 0, "Requested Memory::Read negative size");
+   MFEM_ASSERT(offset >= 0 && static_cast<size_t>(offset + size) <= size_,
+               "Requested Memory::Read exceeds memory bounds");
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr + offset, h_ptr + offset + size,
+                         " Read Request");
+   MFEM_MEM_OP_BENCH_SCOPE(1, true);
+   auto &inst = MemoryManager::Instance();
+   if (on_device)
+   {
+      EnsureRegistered();
+   }
+   if (segment)
+   {
+      return reinterpret_cast<const T *>(inst.Read(
+                                            segment, (offset_ + offset) * sizeof(T), size * sizeof(T), on_device));
+   }
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr + offset, h_ptr + offset + size, " Read");
+   return h_ptr + offset;
+}
+
+template <class T> T *Memory<T>::Write(MemoryClass mc, int offset, int size)
+{
+   return Write(MemoryManager::RWOnDevice(mc), offset, size);
+}
+
+template <class T> T *Memory<T>::ReadWrite(MemoryClass mc, int offset, int size)
+{
+   return ReadWrite(MemoryManager::RWOnDevice(mc), offset, size);
+}
+
+template <class T>
+const T *Memory<T>::Read(MemoryClass mc, int offset, int size) const
+{
+   return Read(MemoryManager::RWOnDevice(mc), offset, size);
+}
+
+template <class T>
+T *Memory<T>::CheckReadWrite(bool on_device, int offset, int size)
+{
+   MFEM_VERIFY(offset >= 0 && static_cast<size_t>(offset + size) <= size_,
+               "Index out of bounds");
+   auto &inst = MemoryManager::Instance();
+   if (on_device)
+   {
+      EnsureRegistered();
+   }
+   if (segment)
+   {
+      MFEM_VERIFY(inst.CheckReadWrite(segment, (offset_ + offset) * sizeof(T),
+                                      size * sizeof(T), on_device),
+                  "invalid pointer validity flags");
+      // use write to handle any lazy allocations
+      return ReadWrite(on_device, offset, size);
+   }
+   return h_ptr + offset;
+}
+
+template <class T>
+const T *Memory<T>::CheckRead(bool on_device, int offset, int size) const
+{
+   MFEM_VERIFY(offset >= 0 && static_cast<size_t>(offset + size) <= size_,
+               "Index out of bounds");
+   auto &inst = MemoryManager::Instance();
+   if (on_device)
+   {
+      EnsureRegistered();
+   }
+   if (segment)
+   {
+      MFEM_VERIFY(inst.CheckRead(segment, (offset_ + offset) * sizeof(T),
+                                 size * sizeof(T), on_device),
+                  "invalid pointer validity flags");
+      // use Read to handle any lazy allocations
+      return Read(on_device, offset, size);
+   }
+   return h_ptr + offset;
+}
+
+template <class T>
+T *Memory<T>::CheckReadWrite(MemoryClass mc, int offset, int size)
+{
+   return CheckReadWrite(MemoryManager::RWOnDevice(mc), offset, size);
+}
+
+template <class T>
+const T *Memory<T>::CheckRead(MemoryClass mc, int offset, int size) const
+{
+   return CheckRead(MemoryManager::RWOnDevice(mc), offset, size);
+}
+
+template <class T> T &Memory<T>::operator[](size_t idx)
+{
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr + idx, h_ptr + idx + 1, " ReadWrite[]");
+   MFEM_ASSERT(h_ptr && idx < size_ &&
+               MemoryManager::Instance().CheckReadWrite(
+                  segment, (offset_ + idx) * sizeof(T), sizeof(T), false),
+               "invalid host pointer access");
+   return h_ptr[idx];
+}
+
+template <class T> const T &Memory<T>::operator[](size_t idx) const
+{
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr + idx, h_ptr + idx + 1, " Read[]");
+   MFEM_ASSERT(h_ptr && idx < size_ &&
+               MemoryManager::Instance().CheckRead(
+                  segment, (offset_ + idx) * sizeof(T), sizeof(T), false),
+               "invalid host pointer access");
+   return h_ptr[idx];
+}
+
+template <class T> Memory<T>::~Memory()
+{
+   if (segment)
+   {
+      auto &inst = MemoryManager::Instance();
+      inst.Erase(segment);
+      segment = 0;
+   }
+}
+
+template <class T> void Memory<T>::CopyFrom(const Memory &src, int size)
+{
+   MFEM_MEM_OP_DEBUG(7, "CopyFrom " << size * sizeof(T) << " bytes");
+   MFEM_MEM_OP_BENCH_SCOPE(4, true);
+   if (size <= 0)
+   {
+      return;
+   }
+   auto &inst = MemoryManager::Instance();
+   MFEM_ASSERT(size >= 0, "out of bounds copy");
+   MFEM_ASSERT(size_t(size) <= size_, "out of bounds copy");
+   MFEM_ASSERT(size_t(size) <= src.size_, "out of bounds copy");
+   if (segment)
+   {
+      if (src.segment)
+      {
+         inst.Copy(segment, src.segment, offset_ * sizeof(T),
+                   src.offset_ * sizeof(T), sizeof(T) * size);
+      }
+      else
+      {
+         inst.CopyFromHost(segment, offset_ * sizeof(T),
+                           reinterpret_cast<const char *>(src.h_ptr),
+                           size * sizeof(T));
+      }
+   }
+   else
+   {
+      if (src.segment)
+      {
+         inst.CopyToHost(src.segment, src.offset_ * sizeof(T),
+                         reinterpret_cast<char *>(h_ptr), size * sizeof(T));
+      }
+      else
+      {
+         MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, src.h_ptr, h_ptr, size * sizeof(T),
+                                          "", src.h_mt, h_mt);
+         std::copy(src.h_ptr, src.h_ptr + size, h_ptr);
+      }
+   }
+}
+
+template <class T> void Memory<T>::CopyFromHost(const T *src, int size)
+{
+   MFEM_MEM_OP_DEBUG(8, "CopyFromHost " << size * sizeof(T) << " bytes");
+   MFEM_MEM_OP_BENCH_SCOPE(5, true);
+   if (size <= 0)
+   {
+      return;
+   }
+   auto &inst = MemoryManager::Instance();
+   MFEM_ASSERT(size >= 0, "out of bounds copy");
+   MFEM_ASSERT(size_t(size) <= size_, "out of bounds copy");
+   if (segment)
+   {
+      inst.CopyFromHost(segment, offset_ * sizeof(T),
+                        reinterpret_cast<const char *>(src), size * sizeof(T));
+   }
+   else if (h_ptr)
+   {
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, src, h_ptr, size * sizeof(T), "",
+                                       h_mt, h_mt);
+      std::copy(src, src + size, h_ptr);
+   }
+}
+
+template <class T> void Memory<T>::CopyTo(Memory &dst, int size) const
+{
+   dst.CopyFrom(*this, size);
+}
+
+template <class T> void Memory<T>::CopyToHost(T *dst, int size) const
+{
+   MFEM_MEM_OP_DEBUG(8, "CopyToHost " << size * sizeof(T) << " bytes");
+   MFEM_MEM_OP_BENCH_SCOPE(6, true);
+   if (size <= 0)
+   {
+      return;
+   }
+   auto &inst = MemoryManager::Instance();
+   MFEM_ASSERT(size >= 0, "out of bounds copy");
+   MFEM_ASSERT(size_t(size) <= size_, "out of bounds copy");
+   if (segment)
+   {
+      inst.CopyToHost(segment, offset_ * sizeof(T),
+                      reinterpret_cast<char *>(dst), size * sizeof(T));
+   }
+   else if (h_ptr)
+   {
+      MFEM_MEM_OP_DEBUG_BATCH_MEM_COPY(2, h_ptr, dst, size * sizeof(T), "",
+                                       h_mt, h_mt);
+      std::copy(h_ptr, h_ptr + size, dst);
+   }
+}
+
+template <class T> Memory<T>::operator T *()
+{
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size_, " ReadWrite*");
+   MFEM_ASSERT(MemoryManager::Instance().CheckReadWrite(
+                  segment, offset_ * sizeof(T), size_ * sizeof(T), false),
+               "invalid host pointer access");
+   return h_ptr;
+}
+
+template <class T> Memory<T>::operator const T *() const
+{
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size_, " Read*");
+   MFEM_ASSERT(MemoryManager::Instance().CheckRead(segment, offset_ * sizeof(T),
+                                                   size_ * sizeof(T), false),
+               "invalid host pointer access");
+   return h_ptr;
+}
+
+template <class T> template <class U> Memory<T>::operator U *()
+{
+   MFEM_MEM_OP_DEBUG_USE(6, h_ptr, h_ptr + size_, " ReadWrite*");
+   MFEM_ASSERT(MemoryManager::Instance().CheckReadWrite(
+                  segment, offset_ * sizeof(T), size_ * sizeof(T), false),
+               "invalid host pointer access");
+   return reinterpret_cast<U *>(h_ptr);
+}
+
+template <class T> template <class U> Memory<T>::operator const U *() const
+{
+   MFEM_MEM_OP_DEBUG_USE(4, h_ptr, h_ptr + size_, " Read*");
+   MFEM_ASSERT(MemoryManager::Instance().CheckRead(segment, offset_ * sizeof(T),
+                                                   size_ * sizeof(T), false),
+               "invalid host pointer access");
+   return reinterpret_cast<const U *>(h_ptr);
+}
+
+} // namespace mfem
+
+namespace mfem
+{
+/** @brief Type that enables viewing Vector objects as Array<real_t> objects and
+    vice versa. Currently, viewing methods are provided only for the first
+    direction, see Vector::GetArrayView(). */
+template <typename ViewedType> class MemoryView
+{
+   friend class Vector;
+
+protected:
+   static constexpr bool is_const_view = std::is_const_v<ViewedType>;
+   using T =
+      std::remove_reference_t<decltype((std::remove_cv_t<ViewedType> {})[0])>;
+   using MemoryType =
+      std::conditional_t<is_const_view, const Memory<T>, Memory<T>>;
+   using SizeType = std::conditional_t<is_const_view, const int, int>;
+
+   std::remove_cv_t<ViewedType> view;
+   MemoryType &base_mem;
+   SizeType &base_size; // if is_const_view, this is initialized but not used
+
+   // Keep the constructor private, for now.
+   inline MemoryView(MemoryType &mem, SizeType &size)
+      : base_mem(mem), base_size(size)
+   {
+      // keep for debugging
+      // mfem::out << _MFEM_FUNC_NAME << std::endl;
+      view.data = mem;
+      view.size = size;
+   }
+
+public:
+   MemoryView(const MemoryView &) = delete;
+   MemoryView(MemoryView &&) = delete;
+   MemoryView &operator=(const MemoryView &) = delete;
+   MemoryView &operator=(MemoryView &&) = delete;
+
+   inline ~MemoryView()
+   {
+      // keep for debugging
+      // mfem::out << _MFEM_FUNC_NAME << std::endl;
+      if constexpr (!is_const_view)
+      {
+         base_mem = view.data;
+         base_size = view.size;
+      }
+      else
+      {
+         base_mem.flags = view.data.flags;
+         if (!base_mem.segment)
+         {
+            // Transfer the reference if registration occurred through the view.
+            base_mem.segment = view.data.segment;
+            view.data.segment = 0;
+         }
+      }
+      view.data.Reset();
+   }
+
+   /** @brief Implicit conversion function to `ViewedType &`.
+
+       Implicit conversion may not work automatically when the returned type is
+       used for template parameter deduction. In such cases, use the prefix
+       operator*() to explicitly perform the conversion to `ViewedType &`. */
+   inline operator ViewedType &() { return view; }
+
+   /** @brief Return the view object by reference, `ViewedType &`.
+
+       This is an explicit way to return the view object, alternative to the
+       implicit conversion function to `ViewedType &`. */
+   inline ViewedType &operator*() { return view; }
+};
+} // namespace mfem
+
+#endif

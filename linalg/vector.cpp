@@ -97,18 +97,6 @@ struct LpReducer
    }
 };
 
-static Array<real_t>& vector_workspace()
-{
-   static Array<real_t> instance;
-   return instance;
-}
-
-static Array<DevicePair<real_t, real_t>> &Lpvector_workspace()
-{
-   static Array<DevicePair<real_t, real_t>> instance;
-   return instance;
-}
-
 Vector::Vector(const Vector &v)
 {
    const int s = v.Size();
@@ -206,6 +194,7 @@ Vector &Vector::operator=(const real_t *v)
 
 Vector &Vector::operator=(const Vector &v)
 {
+   if (this == &v) { return *this; }
 #if 0
    SetSize(v.Size(), v.data.GetMemoryType());
    data.CopyFrom(v.data, v.Size());
@@ -215,8 +204,13 @@ Vector &Vector::operator=(const Vector &v)
    const bool vuse = v.UseDevice();
    const bool use_dev = UseDevice() || vuse;
    if (use_dev != vuse) { v.UseDevice(use_dev); }
-   // keep 'data' where it is, unless 'use_dev' is true
-   if (use_dev) { Write(); }
+   // Make the source readable before invalidating the destination's host
+   // range, since the two vectors may share the same registration.
+   if (use_dev)
+   {
+      v.Read(true);
+      Write();
+   }
    data.CopyFrom(v.data, v.Size());
    if (use_dev != vuse) { v.UseDevice(vuse); }
 #endif
@@ -1000,7 +994,7 @@ real_t Vector::Norml2() const
          }
       }
    },
-   L2Reducer{}, UseDevice(), Lpvector_workspace());
+   L2Reducer{}, UseDevice());
    // final answer
    return res.second * sqrt(res.first);
 }
@@ -1012,10 +1006,7 @@ real_t Vector::Normlinf() const
    real_t res = 0;
    const auto m_data = Read(UseDevice());
    reduce(size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r)
-   {
-      r = fmax(r, fabs(m_data[i]));
-   },
-   MaxReducer<real_t> {}, UseDevice(), vector_workspace());
+   { r = fmax(r, fabs(m_data[i])); }, MaxReducer<real_t> {}, UseDevice());
    return res;
 }
 
@@ -1026,10 +1017,7 @@ real_t Vector::Norml1() const
    real_t res = 0;
    const auto m_data = Read(UseDevice());
    reduce(size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r)
-   {
-      r += fabs(m_data[i]);
-   },
-   SumReducer<real_t> {}, UseDevice(), vector_workspace());
+   { r += fabs(m_data[i]); }, SumReducer<real_t> {}, UseDevice());
    return res;
 }
 
@@ -1071,8 +1059,7 @@ real_t Vector::Normlp(real_t p) const
                r.first += pow(arg, p);
             }
          }
-      },
-      LpReducer{p}, UseDevice(), Lpvector_workspace());
+      }, LpReducer{p}, UseDevice());
       // final answer
       return res.second * pow(res.first, 1.0 / p);
    } // end if p < infinity()
@@ -1101,11 +1088,8 @@ real_t Vector::operator*(const Vector &v) const
    const auto compute_dot = [&]()
    {
       real_t res = 0;
-      reduce(size, res, [=] MFEM_HOST_DEVICE (int i, real_t &r)
-      {
-         r += m_data[i] * v_data[i];
-      },
-      SumReducer<real_t> {}, use_dev, vector_workspace());
+      reduce(size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r)
+      { r += m_data[i] * v_data[i]; }, SumReducer<real_t> {}, use_dev);
       return res;
    };
 
@@ -1173,10 +1157,7 @@ real_t Vector::Min() const
    {
       real_t res = infinity();
       reduce(size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r)
-      {
-         r = fmin(r, m_data[i]);
-      },
-      MinReducer<real_t> {}, use_dev, vector_workspace());
+      { r = fmin(r, m_data[i]); }, MinReducer<real_t> {}, use_dev);
       return res;
    };
 
@@ -1219,10 +1200,7 @@ real_t Vector::Max() const
    {
       real_t res = -infinity();
       reduce(size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r)
-      {
-         r = fmax(r, m_data[i]);
-      },
-      MaxReducer<real_t> {}, use_dev, vector_workspace());
+      { r = fmax(r, m_data[i]); }, MaxReducer<real_t> {}, use_dev);
       return res;
    };
 
@@ -1253,11 +1231,8 @@ real_t Vector::Sum() const
 
    real_t res = 0;
    const auto m_data = Read(UseDevice());
-   reduce(size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r)
-   {
-      r += m_data[i];
-   },
-   SumReducer<real_t> {}, UseDevice(), vector_workspace());
+   reduce(size, res, [=] MFEM_HOST_DEVICE(int i, real_t &r) { r += m_data[i]; },
+   SumReducer<real_t> {}, UseDevice());
    return res;
 }
 
@@ -1268,7 +1243,8 @@ void Vector::DeleteAt(const Array<int> &indices)
       const bool use_dev = UseDevice();
 
       // extra entry for number of selected out
-      Array<int> workspace(size + 1);
+      Array<int> workspace(size + 1,
+                           MemoryManager::Instance().GetTempHostMemoryType());
       const auto d_flag = workspace.Write(use_dev);
       mfem::forall_switch(use_dev, size,
       [=] MFEM_HOST_DEVICE(int i) { d_flag[i] = true; });
@@ -1306,9 +1282,7 @@ real_t ParNormlp(const Vector &vec, real_t p, MPI_Comm comm)
       real_t loc_norm = 0;
       const auto m_data = vec.Read(vec.UseDevice());
       reduce(vec.Size(), loc_norm, [=] MFEM_HOST_DEVICE(int i, real_t &r)
-      {
-         r += pow(fabs(m_data[i]), p);
-      }, SumReducer<real_t> {}, vec.UseDevice(), vector_workspace());
+      { r += pow(fabs(m_data[i]), p); }, SumReducer<real_t> {}, vec.UseDevice());
       MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                     comm);
       if (p == 2)

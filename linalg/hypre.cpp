@@ -158,14 +158,14 @@ inline void HypreParVector::_SetDataAndSize_()
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
 #if !defined(HYPRE_USING_GPU)
    SetDataAndSize(hypre_VectorData(x_loc),
-                  internal::to_int(hypre_VectorSize(x_loc)));
+                  internal::to_int(hypre_VectorSize(x_loc)), true);
 #else
    size = internal::to_int(hypre_VectorSize(x_loc));
    MemoryType mt = (hypre_VectorMemoryLocation(x_loc) == HYPRE_MEMORY_HOST
                     ? MemoryType::HOST : GetHypreMemoryType());
    if (hypre_VectorData(x_loc) != NULL)
    {
-      data.Wrap(hypre_VectorData(x_loc), size, mt, false);
+      data.CheckedWrap(hypre_VectorData(x_loc), size, mt, false);
    }
    else
    {
@@ -363,7 +363,7 @@ HypreParVector& HypreParVector::operator=(HypreParVector &&y)
 void HypreParVector::SetData(real_t *data_)
 {
    hypre_VectorData(hypre_ParVectorLocalVector(x)) = data_;
-   Vector::SetData(data_);
+   Vector::SetData(data_, true);
 }
 
 void HypreParVector::HypreRead() const
@@ -763,45 +763,20 @@ static void CopyCSR_J(const int nnz, const MemoryIJData &mem_csr,
 #endif
 
 // Method called after hypre_CSRMatrixReorder()
-static void SyncBackCSR(SparseMatrix *csr, MemoryIJData &mem_csr)
+#ifdef HYPRE_BIGINT
+static inline void SyncBackCSR(SparseMatrix *csr, MemoryIJData &mem_csr)
 {
    const MemoryClass hypre_mc = GetHypreMemoryClass();
    const bool data_shallow = CanShallowCopy(csr->GetMemoryData(), hypre_mc);
 
-#if !defined(HYPRE_BIGINT) && defined(MFEM_DEBUG)
-   const bool J_shallow = CanShallowCopy(csr->GetMemoryJ(), hypre_mc);
-   MFEM_ASSERT(J_shallow == data_shallow, "unsupported state");
-#endif
-
    if (data_shallow)
    {
-      // I is not modified
-#ifndef HYPRE_BIGINT
-      csr->GetMemoryJ().Sync(mem_csr.J);
-#else
       // We use nnz = csr->GetMemoryJ().Capacity() which is the same as the
       // value used in CopyConvertMemory() in CopyCSR().
       CopyCSR_J(csr->GetMemoryJ().Capacity(), mem_csr, csr->GetMemoryJ());
-#endif
-      csr->GetMemoryData().Sync(mem_csr.data);
    }
 }
-
-// Method called after hypre_CSRMatrixReorder()
-static void SyncBackBoolCSR(Table *bool_csr, MemoryIJData &mem_csr)
-{
-   const MemoryClass hypre_mc = GetHypreMemoryClass();
-   const bool J_shallow = CanShallowCopy(bool_csr->GetJMemory(), hypre_mc);
-   if (J_shallow)
-   {
-      // I is not modified
-#ifndef HYPRE_BIGINT
-      bool_csr->GetJMemory().Sync(mem_csr.J);
-#else
-      // No need to sync the J array back to the Table
 #endif
-   }
-}
 
 /// @brief Return the size of the partitioning arrays, see @ref
 /// hypre_partitioning_descr.
@@ -849,9 +824,9 @@ signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
 {
    const int nr1 = internal::to_int(h_mat->num_rows) + 1;
    const int nnz = internal::to_int(h_mat->num_nonzeros);
-   mem.I.Wrap(h_mat->i, nr1, h_mat_mt, own_ija);
-   mem.J.Wrap(h_mat->j, nnz, h_mat_mt, own_ija);
-   mem.data.Wrap(h_mat->data, nnz, h_mat_mt, own_ija);
+   mem.I.CheckedWrap(h_mat->i, nr1, h_mat_mt, own_ija);
+   mem.J.CheckedWrap(h_mat->j, nnz, h_mat_mt, own_ija);
+   mem.data.CheckedWrap(h_mat->data, nnz, h_mat_mt, own_ija);
    const MemoryClass hypre_mc = GetHypreMemoryClass();
    if (!CanShallowCopy(mem.I, hypre_mc))
    {
@@ -938,7 +913,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, HYPRE_BigInt glob_size,
    /* Make sure that the first entry in each row is the diagonal one. */
    HypreReadWrite();
    hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
+#ifdef HYPRE_BIGINT
    SyncBackCSR(diag, mem_diag); // update diag, if needed
+#endif
 
    hypre_MatvecCommPkgCreate(A);
 }
@@ -977,7 +954,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
+#ifdef HYPRE_BIGINT
       SyncBackCSR(diag, mem_diag); // update diag, if needed
+#endif
    }
 
    hypre_MatvecCommPkgCreate(A);
@@ -1027,8 +1006,10 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
+#ifdef HYPRE_BIGINT
       // update diag, if needed
       if (!own_diag_offd) { SyncBackCSR(diag, mem_diag); }
+#endif
    }
 
    hypre_MatvecCommPkgCreate(A);
@@ -1186,7 +1167,6 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm,
    {
       HypreReadWrite();
       hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A));
-      SyncBackBoolCSR(diag, mem_diag); // update diag, if needed
    }
 
    hypre_MatvecCommPkgCreate(A);
@@ -2354,9 +2334,9 @@ void HypreParMatrix::DropSmallEntries(real_t tol)
       Vector row;
       for (HYPRE_Int r = 0; r < local_num_rows; r++)
       {
-         row.SetDataAndSize(diag_d + diag_I[r], diag_I[r+1]-diag_I[r]);
+         row.SetDataAndSize(diag_d + diag_I[r], diag_I[r+1]-diag_I[r], true);
          real_t l2_row_norm = row.Norml2();
-         row.SetDataAndSize(offd_d + offd_I[r], offd_I[r+1]-offd_I[r]);
+         row.SetDataAndSize(offd_d + offd_I[r], offd_I[r+1]-offd_I[r], true);
          l2_row_norm = std::hypot(l2_row_norm, row.Norml2());
          max_l2_row_norm = std::max(max_l2_row_norm, l2_row_norm);
       }

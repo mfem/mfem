@@ -26,6 +26,8 @@
 #if PETSC_VERSION_LT(3,11,0)
 #define VecLockReadPush VecLockPush
 #define VecLockReadPop VecLockPop
+#define VecSetErrorIfLocked __mfem_VecSetErrorIfLocked
+static PetscErrorCode __mfem_VecSetErrorIfLocked(Vec,PetscInt);
 #endif
 #if PETSC_VERSION_LT(3,12,0)
 #define VecGetArrayWrite VecGetArray
@@ -252,20 +254,12 @@ void MFEMFinalizePetsc()
 
 const mfem::real_t* PetscMemory::GetHostPointer() const
 {
-   int oflags = flags;
-   SetHostValid();
-   const mfem::real_t *v = mfem::Read(*this,Capacity(),false);
-   flags = oflags;
-   return v;
+   return GetRawPointer(false);
 }
 
 const mfem::real_t* PetscMemory::GetDevicePointer() const
 {
-   int oflags = flags;
-   SetDeviceValid();
-   const mfem::real_t *v = mfem::Read(*this,Capacity(),true);
-   flags = oflags;
-   return v;
+   return GetRawPointer(true);
 }
 
 // PetscParVector methods
@@ -273,8 +267,8 @@ const mfem::real_t* PetscMemory::GetDevicePointer() const
 void PetscParVector::SetDataAndSize_()
 {
    PetscScalar *array;
-   PetscInt    n;
-   PetscBool   isnest;
+   PetscInt n;
+   PetscBool isnest;
 
    MFEM_VERIFY(x,"Missing Vec");
    ierr = VecSetUp(x); PCHKERRQ(x,ierr);
@@ -284,44 +278,26 @@ void PetscParVector::SetDataAndSize_()
    MFEM_VERIFY(n >= 0,"Invalid local size");
    size = n;
 #if defined(PETSC_HAVE_DEVICE)
-   PetscOffloadMask omask;
-   PetscBool        isdevice;
-
-   ierr = VecGetOffloadMask(x,&omask); PCHKERRQ(x,ierr);
-   if (omask != PETSC_OFFLOAD_BOTH)
-   {
-      ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_CPU); PCHKERRQ(x,ierr);
-   }
-#endif
-   ierr = VecGetArrayRead(x,(const PetscScalar**)&array); PCHKERRQ(x,ierr);
-#if defined(PETSC_HAVE_DEVICE)
+   PetscOffloadMask mask;
+   PetscBool isdevice;
    ierr = PetscObjectTypeCompareAny((PetscObject)x,&isdevice,
                                     VECSEQCUDA,VECMPICUDA,VECSEQHIP,VECMPIHIP,
                                     ""); PCHKERRQ(x,ierr);
-   if (isdevice)
+   ierr = VecGetOffloadMask(x,&mask); PCHKERRQ(x,ierr);
+   if (isdevice && (mask == PETSC_OFFLOAD_GPU || mask == PETSC_OFFLOAD_BOTH))
    {
-      if (omask != PETSC_OFFLOAD_BOTH)
-      {
-         ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_GPU); PCHKERRQ(x,ierr);
-      }
-      PetscScalar *darray;
-      ierr = VecDeviceGetArrayRead(x,(const PetscScalar**)&darray);
-      PCHKERRQ(x,ierr);
-      pdata.Wrap(array,darray,size,MemoryType::HOST,false);
-      ierr = VecDeviceRestoreArrayRead(x,(const PetscScalar**)&darray);
+      ierr = VecDeviceGetArrayRead(x,(const PetscScalar**)&array); PCHKERRQ(x,ierr);
+      pdata.WrapPointer(array,size,true);
+      ierr = VecDeviceRestoreArrayRead(x,(const PetscScalar**)&array);
       PCHKERRQ(x,ierr);
    }
    else
 #endif
    {
-      pdata.Wrap(array,size,MemoryType::HOST,false);
+      ierr = VecGetArrayRead(x,(const PetscScalar**)&array); PCHKERRQ(x,ierr);
+      pdata.WrapPointer(array,size,false);
+      ierr = VecRestoreArrayRead(x,(const PetscScalar**)&array); PCHKERRQ(x,ierr);
    }
-   ierr = VecRestoreArrayRead(x,(const PetscScalar**)&array); PCHKERRQ(x,ierr);
-
-#if defined(PETSC_HAVE_DEVICE)
-   if (omask == PETSC_OFFLOAD_UNALLOCATED && isdevice) { omask = PETSC_OFFLOAD_CPU; }
-   ierr = __mfem_VecSetOffloadMask(x,omask); PCHKERRQ(x,ierr);
-#endif
    data.MakeAlias(pdata,0,size);
    SetFlagsFromMask_();
 }
@@ -329,6 +305,8 @@ void PetscParVector::SetDataAndSize_()
 void PetscParVector::SetFlagsFromMask_() const
 {
    MFEM_VERIFY(x,"Missing Vec");
+   if (!size) { return; }
+   const PetscScalar *array;
 #if defined(_USE_DEVICE)
    PetscOffloadMask mask;
    PetscBool isdevice;
@@ -338,31 +316,54 @@ void PetscParVector::SetFlagsFromMask_() const
    ierr = VecGetOffloadMask(x,&mask); PCHKERRQ(x,ierr);
    if (isdevice)
    {
-      switch (mask)
+      MFEM_VERIFY(mask == PETSC_OFFLOAD_CPU || mask == PETSC_OFFLOAD_GPU ||
+                  mask == PETSC_OFFLOAD_BOTH, "Unhandled offload mask " << mask);
+      const bool hv = mask == PETSC_OFFLOAD_CPU || mask == PETSC_OFFLOAD_BOTH;
+      const bool dv = mask == PETSC_OFFLOAD_GPU || mask == PETSC_OFFLOAD_BOTH;
+      // PETSc may retain an alternate buffer after one-sided placement.
+      // Import its current data before applying validity to the shared MFEM range.
+      if (hv)
       {
-         case PETSC_OFFLOAD_CPU:
-            pdata.SetHostValid();
-            pdata.SetDeviceInvalid();
-            break;
-         case PETSC_OFFLOAD_GPU:
-            pdata.SetHostInvalid();
-            pdata.SetDeviceValid();
-            break;
-         case PETSC_OFFLOAD_BOTH:
-            pdata.SetHostValid();
-            pdata.SetDeviceValid();
-            break;
-         default:
-            MFEM_ABORT("Unhandled case " << mask);
+         ierr = VecGetArrayRead(x,&array); PCHKERRQ(x,ierr);
+         pdata.CopyFromPetsc(array,false);
+         ierr = VecRestoreArrayRead(x,&array); PCHKERRQ(x,ierr);
       }
+      if (dv)
+      {
+         ierr = VecDeviceGetArrayRead(x,&array); PCHKERRQ(x,ierr);
+         pdata.CopyFromPetsc(array,true);
+         ierr = VecDeviceRestoreArrayRead(x,&array); PCHKERRQ(x,ierr);
+      }
+      if (hv) { pdata.SetHostValid(); }
+      else { pdata.SetHostInvalid(); }
+      if (dv) { pdata.SetDeviceValid(); }
+      else { pdata.SetDeviceInvalid(); }
+      return;
    }
 #endif
-   data.Sync(pdata);
+   ierr = VecGetArrayRead(x,&array); PCHKERRQ(x,ierr);
+   pdata.CopyFromPetsc(array,false);
+   ierr = VecRestoreArrayRead(x,&array); PCHKERRQ(x,ierr);
+   pdata.SetHostValid();
+   pdata.SetDeviceInvalid();
 }
 
 void PetscParVector::UpdateVecFromFlags()
 {
+   UpdateVecFromFlags_();
+}
+
+void PetscParVector::UpdateVecFromFlags_() const
+{
    MFEM_VERIFY(x,"Missing Vec");
+   if (pdata.Empty()) { return; }
+   PetscInt lock;
+   ierr = VecLockGet(x,&lock); PCHKERRQ(x,ierr);
+   // PETSc owns the current values while the Vec is a read-locked input.
+   // MFEM reads may have filled a separate cache, but must not export it or
+   // change the locked Vec's validity mask or state.
+   if (lock > 0) { return; }
+   ierr = VecSetErrorIfLocked(x,1); PCHKERRQ(x,ierr);
    ierr = __mfem_PetscObjectStateIncrease((PetscObject)x); PCHKERRQ(x,ierr);
 #if defined(_USE_DEVICE)
    PetscBool isdevice;
@@ -373,6 +374,27 @@ void PetscParVector::UpdateVecFromFlags()
    {
       bool dv = pdata.DeviceIsValid();
       bool hv = pdata.HostIsValid();
+      if (!hv && !dv)
+      {
+         pdata.HostRead();
+         hv = true;
+      }
+      PetscScalar *array;
+      if (hv)
+      {
+         // Avoid synchronization into a placed buffer before exporting MFEM data.
+         ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_CPU); PCHKERRQ(x,ierr);
+         ierr = VecGetArrayWrite(x,&array); PCHKERRQ(x,ierr);
+         pdata.CopyToPetsc(array,false);
+         ierr = VecRestoreArrayWrite(x,&array); PCHKERRQ(x,ierr);
+      }
+      if (dv)
+      {
+         ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_GPU); PCHKERRQ(x,ierr);
+         ierr = VecDeviceGetArrayWrite(x,&array); PCHKERRQ(x,ierr);
+         pdata.CopyToPetsc(array,true);
+         ierr = VecDeviceRestoreArrayWrite(x,&array); PCHKERRQ(x,ierr);
+      }
       PetscOffloadMask mask;
       if (dv && hv) { mask = PETSC_OFFLOAD_BOTH; }
       else if (dv) { mask = PETSC_OFFLOAD_GPU; }
@@ -416,25 +438,7 @@ void PetscParVector::SetVecType_()
 
 const mfem::real_t* PetscParVector::Read(bool on_dev) const
 {
-   const PetscScalar *dummy;
    MFEM_VERIFY(x,"Missing Vec");
-#if defined(PETSC_HAVE_DEVICE)
-   PetscBool isdevice;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&isdevice,
-                                    VECSEQCUDA,VECMPICUDA,VECSEQHIP,VECMPIHIP,
-                                    ""); PCHKERRQ(x,ierr);
-   if (on_dev && isdevice)
-   {
-      ierr = VecDeviceGetArrayRead(x,&dummy); PCHKERRQ(x,ierr);
-      ierr = VecDeviceRestoreArrayRead(x,&dummy); PCHKERRQ(x,ierr);
-   }
-   else
-#endif
-   {
-      ierr = VecGetArrayRead(x,&dummy); PCHKERRQ(x,ierr);
-      ierr = VecRestoreArrayRead(x,&dummy); PCHKERRQ(x,ierr);
-   }
-   SetFlagsFromMask_();
    return mfem::Read(pdata, size, on_dev);
 }
 
@@ -445,26 +449,8 @@ const mfem::real_t* PetscParVector::HostRead() const
 
 mfem::real_t* PetscParVector::Write(bool on_dev)
 {
-   PetscScalar *dummy;
    MFEM_VERIFY(x,"Missing Vec");
-#if defined(PETSC_HAVE_DEVICE)
-   PetscBool isdevice;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&isdevice,
-                                    VECSEQCUDA,VECMPICUDA,VECSEQHIP,VECMPIHIP,
-                                    ""); PCHKERRQ(x,ierr);
-   if (on_dev && isdevice)
-   {
-      ierr = VecDeviceGetArrayWrite(x,&dummy); PCHKERRQ(x,ierr);
-      ierr = VecDeviceRestoreArrayWrite(x,&dummy); PCHKERRQ(x,ierr);
-   }
-   else
-#endif
-   {
-      ierr = VecGetArrayWrite(x,&dummy); PCHKERRQ(x,ierr);
-      ierr = VecRestoreArrayWrite(x,&dummy); PCHKERRQ(x,ierr);
-   }
-   ierr = __mfem_PetscObjectStateIncrease((PetscObject)x); PCHKERRQ(x,ierr);
-   SetFlagsFromMask_();
+   ierr = VecSetErrorIfLocked(x,1); PCHKERRQ(x,ierr);
    return mfem::Write(pdata, size, on_dev);
 }
 
@@ -475,26 +461,8 @@ mfem::real_t* PetscParVector::HostWrite()
 
 mfem::real_t* PetscParVector::ReadWrite(bool on_dev)
 {
-   PetscScalar *dummy;
    MFEM_VERIFY(x,"Missing Vec");
-#if defined(PETSC_HAVE_DEVICE)
-   PetscBool isdevice;
-   ierr = PetscObjectTypeCompareAny((PetscObject)x,&isdevice,
-                                    VECSEQCUDA,VECMPICUDA,VECSEQHIP,VECMPIHIP,
-                                    ""); PCHKERRQ(x,ierr);
-   if (on_dev && isdevice)
-   {
-      ierr = VecDeviceGetArray(x,&dummy); PCHKERRQ(x,ierr);
-      ierr = VecDeviceRestoreArray(x,&dummy); PCHKERRQ(x,ierr);
-   }
-   else
-#endif
-   {
-      ierr = VecGetArray(x,&dummy); PCHKERRQ(x,ierr);
-      ierr = VecRestoreArray(x,&dummy); PCHKERRQ(x,ierr);
-   }
-   ierr = __mfem_PetscObjectStateIncrease((PetscObject)x); PCHKERRQ(x,ierr);
-   SetFlagsFromMask_();
+   ierr = VecSetErrorIfLocked(x,1); PCHKERRQ(x,ierr);
    return mfem::ReadWrite(pdata, size, on_dev);
 }
 
@@ -507,6 +475,7 @@ void PetscParVector::UseDevice(bool dev) const
 {
    MFEM_VERIFY(x,"Missing Vec");
 #if defined(PETSC_HAVE_DEVICE)
+   UpdateVecFromFlags_();
    ierr = VecBindToCPU(x,!dev ? PETSC_TRUE : PETSC_FALSE); PCHKERRQ(x,ierr);
    SetFlagsFromMask_();
 #endif
@@ -547,26 +516,9 @@ PetscParVector::PetscParVector(MPI_Comm comm, const Vector &x_,
                                     ""); PCHKERRQ(x,ierr);
    if (copy)
    {
-      /* we use PETSc accessors to flag valid memory location to PETSc */
-      PetscErrorCode (*rest)(Vec,PetscScalar**);
-      PetscScalar *array;
-#if defined(PETSC_HAVE_DEVICE)
-      if (isdevice && x_.UseDevice())
-      {
-         UseDevice(true);
-         ierr = VecDeviceGetArrayWrite(x,&array); PCHKERRQ(x,ierr);
-         rest = VecDeviceRestoreArrayWrite;
-      }
-      else
-#endif
-      {
-         UseDevice(false);
-         ierr = VecGetArrayWrite(x,&array); PCHKERRQ(x,ierr);
-         rest = VecRestoreArrayWrite;
-      }
+      UseDevice(isdevice && x_.UseDevice());
       pdata.CopyFrom(x_.GetMemory(), n);
-      ierr = (*rest)(x,&array); PCHKERRQ(x,ierr);
-      SetFlagsFromMask_();
+      UpdateVecFromFlags_();
    }
    else // don't copy, just set the device flag
    {
@@ -704,6 +656,7 @@ MPI_Comm PetscParVector::GetComm() const
 
 Vector * PetscParVector::GlobalVector() const
 {
+   UpdateVecFromFlags_();
    VecScatter        scctx;
    Vec               vout;
    const PetscScalar *array;
@@ -729,6 +682,10 @@ Vector * PetscParVector::GlobalVector() const
 
 PetscParVector& PetscParVector::operator=(PetscScalar d)
 {
+   ierr = VecSetErrorIfLocked(x,1); PCHKERRQ(x,ierr);
+   // MFEM writes may leave PETSc's cached zero norm stale. Invalidate it
+   // before VecSet can use that cache to skip a zero assignment.
+   ierr = __mfem_PetscObjectStateIncrease((PetscObject)x); PCHKERRQ(x,ierr);
    ierr = VecSet(x,d); PCHKERRQ(x,ierr);
    SetFlagsFromMask_();
    return *this;
@@ -739,6 +696,7 @@ PetscParVector& PetscParVector::SetValues(const Array<PetscInt>& idx,
 {
    MFEM_VERIFY(idx.Size() == vals.Size(),
                "Size mismatch between indices and values");
+   UpdateVecFromFlags_();
    PetscInt n = idx.Size();
    ierr = VecSetValues(x,n,idx.GetData(),vals.GetData(),INSERT_VALUES);
    PCHKERRQ(x,ierr);
@@ -753,6 +711,7 @@ PetscParVector& PetscParVector::AddValues(const Array<PetscInt>& idx,
 {
    MFEM_VERIFY(idx.Size() == vals.Size(),
                "Size mismatch between indices and values");
+   UpdateVecFromFlags_();
    PetscInt n = idx.Size();
    ierr = VecSetValues(x,n,idx.GetData(),vals.GetData(),ADD_VALUES);
    PCHKERRQ(x,ierr);
@@ -764,6 +723,7 @@ PetscParVector& PetscParVector::AddValues(const Array<PetscInt>& idx,
 
 PetscParVector& PetscParVector::operator=(const PetscParVector &y)
 {
+   y.UpdateVecFromFlags_();
    ierr = VecCopy(y.x,x); PCHKERRQ(x,ierr);
    SetFlagsFromMask_();
    return *this;
@@ -771,6 +731,8 @@ PetscParVector& PetscParVector::operator=(const PetscParVector &y)
 
 PetscParVector& PetscParVector::operator+=(const PetscParVector &y)
 {
+   y.UpdateVecFromFlags_();
+   UpdateVecFromFlags_();
    ierr = VecAXPY(x,1.0,y.x); PCHKERRQ(x,ierr);
    SetFlagsFromMask_();
    return *this;
@@ -778,6 +740,8 @@ PetscParVector& PetscParVector::operator+=(const PetscParVector &y)
 
 PetscParVector& PetscParVector::operator-=(const PetscParVector &y)
 {
+   y.UpdateVecFromFlags_();
+   UpdateVecFromFlags_();
    ierr = VecAXPY(x,-1.0,y.x); PCHKERRQ(x,ierr);
    SetFlagsFromMask_();
    return *this;
@@ -785,6 +749,7 @@ PetscParVector& PetscParVector::operator-=(const PetscParVector &y)
 
 PetscParVector& PetscParVector::operator*=(PetscScalar s)
 {
+   UpdateVecFromFlags_();
    ierr = VecScale(x,s); PCHKERRQ(x,ierr);
    SetFlagsFromMask_();
    return *this;
@@ -792,6 +757,7 @@ PetscParVector& PetscParVector::operator*=(PetscScalar s)
 
 PetscParVector& PetscParVector::operator+=(PetscScalar s)
 {
+   UpdateVecFromFlags_();
    ierr = VecShift(x,s); PCHKERRQ(x,ierr);
    SetFlagsFromMask_();
    return *this;
@@ -825,6 +791,7 @@ void PetscParVector::PlaceMemory(Memory<mfem::real_t>& mem, bool rw)
    {
       bool usedev = mem.DeviceIsValid() || (!rw && mem.UseDevice());
       pdata.MakeAliasForSync(mem,0,n,rw,true,usedev);
+      if (rw) { pdata.Read(usedev); }
       if (usedev)
       {
          ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_GPU); PCHKERRQ(x,ierr);
@@ -867,8 +834,10 @@ void PetscParVector::PlaceMemory(const Memory<mfem::real_t>& mem)
                                     ""); PCHKERRQ(x,ierr);
    if (isdevice)
    {
-      pdata.MakeAliasForSync(mem,0,n,mem.DeviceIsValid());
-      if (mem.DeviceIsValid())
+      const bool usedev = mem.DeviceIsValid();
+      pdata.MakeAliasForSync(mem,0,n,usedev);
+      pdata.Read(usedev);
+      if (usedev)
       {
          ierr = __mfem_VecSetOffloadMask(x,PETSC_OFFLOAD_GPU); PCHKERRQ(x,ierr);
          ierr = VecDevicePlaceArray(x,pdata.GetDevicePointer()); PCHKERRQ(x,ierr);
@@ -896,31 +865,11 @@ void PetscParVector::PlaceMemory(const Memory<mfem::real_t>& mem)
 
 void PetscParVector::ResetMemory()
 {
-   MFEM_VERIFY(pdata.IsAliasForSync(),"Vector data is not an alias");
    MFEM_VERIFY(!pdata.Empty(),"Vector data is empty");
    bool read = pdata.ReadRequested();
    bool usedev = pdata.DeviceRequested();
    bool write = pdata.WriteRequested();
-   /*
-     check for strange corner cases
-      - device memory used but somehow PETSc ended up putting up to date data on host
-      - host memory used but somehow PETSc ended up putting up to date data on device
-   */
-   if (write)
-   {
-      const PetscScalar *v;
-#if defined(PETSC_HAVE_DEVICE)
-      PetscOffloadMask mask;
-      ierr = VecGetOffloadMask(x,&mask); PCHKERRQ(x,ierr);
-      if ((usedev && (mask != PETSC_OFFLOAD_GPU && mask != PETSC_OFFLOAD_BOTH)) ||
-          (!usedev && (mask != PETSC_OFFLOAD_CPU && mask != PETSC_OFFLOAD_BOTH)))
-#endif
-      {
-         ierr = VecGetArrayRead(x,&v); PCHKERRQ(x,ierr);
-         pdata.CopyFromHost(v, size);
-         ierr = VecRestoreArrayRead(x,&v); PCHKERRQ(x,ierr);
-      }
-   }
+   if (write) { SetFlagsFromMask_(); }
    pdata.SyncBaseAndReset();
    data.Reset();
    if (read && !write) { ierr = VecLockReadPop(x); PCHKERRQ(x,ierr); }
@@ -951,10 +900,12 @@ void PetscParVector::Randomize(PetscInt seed)
    }
    ierr = VecSetRandom(x,rctx); PCHKERRQ(x,ierr);
    ierr = PetscRandomDestroy(&rctx); PCHKERRQ(x,ierr);
+   SetFlagsFromMask_();
 }
 
 void PetscParVector::Print(const char *fname, bool binary) const
 {
+   UpdateVecFromFlags_();
    if (fname)
    {
       PetscViewer view;
@@ -5509,6 +5460,15 @@ static PetscErrorCode __mfem_MatCreateDummy(MPI_Comm comm, PetscInt m,
 }
 
 #include <petsc/private/vecimpl.h>
+
+#if PETSC_VERSION_LT(3,11,0)
+static PetscErrorCode __mfem_VecSetErrorIfLocked(Vec v, PetscInt arg)
+{
+   PetscFunctionBegin;
+   VecLocked(v,arg);
+   PetscFunctionReturn(0);
+}
+#endif
 
 #if defined(PETSC_HAVE_DEVICE)
 static PetscErrorCode __mfem_VecSetOffloadMask(Vec v, PetscOffloadMask m)
