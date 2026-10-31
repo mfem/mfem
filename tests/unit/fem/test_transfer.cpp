@@ -842,6 +842,197 @@ TEST_CASE("Uniform pyramid refinement transfer", "[Transfer][Pyramid]")
    REQUIRE(sparse_values.Normlinf() == Approx(0.0).margin(1e-12));
 }
 
+TEST_CASE("Uniform refinement transfer with mixed pyramid parents",
+          "[Transfer][Pyramid]")
+{
+   const int pyr_type = GENERATE(0, 1);
+   CAPTURE(pyr_type);
+
+   Mesh coarse_mesh("../../data/l-mixed.mesh");
+   Mesh fine_mesh(coarse_mesh);
+   // Coarse elements have valid orientations.
+   REQUIRE(coarse_mesh.CheckElementOrientation(false) == 0);
+   // The coarse boundary faces are oriented consistently.
+   REQUIRE(coarse_mesh.CheckBdrElementOrientation(false) == 0);
+   H1_FECollection fec(2, 3, BasisType::GaussLobatto, pyr_type);
+   FiniteElementSpace coarse_fes(&coarse_mesh, &fec);
+
+   fine_mesh.UniformRefinement();
+   // Refinement preserves positive element orientations.
+   REQUIRE(fine_mesh.CheckElementOrientation(false) == 0);
+   // Refinement preserves boundary-face orientations.
+   REQUIRE(fine_mesh.CheckBdrElementOrientation(false) == 0);
+   // Four pyramids, four wedges, and a final pyramid have different child
+   // counts, so the final parent's children begin at offset 72.
+   // The mixed coarse mesh has nine parents.
+   REQUIRE(coarse_mesh.GetNE() == 9);
+   // Five pyramids and four wedges produce 82 children.
+   REQUIRE(fine_mesh.GetNE() == 82);
+   const CoarseFineTransformations &trans = fine_mesh.GetRefinementTransforms();
+   // Every fine element has an embedding.
+   REQUIRE(trans.embeddings.Size() == fine_mesh.GetNE());
+
+   int child_offset = 0;
+   for (int parent = 0; parent < coarse_mesh.GetNE(); parent++)
+   {
+      const Geometry::Type geom = coarse_mesh.GetElementBaseGeometry(parent);
+      const bool pyramid = parent < 4 || parent == 8;
+      // The interleaved final pyramid must retain its own parent geometry.
+      REQUIRE(geom == (pyramid ? Geometry::PYRAMID : Geometry::PRISM));
+      const int num_children = pyramid ? 10 : 8;
+      const DenseMatrixStack &pmats = trans.point_matrices[geom];
+      for (int local = 0; local < num_children; local++)
+      {
+         const int child = child_offset + local;
+         const Embedding &embedding = trans.embeddings[child];
+         const Geometry::Type child_geom = pyramid ?
+            (local < 6 ? Geometry::PYRAMID : Geometry::TETRAHEDRON) :
+            Geometry::PRISM;
+         CAPTURE(parent, child, local);
+         // Children retain the correct parent across changing offsets.
+         REQUIRE(embedding.parent == parent);
+         // Embeddings record the parent geometry, including tetrahedral children.
+         REQUIRE(embedding.geom == geom);
+         // Each parent's child order selects the matching reference embedding.
+         REQUIRE(embedding.matrix == local);
+         // Child geometries follow the pyramid or wedge refinement pattern.
+         REQUIRE(fine_mesh.GetElementBaseGeometry(child) == child_geom);
+         // Reference point matrices have three coordinates per vertex.
+         REQUIRE(pmats.SizeI(local) == 3);
+         // Matrix widths match each child's number of vertices.
+         REQUIRE(pmats.SizeJ(local) ==
+                 (child_geom == Geometry::PYRAMID ? 5 :
+                  child_geom == Geometry::TETRAHEDRON ? 4 : 6));
+      }
+      child_offset += num_children;
+   }
+   // All children are accounted for, including the last pyramid's ten.
+   REQUIRE(child_offset == fine_mesh.GetNE());
+
+   FiniteElementSpace fine_fes(&fine_mesh, &fec);
+   OperatorHandle matrix_free(Operator::ANY_TYPE);
+   OperatorHandle sparse(Operator::MFEM_SPARSEMAT);
+   fine_fes.GetTransferOperator(coarse_fes, matrix_free);
+   fine_fes.GetTransferOperator(coarse_fes, sparse);
+
+   Vector coarse_values(coarse_fes.GetVSize());
+   for (int i = 0; i < coarse_values.Size(); i++)
+   {
+      coarse_values(i) = (i%11 - 5)/11.0;
+   }
+   Vector fine_values(fine_fes.GetVSize());
+   Vector sparse_values(fine_fes.GetVSize());
+   matrix_free->Mult(coarse_values, fine_values);
+   sparse->Mult(coarse_values, sparse_values);
+   sparse_values -= fine_values;
+   // Explicit and matrix-free transfers agree for arbitrary coarse values.
+   REQUIRE(sparse_values.Normlinf() == Approx(0.0).margin(1e-11));
+
+   Mesh update_mesh(coarse_mesh);
+   FiniteElementSpace update_fes(&update_mesh, &fec);
+   GridFunction update_values(&update_fes);
+   update_values = coarse_values;
+   update_mesh.UniformRefinement();
+   update_fes.Update();
+   update_values.Update();
+   update_values -= fine_values;
+   // Updating a mixed-parent FE space applies the same refinement transfer.
+   REQUIRE(update_values.Normlinf() == Approx(0.0).margin(1e-11));
+
+   InterpolationGridTransfer transfer(coarse_fes, fine_fes);
+   Vector coarse_recovered(coarse_fes.GetVSize());
+   transfer.BackwardOperator().Mult(fine_values, coarse_recovered);
+   coarse_recovered -= coarse_values;
+   // Derefinement is a left inverse across both parent reference types.
+   REQUIRE(coarse_recovered.Normlinf() == Approx(0.0).margin(1e-11));
+
+   L2_FECollection dg_fec(2, 3, BasisType::GaussLegendre,
+                          FiniteElement::VALUE, pyr_type);
+   FiniteElementSpace dg_fes(&coarse_mesh, &dg_fec);
+   GridFunction parent_values(&dg_fes);
+   Array<int> parent_dofs;
+   for (int parent = 0; parent < coarse_mesh.GetNE(); parent++)
+   {
+      dg_fes.GetElementDofs(parent, parent_dofs);
+      for (int i = 0; i < parent_dofs.Size(); i++)
+      {
+         parent_values(parent_dofs[i]) = parent + 1.0;
+      }
+   }
+   GridFunctionCoefficient parent_coefficient(&parent_values);
+   for (int child = 0; child < fine_mesh.GetNE(); child++)
+   {
+      ElementTransformation &T = *fine_mesh.GetElementTransformation(child);
+      const IntegrationRule &ir =
+         IntRules.Get(fine_mesh.GetElementBaseGeometry(child), 3);
+      const int parent = trans.embeddings[child].parent;
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         T.SetIntPoint(&ip);
+         // A coarse-grid coefficient selects the right parent for every child.
+         REQUIRE(parent_coefficient.Eval(T, ip) ==
+                 Approx(parent + 1.0).margin(1e-12));
+      }
+   }
+
+}
+
+TEST_CASE("L2 projection on mixed pyramid parents", "[Transfer][Pyramid]")
+{
+   const int pyr_type = GENERATE(0, 1);
+   const bool continuous = GENERATE(false, true);
+   CAPTURE(pyr_type, continuous);
+
+   Mesh coarse_mesh("../../data/l-mixed.mesh");
+   Mesh fine_mesh(coarse_mesh);
+   fine_mesh.UniformRefinement();
+
+   // The order-two H1 lumped mass has zero rows on this wedge-containing mesh;
+   // order one gives a well-defined continuous projection. The L2 case retains
+   // order two to exercise the different pyramid and tetrahedron DOF counts.
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (continuous)
+   {
+      fec.reset(new H1_FECollection(1, 3, BasisType::GaussLobatto, pyr_type));
+   }
+   else
+   {
+      fec.reset(new L2_FECollection(2, 3, BasisType::GaussLegendre,
+                                    FiniteElement::VALUE, pyr_type));
+   }
+   FiniteElementSpace coarse_fes(&coarse_mesh, fec.get());
+   FiniteElementSpace fine_fes(&fine_mesh, fec.get());
+   ConstantCoefficient one(1.0);
+   GridFunction coarse_constant(&coarse_fes);
+   GridFunction fine_constant(&fine_fes);
+   GridFunction projected(&fine_fes);
+   coarse_constant.ProjectCoefficient(one);
+   fine_constant.ProjectCoefficient(one);
+
+   L2ProjectionGridTransfer standard(coarse_fes, fine_fes);
+   standard.ForwardOperator().Mult(coarse_constant, projected);
+   projected -= fine_constant;
+   // Standard projection preserves constants across both parent geometries.
+   REQUIRE(projected.Normlinf() == Approx(0.0).margin(1e-11));
+
+   FunctionCoefficient probe([](const Vector &X)
+   {
+      return X[0] + 2.0*X[1] - X[2] + X[0]*X[1];
+   });
+   GridFunction coarse_probe(&coarse_fes);
+   GridFunction fine_standard(&fine_fes);
+   GridFunction fine_ea(&fine_fes);
+   coarse_probe.ProjectCoefficient(probe);
+   L2ProjectionGridTransfer ea_requested(coarse_fes, fine_fes);
+   ea_requested.UseEA(true);
+   standard.ForwardOperator().Mult(coarse_probe, fine_standard);
+   ea_requested.ForwardOperator().Mult(coarse_probe, fine_ea);
+   fine_ea -= fine_standard;
+   // EA requests fall back to standard assembly on the mixed mesh.
+   REQUIRE(fine_ea.Normlinf() == Approx(0.0).margin(1e-11));
+}
+
 TEST_CASE("Uniform refinement with legacy RT0 collection", "[Transfer]")
 {
    const bool simplex = GENERATE(false, true);
@@ -942,6 +1133,16 @@ TEST_CASE("L2 projection transfer with mixed pyramid children",
    // Forward multiplication and its transpose are adjoints on nonconstant data.
    REQUIRE(InnerProduct(fine_x, fine_probe) ==
            Approx(InnerProduct(coarse_probe, coarse_transpose)).epsilon(1e-11));
+
+   if (use_ea)
+   {
+      L2ProjectionGridTransfer standard_transfer(coarse_fes, fine_fes);
+      GridFunction fine_standard(&fine_fes);
+      standard_transfer.ForwardOperator().Mult(coarse_probe, fine_standard);
+      fine_standard -= fine_x;
+      // Unsupported EA agrees with standard assembly on nonconstant data.
+      REQUIRE(fine_standard.Normlinf() == Approx(0.0).margin(1e-11));
+   }
 
    const Operator &backward = transfer.BackwardOperator();
    backward.Mult(fine_exact, coarse_recovered);
