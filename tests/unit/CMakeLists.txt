@@ -46,6 +46,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_functional.cpp
   dfem/test_functional_gradient.cpp
   dfem/test_jvp_vjp.cpp
+  dfem/test_l2_assemble.cpp
   dfem/test_lvector_interface.cpp
   dfem/test_mass.cpp
   dfem/test_tuple.cpp

@@ -576,6 +576,61 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    }
 }
 
+// Element vdofs of element e in lexicographic order, matching the dof
+// ordering of the element matrices
+inline void GetLexicographicElementVDofs(const FiniteElementSpace &fes,
+                                         const int e, Array<int> &vdofs)
+{
+   Array<int> native_vdofs;
+   fes.GetElementVDofs(e, native_vdofs);
+   const FiniteElement *fe = fes.GetFE(e);
+   const auto *tbe = dynamic_cast<const TensorBasisElement *>(fe);
+   // Vector-valued (ND/RT) dof maps carry signs, which are not handled
+   MFEM_VERIFY(tbe && fe->GetRangeType() == FiniteElement::SCALAR,
+               "DerivativeAssemble without an ElementRestriction requires "
+               "scalar tensor-product (H1/L2) elements");
+   const Array<int> &dof_map = tbe->GetDofMap();
+   if (dof_map.Size() == 0)
+   {
+      vdofs = native_vdofs;
+      return;
+   }
+   const int nd = dof_map.Size();
+   const int vd = native_vdofs.Size() / nd;
+   vdofs.SetSize(native_vdofs.Size());
+   for (int c = 0; c < vd; c++)
+   {
+      for (int i = 0; i < nd; i++)
+      {
+         vdofs[i + c * nd] = native_vdofs[dof_map[i] + c * nd];
+      }
+   }
+}
+
+// Scatter element matrices of layout
+// test_dof x test_vdim x trial_dof x trial_vdim x ne into mat through the
+// element vdofs, for spaces without an ElementRestriction (e.g. L2)
+inline void AddElementMatrices(const Vector &mat_ea,
+                               const FiniteElementSpace &test_fes,
+                               const FiniteElementSpace &trial_fes,
+                               const int ne, SparseMatrix &mat)
+{
+   const int height = mat_ea.Size() / ne;
+   Array<int> test_vdofs, trial_vdofs;
+   const real_t *h_mat_ea = mat_ea.HostRead();
+   for (int e = 0; e < ne; e++)
+   {
+      GetLexicographicElementVDofs(test_fes, e, test_vdofs);
+      GetLexicographicElementVDofs(trial_fes, e, trial_vdofs);
+      MFEM_VERIFY(test_vdofs.Size() * trial_vdofs.Size() == height,
+                  "DerivativeAssemble: element matrix size mismatch");
+      const DenseMatrix A_e(const_cast<real_t *>(h_mat_ea + e * height),
+                            test_vdofs.Size(), trial_vdofs.Size());
+      mat.AddSubMatrix(test_vdofs, trial_vdofs, A_e, 0);
+   }
+   mat.Finalize(0);
+}
+
 } // namespace detail
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -637,7 +692,7 @@ class DerivativeAssemble
    /// share a bank and accumulate into it; outputs on different test fields are
    /// different row blocks and need banks of their own, because their element
    /// matrices have different shapes and are filled through different
-   /// ElementRestrictions.
+   /// ElementRestrictions, or element vdofs for spaces without one.
    mutable std::vector<Vector> group_Ae_mem;
 
 public:
@@ -813,12 +868,11 @@ public:
                   "ParFiniteElementSpace, so the columns of the derivative "
                   "have no basis to be assembled against");
 
-      const auto *trial_restr = dynamic_cast<const ElementRestriction *>(
-                                   trial_fes->GetElementRestriction(
-                                      ElementDofOrdering::LEXICOGRAPHIC));
-      MFEM_VERIFY(trial_restr != nullptr,
-                  "DerivativeAssemble SparseMatrix assembly requires "
-                  "H1/conforming ElementRestriction spaces");
+      // Null for spaces without an ElementRestriction (e.g. L2)
+      const auto *trial_restr =
+         dynamic_cast<const ElementRestriction *>
+         (trial_fes->GetElementRestriction
+          (ElementDofOrdering::LEXICOGRAPHIC));
 
       if (A.size() < ctx.outfds.size())
       {
@@ -878,9 +932,6 @@ public:
          const auto *test_restr = dynamic_cast<const ElementRestriction *>(
                                      test_fes->GetElementRestriction(
                                         ElementDofOrdering::LEXICOGRAPHIC));
-         MFEM_VERIFY(test_restr != nullptr,
-                     "DerivativeAssemble SparseMatrix assembly requires "
-                     "H1/conforming ElementRestriction spaces");
 
          const size_t f = g;
          MFEM_VERIFY(A[f] == nullptr,
@@ -888,9 +939,19 @@ public:
                      "assembled matrix; two integrators contributing to the "
                      "same row block cannot be assembled into one matrix");
 
-         auto *M = new SparseMatrix;
-         M->OverrideSize(test_fes->GetVSize(), trial_fes->GetVSize());
-         test_restr->FillSparseMatrix(group_Ae_mem[g], *M, *trial_restr);
+         SparseMatrix *M;
+         if (test_restr && trial_restr)
+         {
+            M = new SparseMatrix;
+            M->OverrideSize(test_fes->GetVSize(), trial_fes->GetVSize());
+            test_restr->FillSparseMatrix(group_Ae_mem[g], *M, *trial_restr);
+         }
+         else
+         {
+            M = new SparseMatrix(test_fes->GetVSize(), trial_fes->GetVSize());
+            detail::AddElementMatrices(group_Ae_mem[g], *test_fes, *trial_fes,
+                                       ne, *M);
+         }
          A[f] = M;
       }
    }

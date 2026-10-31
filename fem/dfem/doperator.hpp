@@ -414,6 +414,18 @@ public:
             }
          }
       }
+      else
+      {
+         // The derivative is evaluated at this state,
+         // so the L-vectors must not alias the input T-vectors,
+         // as they do with an identity prolongation
+         for (Vector *field_l : infields_l)
+         {
+            if (field_l->OwnsData()) { continue; }
+            Vector state(*field_l);
+            field_l->Swap(state);
+         }
+      }
    }
 
    /// Stateless constructor for first-derivative (gradient) operators.
