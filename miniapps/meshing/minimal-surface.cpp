@@ -654,8 +654,7 @@ struct Hold: public Surface
 };
 
 // #5: Costa minimal surface
-#include <complex>
-using cdouble = std::complex<real_t>;
+using cdouble = complex_t;
 #define I cdouble(0.0, 1.0)
 
 // https://dlmf.nist.gov/20.2
