@@ -106,6 +106,9 @@ public:
        will return NULL if no integration point is set. */
    const IntegrationPoint &GetIntPoint() { return *IntPoint; }
 
+   /// Return the current integration point, including an unset (null) point.
+   const IntegrationPoint *GetIntPointPointer() const { return IntPoint; }
+
    /** @brief Transform integration point from reference coordinates to
        physical coordinates and store them in the vector. */
    virtual void Transform(const IntegrationPoint &, Vector &) = 0;

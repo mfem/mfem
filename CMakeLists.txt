@@ -374,9 +374,12 @@ if (MFEM_USE_LIBUNWIND)
 endif()
 
 # BLAS, LAPACK
-if (MFEM_USE_LAPACK)
+if (MFEM_USE_LAPACK OR MFEM_USE_LAPACKE)
   find_package(BLAS REQUIRED)
   find_package(LAPACK REQUIRED)
+endif()
+if (MFEM_USE_LAPACKE)
+  find_package(LAPACKE REQUIRED)
 endif()
 
 # SuiteSparse (before SUNDIALS which may depend on KLU)
@@ -559,6 +562,9 @@ endif()
 
 # Algoim
 if (MFEM_USE_ALGOIM)
+  if (NOT MFEM_USE_DOUBLE)
+    message(FATAL_ERROR "ALGOIM currently requires double precision.")
+  endif()
   find_package(Algoim REQUIRED)
 endif()
 
@@ -635,7 +641,7 @@ find_package(Threads REQUIRED)
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
+set(MFEM_TPLS OPENMP HYPRE LAPACKE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
     SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB HDF5
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 MKL_CPARDISO MKL_PARDISO AMGX MAGMA CUSPARSE CUBLAS CUDSS CALIPER CODIPACK

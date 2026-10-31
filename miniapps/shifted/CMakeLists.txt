@@ -15,7 +15,7 @@ add_mfem_miniapp(lsf_integral
   LIBRARIES mfem-common)
 
 # Serial tests
-if (MFEM_ENABLE_TESTING)
+if (MFEM_ENABLE_TESTING AND MFEM_USE_ALGOIM)
   set(SERIAL_TESTS
     lsf_integral
   )
@@ -26,6 +26,61 @@ endif()
 
 # Parallel miniapps and tests
 if (MFEM_USE_MPI)
+  add_mfem_miniapp(lsf_integralp
+    MAIN lsf_integral.cpp
+    LIBRARIES mfem-common)
+  target_compile_definitions(lsf_integralp PRIVATE MFEM_CUT_INTEGRAL_PARALLEL)
+  if (MFEM_ENABLE_TESTING AND MFEM_USE_ALGOIM)
+    foreach(dimension 2 3)
+      foreach(ranks 1 2 4)
+        add_test(NAME cut_plane_${dimension}d_np${ranks}
+          COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${ranks}
+          ${MPIEXEC_PREFLAGS} $<TARGET_FILE:lsf_integralp>
+          -dim ${dimension} -ls 2 -no-vis ${MPIEXEC_POSTFLAGS})
+        set_tests_properties(cut_plane_${dimension}d_np${ranks}
+          PROPERTIES ENVIRONMENT "OPENBLAS_NUM_THREADS=1" TIMEOUT 60)
+        add_test(NAME cut_general_${dimension}d_np${ranks}
+          COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${ranks}
+          ${MPIEXEC_PREFLAGS} $<TARGET_FILE:lsf_integralp>
+          -dim ${dimension} -ls 2 -cq algoim-general -no-vis ${MPIEXEC_POSTFLAGS})
+        set_tests_properties(cut_general_${dimension}d_np${ranks}
+          PROPERTIES ENVIRONMENT "OPENBLAS_NUM_THREADS=1" TIMEOUT 60)
+        if (MFEM_USE_LAPACKE)
+          add_test(NAME cut_two_planes_${dimension}d_np${ranks}
+            COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${ranks}
+            ${MPIEXEC_PREFLAGS} $<TARGET_FILE:lsf_integralp>
+            -dim ${dimension} -ls 3 -no-vis ${MPIEXEC_POSTFLAGS})
+          set_tests_properties(cut_two_planes_${dimension}d_np${ranks}
+            PROPERTIES ENVIRONMENT "OPENBLAS_NUM_THREADS=1" TIMEOUT 60)
+        endif()
+      endforeach()
+    endforeach()
+    add_test(NAME cut_plane_empty_partitions
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:lsf_integralp> -dim 2 -n 1 -ls 2 -no-vis
+      ${MPIEXEC_POSTFLAGS})
+    set_tests_properties(cut_plane_empty_partitions
+      PROPERTIES ENVIRONMENT "OPENBLAS_NUM_THREADS=1" TIMEOUT 60)
+    add_test(NAME cut_general_empty_partitions
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:lsf_integralp> -dim 2 -n 1 -ls 2 -cq algoim-general -no-vis
+      ${MPIEXEC_POSTFLAGS})
+    add_test(NAME cut_general_collective_failure
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:lsf_integralp> -dim 2 -n 1 -ls 3 -cq algoim-general -no-vis
+      ${MPIEXEC_POSTFLAGS})
+    set_tests_properties(cut_general_empty_partitions cut_general_collective_failure
+      PROPERTIES ENVIRONMENT "OPENBLAS_NUM_THREADS=1" TIMEOUT 60)
+    set_tests_properties(cut_general_collective_failure PROPERTIES WILL_FAIL TRUE)
+    if (MFEM_USE_LAPACKE)
+      add_test(NAME cut_two_planes_empty_partitions
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 ${MPIEXEC_PREFLAGS}
+        $<TARGET_FILE:lsf_integralp> -dim 2 -n 1 -ls 3 -no-vis
+        ${MPIEXEC_POSTFLAGS})
+      set_tests_properties(cut_two_planes_empty_partitions
+        PROPERTIES ENVIRONMENT "OPENBLAS_NUM_THREADS=1" TIMEOUT 60)
+    endif()
+  endif()
   list(APPEND DIST_COMMON_SOURCES
         sbm_solver.cpp
         marking.cpp
@@ -60,12 +115,16 @@ if (MFEM_USE_MPI)
 
   if (MFEM_ENABLE_TESTING)
     set(PARALLEL_TESTS
+      lsf_integralp
       distance
       diffusion
       extrapolate
     )
     # Shifted miniapps that return MFEM_SKIP_RETURN_VALUE in some cases:
     set(SKIP_TESTS)
+    if (NOT MFEM_USE_ALGOIM)
+      list(APPEND SKIP_TESTS lsf_integralp)
+    endif()
     if (HYPRE_USING_CUDA OR HYPRE_USING_HIP)
       list(APPEND SKIP_TESTS diffusion)
     endif()

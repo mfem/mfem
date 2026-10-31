@@ -9,263 +9,146 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 //
-//     ---------------------------------------------------------------------
-//     Miniapp: Integral of implicit domains defined by a level set function
-//     ---------------------------------------------------------------------
-//
-//  The miniapp demonstrates an interface to the Algoim library for computing
-//  volumetric and surface integrals over domains and surfaces defined
-//  implicitly by a level set function. The miniapp requires MFEM to be built
-//  with Blitz and Algoim libraries (see INSTALL).
-//
-//  Compile with: make lsf_integral
-//
-//  Sample runs:
-//
-//  Evaluates surface and volumetric integral for a circle with radius 1
-//    lsf_integral -m ../../data/star-q3.mesh
-//
-//  Evaluates surface and volumetric integral for a level set defined
-//  by y=0.5-(0.1*sin(3*pi*x+pi/2))
-//    lsf_integral -ls 2 -m ../../data/inline-quad.mesh -rs 2 -o 3 -ao 3
 
 #include "mfem.hpp"
+#include <cmath>
+#include <iomanip>
+#include <memory>
 
 using namespace mfem;
 using namespace std;
 
-// Level set function for sphere in 3D and circle in 2D
-real_t sphere_ls(const Vector &x)
-{
-   real_t r2= x*x;
-   return -sqrt(r2)+1.0;//the radius is 1.0
-}
-
-// Level set function for a sinusoidal wave.
-// Resulting zero isocontour is at y=0.5-(0.1*sin(3*pi*x+pi/2))
-real_t sinusoidal_ls(const Vector &x)
-{
-   real_t a1 = 20., a2 = 2., a3 = 3.;
-   return tanh(a1*(x(1)-0.5) + a2*sin(a3*(x(0)-0.5)*M_PI));
-}
-
 int main(int argc, char *argv[])
 {
-   // Parse command-line options
-   const char *mesh_file = "../../data/star-q3.mesh";
-   int ser_ref_levels = 1;
-   int order = 2;
-   int iorder = 2; // MFEM integration points
-   int aorder = 2; // Algoim integration points
-   bool visualization = true;
-   int print_level = 0;
-   int ls_type = 1;
-
+   int rank = 0, ranks = 1;
+#ifdef MFEM_CUT_INTEGRAL_PARALLEL
+   Mpi::Init(argc, argv);
+   rank = Mpi::WorldRank();
+   ranks = Mpi::WorldSize();
+#endif
+   const char *mesh_file = "";
+   const char *algorithm = "algoim";
+   int dimension = 2, cells = 2, refinements = 0, degree = 2, order = 10, shape = 1;
+   bool visualization = false;
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh", "Mesh file to use.");
-   args.AddOption(&ser_ref_levels,
-                  "-rs",
-                  "--refine-serial",
-                  "Number of times to refine the mesh uniformly in serial.");
-   args.AddOption(&order,
-                  "-o",
-                  "--order",
-                  "Order (degree) of the finite elements.");
-   args.AddOption(&iorder,
-                  "-io",
-                  "--iorder",
-                  "MFEM Integration order.");
-   args.AddOption(&aorder,
-                  "-ao",
-                  "--aorder",
-                  "Algoim Integration order.");
-   args.AddOption(&ls_type,
-                  "-ls",
-                  "--ls-type",
-                  "Level set type: 1: circle, 2 sinusoidal wave");
-   args.AddOption(&visualization,
-                  "-vis",
-                  "--visualization",
-                  "-no-vis",
-                  "--no-visualization",
-                  "Enable or disable GLVis visualization.");
-   args.AddOption((&print_level), "-prt", "--print-level", "Print level.");
+   args.AddOption(&mesh_file, "-m", "--mesh", "Optional quadrilateral/hexahedral mesh.");
+   args.AddOption(&algorithm, "-cq", "--cut-quadrature",
+                  "algoim, algoim-general, or algoim-polynomial.");
+   args.AddOption(&dimension, "-dim", "--dimension", "Generated unit box dimension.");
+   args.AddOption(&cells, "-n", "--cells", "Generated cells per coordinate axis.");
+   args.AddOption(&refinements, "-rs", "--refine-serial", "Serial uniform refinements.");
+   args.AddOption(&degree, "-o", "--order", "Polynomial level-set degree.");
+   args.AddOption(&order, "-ao", "--aorder", "Nominal cut quadrature order.");
+   args.AddOption(&shape, "-ls", "--level-set",
+                  "1: sphere, 2: plane x = 0.37, 3: two-plane volume.");
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization", "Display the projected level set.");
    args.Parse();
-   if (!args.Good())
+   if (!args.Good() || (dimension != 2 && dimension != 3) || cells < 1 ||
+       degree < 1 || refinements < 0 || shape < 1 || shape > 3)
    {
-      args.PrintUsage(std::cout);
+      if (rank == 0) { args.PrintUsage(cout); }
       return 1;
    }
-   args.PrintOptions(std::cout);
-
-   // Read the (serial) mesh from the given mesh file.
-   Mesh *mesh = new Mesh(mesh_file, 1, 1);
-   int dim = mesh->Dimension();
-   // Refine the mesh in serial to increase the resolution. In this example
-   // we do 'ser_ref_levels' of uniform refinement, where 'ser_ref_levels' is
-   // a command-line parameter.
-   for (int lev = 0; lev < ser_ref_levels; lev++)
+   auto backend = CreateCutQuadratureBackend(algorithm);
+   if (!backend)
    {
-      mesh->UniformRefinement();
+      if (rank == 0) { cerr << "Requested cut quadrature backend is unavailable.\n"; }
+      return MFEM_SKIP_RETURN_VALUE;
    }
-
-   // Define the finite element space for the level-set function.
-   H1_FECollection fec(order, dim);
-   FiniteElementSpace fespace(mesh, &fec, 1, Ordering::byVDIM);
-   int glob_size = fespace.GetTrueVSize();
-   std::cout << "Number of finite element unknowns: " << glob_size << std::endl;
-
-   // Define the level set grid function
-   GridFunction x(&fespace);
-
-   // Define the level set coefficient
-   Coefficient *ls_coeff = nullptr;
-   if (ls_type == 1)
+   Mesh serial = mesh_file[0] ? Mesh(mesh_file, 1, 1) :
+                 (dimension == 2 ?
+                  Mesh::MakeCartesian2D(cells, cells, Element::QUADRILATERAL) :
+                  Mesh::MakeCartesian3D(cells, cells, cells, Element::HEXAHEDRON));
+   dimension = serial.Dimension();
+   if (dimension != 2 && dimension != 3) { return 1; }
+   for (int level = 0; level < refinements; ++level) { serial.UniformRefinement(); }
+   Mesh *mesh = &serial;
+#ifdef MFEM_CUT_INTEGRAL_PARALLEL
+   Array<int> partition(serial.GetNE());
+   for (int element = 0; element < partition.Size(); ++element)
+   { partition[element] = element % ranks; }
+   ParMesh parallel(MPI_COMM_WORLD, serial, partition.GetData());
+   mesh = &parallel;
+#endif
+   FunctionCoefficient coefficient([shape](const Vector &point)
    {
-      ls_coeff=new FunctionCoefficient(sphere_ls);
-   }
-   else if (ls_type == 2)
+      if (shape == 2) { return real_t(0.37) - point(0); }
+      if (shape == 3) { return point(0) - real_t(0.3); }
+      real_t value = 0.32 * 0.32;
+      for (int axis = 0; axis < point.Size(); ++axis)
+      { value -= (point(axis) - 0.5) * (point(axis) - 0.5); }
+      return value;
+   });
+   FunctionCoefficient second_coefficient([](const Vector &point)
+   { return point(1) - real_t(0.4); });
+   L2_FECollection collection(degree, dimension);
+   CutQuadratureGenerator generator(*backend);
+   CutMappingOptions mapping;
+   mapping.weight_type = CutWeightType::Physical;
+   real_t measures[2] = {0, 0};
+   int failed = 0;
+   string message;
+   for (int element = 0; element < mesh->GetNE() && !failed; ++element)
    {
-      ls_coeff=new FunctionCoefficient(sinusoidal_ls);
+      auto &transformation = *mesh->GetElementTransformation(element);
+      const auto *finite_element = collection.FiniteElementForGeometry(
+                                      transformation.GetGeometryType());
+      PolynomialLevelSet level_set, second_level_set;
+      auto report = level_set.Project(coefficient, transformation, *finite_element);
+      if (shape == 3 && report.Succeeded())
+      { report = second_level_set.Project(second_coefficient, transformation, *finite_element); }
+      Array<const ReferenceLevelSet *> level_sets(shape == 3 ? 2 : 1);
+      level_sets[0] = &level_set;
+      if (shape == 3) { level_sets[1] = &second_level_set; }
+      for (int surface = 0; surface < (shape == 3 ? 1 : 2) && report.Succeeded(); ++surface)
+      {
+         CutQuadratureRequest request;
+         request.order = order;
+         request.domain = surface ? CutDomain::Surface() : CutDomain::Positive();
+         if (shape == 3) { request.domain.Add(1, LevelSetSign::Positive); }
+         MappedCutQuadrature quadrature;
+         report = generator.Generate(transformation, level_sets, request,
+                                     mapping, quadrature);
+         for (int index = 0; index < quadrature.rule.GetNPoints(); ++index)
+         { measures[surface] += quadrature.rule.IntPoint(index).weight; }
+      }
+      if (!report.Succeeded()) { failed = 1; message = report.message; }
    }
-   else
+   if (failed) { cerr << "Rank " << rank << ": " << message << '\n'; }
+#ifdef MFEM_CUT_INTEGRAL_PARALLEL
+   MPI_Allreduce(MPI_IN_PLACE, &failed, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+   MPI_Allreduce(MPI_IN_PLACE, measures, 2, MPITypeMap<real_t>::mpi_type,
+                 MPI_SUM, MPI_COMM_WORLD);
+#endif
+   if (failed) { return 2; }
+   if (!mesh_file[0] && shape == 3 && std::abs(measures[0] - 0.42) > 1e-10)
    {
-      MFEM_ABORT("Level set coefficient not defined");
+      if (rank == 0) { cerr << "Two-plane volume check failed.\n"; }
+      return 3;
    }
-
-   // Project the coefficient onto the LS grid function
-   x.ProjectCoefficient(*ls_coeff);
-
+   if (!mesh_file[0] && shape == 2 &&
+       (std::abs(measures[0] - 0.37) > 1e-10 ||
+        std::abs(measures[1] - 1.0) > 1e-10))
+   {
+      if (rank == 0) { cerr << "Unit-box plane integral check failed.\n"; }
+      return 3;
+   }
+   if (rank == 0)
+   {
+      cout << setprecision(16) << "Ranks: " << ranks << '\n'
+           << "Backend: " << backend->Name() << '\n'
+           << "Volume: " << measures[0] << '\n';
+      if (shape != 3) { cout << "Surface: " << measures[1] << '\n'; }
+   }
    if (visualization)
    {
-      osockstream sock(19916, "localhost");
-      sock << "solution\n";
-      mesh->Print(sock);
-      x.Save(sock);
-      sock.send();
-      sock << "window_title 'Level set'\n"
-           << "window_geometry "
-           << 1200 << " " << 0 << " " << 600 << " " << 600 << "\n"
-           << "keys jRmmclA" << endl;
+      FiniteElementSpace space(mesh, &collection);
+      GridFunction field(&space);
+      field.ProjectCoefficient(coefficient);
+      socketstream socket("localhost", 19916);
+      if (ranks > 1) { socket << "parallel " << ranks << ' ' << rank << '\n'; }
+      socket << "solution\n" << *mesh << field << flush;
    }
-
-   // Exact volume and area
-   real_t exact_volume = -10, exact_area = -10;
-   if (ls_type == 1)
-   {
-      if (strncmp(mesh_file,"../../data/star-q3.mesh",100) == 0)
-      {
-         exact_volume = M_PI;
-         exact_area   = M_PI*2;
-      }
-      else if (strncmp(mesh_file, "../../data/inline-quad.mesh",100) == 0)
-      {
-         exact_volume = M_PI/4;
-         exact_area   = M_PI/2;
-      }
-   }
-   else if (ls_type == 2)
-   {
-      if (strncmp(mesh_file, "../../data/inline-quad.mesh",100) == 0)
-      {
-         exact_volume = 0.5;
-         exact_area   = 1.194452300992437;
-      }
-   }
-   (void)(&exact_area); // suppress a warning
-
-   ElementTransformation *trans;
-   const IntegrationRule* ir=nullptr;
-
-   // Integration with Algoim
-   real_t vol=0.0;
-
-#ifdef MFEM_USE_ALGOIM
-   real_t area=0.0;
-
-   AlgoimIntegrationRules* air=new AlgoimIntegrationRules(aorder,*ls_coeff,order);
-
-   IntegrationRule eir;
-   Vector sweights;
-
-   for (int i=0; i<fespace.GetNE(); i++)
-   {
-      // get the element transformation
-      trans = fespace.GetElementTransformation(i);
-
-      air->GetVolumeIntegrationRule(*trans,eir);
-      for (int j = 0; j < eir.GetNPoints(); j++)
-      {
-         const IntegrationPoint &ip = eir.IntPoint(j);
-         trans->SetIntPoint(&ip);
-         vol += ip.weight * trans->Weight();
-      }
-
-      // compute the perimeter/area contribution from the element
-      air->GetSurfaceIntegrationRule(*trans,eir);
-      air->GetSurfaceWeights(*trans,eir,sweights);
-      for (int j = 0; j < eir.GetNPoints(); j++)
-      {
-         const IntegrationPoint &ip = eir.IntPoint(j);
-         trans->SetIntPoint(&ip);
-         area += ip.weight * sweights(j) * trans->Weight();
-      }
-   }
-
-   delete air;
-
-   if (exact_volume > 0)
-   {
-      std::cout<<"Algoim Volume="<<vol<<" Error="<<vol-exact_volume<<std::endl;
-      std::cout<<"Algoim Area="<<area<<" Error="<<area-exact_area<<std::endl;
-   }
-   else
-   {
-      std::cout<<"Algoim Volume="<<vol<<std::endl;
-      std::cout<<"Algoim Area="<<area<<std::endl;
-   }
-#endif
-
-   // Perform standard MFEM integration
-   vol=0.0;
-   for (int i=0; i<fespace.GetNE(); i++)
-   {
-      const FiniteElement* el=fespace.GetFE(i);
-      // get the element transformation
-      trans = fespace.GetElementTransformation(i);
-
-      // compute the volume contribution from the element
-      ir=&IntRules.Get(el->GetGeomType(), iorder);
-      for (int j = 0; j < ir->GetNPoints(); j++)
-      {
-         const IntegrationPoint &ip = ir->IntPoint(j);
-         trans->SetIntPoint(&ip);
-         real_t vlsf=x.GetValue(*trans,ip);
-         if (vlsf>=0.0)
-         {
-            vol += ip.weight * trans->Weight();
-         }
-      }
-   }
-
-   if (exact_volume > 0.0)
-   {
-      std::cout<<"MFEM Volume="<<vol<<" Error="<<vol-exact_volume<<std::endl;
-   }
-   else
-   {
-      std::cout<<"MFEM Volume="<<vol<<std::endl;
-   }
-
-   ParaViewDataCollection dacol("ParaViewLSF", mesh);
-   dacol.SetLevelsOfDetail(order);
-   dacol.RegisterField("LSF",&x);
-   dacol.SetTime(1.0);
-   dacol.SetCycle(1);
-   dacol.Save();
-
-   delete ls_coeff;
-   delete mesh;
-
    return 0;
 }

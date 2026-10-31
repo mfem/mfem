@@ -30,7 +30,7 @@ ALGOIM_SRC =  lsf_integral.cpp
 ALGOIM_OBJ = $(ALGOIM_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = lsf_integral
-PAR_MINIAPPS = distance diffusion extrapolate
+PAR_MINIAPPS = distance diffusion extrapolate lsf_integralp
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -60,6 +60,12 @@ all: $(MINIAPPS)
 
 lsf_integral: $(ALGOIM_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(ALGOIM_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
+
+lsf_integralp.o: $(SRC)lsf_integral.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
+	$(MFEM_CXX) $(MFEM_FLAGS) -DMFEM_CUT_INTEGRAL_PARALLEL -c $< -o $@
+
+lsf_integralp: lsf_integralp.o
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $< $(COMMON_LIB) $(MFEM_LIBS)
 
 distance: $(DISTANCE_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) -o $@ $(DISTANCE_OBJ) $(COMMON_LIB) $(MFEM_LIBS)
@@ -94,7 +100,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ distance diffusion extrapolate lsf_integral
+	rm -f *.o *~ distance diffusion extrapolate lsf_integral lsf_integralp
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

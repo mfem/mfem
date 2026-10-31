@@ -161,6 +161,7 @@ MFEM_USE_EXCEPTIONS    = NO
 MFEM_USE_ZLIB          = NO
 MFEM_USE_LIBUNWIND     = NO
 MFEM_USE_LAPACK        = NO
+MFEM_USE_LAPACKE       = NO
 MFEM_THREAD_SAFE       = NO
 MFEM_USE_OPENMP        = NO
 MFEM_USE_LEGACY_OPENMP = NO
@@ -300,6 +301,8 @@ endif
 # LAPACK library configuration
 LAPACK_OPT =
 LAPACK_LIB = $(if $(NOTMAC),-llapack -lblas,-framework Accelerate)
+LAPACKE_OPT =
+LAPACKE_LIB = -llapacke $(LAPACK_LIB)
 
 # OpenMP configuration
 OPENMP_OPT = $(XCOMPILER)-fopenmp
@@ -606,8 +609,8 @@ BLITZ_LIB = $(XLINKER)-rpath,$(BLITZ_DIR)/lib -L$(BLITZ_DIR)/lib -lblitz
 
 # ALGOIM library configuration
 ALGOIM_DIR = @MFEM_DIR@/../algoim
-ALGOIM_OPT = -I$(ALGOIM_DIR)/src $(BLITZ_OPT)
-ALGOIM_LIB = $(BLITZ_LIB)
+ALGOIM_OPT = -I$(ALGOIM_DIR)
+ALGOIM_LIB =
 
 # BENCHMARK library configuration
 BENCHMARK_DIR = @MFEM_DIR@/../google-benchmark
