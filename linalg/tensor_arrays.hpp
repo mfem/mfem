@@ -209,7 +209,7 @@ public:
    std::size_t get_dynamic_offset(
       const std::array<std::size_t,rank()> &is) const
    {
-      MFEM_ENZYME_INTEGER(strides);
+      if constexpr (total_dims > 0) { MFEM_ENZYME_INTEGER(strides); }
       std::size_t dynamic_offset = 0;
       for (std::size_t d = 0; d < ndims; d++)
       {
@@ -225,7 +225,7 @@ public:
    std::size_t get_static_offset(
       const std::array<std::size_t,tensor_rank()> &js) const
    {
-      MFEM_ENZYME_INTEGER(strides);
+      if constexpr (total_dims > 0) { MFEM_ENZYME_INTEGER(strides); }
       std::size_t static_offset = 0;
       if constexpr (tensor_dims > 0)
       {
@@ -250,7 +250,7 @@ public:
          [&result, this, dynamic_offset](
             const std::array<std::size_t,tensor_rank()> &js)
       {
-         MFEM_ENZYME_INTEGER(js);
+         if constexpr (tensor_rank() > 0) { MFEM_ENZYME_INTEGER(js); }
          ::mfem::future::apply(result, js) =
             data[dynamic_offset + get_static_offset(js)];
       });
@@ -330,7 +330,7 @@ public:
          for_multiindex<tensor_sizes...>(
             [&](const std::array<std::size_t,tensor_rank()> &js)
          {
-            MFEM_ENZYME_INTEGER(js);
+            if constexpr (tensor_rank() > 0) { MFEM_ENZYME_INTEGER(js); }
             operator()(js) = ::mfem::future::apply(rhs, js);
          });
          return *this;
