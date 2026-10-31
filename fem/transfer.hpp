@@ -74,7 +74,9 @@ public:
    virtual ~GridTransfer() { }
 
    /** Uses device friendly element assembly versions for L2Projection
-       transfers, L2, H1 FEM spaces currently supported */
+       transfers. L2 and H1 FEM spaces are currently supported. If element
+       assembly does not support the coarse/fine element layout, the transfer
+       falls back to standard assembly and issues a warning. */
    void UseEA(bool use_ea_) { use_ea = use_ea_;}
 
    /** Set memory type for large data structures */
@@ -193,7 +195,15 @@ struct CoefficientWithOrder
     Mesh::MakeRefined. Generally, the coarse and fine FE spaces can have
     different orders, however, in order for the backward operator to be
     well-defined, the number of fine dofs (in a coarse element) should not be
-    smaller than the number of coarse dofs. */
+    smaller than the number of coarse dofs.
+
+    @note Element assembly currently requires uniform parent and child element
+    layouts. When element assembly is requested for an unsupported layout,
+    such as a pyramid refined into pyramid and tetrahedron children, standard
+    assembly is used and a warning is issued.
+
+    @note Element assembly in parallel does not currently handle distributed
+    meshes with empty local mesh partitions. */
 class L2ProjectionGridTransfer : public GridTransfer
 {
    // Must be public due to host device lambdas
@@ -227,6 +237,10 @@ public:
       MemoryType d_mt;
       Array<int> offsets;
       Table ho2lor;
+      /// Number of fine-space element dofs in each coarse-element patch.
+      Array<int> patch_dofs;
+      /// Offset of each fine element in its coarse-element patch.
+      Array<int> lor_dof_offsets;
 
       L2Projection(const FiniteElementSpace& fes_ho_,
                    const FiniteElementSpace& fes_lor_,
@@ -242,7 +256,7 @@ public:
       void BuildHo2Lor(int nel_ho, int nel_lor,
                        const CoarseFineTransformations& cf_tr);
 
-      void ElemMixedMass(Geometry::Type geom, const FiniteElement& fe_ho,
+      void ElemMixedMass(Geometry::Type child_geom, const FiniteElement& fe_ho,
                          const FiniteElement& fe_lor, ElementTransformation* tr_ho,
                          ElementTransformation* tr_lor,
                          IntegrationPointTransformation& ip_tr,
@@ -597,6 +611,7 @@ public:
    bool SupportsBackwardsOperator() const override;
 
 private:
+   bool SupportsEA() const;
    void BuildF();
 };
 

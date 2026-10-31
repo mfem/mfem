@@ -22,6 +22,10 @@ Discretization improvements
 
 Meshing improvements
 --------------------
+- Improved uniform refinement of meshes containing pyramids by supporting
+  children with different geometries. Updated finite element space and grid
+  transfer operations to handle the resulting pyramid and tetrahedron elements.
+
 - Fixed the essential DOFs on interior boundaries of 2D non-conforming meshes
   refined on one side only: on parallel meshes, the edges on the unrefined side
   of essential boundaries were not essential, and on serial meshes, those of
