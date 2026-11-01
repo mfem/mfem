@@ -11,6 +11,10 @@
 Version 4.10.1 (development)
 ============================
 
+GPU computing
+-------------
+- Fixed RAJA CUDA/HIP element coverage when using a smaller fixed launch grid.
+
 Discretization improvements
 ---------------------------
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
