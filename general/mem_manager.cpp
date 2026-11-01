@@ -594,7 +594,7 @@ protected:
 public:
    // TODO: this only releases unused memory
    virtual ~UmpireMemorySpace() { if (owns_allocator) { allocator.release(); } }
-   UmpireMemorySpace(const char * name, const char * space)
+   UmpireMemorySpace(const char * name, const std::string &space)
       : rm(umpire::ResourceManager::getInstance())
    {
       if (!rm.isAllocator(name))
@@ -636,7 +636,9 @@ class UmpireDeviceMemorySpace : public DeviceMemorySpace,
 public:
    UmpireDeviceMemorySpace(const char * name)
       : DeviceMemorySpace(),
-        UmpireMemorySpace(name, "DEVICE") {}
+        // "DEVICE" is the device 0; "DEVICE::<id>" exists since Umpire 4.1
+        UmpireMemorySpace(name, (Device::GetId() == 0) ? "DEVICE" :
+                          "DEVICE::" + std::to_string(Device::GetId())) {}
    void Alloc(Memory &base) override
    { base.d_ptr = allocator.allocate(base.bytes); }
    void Dealloc(Memory &base) override { allocator.deallocate(base.d_ptr); }
