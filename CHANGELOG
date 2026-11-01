@@ -36,6 +36,10 @@ Linear and nonlinear solvers
 
 Miscellaneous
 -------------
+- Fixed the shallow copy assignment that HypreParMatrix got implicitly, which
+  shared the hypre matrix with the source and freed it twice. The class now has
+  a deep copy assignment and move operations, and the copy constructor accepts
+  an empty matrix.
 - Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
   column so the inner loop vectorizes. This roughly doubles the speed of full
   assembly for DiffusionIntegrator at higher orders.
