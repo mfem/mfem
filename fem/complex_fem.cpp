@@ -1353,10 +1353,6 @@ ParComplexGridFunction::ParComplexGridFunction(
    UseDevice(true);
 
    // the real and imaginary parts have to alias the copy's own data
-   pgfr = new ParGridFunction();
-   pgfr->MakeRef(pfes, *this, 0);
-
-   pgfi = new ParGridFunction();
    pgfr = new ParGridFunction(*rhs.pgfr);
    pgfr->Vector::MakeRef(*this, 0, rhs.pgfr->Size());
 
