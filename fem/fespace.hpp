@@ -517,9 +517,8 @@ protected:
    class DerefinementOperator : public Operator
    {
       const FiniteElementSpace *fine_fes; // Not owned.
+      const FiniteElementSpace *coarse_fes; // Not owned.
       DenseTensor localR[Geometry::NumGeom];
-      Table *coarse_elem_dof; // Owned.
-      // Table *coarse_elem_fos; // Owned.
       Table coarse_to_fine;
       Array<int> coarse_to_ref_type;
       Array<Geometry::Type> ref_type_to_geom;
@@ -530,7 +529,6 @@ protected:
                            const FiniteElementSpace *c_fes,
                            BilinearFormIntegrator *mass_integ);
       void Mult(const Vector &x, Vector &y) const override;
-      virtual ~DerefinementOperator();
    };
 
    /** This method makes the same assumptions as the method:

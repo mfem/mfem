@@ -444,7 +444,13 @@ GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LINK_LIB_DIR) -L$(GINKGO_LINK_LIB_DIR)\
 # AmgX library configuration
 AMGX_DIR = @MFEM_DIR@/../amgx
 AMGX_OPT = -I$(AMGX_DIR)/include
-AMGX_LIB = -L$(AMGX_DIR)/lib -lamgx -lcusparse -lcusolver -lcublas -lnvToolsExt
+AMGX_LIB = -L$(AMGX_DIR)/lib -lamgx -lcusparse -lcusolver -lcublas
+CUDA_VERSION_NUM = $(strip $(shell \
+  awk '$$2 == "CUDA_VERSION" { print $$3; exit }' \
+  "$(CUDA_DIR)/include/cuda.h" 2>/dev/null))
+AMGX_LIB += $(if $(filter YES,$(MFEM_USE_AMGX)),$(if $(CUDA_VERSION_NUM),\
+  $(if $(shell test $(CUDA_VERSION_NUM) -lt 12090 && echo YES),-lnvToolsExt),\
+  -lnvToolsExt))
 
 # MAGMA library configuration
 MAGMA_DIR = @MFEM_DIR@/../magma
