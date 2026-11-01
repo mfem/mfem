@@ -27,6 +27,15 @@ if (MFEM_USE_MPI)
     EXTRA_HEADERS block_fespace_operator.hpp
     LIBRARIES mfem)
 
+  add_mfem_miniapp(bras_mass
+    MAIN bras_mass.cpp
+    EXTRA_HEADERS lor_mms.hpp
+    LIBRARIES mfem)
+
+  add_mfem_miniapp(bras_darcy
+    MAIN bras_darcy.cpp
+    LIBRARIES mfem)
+
   # Add the corresponding tests to the "test" target
   if (MFEM_ENABLE_TESTING)
     if (NOT (HYPRE_USING_CUDA OR HYPRE_USING_HIP))
@@ -48,6 +57,12 @@ if (MFEM_USE_MPI)
         ${MPIEXEC_POSTFLAGS})
     endif()
 
+    add_test(NAME bras_darcy_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:bras_darcy> -m ../../data/amr-quad.mesh -rs 1 -no-vis
+      ${MPIEXEC_POSTFLAGS})
+
     add_test(NAME plor_solvers_np${MFEM_MPI_NP}
       COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
       ${MPIEXEC_PREFLAGS}
@@ -66,6 +81,19 @@ if (MFEM_USE_MPI)
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:lor_elast> -l 1 -pa -o 2
       -m ../../data/beam-hex.mesh
+      ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME bras_mass-hdiv_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:bras_mass> -fe r -amr 2 -t -no-vis
+      ${MPIEXEC_POSTFLAGS})
+
+    add_test(NAME bras_mass-hcurl_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:bras_mass> -m ../../data/inline-hex.mesh -rs 1 -o 2
+      -fe n -amr 1 -cheb 2 -no-vis
       ${MPIEXEC_POSTFLAGS})
   endif()
 endif()

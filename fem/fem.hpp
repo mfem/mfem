@@ -47,6 +47,7 @@
 #include "multigrid.hpp"
 #include "ceed/solvers/algebraic.hpp"
 #include "lor/lor.hpp"
+#include "bras.hpp"
 #include "dgmassinv.hpp"
 #include "hyperbolic.hpp"
 #include "bounds.hpp"

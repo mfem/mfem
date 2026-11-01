@@ -2737,6 +2737,10 @@ public:
    int GetVDim() const { return vdim; }
    void SetVDim(int vdim_) { vdim = vdim_; }
 
+   const Coefficient *GetCoefficient() const { return Q; }
+   const VectorCoefficient *GetVectorCoefficient() const { return VQ; }
+   const MatrixCoefficient *GetMatrixCoefficient() const { return MQ; }
+
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,
                               DenseMatrix &elmat) override;
@@ -3126,6 +3130,8 @@ public:
                    const bool add) override;
 
    const Coefficient *GetCoefficient() const { return Q; }
+   const DiagonalMatrixCoefficient *GetVectorCoefficient() const { return DQ; }
+   const MatrixCoefficient *GetMatrixCoefficient() const { return MQ; }
 
    using ApplyKernelType =
       void (*)(const int NE, bool symmetric, const bool scalar_coeff,
