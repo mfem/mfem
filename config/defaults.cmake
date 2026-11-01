@@ -69,6 +69,8 @@ option(MFEM_USE_MKL_PARDISO "Enable MKL Pardiso" OFF)
 option(MFEM_USE_ADFORWARD "Enable forward mode for AD" OFF)
 option(MFEM_USE_CODIPACK "Enable automatic differentiation (AD) using CoDiPack" OFF)
 option(MFEM_USE_BENCHMARK "Enable Google Benchmark" OFF)
+option(MFEM_USE_CODSPEED
+  "Use CodSpeed's instrumented Google Benchmark fork (requires MFEM_USE_BENCHMARK)" OFF)
 option(MFEM_USE_PARELAG "Enable ParELAG" OFF)
 option(MFEM_USE_TRIBOL "Enable Tribol" OFF)
 option(MFEM_USE_ENZYME "Enable Enzyme" OFF)
