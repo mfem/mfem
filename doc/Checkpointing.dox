@@ -1,0 +1,533 @@
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+/** \page checkpointing Exact application-state checkpointing and replay
+
+MFEM checkpointing operates on arbitrary replayable application state. A
+checkpoint is complete only when it contains everything required to continue
+deterministic replay. A solution mfem::Vector can be one component of that
+state, but is not its generic definition.
+
+The initial specialization supports Vector-valued fixed-step ODE state.
+The state-centric core is synchronous, independent of MPI and physical time,
+and can also be used by application-defined nonlinear, optimization,
+continuation, or adaptation iterations.
+
+\section checkpointing_state_model State model and exactness
+
+mfem::StateId is the ordered logical position of a replayable state. Depending
+on the application, it can denote a time step, Newton iteration, optimization
+iteration, continuation step, or mesh-adaptation cycle. mfem::StepId remains an
+alias for StateId for time-stepping source compatibility. Neither type stores or
+implies physical time.
+
+For states S_i and deterministic transitions F_i, exact replay requires
+
+\f[
+\operatorname{Restore}(S_i) + F_i + \cdots + F_{j-1} = S_j.
+\f]
+
+mfem::CheckpointStateAdapter::Capture() must therefore include every value that
+can affect continuation: primary fields, mesh or discretization state, time and
+step size when present, adaptive-controller or multistep history, nonlinear
+globalization state, material properties, continuation parameters, RNG state,
+and relevant application metadata. The generic core cannot determine which of
+these values are required.
+
+mfem::CheckpointStateAdapter owns the capture format, compatibility checks, and
+safe restore order. It borrows application objects; those objects must outlive
+the adapter and controller. For dependent MFEM objects, an application adapter
+may need to restore in an order such as
+
+\code{.unparsed}
+Mesh -> FiniteElementSpace -> GridFunction
+\endcode
+
+mfem::Mesh, mfem::ParMesh, mfem::FiniteElementSpace, and mfem::GridFunction
+serialization are not implemented by this initial interface.
+
+mfem::StatePropagator::Advance() applies the same deterministic transitions used
+in the original computation. Its precondition is that the application represents
+the supplied `from` state; on success the application represents `to`. The
+meaning of a transition is entirely application-defined.
+
+\section checkpointing_architecture Architecture
+
+\code{.unparsed}
+                 Arbitrary MFEM application
+                           |
+                           v
+                CheckpointStateAdapter
+              capture / restore full state
+                           |
+                           v
+                  CheckpointController
+                   /              \
+                  v                v
+        CheckpointSchedule     StatePropagator
+                   \              /
+                    \            /
+                     v          v
+                     exact replay
+                           |
+                           v
+              ExactCheckpointWindow
+                           |
+                           v
+                CheckpointStorage
+                  memory / files
+\endcode
+
+mfem::CheckpointController, mfem::ExactCheckpointWindow,
+mfem::CheckpointSchedule, and the storage implementations operate only on
+mfem::StateId, mfem::CheckpointId, and opaque mfem::Snapshot values. They do not
+interpret mfem::Vector, mfem::ODESolver, mfem::TimeDependentOperator, or
+physical time.
+
+The ODE specialization is
+
+\code{.unparsed}
+Vector + ODESolver + TimeDependentOperator + time/dt
+                  -> ODEVectorCheckpointAdapter
+                  -> generic checkpoint core
+\endcode
+
+An application-defined specialization can use the same core without changing
+it. For example, a future adaptive application could provide
+
+\code{.unparsed}
+Mesh + FESpace + fields + properties
+                  -> application-defined adapter
+                  -> generic checkpoint core
+\endcode
+
+This adaptive adapter is conceptual and is not implemented here.
+
+\section checkpointing_components Core components
+
+mfem::Snapshot is an owning opaque byte sequence with value semantics.
+Zero-length snapshots are valid. mfem::MemoryCheckpointStorage and
+mfem::FileCheckpointStorage map a logical mfem::CheckpointId to Snapshot bytes
+without interpreting application state.
+
+mfem::ExactCheckpointWindow is a bounded FIFO cache of complete
+`{StateId, Snapshot}` states. Capacity zero disables caching. Insertions are
+staged so a failed copy does not commit a partial cache update.
+
+mfem::CheckpointController borrows a mfem::CheckpointStateAdapter,
+mfem::StatePropagator, mfem::CheckpointStorage, and ExactCheckpointWindow. Its
+active state means that the external application is synchronized to a committed
+complete snapshot at the reported mfem::StateId.
+mfem::CheckpointController::Restore() restores exactly the named CheckpointId.
+mfem::CheckpointController::RestoreState() uses an exact target when available,
+otherwise selects the nearest preceding state among the committed active
+snapshot, cached states, and persisted checkpoints, then propagates forward. The
+active snapshot can seed replay immediately after Initialize(), without a prior
+Store(). RestoreStep() is a compatibility spelling for time-stepping
+applications.
+
+mfem::StoreEverythingSchedule stores the initial state and every accepted
+logical state. Scheduling is based on ordered state positions, never physical
+time. More advanced schedules and reverse orchestration remain follow-up work.
+
+Capture, restore, advance, and cache updates are staged around a committed
+snapshot. On failure, the controller restores the prior complete snapshot. If
+that rollback itself fails, the controller invalidates its active-state
+metadata and mfem::CheckpointConsistencyError reports that the application and
+controller can no longer be proven consistent. Capture is required to leave
+the application unchanged even when it throws; Restore and Advance may expose
+partial state only until controller rollback completes.
+
+The generic Snapshot boundary adds one complete active-state snapshot. Advance
+and restore transactions borrow that committed snapshot for rollback; it stays
+unchanged until the final non-throwing swap commits the new active state. The
+moving window retains up to its configured number of complete snapshot copies
+and temporarily owns one additional snapshot during insertion before eviction.
+
+\section checkpointing_ode ODE and Vector specialization
+
+mfem::ODEVectorCheckpointAdapter binds externally owned mfem::Vector,
+mfem::TimePoint, and `dt` objects to mfem::CheckpointStateAdapter and encodes
+them with mfem::ODECheckpointSerializer. Its complete restart contains
+
+\code{.unparsed}
+Vector values + StateId + physical time + dt + solver restart bytes
+\endcode
+
+The adapter writes no solver restart bytes. Restore requires positive `dt`,
+finite physical time, and no solver restart data; violations raise
+mfem::InvalidCheckpointState before the application is modified. Restore resets
+the Vector, TimePoint, and `dt`, then calls the protected OnRestored() hook so
+that subclasses can reinitialize solver-side state. The
+ForwardEulerCheckpointAdapter defined in
+`miniapps/checkpointing/forward-euler.cpp` overrides that hook to set the
+operator time and reinitialize the solver; Forward Euler keeps no stage history,
+so nothing else is needed. mfem::ODEStatePropagator advances with the normal
+mfem::ODESolver::Step() implementation. Its constructor rejects
+mfem::ODESolverWithStates solvers (Adams-Bashforth, Adams-Moulton,
+generalized-alpha) with InvalidCheckpointState: their stage history is not part
+of the ODE snapshot, so replay after a restore would silently continue from
+stale history. Other solvers with hidden cross-step state, such as SUNDIALS
+integrators, cannot be detected and require an application-specific adapter and
+propagator.
+
+\subsection checkpointing_ode_restart Solver restart data
+
+mfem::ODECheckpointData::restart carries solver state that exact replay needs
+but the mfem::Vector, mfem::TimePoint, and `dt` do not capture, for example
+multistep stage history, the last accepted step size, or step-controller state.
+Its bytes are stored after the Vector entries and their length is recorded in
+the header. mfem::ODECheckpointSerializer copies them verbatim and never
+interprets them.
+
+mfem::ODEVectorCheckpointAdapter writes no restart data and rejects snapshots
+that contain any. A solver with cross-step state therefore needs a custom
+mfem::CheckpointStateAdapter that
+
+- in Capture(), fills ODECheckpointData::restart with the solver state and calls
+  mfem::ODECheckpointSerializer::Encode();
+- in Restore(), calls mfem::ODECheckpointSerializer::Decode(), validates the
+  restart bytes completely, and only then restores the solver, Vector,
+  TimePoint, and `dt`.
+
+mfem::ODECheckpointSerializer::FormatVersion covers the header and Vector layout
+only. The adapter owns the restart layout and must define its own version
+marker, a fixed byte order and scalar width, and checks that the data matches
+the solver in use, such as the expected Vector length.
+
+A condensed adapter for a two-step solver that exposes its previous slope:
+
+\code{.cpp}
+Snapshot Capture(StateId id, std::optional<CheckpointId> checkpoint) const
+{
+   ODECheckpointData data{state, time, dt, Snapshot()};
+   data.restart = EncodeHistory(solver);   // version, flag, slope values
+   return ODECheckpointSerializer::Encode(checkpoint.value_or(0), data);
+}
+
+void Restore(StateId id, const Snapshot &snapshot,
+             std::optional<CheckpointId> checkpoint)
+{
+   ODECheckpointData data =
+      ODECheckpointSerializer::Decode(checkpoint.value_or(0), snapshot);
+   History history = DecodeHistory(data.restart, data.state.Size());
+   // Everything is validated; now modify the application.
+   solver.SetHistory(history);
+   state = data.state;
+   time = data.time;
+   dt = data.dt;
+}
+\endcode
+
+The complete version is SlopeHistoryCheckpointAdapter in
+`tests/unit/linalg/test_checkpoint.cpp`, which verifies that replay from a
+mid-trajectory checkpoint reproduces the uninterrupted run bit for bit.
+
+The built-in MFEM solvers do not currently expose their cross-step state; for
+example, mfem::AdamsBashforthSolver keeps its step size private and
+mfem::ODEStateData cannot set its stage count. mfem::ODEStatePropagator also
+rejects mfem::ODESolverWithStates. Restart data is therefore usable only with an
+application solver that exposes its state, combined with ODEStatePropagator (for
+solvers that are not ODESolverWithStates) or an application-specific
+mfem::StatePropagator.
+
+Vector values are encoded by the ODE adapter using mfem::Vector::HostRead() and
+restored using mfem::Vector::HostWrite(). Capture can therefore synchronize
+device data to host. Persistent values use IEEE binary64; conversion from
+single-precision real_t to binary64 and back preserves every original value.
+
+\section checkpointing_persistence Persistence
+
+The ODE adapter uses the version 1 persistent byte format. Its
+64-byte canonical little-endian header is
+
+\code{.unparsed}
+offset  bytes  field
+  0      8    magic 0x4d46454d43503100
+  8      4    format version (1)
+ 12      1    byte-order marker (1 = little-endian)
+ 13      1    scalar width (8 = IEEE binary64)
+ 14      2    reserved, zero
+ 16      8    logical CheckpointId
+ 24      8    StateId (formerly StepId) bit representation
+ 32      8    physical time
+ 40      8    continuation dt
+ 48      8    Vector length
+ 56      8    solver restart data length
+ 64     ...   Vector entries followed by solver restart bytes
+\endcode
+
+The meaning and byte positions are unchanged: mfem::StepId is now an alias for
+the same signed 64-bit mfem::StateId, and the remaining fields are the ODE
+adapter's opaque snapshot. Version 1 therefore remains valid. Generic
+application adapters define and validate their own mfem::Snapshot encodings.
+
+ODE decoding rejects unsupported versions, malformed lengths, ID or StateId
+mismatches, truncation, and trailing bytes. Invalid bytes raise
+mfem::InvalidCheckpointFormat; ordinary filesystem failures raise
+mfem::CheckpointStorageError.
+
+mfem::FileCheckpointStorage uses one deterministic file per logical checkpoint.
+It atomically reserves a private staging directory, writes and closes a snapshot
+file inside it, then renames that file to the canonical path on the same
+filesystem. A failed overwrite leaves the prior canonical file unchanged.
+Concurrent writers publish complete snapshots; the last successful rename wins.
+Staging directories are removed after normal writes. Interrupted writes can
+leave staging directories that are ignored and may accumulate; callers may
+reclaim them when no writers are using the storage directory. The implementation
+does not promise fsync-based crash durability.
+
+\section checkpointing_parallel Rank-local parallel compatibility
+
+The core contains no MPI calls. For a distributed state `S_i = {S_i^(0), ...,
+S_i^(P-1)}`, each rank's adapter captures its complete local portion. Logical
+mfem::StateId and mfem::CheckpointId values remain common while physical storage
+is rank-local, for example:
+
+\code{.unparsed}
+checkpoints/rank_000000/
+checkpoints/rank_000001/
+checkpoints/rank_000002/
+\endcode
+
+The application must coordinate errors around collective transitions. This
+model does not provide collective commit, failure propagation, cross-rank
+rollback, MPI-IO, a shared-file format, or fault-tolerant recovery.
+
+\section checkpointing_ode_miniapp ODE miniapp
+
+The `miniapps/checkpointing/forward-euler.cpp` miniapp compares ordinary
+fixed-step Forward Euler integration with a trajectory replayed from its
+initial exact checkpoint:
+
+\code{.sh}
+cd miniapps/checkpointing
+make checkpoint-forward-euler
+./checkpoint-forward-euler
+./checkpoint-forward-euler -s 40
+\endcode
+
+It integrates `du/dt = alpha u - u^3`. mfem::StoreEverythingSchedule creates
+checkpoint ID `step + 1` for every accepted state. The example then removes all
+persistent checkpoints except the initial one, clears the transient window,
+restores checkpoint 1, and reconstructs the terminal state. It reports
+
+\code{.unparsed}
+terminal replay error: 0
+\endcode
+
+and succeeds only when replay and ordinary integration are bitwise identical.
+
+\subsection checkpointing_backward_euler Backward Euler miniapp
+
+The `miniapps/checkpointing/backward-euler.cpp` miniapp applies fixed-step
+Backward Euler to the stiff diagonal system
+
+\f[
+u_i'=-\lambda_i u_i, \qquad (\lambda_0,\lambda_1)=(1,50),
+\qquad u(0)=(1,1).
+\f]
+
+Its mfem::TimeDependentOperator implements the stage-slope solve exactly as
+
+\f[
+k_i=\frac{-\lambda_i u_i}{1+\gamma\lambda_i}.
+\f]
+
+Here mfem::StateId is the number of completed implicit steps. A miniapp-specific
+mfem::CheckpointStateAdapter captures the solution mfem::Vector, StateId,
+physical time, step size, immutable operator rates, snapshot version, and
+optional persistent checkpoint identity. The solver's internal stage Vector is
+temporary rather than continuation state; restore calls
+mfem::BackwardEulerSolver::Init() to recreate it after restoring the application
+state.
+
+mfem::StoreEverythingSchedule initially persists every state. The miniapp then
+keeps only a configurable interior checkpoint, clears the moving window,
+restores that checkpoint, and replays the remaining implicit transitions. The
+final solution, physical time, step size, and StateId must exactly match an
+independently integrated reference trajectory.
+
+\code{.sh}
+cd miniapps/checkpointing
+make checkpoint-backward-euler
+./checkpoint-backward-euler
+./checkpoint-backward-euler -s 20 -r 7 -dt 0.05
+\endcode
+
+The default run restores StateId 4, replays through StateId 12, and reports
+
+\code{.unparsed}
+Terminal replay error = 0
+Backward Euler checkpoint restore/replay: PASS
+\endcode
+
+Useful options are:
+
+\code{.unparsed}
+-s,  --steps N          number of fixed-size implicit steps
+-r,  --restart-step R   interior checkpoint StateId
+-dt, --time-step DT     fixed step size
+\endcode
+
+\section checkpointing_miniapps State-centric miniapps
+
+Two serial miniapps demonstrate that the generic core is independent of
+mfem::Vector and physical time. Both use an interval schedule that stores state
+zero and selected nonterminal states. The terminal state is deliberately not
+stored. The heterogeneous miniapp separately demonstrates persistent restore
+plus replay and exact restoration from a moving window. mfem::Snapshot headers,
+lengths, mfem::StateId values, and trailing bytes are validated during restore.
+
+\subsection checkpointing_heterogeneous Heterogeneous application state
+
+`miniapps/checkpointing/heterogeneous-state.cpp` owns this complete state:
+
+\code{.cpp}
+StateId iteration;
+uint64_t fibonacci;
+uint64_t next_fibonacci;
+real_t floating_value;
+std::string text;
+\endcode
+
+The two Fibonacci values are required to continue the recurrence. From state
+zero, where `(fibonacci, next_fibonacci) = (0, 1)`, one transition applies
+
+\f[
+(F_k,F_{k+1}) \longmapsto (F_{k+1},F_k+F_{k+1}).
+\f]
+
+The floating-point recurrence is
+
+\f[
+x_0=1, \qquad x_{k+1}=0.5x_k+0.125.
+\f]
+
+The text begins as `state-0`; transition `k` appends `|state-k`. The adapter
+encodes the iteration, both Fibonacci values, floating-point value, and complete
+string in one opaque mfem::Snapshot. No mfem::Vector, mfem::ODESolver,
+mfem::TimeDependentOperator, or physical time participates in this application
+state.
+
+After the original run, the miniapp saves the terminal values only for
+verification, overwrites the live state, restores the newest earlier interval
+checkpoint, and calls mfem::CheckpointController::RestoreState() to replay to
+the requested terminal mfem::StateId. Fibonacci and string values, including the
+hidden next Fibonacci value, are compared exactly. The serialized floating-point
+value and deterministic recurrence are also compared exactly.
+
+To keep the recovery paths distinct, the miniapp clears the forward-run moving
+window before persistent restore. Restore and replay repopulate it with the
+terminal state. The application state is then overwritten a second time, and
+RestoreState() recovers the exact non-persisted terminal snapshot from the
+moving window. This cache is an optimization over complete snapshots; it does
+not replace either Fibonacci continuation value.
+
+Useful options are:
+
+\code{.unparsed}
+-n, --num-states N          number of sequence transitions (1-92)
+-c, --checkpoint-interval C persist every C-th nonterminal state
+-w, --window-size W         complete states retained in the moving window
+\endcode
+
+\subsection checkpointing_mesh Nonconforming Mesh state
+
+`miniapps/checkpointing/mesh-state.cpp` starts from a programmatically generated
+2-by-2 quadrilateral unit-square mfem::Mesh and calls
+mfem::Mesh::EnsureNCMesh(). mfem::StateId is the number of completed refinement
+cycles. At each transition it recomputes the valid target from the current mesh
+as
+
+\code{.unparsed}
+target = selection_index % mesh.GetNE()
+\endcode
+
+then refines that element and increments both `selection_index` and StateId. It
+never retains an element reference across refinement.
+
+The application adapter stores StateId, `selection_index`, and the result of
+mfem::Mesh::Print(). Restore reconstructs the mesh with the MFEM stream
+constructor and verifies that the snapshot is a nonempty two-dimensional
+nonconforming mesh. Thus the application adapter, rather than the checkpoint
+core, defines and restores the complete Mesh state.
+
+After restoring an earlier interval checkpoint, the miniapp replays the
+remaining refinement cycles and compares dimensions, element/vertex/boundary
+counts, edge and face counts, attributes, element geometries, and exact
+serialized mesh text. It then projects
+
+\f[
+c(x)=1+0.5x_0-0.25x_1
+\f]
+
+into order-`p` H1 spaces on both final meshes. Exact mesh replay gives identical
+DOF layouts, so the fields are compared with the coefficient-vector infinity
+norm using a tolerance of `100*epsilon`.
+
+Useful options are:
+
+\code{.unparsed}
+-r, --refinement-steps N    number of refinement cycles
+-c, --checkpoint-interval C persist every C-th nonterminal state
+-p, --order P               H1 projection order
+-o, --output-prefix PATH    parent ParaView output directory
+-pv, --paraview             enable ParaView output (default)
+-no-pv, --no-paraview       disable ParaView output
+\endcode
+
+When enabled, mfem::ParaViewDataCollection writes the mesh and the
+`projected_coefficient` field to separate collections:
+
+\code{.unparsed}
+<output-prefix>/reference/
+<output-prefix>/restored/
+\endcode
+
+The structural and projection comparisons determine success; ParaView output
+is diagnostic only.
+
+\subsection checkpointing_miniapps_running Building and testing
+
+Build and run them with:
+
+\code{.sh}
+cd miniapps/checkpointing
+make
+./checkpoint-forward-euler -s 40
+./checkpoint-backward-euler -s 20 -r 7 -dt 0.05
+./checkpoint-heterogeneous-state -n 12 -c 4 -w 2
+./checkpoint-mesh-state -r 4 -c 2 -o paraview
+\endcode
+
+For automated smoke tests, enable `MFEM_ENABLE_TESTING` in a CMake build and
+run:
+
+\code{.sh}
+ctest -R checkpoint- --output-on-failure
+\endcode
+
+The source directory also contains a makefile with corresponding sequential
+test targets. See `miniapps/checkpointing/README.md` for a compact standalone
+guide and expected default results.
+
+\section checkpointing_compatibility Compatibility mapping
+
+\code{.unparsed}
+Previous concept                 State-centric concept
+StepId                          StateId (StepId compatibility alias)
+TimePoint                       ODE-specific helper
+Vector CheckpointState          StateId + opaque Snapshot
+Vector-centric controller       generic CheckpointController
+RestoreStep                     RestoreState (RestoreStep wrapper)
+\endcode
+*/

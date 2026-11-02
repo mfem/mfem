@@ -212,6 +212,12 @@ examples/superlu/sol.*
 miniapps/adjoint/cvsRoberts_ASAi_dns
 miniapps/adjoint/adjoint_advection_diffusion
 
+miniapps/checkpointing/checkpoint-heterogeneous-state
+miniapps/checkpointing/checkpoint-mesh-state
+miniapps/checkpointing/checkpoint-forward-euler
+miniapps/checkpointing/checkpoint-backward-euler
+miniapps/checkpointing/paraview/
+
 miniapps/dfem/dfem-minimal-surface
 miniapps/dfem/dfem-minimal-surface-output
 
