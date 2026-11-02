@@ -32,7 +32,7 @@ struct DerivativeApplyTranspose
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
 
    DerivativeApplyTranspose(
-      IntegratorContext ctx,
+      IntegratorContext<Entity::Element> ctx,
       qfunc_t /*qfunc*/,
       inputs_t inputs,
       outputs_t outputs,
@@ -204,7 +204,7 @@ struct DerivativeApplyTranspose
    }
 
 private:
-   IntegratorContext ctx;
+   IntegratorContext<Entity::Element> ctx;
    inputs_t inputs;
    outputs_t outputs;
    const Vector &qp_cache;

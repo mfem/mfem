@@ -29,7 +29,7 @@ struct DerivativeSetup
    using qfunc_shadow_t = detail::qfunc_shadow_t<qfunc_t>;
 
    DerivativeSetup(
-      IntegratorContext ctx,
+      IntegratorContext<Entity::Element> ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
@@ -226,7 +226,7 @@ struct DerivativeSetup
       }
    }
 
-   IntegratorContext ctx;
+   IntegratorContext<Entity::Element> ctx;
    qfunc_t qfunc;
    qfunc_shadow_t qfunc_shadow;
    inputs_t inputs;

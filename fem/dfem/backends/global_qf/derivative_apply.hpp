@@ -31,7 +31,7 @@ struct DerivativeApply
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
 
    DerivativeApply(
-      IntegratorContext ctx,
+      IntegratorContext<Entity::Element> ctx,
       inputs_t inputs,
       outputs_t outputs,
       const Vector &qp_cache):
@@ -214,7 +214,7 @@ struct DerivativeApply
    }
 
 private:
-   IntegratorContext ctx;
+   IntegratorContext<Entity::Element> ctx;
    inputs_t inputs;
    outputs_t outputs;
    const Vector &qp_cache;

@@ -30,7 +30,7 @@ template<
 struct Action
 {
    Action(
-      IntegratorContext ctx,
+      IntegratorContext<Entity::Element> ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs) :
@@ -128,7 +128,7 @@ struct Action
       integrate(output_to_outfd, output_bases, yq, ye);
    }
 
-   IntegratorContext ctx;
+   IntegratorContext<Entity::Element> ctx;
    qfunc_t qfunc;
    inputs_t inputs;
    outputs_t outputs;
