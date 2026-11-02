@@ -65,6 +65,14 @@ class DerivativeApplyTranspose
    -> masked_input_args_reg_t<backend_t, qfunc_t, MQ1,
    Layout::template StaticInputDep<Is>()...>;
 
+   using Layout = QpCacheLayout<derivative_id, qfunc_t, inputs_t, outputs_t>;
+
+   /// Trial register bank: only the dependent input slots are materialized.
+   template <typename backend_t, int MQ1, std::size_t... Is>
+   static auto trial_bank_type(std::index_sequence<Is...>)
+   -> masked_input_args_reg_t<backend_t, qfunc_t, MQ1,
+   Layout::template StaticInputDep<Is>()...>;
+
    const inputs_t inputs;
    const outputs_t outputs;
    const IntegratorContext ctx;
@@ -291,6 +299,13 @@ public:
       MFEM_VERIFY(Layout::StaticCacheColumns() == trial_vdim * total_trial_op_dim,
                   "DerivativeApplyTranspose: derivative cache row width mismatch");
 
+      MFEM_CONTRACT_VAR(in_size_on_qp);
+      MFEM_CONTRACT_VAR(input_dep);
+      MFEM_CONTRACT_VAR(out_op_dim);
+      MFEM_CONTRACT_VAR(out_offsets);
+      MFEM_VERIFY(Layout::StaticCacheColumns() == trial_vdim * total_trial_op_dim,
+                  "DerivativeApplyTranspose: derivative cache row width mismatch");
+
       static constexpr auto B2D = backend_t::DIM == 2;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
       static constexpr auto MTPB = backend_t::MAX_THREADS_PER_BLOCK();
@@ -364,6 +379,7 @@ public:
 
       dfem::forall<MTPB>(
          [=] MFEM_HOST_DEVICE(const int e, void *) MFEM_FORCE_INLINE
+         [=] MFEM_HOST_DEVICE(const int e, void *) MFEM_FORCE_INLINE
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
@@ -371,7 +387,13 @@ public:
          // Output cotangent (direction) registers live in oargs; the trial
          // integration data is pushed into iargs, which only holds the dependent
          // input slots.
+         // Output cotangent (direction) registers live in oargs; the trial
+         // integration data is pushed into iargs, which only holds the dependent
+         // input slots.
          // -----------------------------------------------
+         output_args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> oargs;
+         decltype(trial_bank_type<backend_t, MQ1>(
+         std::make_index_sequence<n_inputs> {})) iargs;
          output_args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> oargs;
          decltype(trial_bank_type<backend_t, MQ1>(
          std::make_index_sequence<n_inputs> {})) iargs;
@@ -455,6 +477,7 @@ public:
                            typename qf_param_slot<qfunc_t, ao>::qf_reg_param_t;
                         get<ao>(wvecs) = backend_t::template qp_pull<OARG>(
                            get<o>(oargs), qx, qy, qz);
+                           get<o>(oargs), qx, qy, qz);
                      }
                   });
 
@@ -469,7 +492,18 @@ public:
                            Layout::template StaticInputComponents<s>();
                         constexpr int c_offset_s =
                            Layout::template StaticInputCacheOffset<s>();
+                     if constexpr (Layout::template StaticInputDep<s>())
+                     {
+                        using SARG =
+                           typename qf_param_slot<qfunc_t, s>::qf_reg_param_t;
+                        constexpr int ncomp_s =
+                           Layout::template StaticInputComponents<s>();
+                        constexpr int c_offset_s =
+                           Layout::template StaticInputCacheOffset<s>();
 
+                        SARG fhat{};
+                        MFEM_UNROLL(ncomp_s)
+                        for (int c = 0; c < ncomp_s; c++)
                         SARG fhat{};
                         MFEM_UNROLL(ncomp_s)
                         for (int c = 0; c < ncomp_s; c++)
@@ -505,11 +539,40 @@ public:
                                        w = qf_value_at(get<ao>(wvecs), i, k);
                                     }
                                     sum += cache_tensor(q, cache_idx, e) * w;
+                              constexpr int tv =
+                                 Layout::template StaticOutputVDim<o>();
+                              constexpr int to =
+                                 Layout::template StaticOutputOpDim<o>();
+                              constexpr int offset_o =
+                                 Layout::template StaticOutputOffset<o>();
+                              MFEM_UNROLL(tv)
+                              for (int i = 0; i < tv; i++)
+                              {
+                                 MFEM_UNROLL(to)
+                                 for (int k = 0; k < to; k++)
+                                 {
+                                    const int cache_idx =
+                                       (offset_o + i * to + k) *
+                                       Layout::StaticCacheColumns() +
+                                       c_offset_s + c;
+                                    real_t w;
+                                    if constexpr (is_identity_fop_v<OFOP>)
+                                    {
+                                       w = out_XE_dir[o](i + tv * k, qx, qy, qz, e);
+                                    }
+                                    else
+                                    {
+                                       w = qf_value_at(get<ao>(wvecs), i, k);
+                                    }
+                                    sum += cache_tensor(q, cache_idx, e) * w;
                                  }
                               }
                            });
                            qf_set_flat_value(fhat, c, sum);
+                           qf_set_flat_value(fhat, c, sum);
                         }
+                        backend_t::template qp_push<SARG>(
+                           get<s>(iargs), qx, qy, qz, fhat);
                         backend_t::template qp_push<SARG>(
                            get<s>(iargs), qx, qy, qz, fhat);
                      }
@@ -532,6 +595,9 @@ public:
             const DofToQuadMap &dtq = in_dtq[s];
             auto &sarg = get<s>(iargs);
             auto &YE = ye_XE;
+            // Only trial slots have a register bank to integrate
+            if constexpr (!Layout::template StaticInputDep<s>()) { }
+            else if constexpr (is_value_fop_v<FOP>)
             // Only trial slots have a register bank to integrate
             if constexpr (!Layout::template StaticInputDep<s>()) { }
             else if constexpr (is_value_fop_v<FOP>)

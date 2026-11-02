@@ -30,7 +30,12 @@ int main(int argc, char *argv[])
    mfem::Mpi::Init();
    mfem::Hypre::Init();
 #endif
+
+#ifdef MFEM_USE_RAJA
+   mfem::Device device("raja-gpu");
+#else
    mfem::Device device(debug_device ? "debug" : "gpu");
+#endif
 
    // Include only tests that are labeled with both CUDA and Parallel.
    return RunCatchSession(argc, argv, {"[GPU]","[Parallel]"}, Root());

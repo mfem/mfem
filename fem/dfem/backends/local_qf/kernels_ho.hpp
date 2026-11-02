@@ -64,7 +64,7 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
    if constexpr (DIM == 2)
    {
       MFEM_CONTRACT_VAR(qz);
-      if constexpr (RNK == 0) { return T{ reg(0, qy, qx) }; }
+      if constexpr (RNK == 0) { T t{}; t = reg(0, qy, qx); return t; }
       else if constexpr (RNK == 1)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
@@ -89,7 +89,7 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
    }
    else
    {
-      if constexpr (RNK == 0) { return T{ reg(0, qz, qy, qx) }; }
+      if constexpr (RNK == 0) { T t{}; t = reg(0, qz, qy, qx); return t; }
       else if constexpr (RNK == 1)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];

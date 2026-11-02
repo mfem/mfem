@@ -404,10 +404,11 @@ auto qfunction_wrapper(func_t &f, arg_ts...args)
    // In some cases, the type analysis may not correctly infer it.
    ([&](auto &a)
    {
-      if constexpr (is_tensor_array<std::decay_t<decltype(a)>>::value)
+      using array_t = std::decay_t<decltype(a)>;
+      if constexpr (is_tensor_array<array_t>::value)
       {
-         __enzyme_integer(&a.dyn_sizes, sizeof(a.dyn_sizes));
-         __enzyme_integer(&a.strides, sizeof(a.strides));
+         if constexpr (array_t::rank() > 0) { MFEM_ENZYME_INTEGER(a.dyn_sizes); }
+         if constexpr (array_t::total_dims > 0) { MFEM_ENZYME_INTEGER(a.strides); }
       }
    }(args), ...);
 #endif

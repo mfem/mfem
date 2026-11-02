@@ -314,7 +314,61 @@ template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> sqrt(dual<value_type, gradient_type> x)
 {
    using std::sqrt;
+   // No derivative at zero, taken as zero as with Enzyme
+   if (x.value == value_type{}) { return {sqrt(x.value), gradient_type{}}; }
    return {sqrt(x.value), x.gradient / (2 * sqrt(x.value))};
+}
+
+/** @brief implementation of floating-point absolute value for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> fabs(dual<value_type, gradient_type> x)
+{
+   return abs(x);
+}
+
+/** @brief implementation of maximum of a (non-dual) and b (dual) */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> fmax(real_t a,
+                                     dual<value_type, gradient_type> b)
+{
+   return (b < a) ? dual<value_type, gradient_type> {a, gradient_type{}} : b;
+}
+
+/** @brief implementation of maximum for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> fmax(dual<value_type, gradient_type> a,
+                                     dual<value_type, gradient_type> b)
+{
+   return (a < b) ? b : a;
+}
+
+/** @brief implementation of minimum for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> fmin(dual<value_type, gradient_type> a,
+                                     dual<value_type, gradient_type> b)
+{
+   return (b < a) ? b : a;
+}
+
+/** @brief implementation of hypotenuse for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> hypot(dual<value_type, gradient_type> x,
+                                      dual<value_type, gradient_type> y)
+{
+   using std::hypot;
+   const value_type h = hypot(x.value, y.value);
+   // No derivative at zero, taken as zero as with Enzyme
+   if (h == value_type{}) { return {h, gradient_type{}}; }
+   return {h, (x.value * x.gradient + y.value * y.gradient) / h};
+}
+
+/** @brief implementation of hyperbolic tangent for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> tanh(dual<value_type, gradient_type> a)
+{
+   using std::tanh;
+   const value_type t = tanh(a.value);
+   return {t, (value_type{1} - t * t) * a.gradient};
 }
 
 /** @brief implementation of cosine for dual numbers */
@@ -392,6 +446,8 @@ template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> log(dual<value_type, gradient_type> a)
 {
    using std::log;
+   // Singular derivative at zero, taken as zero as for sqrt
+   if (a.value == value_type{}) { return {log(a.value), gradient_type{}}; }
    return {log(a.value), a.gradient / a.value};
 }
 
@@ -403,6 +459,12 @@ dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a,
    using std::log;
    using std::pow;
    value_type value = pow(a.value, b.value);
+   // At zero, x^b log(x) vanishes and b x^(b-1) is taken as zero for b < 1
+   if (a.value == value_type{})
+   {
+      if (b.value < 1) { return {value, gradient_type{}}; }
+      return {value, b.value * pow(a.value, b.value - 1) * a.gradient};
+   }
    return {value, value * (a.gradient * (b.value / a.value) + b.gradient * log(a.value))};
 }
 
@@ -413,6 +475,8 @@ dual<value_type, gradient_type> pow(real_t a, dual<value_type, gradient_type> b)
    using std::pow;
    using std::log;
    value_type value = pow(a, b.value);
+   // At zero, a^b log(a) vanishes for b > 0, taken as zero otherwise
+   if (a == real_t{}) { return {value, gradient_type{}}; }
    return {value, value * b.gradient * log(a)};
 }
 
@@ -430,6 +494,12 @@ dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a, real_t b)
 {
    using std::pow;
    value_type value = pow(a.value, b);
+   // At zero, b x^(b-1) is singular for b < 1, taken as zero
+   if (a.value == value_type{})
+   {
+      if (b < 1) { return {value, gradient_type{}}; }
+      return {value, b * pow(a.value, b - 1) * a.gradient};
+   }
    return {value, value * a.gradient * b / a.value};
 }
 
@@ -449,7 +519,7 @@ template <typename T> MFEM_HOST_DEVICE T get_value(const T& arg) { return arg; }
 
 /** @brief return the "value" part from a dual number type */
 template <typename value_type, typename gradient_type>
-MFEM_HOST_DEVICE gradient_type get_value(dual<value_type, gradient_type> arg)
+MFEM_HOST_DEVICE value_type get_value(dual<value_type, gradient_type> arg)
 {
    return arg.value;
 }

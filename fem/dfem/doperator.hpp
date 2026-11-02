@@ -203,23 +203,39 @@ struct has_qfunc_shadow_member<T,
 /// duplicating them. Callback structs also expose the q-functions of @a impl.
 template <typename callback_t, typename impl_t>
 callback_t MakeSharedCallback(impl_t &&impl)
+/// Wrap @a impl in a std::shared_ptr and return it as a @a callback_t, so that
+/// the copies every DerivativeOperator takes share its work buffers instead of
+/// duplicating them. Callback structs also expose the q-functions of @a impl.
+template <typename callback_t, typename impl_t>
+callback_t MakeSharedCallback(impl_t &&impl)
 {
+   using shared_t = std::decay_t<impl_t>;
+   auto shared = std::make_shared<shared_t>(std::forward<impl_t>(impl));
+   callback_t callback = [shared](auto &&...args)
    using shared_t = std::decay_t<impl_t>;
    auto shared = std::make_shared<shared_t>(std::forward<impl_t>(impl));
    callback_t callback = [shared](auto &&...args)
    {
       (*shared)(std::forward<decltype(args)>(args)...);
+      (*shared)(std::forward<decltype(args)>(args)...);
    };
+   if constexpr (detail::has_qfunc_member<callback_t>::value &&
+                 detail::has_qfunc_member<shared_t>::value)
    if constexpr (detail::has_qfunc_member<callback_t>::value &&
                  detail::has_qfunc_member<shared_t>::value)
    {
       callback.qfunc = [shared]() -> void * { return &shared->qfunc; };
+      callback.qfunc = [shared]() -> void * { return &shared->qfunc; };
    }
+   if constexpr (detail::has_qfunc_shadow_member<callback_t>::value &&
+                 detail::has_qfunc_shadow_member<shared_t>::value)
    if constexpr (detail::has_qfunc_shadow_member<callback_t>::value &&
                  detail::has_qfunc_shadow_member<shared_t>::value)
    {
       callback.qfunc_shadow = [shared]() -> void *
+      callback.qfunc_shadow = [shared]() -> void *
       {
+         return &shared->qfunc_shadow;
          return &shared->qfunc_shadow;
       };
    }
@@ -414,6 +430,18 @@ public:
             }
          }
       }
+      else
+      {
+         // The derivative is evaluated at this state,
+         // so the L-vectors must not alias the input T-vectors,
+         // as they do with an identity prolongation
+         for (Vector *field_l : infields_l)
+         {
+            if (field_l->OwnsData()) { continue; }
+            Vector state(*field_l);
+            field_l->Swap(state);
+         }
+      }
    }
 
    /// Stateless constructor for first-derivative (gradient) operators.
@@ -480,11 +508,9 @@ public:
                   "derivative can't be applied: the integrator was registered "
                   "without DerivativeKernels::Action");
       if (cached_apply) { EnsureQpCache(); }
+      if (cached_apply) { EnsureQpCache(); }
       prolongation(direction, x, direction_l, lvector_mode);
-      if (!cached_apply)
-      {
-         restriction(infds, in_rcache, infields_l, infields_e);
-      }
+      if (!cached_apply) { restriction(infds, in_rcache, infields_l, infields_e); }
       prepare_residual(outfds, out_rcache, daction_e);
       for (auto *v : daction_e) { *v = 0.0; }
       for (const auto &f : derivative_actions)
@@ -556,6 +582,7 @@ public:
                   "integrator was registered without "
                   "DerivativeKernels::ApplyTranspose");
       if (cached_transpose) { EnsureQpCache(); }
+      if (cached_transpose) { EnsureQpCache(); }
 
       // Prolong each output field from T-space to L-space into the
       // pre-allocated concat buffer.
@@ -579,6 +606,10 @@ public:
          }
       }
 
+      if (!cached_transpose)
+      {
+         restriction(infds, in_rcache, infields_l, infields_e);
+      }
       if (!cached_transpose)
       {
          restriction(infds, in_rcache, infields_l, infields_e);
@@ -1009,6 +1040,15 @@ public:
       for (size_t i = 0; i < action_callbacks.size(); i++)
       {
          action_callbacks[i](infields_e, residual_e);
+      }
+      if constexpr (std::is_same_v<y_t, MultiVector>)
+      {
+         if (is_lvector)
+         {
+            // Apply transposed restriction straight into the output vector.
+            restriction_transpose(outfds, out_rcache, residual_e, y);
+            return;
+         }
       }
       if constexpr (std::is_same_v<y_t, MultiVector>)
       {
@@ -1691,6 +1731,7 @@ void DifferentiableOperator::AddIntegrator(
          {
             apply_callbacks[callback_key].push_back(
                MakeSharedCallback<derivative_action_t>(
+               MakeSharedCallback<derivative_action_t>(
                   backend_t::template MakeDerivativeApply<derivative_idx>(
                      callback_ctx, qf, inputs, outputs, callback_qp_cache)));
          }
@@ -1700,6 +1741,7 @@ void DifferentiableOperator::AddIntegrator(
                                      DerivativeKernels::ApplyTranspose))
          {
             transpose_callbacks[callback_key].push_back(
+               MakeSharedCallback<derivative_action_t>(
                MakeSharedCallback<derivative_action_t>(
                   backend_t::template MakeDerivativeApplyTranspose<derivative_idx>(
                      callback_ctx, qf, inputs, outputs, callback_qp_cache)));
@@ -1721,6 +1763,10 @@ void DifferentiableOperator::AddIntegrator(
                {
                   // Assemble the derivative into a SparseMatrix
                   assemble_sparsematrix_callbacks[callback_key].push_back(
+                     MakeSharedCallback<assemble_derivative_sparsematrix_callback_t>(
+                        backend_t::template MakeDerivativeAssemble<derivative_idx>(
+                           callback_ctx, qf, inputs, outputs, callback_qp_cache,
+                           output_groups)));
                      MakeSharedCallback<assemble_derivative_sparsematrix_callback_t>(
                         backend_t::template MakeDerivativeAssemble<derivative_idx>(
                            callback_ctx, qf, inputs, outputs, callback_qp_cache,
@@ -1750,6 +1796,11 @@ void DifferentiableOperator::AddIntegrator(
                         MakeDerivativeAssembleDiagonal<derivative_idx>(
                            callback_ctx, qf, inputs, outputs, callback_qp_cache,
                            output_groups)));
+                     MakeSharedCallback<assemble_diagonal_callback_t>(
+                        backend_t::template
+                        MakeDerivativeAssembleDiagonal<derivative_idx>(
+                           callback_ctx, qf, inputs, outputs, callback_qp_cache,
+                           output_groups)));
                }
             }
          }
@@ -1758,6 +1809,7 @@ void DifferentiableOperator::AddIntegrator(
          if constexpr (HasAllKernels(kernels, DerivativeKernels::Action))
          {
             action_cbs[callback_key].push_back(
+               MakeSharedCallback<derivative_action_t>(
                MakeSharedCallback<derivative_action_t>(
                   backend_t::template MakeDerivativeAction<derivative_idx>(
                      callback_ctx, qf, inputs, outputs)));
@@ -1858,8 +1910,10 @@ void DifferentiableOperator::AddIntegrator(
          // gradient is a function of the captured state only, so the direction
          // is ignored here.
          auto grad_impl =
+         auto grad_impl =
             backend_t::MakeAction(first_derivative_ctx, dqfunc, inputs,
                                   first_derivative_outputs);
+         auto grad_action = MakeSharedCallback<action_t>(std::move(grad_impl));
          auto grad_action = MakeSharedCallback<action_t>(std::move(grad_impl));
          derivative_action_callbacks[idx].push_back(
             [grad_action](const std::vector<Vector *> &xe,

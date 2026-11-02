@@ -48,6 +48,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_functional.cpp
   dfem/test_functional_gradient.cpp
   dfem/test_jvp_vjp.cpp
+  dfem/test_l2_assemble.cpp
   dfem/test_lvector_interface.cpp
   dfem/test_mass.cpp
   dfem/test_tuple.cpp
@@ -92,6 +93,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_petsc_nonlinear.cpp
   linalg/test_sparsesmoothers.cpp
   linalg/test_vector.cpp
+  linalg/test_dual.cpp
   linalg/test_tensor.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp
@@ -150,6 +152,7 @@ set(UNIT_TESTS_SRCS
   fem/test_getgradients.cpp
   fem/test_gslib.cpp
   fem/test_hp_transfer.cpp
+  fem/test_hyperbolic.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp

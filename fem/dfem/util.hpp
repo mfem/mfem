@@ -1904,13 +1904,20 @@ void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l,
 
    // Check if input is already L-vector sized (skip prolongation if so)
    if (is_lvector && (P == nullptr || x.Size() == P->Height()))
+   // Check if input is already L-vector sized (skip prolongation if so)
+   if (is_lvector && (P == nullptr || x.Size() == P->Height()))
    {
+      field_l.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
+      field_l.UseDevice(x.UseDevice());
+      field_l.SyncMemory(x);
       field_l.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
       field_l.UseDevice(x.UseDevice());
       field_l.SyncMemory(x);
       return;
    }
 
+   // If P is nullptr or Identity, just copy
+   if (P == nullptr || dynamic_cast<const IdentityOperator *>(P.get()))
    // If P is nullptr or Identity, just copy
    if (P == nullptr || dynamic_cast<const IdentityOperator *>(P.get()))
    {
@@ -2178,6 +2185,7 @@ void prolongation_transpose(
       if (is_lvector)
       {
          x[i] = *x_l[i];
+         x[i] = *x_l[i];
          continue;
       }
 
@@ -2227,6 +2235,7 @@ void restriction(
       if (x_e[i] == nullptr)
       {
          x_e[i] = new Vector(s);
+         x_e[i]->UseDevice(true);
          x_e[i]->UseDevice(true);
       }
       x_e[i]->SetSize(s);
@@ -2312,6 +2321,7 @@ void restriction_transpose(
       if (x_l[i] == nullptr)
       {
          x_l[i] = new Vector(s);
+         x_l[i]->UseDevice(true);
          x_l[i]->UseDevice(true);
       }
       x_l[i]->SetSize(s);
