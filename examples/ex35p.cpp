@@ -494,7 +494,7 @@ int main(int argc, char *argv[])
 
       BDP.SetDiagonalBlock(0, pc_r);
       BDP.SetDiagonalBlock(1, pc_i);
-      BDP.owns_blocks = 1;
+      BDP.SetBlockOwnership(1);
 
       FGMRESSolver fgmres(MPI_COMM_WORLD);
       fgmres.SetPreconditioner(BDP);

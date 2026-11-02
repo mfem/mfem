@@ -182,7 +182,7 @@ BlockOperator *PRefinementHierarchy::BuildProlongation(int lev)
    }
 
    BlockOperator *Pblk = new BlockOperator(fine_offsets, coarse_offsets);
-   Pblk->owns_blocks = 0;
+   Pblk->SetBlockOwnership(0);
 
    for (int b = 0; b < nblocks; b++)
    {
@@ -242,7 +242,7 @@ PRefinementMultigrid::PRefinementMultigrid(
       ownedProlongations[lev] = true;
 
       BlockOperator *OpLevel = new BlockOperator(Pblk->ColOffsets());
-      OpLevel->owns_blocks = 1;
+      OpLevel->SetBlockOwnership(1);
 
       BlockOperator *OpFine = dynamic_cast<BlockOperator*>(operators[lev+1]);
       MFEM_VERIFY(OpFine, "Expected BlockOperator at fine level.");
@@ -306,7 +306,7 @@ PRefinementMultigrid::PRefinementMultigrid(
 #endif
          {
             auto *bd = new BlockDiagonalPreconditioner(cOp->RowOffsets());
-            bd->owns_blocks = 1;
+            bd->SetBlockOwnership(1);
 
             for (int b = 0; b < nblocks; b++)
             {
@@ -336,7 +336,7 @@ PRefinementMultigrid::PRefinementMultigrid(
       {
          auto *prec = new SymmetricBlockDiagonalPreconditioner(cOp->RowOffsets(),
                                                                smoother_relax_factor);
-         prec->owns_blocks = 1;
+         prec->SetBlockOwnership(1);
 
          for (int b = 0; b < nblocks; b++)
          {
@@ -412,8 +412,8 @@ ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
 
       auto *OpLevel_r = new BlockOperator(Pblk->ColOffsets());
       auto *OpLevel_i = new BlockOperator(Pblk->ColOffsets());
-      OpLevel_r->owns_blocks = 1;
-      OpLevel_i->owns_blocks = 1;
+      OpLevel_r->SetBlockOwnership(1);
+      OpLevel_i->SetBlockOwnership(1);
 
       auto *cOp = dynamic_cast<ComplexOperator*>(operators[lev+1]);
       MFEM_VERIFY(cOp, "Expected ComplexOperator at fine level.");
@@ -516,7 +516,7 @@ ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
 #endif
          {
             auto *prec_r = new BlockDiagonalPreconditioner(cOp_r->RowOffsets());
-            prec_r->owns_blocks = 1;
+            prec_r->SetBlockOwnership(1);
 
             for (int b = 0; b < nblocks; b++)
             {
@@ -546,7 +546,7 @@ ComplexPRefinementMultigrid::ComplexPRefinementMultigrid(
       {
          auto *prec_r = new SymmetricBlockDiagonalPreconditioner(cOp_r->RowOffsets(),
                                                                  smoother_relax_factor);
-         prec_r->owns_blocks = 1;
+         prec_r->SetBlockOwnership(1);
 
          for (int b = 0; b < nblocks; b++)
          {

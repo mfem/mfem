@@ -365,7 +365,7 @@ int main(int argc, char *argv[])
       }
 
       BlockDiagonalPreconditioner M(tdof_offsets);
-      M.owns_blocks = 1;
+      M.SetBlockOwnership(1);
       for (int i = 0; i<num_blocks; i++)
       {
          M.SetDiagonalBlock(i, new GSSmoother((SparseMatrix&)A_r->GetBlock(i,i)));

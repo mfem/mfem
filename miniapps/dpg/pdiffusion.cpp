@@ -426,7 +426,7 @@ int main(int argc, char *argv[])
       {
          preconditioner = new BlockDiagonalPreconditioner(A->RowOffsets());
          auto block_diag = dynamic_cast<BlockDiagonalPreconditioner*>(preconditioner);
-         block_diag->owns_blocks = 1;
+         block_diag->SetBlockOwnership(1);
          for (int i = 0; i<A->NumRowBlocks(); i++)
          {
             auto prec = MakeFESpaceDefaultSolver(prec_fes[i],0);

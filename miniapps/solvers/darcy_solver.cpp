@@ -48,7 +48,7 @@ BDPMinresSolver::BDPMinresSolver(const HypreParMatrix& M,
    prec_.SetDiagonalBlock(0, new HypreDiagScale(M));
    prec_.SetDiagonalBlock(1, new HypreBoomerAMG(*S_.As<HypreParMatrix>()));
    static_cast<HypreBoomerAMG&>(prec_.GetDiagonalBlock(1)).SetPrintLevel(0);
-   prec_.owns_blocks = 1;
+   prec_.SetBlockOwnership(1);
 
    SetOptions(solver_, param);
    solver_.SetOperator(op_);

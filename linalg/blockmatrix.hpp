@@ -53,6 +53,15 @@ public:
    const SparseMatrix & GetBlock(int i, int j) const;
    //! Check if block (i,j) is a zero block.
    int IsZeroBlock(int i, int j) const {return (Aij(i,j)==NULL) ? 1 : 0; }
+   //! Set the ownership of block (i,j)
+   void SetBlockOwnership(int i, int j, int own)
+   { own_block(i,j) = own; if (own) { owns_blocks = 1; } }
+   //! Set the ownership of all blocks
+   void SetBlockOwnership(int own)
+   { own_block = own; owns_blocks = own; }
+   //! Check if non-NULL block (i,j) is owned by the BlockMatrix
+   int IsBlockOwned(int i, int j) const
+   { return (own_block(i,j) && Aij(i,j)) ? 1 : 0; }
    //! Return the row offsets for block starts
    Array<int> & RowOffsets() { return row_offsets; }
    //! Return the columns offsets for block starts
@@ -151,8 +160,6 @@ public:
 
    //! Destructor
    virtual ~BlockMatrix();
-   //! If owns_blocks the SparseMatrix objects Aij will be deallocated.
-   int owns_blocks;
 
    virtual Type GetType() const { return MFEM_Block_Matrix; }
 
@@ -173,6 +180,12 @@ private:
    //! 2D array that stores each block of the BlockMatrix. Aij(iblock, jblock)
    //! == NULL if block (iblock, jblock) is all zeros.
    Array2D<SparseMatrix *> Aij;
+   //! 2D array that stores the ownership of each block of the operator.
+   //! if nonzero, BlockMatrix will delete all blocks that are set (non-NULL);
+   //! the default value is zero.
+   Array2D<int> own_block;
+   //! Nonzero if at least one block is owned by the BlockMatrix.
+   int owns_blocks;
 };
 
 //! Transpose a BlockMatrix: result = A'
