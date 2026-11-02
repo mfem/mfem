@@ -15,6 +15,7 @@
 #endif
 #include <set>
 #include <map>
+#include <memory> // std::make_unique
 
 namespace mfem
 {
@@ -757,11 +758,9 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
    HYPRE_BigInt * offd_col_start_stop = NULL;
    this->getColStartStop(A_r, A_i, num_recv_procs, offd_col_start_stop);
 
-   std::set<HYPRE_BigInt>::iterator sit;
    std::map<HYPRE_BigInt,HYPRE_BigInt> cmapa, cmapb, cinvmap;
-   for (sit=cset.begin(); sit!=cset.end(); sit++)
+   for (HYPRE_BigInt col_orig : cset)
    {
-      HYPRE_BigInt col_orig = *sit;
       HYPRE_BigInt col_2x2  = -1;
       HYPRE_BigInt col_size = 0;
       for (int i=0; i<num_recv_procs; i++)
@@ -774,20 +773,20 @@ HypreParMatrix * ComplexHypreParMatrix::GetSystemMatrix() const
             break;
          }
       }
-      cmapa[*sit] = col_2x2;
-      cmapb[*sit] = col_2x2 + col_size;
+      cmapa[col_orig] = col_2x2;
+      cmapb[col_orig] = col_2x2 + col_size;
       cinvmap[col_2x2] = -1;
       cinvmap[col_2x2 + col_size] = -1;
    }
    delete [] offd_col_start_stop;
 
    {
-      std::map<HYPRE_BigInt, HYPRE_BigInt>::iterator mit;
       HYPRE_BigInt i = 0;
-      for (mit=cinvmap.begin(); mit!=cinvmap.end(); mit++, i++)
+      for (auto &[col, index] : cinvmap)
       {
-         mit->second = i;
-         cmap[i] = mit->first;
+         index = i;
+         cmap[i] = col;
+         i++;
       }
    }
 
@@ -903,30 +902,27 @@ ComplexHypreParMatrix::getColStartStop(const HypreParMatrix * A_r,
    loc_start_stop[0] = col_part[col_part_ind];
    loc_start_stop[1] = col_part[col_part_ind+1];
 
-   MPI_Request * req = new MPI_Request[send_procs.size()+recv_procs.size()];
-   MPI_Status * stat = new MPI_Status[send_procs.size()+recv_procs.size()];
+   const size_t num_reqs = send_procs.size() + recv_procs.size();
+   auto req = std::make_unique<MPI_Request[]>(num_reqs);
+   auto stat = std::make_unique<MPI_Status[]>(num_reqs);
    int send_count = 0;
    int recv_count = 0;
    int tag = 0;
 
-   std::set<HYPRE_Int>::iterator sit;
-   for (sit=send_procs.begin(); sit!=send_procs.end(); sit++)
+   for (HYPRE_Int proc : send_procs)
    {
       MPI_Isend(loc_start_stop, 2, HYPRE_MPI_BIG_INT,
-                *sit, tag, comm_, &req[send_count]);
+                proc, tag, comm_, &req[send_count]);
       send_count++;
    }
-   for (sit=recv_procs.begin(); sit!=recv_procs.end(); sit++)
+   for (HYPRE_Int proc : recv_procs)
    {
       MPI_Irecv(&offd_col_start_stop[2*recv_count], 2, HYPRE_MPI_BIG_INT,
-                *sit, tag, comm_, &req[send_count+recv_count]);
+                proc, tag, comm_, &req[send_count+recv_count]);
       recv_count++;
    }
 
-   MPI_Waitall(send_count+recv_count, req, stat);
-
-   delete [] req;
-   delete [] stat;
+   MPI_Waitall(send_count+recv_count, req.get(), stat.get());
 }
 
 #endif // MFEM_USE_MPI

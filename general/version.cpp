@@ -160,9 +160,6 @@ const char *GetConfigStr()
 #ifdef MFEM_USE_RAJA
       "MFEM_USE_RAJA\n"
 #endif
-#ifdef MFEM_USE_SIDRE
-      "MFEM_USE_SIDRE\n"
-#endif
 #ifdef MFEM_USE_SIMD
       "MFEM_USE_SIMD\n"
 #endif
