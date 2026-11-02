@@ -106,6 +106,8 @@ public:
    void GetPerfPointMat(int GeomType, DenseMatrix &pm) const;
    void JacToPerfJac(int GeomType, const DenseMatrix &J,
                      DenseMatrix &PJ) const;
+   void InvJacToInvPerfJac(int GeomType, const DenseMatrix &invJ,
+                           DenseMatrix &invPJ) const;
 
    /// Returns true if the given @a geom is of tensor-product type (i.e. if geom
    /// is a segment, quadrilateral, or hexahedron), returns false otherwise.
