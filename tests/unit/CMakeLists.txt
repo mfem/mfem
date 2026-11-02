@@ -91,6 +91,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_petsc_nonlinear.cpp
   linalg/test_sparsesmoothers.cpp
   linalg/test_vector.cpp
+  linalg/test_dual.cpp
   linalg/test_tensor.cpp
   mesh/mesh_test_utils.cpp
   mesh/test_exodus_reader.cpp

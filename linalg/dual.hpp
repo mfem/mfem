@@ -331,7 +331,7 @@ template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> fmax(real_t a,
                                      dual<value_type, gradient_type> b)
 {
-   return (b < a) ? dual<value_type, gradient_type> {a} : b;
+   return (b < a) ? dual<value_type, gradient_type> {a, gradient_type{}} : b;
 }
 
 /** @brief implementation of maximum for dual numbers */
@@ -519,7 +519,7 @@ template <typename T> MFEM_HOST_DEVICE T get_value(const T& arg) { return arg; }
 
 /** @brief return the "value" part from a dual number type */
 template <typename value_type, typename gradient_type>
-MFEM_HOST_DEVICE gradient_type get_value(dual<value_type, gradient_type> arg)
+MFEM_HOST_DEVICE value_type get_value(dual<value_type, gradient_type> arg)
 {
    return arg.value;
 }
