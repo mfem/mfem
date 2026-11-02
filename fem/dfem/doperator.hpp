@@ -226,11 +226,12 @@ callback_t MakeSharedCallback(impl_t &&impl)
    return callback;
 }
 
+template <typename entity_t>
 inline assemble_derivative_hypreparmatrix_callback_t
 MakeDerivativeHypreParMatrixAssemble(
    const size_t derivative_idx,
    std::vector<assemble_derivative_sparsematrix_callback_t> &sparse_callbacks,
-   const IntegratorContext &ctx)
+   const IntegratorContext<entity_t> &ctx)
 {
    using blocks_t = std::vector<HypreParMatrix *>;
    return [derivative_idx, &sparse_callbacks, ctx](blocks_t &A)
@@ -1544,7 +1545,7 @@ void DifferentiableOperator::AddIntegrator(
    // TODO: Is this a hack?
    width = GetTrueVSize(infds[0]);
 
-   IntegratorContext ctx
+   IntegratorContext<entity_t> ctx
    {
       mesh, elem_attributes, attributes, num_entities,
       infds, outfds, unionfds, integration_rule,
@@ -1593,7 +1594,7 @@ void DifferentiableOperator::AddIntegrator(
       [&](second_derivative_key_t derivative_key,
           const std::vector<FieldDescriptor> &out,
           const std::vector<FieldDescriptor> &all)
-      -> IntegratorContext
+      -> IntegratorContext<entity_t>
    {
       auto &stored_out = second_derivative_outfds[derivative_key];
       stored_out = stored_out.empty() ? out : stored_out;
@@ -1604,7 +1605,7 @@ void DifferentiableOperator::AddIntegrator(
       MFEM_VERIFY(stored_union == all,
                   "inconsistent second derivative union FieldDescriptors");
 
-      return IntegratorContext
+      return IntegratorContext<entity_t>
       {
          mesh, elem_attributes, attributes, num_entities,
          infds, stored_out, stored_union, integration_rule,
@@ -1616,7 +1617,7 @@ void DifferentiableOperator::AddIntegrator(
       [&](size_t derivative_id,
           const std::vector<FieldDescriptor> &out,
           const std::vector<FieldDescriptor> &all)
-      -> IntegratorContext
+      -> IntegratorContext<entity_t>
    {
       auto &stored_out = derivative_outfds[derivative_id];
       if (stored_out.empty())
@@ -1640,7 +1641,7 @@ void DifferentiableOperator::AddIntegrator(
                      "inconsistent first derivative union FieldDescriptors");
       }
 
-      return IntegratorContext
+      return IntegratorContext<entity_t>
       {
          mesh, elem_attributes, attributes, num_entities,
          infds, stored_out, stored_union, integration_rule,
@@ -1662,7 +1663,7 @@ void DifferentiableOperator::AddIntegrator(
                                   [[maybe_unused]] auto &assemble_diagonal_cbs,
                                   [[maybe_unused]] auto &action_cbs,
                                   [[maybe_unused]] Vector &callback_qp_cache,
-                                  const IntegratorContext &callback_ctx,
+                                  const IntegratorContext<entity_t> &callback_ctx,
                                   auto &qf, auto outputs)
       {
          constexpr size_t derivative_idx = decltype(derivative_id)::value;

@@ -20,8 +20,16 @@
 namespace mfem::future
 {
 
+/// @brief Data describing the entities an integrator is applied to.
+///
+/// @tparam entity_t the entity type (see Entity). Backends deduce it from the
+/// context they receive, so it selects the entity-specific restrictions,
+/// DofToQuad maps and dimensions without passing it separately.
+template <typename entity_t>
 struct IntegratorContext
 {
+   using entity_type = entity_t;
+
    const ParMesh &mesh;
    const Array<int> *elem_attr;
    Array<int> attr;

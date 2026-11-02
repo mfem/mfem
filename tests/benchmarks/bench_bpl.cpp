@@ -700,7 +700,7 @@ struct BPL
    void AddLaghosLocalSpecializations(const IT &, const OT &)
    {
       future::AddLocalSpecializations<DIM, Q1D, LocalQF, IT, OT,
-             future::Derivatives<Energy>>();
+             future::Entity::Element, future::Derivatives<Energy>>();
    }
 
    void SetupDerivativeState()

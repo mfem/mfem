@@ -638,9 +638,18 @@ inline void AddElementMatrices(const Vector &mat_ea,
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 class DerivativeAssemble
 {
+   // TODO:
+   // So far the element dof maps and restrictions used below are element-only.
+   // Keeping an assertion here to be sure it doesn't slip through. 
+   static_assert(std::is_same_v<entity_t, Entity::Element>,
+                 "derivative matrix assembly is only implemented for domain "
+                 "integrators, exclude it from the DerivativeKernels of "
+                 "boundary integrators");
+
    static constexpr auto inout_tuple =
    merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t{});
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
@@ -650,7 +659,7 @@ class DerivativeAssemble
    static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
 
-   const IntegratorContext ctx;
+   const IntegratorContext<entity_t> ctx;
    const Vector &qp_cache;
    inputs_t inputs;
    outputs_t outputs;
@@ -698,7 +707,7 @@ class DerivativeAssemble
 public:
    DerivativeAssemble() = delete;
 
-   DerivativeAssemble(IntegratorContext ctx_in,
+   DerivativeAssemble(IntegratorContext<entity_t> ctx_in,
                       qfunc_t /*qfunc*/,
                       inputs_t inputs_in,
                       outputs_t outputs_in,
@@ -724,17 +733,17 @@ public:
       for (const auto &field : ctx_in.unionfds)
       {
          maps.emplace_back(
-            GetDofToQuad<Entity::Element>(field, ctx_in.ir, dtq_mode));
+            GetDofToQuad<entity_t>(field, ctx_in.ir, dtq_mode));
       }
       return maps;
    }()),
-   input_dtq_maps(create_dtq_maps<Entity::Element>(
+   input_dtq_maps(create_dtq_maps<entity_t>(
                      inputs,
                      dtqs,
                      create_union_field_map_for_dtq(ctx_in, inputs),
                      ctx_in.unionfds,
                      ctx_in.ir)),
-   output_dtq_maps(create_dtq_maps<Entity::Element>(
+   output_dtq_maps(create_dtq_maps<entity_t>(
                       outputs,
                       dtqs,
                       create_union_field_map_for_dtq(ctx_in, outputs),
@@ -804,7 +813,7 @@ public:
       return top;
    }()),
    num_trial_dof(trial_fes ? trial_fes->GetFE(0)->GetDof() : 0),
-   dim(ctx_in.mesh.Dimension()), ne(ctx_in.nentities),
+   dim(GetEntityDimension<entity_t>(ctx_in.mesh)), ne(ctx_in.nentities),
    nq(ctx_in.ir.GetNPoints()), q1d(tensor_1d_size(nq, dim)),
    num_trial_dof_1d(tensor_1d_size(num_trial_dof, dim)), total_trial_op_dim(
       [&]
@@ -962,7 +971,7 @@ public:
 
    template<typename backend_t = LocalQFHOBackend<3>, int T_Q1D = 0>
    static void derivative_assemble_callback(
-      const IntegratorContext &ctx,
+      const IntegratorContext<entity_t> &ctx,
       const Vector &qp_cache,
       Vector &Ae_mem,
       const inputs_t &inputs,
@@ -993,7 +1002,8 @@ public:
 
       MFEM_VERIFY(dim == DIM,
                   "DerivativeAssemble: mesh dim does not match backend");
-      MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
+      MFEM_VERIFY(dim == GetEntityDimension<entity_t>(ctx.mesh),
+                  "Dimension mismatch");
       MFEM_VERIFY(q1d <= MQ1, "q1d exceeds backend MQ1 limit");
       MFEM_VERIFY(nq <= MNQ,
                   "DerivativeAssemble: nq exceeds backend quadrature capacity");
@@ -1100,17 +1110,18 @@ public:
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
 inline
-typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::
+typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 AssembleKernelType
-DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeAssembleHO::Kernel()
 {
    static_assert(DIM == 2 || DIM == 3);
    using assemble_t =
-      DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return assemble_t::template derivative_assemble_callback<
              LocalQFHOBackend<DIM, Q1D>>;
 }
@@ -1118,15 +1129,16 @@ DerivativeAssembleHO::Kernel()
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 inline
-typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::
+typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 AssembleKernelType
-DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeAssembleHO::Fallback(int dim, int q1d)
 {
    using assemble_t =
-      DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    using DerivativeAssembleHO = typename assemble_t::DerivativeAssembleHO;
    // We don't route thru DispatchHOKernelByDim() as for other callbacks
    // since this kernel caps 3D at MQ1 = 8 but leaves 2D on the default.

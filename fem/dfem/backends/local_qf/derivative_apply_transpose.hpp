@@ -24,7 +24,8 @@ namespace mfem::future::LocalQFImpl
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 class DerivativeApplyTranspose
 {
    static constexpr auto inout_tuple =
@@ -67,7 +68,7 @@ class DerivativeApplyTranspose
 
    const inputs_t inputs;
    const outputs_t outputs;
-   const IntegratorContext ctx;
+   const IntegratorContext<entity_t> ctx;
    const Vector &qp_cache; // Jacobian cache from DerivativeSetup
    const std::vector<const DofToQuad *> dtqs;
    // inputs: dtq, B, G, d1d, q1d, vdim (trial / derivative fields)
@@ -95,20 +96,20 @@ class DerivativeApplyTranspose
    std::array<int, n_outputs> out_elem_dof_size;
    mutable Vector dir_out_e;
    /// One restriction cache per output field, resolved on first use.
-   mutable std::array<RestrictionCache<Entity::Element>, n_outputs>
+   mutable std::array<RestrictionCache<entity_t>, n_outputs>
    out_rcaches;
 
 public:
    //////////////////////////////////////////////////////////////////
    DerivativeApplyTranspose() = delete;
 
-   DerivativeApplyTranspose(IntegratorContext ctx,
+   DerivativeApplyTranspose(IntegratorContext<entity_t> ctx,
                             qfunc_t /*qfunc*/,
                             inputs_t inputs,
                             outputs_t outputs,
                             const Vector &qp_cache):
       inputs(inputs), outputs(outputs), ctx(ctx), qp_cache(qp_cache),
-      dtqs(make_dtqs(ctx)), input_dtq(create_dtq_maps<Entity::Element>(
+      dtqs(make_dtqs(ctx)), input_dtq(create_dtq_maps<entity_t>(
                                          inputs,
                                          dtqs,
                                          create_union_field_map_for_dtq(ctx, inputs),
@@ -117,7 +118,7 @@ public:
       input_B(get_B(input_dtq)), input_G(get_G(input_dtq)),
       input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
       input_vdim(get_vdim(inputs)),
-      output_dtq(create_dtq_maps<Entity::Element>(
+      output_dtq(create_dtq_maps<entity_t>(
                     outputs,
                     dtqs,
                     create_union_field_map_for_dtq(ctx, outputs),
@@ -144,7 +145,8 @@ public:
    total_trial_op_dim(compute_total_trial_op_dim(
                          inputs, input_is_dependent, input_size_on_qp)),
    residual_size_on_qp(output_size_on_qp * trial_vdim * total_trial_op_dim),
-   dim(ctx.mesh.Dimension()), ne(ctx.nentities), nq(ctx.ir.GetNPoints()),
+   dim(GetEntityDimension<entity_t>(ctx.mesh)), ne(ctx.nentities),
+   nq(ctx.ir.GetNPoints()),
    q1d(tensor_1d_size(nq, dim)),
    deriv_infd_idx(find_infd_index(ctx, derivative_id)), out_elem_dof_size{}
    {
@@ -159,7 +161,7 @@ public:
       int total_dir_e_size = 0;
       for_constexpr<n_outputs>([&](auto o)
       {
-         const int elem_sz = compute_element_dof_sz(
+         const int elem_sz = compute_element_dof_sz<entity_t>(
             ctx.outfds[output_idx[o]], ne, ElementDofOrdering::LEXICOGRAPHIC);
          out_elem_dof_size[o] = elem_sz;
          total_dir_e_size += elem_sz;
@@ -260,7 +262,7 @@ public:
    //////////////////////////////////////////////////////////////////
    template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
    static void derivative_apply_transpose_callback(
-      const IntegratorContext &ctx,
+      const IntegratorContext<entity_t> &ctx,
       const Vector &qp_cache,
       const Vector &dir_e, // restricted, concatenated output cotangents
       // inputs (integration target metadata)
@@ -289,7 +291,8 @@ public:
       const int dim,
       const int q1d)
    {
-      MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
+      MFEM_VERIFY(dim == GetEntityDimension<entity_t>(ctx.mesh),
+                  "Dimension mismatch");
       if (ctx.attr.Size() == 0) { return; }
 
       MFEM_CONTRACT_VAR(in_size_on_qp);
@@ -555,18 +558,19 @@ public:
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
 inline typename DerivativeApplyTranspose<derivative_id,
        qfunc_t,
        inputs_t,
-       outputs_t>::TransposeKernelType
-       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       outputs_t, entity_t>::TransposeKernelType
+       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
        DerivativeApplyTransposeLO::Kernel()
 {
    static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
    using transpose_t =
-      DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return transpose_t::template derivative_apply_transpose_callback<
              LocalQFLOBackend<DIM, Q1D>>;
 }
@@ -574,16 +578,17 @@ inline typename DerivativeApplyTranspose<derivative_id,
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 inline typename DerivativeApplyTranspose<derivative_id,
        qfunc_t,
        inputs_t,
-       outputs_t>::TransposeKernelType
-       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       outputs_t, entity_t>::TransposeKernelType
+       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
        DerivativeApplyTransposeLO::Fallback(int dim, int q1d)
 {
    using transpose_t =
-      DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    using DerivativeApplyTransposeLO =
       typename transpose_t::DerivativeApplyTransposeLO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
@@ -593,17 +598,18 @@ inline typename DerivativeApplyTranspose<derivative_id,
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
 inline typename DerivativeApplyTranspose<derivative_id,
        qfunc_t,
        inputs_t,
-       outputs_t>::TransposeKernelType
-       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       outputs_t, entity_t>::TransposeKernelType
+       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
        DerivativeApplyTransposeHO::Kernel()
 {
    using transpose_t =
-      DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return transpose_t::
           template derivative_apply_transpose_callback<
              LocalQFHOBackend<DIM, Q1D>, Q1D>;
@@ -612,16 +618,17 @@ inline typename DerivativeApplyTranspose<derivative_id,
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 inline typename DerivativeApplyTranspose<derivative_id,
        qfunc_t,
        inputs_t,
-       outputs_t>::TransposeKernelType
-       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       outputs_t, entity_t>::TransposeKernelType
+       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
        DerivativeApplyTransposeHO::Fallback(int dim, int q1d)
 {
    using transpose_t =
-      DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    using DerivativeApplyTransposeHO =
       typename transpose_t::DerivativeApplyTransposeHO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();

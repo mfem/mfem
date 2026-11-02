@@ -609,8 +609,9 @@ void AddLocalQFActionSpecializations()
 {
    if constexpr (std::is_same_v<backend_t, local_backend>)
    {
-      mfem::future::AddAction<DIM, 6, QT, IT, OT>();
-      mfem::future::AddAction<DIM, 8, QT, IT, OT>();
+      using ET = mfem::future::Entity::Element;
+      mfem::future::AddAction<DIM, 6, QT, IT, OT, ET>();
+      mfem::future::AddAction<DIM, 8, QT, IT, OT, ET>();
    }
 }
 
@@ -620,12 +621,13 @@ void AddLocalQFDerivativeSpecializations()
 {
    if constexpr (std::is_same_v<backend_t, local_backend>)
    {
-      mfem::future::AddDerivativeAction<DIM, 6, DID, QT, IT, OT>();
-      mfem::future::AddDerivativeSetup<DIM, 6, DID, QT, IT, OT>();
-      mfem::future::AddDerivativeApply<DIM, 6, DID, QT, IT, OT>();
-      mfem::future::AddDerivativeAction<DIM, 8, DID, QT, IT, OT>();
-      mfem::future::AddDerivativeSetup<DIM, 8, DID, QT, IT, OT>();
-      mfem::future::AddDerivativeApply<DIM, 8, DID, QT, IT, OT>();
+      using ET = mfem::future::Entity::Element;
+      mfem::future::AddDerivativeAction<DIM, 6, DID, QT, IT, OT, ET>();
+      mfem::future::AddDerivativeSetup<DIM, 6, DID, QT, IT, OT, ET>();
+      mfem::future::AddDerivativeApply<DIM, 6, DID, QT, IT, OT, ET>();
+      mfem::future::AddDerivativeAction<DIM, 8, DID, QT, IT, OT, ET>();
+      mfem::future::AddDerivativeSetup<DIM, 8, DID, QT, IT, OT, ET>();
+      mfem::future::AddDerivativeApply<DIM, 8, DID, QT, IT, OT, ET>();
    }
 }
 

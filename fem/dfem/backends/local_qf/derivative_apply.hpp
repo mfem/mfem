@@ -25,7 +25,8 @@ namespace mfem::future::LocalQFImpl
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 class DerivativeApply
 {
    static constexpr auto inout_tuple =
@@ -47,7 +48,7 @@ class DerivativeApply
 
    const inputs_t inputs;
    const outputs_t outputs;
-   const IntegratorContext ctx;
+   const IntegratorContext<entity_t> ctx;
    const Vector &qp_cache;
    const std::vector<const DofToQuad *> dtqs;
    // inputs: dtq, idx, B, G, d1d, q1d, vdim
@@ -73,18 +74,18 @@ class DerivativeApply
    const int dim, ne, nq, q1d;
    FieldDescriptor direction_fd;
    mutable Vector direction_e;
-   mutable RestrictionCache<Entity::Element> direction_rcache;
+   mutable RestrictionCache<entity_t> direction_rcache;
 
 public:
    DerivativeApply() = delete;
 
-   DerivativeApply(IntegratorContext ctx,
+   DerivativeApply(IntegratorContext<entity_t> ctx,
                    qfunc_t /*qfunc*/,
                    inputs_t inputs,
                    outputs_t outputs,
                    const Vector &qp_cache_in):
       inputs(inputs), outputs(outputs), ctx(ctx), qp_cache(qp_cache_in),
-      dtqs(make_dtqs(ctx)), input_dtq(create_dtq_maps<Entity::Element>(
+      dtqs(make_dtqs(ctx)), input_dtq(create_dtq_maps<entity_t>(
                                          inputs,
                                          dtqs,
                                          create_union_field_map_for_dtq(ctx, inputs),
@@ -94,7 +95,7 @@ public:
       input_B(get_B(input_dtq)), input_G(get_G(input_dtq)),
       input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
       input_vdim(get_vdim(inputs)),
-      output_dtq(create_dtq_maps<Entity::Element>(
+      output_dtq(create_dtq_maps<entity_t>(
                     outputs,
                     dtqs,
                     create_union_field_map_for_dtq(ctx, outputs),
@@ -121,7 +122,8 @@ public:
    total_trial_op_dim(compute_total_trial_op_dim(
                          inputs, input_is_dependent, input_size_on_qp)),
    residual_size_on_qp(output_size_on_qp * trial_vdim * total_trial_op_dim),
-   dim(ctx.mesh.Dimension()), ne(ctx.nentities), nq(ctx.ir.GetNPoints()),
+   dim(GetEntityDimension<entity_t>(ctx.mesh)), ne(ctx.nentities),
+   nq(ctx.ir.GetNPoints()),
    q1d(tensor_1d_size(nq, dim))
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
@@ -214,7 +216,7 @@ public:
    //////////////////////////////////////////////////////////////////
    template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
    static void
-   derivative_apply_callback(const IntegratorContext &ctx,
+   derivative_apply_callback(const IntegratorContext<entity_t> &ctx,
                              const Vector &qp_cache,
                              // inputs: idx, B, G, vdim, d1d, q1d
                              const std::array<size_t, n_inputs> & /*in_idx*/,
@@ -251,7 +253,8 @@ public:
       MFEM_CONTRACT_VAR(out_offsets);
       MFEM_CONTRACT_VAR(trial_vdim);
       MFEM_CONTRACT_VAR(total_trial_op_dim);
-      MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
+      MFEM_VERIFY(dim == GetEntityDimension<entity_t>(ctx.mesh),
+                  "Dimension mismatch");
 
       // Check that the q-function parameter size matches the field size for each input
       for_constexpr<n_inputs>([&](auto sc)
@@ -548,15 +551,18 @@ public:
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
-inline typename DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+inline typename
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 ApplyKernelType
-DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeApplyLO::Kernel()
 {
    static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
-   using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using apply_t =
+      DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return apply_t::template derivative_apply_callback<
              LocalQFLOBackend<DIM, Q1D>>;
 }
@@ -564,13 +570,16 @@ DerivativeApplyLO::Kernel()
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
-inline typename DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+         typename outputs_t,
+         typename entity_t>
+inline typename
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 ApplyKernelType
-DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeApplyLO::Fallback(int dim, int q1d)
 {
-   using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using apply_t =
+      DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    using DerivativeApplyLO = typename apply_t::DerivativeApplyLO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
    return DispatchLOKernelByDim<DerivativeApplyLO, QFDIM>(dim, q1d);
@@ -579,14 +588,17 @@ DerivativeApplyLO::Fallback(int dim, int q1d)
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
-inline typename DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+inline typename
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 ApplyKernelType
-DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeApplyHO::Kernel()
 {
-   using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using apply_t =
+      DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return apply_t::template derivative_apply_callback<LocalQFHOBackend<DIM, Q1D>,
                                                       Q1D>;
 }
@@ -594,13 +606,16 @@ DerivativeApplyHO::Kernel()
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
-inline typename DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+         typename outputs_t,
+         typename entity_t>
+inline typename
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 ApplyKernelType
-DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeApplyHO::Fallback(int dim, int q1d)
 {
-   using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using apply_t =
+      DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    using DerivativeApplyHO = typename apply_t::DerivativeApplyHO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
    return DispatchHOKernelByDim<DerivativeApplyHO, QFDIM>(dim, q1d);

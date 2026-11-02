@@ -23,7 +23,8 @@ namespace mfem::future::LocalQFImpl
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 class DerivativeAction
 {
    static constexpr auto inout_tuple =
@@ -111,7 +112,7 @@ class DerivativeAction
    qfunc_t qfunc;
    const inputs_t inputs;
    const outputs_t outputs;
-   const IntegratorContext ctx;
+   const IntegratorContext<entity_t> ctx;
    const std::vector<const DofToQuad *> dtqs;
    // inputs: dtq, idx, B, G, d1d, q1d, vdim
    const std::array<DofToQuadMap, n_inputs> input_dtq;
@@ -129,20 +130,20 @@ class DerivativeAction
    std::array<bool, n_inputs> input_is_dependent;
    FieldDescriptor direction_fd;
    mutable Vector direction_e;
-   mutable RestrictionCache<Entity::Element> direction_rcache;
+   mutable RestrictionCache<entity_t> direction_rcache;
 
 public:
    //////////////////////////////////////////////////////////////////
    DerivativeAction() = delete;
 
-   DerivativeAction(IntegratorContext ctx,
+   DerivativeAction(IntegratorContext<entity_t> ctx,
                     qfunc_t qfunc,
                     inputs_t inputs,
                     outputs_t outputs):
       qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs), ctx(ctx),
       dtqs(make_dtqs(ctx)),
       // inputs: dtq, idx, B, G, d1d, q1d, vdim
-      input_dtq(create_dtq_maps<Entity::Element>(
+      input_dtq(create_dtq_maps<entity_t>(
                    inputs,
                    dtqs,
                    create_union_field_map_for_dtq(ctx, inputs),
@@ -153,7 +154,7 @@ public:
       input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
       input_vdim(get_vdim(inputs)),
       // outputs: dtq, idx, B, G, d1d, q1d, vdim
-      output_dtq(create_dtq_maps<Entity::Element>(
+      output_dtq(create_dtq_maps<entity_t>(
                     outputs,
                     dtqs,
                     create_union_field_map_for_dtq(ctx, outputs),
@@ -164,7 +165,8 @@ public:
       output_d1d(get_D1D(output_dtq)), output_q1d(get_Q1D(output_dtq)),
       output_vdim(get_vdim(outputs)),
       // other constants
-      dim(ctx.mesh.Dimension()), ne(ctx.nentities), nq(ctx.ir.GetNPoints()),
+      dim(GetEntityDimension<entity_t>(ctx.mesh)), ne(ctx.nentities),
+      nq(ctx.ir.GetNPoints()),
       q1d(tensor_1d_size(nq, dim))
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
@@ -638,7 +640,7 @@ public:
    //////////////////////////////////////////////////////////////////
    template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
    static void
-   derivative_action_callback(const IntegratorContext &ctx,
+   derivative_action_callback(const IntegratorContext<entity_t> &ctx,
                               qfunc_t &qfunc,
                               // inputs: idx, B, G, vdim, d1d, q1d
                               const std::array<size_t, n_inputs> &in_idx,
@@ -662,7 +664,8 @@ public:
                               const int dim,
                               const int q1d)
    {
-      MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
+      MFEM_VERIFY(dim == GetEntityDimension<entity_t>(ctx.mesh),
+                  "Dimension mismatch");
       // Dependency is resolved at compile time through `input_activity`; the
       // runtime array is only carried for the non-Enzyme dual-number path.
       MFEM_CONTRACT_VAR(input_dep);
@@ -838,16 +841,18 @@ public:
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
-inline typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+inline typename
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeKernelType
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeActionLO::Kernel()
 {
    static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
    using derivative_action_t =
-      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return derivative_action_t::template derivative_action_callback<
              LocalQFLOBackend<DIM, Q1D>>;
 }
@@ -856,14 +861,16 @@ DerivativeActionLO::Kernel()
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
-inline typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+         typename outputs_t,
+         typename entity_t>
+inline typename
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeKernelType
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeActionLO::Fallback(int dim, int q1d)
 {
    using derivative_action_t =
-      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    using DerivativeActionLO =
       typename derivative_action_t::DerivativeActionLO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
@@ -874,15 +881,17 @@ DerivativeActionLO::Fallback(int dim, int q1d)
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
-inline typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+inline typename
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeKernelType
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeActionHO::Kernel()
 {
    using derivative_action_t =
-      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return derivative_action_t::
           template derivative_action_callback<LocalQFHOBackend<DIM, Q1D>, Q1D>;
 }
@@ -891,14 +900,16 @@ DerivativeActionHO::Kernel()
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
-inline typename DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+         typename outputs_t,
+         typename entity_t>
+inline typename
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeKernelType
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeActionHO::Fallback(int dim, int q1d)
 {
    using derivative_action_t =
-      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    using DerivativeActionHO = typename derivative_action_t::DerivativeActionHO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
    return DispatchHOKernelByDim<DerivativeActionHO, QFDIM>(dim, q1d);

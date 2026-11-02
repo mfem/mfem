@@ -60,7 +60,8 @@ constexpr bool action_outputs_direct_value_v =
    action_outputs_direct_value_impl<qfunc_t, inputs_t, outputs_t,
    std::make_index_sequence<tuple_size<outputs_t>::value>>::value;
 
-template<typename qfunc_t, typename inputs_t, typename outputs_t>
+template<typename qfunc_t, typename inputs_t, typename outputs_t,
+         typename entity_t>
 class Action
 {
    static constexpr auto inout_tuple =
@@ -160,7 +161,7 @@ class Action
    const qfunc_t qfunc;
    const inputs_t inputs;
    const outputs_t outputs;
-   const IntegratorContext ctx;
+   const IntegratorContext<entity_t> ctx;
    const std::vector<const DofToQuad *> dtqs;
    // inputs: dtq, idx, B, G, d1d, q1d, vdim
    const std::array<DofToQuadMap, n_inputs> input_dtq;
@@ -179,14 +180,14 @@ public:
    ////////////////////////////////////////////////////////
    Action() = delete;
 
-   Action(IntegratorContext ctx,
+   Action(IntegratorContext<entity_t> ctx,
           qfunc_t qfunc,
           inputs_t inputs,
           outputs_t outputs):
       qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs), ctx(ctx),
       dtqs(make_dtqs(ctx)),
       // inputs: dtq, idx, B, G, d1d, q1d, vdim
-      input_dtq(create_dtq_maps<Entity::Element>(
+      input_dtq(create_dtq_maps<entity_t>(
                    inputs,
                    dtqs,
                    create_union_field_map_for_dtq(ctx, inputs),
@@ -197,7 +198,7 @@ public:
       input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
       input_vdim(get_vdim(inputs)),
       // outputs: dtq, idx, B, G, d1d, q1d, vdim
-      output_dtq(create_dtq_maps<Entity::Element>(
+      output_dtq(create_dtq_maps<entity_t>(
                     outputs,
                     dtqs,
                     create_union_field_map_for_dtq(ctx, outputs),
@@ -208,7 +209,8 @@ public:
       output_d1d(get_D1D(output_dtq)), output_q1d(get_Q1D(output_dtq)),
       output_vdim(get_vdim(outputs)),
       // other constants
-      dim(ctx.mesh.Dimension()), ne(ctx.nentities), nq(ctx.ir.GetNPoints()),
+      dim(GetEntityDimension<entity_t>(ctx.mesh)), ne(ctx.nentities),
+      nq(ctx.ir.GetNPoints()),
       q1d(tensor_1d_size(nq, dim))
    {
       MFEM_ASSERT(ctx.unionfds.size() == nfields,
@@ -270,7 +272,7 @@ public:
    ////////////////////////////////////////////////////////
    template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
    static void
-   action_callback(const IntegratorContext &ctx,
+   action_callback(const IntegratorContext<entity_t> &ctx,
                    const qfunc_t &qfunc,
                    // inputs: idx, B, G, vdim, d1d, q1d
                    const std::array<size_t, n_inputs> &in_idx,
@@ -294,7 +296,8 @@ public:
    {
       if (ctx.attr.Size() == 0) { return; }
       MFEM_CONTRACT_VAR(dim);
-      MFEM_ASSERT(dim == ctx.mesh.Dimension(), "Dimension mismatch");
+      MFEM_ASSERT(dim == GetEntityDimension<entity_t>(ctx.mesh),
+                  "Dimension mismatch");
 
       static constexpr auto B2D = backend_t::DIM == 2;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::Q1D;
@@ -587,13 +590,14 @@ public:
 };
 
 // Low Order kernels
-template<typename qfunc_t, typename inputs_t, typename outputs_t>
+template<typename qfunc_t, typename inputs_t, typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
-inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
-Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Kernel()
+inline typename Action<qfunc_t, inputs_t, outputs_t, entity_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t, entity_t>::ActionLO::Kernel()
 {
    static_assert(Q1D <= LocalQFLOBackend<DIM>::MQ1);
-   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t>;
    if constexpr (DIM == 3 && Q1D == LocalQFLOBackendMQ1() &&
                  action_outputs_direct_value_v<qfunc_t, inputs_t, outputs_t>)
    {
@@ -606,32 +610,37 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Kernel()
 }
 
 // Low Order fallback
-template<typename qfunc_t, typename inputs_t, typename outputs_t>
-inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
-Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Fallback(int dim, int q1d)
+template<typename qfunc_t, typename inputs_t, typename outputs_t,
+         typename entity_t>
+inline typename Action<qfunc_t, inputs_t, outputs_t, entity_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t, entity_t>::ActionLO::Fallback(int dim,
+                                                                   int q1d)
 {
-   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t>;
    using ActionLO = typename action_t::ActionLO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
    return DispatchLOKernelByDim<ActionLO, QFDIM>(dim, q1d);
 }
 
 // High Order kernels
-template<typename qfunc_t, typename inputs_t, typename outputs_t>
+template<typename qfunc_t, typename inputs_t, typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
-inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
-Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Kernel()
+inline typename Action<qfunc_t, inputs_t, outputs_t, entity_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t, entity_t>::ActionHO::Kernel()
 {
-   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t>;
    return action_t::template action_callback<LocalQFHOBackend<DIM, Q1D>, Q1D>;
 }
 
 // High Order fallback
-template<typename qfunc_t, typename inputs_t, typename outputs_t>
-inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
-Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Fallback(int dim, int q1d)
+template<typename qfunc_t, typename inputs_t, typename outputs_t,
+         typename entity_t>
+inline typename Action<qfunc_t, inputs_t, outputs_t, entity_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t, entity_t>::ActionHO::Fallback(int dim,
+                                                                   int q1d)
 {
-   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t>;
    using ActionHO = typename action_t::ActionHO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
    return DispatchHOKernelByDim<ActionHO, QFDIM>(dim, q1d);

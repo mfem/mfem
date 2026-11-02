@@ -31,9 +31,18 @@ namespace mfem::future::LocalQFImpl
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 class DerivativeAssembleDiagonal
 {
+   // TODO:
+   // So far the element dof maps and restrictions used below are element-only.
+   // Keeping an assertion here to be sure it doesn't slip through. 
+   static_assert(std::is_same_v<entity_t, Entity::Element>,
+                 "derivative diagonal assembly is only implemented for domain "
+                 "integrators, exclude it from the DerivativeKernels of "
+                 "boundary integrators");
+
    static constexpr auto inout_tuple =
    merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t{});
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
@@ -43,7 +52,7 @@ class DerivativeAssembleDiagonal
    static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
 
-   const IntegratorContext ctx;
+   const IntegratorContext<entity_t> ctx;
    const Vector &qp_cache;
    inputs_t inputs;
    outputs_t outputs;
@@ -77,7 +86,7 @@ class DerivativeAssembleDiagonal
 public:
    DerivativeAssembleDiagonal() = delete;
 
-   DerivativeAssembleDiagonal(IntegratorContext ctx_in,
+   DerivativeAssembleDiagonal(IntegratorContext<entity_t> ctx_in,
                               qfunc_t /*qfunc*/,
                               inputs_t inputs_in,
                               outputs_t outputs_in,
@@ -103,17 +112,17 @@ public:
       for (const auto &field : ctx_in.unionfds)
       {
          maps.emplace_back(
-            GetDofToQuad<Entity::Element>(field, ctx_in.ir, dtq_mode));
+            GetDofToQuad<entity_t>(field, ctx_in.ir, dtq_mode));
       }
       return maps;
    }()),
-   input_dtq_maps(create_dtq_maps<Entity::Element>(
+   input_dtq_maps(create_dtq_maps<entity_t>(
                      inputs,
                      dtqs,
                      create_union_field_map_for_dtq(ctx_in, inputs),
                      ctx_in.unionfds,
                      ctx_in.ir)),
-   output_dtq_maps(create_dtq_maps<Entity::Element>(
+   output_dtq_maps(create_dtq_maps<entity_t>(
                       outputs,
                       dtqs,
                       create_union_field_map_for_dtq(ctx_in, outputs),
@@ -194,7 +203,7 @@ public:
                                  ctx_in.mesh.Dimension())
       : 0),
    residual_size_on_qp(output_size_on_qp * trial_vdim * total_trial_op_dim),
-   dim(ctx_in.mesh.Dimension()), ne(ctx_in.nentities),
+   dim(GetEntityDimension<entity_t>(ctx_in.mesh)), ne(ctx_in.nentities),
    nq(ctx_in.ir.GetNPoints()), q1d(tensor_1d_size(nq, dim)),
    inputs_trial_op_dim(
       [&]
@@ -319,7 +328,7 @@ public:
 
    template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
    static void derivative_assemble_diagonal_callback(
-      const IntegratorContext &ctx,
+      const IntegratorContext<entity_t> &ctx,
       const Vector &qp_cache,
       Vector &Ye_mem,
       const inputs_t &inputs,
@@ -343,7 +352,8 @@ public:
       const int q1d,
       const int dim)
    {
-      MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
+      MFEM_VERIFY(dim == GetEntityDimension<entity_t>(ctx.mesh),
+                  "Dimension mismatch");
       if (ctx.attr.Size() == 0) { return; }
 
       static constexpr bool B2D = backend_t::DIM == 2;
@@ -503,18 +513,19 @@ public:
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
 inline typename DerivativeAssembleDiagonal<derivative_id,
        qfunc_t,
        inputs_t,
-       outputs_t>::DiagonalKernelType
-       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       outputs_t, entity_t>::DiagonalKernelType
+       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
        DerivativeAssembleDiagonalLO::Kernel()
 {
    static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
    using diag_t =
-      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return diag_t::template derivative_assemble_diagonal_callback<
              LocalQFLOBackend<DIM, Q1D>>;
 }
@@ -522,16 +533,17 @@ inline typename DerivativeAssembleDiagonal<derivative_id,
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 inline typename DerivativeAssembleDiagonal<derivative_id,
        qfunc_t,
        inputs_t,
-       outputs_t>::DiagonalKernelType
-       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       outputs_t, entity_t>::DiagonalKernelType
+       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
        DerivativeAssembleDiagonalLO::Fallback(int dim, int q1d)
 {
    using diag_t =
-      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    using DerivativeAssembleDiagonalLO =
       typename diag_t::DerivativeAssembleDiagonalLO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
@@ -541,17 +553,18 @@ inline typename DerivativeAssembleDiagonal<derivative_id,
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
 inline typename DerivativeAssembleDiagonal<derivative_id,
        qfunc_t,
        inputs_t,
-       outputs_t>::DiagonalKernelType
-       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       outputs_t, entity_t>::DiagonalKernelType
+       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
        DerivativeAssembleDiagonalHO::Kernel()
 {
    using diag_t =
-      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return diag_t::template derivative_assemble_diagonal_callback<
              LocalQFHOBackend<DIM, Q1D>,
              Q1D>;
@@ -560,16 +573,17 @@ inline typename DerivativeAssembleDiagonal<derivative_id,
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 inline typename DerivativeAssembleDiagonal<derivative_id,
        qfunc_t,
        inputs_t,
-       outputs_t>::DiagonalKernelType
-       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>::
+       outputs_t, entity_t>::DiagonalKernelType
+       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
        DerivativeAssembleDiagonalHO::Fallback(int dim, int q1d)
 {
    using diag_t =
-      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    using DerivativeAssembleDiagonalHO =
       typename diag_t::DerivativeAssembleDiagonalHO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();

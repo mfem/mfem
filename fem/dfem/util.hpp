@@ -2504,6 +2504,31 @@ int GetNumEntities(const mfem::Mesh &mesh)
    return 0; // Unreachable, but avoids compiler warning
 }
 
+/// @brief Get the reference dimension of the entities of a given type.
+///
+/// @param mesh the mesh.
+/// @tparam entity_t the entity type (see Entity).
+/// @returns the reference dimension of the given entity type, i.e. the mesh
+/// dimension for elements and one less for boundary elements.
+template <typename entity_t>
+int GetEntityDimension(const mfem::Mesh &mesh)
+{
+   if constexpr (std::is_same_v<entity_t, Entity::Element>)
+   {
+      return mesh.Dimension();
+   }
+   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
+   {
+      return mesh.Dimension() - 1;
+   }
+   else
+   {
+      static_assert(dfem::always_false<entity_t>,
+                    "can't use GetEntityDimension on type");
+   }
+   return 0; // Unreachable, but avoids compiler warning
+}
+
 /// @brief Get the GetDofToQuad object for a given entity type.
 ///
 /// This function retrieves the DofToQuad object for a given field descriptor

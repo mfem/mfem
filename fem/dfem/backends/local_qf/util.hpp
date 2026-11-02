@@ -852,38 +852,39 @@ MFEM_HOST_DEVICE inline void qf_set_gradient_at(ARG &a, int i, int k, real_t v)
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Maps each FOP slot to unionfds indices — used with dtqs / create_dtq_maps
-template<typename C, typename T>
-const auto create_union_field_map_for_dtq(C& ctx, T& io)
+template<typename entity_t, typename T>
+const auto create_union_field_map_for_dtq(const IntegratorContext<entity_t>
+                                          &ctx,
+                                          T& io)
 {
-   using FE = Entity::Element;
-   return create_descriptors_to_fields_map<FE>(ctx.unionfds, io);
+   return create_descriptors_to_fields_map<entity_t>(ctx.unionfds, io);
 }
 
 /// **`xe[i]`** slot per input FOP — indices into **`ctx.infds`** (`SIZE_MAX` for Weight).
-template<typename C, typename T>
-const auto create_input_vector_map(C& ctx, T& io)
+template<typename entity_t, typename T>
+const auto create_input_vector_map(const IntegratorContext<entity_t> &ctx,
+                                   T& io)
 {
-   using FE = Entity::Element;
-   return create_descriptors_to_fields_map<FE>(ctx.infds, io);
+   return create_descriptors_to_fields_map<entity_t>(ctx.infds, io);
 }
 
 /// **`ye[i]`** slot per output FOP — indices into **`ctx.outfds`**.
-template<typename C, typename T>
-const auto create_output_vector_map(C& ctx, T& io)
+template<typename entity_t, typename T>
+const auto create_output_vector_map(const IntegratorContext<entity_t> &ctx,
+                                    T& io)
 {
-   using FE = Entity::Element;
-   return create_descriptors_to_fields_map<FE>(ctx.outfds, io);
+   return create_descriptors_to_fields_map<entity_t>(ctx.outfds, io);
 }
 
-template<typename C>
-const auto make_dtqs(C& ctx)
+template<typename entity_t>
+const auto make_dtqs(const IntegratorContext<entity_t> &ctx)
 {
    std::vector<const DofToQuad*> dtq_vec;
    dtq_vec.reserve(ctx.unionfds.size());
    constexpr auto dtq_mode = DofToQuad::Mode::TENSOR;
    for (const auto &field: ctx.unionfds)
    {
-      auto dtq = GetDofToQuad<Entity::Element>(field, ctx.ir, dtq_mode);
+      auto dtq = GetDofToQuad<entity_t>(field, ctx.ir, dtq_mode);
       dtq_vec.emplace_back(dtq);
    }
    return dtq_vec;
@@ -1036,7 +1037,9 @@ constexpr int compute_total_trial_op_dim(
    return total;
 }
 
-inline size_t find_union_field_index(const IntegratorContext &ctx, int field_id)
+template<typename entity_t>
+inline size_t find_union_field_index(const IntegratorContext<entity_t> &ctx,
+                                     int field_id)
 {
    for (size_t uf = 0; uf < ctx.unionfds.size(); uf++)
    {
@@ -1045,7 +1048,9 @@ inline size_t find_union_field_index(const IntegratorContext &ctx, int field_id)
    return SIZE_MAX;
 }
 
-inline size_t find_infd_index(const IntegratorContext &ctx, int field_id)
+template<typename entity_t>
+inline size_t find_infd_index(const IntegratorContext<entity_t> &ctx,
+                              int field_id)
 {
    for (size_t i = 0; i < ctx.infds.size(); i++)
    {
@@ -1089,7 +1094,8 @@ struct OutputFieldGroups
    /// Group index -> number of element dofs, or zero for a non-FE field.
    std::vector<int> num_test_dof;
 
-   OutputFieldGroups(const IntegratorContext &ctx, outputs_t &outputs)
+   template<typename entity_t>
+   OutputFieldGroups(const IntegratorContext<entity_t> &ctx, outputs_t &outputs)
    {
       // Reuse the existing output-index -> ctx.outfds-index mapping.
       const auto output_to_descriptor = create_output_vector_map(ctx, outputs);
@@ -1142,7 +1148,7 @@ struct OutputFieldGroups
    }
 };
 
-template<typename entity_t = Entity::Element>
+template<typename entity_t>
 inline int compute_element_dof_sz(
    const FieldDescriptor &fd,
    int num_entities,
