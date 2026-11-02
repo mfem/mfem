@@ -160,8 +160,10 @@ TEST_CASE("Quadrature Function Integration", "[QuadratureFunction][GPU]")
    auto fname = GENERATE(
                    "../../data/star.mesh",
                    "../../data/star-q3.mesh",
+                   "../../data/beam-tri.mesh",
                    "../../data/fichera.mesh",
-                   "../../data/fichera-q3.mesh"
+                   "../../data/fichera-q3.mesh",
+                   "../../data/beam-tet.mesh"
                 );
    const int order = GENERATE(1, 2, 3);
 

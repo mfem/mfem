@@ -72,8 +72,8 @@ protected:
    /// Fill the @ref int_rule array for each geometry type using @ref order.
    void ConstructIntRules(int dim);
 
-   /// Compute the det(J) (volume or faces, depending on the type).
-   virtual const Vector &GetGeometricFactorWeights() const = 0;
+   /// Compute det(J) (volume or faces, depending on type) in @a geom_weights.
+   virtual void GetGeometricFactorWeights(Vector &geom_weights) const = 0;
 
    /// Compute the integration weights.
    void ConstructWeights() const;
@@ -163,7 +163,7 @@ public:
 class QuadratureSpace : public QuadratureSpaceBase
 {
 protected:
-   const Vector &GetGeometricFactorWeights() const override;
+   void GetGeometricFactorWeights(Vector &geom_weights) const override;
    void ConstructOffsets();
    void Construct();
 public:
@@ -220,7 +220,7 @@ class FaceQuadratureSpace : public QuadratureSpaceBase
    /// Inverse of the map @a face_indices.
    const std::unordered_map<int,int> &face_indices_inv;
 
-   const Vector &GetGeometricFactorWeights() const override;
+   void GetGeometricFactorWeights(Vector &geom_weights) const override;
    void ConstructOffsets();
    void Construct();
 
