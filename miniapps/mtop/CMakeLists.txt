@@ -28,3 +28,27 @@ if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 					 LIBRARIES mfem)
 
 endif (MFEM_USE_MPI AND MFEM_USE_DOUBLE)
+
+if (MFEM_USE_LAPACK)
+  add_mfem_miniapp(projection_ghost_penalty
+    MAIN projection_ghost_penalty.cpp
+    EXTRA_SOURCES
+    EXTRA_HEADERS
+    LIBRARIES mfem)
+  if (MFEM_ENABLE_TESTING)
+    add_test(NAME ghost_penalty_demo_serial
+      COMMAND projection_ghost_penalty --serial --order 2 --vdim 3)
+    set_tests_properties(ghost_penalty_demo_serial PROPERTIES
+      LABELS ghost-penalty TIMEOUT 120)
+    if (MFEM_USE_MPI)
+      foreach(ranks 1 2 4)
+        add_test(NAME ghost_penalty_demo_np${ranks}
+          COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${ranks}
+          ${MPIEXEC_PREFLAGS} $<TARGET_FILE:projection_ghost_penalty>
+          --parallel --order 2 --vdim 3 ${MPIEXEC_POSTFLAGS})
+        set_tests_properties(ghost_penalty_demo_np${ranks} PROPERTIES
+          LABELS ghost-penalty TIMEOUT 120 PROCESSORS ${ranks})
+      endforeach()
+    endif()
+  endif()
+endif()

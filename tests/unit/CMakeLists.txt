@@ -11,6 +11,71 @@
 
 project(mfem-unit-tests NONE)
 
+if (MFEM_USE_LAPACK)
+  mfem_add_executable(ghost_penalty_failure fem/ghost_penalty_failure.cpp)
+  target_link_libraries(ghost_penalty_failure mfem)
+  add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ghost_penalty_failure)
+  set(ghost_failure_cases rank near-rank dimensions gamma weight nonfinite-weight
+      geometry curved flags stale variable-order vdim zero-rank
+      nonfinite-projection nonconforming)
+  set(ghost_failure_messages "rank-deficient projection" "rank-deficient projection"
+      "invalid projection dimensions" "gamma must be finite and nonnegative"
+      "quadrature weight must be positive" "quadrature weight must be positive"
+      "only affine triangles/tetrahedra" "only affine triangles/tetrahedra"
+      "invalid flag sizes" "stale selection" "conforming uniform-order H1"
+      "vector integrator requires vdim" "rank-deficient projection"
+      "nonfinite projection input" "conforming uniform-order H1")
+  list(LENGTH ghost_failure_cases ghost_failure_count)
+  math(EXPR ghost_failure_last "${ghost_failure_count}-1")
+  foreach(index RANGE 0 ${ghost_failure_last})
+    list(GET ghost_failure_cases ${index} scenario)
+    list(GET ghost_failure_messages ${index} expected)
+    add_test(NAME ghost_penalty_reject_${scenario}
+      COMMAND ${CMAKE_COMMAND} -DEXECUTABLE=$<TARGET_FILE:ghost_penalty_failure>
+      -DSCENARIO=${scenario} "-DEXPECTED=${expected}"
+      -P ${CMAKE_CURRENT_SOURCE_DIR}/fem/ghost_penalty_expect_failure.cmake)
+    set_tests_properties(ghost_penalty_reject_${scenario} PROPERTIES
+      LABELS ghost-penalty TIMEOUT 60)
+  endforeach()
+  add_test(NAME ghost_penalty_lapack_configuration
+    COMMAND ${CMAKE_COMMAND} "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DBINARY_DIR=${CMAKE_BINARY_DIR}/ghost-lapack-configuration"
+    "-DCXX_COMPILER=${CMAKE_CXX_COMPILER}"
+    "-DBLAS_LIBRARIES=${BLAS_LIBRARIES}"
+    "-DLAPACK_LIBRARIES=${LAPACK_LIBRARIES}"
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/fem/ghost_penalty_configuration.cmake)
+  set_tests_properties(ghost_penalty_lapack_configuration PROPERTIES
+    LABELS ghost-penalty TIMEOUT 240)
+  mfem_add_executable(ghost_penalty_tests unit_test_main.cpp fem/test_ghost_penalty.cpp)
+  target_include_directories(ghost_penalty_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+  target_link_libraries(ghost_penalty_tests mfem)
+  add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ghost_penalty_tests)
+  add_test(NAME ghost_penalty_serial COMMAND ghost_penalty_tests)
+  set_tests_properties(ghost_penalty_serial PROPERTIES
+    LABELS ghost-penalty TIMEOUT 180 SKIP_RETURN_CODE 242)
+  if (MFEM_USE_MPI)
+    mfem_add_executable(pghost_penalty_tests punit_test_main.cpp fem/test_ghost_penalty.cpp)
+    target_include_directories(pghost_penalty_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+    target_link_libraries(pghost_penalty_tests mfem)
+    add_test(NAME ghost_penalty_reject_parallel-rank
+      COMMAND ${CMAKE_COMMAND} -DEXECUTABLE=$<TARGET_FILE:ghost_penalty_failure>
+      -DSCENARIO=parallel-rank "-DEXPECTED=rank-deficient projection"
+      "-DMPIEXEC=${MPIEXEC}" "-DNUMPROC_FLAG=${MPIEXEC_NUMPROC_FLAG}"
+      "-DMPI_PREFLAGS=${MPIEXEC_PREFLAGS}" "-DMPI_POSTFLAGS=${MPIEXEC_POSTFLAGS}"
+      -P ${CMAKE_CURRENT_SOURCE_DIR}/fem/ghost_penalty_expect_failure.cmake)
+    set_tests_properties(ghost_penalty_reject_parallel-rank PROPERTIES
+      LABELS ghost-penalty TIMEOUT 60 PROCESSORS 2)
+    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} pghost_penalty_tests)
+    foreach(ranks 1 2 4)
+      add_test(NAME ghost_penalty_np${ranks}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${ranks} ${MPIEXEC_PREFLAGS}
+        $<TARGET_FILE:pghost_penalty_tests> ${MPIEXEC_POSTFLAGS})
+      set_tests_properties(ghost_penalty_np${ranks} PROPERTIES
+        LABELS ghost-penalty TIMEOUT 240 PROCESSORS ${ranks} SKIP_RETURN_CODE 242)
+    endforeach()
+  endif()
+endif()
+
 # Define a target that all examples and miniapps will depend on.
 set(MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME test_exec_prerequisites)
 add_custom_target(${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
