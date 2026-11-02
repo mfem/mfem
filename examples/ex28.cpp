@@ -6,6 +6,9 @@
 //               ex28 --visit-datafiles
 //               ex28 --order 2
 //
+// Device sample runs:
+//               ex28 -d cuda
+//
 // Description:  Demonstrates a sliding boundary condition in an elasticity
 //               problem. A trapezoid, roughly as pictured below, is pushed
 //               from the right into a rigid notch. Normal displacement is
@@ -83,6 +86,7 @@ int main(int argc, char *argv[])
    bool visualization = 1;
    real_t offset = 0.3;
    bool visit = false;
+   const char *device_config = "cpu";
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -95,6 +99,8 @@ int main(int argc, char *argv[])
    args.AddOption(&visit, "-visit", "--visit-datafiles", "-no-visit",
                   "--no-visit-datafiles",
                   "Save data files for VisIt (visit.llnl.gov) visualization.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.Parse();
    if (!args.Good())
    {
@@ -103,12 +109,17 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Build a trapezoidal mesh with a single quadrilateral element, where
+   // 2. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   device.Print();
+
+   // 3. Build a trapezoidal mesh with a single quadrilateral element, where
    //    'offset' determines how far off it is from a rectangle.
    Mesh *mesh = build_trapezoid_mesh(offset);
    int dim = mesh->Dimension();
 
-   // 3. Refine the mesh to increase the resolution. In this example we do
+   // 4. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 1,000
    //    elements.
@@ -121,7 +132,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 4. Define a finite element space on the mesh. Here we use vector finite
+   // 5. Define a finite element space on the mesh. Here we use vector finite
    //    elements, i.e. dim copies of a scalar finite element space. The vector
    //    dimension is specified by the last argument of the FiniteElementSpace
    //    constructor.
@@ -131,7 +142,7 @@ int main(int argc, char *argv[])
         << endl;
    cout << "Assembling matrix and r.h.s... " << flush;
 
-   // 5. Determine the list of true (i.e. parallel conforming) essential
+   // 6. Determine the list of true (i.e. parallel conforming) essential
    //    boundary dofs. In this example, there are no essential boundary
    //    conditions in the usual sense, but we leave the machinery here for
    //    users to modify if they wish.
@@ -139,7 +150,7 @@ int main(int argc, char *argv[])
    ess_bdr = 0;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   // 6. Set up the linear form b(.) which corresponds to the right-hand side of
+   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system. In this case, b_i equals the boundary integral
    //    of f*phi_i where f represents a "push" force on the right side of the
    //    trapezoid.
@@ -158,12 +169,12 @@ int main(int argc, char *argv[])
    b->AddBoundaryIntegrator(new VectorBoundaryLFIntegrator(f));
    b->Assemble();
 
-   // 7. Define the solution vector x as a finite element grid function
+   // 8. Define the solution vector x as a finite element grid function
    //    corresponding to fespace.
    GridFunction x(fespace);
    x = 0.0;
 
-   // 8. Set up the bilinear form a(.,.) on the finite element space
+   // 9. Set up the bilinear form a(.,.) on the finite element space
    //    corresponding to the linear elasticity integrator with piece-wise
    //    constants coefficient lambda and mu. We use constant coefficients,
    //    but see ex2 for how to set up piecewise constant coefficients based
@@ -178,7 +189,7 @@ int main(int argc, char *argv[])
    BilinearForm *a = new BilinearForm(fespace);
    a->AddDomainIntegrator(new ElasticityIntegrator(lambda_func, mu_func));
 
-   // 9. Assemble the bilinear form and the corresponding linear system,
+   // 10. Assemble the bilinear form and the corresponding linear system,
    //    applying any necessary transformations such as: eliminating boundary
    //    conditions, applying conforming constraints for non-conforming AMR,
    //    static condensation, etc.
@@ -190,7 +201,7 @@ int main(int argc, char *argv[])
    cout << "done." << endl;
    cout << "Size of linear system: " << A.Height() << endl;
 
-   // 10. Set up constraint matrix to constrain normal displacement (but
+   // 11. Set up constraint matrix to constrain normal displacement (but
    //     allow tangential displacement) on specified boundaries.
    Array<int> constraint_atts(2);
    constraint_atts[0] = 1;  // attribute 1 bottom
@@ -199,7 +210,7 @@ int main(int argc, char *argv[])
    SparseMatrix* local_constraints =
       BuildNormalConstraints(*fespace, constraint_atts, lagrange_rowstarts);
 
-   // 11. Define and apply an iterative solver for the constrained system
+   // 12. Define and apply an iterative solver for the constrained system
    //     in saddle-point form with a Gauss-Seidel smoother for the
    //     displacement block.
    GSSmoother M(A);
@@ -210,7 +221,7 @@ int main(int argc, char *argv[])
    solver->SetPrintLevel(1);
    solver->Mult(B, X);
 
-   // 12. Recover the solution as a finite element grid function. Move the
+   // 13. Recover the solution as a finite element grid function. Move the
    //     mesh to reflect the displacement of the elastic body being
    //     simulated, for purposes of output.
    a->RecoverFEMSolution(X, *b, x);
@@ -218,7 +229,7 @@ int main(int argc, char *argv[])
    GridFunction *nodes = mesh->GetNodes();
    *nodes += x;
 
-   // 13. Save the refined mesh and the solution in VisIt format.
+   // 14. Save the refined mesh and the solution in VisIt format.
    if (visit)
    {
       VisItDataCollection visit_dc("ex28", mesh);
@@ -227,7 +238,7 @@ int main(int argc, char *argv[])
       visit_dc.Save();
    }
 
-   // 14. Save the displaced mesh and the inverted solution (which gives the
+   // 15. Save the displaced mesh and the inverted solution (which gives the
    //     backward displacements to the original grid). This output can be
    //     viewed later using GLVis: "glvis -m displaced.mesh -g sol.gf".
    {
@@ -240,7 +251,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 15. Send the above data by socket to a GLVis server.  Use the "n" and "b"
+   // 16. Send the above data by socket to a GLVis server.  Use the "n" and "b"
    //     keys in GLVis to visualize the displacements.
    if (visualization)
    {
@@ -251,7 +262,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 16. Free the used memory.
+   // 17. Free the used memory.
    delete local_constraints;
    delete solver;
    delete a;
