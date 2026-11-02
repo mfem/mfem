@@ -316,7 +316,7 @@ TEST_CASE("Hypre preconditioners SetOperator",
       {
          // The assignment destroys the previous operator, still known to the
          // preconditioner, before SetOperator is called.
-         A = std::make_unique<HypreParMatrix>(*A0);
+         A = std::make_unique<HypreParMatrix>(*A0, false);
          *A *= 1.0 + i;
          pcg.SetOperator(*A);
          X = 0.0;
