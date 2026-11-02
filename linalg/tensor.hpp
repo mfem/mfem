@@ -1400,7 +1400,8 @@ T sqnorm(const tensor<T, m, n>& A)
 template <typename T, int... n> MFEM_HOST_DEVICE
 T norm(const tensor<T, n...>& A)
 {
-   return std::sqrt(sqnorm(A));
+   using std::sqrt;
+   return sqrt(sqnorm(A));
 }
 
 template <typename T, int n, int m> MFEM_HOST_DEVICE
@@ -1422,7 +1423,8 @@ T weight(const tensor<T, n, m>& A)
       T E = A[0][0] * A[0][0] + A[1][0] * A[1][0] + A[2][0] * A[2][0];
       T G = A[0][1] * A[0][1] + A[1][1] * A[1][1] + A[2][1] * A[2][1];
       T F = A[0][0] * A[0][1] + A[1][0] * A[1][1] + A[2][0] * A[2][1];
-      return std::sqrt(E * G - F * F);
+      using std::sqrt;
+      return sqrt(E * G - F * F);
    }
    // Never reached because of the static_assert, but avoids compiler warning.
    return T{};
@@ -1622,7 +1624,7 @@ inline tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig_symm(
    {
       real_t t;
       const real_t zeta = (d3 - d0) / (2.0 * d2);
-      const real_t azeta = fabs(zeta);
+      const real_t azeta = std::fabs(zeta);
       if (azeta < std::sqrt(1.0/std::numeric_limits<real_t>::epsilon()))
       {
          t = copysign(1./(azeta + std::sqrt(1. + zeta*zeta)), zeta);
@@ -1828,34 +1830,40 @@ T calcsv(const tensor<T, 1, 1> A, [[maybe_unused]] const int i)
 template <typename T> MFEM_HOST_DEVICE
 T calcsv(const tensor<T, 2, 2> A, const int i)
 {
+   using std::abs, std::sqrt;
    real_t mult;
-   real_t d0, d1, d2, d3;
+   T d0, d1, d2, d3;
    d0 = A(0, 0);
    d1 = A(1, 0);
    d2 = A(0, 1);
    d3 = A(1, 1);
 
-   real_t d_max = fabs(d0);
-   if (d_max < fabs(d1)) { d_max = fabs(d1); }
-   if (d_max < fabs(d2)) { d_max = fabs(d2); }
-   if (d_max < fabs(d3)) { d_max = fabs(d3); }
+   // The scaling factor is a power of 2, without derivative
+   real_t d_max = abs(get_value(d0));
+   if (d_max < abs(get_value(d1))) { d_max = abs(get_value(d1)); }
+   if (d_max < abs(get_value(d2))) { d_max = abs(get_value(d2)); }
+   if (d_max < abs(get_value(d3))) { d_max = abs(get_value(d3)); }
 
    GetScalingFactor(d_max, mult);
 
-   d0 /= mult;
-   d1 /= mult;
-   d2 /= mult;
-   d3 /= mult;
+   d0 = d0 / mult;
+   d1 = d1 / mult;
+   d2 = d2 / mult;
+   d3 = d3 / mult;
 
-   real_t t = 0.5*((d0+d2)*(d0-d2)+(d1-d3)*(d1+d3));
-   real_t s = d0*d2 + d1*d3;
-   s = std::sqrt(0.5*(d0*d0 + d1*d1 + d2*d2 + d3*d3) + std::sqrt(t*t + s*s));
+   T t = 0.5*((d0+d2)*(d0-d2)+(d1-d3)*(d1+d3));
+   T s = d0*d2 + d1*d3;
+   // Repeated singular values: t*t + s*s is minimal at zero, where its square
+   // root has no derivative, taken as zero
+   const T q = t*t + s*s;
+   const T r = (q == 0.0) ? T{} : sqrt(q);
+   s = sqrt(0.5*(d0*d0 + d1*d1 + d2*d2 + d3*d3) + r);
 
    if (s == 0.0)
    {
-      return 0.0;
+      return T{};
    }
-   t = fabs(d0*d3 - d1*d2) / s;
+   t = abs(d0*d3 - d1*d2) / s;
    if (t > s)
    {
       if (i == 0)
