@@ -3245,9 +3245,8 @@ private:
    int dim, ne, dofs1D, quad1D;
 
 public:
-   DivDivIntegrator() { Q = NULL; }
-   DivDivIntegrator(Coefficient &q, const IntegrationRule *ir = NULL) :
-      BilinearFormIntegrator(ir), Q(&q) { }
+   DivDivIntegrator();
+   DivDivIntegrator(Coefficient &q, const IntegrationRule *ir = NULL);
 
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,
@@ -3266,6 +3265,23 @@ public:
                    const bool add) override;
 
    const Coefficient *GetCoefficient() const { return Q; }
+
+   /// arguments: d1d, q1d, NE, Bo, Gc, Bot, Gct, pa_data, x, y
+   using ApplyKernelType = void (*)(const int, const int, const int,
+                                    const Array<real_t> &,
+                                    const Array<real_t> &,
+                                    const Array<real_t> &,
+                                    const Array<real_t> &, const Vector &,
+                                    const Vector &, Vector &);
+
+   /// parameters: dim, d1d, q1d
+   MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+   struct Kernels { Kernels(); };
+
+   template <int DIM, int D1D, int Q1D> static void AddSpecialization()
+   {
+      ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
 };
 
 /** Class for integrating the bilinear form $a(u,v) := (Q \nabla u, \nabla v)$,

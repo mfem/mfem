@@ -58,11 +58,7 @@ protected:
 
    /// @name Tolerance used for point comparisons
    ///@{
-#ifdef MFEM_USE_DOUBLE
-   static constexpr real_t tol_0 = 1e-15;
-#elif defined(MFEM_USE_SINGLE)
-   static constexpr real_t tol_0 = 1e-7;
-#endif
+   static constexpr real_t tol_0 = MFEM_PRECISION_SWITCH(1e-15,1e-7f);
    ///@}
 
 public:
@@ -302,15 +298,9 @@ public:
         rel_qpts_order(-1),
         solver_type(NewtonElementProject),
         max_iter(16),
-#ifdef MFEM_USE_DOUBLE
-        ref_tol(1e-15),
-        phys_rtol(4e-15),
-        ip_tol(1e-8),
-#elif defined(MFEM_USE_SINGLE)
-        ref_tol(4e-7),
-        phys_rtol(1e-6),
-        ip_tol(1e-4),
-#endif
+        ref_tol(MFEM_PRECISION_SWITCH(1e-15,4e-7f)),
+        phys_rtol(MFEM_PRECISION_SWITCH(4e-15,1e-6f)),
+        ip_tol(MFEM_PRECISION_SWITCH(1e-8,1e-4f)),
         print_level(-1)
    { }
 

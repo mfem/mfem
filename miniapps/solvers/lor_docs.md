@@ -50,13 +50,12 @@ HypreParMatrix &A_lor = lor.GetAssembledMatrix();
 
 ## Passing options to solvers
 
-Some solvers require special options passed to the constructor.
-For example, this can be useful when creating AMS preconditioners, which require access to the finite element space:
+LORSolver can be specialized on the solver type.
+Two examples of this are `LORSolver<HypreAMS>` and `LORSolver<HypreADS>`, which can be constructed by passing the high-order bilinear form and the list of essential DOFs.
 ```c++
-ParLORDiscretization lor(a, ess_tdof_list);
-LORSolver<HypreAMS> ams(lor, &lor.GetParFESpace());
+LORSolver<HypreAMS> ams(a, ess_tdof_list);
 ```
-In this case, parameters passed to the `LORSolver` constructor will be forwarded to the `HypreAMS` constructor.
+This specialization assembles the LOR matrix and the auxiliary operators needed by AMS.
 Also, note that the underlying solver object can be accessed with the `GetSolver` member function.
 
 ## Assembling custom bilinear forms
@@ -70,6 +69,7 @@ LORDiscretization lor(fes); // Create LOR version of fes, don't assemble any for
 BilinearForm a_lor(&lor.GetFESpace());
 a_lor.AddDomainIntegrator(new MassIntegrator);
 a_lor.Assemble();
+a_lor.Finalize();
 LORSolver<DSmoother> D(a_lor.SpMat(), lor);
 ```
 In this case, the object `lor` does not assemble any forms, and does not represent any particular operator.

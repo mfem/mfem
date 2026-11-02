@@ -82,24 +82,10 @@ inline void SmemPAHcurlMassAssembleDiagonal3D(const int d1d,
       MFEM_SHARED real_t sBo[MQ1D][MD1D];
       MFEM_SHARED real_t sBc[MQ1D][MD1D];
 
-      real_t op3[3];
-      MFEM_SHARED real_t sop[3][MQ1D][MQ1D];
+      MFEM_SHARED real_t sop[MQ1D][MQ1D][MQ1D];
+      MFEM_SHARED real_t mass_1[MQ1D][MQ1D][MD1D];
+      MFEM_SHARED real_t mass_2[MQ1D][MD1D][MD1D];
 
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qz,z,Q1D)
-            {
-               op3[0] = op(qx,qy,qz,0,e);
-               op3[1] = op(qx,qy,qz,symmetric ? 3 : 4,e);
-               op3[2] = op(qx,qy,qz,symmetric ? 5 : 8,e);
-            }
-         }
-      }
-
-      const int tidx = MFEM_THREAD_ID(x);
-      const int tidy = MFEM_THREAD_ID(y);
       const int tidz = MFEM_THREAD_ID(z);
 
       if (tidz == 0)
@@ -116,53 +102,64 @@ inline void SmemPAHcurlMassAssembleDiagonal3D(const int d1d,
             }
          }
       }
-      MFEM_SYNC_THREAD;
 
-      int osc = 0;
+      int offset = 0;
       for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
       {
          const int D1Dz = (c == 2) ? D1D - 1 : D1D;
          const int D1Dy = (c == 1) ? D1D - 1 : D1D;
          const int D1Dx = (c == 0) ? D1D - 1 : D1D;
 
-         real_t dxyz = 0.0;
+         const int opc = (c == 0) ? 0 : ((c == 1) ? (symmetric ? 3 : 4) :
+                                         (symmetric ? 5 : 8));
 
-         for (int qz=0; qz < Q1D; ++qz)
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
          {
-            if (tidz == qz)
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               for (int i=0; i<3; ++i)
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  sop[i][tidx][tidy] = op3[i];
+                  sop[qz][qy][qx] = op(qx,qy,qz,opc,e);
                }
             }
+         }
+         MFEM_SYNC_THREAD;
 
-            MFEM_SYNC_THREAD;
-
-            MFEM_FOREACH_THREAD(dz,z,D1Dz)
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               const real_t wz = ((c == 2) ? sBo[qz][dz] : sBc[qz][dz]);
-
-               MFEM_FOREACH_THREAD(dy,y,D1Dy)
+               MFEM_FOREACH_THREAD(dx,x,D1Dx)
                {
-                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  real_t val = 0.0;
+                  for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     for (int qy = 0; qy < Q1D; ++qy)
-                     {
-                        const real_t wy = ((c == 1) ? sBo[qy][dy] : sBc[qy][dy]);
-
-                        for (int qx = 0; qx < Q1D; ++qx)
-                        {
-                           const real_t wx = ((c == 0) ? sBo[qx][dx] : sBc[qx][dx]);
-                           dxyz += sop[c][qx][qy] * wx * wx * wy * wy * wz * wz;
-                        }
-                     }
+                     const real_t b = (c == 0) ? sBo[qx][dx] : sBc[qx][dx];
+                     val += b * b * sop[qz][qy][qx];
                   }
+                  mass_1[qz][qy][dx] = val;
                }
             }
+         }
+         MFEM_SYNC_THREAD;
 
-            MFEM_SYNC_THREAD;
-         }  // qz loop
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1Dy)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1Dx)
+               {
+                  real_t val = 0.0;
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     const real_t b = (c == 1) ? sBo[qy][dy] : sBc[qy][dy];
+                     val += b * b * mass_1[qz][qy][dx];
+                  }
+                  mass_2[qz][dy][dx] = val;
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
 
          MFEM_FOREACH_THREAD(dz,z,D1Dz)
          {
@@ -170,12 +167,19 @@ inline void SmemPAHcurlMassAssembleDiagonal3D(const int d1d,
             {
                MFEM_FOREACH_THREAD(dx,x,D1Dx)
                {
-                  D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
+                  real_t val = 0.0;
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     const real_t b = (c == 2) ? sBo[qz][dz] : sBc[qz][dz];
+                     val += b * b * mass_2[qz][dy][dx];
+                  }
+                  D(dx + ((dy + (dz * D1Dy)) * D1Dx) + offset, e) += val;
                }
             }
          }
+         MFEM_SYNC_THREAD;
 
-         osc += D1Dx * D1Dy * D1Dz;
+         offset += D1Dx * D1Dy * D1Dz;
       }  // c loop
    }); // end of element loop
 }
@@ -723,7 +727,7 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
                                              const int NE,
                                              const Array<real_t> &bo,
                                              const Array<real_t> &bc,
-                                             const Array<real_t> &go,
+                                             [[maybe_unused]] const Array<real_t> &go,
                                              const Array<real_t> &gc,
                                              const Vector &pa_data,
                                              Vector &diag)
@@ -737,12 +741,10 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
 
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
-   auto Go = Reshape(go.Read(), Q1D, D1D-1);
    auto Gc = Reshape(gc.Read(), Q1D, D1D);
    auto op = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, (symmetric ? 6 : 9), NE);
    auto D = Reshape(diag.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
 
-   const int s = symmetric ? 6 : 9;
    const int i11 = 0;
    const int i12 = 1;
    const int i13 = 2;
@@ -760,6 +762,14 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
       // If c = 0, \hat{\nabla}\times\hat{u} reduces to [0, (u_0)_{x_2}, -(u_0)_{x_1}]
       // If c = 1, \hat{\nabla}\times\hat{u} reduces to [-(u_1)_{x_2}, 0, (u_1)_{x_0}]
       // If c = 2, \hat{\nabla}\times\hat{u} reduces to [(u_2)_{x_1}, -(u_2)_{x_0}, 0]
+      //
+      // For each component c, the diagonal is a sum of three terms. Let a < b
+      // be the two directions other than c. Then the 1D factors of each term
+      // are:
+      //   term 0: B_c^2 in direction a, G_c^2 in direction b,
+      //   term 1: B_c G_c in directions a and b,
+      //   term 2: G_c^2 in direction a, B_c^2 in direction b,
+      // and B_o^2 in direction c. Each term is sum factorized separately.
 
       constexpr int VDIM = 3;
       constexpr int MD1D = T_D1D ? T_D1D : DofQuadLimits::HCURL_MAX_D1D;
@@ -769,28 +779,12 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
 
       MFEM_SHARED real_t sBo[MQ1D][MD1D];
       MFEM_SHARED real_t sBc[MQ1D][MD1D];
-      MFEM_SHARED real_t sGo[MQ1D][MD1D];
       MFEM_SHARED real_t sGc[MQ1D][MD1D];
 
-      real_t ope[9];
-      MFEM_SHARED real_t sop[9][MQ1D][MQ1D];
+      MFEM_SHARED real_t sop[3][MQ1D][MQ1D][MQ1D];
+      MFEM_SHARED real_t mass_1[3][MQ1D][MQ1D][MD1D];
+      MFEM_SHARED real_t mass_2[3][MQ1D][MD1D][MD1D];
 
-      MFEM_FOREACH_THREAD(qx,x,Q1D)
-      {
-         MFEM_FOREACH_THREAD(qy,y,Q1D)
-         {
-            MFEM_FOREACH_THREAD(qz,z,Q1D)
-            {
-               for (int i=0; i<s; ++i)
-               {
-                  ope[i] = op(qx,qy,qz,i,e);
-               }
-            }
-         }
-      }
-
-      const int tidx = MFEM_THREAD_ID(x);
-      const int tidy = MFEM_THREAD_ID(y);
       const int tidz = MFEM_THREAD_ID(z);
 
       if (tidz == 0)
@@ -804,113 +798,162 @@ inline void SmemPACurlCurlAssembleDiagonal3D(const int d1d,
                if (d < D1D-1)
                {
                   sBo[q][d] = Bo(q,d);
-                  sGo[q][d] = Go(q,d);
                }
             }
          }
       }
-      MFEM_SYNC_THREAD;
 
-      int osc = 0;
+      int offset = 0;
       for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
       {
          const int D1Dz = (c == 2) ? D1D - 1 : D1D;
          const int D1Dy = (c == 1) ? D1D - 1 : D1D;
          const int D1Dx = (c == 0) ? D1D - 1 : D1D;
 
-         real_t dxyz = 0.0;
-
-         for (int qz=0; qz < Q1D; ++qz)
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
          {
-            if (tidz == qz)
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
             {
-               for (int i=0; i<s; ++i)
+               MFEM_FOREACH_THREAD(qx,x,Q1D)
                {
-                  sop[i][tidx][tidy] = ope[i];
-               }
-            }
-
-            MFEM_SYNC_THREAD;
-
-            MFEM_FOREACH_THREAD(dz,z,D1Dz)
-            {
-               const real_t wz = ((c == 2) ? sBo[qz][dz] : sBc[qz][dz]);
-               const real_t wDz = ((c == 2) ? sGo[qz][dz] : sGc[qz][dz]);
-
-               MFEM_FOREACH_THREAD(dy,y,D1Dy)
-               {
-                  MFEM_FOREACH_THREAD(dx,x,D1Dx)
+                  if (c == 0)
                   {
-                     for (int qy = 0; qy < Q1D; ++qy)
-                     {
-                        const real_t wy = ((c == 1) ? sBo[qy][dy] : sBc[qy][dy]);
-                        const real_t wDy = ((c == 1) ? sGo[qy][dy] : sGc[qy][dy]);
-
-                        for (int qx = 0; qx < Q1D; ++qx)
-                        {
-                           const real_t wx = ((c == 0) ? sBo[qx][dx] : sBc[qx][dx]);
-                           const real_t wDx = ((c == 0) ? sGo[qx][dx] : sGc[qx][dx]);
-
-                           if (c == 0)
-                           {
-                              // (u_0)_{x_2} (O22 (u_0)_{x_2} - O23 (u_0)_{x_1}) - (u_0)_{x_1} (O32 (u_0)_{x_2} - O33 (u_0)_{x_1})
-
-                              // (u_0)_{x_2} O22 (u_0)_{x_2}
-                              dxyz += sop[i22][qx][qy] * wx * wx * wy * wy * wDz * wDz;
-
-                              // -(u_0)_{x_2} O23 (u_0)_{x_1} - (u_0)_{x_1} O32 (u_0)_{x_2}
-                              dxyz += -(sop[i23][qx][qy] + sop[i32][qx][qy]) * wx * wx * wDy * wy * wDz * wz;
-
-                              // (u_0)_{x_1} O33 (u_0)_{x_1}
-                              dxyz += sop[i33][qx][qy] * wx * wx * wDy * wDy * wz * wz;
-                           }
-                           else if (c == 1)
-                           {
-                              // (u_1)_{x_2} (O11 (u_1)_{x_2} - O13 (u_1)_{x_0}) + (u_1)_{x_0} (-O31 (u_1)_{x_2} + O33 (u_1)_{x_0})
-
-                              // (u_1)_{x_2} O11 (u_1)_{x_2}
-                              dxyz += sop[i11][qx][qy] * wx * wx * wy * wy * wDz * wDz;
-
-                              // -(u_1)_{x_2} O13 (u_1)_{x_0} - (u_1)_{x_0} O31 (u_1)_{x_2}
-                              dxyz += -(sop[i13][qx][qy] + sop[i31][qx][qy]) * wDx * wx * wy * wy * wDz * wz;
-
-                              // (u_1)_{x_0} O33 (u_1)_{x_0})
-                              dxyz += sop[i33][qx][qy] * wDx * wDx * wy * wy * wz * wz;
-                           }
-                           else
-                           {
-                              // (u_2)_{x_1} (O11 (u_2)_{x_1} - O12 (u_2)_{x_0}) - (u_2)_{x_0} (O21 (u_2)_{x_1} - O22 (u_2)_{x_0})
-
-                              // (u_2)_{x_1} O11 (u_2)_{x_1}
-                              dxyz += sop[i11][qx][qy] * wx * wx * wDy * wDy * wz * wz;
-
-                              // -(u_2)_{x_1} O12 (u_2)_{x_0} - (u_2)_{x_0} O21 (u_2)_{x_1}
-                              dxyz += -(sop[i12][qx][qy] + sop[i21][qx][qy]) * wDx * wx * wDy * wy * wz * wz;
-
-                              // (u_2)_{x_0} O22 (u_2)_{x_0}
-                              dxyz += sop[i22][qx][qy] * wDx * wDx * wy * wy * wz * wz;
-                           }
-                        }
-                     }
+                     // (u_0)_{x_2} (O22 (u_0)_{x_2} - O23 (u_0)_{x_1}) - (u_0)_{x_1} (O32 (u_0)_{x_2} - O33 (u_0)_{x_1})
+                     sop[0][qz][qy][qx] = op(qx,qy,qz,i22,e);
+                     sop[1][qz][qy][qx] = -(op(qx,qy,qz,i23,e) + op(qx,qy,qz,i32,e));
+                     sop[2][qz][qy][qx] = op(qx,qy,qz,i33,e);
+                  }
+                  else if (c == 1)
+                  {
+                     // (u_1)_{x_2} (O11 (u_1)_{x_2} - O13 (u_1)_{x_0}) + (u_1)_{x_0} (-O31 (u_1)_{x_2} + O33 (u_1)_{x_0})
+                     sop[0][qz][qy][qx] = op(qx,qy,qz,i11,e);
+                     sop[1][qz][qy][qx] = -(op(qx,qy,qz,i13,e) + op(qx,qy,qz,i31,e));
+                     sop[2][qz][qy][qx] = op(qx,qy,qz,i33,e);
+                  }
+                  else
+                  {
+                     // (u_2)_{x_1} (O11 (u_2)_{x_1} - O12 (u_2)_{x_0}) - (u_2)_{x_0} (O21 (u_2)_{x_1} - O22 (u_2)_{x_0})
+                     sop[0][qz][qy][qx] = op(qx,qy,qz,i11,e);
+                     sop[1][qz][qy][qx] = -(op(qx,qy,qz,i12,e) + op(qx,qy,qz,i21,e));
+                     sop[2][qz][qy][qx] = op(qx,qy,qz,i22,e);
                   }
                }
             }
+         }
+         MFEM_SYNC_THREAD;
 
-            MFEM_SYNC_THREAD;
-         }  // qz loop
+         // x contraction
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD(qy,y,Q1D)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1Dx)
+               {
+                  real_t val[3] = {0.0, 0.0, 0.0};
+                  for (int qx = 0; qx < Q1D; ++qx)
+                  {
+                     real_t w[3];
+                     if (c == 0)
+                     {
+                        const real_t b = sBo[qx][dx];
+                        w[0] = w[1] = w[2] = b * b;
+                     }
+                     else
+                     {
+                        const real_t b = sBc[qx][dx];
+                        const real_t g = sGc[qx][dx];
+                        w[0] = b * b;
+                        w[1] = g * b;
+                        w[2] = g * g;
+                     }
+                     for (int t = 0; t < 3; ++t)
+                     {
+                        val[t] += w[t] * sop[t][qz][qy][qx];
+                     }
+                  }
+                  for (int t = 0; t < 3; ++t)
+                  {
+                     mass_1[t][qz][qy][dx] = val[t];
+                  }
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
 
+         // y contraction
+         MFEM_FOREACH_THREAD(qz,z,Q1D)
+         {
+            MFEM_FOREACH_THREAD(dy,y,D1Dy)
+            {
+               MFEM_FOREACH_THREAD(dx,x,D1Dx)
+               {
+                  real_t val[3] = {0.0, 0.0, 0.0};
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     real_t w[3];
+                     if (c == 1)
+                     {
+                        const real_t b = sBo[qy][dy];
+                        w[0] = w[1] = w[2] = b * b;
+                     }
+                     else
+                     {
+                        const real_t b = sBc[qy][dy];
+                        const real_t g = sGc[qy][dy];
+                        w[0] = (c == 0) ? b * b : g * g;
+                        w[1] = g * b;
+                        w[2] = (c == 0) ? g * g : b * b;
+                     }
+                     for (int t = 0; t < 3; ++t)
+                     {
+                        val[t] += w[t] * mass_1[t][qz][qy][dx];
+                     }
+                  }
+                  for (int t = 0; t < 3; ++t)
+                  {
+                     mass_2[t][qz][dy][dx] = val[t];
+                  }
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         // z contraction
          MFEM_FOREACH_THREAD(dz,z,D1Dz)
          {
             MFEM_FOREACH_THREAD(dy,y,D1Dy)
             {
                MFEM_FOREACH_THREAD(dx,x,D1Dx)
                {
-                  D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += dxyz;
+                  real_t val = 0.0;
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     real_t w[3];
+                     if (c == 2)
+                     {
+                        const real_t b = sBo[qz][dz];
+                        w[0] = w[1] = w[2] = b * b;
+                     }
+                     else
+                     {
+                        const real_t b = sBc[qz][dz];
+                        const real_t g = sGc[qz][dz];
+                        w[0] = g * g;
+                        w[1] = g * b;
+                        w[2] = b * b;
+                     }
+                     for (int t = 0; t < 3; ++t)
+                     {
+                        val += w[t] * mass_2[t][qz][dy][dx];
+                     }
+                  }
+                  D(dx + ((dy + (dz * D1Dy)) * D1Dx) + offset, e) += val;
                }
             }
          }
+         MFEM_SYNC_THREAD;
 
-         osc += D1Dx * D1Dy * D1Dz;
+         offset += D1Dx * D1Dy * D1Dz;
       }  // c loop
    }); // end of element loop
 }

@@ -200,7 +200,7 @@ public:
 
 ///  Transpose a Table
 void Transpose (const Table &A, Table &At, int ncols_A_ = -1);
-Table * Transpose (const Table &A);
+[[nodiscard]] Table * Transpose (const Table &A);
 
 ///  @brief Transpose an Array<int>.
 ///
@@ -212,7 +212,7 @@ void Transpose(const Array<int> &A, Table &At, int ncols_A_ = -1);
 
 ///  C = A * B  (as boolean matrices)
 void Mult (const Table &A, const Table &B, Table &C);
-Table * Mult (const Table &A, const Table &B);
+[[nodiscard]] Table * Mult (const Table &A, const Table &B);
 
 
 /** Data type STable. STable is similar to Table, but it's for symmetric
