@@ -18,11 +18,38 @@ using namespace std;
 namespace mfem
 {
 
+ComplexGridFunction::ComplexGridFunction()
+   : Vector(), gfr(NULL), gfi(NULL), fes(NULL), fec_owned(NULL),
+     fes_sequence(-1)
+{ }
+
 ComplexGridFunction::ComplexGridFunction(FiniteElementSpace *f)
    : Vector(2*(f->GetVSize())), fes(f), fec_owned(NULL)
 {
    UseDevice(true);
    this->Vector::operator=(0.0);
+
+   gfr = new GridFunction();
+   gfr->MakeRef(fes, *this, 0);
+
+   gfi = new GridFunction();
+   gfi->MakeRef(fes, *this, fes->GetVSize());
+
+   fes_sequence = fes->GetSequence();
+}
+
+ComplexGridFunction::ComplexGridFunction(const ComplexGridFunction &orig)
+   : Vector(orig), gfr(NULL), gfi(NULL), fes(NULL), fec_owned(NULL),
+     fes_sequence(-1)
+{
+   UseDevice(true);
+#ifdef MFEM_USE_MPI
+   MFEM_VERIFY(!dynamic_cast<const ParFiniteElementSpace *>(orig.fes),
+               "cannot copy a ParComplexGridFunction as a ComplexGridFunction; "
+               "copy it as a ParComplexGridFunction instead.");
+#endif
+   fec_owned = orig.fes->FEColl()->Clone(orig.fes->FEColl()->GetOrder());
+   fes = new FiniteElementSpace(*orig.fes, NULL, fec_owned);
 
    gfr = new GridFunction();
    gfr->MakeRef(fes, *this, 0);
@@ -1251,22 +1278,48 @@ MixedSesquilinearForm::Update()
 #ifdef MFEM_USE_MPI
 
 ParComplexGridFunction::ParComplexGridFunction(ParFiniteElementSpace *pf)
-   : Vector(2*(pf->GetVSize())), pfes(pf), fec_owned(NULL)
+   : ComplexGridFunction(), pfes(pf), pgfr(NULL), pgfi(NULL)
 {
    UseDevice(true);
+   SetSize(2 * pfes->GetVSize());
    this->Vector::operator=(0.0);
+
+   fes = pfes;
 
    pgfr = new ParGridFunction();
    pgfr->MakeRef(pfes, *this, 0);
+   gfr = pgfr;
 
    pgfi = new ParGridFunction();
    pgfi->MakeRef(pfes, *this, pfes->GetVSize());
+   gfi = pgfi;
+
+   fes_sequence = pfes->GetSequence();
+}
+
+ParComplexGridFunction::ParComplexGridFunction(
+   const ParComplexGridFunction &orig)
+   : ComplexGridFunction(), pfes(NULL), pgfr(NULL), pgfi(NULL)
+{
+   UseDevice(true);
+   this->Vector::operator=(orig);
+   fec_owned = orig.pfes->FEColl()->Clone(orig.pfes->FEColl()->GetOrder());
+   pfes = new ParFiniteElementSpace(*orig.pfes, NULL, fec_owned);
+   fes = pfes;
+
+   pgfr = new ParGridFunction();
+   pgfr->MakeRef(pfes, *this, 0);
+   gfr = pgfr;
+
+   pgfi = new ParGridFunction();
+   pgfi->MakeRef(pfes, *this, pfes->GetVSize());
+   gfi = pgfi;
 
    fes_sequence = pfes->GetSequence();
 }
 
 ParComplexGridFunction::ParComplexGridFunction(ParMesh *m, std::istream &input)
-   : Vector(), pfes(NULL), fec_owned(NULL)
+   : ComplexGridFunction(), pfes(NULL), pgfr(NULL), pgfi(NULL)
 {
    string buff;
 
@@ -1281,13 +1334,14 @@ ParComplexGridFunction::ParComplexGridFunction(ParMesh *m, std::istream &input)
       MFEM_ABORT("unrecognized file header: " << buff);
    }
 
-   FiniteElementSpace *fes = new FiniteElementSpace;
-   fec_owned = fes->Load(m, input);
+   FiniteElementSpace *serial_fes = new FiniteElementSpace;
+   fec_owned = serial_fes->Load(m, input);
 
-   pfes = new ParFiniteElementSpace(m, fec_owned, fes->GetVDim(),
-                                    fes->GetOrdering());
+   pfes = new ParFiniteElementSpace(m, fec_owned, serial_fes->GetVDim(),
+                                    serial_fes->GetOrdering());
 
-   delete fes;
+   delete serial_fes;
+   fes = pfes;
 
    skip_comment_lines(input, '#');
    istream::int_type next_char = input.peek();
@@ -1326,23 +1380,13 @@ ParComplexGridFunction::ParComplexGridFunction(ParMesh *m, std::istream &input)
 
    pgfr = new ParGridFunction();
    pgfr->MakeRef(pfes, *this, 0);
+   gfr = pgfr;
 
    pgfi = new ParGridFunction();
    pgfi->MakeRef(pfes, *this, pfes->GetVSize());
+   gfi = pgfi;
 
    fes_sequence = pfes->GetSequence();
-}
-
-void ParComplexGridFunction::Destroy()
-{
-   delete pgfr; delete pgfi;
-
-   if (fec_owned)
-   {
-      delete pfes;
-      delete fec_owned;
-      fec_owned = NULL;
-   }
 }
 
 void
@@ -1400,17 +1444,6 @@ ParComplexGridFunction::Update()
       pgfr->Update();
       pgfi->Update();
    }
-}
-
-int ParComplexGridFunction::VectorDim() const
-{
-   const FiniteElement *fe = pfes->GetTypicalFE();
-   if (!fe || fe->GetRangeType() == FiniteElement::SCALAR)
-   {
-      return pfes->GetVDim();
-   }
-   return pfes->GetVDim()*std::max(pfes->GetMesh()->SpaceDimension(),
-                                   fe->GetRangeDim());
 }
 
 void
