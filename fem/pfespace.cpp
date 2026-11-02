@@ -29,6 +29,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
+using namespace std;
+
 namespace mfem
 {
 ParFiniteElementSpace::ParFiniteElementSpace(
@@ -1162,6 +1164,30 @@ void ParFiniteElementSpace::GetEssentialVDofs(const Array<int> &bdr_attr_is_ess,
    Synchronize(ess_dofs);
 }
 
+void ParFiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
+                                              int set_index,
+                                              Array<int> &ess_dofs,
+                                              int component) const
+{
+   FiniteElementSpace::GetEssentialVDofs(type, set_index, ess_dofs, component);
+
+   if (Conforming())
+   {
+      // Make sure that processors without boundary elements mark
+      // their boundary dofs (if they have any).
+      Synchronize(ess_dofs);
+   }
+}
+
+void ParFiniteElementSpace::GetEssentialVDofs(EntitySets::EntityType type,
+                                              const string & set_name,
+                                              Array<int> &ess_vdofs,
+                                              int component) const
+{
+   GetEssentialVDofs(type, pmesh->ent_sets->GetSetIndex(type, set_name),
+                     ess_vdofs, component);
+}
+
 void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
                                                  &bdr_attr_is_ess,
                                                  Array<int> &ess_tdof_list,
@@ -1213,6 +1239,27 @@ void ParFiniteElementSpace::GetEssentialTrueDofs(const Array<int>
 #endif
 
    MarkerToList(true_ess_dofs, ess_tdof_list);
+}
+
+void ParFiniteElementSpace::GetEssentialTrueDofs(EntitySets::EntityType type,
+                                                 int set_index,
+                                                 Array<int> &ess_tdof_list,
+                                                 int component)
+{
+   Array<int> ess_dofs, true_ess_dofs;
+
+   GetEssentialVDofs(type, set_index, ess_dofs, component);
+   GetRestrictionMatrix()->BooleanMult(ess_dofs, true_ess_dofs);
+   MarkerToList(true_ess_dofs, ess_tdof_list);
+}
+
+void ParFiniteElementSpace::GetEssentialTrueDofs(EntitySets::EntityType type,
+                                                 const string & set_name,
+                                                 Array<int> &ess_tdof_list,
+                                                 int component)
+{
+   GetEssentialTrueDofs(type, pmesh->ent_sets->GetSetIndex(type, set_name),
+                        ess_tdof_list, component);
 }
 
 void ParFiniteElementSpace::GetEssentialTrueDofsVar(const Array<int>

@@ -15,6 +15,8 @@
 #include "mem_alloc.hpp"
 #include "../general/globals.hpp"
 
+#include <iostream>
+
 namespace mfem
 {
 
@@ -22,7 +24,7 @@ class STable3DNode
 {
 public:
    STable3DNode *Prev;
-   int Column, Floor, Number;
+   int Column, Floor, Tier, Number;
 };
 
 /** @brief Symmetric 3D Table stored as an array of rows each of which has a
@@ -47,7 +49,7 @@ public:
 
    /** @brief Check to see if this entry is in the table and add it to the table
        if it is not there. Returns the number assigned to the table entry. */
-   int Push (int r, int c, int f);
+   int Push (int r, int c, int f, int t = -1);
 
    /// Return the number assigned to the table entry. Abort if it's not there.
    int operator() (int r, int c, int f) const;
@@ -66,13 +68,30 @@ public:
        not there. */
    int operator() (int r, int c, int f, int t) const;
 
+   /// Return the number of rows added to the table.
+   int NumberOfRows() const { return Size; }
+
    /// Return the number of elements added to the table.
-   int NumberOfElements() { return NElem; }
+   int NumberOfElements() const { return NElem; }
 
    /// Print out all of the table elements.
    void Print(std::ostream &out = mfem::out) const;
 
    ~STable3D ();
+
+   class RowIterator
+   {
+   private:
+      STable3DNode *n;
+   public:
+      RowIterator (const STable3D &t, int r) { n = t.Rows[r]; }
+      int operator!() { return (n != NULL); }
+      void operator++() { n = n->Prev; }
+      int Column() { return (n->Column); }
+      int Floor()  { return (n->Floor); }
+      int Tier()   { return (n->Tier); }
+      int Index()  { return (n->Number); }
+   };
 };
 
 }

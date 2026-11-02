@@ -21,6 +21,7 @@
 #include "vertex.hpp"
 #include "vtk.hpp"
 #include "ncmesh.hpp"
+#include "entsets.hpp"
 #include "../fem/eltrans.hpp"
 #include "../fem/coefficient.hpp"
 #include "../general/zstr.hpp"
@@ -72,7 +73,10 @@ class Mesh
 #ifdef MFEM_USE_MPI
    friend class ParMesh;
    friend class ParNCMesh;
+   friend class ParEntitySets;
 #endif
+   friend class EntitySets;
+
 #ifdef MFEM_USE_ADIOS2
    friend class adios2stream;
 #endif
@@ -250,12 +254,13 @@ protected:
    Table *bel_to_edge;    // for 3D only
 
    // Note that the following tables are owned by this class and should not be
-   // deleted by the caller. Of these four tables, only face_edge, edge_face and
-   // edge_vertex are returned by access functions.
+   // deleted by the caller. Of these five tables, only face_edge, edge_face,
+   // edge_vertex, and face_vertex are returned by access functions.
    mutable Table *face_to_elem;  // Used by FindFaceNeighbors, not returned.
    mutable Table *face_edge;     // Returned by GetFaceEdgeTable().
    mutable Table *edge_face;     // Returned by GetEdgeFaceTable().
    mutable Table *edge_vertex;   // Returned by GetEdgeVertexTable().
+   mutable Table *face_vertex;   // Returned by GetFaceVertexTable().
 
    IsoparametricTransformation Transformation, Transformation2;
    IsoparametricTransformation BdrTransformation;
@@ -319,6 +324,15 @@ public:
    Array<GeometricFactors*> geom_factors; ///< Optional geometric factors.
    Array<FaceGeometricFactors*> face_geom_factors; /**< Optional face geometric
                                                         factors. */
+
+   EntitySets *ent_sets;
+
+   /** @brief Return this mesh's entity sets, creating an empty collection when
+       necessary.
+
+       Entity sets must be defined before converting a mesh to a nonconforming
+       mesh or distributing it as a ParMesh. */
+   EntitySets &GetOrCreateEntitySets();
 
    // Global parameter that can be used to control the removal of unused
    // vertices performed when reading a mesh in MFEM format. The default value
@@ -418,7 +432,7 @@ protected:
    void PrepareNodeReorder(DSTable **old_v_to_v, Table **old_elem_vert);
    void DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert);
 
-   STable3D *GetFacesTable();
+   STable3D *GetFacesTable() const;
    STable3D *GetElementToFaceTable(int ret_ftbl = 0);
 
    /** Red refinement. Element with index i is refined. The default
@@ -978,9 +992,9 @@ public:
        @warning Although periodic meshes are supported, some periodic
        configurations (such as periodic-hexagon.mesh) do not work because MFEM
        requires edges to be uniquely identified by their endpoint vertices, and
-       so edge paths connecting periodic boundaries must have at least three
-       segments. MakeSimplicial inserts new diagonal edges that may violate this
-       condition. */
+       so sequences of edges connecting periodic boundaries must have at least
+       three segments. MakeSimplicial inserts new diagonal edges that may
+       violate this condition. */
    static Mesh MakeSimplicial(const Mesh &orig_mesh);
 
    /// Create a periodic mesh by identifying vertices of @a orig_mesh.
@@ -1657,6 +1671,8 @@ public:
    /// Returns the indices of the vertices of edge i.
    void GetEdgeVertices(int i, Array<int> &vert) const;
 
+   /// Returns the face-to-vertex Table (2d or 3D)
+   Table *GetFaceVertexTable() const;
    /// Return the indices and the orientations of all faces of element i.
    void GetElementFaces(int i, Array<int> &faces, Array<int> &ori) const;
 
