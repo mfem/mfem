@@ -551,7 +551,10 @@ public:
                                 OperatorHandle &T) const override;
 
    /** Reflect changes in the mesh. Calculate one of the refinement/derefinement
-       /rebalance matrices, unless want_transform is false. */
+       /rebalance matrices, unless want_transform is false.
+       Call after each mesh operation, and update all associated GridFunctions
+       before another mesh/space update or UpdatesFinished(). See the sequence
+       requirements of FiniteElementSpace::Update(). */
    void Update(bool want_transform = true) override;
 
    /** P-refine and update the space. If @a want_transfer, also maintain the old

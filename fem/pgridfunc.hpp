@@ -209,15 +209,23 @@ public:
    HypreParVector *GetTrueDofs() const;
 
    /// Returns the vector averaged on the true dofs.
+   /** Computes the transpose prolongation P^T times the local data and divides
+       by the number of copies of each shared DOF. Supported for conforming
+       spaces only; this method aborts for nonconforming meshes/spaces.
+       For an already conforming primal field, use GetTrueDofs() or
+       ParallelProject() to extract true-DOF values. */
    void ParallelAverage(Vector &tv) const;
 
    /// Returns the vector averaged on the true dofs.
+   /// Conforming spaces only; see ParallelAverage(Vector &) const.
    void ParallelAverage(HypreParVector &tv) const;
 
    /// Returns a new vector averaged on the true dofs.
+   /// Conforming spaces only; see ParallelAverage(Vector &) const.
    HypreParVector *ParallelAverage() const;
 
    /// Returns the vector restricted to the true dofs.
+   /// Computes R times the local primal field; it does not sum shared copies.
    void ParallelProject(Vector &tv) const;
 
    /// Returns the vector restricted to the true dofs.
@@ -227,6 +235,10 @@ public:
    HypreParVector *ParallelProject() const;
 
    /// Returns the vector assembled on the true dofs.
+   /** Computes P^T times the local vector, appropriate for assembling dual
+       vectors such as loads. Shared contributions are summed; this is not an
+       extraction of primal field values and can multiply them by their shared
+       multiplicity. Use GetTrueDofs() or ParallelProject() for primal values. */
    void ParallelAssemble(Vector &tv) const;
 
    /// Returns the vector assembled on the true dofs.
@@ -235,6 +247,12 @@ public:
    /// Returns a new vector assembled on the true dofs.
    HypreParVector *ParallelAssemble() const;
 
+   /** Exchange this field's current values with face-neighbor ranks. Call on
+       all ranks before evaluating this GridFunction on face-neighbor elements.
+       The exchanged values are cached: GetValue(), GetVectorValue(), and
+       GetElementDofValues() do not refresh them automatically. Call again
+       after changing local field values, even when mesh/space topology is
+       unchanged. All communicating ranks must participate in each exchange. */
    void ExchangeFaceNbrData();
    Vector &FaceNbrData() { return face_nbr_data; }
    const Vector &FaceNbrData() const { return face_nbr_data; }
@@ -647,6 +665,9 @@ public:
    ///
    /// @note The returned GridFunction will own the newly created
    /// FiniteElementCollection and FiniteElementSpace objects.
+   /// @note Collective on ParFESpace()->GetComm(): all ranks must call with
+   /// the same save_rank, after collectively obtaining serial_mesh. The serial
+   /// mesh/export path supports conforming, non-NURBS meshes only.
    GridFunction GetSerialGridFunction(int save_rank, Mesh &serial_mesh) const;
 
    /// @brief Returns a GridFunction on MPI rank @a save_rank that does not have
@@ -659,11 +680,15 @@ public:
    ///
    /// @note The returned GridFunction does not assume ownership of @a
    /// serial_fes.
+   /// @note Collective on ParFESpace()->GetComm(): all ranks must participate
+   /// with the same save_rank. Use the returned field only on save_rank.
    GridFunction GetSerialGridFunction(
       int save_rank, FiniteElementSpace &serial_fes) const;
 
-   /// Write the serial GridFunction to a single file (written using MPI rank 0).
+   /// Write the serial GridFunction to a single file (written using save_rank).
    /// The given @a precision will be used for ASCII output.
+   /// Collective on the space communicator, including ranks that write no file.
+   /// Nonconforming and NURBS meshes are unsupported by this serial export path.
    void SaveAsSerial(const char *fname, int precision=16, int save_rank=0) const;
 
 #ifdef MFEM_USE_ADIOS2
