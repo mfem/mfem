@@ -86,7 +86,10 @@ public:
    }
 
    void Dealloc(void *ptr, size_t) override { allocator.deallocate(ptr); }
-   virtual ~UmpireAllocator() = default;
+   virtual ~UmpireAllocator()
+   {
+      if (owns_allocator) { allocator.release(); }
+   }
 };
 
 struct UmpireHostAllocator : public UmpireAllocator

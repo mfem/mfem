@@ -1353,7 +1353,6 @@ template <class T> void Memory<T>::Delete()
                          h_mt);
          }
       }
-      Reset(h_mt);
    }
    else
    {
@@ -1373,12 +1372,9 @@ template <class T> void Memory<T>::Delete()
             inst.Dealloc(reinterpret_cast<char *>(h_ptr), size_ * sizeof(T),
                          h_mt);
          }
-         h_ptr = nullptr;
       }
-      // An unregistered alias no longer refers to a range after deletion.
-      offset_ = 0;
-      size_ = 0;
    }
+   Reset(h_mt);
 }
 
 template <class T> void Memory<T>::CheckedWrap(T *ptr, size_t size,
