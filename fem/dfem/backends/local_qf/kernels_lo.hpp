@@ -90,7 +90,7 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
 {
    constexpr int RNK = qf_param_shape<T>::rank;
    auto &qp = at<DIM>(reg, qx, qy, qz);
-   if constexpr (RNK == 0) { return T{ qp[0] }; }
+   if constexpr (RNK == 0) { T t{}; t = qp[0]; return t; }
    else if constexpr (RNK == 1)
    {
       constexpr int e0 = qf_param_shape<T>::extents[0];
