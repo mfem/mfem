@@ -93,7 +93,7 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   `high-workload` PRs should take longer and include technical meetings initiated
   by the author.
 - During review there should be no force pushes/rewriting history in the branch.
-- A reviewer's super-approval (:+1::+1:) counts as two approvals.
+- A reviewer's super-approval (👍👍) counts as two approvals.
 - After reviewer approval or an editor's decision to merge without review, the
   editor merges the PR manually into the [`mfem:next` branch](#masternext-workflow).
 - After testing in `mfem:next`, the original PR is merged into `mfem:master`.
@@ -466,7 +466,7 @@ The Pull Request (PR) approval process in MFEM is similar to the approval of pap
 
 2. The assigned reviewers are responsible for carefully reviewing and testing the proposed PR.
 
-3. An editor can manually merge a PR into the `next` branch after it receives two approvals from assigned reviewers and passes internal testing. A super-approval (:+1::+1:) from one assigned reviewer counts as two approvals, so that reviewer's approval alone is sufficient. Editors may also merge sufficiently simple PRs labeled `low-workload` without review. This exception waives reviewer approval, but the testing requirements still apply.
+3. An editor can manually merge a PR into the `next` branch after it receives two approvals from assigned reviewers and passes internal testing. A super-approval (👍👍) from one assigned reviewer counts as two approvals, so that reviewer's approval alone is sufficient. Editors may also merge sufficiently simple PRs labeled `low-workload` without review. This exception waives reviewer approval, but the testing requirements still apply.
 
 4. A PR can be merged into the `master` branch after successful testing in `next`, normally for one week. An editor may shorten this period for bugfixes or PRs merged without review. This merge can be performed only by one of the editors, who may optionally take a final look before merging.
 
@@ -500,7 +500,7 @@ choose one of the following actions:
 5. **Defer:** Add `deferred` to indicate that we are unsure about the PR and may
    reconsider it in the future.
 
-Anyone may post a review or express support with :+1: on a PR labeled `revisit`
+Anyone may post a review or express support with 👍 on a PR labeled `revisit`
 or `deferred` to help editors prioritize it.
 
 #### Responsibilities of Editors
@@ -535,11 +535,11 @@ The current list of MFEM editors is:
 Everyone on the MFEM team can be asked to serve as a reviewer on a PR in their area of expertise.
 
 For PRs in review, an assigned reviewer who strongly supports the PR may give a
-**super-approval** by including :+1::+1: in their approval review.
+**super-approval** by including 👍👍 in their approval review.
 This counts as two approvals and allows the PR to proceed to merging with only
 that reviewer's approval, subject to the testing requirements above.
 
-Anyone may also post a review or express support with :+1: on PRs labeled
+Anyone may also post a review or express support with 👍 on PRs labeled
 `revisit` or `deferred` to help editors prioritize them.
 
 **The responsibilities of the reviewers are:**
