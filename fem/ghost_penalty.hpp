@@ -24,7 +24,7 @@ namespace mfem
 
 /** @brief Parameters for the two-cell projection-residual penalty.
 
-    The patch matrix is @f$G=\gamma h_F^{-2}R^TR@f$, where @f$R@f$ contains
+    The patch matrix is $G=\gamma h_F^{-2}R^TR$, where $R$ contains
     quadrature-weighted residuals after projection onto a common physical
     total-degree polynomial space on the two complete cells. */
 struct ProjectionGhostPenaltyOptions
@@ -75,8 +75,8 @@ class ProjectionGhostPenaltyKernel
  public:
    /** @brief Solve a full-column-rank weighted least-squares projection.
 
-       For weighted polynomial evaluations @f$Q@f$ and weighted FE evaluations
-       @f$H@f$, compute @f$C=V\Sigma^{-1}U^TH@f$ from @f$Q=U\Sigma V^T@f$.
+       For weighted polynomial evaluations $Q$ and weighted FE evaluations
+       $H$, compute $C=V\Sigma^{-1}U^TH$ from $Q=U\Sigma V^T$.
 
        @param[in] weighted_polynomials Finite nq-by-m matrix, nq >= m > 0.
        @param[in] weighted_shapes Finite nq-by-ndof matrix, ndof > 0.
