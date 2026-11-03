@@ -850,6 +850,14 @@ struct VarMessage
    /// Post-probe receive from processor 'rank' of message size 'size'.
    void Recv(int rank, int size, MPI_Comm comm)
    {
+      RecvData(rank, size, comm);
+      Decode(rank);
+   }
+
+   /** @brief Like Recv(), but do not decode the message: call DecodeData()
+       later to do so. */
+   void RecvData(int rank, int size, MPI_Comm comm)
+   {
       MFEM_ASSERT(size >= 0, "");
       data.resize(size);
       MPI_Status status;
@@ -859,7 +867,19 @@ struct VarMessage
       MPI_Get_count(&status, MPI_BYTE, &count);
       MFEM_VERIFY(count == size, "");
 #endif
-      Decode(rank);
+   }
+
+   /// Decode a message from processor 'rank' received with RecvData().
+   void DecodeData(int rank) { Decode(rank); }
+
+   /// Blocking receive of the message of this type from processor 'rank'.
+   void Recv(int rank, MPI_Comm comm)
+   {
+      MPI_Status status;
+      MPI_Probe(rank, Tag, comm, &status);
+      int size;
+      MPI_Get_count(&status, MPI_BYTE, &size);
+      Recv(rank, size, comm);
    }
 
    /// Like Recv(), but throw away the message.
