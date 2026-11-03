@@ -2,7 +2,7 @@
     @brief SVD-based projection ghost penalties for full H1 assembly.
 
     The API is available when MFEM_USE_LAPACK is enabled. It supports affine
-    triangles in 2D and tetrahedra in 3D, with MPI shared-face support.
+    triangles/quads in 2D and tetrahedra/hexes in 3D, with MPI shared faces.
     See doc/projection-ghost-penalty.md for the mathematical formulation and
     miniapps/mtop/projection_ghost_penalty.cpp for a complete example. */
 
@@ -22,11 +22,19 @@
 namespace mfem
 {
 
+/// Common polynomial space used by a two-cell projection.
+enum class ProjectionGhostPenaltySpace
+{
+   AUTO,          ///< P on simplices, Q on compatible tensor-product cells.
+   TOTAL_DEGREE,  ///< Physical total-degree P_r on either supported cell family.
+   TENSOR_PRODUCT ///< Q_r in a common affine tensor frame; no fallback to P_r.
+};
+
 /** @brief Parameters for the two-cell projection-residual penalty.
 
     The patch matrix is $G=\gamma h_F^{-2}R^TR$, where $R$ contains
     quadrature-weighted residuals after projection onto a common physical
-    total-degree polynomial space on the two complete cells. */
+    polynomial space on the two complete cells. */
 struct ProjectionGhostPenaltyOptions
 {
    /// Finite, nonnegative penalty strength; zero still performs validation/SVD.
@@ -44,6 +52,9 @@ struct ProjectionGhostPenaltyOptions
    real_t svd_rtol = 0.0;
    /// Print per-patch SVD rank, conditioning, and geometry data on each rank.
    bool verbose = false;
+   /// Select P_r or Q_r; AUTO requires compatible tensor axes on quads/hexes.
+   ProjectionGhostPenaltySpace projection_space =
+      ProjectionGhostPenaltySpace::AUTO;
 };
 
 /// Diagnostics for one local weighted projection or two-cell patch assembly.
@@ -63,6 +74,9 @@ struct ProjectionGhostPenaltyDiagnostics
    real_t face_length = 0.0;
    /// Polynomial normalization length (volume(first)+volume(second))^(1/dim).
    real_t basis_length = 0.0;
+   /// Resolved space for Assemble(); ComputeProjection() leaves this unchanged.
+   ProjectionGhostPenaltySpace projection_space =
+      ProjectionGhostPenaltySpace::AUTO;
 };
 
 /** @brief Local dense kernels, independent of face selection and MPI.
@@ -85,7 +99,7 @@ class ProjectionGhostPenaltyKernel
        @param[out] coefficients Resized to m-by-ndof and overwritten with C.
        @param[in,out] diagnostics Receives spectrum, rank, quadrature count,
                       relative threshold, and condition number. The geometry
-                      fields face_length and basis_length are left unchanged.
+                      fields and projection_space are left unchanged.
        @param[in] context Label appended to validation and rank diagnostics.
 
        The input matrices are not modified. Invalid dimensions, nonfinite
@@ -113,13 +127,22 @@ class ProjectionGhostPenaltyKernel
        @param[in] second_rule Optional second-cell reference-volume quadrature.
        @param[in] context Label included in error and verbose diagnostics.
 
-       Both cells must be nondegenerate affine triangles in 2D or tetrahedra
-       in 3D, with matching reference geometries and no embedding. The caller
+       Both cells must have the same geometry: affine triangles/quads in 2D or
+       tetrahedra/hexes in 3D, with first-order geometry and no embedding.
+       Solution FE orders may be higher. The caller
        supplies the cell pair; adjacency and active/cut flags are not checked.
        Rules are borrowed only for this call. A null rule is generated with
        positive weights; a supplied rule must truthfully advertise order at
        least 2*max(its FE order, projection degree). Every physical quadrature
        weight must be finite and strictly positive.
+
+       AUTO uses physical P_r on simplices and Q_r on quads/hexes. Q_r uses
+       the canonical cell's normalized affine edge directions as a common
+       (possibly sheared) frame. Neighbor axes must agree up to signs,
+       permutation, and independent scaling; otherwise Q/AUTO fails without
+       fallback. TOTAL_DEGREE works for incompatible tensor frames but only
+       reproduces P_r. Tensor rules use the required order per coordinate.
+       Non-affine bilinear/trilinear maps and mixed-type pairs are rejected.
 
        Internally the cells are canonically ordered by physical vertices, but
        output DOFs always follow the caller's first/second ordering. Weighted
@@ -141,8 +164,9 @@ class ProjectionGhostPenaltyKernel
 /** @brief Prepared selection of local and MPI-shared interior faces.
 
     A face is selected when both cells are active and at least one lies in the
-    cut/extension band. The mesh must be conforming and consist of affine
-    triangles or tetrahedra; the space must use a uniform-order H1_FECollection.
+    cut/extension band. The mesh must be conforming and consist of first-order
+    affine triangles, quads, tetrahedra, or hexes; the space must use a
+    uniform-order H1_FECollection. Selected mixed-type pairs are unsupported.
     Curved/embedded cells and ambiguous multiple-face element pairings are
     unsupported. Use a ParFiniteElementSpace when the mesh is a ParMesh.
 

@@ -20,6 +20,11 @@ namespace
 
 void CheckOptions(const ProjectionGhostPenaltyOptions &options)
 {
+   const auto space = options.projection_space;
+   MFEM_VERIFY(space == ProjectionGhostPenaltySpace::AUTO ||
+                  space == ProjectionGhostPenaltySpace::TOTAL_DEGREE ||
+                  space == ProjectionGhostPenaltySpace::TENSOR_PRODUCT,
+               "Ghost penalty: invalid projection space.");
    MFEM_VERIFY(std::isfinite(options.gamma) && options.gamma >= 0.0,
                "Ghost penalty: gamma must be finite and nonnegative.");
    MFEM_VERIFY(options.projection_degree >= -1 && options.quadrature_extra >= 0,
@@ -35,18 +40,36 @@ struct CellGeometry
    Vector center;
    real_t volume;
    real_t diameter;
+   real_t tolerance;
+   DenseMatrix jacobian;
 };
+
+bool IsTensorGeometry(Geometry::Type geometry)
+{
+   return geometry == Geometry::SQUARE || geometry == Geometry::CUBE;
+}
+
+const char *ProjectionSpaceName(ProjectionGhostPenaltySpace space)
+{
+   return space == ProjectionGhostPenaltySpace::TENSOR_PRODUCT ? "q" : "p";
+}
 
 CellGeometry GetGeometry(ElementTransformation &trans,
                          const std::string &context = "selection preparation")
 {
    const auto geometry = trans.GetGeometryType();
    const int dimension = Geometry::Dimension[geometry];
+   const bool tensor = IsTensorGeometry(geometry);
+   const auto *isoparametric =
+      dynamic_cast<const IsoparametricTransformation *>(&trans);
    MFEM_VERIFY(
-      (geometry == Geometry::TRIANGLE || geometry == Geometry::TETRAHEDRON) &&
-         trans.GetSpaceDim() == dimension && trans.OrderJ() == 0,
-      "Ghost penalty: only affine triangles/tetrahedra in 2D/3D "
-      "are supported (no curved or embedded cells); "
+      trans.GetSpaceDim() == dimension &&
+      (((geometry == Geometry::TRIANGLE || geometry == Geometry::TETRAHEDRON) &&
+        trans.OrderJ() == 0) ||
+       (tensor && isoparametric && trans.Order() == 1 &&
+        isoparametric->GetFE()->Space() == FunctionSpace::Qk)),
+      "Ghost penalty: require first-order affine triangles/tetrahedra or "
+      "quadrilaterals/hexahedra in 2D/3D (no curved or embedded cells); "
          << context);
    const IntegrationRule &vertices = *Geometries.GetVertices(geometry);
    CellGeometry result;
@@ -54,6 +77,7 @@ CellGeometry GetGeometry(ElementTransformation &trans,
    result.center = 0.0;
    std::vector<std::vector<real_t>> positions;
    Vector position(dimension);
+   real_t coordinate_scale = 0.0;
    for (int vertex = 0; vertex < vertices.GetNPoints(); ++vertex)
    {
       trans.Transform(vertices.IntPoint(vertex), position);
@@ -63,6 +87,8 @@ CellGeometry GetGeometry(ElementTransformation &trans,
          MFEM_VERIFY(std::isfinite(position(axis)),
                      "Ghost penalty: nonfinite physical vertex; " << context);
          coordinates[axis] = position(axis);
+         coordinate_scale =
+            std::max(coordinate_scale, std::abs(position(axis)));
          result.center(axis) += position(axis) / vertices.GetNPoints();
       }
       positions.push_back(coordinates);
@@ -83,11 +109,104 @@ CellGeometry GetGeometry(ElementTransformation &trans,
       }
    }
    trans.SetIntPoint(&Geometries.GetCenter(geometry));
+   result.jacobian = trans.Jacobian();
    result.volume = trans.Weight() * Geometry::Volume[geometry];
    MFEM_VERIFY(std::isfinite(result.volume) && result.volume > 0.0 &&
                   std::isfinite(result.diameter) && result.diameter > 0.0,
                "Ghost penalty: degenerate element geometry; " << context);
+   result.tolerance = 256.0 * std::numeric_limits<real_t>::epsilon() *
+                      std::max(coordinate_scale, result.diameter);
+   if (tensor)
+   {
+      Vector reference(dimension), displacement(dimension);
+      const auto &center = Geometries.GetCenter(geometry);
+      for (int vertex = 0; vertex < vertices.GetNPoints(); ++vertex)
+      {
+         const auto &point = vertices.IntPoint(vertex);
+         reference(0) = point.x - center.x;
+         reference(1) = point.y - center.y;
+         if (dimension == 3) { reference(2) = point.z - center.z; }
+         result.jacobian.Mult(reference, displacement);
+         trans.Transform(point, position);
+         position -= result.center;
+         position -= displacement;
+         MFEM_VERIFY(position.Normlinf() <= result.tolerance,
+                     "Ghost penalty: non-affine quadrilateral/hexahedron; "
+                     << context << " residual=" << position.Normlinf()
+                     << " tolerance=" << result.tolerance);
+      }
+   }
    return result;
+}
+
+void TensorFrameInverse(const CellGeometry &canonical,
+                        const CellGeometry &neighbor, DenseMatrix &inverse,
+                        const std::string &context)
+{
+   const int dimension = canonical.center.Size();
+   std::vector<std::vector<real_t>> directions;
+   for (int column = 0; column < dimension; ++column)
+   {
+      std::vector<real_t> direction(dimension);
+      real_t length = 0.0;
+      int pivot = 0;
+      for (int axis = 0; axis < dimension; ++axis)
+      {
+         direction[axis] = canonical.jacobian(axis, column);
+         length = std::hypot(length, direction[axis]);
+         if (std::abs(direction[axis]) > std::abs(direction[pivot]))
+         { pivot = axis; }
+      }
+      MFEM_VERIFY(std::isfinite(length) && length > 0.0,
+                  "Ghost penalty: degenerate tensor frame; " << context);
+      const real_t signed_length = direction[pivot] < 0.0 ? -length : length;
+      for (auto &value : direction) { value /= signed_length; }
+      directions.push_back(direction);
+   }
+   std::sort(directions.begin(), directions.end());
+   std::vector<bool> used(dimension, false);
+   const real_t tolerance =
+      2.0 * std::max(canonical.tolerance, neighbor.tolerance);
+   for (int column = 0; column < dimension; ++column)
+   {
+      real_t length = 0.0;
+      for (int axis = 0; axis < dimension; ++axis)
+      { length = std::hypot(length, neighbor.jacobian(axis, column)); }
+      MFEM_VERIFY(std::isfinite(length) && length > 0.0,
+                  "Ghost penalty: degenerate tensor frame; " << context);
+      real_t best = infinity();
+      int match = -1;
+      for (int candidate = 0; candidate < dimension; ++candidate)
+      {
+         real_t dot = 0.0, residual = 0.0;
+         for (int axis = 0; axis < dimension; ++axis)
+         {
+            dot += directions[candidate][axis] * neighbor.jacobian(axis, column);
+         }
+         const real_t signed_length = dot < 0.0 ? -length : length;
+         for (int axis = 0; axis < dimension; ++axis)
+         {
+            residual = std::hypot(residual, neighbor.jacobian(axis, column) -
+                                 signed_length * directions[candidate][axis]);
+         }
+         if (residual < best) { best = residual; match = candidate; }
+      }
+      MFEM_VERIFY(match >= 0 && !used[match] && best <= tolerance,
+                  "Ghost penalty: incompatible tensor frames; " << context
+                  << " residual=" << best << " tolerance=" << tolerance
+                  << "; request TOTAL_DEGREE explicitly to use P projection.");
+      used[match] = true;
+   }
+   DenseMatrix frame(dimension);
+   for (int column = 0; column < dimension; ++column)
+   {
+      for (int axis = 0; axis < dimension; ++axis)
+      { frame(axis, column) = directions[column][axis]; }
+   }
+   DenseMatrixInverse factor(frame);
+   factor.GetInverseMatrix(inverse);
+   MFEM_VERIFY(std::isfinite(inverse.FNorm()),
+               "Ghost penalty: degenerate tensor frame; " << context);
 }
 
 void PositiveSimplexRule(int dimension, int order, IntegrationRule &rule)
@@ -241,7 +360,29 @@ void ProjectionGhostPenaltyKernel::Assemble(
                "Ghost penalty: incompatible finite elements; " << context);
    const CellGeometry first_geometry = GetGeometry(first_trans, context);
    const CellGeometry second_geometry = GetGeometry(second_trans, context);
+   MFEM_VERIFY(first_fe.GetGeomType() == second_fe.GetGeomType(),
+               "Ghost penalty: mixed-type patches are unsupported; "
+               << context);
+   const bool tensor = IsTensorGeometry(first_fe.GetGeomType());
+   auto projection_space = options.projection_space;
+   if (projection_space == ProjectionGhostPenaltySpace::AUTO)
+   {
+      projection_space = tensor ? ProjectionGhostPenaltySpace::TENSOR_PRODUCT
+                         : ProjectionGhostPenaltySpace::TOTAL_DEGREE;
+   }
+   const bool tensor_projection =
+      projection_space == ProjectionGhostPenaltySpace::TENSOR_PRODUCT;
+   MFEM_VERIFY(!tensor_projection || tensor,
+               "Ghost penalty: tensor projection requires quads/hexes; "
+               << context);
    const bool reverse = second_geometry.key < first_geometry.key;
+   DenseMatrix inverse_frame;
+   if (tensor_projection)
+   {
+      TensorFrameInverse(reverse ? second_geometry : first_geometry,
+                         reverse ? first_geometry : second_geometry,
+                         inverse_frame, context);
+   }
    const FiniteElement *elements[] = {&first_fe, &second_fe};
    ElementTransformation *transforms[] = {&first_trans, &second_trans};
    const IntegrationRule *quadratures[] = {first_rule, second_rule};
@@ -255,7 +396,18 @@ void ProjectionGhostPenaltyKernel::Assemble(
                          ? std::min(first_fe.GetOrder(), second_fe.GetOrder())
                          : options.projection_degree;
    std::vector<std::array<int, 3>> powers;
-   for (int total = 0; total <= degree; ++total)
+   if (tensor_projection)
+   {
+      for (int first = 0; first <= degree; ++first)
+      {
+         for (int second = 0; second <= degree; ++second)
+         {
+            for (int third = 0; third <= (dimension == 3 ? degree : 0); ++third)
+            { powers.push_back({first, second, third}); }
+         }
+      }
+   }
+   else for (int total = 0; total <= degree; ++total)
    {
       for (int first = 0; first <= total; ++first)
       {
@@ -269,6 +421,7 @@ void ProjectionGhostPenaltyKernel::Assemble(
       }
    }
    ProjectionGhostPenaltyDiagnostics local_diagnostics;
+   local_diagnostics.projection_space = projection_space;
    local_diagnostics.face_length =
       std::max(first_geometry.diameter, second_geometry.diameter);
    local_diagnostics.basis_length =
@@ -282,7 +435,12 @@ void ProjectionGhostPenaltyKernel::Assemble(
                         options.quadrature_extra;
       if (!quadratures[side])
       {
-         PositiveSimplexRule(dimension, order, generated[side]);
+         if (tensor)
+         {
+            IntegrationRules rules(0, Quadrature1D::GaussLegendre);
+            generated[side] = rules.Get(elements[side]->GetGeomType(), order);
+         }
+         else { PositiveSimplexRule(dimension, order, generated[side]); }
          quadratures[side] = &generated[side];
       }
       MFEM_VERIFY(quadratures[side]->GetOrder() >=
@@ -298,7 +456,8 @@ void ProjectionGhostPenaltyKernel::Assemble(
    int column_offset = 0;
    for (int side = 0; side < 2; ++side)
    {
-      Vector shape(elements[side]->GetDof()), physical(dimension);
+      Vector shape(elements[side]->GetDof()), physical(dimension),
+             tensor_coordinates(dimension);
       for (int point = 0; point < quadratures[side]->GetNPoints(); ++point)
       {
          const auto &integration_point = quadratures[side]->IntPoint(point);
@@ -314,6 +473,11 @@ void ProjectionGhostPenaltyKernel::Assemble(
          transforms[side]->Transform(integration_point, physical);
          physical -= origin;
          physical /= local_diagnostics.basis_length;
+         if (tensor_projection)
+         {
+            inverse_frame.Mult(physical, tensor_coordinates);
+            physical = tensor_coordinates;
+         }
          for (int basis = 0; basis < static_cast<int>(powers.size()); ++basis)
          {
             real_t value = root_weight;
@@ -335,6 +499,7 @@ void ProjectionGhostPenaltyKernel::Assemble(
    std::ostringstream description;
    description << context << " p1=" << first_fe.GetOrder()
                << " p2=" << second_fe.GetOrder() << " degree=" << degree
+               << " projection_space=" << ProjectionSpaceName(projection_space)
                << " geometry=" << first_fe.GetGeomType() << ','
                << second_fe.GetGeomType();
    DenseMatrix coefficients, projected(rows, dofs);

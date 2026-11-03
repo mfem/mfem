@@ -17,14 +17,23 @@ if (MFEM_USE_LAPACK)
   add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ghost_penalty_failure)
   set(ghost_failure_cases rank near-rank dimensions gamma weight nonfinite-weight
       geometry curved flags stale variable-order vdim zero-rank
-      nonfinite-projection nonconforming)
+      nonfinite-projection nonconforming tensor-nonaffine-quad
+      tensor-nonaffine-hex tensor-frame-auto tensor-frame-q tensor-q-simplex
+      tensor-mixed tensor-degenerate tensor-order tensor-weight
+      tensor-projection-space tensor-curved)
   set(ghost_failure_messages "rank-deficient projection" "rank-deficient projection"
       "invalid projection dimensions" "gamma must be finite and nonnegative"
       "quadrature weight must be positive" "quadrature weight must be positive"
-      "only affine triangles/tetrahedra" "only affine triangles/tetrahedra"
+      "require a 2D or 3D volume mesh" "require first-order affine"
       "invalid flag sizes" "stale selection" "conforming uniform-order H1"
       "vector integrator requires vdim" "rank-deficient projection"
-      "nonfinite projection input" "conforming uniform-order H1")
+      "nonfinite projection input" "conforming uniform-order H1"
+      "non-affine quadrilateral/hexahedron" "non-affine quadrilateral/hexahedron"
+      "incompatible tensor frames" "incompatible tensor frames"
+      "tensor projection requires quads/hexes" "mixed-type patches"
+      "degenerate element geometry" "insufficient quadrature order"
+      "quadrature weight must be positive" "invalid projection space"
+      "require first-order affine")
   list(LENGTH ghost_failure_cases ghost_failure_count)
   math(EXPR ghost_failure_last "${ghost_failure_count}-1")
   foreach(index RANGE 0 ${ghost_failure_last})

@@ -2,7 +2,7 @@
     @brief Serial/MPI example of a fully assembled projection ghost penalty.
 
     This miniapp assembles only the stabilization matrix, not a complete PDE.
-    It marks the physical domain x[0] < test_level_set on an affine simplex
+    It marks the physical domain x[0] < test_level_set on an affine
     background mesh, selects active interior cell pairs near the cut, and
     penalizes residuals from a common two-cell polynomial projection. Both
     complete cells are integrated; no cut-cell quadrature is performed.
@@ -23,7 +23,7 @@
     cmake --build build --parallel 16 --target projection_ghost_penalty
     build/miniapps/mtop/projection_ghost_penalty --serial --order 2 --vdim 3
     build/miniapps/mtop/projection_ghost_penalty --serial --dimension 3 \
-      --order 2 --vdim 3 --ordering byVDIM
+      --element-type tensor --order 2 --vdim 3 --ordering byVDIM
     mpiexec -n 4 build/miniapps/mtop/projection_ghost_penalty \
       --parallel --order 2 --vdim 3
     @endcode
@@ -34,12 +34,16 @@
 
     @par Inputs and defaults
     With no --mesh, generate an 8-by-2 triangle mesh in 2D or an 8-by-1-by-1
-    tetrahedral mesh in 3D. A supplied mesh determines the actual dimension.
-    Supported meshes are conforming affine triangles/tetrahedra, not curved,
-    embedded, quadrilateral, hexahedral, or nonconforming meshes.
+    tetrahedral mesh in 3D. --element-type tensor instead generates quads/hexes.
+    A supplied mesh determines its dimension and ignores --element-type.
+    Supported cells are conforming first-order affine triangles, quads, tets,
+    and hexes, not curved, embedded, non-affine, or nonconforming cells.
     Defaults are serial mode, dimension=2, order=2, vdim=1, ordering=byNODES,
     test-level-set=0.43, gamma=1, projection-degree=-1 (use the FE order),
     quad-extra=2, svd-rtol=0 (automatic threshold), layers=0, and quiet output.
+    --projection-space auto (default) uses P on simplices and Q on tensor
+    cells. Explicit p/q select either space. Q requires compatible affine
+    tensor axes; request p explicitly for incompatible quad/hex frames.
     --layers expands the cut band through active-cell adjacency; --verbose
     prints per-patch SVD diagnostics from each rank. See the OptionsParser
     registrations below for all command-line switches.
@@ -73,13 +77,20 @@ int main(int argc, char *argv[])
    // Parse mesh, FE, selection, and SVD controls before creating MFEM data.
    const char *mesh_file = "";
    const char *ordering_name = "byNODES";
+   const char *element_type = "simplex";
+   const char *projection_name = "auto";
    int order = 2, components = 1, dimension = 2, layers = 0;
    real_t level_set = 0.43;
    bool parallel = false;
    ProjectionGhostPenaltyOptions options;
    OptionsParser arguments(argc, argv);
    arguments.AddOption(&mesh_file, "-m", "--mesh",
-                       "Mesh path; empty uses a simplex grid.");
+                       "Mesh path; empty generates a grid.");
+   arguments.AddOption(&element_type, "-et", "--element-type",
+                       "Generated cells: simplex or tensor; "
+                       "ignored with --mesh.");
+   arguments.AddOption(&projection_name, "-ps", "--projection-space",
+                       "auto, p (total degree), or q (common tensor frame).");
    arguments.AddOption(&order, "-o", "--order", "Uniform H1 polynomial order.");
    arguments.AddOption(&components, "-v", "--vdim",
                        "Number of independent components.");
@@ -118,6 +129,18 @@ int main(int argc, char *argv[])
                "Ordering must be byNODES or byVDIM.");
    const auto ordering =
       ordering_string == "byNODES" ? Ordering::byNODES : Ordering::byVDIM;
+   const std::string element_string(element_type),
+         projection_string(projection_name);
+   MFEM_VERIFY(element_string == "simplex" || element_string == "tensor",
+               "Element type must be simplex or tensor.");
+   MFEM_VERIFY(projection_string == "auto" || projection_string == "p" ||
+                  projection_string == "q",
+               "Projection space must be auto, p, or q.");
+   options.projection_space = projection_string == "p"
+      ? ProjectionGhostPenaltySpace::TOTAL_DEGREE : projection_string == "q"
+      ? ProjectionGhostPenaltySpace::TENSOR_PRODUCT
+      : ProjectionGhostPenaltySpace::AUTO;
+   const bool tensor = element_string == "tensor";
    int rank = 0, ranks = 1;
    // Initialize MPI only when requested; the same executable can run serially.
 #ifdef MFEM_USE_MPI
@@ -131,10 +154,11 @@ int main(int argc, char *argv[])
 #else
    MFEM_VERIFY(!parallel, "This MFEM build has no MPI support.");
 #endif
-   Mesh serial_mesh = mesh_file[0] ? Mesh(mesh_file)
-                      : dimension == 2
-                         ? Mesh::MakeCartesian2D(8, 2, Element::TRIANGLE, true)
-                         : Mesh::MakeCartesian3D(8, 1, 1, Element::TETRAHEDRON);
+   Mesh serial_mesh = mesh_file[0] ? Mesh(mesh_file) : dimension == 2
+      ? Mesh::MakeCartesian2D(8, 2, tensor ? Element::QUADRILATERAL
+                             : Element::TRIANGLE, true)
+      : Mesh::MakeCartesian3D(8, 1, 1, tensor ? Element::HEXAHEDRON
+                             : Element::TETRAHEDRON);
    dimension = serial_mesh.Dimension();
    Mesh *mesh = &serial_mesh;
    std::unique_ptr<Mesh> distributed_mesh;
@@ -277,6 +301,7 @@ int main(int argc, char *argv[])
                 << "mode=" << (parallel ? "MPI" : "serial")
                 << " ranks=" << ranks << " dimension=" << dimension
                 << " order=" << order << " vdim=" << components
+                << " projection_space=" << projection_name
                 << " true_dofs=" << true_dofs
                 << " selected_faces=" << selected_faces << " energy=" << energy
                 << '\n';

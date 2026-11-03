@@ -48,6 +48,53 @@ Mesh PatchMesh(int dimension, real_t scale = 1.0)
    return mesh;
 }
 
+void TransformTensorMesh(Mesh &mesh, int mapping, real_t scale = 1.0)
+{
+   for (int vertex = 0; vertex < mesh.GetNV(); ++vertex)
+   {
+      real_t *position = mesh.GetVertex(vertex);
+      const real_t first = position[0], second = position[1];
+      const real_t third = mesh.Dimension() == 3 ? position[2] : 0.0;
+      if (mapping == 1)
+      {
+         position[0] = 0.8 * first - 0.6 * second + 2.3;
+         position[1] = 0.6 * first + 0.8 * second - 0.7;
+      }
+      if (mapping == 2)
+      {
+         position[0] = first + 0.3 * second + 0.2 * third + 2.3;
+         position[1] = second + 0.25 * third - 0.7;
+      }
+      for (int axis = 0; axis < mesh.Dimension(); ++axis)
+      { position[axis] *= scale; }
+   }
+}
+
+Mesh TensorPatchMesh(int dimension, int mapping = 0, real_t scale = 1.0,
+                     bool permute = false)
+{
+   Mesh mesh = dimension == 2
+      ? Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL, true)
+      : Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+   for (int vertex = 0; vertex < mesh.GetNV(); ++vertex)
+   {
+      real_t &coordinate = mesh.GetVertex(vertex)[0];
+      coordinate = coordinate <= 0.5 ? 2 * coordinate : 4 * coordinate - 1;
+   }
+   if (permute)
+   {
+      Array<int> vertices;
+      mesh.GetElementVertices(1, vertices);
+      int *reordered = mesh.GetElement(1)->GetVertices();
+      for (int vertex = 0; vertex < vertices.Size(); ++vertex)
+      { reordered[vertex] = vertices[4 * (vertex / 4) + (vertex + 1) % 4]; }
+      mesh.FinalizeTopology();
+      mesh.Finalize();
+   }
+   TransformTensorMesh(mesh, mapping, scale);
+   return mesh;
+}
+
 FaceElementTransformations &InteriorFace(Mesh &mesh)
 {
    for (int face = 0; face < mesh.GetNumFaces(); ++face)
@@ -81,12 +128,29 @@ void AddPenalty(Form &form, std::shared_ptr<const GhostFaceSelection> selection,
 void SamplePolynomial(const FiniteElement &element,
                       ElementTransformation &trans,
                       const std::vector<int> &powers, Vector &values,
-                      int offset)
+                      int offset, int mapping = 0)
 {
    Vector position(element.GetDim());
    for (int node = 0; node < element.GetDof(); ++node)
    {
       trans.Transform(element.GetNodes().IntPoint(node), position);
+      if (mapping != 0)
+      {
+         position(0) -= 2.3;
+         position(1) += 0.7;
+         const real_t first = position(0), second = position(1);
+         if (mapping == 1)
+         {
+            position(0) = 0.8 * first + 0.6 * second;
+            position(1) = -0.6 * first + 0.8 * second;
+         }
+         else
+         {
+            const real_t third = element.GetDim() == 3 ? position(2) : 0.0;
+            position(1) -= 0.25 * third;
+            position(0) -= 0.3 * position(1) + 0.2 * third;
+         }
+      }
       real_t value = 1.0;
       for (int axis = 0; axis < element.GetDim(); ++axis)
       {
@@ -233,9 +297,11 @@ TEST_CASE("Ghost penalty mixed-order simplex kernels", "[GhostPenalty]")
 
 TEST_CASE("Ghost penalty independent quadrature energy", "[GhostPenalty]")
 {
+   for (int family : {0, 1, 2})
    for (int dimension : {2, 3})
    {
-      Mesh mesh = PatchMesh(dimension);
+      Mesh mesh = family == 0 ? PatchMesh(dimension)
+                  : TensorPatchMesh(dimension);
       auto &trans = InteriorFace(mesh);
       H1_FECollection first_collection(2, dimension),
          second_collection(3, dimension);
@@ -247,6 +313,8 @@ TEST_CASE("Ghost penalty independent quadrature energy", "[GhostPenalty]")
       const IntegrationRule &second_rule =
          IntRules.Get(second.GetGeomType(), 6);
       ProjectionGhostPenaltyOptions options;
+      if (family == 1)
+      { options.projection_space = ProjectionGhostPenaltySpace::TOTAL_DEGREE; }
       options.projection_degree = 0;
       options.gamma = 1.7;
       ProjectionGhostPenaltyDiagnostics diagnostics;
@@ -306,15 +374,17 @@ TEST_CASE("Ghost penalty independent quadrature energy", "[GhostPenalty]")
 TEST_CASE("Ghost penalty well-conditioned mass-matrix reference",
           "[GhostPenalty]")
 {
+   for (int family : {0, 1, 2})
    for (int dimension : {2, 3})
    {
-      Mesh mesh = PatchMesh(dimension);
+      Mesh mesh = family == 0 ? PatchMesh(dimension)
+                  : TensorPatchMesh(dimension);
       auto &trans = InteriorFace(mesh);
       H1_FECollection collection(2, dimension);
       const auto &element =
          *collection.FiniteElementForGeometry(trans.Elem1->GetGeometryType());
       const int dofs = 2 * element.GetDof();
-      const int polynomials = dimension + 1;
+      const int polynomials = family == 2 ? 1 << dimension : dimension + 1;
       DenseMatrix mass(polynomials), coupling(polynomials, dofs),
          diagonal(dofs);
       mass = 0.0;
@@ -334,10 +404,16 @@ TEST_CASE("Ghost penalty well-conditioned mass-matrix reference",
             const real_t weight =
                integration_point.weight * transforms[side]->Weight();
             element.CalcShape(integration_point, shape);
-            basis(0) = 1.0;
-            for (int axis = 0; axis < dimension; ++axis)
+            basis = 1.0;
+            for (int polynomial = 1; polynomial < polynomials; ++polynomial)
             {
-               basis(axis + 1) = position(axis);
+               if (family != 2)
+               { basis(polynomial) = position(polynomial - 1); }
+               else for (int axis = 0; axis < dimension; ++axis)
+               {
+                  if (polynomial & (1 << axis))
+                  { basis(polynomial) *= position(axis); }
+               }
             }
             for (int row = 0; row < polynomials; ++row)
             {
@@ -367,6 +443,8 @@ TEST_CASE("Ghost penalty well-conditioned mass-matrix reference",
       MultAtB(coupling, coefficients, projected);
       diagonal -= projected;
       ProjectionGhostPenaltyOptions options;
+      if (family == 1)
+      { options.projection_space = ProjectionGhostPenaltySpace::TOTAL_DEGREE; }
       options.projection_degree = 1;
       ProjectionGhostPenaltyDiagnostics diagnostics;
       DenseMatrix matrix;
@@ -383,9 +461,14 @@ TEST_CASE("Ghost penalty well-conditioned mass-matrix reference",
 TEST_CASE("Ghost penalty serial vector assembly and selection",
           "[GhostPenalty]")
 {
+   for (int family : {0, 1, 2})
    for (int dimension : {2, 3})
    {
-      Mesh mesh = PatchMesh(dimension);
+      Mesh mesh = family == 0 ? PatchMesh(dimension)
+                  : TensorPatchMesh(dimension, 2);
+      ProjectionGhostPenaltyOptions options;
+      if (family == 1)
+      { options.projection_space = ProjectionGhostPenaltySpace::TOTAL_DEGREE; }
       for (int order : {1, 2, 3})
       {
          H1_FECollection collection(order, dimension);
@@ -399,7 +482,7 @@ TEST_CASE("Ghost penalty serial vector assembly and selection",
          REQUIRE(scalar_selection->GetNumLocalFaces() == 1);
          BilinearForm scalar_form(&scalar_space);
          scalar_form.UsePrecomputedSparsity(order == 2);
-         AddPenalty(scalar_form, scalar_selection);
+         AddPenalty(scalar_form, scalar_selection, options);
          DenseMatrix scalar_matrix;
          scalar_form.SpMat().ToDenseMatrix(scalar_matrix);
          REQUIRE(scalar_matrix.FNorm() > 0.0);
@@ -413,7 +496,7 @@ TEST_CASE("Ghost penalty serial vector assembly and selection",
                auto selection = std::make_shared<GhostFaceSelection>(
                   vector_space, active, cut);
                BilinearForm form(&vector_space);
-               AddPenalty(form, selection);
+               AddPenalty(form, selection, options);
                DenseMatrix matrix;
                form.SpMat().ToDenseMatrix(matrix);
                const real_t tolerance =
@@ -460,6 +543,175 @@ TEST_CASE("Ghost penalty serial vector assembly and selection",
             }
          }
       }
+   }
+}
+
+TEST_CASE("Ghost penalty affine tensor kernels", "[GhostPenalty]")
+{
+   for (int dimension : {2, 3})
+   for (int mapping : {0, 1, 2})
+   for (auto mode : {ProjectionGhostPenaltySpace::AUTO,
+                     ProjectionGhostPenaltySpace::TOTAL_DEGREE,
+                     ProjectionGhostPenaltySpace::TENSOR_PRODUCT})
+   for (int order = 1; order <= (dimension == 2 ? 5 : 3); ++order)
+   {
+      CAPTURE(dimension, mapping, order, static_cast<int>(mode));
+      Mesh mesh = TensorPatchMesh(dimension, mapping);
+      auto &trans = InteriorFace(mesh);
+      H1_FECollection first_collection(order, dimension),
+         second_collection(order + 1, dimension);
+      const auto geometry = trans.Elem1->GetGeometryType();
+      const auto &first = *first_collection.FiniteElementForGeometry(geometry);
+      const auto &second =
+         *second_collection.FiniteElementForGeometry(geometry);
+      const int dofs = first.GetDof() + second.GetDof();
+      ProjectionGhostPenaltyOptions options;
+      options.projection_space = mode;
+      ProjectionGhostPenaltyDiagnostics diagnostics;
+      DenseMatrix matrix, swapped;
+      ProjectionGhostPenaltyKernel::Assemble(first, second, *trans.Elem1,
+         *trans.Elem2, options, matrix, &diagnostics);
+      const bool tensor = mode != ProjectionGhostPenaltySpace::TOTAL_DEGREE;
+      const int expected_rank = tensor
+         ? static_cast<int>(std::pow(order + 1, dimension))
+         : dimension == 2 ? (order + 1) * (order + 2) / 2
+         : (order + 1) * (order + 2) * (order + 3) / 6;
+      REQUIRE(diagnostics.rank == expected_rank);
+      REQUIRE(diagnostics.projection_space == (tensor
+         ? ProjectionGhostPenaltySpace::TENSOR_PRODUCT
+         : ProjectionGhostPenaltySpace::TOTAL_DEGREE));
+      REQUIRE(std::isfinite(diagnostics.condition_number));
+      const real_t tolerance = Roundoff(matrix.FNorm(), dofs);
+      ProjectionGhostPenaltyKernel::Assemble(second, first, *trans.Elem2,
+         *trans.Elem1, options, swapped);
+      for (int row = 0; row < dofs; ++row)
+      for (int column = 0; column < dofs; ++column)
+      {
+         const int swapped_row = row < first.GetDof() ? second.GetDof() + row
+                                                     : row - first.GetDof();
+         const int swapped_column = column < first.GetDof()
+            ? second.GetDof() + column : column - first.GetDof();
+         REQUIRE(matrix(row, column) == matrix(column, row));
+         REQUIRE(std::abs(matrix(row, column) -
+                          swapped(swapped_row, swapped_column)) <= tolerance);
+      }
+      Vector values(dofs), action(dofs);
+      for (int first_power = 0; first_power <= order; ++first_power)
+      for (int second_power = 0; second_power <= order; ++second_power)
+      for (int third_power = 0; third_power <= (dimension == 3 ? order : 0);
+           ++third_power)
+      {
+         if (!tensor && first_power + second_power + third_power > order)
+         { continue; }
+         const std::vector<int> powers{first_power, second_power, third_power};
+         SamplePolynomial(first, *trans.Elem1, powers, values, 0, mapping);
+         SamplePolynomial(second, *trans.Elem2, powers, values,
+                          first.GetDof(), mapping);
+         matrix.Mult(values, action);
+         REQUIRE(action.Norml2() <=
+                 Roundoff(matrix.FNorm() * values.Norml2(), dofs));
+      }
+      Vector eigenvalues;
+      matrix.Eigenvalues(eigenvalues);
+      REQUIRE(eigenvalues.Min() >= -tolerance);
+      Mesh scaled_mesh = TensorPatchMesh(dimension, mapping, 2.5);
+      auto &scaled_trans = InteriorFace(scaled_mesh);
+      DenseMatrix scaled;
+      ProjectionGhostPenaltyKernel::Assemble(first, second, *scaled_trans.Elem1,
+         *scaled_trans.Elem2, options, scaled);
+      scaled *= std::pow(2.5, 2 - dimension);
+      scaled -= matrix;
+      REQUIRE(scaled.FNorm() <= tolerance);
+      if (order <= 2)
+      {
+         Mesh permuted_mesh = TensorPatchMesh(dimension, mapping, 1.0, true);
+         auto &permuted_trans = InteriorFace(permuted_mesh);
+         DenseMatrix permuted;
+         ProjectionGhostPenaltyKernel::Assemble(
+            first, second, *permuted_trans.Elem1, *permuted_trans.Elem2,
+            options, permuted);
+         const FiniteElement *elements[] = {&first, &second};
+         ElementTransformation *original[] = {trans.Elem1, trans.Elem2};
+         ElementTransformation *reordered[] =
+            {permuted_trans.Elem1, permuted_trans.Elem2};
+         Array<int> permutation(dofs);
+         permutation = -1;
+         int offset = 0;
+         for (int side = 0; side < 2; ++side)
+         {
+            Vector position(dimension), other(dimension);
+            for (int node = 0; node < elements[side]->GetDof(); ++node)
+            {
+               original[side]->Transform(
+                  elements[side]->GetNodes().IntPoint(node), position);
+               for (int candidate = 0; candidate < elements[side]->GetDof();
+                    ++candidate)
+               {
+                  reordered[side]->Transform(
+                     elements[side]->GetNodes().IntPoint(candidate), other);
+                  other -= position;
+                  if (other.Normlinf() < Roundoff(10.0))
+                  { permutation[offset + node] = offset + candidate; break; }
+               }
+               REQUIRE(permutation[offset + node] >= 0);
+            }
+            offset += elements[side]->GetDof();
+         }
+         for (int row = 0; row < dofs; ++row)
+         for (int column = 0; column < dofs; ++column)
+         {
+            REQUIRE(std::abs(matrix(row, column) -
+               permuted(permutation[row], permutation[column])) <= tolerance);
+         }
+      }
+      options.gamma = 0.0;
+      ProjectionGhostPenaltyKernel::Assemble(first, second, *trans.Elem1,
+         *trans.Elem2, options, scaled);
+      REQUIRE(scaled.FNorm() == 0.0);
+   }
+}
+
+TEST_CASE("Ghost penalty P and Q reproduction policies", "[GhostPenalty]")
+{
+   for (int dimension : {2, 3})
+   {
+      Mesh mesh = TensorPatchMesh(dimension);
+      auto &trans = InteriorFace(mesh);
+      H1_FECollection collection(1, dimension);
+      const auto &element =
+         *collection.FiniteElementForGeometry(trans.Elem1->GetGeometryType());
+      Vector values(2 * element.GetDof()), action(values.Size());
+      const std::vector<int> powers{1, 1, dimension == 3 ? 1 : 0};
+      SamplePolynomial(element, *trans.Elem1, powers, values, 0);
+      SamplePolynomial(element, *trans.Elem2, powers, values, element.GetDof());
+      ProjectionGhostPenaltyOptions options;
+      DenseMatrix matrix;
+      ProjectionGhostPenaltyKernel::Assemble(element, element, *trans.Elem1,
+         *trans.Elem2, options, matrix);
+      matrix.Mult(values, action);
+      REQUIRE(action.Norml2() <
+              Roundoff(matrix.FNorm() * values.Norml2(), values.Size()));
+      options.projection_space = ProjectionGhostPenaltySpace::TOTAL_DEGREE;
+      ProjectionGhostPenaltyKernel::Assemble(element, element, *trans.Elem1,
+         *trans.Elem2, options, matrix);
+      matrix.Mult(values, action);
+      REQUIRE(values * action >
+              Roundoff(matrix.FNorm() * values.Norml2() * values.Norml2()));
+      for (int vertex = 0; vertex < mesh.GetNV(); ++vertex)
+      {
+         auto *position = mesh.GetVertex(vertex);
+         if (position[0] > 1.0) { position[1] += 0.3 * (position[0] - 1.0); }
+      }
+      auto &mismatched = InteriorFace(mesh);
+      ProjectionGhostPenaltyKernel::Assemble(
+         element, element, *mismatched.Elem1, *mismatched.Elem2, options, matrix);
+      REQUIRE(matrix.FNorm() > 0.0);
+      SamplePolynomial(element, *mismatched.Elem1, {0, 1, 0}, values, 0);
+      SamplePolynomial(element, *mismatched.Elem2, {0, 1, 0}, values,
+                       element.GetDof());
+      matrix.Mult(values, action);
+      REQUIRE(action.Norml2() <
+              Roundoff(matrix.FNorm() * values.Norml2(), values.Size()));
    }
 }
 
@@ -522,13 +774,17 @@ std::vector<std::vector<long long>> CoordinateKeys(FiniteElementSpace &space)
 
 void ParallelComparison(int dimension, int order, int components,
                         Ordering::Type ordering, int scenario, int layers,
-                        MPI_Comm communicator)
+                        MPI_Comm communicator, bool tensor = false,
+                        const ProjectionGhostPenaltyOptions &options = {},
+                        int mapping = 0)
 {
    int ranks;
    MPI_Comm_size(communicator, &ranks);
    Mesh mesh = dimension == 2
-                  ? Mesh::MakeCartesian2D(4, 1, Element::TRIANGLE, true)
-                  : Mesh::MakeCartesian3D(4, 1, 1, Element::TETRAHEDRON);
+                  ? Mesh::MakeCartesian2D(4, 1, tensor ? Element::QUADRILATERAL
+                                          : Element::TRIANGLE, true)
+                  : Mesh::MakeCartesian3D(4, 1, 1, tensor ? Element::HEXAHEDRON
+                                          : Element::TETRAHEDRON);
    Array<int> partition(mesh.GetNE());
    Vector center(dimension);
    for (int element = 0; element < mesh.GetNE(); ++element)
@@ -537,6 +793,7 @@ void ParallelComparison(int dimension, int order, int components,
       partition[element] =
          std::min(ranks - 1, static_cast<int>(center(0) * ranks));
    }
+   TransformTensorMesh(mesh, mapping);
    H1_FECollection collection(order, dimension);
    FiniteElementSpace serial_space(&mesh, &collection, components, ordering);
    Array<int> active, cut;
@@ -544,7 +801,7 @@ void ParallelComparison(int dimension, int order, int components,
    auto serial_selection =
       std::make_shared<GhostFaceSelection>(serial_space, active, cut, layers);
    BilinearForm serial_form(&serial_space);
-   AddPenalty(serial_form, serial_selection);
+   AddPenalty(serial_form, serial_selection, options);
    DenseMatrix serial_matrix;
    serial_form.SpMat().ToDenseMatrix(serial_matrix);
    const auto serial_keys = CoordinateKeys(serial_space);
@@ -568,7 +825,7 @@ void ParallelComparison(int dimension, int order, int components,
    ParBilinearForm form(&parallel_space);
    form.KeepNbrBlock(false);
    form.UsePrecomputedSparsity(order == 2);
-   AddPenalty(form, parallel_selection);
+   AddPenalty(form, parallel_selection, options);
    std::unique_ptr<HypreParMatrix> matrix(form.ParallelAssemble());
    const auto parallel_keys = CoordinateKeys(parallel_space);
    Array<int> indices(parallel_space.GetTrueVSize());
@@ -697,5 +954,32 @@ TEST_CASE("Ghost penalty distributed true-DOF matrices",
                          MPI_COMM_WORLD);
    }
    ParallelComparison(2, 1, 1, Ordering::byNODES, 0, 0, MPI_COMM_SELF);
+}
+
+TEST_CASE("Ghost penalty distributed tensor true-DOF matrices",
+          "[GhostPenalty][Parallel]")
+{
+   for (int dimension : {2, 3})
+   for (int order : {1, 2})
+   for (auto ordering : {Ordering::byNODES, Ordering::byVDIM})
+   for (int components : {1, 3})
+   for (auto mode : {ProjectionGhostPenaltySpace::AUTO,
+                     ProjectionGhostPenaltySpace::TOTAL_DEGREE,
+                     ProjectionGhostPenaltySpace::TENSOR_PRODUCT})
+   {
+      CAPTURE(dimension, order, ordering, components, static_cast<int>(mode));
+      ProjectionGhostPenaltyOptions options;
+      options.projection_space = mode;
+      ParallelComparison(dimension, order, components, ordering, 0, 0,
+                         MPI_COMM_WORLD, true, options, 2);
+   }
+   for (int dimension : {2, 3})
+   for (int scenario : {1, 2})
+   for (int layers : {0, 1})
+   {
+      ParallelComparison(dimension, 2, 2, Ordering::byVDIM, scenario, layers,
+                         MPI_COMM_WORLD, true);
+   }
+   ParallelComparison(2, 1, 1, Ordering::byNODES, 0, 0, MPI_COMM_SELF, true);
 }
 #endif

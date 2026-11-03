@@ -43,12 +43,72 @@ int main(int argc, char *argv[])
          "failure test face=(0,1) p1=1 p2=1");
       return 0;
    }
-   Mesh mesh = Mesh::MakeCartesian2D(
-      1, 1, scenario == "geometry" ? Element::QUADRILATERAL : Element::TRIANGLE,
-      true);
+   if (scenario.find("tensor-") == 0)
+   {
+      const int dimension = scenario == "tensor-nonaffine-hex" ? 3 : 2;
+      Mesh mesh = dimension == 3
+         ? Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON)
+         : Mesh::MakeCartesian2D(2, 1, scenario == "tensor-q-simplex"
+                                 ? Element::TRIANGLE : Element::QUADRILATERAL,
+                                 true);
+      if (scenario == "tensor-mixed")
+      {
+         mesh = Mesh(2, 6, 3, 0, 2);
+         const real_t coordinates[6][2] = {{0, 0}, {1, 0}, {1, 1},
+                                           {0, 1}, {2, 0}, {2, 1}};
+         for (const auto &position : coordinates) { mesh.AddVertex(position); }
+         mesh.AddQuad(0, 1, 2, 3);
+         mesh.AddTriangle(1, 4, 2);
+         mesh.AddTriangle(4, 5, 2);
+         mesh.FinalizeMesh();
+      }
+      if (scenario == "tensor-nonaffine-quad" ||
+          scenario == "tensor-nonaffine-hex")
+      { mesh.GetVertex(mesh.GetNV() - 1)[0] += 0.1; }
+      if (scenario == "tensor-curved") { mesh.SetCurvature(2); }
+      for (int vertex = 0; vertex < mesh.GetNV(); ++vertex)
+      {
+         auto *position = mesh.GetVertex(vertex);
+         if ((scenario == "tensor-frame-auto" ||
+              scenario == "tensor-frame-q") &&
+             position[0] > 0.5)
+         { position[1] += 0.3 * (position[0] - 0.5); }
+         if (scenario == "tensor-degenerate") { position[1] = 0.0; }
+      }
+      H1_FECollection collection(1, dimension);
+      FiniteElementSpace space(&mesh, &collection);
+      Array<int> active(mesh.GetNE()), cut(mesh.GetNE());
+      active = 1;
+      cut = 1;
+      auto selection = std::make_shared<GhostFaceSelection>(space, active, cut);
+      ProjectionGhostPenaltyOptions options;
+      if (scenario == "tensor-q-simplex" || scenario == "tensor-frame-q")
+      {
+         options.projection_space = ProjectionGhostPenaltySpace::TENSOR_PRODUCT;
+      }
+      if (scenario == "tensor-projection-space")
+      {
+         options.projection_space = static_cast<ProjectionGhostPenaltySpace>(-1);
+      }
+      for (int face = 0; face < mesh.GetNumFaces(); ++face)
+      {
+         auto *trans = mesh.GetInteriorFaceTransformations(face);
+         if (!trans) { continue; }
+         IntegrationRule rule(IntRules.Get(trans->Elem1->GetGeometryType(), 4));
+         if (scenario == "tensor-order") { rule.SetOrder(0); }
+         if (scenario == "tensor-weight") { rule.IntPoint(0).weight = 0.0; }
+         DenseMatrix matrix;
+         ProjectionGhostPenaltyKernel::Assemble(*space.GetFE(trans->Elem1No),
+            *space.GetFE(trans->Elem2No), *trans->Elem1, *trans->Elem2,
+            options, matrix, nullptr, &rule, &rule);
+      }
+      return 0;
+   }
+   Mesh mesh = scenario == "geometry" ? Mesh::MakeCartesian1D(2)
+      : Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE, true);
    if (scenario == "curved") { mesh.SetCurvature(2); }
    if (scenario == "nonconforming") { mesh.EnsureNCMesh(true); }
-   H1_FECollection collection(1, 2);
+   H1_FECollection collection(1, mesh.Dimension());
    FiniteElementSpace space(&mesh, &collection);
    Array<int> active(mesh.GetNE()), cut(mesh.GetNE());
    active = 1;
