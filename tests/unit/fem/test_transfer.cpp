@@ -745,6 +745,68 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
 
 #ifdef MFEM_USE_MPI
 
+TEST_CASE("Parallel H1 L2 projection EA agrees with standard",
+          "[Transfer][Parallel]")
+{
+   int num_procs;
+   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+   if (num_procs < 2)
+   {
+      SUCCEED("Run with at least two MPI ranks to exercise shared dofs");
+      return;
+   }
+
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL,
+                                     true, 1.0, 1.0);
+   ParMesh coarse_mesh(MPI_COMM_WORLD, mesh);
+   ParMesh fine_mesh(MPI_COMM_WORLD, mesh);
+   fine_mesh.UniformRefinement();
+
+   H1_FECollection coarse_fec(2, 2);
+   H1_FECollection fine_fec(1, 2);
+   ParFiniteElementSpace coarse_fes(&coarse_mesh, &coarse_fec);
+   ParFiniteElementSpace fine_fes(&fine_mesh, &fine_fec);
+
+   L2ProjectionGridTransfer standard_transfer(coarse_fes, fine_fes);
+   L2ProjectionGridTransfer ea_transfer(coarse_fes, fine_fes);
+   ea_transfer.UseEA(true);
+
+   Vector coarse_x(coarse_fes.GetTrueVSize());
+   Vector fine_standard(fine_fes.GetTrueVSize());
+   Vector fine_ea(fine_fes.GetTrueVSize());
+   for (int i = 0; i < coarse_x.Size(); ++i)
+   {
+      coarse_x(i) = 1.0 + 0.01 * (i % 19);
+   }
+
+   standard_transfer.TrueForwardOperator().Mult(coarse_x, fine_standard);
+   ea_transfer.TrueForwardOperator().Mult(coarse_x, fine_ea);
+   fine_ea -= fine_standard;
+   const real_t forward_error =
+      std::sqrt(InnerProduct(MPI_COMM_WORLD, fine_ea, fine_ea));
+   const real_t forward_norm =
+      std::sqrt(InnerProduct(MPI_COMM_WORLD, fine_standard, fine_standard));
+   INFO("forward relative error: " << forward_error / forward_norm);
+   CHECK(forward_error < 1e-12 * std::max(real_t(1.0), forward_norm));
+
+   for (int i = 0; i < fine_standard.Size(); ++i)
+   {
+      fine_standard(i) = 1.0 + 0.02 * (i % 23);
+   }
+   Vector coarse_standard(coarse_fes.GetTrueVSize());
+   Vector coarse_ea(coarse_fes.GetTrueVSize());
+   standard_transfer.TrueBackwardOperator().Mult(fine_standard,
+                                                 coarse_standard);
+   ea_transfer.TrueBackwardOperator().Mult(fine_standard, coarse_ea);
+   coarse_ea -= coarse_standard;
+   const real_t backward_error =
+      std::sqrt(InnerProduct(MPI_COMM_WORLD, coarse_ea, coarse_ea));
+   const real_t backward_norm =
+      std::sqrt(InnerProduct(MPI_COMM_WORLD, coarse_standard, coarse_standard));
+   INFO("backward relative error: " << backward_error / backward_norm);
+   CHECK(backward_error < 1e-10 * std::max(real_t(1.0), backward_norm));
+}
+
 TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
 {
    auto simplex = GENERATE(true, false);
