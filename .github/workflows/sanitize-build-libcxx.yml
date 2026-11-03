@@ -47,7 +47,7 @@ jobs:
         run: |
           git sparse-checkout set --cone
           git checkout llvmorg-${{env.LLVM_VER}}
-          git sparse-checkout set cmake llvm/cmake runtimes libcxx libcxxabi
+          git sparse-checkout set cmake llvm/cmake runtimes libc libcxx libcxxabi
       - name: Mkdir
         if: ${{ steps.cache.outputs.cache-hit != 'true' }}
         run: mkdir ${{env.LLVM_DIR}}
