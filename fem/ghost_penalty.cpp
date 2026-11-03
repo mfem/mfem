@@ -106,17 +106,39 @@ const char *ProjectionSpaceName(ProjectionGhostPenaltySpace space)
    return space == ProjectionGhostPenaltySpace::TENSOR_PRODUCT ? "q" : "p";
 }
 
-CellGeometry GetGeometry(ElementTransformation &trans,
+void CenterTransformation(const IsoparametricTransformation &source,
+                          const Vector &offset,
+                          IsoparametricTransformation &centered,
+                          const std::string &context)
+{
+   centered.SetFE(source.GetFE());
+   centered.ElementNo = source.ElementNo;
+   centered.GetPointMat() = source.GetPointMat();
+   auto &points = centered.GetPointMat();
+   for (int node = 0; node < points.Width(); ++node)
+   {
+      for (int axis = 0; axis < points.Height(); ++axis)
+      {
+         MFEM_VERIFY(std::isfinite(points(axis, node)) &&
+                        std::isfinite(offset(axis)),
+                     "Ghost penalty: nonfinite physical geometry node; "
+                     << context);
+         points(axis, node) -= offset(axis);
+      }
+   }
+}
+
+CellGeometry GetGeometry(ElementTransformation &original,
                          const std::string &context = "selection preparation")
 {
-   const auto geometry = trans.GetGeometryType();
+   const auto geometry = original.GetGeometryType();
    const int dimension = Geometry::Dimension[geometry];
    const bool tensor = IsTensorGeometry(geometry);
    const auto *isoparametric =
-      dynamic_cast<const IsoparametricTransformation *>(&trans);
+      dynamic_cast<const IsoparametricTransformation *>(&original);
    MFEM_VERIFY(
-      trans.GetSpaceDim() == dimension &&
-      isoparametric && trans.Order() >= 1 &&
+      original.GetSpaceDim() == dimension &&
+      isoparametric && original.Order() >= 1 &&
       !dynamic_cast<const NURBSFiniteElement *>(isoparametric->GetFE()) &&
       (((geometry == Geometry::TRIANGLE || geometry == Geometry::TETRAHEDRON) &&
         isoparametric->GetFE()->Space() == FunctionSpace::Pk) ||
@@ -124,6 +146,12 @@ CellGeometry GetGeometry(ElementTransformation &trans,
       "Ghost penalty: require polynomial triangles/tetrahedra or "
       "quadrilaterals/hexahedra in 2D/3D (no rational or embedded cells); "
          << context);
+   Vector offset(dimension);
+   for (int axis = 0; axis < dimension; ++axis)
+   { offset(axis) = isoparametric->GetPointMat()(axis, 0); }
+   IsoparametricTransformation centered;
+   CenterTransformation(*isoparametric, offset, centered, context);
+   ElementTransformation &trans = centered;
    const IntegrationRule &vertices = *Geometries.GetVertices(geometry);
    CellGeometry result;
    result.order = trans.Order();
@@ -135,7 +163,6 @@ CellGeometry GetGeometry(ElementTransformation &trans,
    result.center = 0.0;
    std::vector<std::vector<real_t>> positions;
    Vector position(dimension);
-   real_t coordinate_scale = 0.0;
    for (int vertex = 0; vertex < vertices.GetNPoints(); ++vertex)
    {
       trans.Transform(vertices.IntPoint(vertex), position);
@@ -145,8 +172,6 @@ CellGeometry GetGeometry(ElementTransformation &trans,
          MFEM_VERIFY(std::isfinite(position(axis)),
                      "Ghost penalty: nonfinite physical vertex; " << context);
          coordinates[axis] = position(axis);
-         coordinate_scale =
-            std::max(coordinate_scale, std::abs(position(axis)));
          result.center(axis) += position(axis) / vertices.GetNPoints();
       }
       positions.push_back(coordinates);
@@ -155,7 +180,8 @@ CellGeometry GetGeometry(ElementTransformation &trans,
    result.diameter = 0.0;
    for (const auto &first : positions)
    {
-      result.key.insert(result.key.end(), first.begin(), first.end());
+      for (int axis = 0; axis < dimension; ++axis)
+      { result.key.push_back(first[axis] + offset(axis)); }
       for (const auto &second : positions)
       {
          real_t distance = 0.0;
@@ -175,7 +201,7 @@ CellGeometry GetGeometry(ElementTransformation &trans,
                   std::isfinite(result.diameter) && result.diameter > 0.0,
                "Ghost penalty: degenerate element geometry; " << context);
    result.tolerance = 256.0 * std::numeric_limits<real_t>::epsilon() *
-                      std::max(coordinate_scale, result.diameter);
+                      result.diameter;
    if (tensor && result.affine)
    {
       Vector reference(dimension), displacement(dimension);
@@ -197,6 +223,7 @@ CellGeometry GetGeometry(ElementTransformation &trans,
    if (result.affine)
    {
       result.weight_order = 0;
+      result.center += offset;
       return result;
    }
    const int refinement = CheckedSize(2LL * result.order, context);
@@ -266,6 +293,7 @@ CellGeometry GetGeometry(ElementTransformation &trans,
       MFEM_VERIFY(std::isfinite(result.center(axis)),
                   "Ghost penalty: nonfinite cell centroid; " << context);
    }
+   result.center += offset;
    return result;
 }
 
@@ -295,8 +323,7 @@ void TensorFrameInverse(const CellGeometry &canonical,
    }
    std::sort(directions.begin(), directions.end());
    std::vector<bool> used(dimension, false);
-   const real_t tolerance =
-      2.0 * std::max(canonical.tolerance, neighbor.tolerance);
+   const real_t tolerance = 512.0 * std::numeric_limits<real_t>::epsilon();
    for (int column = 0; column < dimension; ++column)
    {
       real_t length = 0.0;
@@ -313,11 +340,12 @@ void TensorFrameInverse(const CellGeometry &canonical,
          {
             dot += directions[candidate][axis] * neighbor.jacobian(axis, column);
          }
-         const real_t signed_length = dot < 0.0 ? -length : length;
+         const real_t sign = dot < 0.0 ? -1.0 : 1.0;
          for (int axis = 0; axis < dimension; ++axis)
          {
-            residual = std::hypot(residual, neighbor.jacobian(axis, column) -
-                                 signed_length * directions[candidate][axis]);
+            residual = std::hypot(residual,
+                                 neighbor.jacobian(axis, column) / length -
+                                 sign * directions[candidate][axis]);
          }
          if (residual < best) { best = residual; match = candidate; }
       }
@@ -488,8 +516,31 @@ void ProjectionGhostPenaltyKernel::Assemble(
                   first_fe.GetMapType() == FiniteElement::VALUE &&
                   second_fe.GetMapType() == FiniteElement::VALUE,
                "Ghost penalty: incompatible finite elements; " << context);
-   const CellGeometry first_geometry = GetGeometry(first_trans, context);
-   const CellGeometry second_geometry = GetGeometry(second_trans, context);
+   const auto *first_map =
+      dynamic_cast<const IsoparametricTransformation *>(&first_trans);
+   const auto *second_map =
+      dynamic_cast<const IsoparametricTransformation *>(&second_trans);
+   MFEM_VERIFY(first_map && second_map &&
+                  first_trans.GetSpaceDim() == dimension &&
+                  second_trans.GetSpaceDim() == dimension,
+               "Ghost penalty: require polynomial volume transformations; "
+               << context);
+   Vector translation(dimension);
+   translation = infinity();
+   for (const auto *mapping : {first_map, second_map})
+   {
+      const auto &points = mapping->GetPointMat();
+      for (int node = 0; node < points.Width(); ++node)
+      {
+         for (int axis = 0; axis < dimension; ++axis)
+         { translation(axis) = std::min(translation(axis), points(axis, node)); }
+      }
+   }
+   IsoparametricTransformation first_centered, second_centered;
+   CenterTransformation(*first_map, translation, first_centered, context);
+   CenterTransformation(*second_map, translation, second_centered, context);
+   const CellGeometry first_geometry = GetGeometry(first_centered, context);
+   const CellGeometry second_geometry = GetGeometry(second_centered, context);
    MFEM_VERIFY(first_fe.GetGeomType() == second_fe.GetGeomType(),
                "Ghost penalty: mixed-type patches are unsupported; "
                << context);
@@ -518,7 +569,7 @@ void ProjectionGhostPenaltyKernel::Assemble(
                          inverse_frame, context);
    }
    const FiniteElement *elements[] = {&first_fe, &second_fe};
-   ElementTransformation *transforms[] = {&first_trans, &second_trans};
+   ElementTransformation *transforms[] = {&first_centered, &second_centered};
    const CellGeometry *geometries[] = {&first_geometry, &second_geometry};
    const IntegrationRule *quadratures[] = {first_rule, second_rule};
    if (reverse)
@@ -605,6 +656,7 @@ void ProjectionGhostPenaltyKernel::Assemble(
          quadratures[side]->GetOrder();
       local_diagnostics.volumes[original_side] = geometry.volume;
       local_diagnostics.centroids[original_side] = geometry.center;
+      local_diagnostics.centroids[original_side] += translation;
       local_diagnostics.minimum_jacobians[original_side] =
          geometry.minimum_jacobian;
    }

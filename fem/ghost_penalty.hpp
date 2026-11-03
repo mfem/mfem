@@ -134,9 +134,10 @@ class ProjectionGhostPenaltyKernel
 
        @param[in] first_fe Scalar, VALUE-mapped FE on the first cell.
        @param[in] second_fe Compatible scalar FE; its order may differ.
-       @param[in,out] first_trans First cell transformation; its integration
-                      point is modified during evaluation.
-       @param[in,out] second_trans Second cell transformation, also modified.
+       @param[in] first_trans First cell transformation; a centered copy is
+                  evaluated without changing the supplied transformation.
+       @param[in] second_trans Second cell transformation, also evaluated
+                  through a centered copy.
        @param[in] options Projection, quadrature, and penalty parameters.
        @param[out] matrix Resized square matrix, with first-cell scalar DOFs
                    followed by second-cell scalar DOFs; prior entries are lost.
@@ -165,6 +166,12 @@ class ProjectionGhostPenaltyKernel
        representations of straight cells) require explicit TOTAL_DEGREE.
        Tensor rules use the required order per coordinate. Mixed-type pairs
        and curved Q projection are rejected.
+
+       Affine checks use centered geometry with a tolerance proportional to
+       cell diameter. Tensor compatibility compares unit directions. Neither
+       check relaxes with absolute coordinates; integration also uses a shared
+       patch offset to avoid cancellation from large translations. Centering
+       cannot recover geometric detail already lost in the input coordinates.
 
        Reproduction applies only to physical polynomials also representable
        in both mapped FE spaces. For P_r, FE order >= k*r on each side is a

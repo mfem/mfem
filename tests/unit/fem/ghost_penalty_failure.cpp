@@ -1,4 +1,8 @@
 #include "mfem.hpp"
+
+#ifdef MFEM_USE_LAPACK
+
+#include <algorithm>
 #include <limits>
 #include <memory>
 #include <string>
@@ -41,6 +45,40 @@ int main(int argc, char *argv[])
       ProjectionGhostPenaltyKernel::ComputeProjection(
          polynomials, shapes, 0.0, coefficients, diagnostics,
          "failure test face=(0,1) p1=1 p2=1");
+      return 0;
+   }
+   if (scenario.find("offset-") == 0)
+   {
+      const int dimension = scenario.find("hex") != std::string::npos ? 3 : 2;
+      const bool incompatible = scenario.find("frame") != std::string::npos;
+      Mesh mesh = dimension == 2 ?
+         Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL, true) :
+         Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+      for (int vertex = 0; vertex < mesh.GetNV(); ++vertex)
+      {
+         auto *position = mesh.GetVertex(vertex);
+         if (incompatible)
+         {
+            position[1] += 0.125 * std::max(real_t(0.0), position[0] - 0.5);
+         }
+         else { position[0] += 0.125 * position[0] * position[1]; }
+         position[0] += MFEM_PRECISION_SWITCH(1.e12, 1.e5);
+      }
+      H1_FECollection collection(2, dimension);
+      FiniteElementSpace space(&mesh, &collection);
+      ProjectionGhostPenaltyOptions options;
+      options.quadrature_extra = 0;
+      if (scenario.back() == 'q')
+      { options.projection_space = ProjectionGhostPenaltySpace::TENSOR_PRODUCT; }
+      for (int face = 0; face < mesh.GetNumFaces(); ++face)
+      {
+         auto *trans = mesh.GetInteriorFaceTransformations(face);
+         if (!trans) { continue; }
+         DenseMatrix matrix;
+         ProjectionGhostPenaltyKernel::Assemble(*space.GetFE(trans->Elem1No),
+            *space.GetFE(trans->Elem2No), *trans->Elem1, *trans->Elem2,
+            options, matrix);
+      }
       return 0;
    }
    if (scenario.find("tensor-") == 0)
@@ -208,3 +246,5 @@ int main(int argc, char *argv[])
    }
    return 0;
 }
+
+#endif

@@ -1,4 +1,7 @@
 #include "mfem.hpp"
+
+#ifdef MFEM_USE_LAPACK
+
 #include "unit_tests.hpp"
 #include <algorithm>
 #include <cmath>
@@ -863,6 +866,82 @@ TEST_CASE("Ghost penalty curved physical P kernels", "[GhostPenalty][Curved]")
    }
 }
 
+TEST_CASE("Ghost penalty large coordinate offsets", "[GhostPenalty][Curved]")
+{
+   for (int dimension : {2, 3})
+   for (int mapping : {0, 1, 2, 3})
+   {
+      CAPTURE(dimension, mapping);
+      Mesh mesh = dimension == 2 ?
+         Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL, true) :
+         Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+      if (mapping == 2) { mesh.SetCurvature(2); }
+      mesh.Transform([=](const Vector &position, Vector &value)
+      {
+         value = position;
+         if (mapping == 0) { value(0) += 0.25 * position(1); }
+         if (mapping == 1 || mapping == 2)
+         { value(0) += 0.125 * position(0) * position(1); }
+         if (mapping == 2)
+         { value(0) += 0.25 * position(1) * (1.0 - position(1)); }
+         if (mapping == 3)
+         { value(1) += 0.125 * std::max(real_t(0.0), position(0) - 0.5); }
+      });
+      H1_FECollection collection(2, dimension);
+      auto &trans = InteriorFace(mesh);
+      const auto &element = *collection.FiniteElementForGeometry(
+         trans.Elem1->GetGeometryType());
+      ProjectionGhostPenaltyOptions options;
+      options.projection_space = mapping == 0 ?
+         ProjectionGhostPenaltySpace::AUTO :
+         ProjectionGhostPenaltySpace::TOTAL_DEGREE;
+      options.projection_degree = 2;
+      options.quadrature_extra = 0;
+      ProjectionGhostPenaltyDiagnostics original, translated;
+      DenseMatrix matrix, shifted, refined, swapped;
+      ProjectionGhostPenaltyKernel::Assemble(element, element, *trans.Elem1,
+         *trans.Elem2, options, matrix, &original);
+      const real_t offset = MFEM_PRECISION_SWITCH(1.e12, 1.e5);
+      mesh.Transform([=](const Vector &position, Vector &value)
+      {
+         value = position;
+         value(0) += offset;
+         value(1) -= 0.5 * offset;
+         if (dimension == 3) { value(2) += 0.25 * offset; }
+      });
+      auto &shifted_trans = InteriorFace(mesh);
+      ProjectionGhostPenaltyKernel::Assemble(element, element,
+         *shifted_trans.Elem1, *shifted_trans.Elem2, options, shifted, &translated);
+      const real_t tolerance = Roundoff(matrix.FNorm(), matrix.Height());
+      REQUIRE(original.projection_space == translated.projection_space);
+      REQUIRE(std::abs(original.face_length - translated.face_length) <
+              Roundoff(original.face_length));
+      for (int side = 0; side < 2; ++side)
+      {
+         REQUIRE(original.required_orders[side] == translated.required_orders[side]);
+         REQUIRE(std::abs(original.volumes[side] - translated.volumes[side]) <
+                 Roundoff(original.volumes[side]));
+      }
+      shifted -= matrix;
+      REQUIRE(shifted.FNorm() < tolerance);
+      ProjectionGhostPenaltyKernel::Assemble(element, element,
+         *shifted_trans.Elem2, *shifted_trans.Elem1, options, swapped);
+      for (int row = 0; row < matrix.Height(); ++row)
+      for (int column = 0; column < matrix.Width(); ++column)
+      {
+         const int swapped_row = (row + element.GetDof()) % matrix.Height();
+         const int swapped_column = (column + element.GetDof()) % matrix.Width();
+         REQUIRE(std::abs(matrix(row, column) -
+                          swapped(swapped_row, swapped_column)) < tolerance);
+      }
+      options.quadrature_extra = 6;
+      ProjectionGhostPenaltyKernel::Assemble(element, element,
+         *shifted_trans.Elem1, *shifted_trans.Elem2, options, refined);
+      refined -= matrix;
+      REQUIRE(refined.FNorm() < tolerance);
+   }
+}
+
 TEST_CASE("Ghost penalty curved geometry metrics", "[GhostPenalty][Curved]")
 {
    Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL, true);
@@ -1363,4 +1442,6 @@ TEST_CASE("Ghost penalty distributed curved true-DOF matrices",
    ParallelComparison(2, 2, 2, Ordering::byNODES, 0, 0, MPI_COMM_SELF,
                       true, options, 0, 2);
 }
+#endif
+
 #endif

@@ -23,7 +23,8 @@ if (MFEM_USE_LAPACK)
       tensor-projection-space tensor-curved curved-q curved-order curved-weight
       curved-inverted curved-singular curved-near-singular curved-fold
       curved-nonfinite curved-overflow curved-zero-gamma rational-geometry
-      embedded-geometry)
+      embedded-geometry offset-quad-auto offset-hex-auto offset-quad-q
+      offset-hex-q offset-frame-quad offset-frame-hex)
   set(ghost_failure_messages "rank-deficient projection" "rank-deficient projection"
       "invalid projection dimensions" "gamma must be finite and nonnegative"
       "quadrature weight must be positive" "quadrature weight must be positive"
@@ -41,7 +42,10 @@ if (MFEM_USE_LAPACK)
       "invalid signed Jacobian" "degenerate element geometry"
       "invalid signed Jacobian" "invalid signed Jacobian" "nonfinite physical"
       "order or allocation size overflow" "explicit TOTAL_DEGREE"
-      "require polynomial" "require polynomial")
+      "require polynomial" "require polynomial"
+      "explicit TOTAL_DEGREE" "explicit TOTAL_DEGREE"
+      "explicit TOTAL_DEGREE" "explicit TOTAL_DEGREE"
+      "incompatible tensor frames" "incompatible tensor frames")
   list(LENGTH ghost_failure_cases ghost_failure_count)
   math(EXPR ghost_failure_last "${ghost_failure_count}-1")
   foreach(index RANGE 0 ${ghost_failure_last})
