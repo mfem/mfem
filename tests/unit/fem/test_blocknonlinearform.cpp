@@ -109,7 +109,7 @@ public:
    }
 };
 
-TEST_CASE("BlockNonlinearForm selective Mult",
+TEST_CASE("BlockNonlinearForm Array of Vectors Mult",
           "[BlockNonlinearForm], [Mult]")
 {
    const bool nonconforming = GENERATE(false, true);
