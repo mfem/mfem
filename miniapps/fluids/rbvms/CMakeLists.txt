@@ -75,7 +75,7 @@ if (MFEM_USE_MPI)
                   --mesh von-karman-nurbs.mesh
                   --strong-bdr "1 2" --outflow-bdr 4 --weak-bdr 3 
                   --lib libkarman.so -rho 1 -mu 0.01
-                  -r 1 -o 2-s 45 -dt 0.1  -tf 1
+                  -r 1 -o 2 -s 45 -dt 0.1  -tf 1
       ${MPIEXEC_POSTFLAGS})
   endif()
   
