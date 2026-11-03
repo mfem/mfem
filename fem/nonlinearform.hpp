@@ -428,9 +428,7 @@ public:
 
        Each non-NULL x[s] and y[s] must have size FESpace(s)->GetTrueVSize().
        As in Mult(const Vector &, Vector &), the essential true dofs of each
-       given output are set to zero.
-
-       @note Currently only supported in serial. */
+       given output are set to zero. */
    virtual void Mult(const Array<const Vector *> &x,
                      const Array<Vector *> &y) const;
 

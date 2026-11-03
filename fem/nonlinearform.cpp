@@ -1290,8 +1290,6 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 void BlockNonlinearForm::Mult(const Array<const Vector *> &x,
                               const Array<Vector *> &y) const
 {
-   MFEM_VERIFY(is_serial, "BlockNonlinearForm::Mult with arrays of blocks "
-               "is not supported in parallel yet");
    MFEM_VERIFY(x.Size() == fes.Size() && y.Size() == fes.Size(),
                "the input and output arrays must have one entry per space");
 
