@@ -2422,7 +2422,9 @@ public:
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
-   Coefficient *GetCoefficient() const { return Q; }
+   MFEM_DEPRECATED Coefficient *GetCoefficient() const { return Q; }
+
+   CoefficientBase *GetCoefficientBase() const { return CoefficientBase::Get(Q, VQ, MQ); }
 
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
@@ -2542,6 +2544,8 @@ public:
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
    const Coefficient *GetCoefficient() const { return Q; }
+
+   CoefficientBase *GetCoefficientBase() const { return Q; }
 
    template <int DIM, int D1D, int Q1D>
    static void AddSpecialization()
@@ -2976,7 +2980,9 @@ public:
    void AddAbsMultPA(const Vector &x, Vector &y) const override;
    void AssembleDiagonalPA(Vector& diag) override;
 
-   const Coefficient *GetCoefficient() const { return Q; }
+   MFEM_DEPRECATED const Coefficient *GetCoefficient() const { return Q; }
+
+   CoefficientBase *GetCoefficientBase() const { return CoefficientBase::Get(Q, DQ, MQ); }
 
    /// arguments: d1d, q1d, symmetric, NE, bo, bc, bot, bct, gc, gct, pa_data,
    /// x, y, useAbs
@@ -3125,7 +3131,9 @@ public:
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
 
-   const Coefficient *GetCoefficient() const { return Q; }
+   MFEM_DEPRECATED const Coefficient *GetCoefficient() const { return Q; }
+
+   CoefficientBase *GetCoefficientBase() const { return CoefficientBase::Get(Q, DQ, MQ); }
 
    using ApplyKernelType =
       void (*)(const int NE, bool symmetric, const bool scalar_coeff,
@@ -3264,7 +3272,9 @@ public:
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;
 
-   const Coefficient *GetCoefficient() const { return Q; }
+   MFEM_DEPRECATED const Coefficient *GetCoefficient() const { return Q; }
+
+   CoefficientBase *GetCoefficientBase() const { return Q; }
 
    /// arguments: d1d, q1d, NE, Bo, Gc, Bot, Gct, pa_data, x, y
    using ApplyKernelType = void (*)(const int, const int, const int,
