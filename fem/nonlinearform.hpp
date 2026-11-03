@@ -312,6 +312,12 @@ protected:
    /// Block L-Vector to Block L-Vector
    void MultBlocked(const BlockVector &bx, BlockVector &by) const;
 
+   /// Specialized version of Mult() for arrays of L-Vector%s, one per space
+   /** Entries of @a lx and @a ly may be NULL, in which case that block is
+       skipped and NULL is passed to the integrators in its place. */
+   void MultBlocked(const Array<const Vector *> &lx,
+                    const Array<Vector *> &ly) const;
+
    /// Specialized version of GetGradient() for BlockVector
    void ComputeGradientBlocked(const BlockVector &bx, bool finalize = true) const;
 
