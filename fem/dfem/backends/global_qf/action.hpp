@@ -25,12 +25,20 @@ template<
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t,
+   typename entity_t,
    size_t ninputs = tuple_size<inputs_t>::value,
    size_t noutputs = tuple_size<outputs_t>::value>
 struct Action
 {
+   // TODO:
+   // The interpolation of this backend relies on QuadratureInterpolator, which
+   // only handles elements. Keeping an assertion here to be sure boundary
+   // entities don't slip through.
+   static_assert(std::is_same_v<entity_t, Entity::Element>,
+                 "GlobalQFBackend only supports domain integrators");
+
    Action(
-      IntegratorContext<Entity::Element> ctx,
+      IntegratorContext<entity_t> ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs) :
@@ -128,7 +136,7 @@ struct Action
       integrate(output_to_outfd, output_bases, yq, ye);
    }
 
-   IntegratorContext<Entity::Element> ctx;
+   IntegratorContext<entity_t> ctx;
    qfunc_t qfunc;
    inputs_t inputs;
    outputs_t outputs;

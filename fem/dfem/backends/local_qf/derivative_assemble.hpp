@@ -644,7 +644,7 @@ class DerivativeAssemble
 {
    // TODO:
    // So far the element dof maps and restrictions used below are element-only.
-   // Keeping an assertion here to be sure it doesn't slip through. 
+   // Keeping an assertion here to be sure it doesn't slip through.
    static_assert(std::is_same_v<entity_t, Entity::Element>,
                  "derivative matrix assembly is only implemented for domain "
                  "integrators, exclude it from the DerivativeKernels of "

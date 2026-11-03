@@ -25,14 +25,22 @@ template<
    int derivative_id,
    typename qfunc_t,
    typename inputs_t,
-   typename outputs_t>
+   typename outputs_t,
+   typename entity_t>
 struct DerivativeApplyTranspose
 {
+   // TODO:
+   // The interpolation of this backend relies on QuadratureInterpolator, which
+   // only handles elements. Keeping an assertion here to be sure boundary
+   // entities don't slip through.
+   static_assert(std::is_same_v<entity_t, Entity::Element>,
+                 "GlobalQFBackend only supports domain integrators");
+
    static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
 
    DerivativeApplyTranspose(
-      IntegratorContext<Entity::Element> ctx,
+      IntegratorContext<entity_t> ctx,
       qfunc_t /*qfunc*/,
       inputs_t inputs,
       outputs_t outputs,
@@ -204,7 +212,7 @@ struct DerivativeApplyTranspose
    }
 
 private:
-   IntegratorContext<Entity::Element> ctx;
+   IntegratorContext<entity_t> ctx;
    inputs_t inputs;
    outputs_t outputs;
    const Vector &qp_cache;
@@ -233,7 +241,7 @@ private:
    mutable std::vector<Vector *> dir_out_e;
    mutable RestrictionCache out_rcache
    {
-      EntityTraits<Entity::Element>::restriction
+      EntityTraits<entity_t>::restriction
    };
 
    int residual_size_on_qp = 0;

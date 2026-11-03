@@ -28,8 +28,6 @@ namespace mfem::future
 template <typename entity_t>
 struct IntegratorContext
 {
-   using entity_type = entity_t;
-
    const ParMesh &mesh;
    const Array<int> *elem_attr;
    Array<int> attr;
