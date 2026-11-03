@@ -42,7 +42,59 @@ struct CellGeometry
    real_t diameter;
    real_t tolerance;
    DenseMatrix jacobian;
+   int order;
+   int weight_order;
+   bool affine;
+   real_t minimum_jacobian = infinity();
 };
+
+void PositiveSimplexRule(int dimension, int order, IntegrationRule &rule);
+
+int CheckedSize(long long size, const std::string &context)
+{
+   MFEM_VERIFY(size >= 0 && size <= std::numeric_limits<int>::max(),
+               "Ghost penalty: order or allocation size overflow; " << context);
+   return static_cast<int>(size);
+}
+
+void PositiveGeometryRule(Geometry::Type geometry, int order,
+                          IntegrationRule &rule, const std::string &context)
+{
+   const int dimension = Geometry::Dimension[geometry];
+   CheckedSize(static_cast<long long>(order) + dimension, context);
+   const long long points = (static_cast<long long>(order) + dimension + 2) / 2;
+   int count = 1;
+   for (int axis = 0; axis < dimension; ++axis)
+   { count = CheckedSize(count * points, context); }
+   if (geometry == Geometry::SQUARE || geometry == Geometry::CUBE)
+   {
+      IntegrationRules rules(0, Quadrature1D::GaussLegendre);
+      rule = rules.Get(geometry, order);
+   }
+   else { PositiveSimplexRule(dimension, order, rule); }
+}
+
+real_t CheckJacobian(ElementTransformation &trans,
+                     const IntegrationPoint &point, const std::string &context)
+{
+   trans.SetIntPoint(&point);
+   DenseMatrix normalized(trans.Jacobian());
+   const real_t norm = normalized.FNorm();
+   MFEM_VERIFY(std::isfinite(norm) && norm > 0.0,
+               "Ghost penalty: degenerate element geometry; " << context);
+   normalized *= 1.0 / norm;
+   const real_t quality = normalized.Det();
+   MFEM_VERIFY(quality != 0.0,
+               "Ghost penalty: degenerate element geometry; " << context);
+   const real_t tolerance = 64.0 * trans.GetDimension() *
+                            std::numeric_limits<real_t>::epsilon();
+   MFEM_VERIFY(std::isfinite(quality) && quality > tolerance,
+               "Ghost penalty: invalid signed Jacobian; " << context
+               << " reference=(" << point.x << ',' << point.y << ','
+               << point.z << ") normalized_det=" << quality
+               << " tolerance=" << tolerance);
+   return quality;
+}
 
 bool IsTensorGeometry(Geometry::Type geometry)
 {
@@ -64,15 +116,21 @@ CellGeometry GetGeometry(ElementTransformation &trans,
       dynamic_cast<const IsoparametricTransformation *>(&trans);
    MFEM_VERIFY(
       trans.GetSpaceDim() == dimension &&
+      isoparametric && trans.Order() >= 1 &&
+      !dynamic_cast<const NURBSFiniteElement *>(isoparametric->GetFE()) &&
       (((geometry == Geometry::TRIANGLE || geometry == Geometry::TETRAHEDRON) &&
-        trans.OrderJ() == 0) ||
-       (tensor && isoparametric && trans.Order() == 1 &&
-        isoparametric->GetFE()->Space() == FunctionSpace::Qk)),
-      "Ghost penalty: require first-order affine triangles/tetrahedra or "
-      "quadrilaterals/hexahedra in 2D/3D (no curved or embedded cells); "
+        isoparametric->GetFE()->Space() == FunctionSpace::Pk) ||
+       (tensor && isoparametric->GetFE()->Space() == FunctionSpace::Qk)),
+      "Ghost penalty: require polynomial triangles/tetrahedra or "
+      "quadrilaterals/hexahedra in 2D/3D (no rational or embedded cells); "
          << context);
    const IntegrationRule &vertices = *Geometries.GetVertices(geometry);
    CellGeometry result;
+   result.order = trans.Order();
+   result.weight_order = CheckedSize(
+      tensor ? static_cast<long long>(dimension) * result.order - 1 :
+      static_cast<long long>(dimension) * (result.order - 1), context);
+   result.affine = result.order == 1;
    result.center.SetSize(dimension);
    result.center = 0.0;
    std::vector<std::vector<real_t>> positions;
@@ -110,13 +168,15 @@ CellGeometry GetGeometry(ElementTransformation &trans,
    }
    trans.SetIntPoint(&Geometries.GetCenter(geometry));
    result.jacobian = trans.Jacobian();
+   result.minimum_jacobian =
+      CheckJacobian(trans, Geometries.GetCenter(geometry), context);
    result.volume = trans.Weight() * Geometry::Volume[geometry];
    MFEM_VERIFY(std::isfinite(result.volume) && result.volume > 0.0 &&
                   std::isfinite(result.diameter) && result.diameter > 0.0,
                "Ghost penalty: degenerate element geometry; " << context);
    result.tolerance = 256.0 * std::numeric_limits<real_t>::epsilon() *
                       std::max(coordinate_scale, result.diameter);
-   if (tensor)
+   if (tensor && result.affine)
    {
       Vector reference(dimension), displacement(dimension);
       const auto &center = Geometries.GetCenter(geometry);
@@ -130,11 +190,81 @@ CellGeometry GetGeometry(ElementTransformation &trans,
          trans.Transform(point, position);
          position -= result.center;
          position -= displacement;
-         MFEM_VERIFY(position.Normlinf() <= result.tolerance,
-                     "Ghost penalty: non-affine quadrilateral/hexahedron; "
-                     << context << " residual=" << position.Normlinf()
-                     << " tolerance=" << result.tolerance);
+         result.affine = result.affine &&
+                         position.Normlinf() <= result.tolerance;
       }
+   }
+   if (result.affine)
+   {
+      result.weight_order = 0;
+      return result;
+   }
+   const int refinement = CheckedSize(2LL * result.order, context);
+   int sample_count = 1;
+   for (int axis = 0; axis < dimension; ++axis)
+   {
+      sample_count = CheckedSize(
+         static_cast<long long>(sample_count) * (refinement + 1LL), context);
+   }
+   CheckedSize(static_cast<long long>(sample_count) * vertices.GetNPoints(),
+               context);
+   GeometryRefiner refiner;
+   const auto &samples = refiner.Refine(geometry, refinement)->RefPts;
+   positions.clear();
+   result.diameter = 0.0;
+   for (int sample = 0; sample < samples.GetNPoints(); ++sample)
+   {
+      const auto &point = samples.IntPoint(sample);
+      result.minimum_jacobian = std::min(result.minimum_jacobian,
+                                         CheckJacobian(trans, point, context));
+      trans.Transform(point, position);
+      std::vector<real_t> coordinates(dimension);
+      for (int axis = 0; axis < dimension; ++axis)
+      {
+         MFEM_VERIFY(std::isfinite(position(axis)),
+                     "Ghost penalty: nonfinite physical point; " << context);
+         coordinates[axis] = position(axis);
+      }
+      for (const auto &previous : positions)
+      {
+         real_t distance = 0.0;
+         for (int axis = 0; axis < dimension; ++axis)
+         { distance = std::hypot(distance, coordinates[axis] - previous[axis]); }
+         result.diameter = std::max(result.diameter, distance);
+      }
+      positions.push_back(coordinates);
+   }
+   IntegrationRule metric_rule;
+   PositiveGeometryRule(geometry,
+                        CheckedSize(static_cast<long long>(result.order) +
+                                    result.weight_order, context),
+                        metric_rule, context);
+   Vector anchor(result.center);
+   result.center = 0.0;
+   result.volume = 0.0;
+   for (int sample = 0; sample < metric_rule.GetNPoints(); ++sample)
+   {
+      const auto &point = metric_rule.IntPoint(sample);
+      result.minimum_jacobian = std::min(result.minimum_jacobian,
+                                         CheckJacobian(trans, point, context));
+      const real_t weight = point.weight * trans.Weight();
+      MFEM_VERIFY(std::isfinite(weight) && weight > 0.0,
+                  "Ghost penalty: invalid geometry quadrature weight; "
+                  << context);
+      trans.Transform(point, position);
+      position -= anchor;
+      result.center.Add(weight, position);
+      result.volume += weight;
+   }
+   MFEM_VERIFY(std::isfinite(result.volume) && result.volume > 0.0 &&
+                  std::isfinite(result.diameter) && result.diameter > 0.0,
+               "Ghost penalty: degenerate element geometry; " << context);
+   result.center /= result.volume;
+   result.center += anchor;
+   for (int axis = 0; axis < dimension; ++axis)
+   {
+      MFEM_VERIFY(std::isfinite(result.center(axis)),
+                  "Ghost penalty: nonfinite cell centroid; " << context);
    }
    return result;
 }
@@ -365,6 +495,10 @@ void ProjectionGhostPenaltyKernel::Assemble(
                << context);
    const bool tensor = IsTensorGeometry(first_fe.GetGeomType());
    auto projection_space = options.projection_space;
+   MFEM_VERIFY((first_geometry.affine && second_geometry.affine) ||
+                  projection_space == ProjectionGhostPenaltySpace::TOTAL_DEGREE,
+               "Ghost penalty: non-affine or higher-order geometry requires "
+               "explicit TOTAL_DEGREE projection; " << context);
    if (projection_space == ProjectionGhostPenaltySpace::AUTO)
    {
       projection_space = tensor ? ProjectionGhostPenaltySpace::TENSOR_PRODUCT
@@ -385,17 +519,27 @@ void ProjectionGhostPenaltyKernel::Assemble(
    }
    const FiniteElement *elements[] = {&first_fe, &second_fe};
    ElementTransformation *transforms[] = {&first_trans, &second_trans};
+   const CellGeometry *geometries[] = {&first_geometry, &second_geometry};
    const IntegrationRule *quadratures[] = {first_rule, second_rule};
    if (reverse)
    {
       std::swap(elements[0], elements[1]);
       std::swap(transforms[0], transforms[1]);
       std::swap(quadratures[0], quadratures[1]);
+      std::swap(geometries[0], geometries[1]);
    }
    const int degree = options.projection_degree < 0
                          ? std::min(first_fe.GetOrder(), second_fe.GetOrder())
                          : options.projection_degree;
    std::vector<std::array<int, 3>> powers;
+   int columns = 1;
+   for (int axis = 1; axis <= dimension; ++axis)
+   {
+      columns = CheckedSize(tensor_projection ?
+                            columns * (degree + 1LL) :
+                            columns * (degree + static_cast<long long>(axis)) /
+                            axis, context);
+   }
    if (tensor_projection)
    {
       for (int first = 0; first <= degree; ++first)
@@ -431,24 +575,47 @@ void ProjectionGhostPenaltyKernel::Assemble(
    IntegrationRule generated[2];
    for (int side = 0; side < 2; ++side)
    {
-      const int order = 2 * std::max(elements[side]->GetOrder(), degree) +
-                        options.quadrature_extra;
+      const auto &geometry = *geometries[side];
+      MFEM_VERIFY(geometry.affine ||
+                     ((elements[side]->Space() == FunctionSpace::Pk ||
+                       elements[side]->Space() == FunctionSpace::Qk) &&
+                      !dynamic_cast<const NURBSFiniteElement *>(
+                         elements[side])),
+                  "Ghost penalty: curved projection requires polynomial FEs; "
+                  << context);
+      const int mapped_degree = CheckedSize(
+         static_cast<long long>(geometry.order) * degree, context);
+      const int required_order = CheckedSize(
+         2LL * std::max(elements[side]->GetOrder(), mapped_degree) +
+         geometry.weight_order, context);
+      const int order = CheckedSize(static_cast<long long>(required_order) +
+                                    options.quadrature_extra, context);
       if (!quadratures[side])
       {
-         if (tensor)
-         {
-            IntegrationRules rules(0, Quadrature1D::GaussLegendre);
-            generated[side] = rules.Get(elements[side]->GetGeomType(), order);
-         }
-         else { PositiveSimplexRule(dimension, order, generated[side]); }
+         PositiveGeometryRule(elements[side]->GetGeomType(), order,
+                              generated[side], context);
          quadratures[side] = &generated[side];
       }
-      MFEM_VERIFY(quadratures[side]->GetOrder() >=
-                     order - options.quadrature_extra,
+      MFEM_VERIFY(quadratures[side]->GetOrder() >= required_order,
                   "Ghost penalty: insufficient quadrature order; " << context);
+      const int original_side = reverse ? 1 - side : side;
+      local_diagnostics.geometry_orders[original_side] = geometry.order;
+      local_diagnostics.required_orders[original_side] = required_order;
+      local_diagnostics.quadrature_orders[original_side] =
+         quadratures[side]->GetOrder();
+      local_diagnostics.volumes[original_side] = geometry.volume;
+      local_diagnostics.centroids[original_side] = geometry.center;
+      local_diagnostics.minimum_jacobians[original_side] =
+         geometry.minimum_jacobian;
    }
-   const int rows = quadratures[0]->GetNPoints() + quadratures[1]->GetNPoints();
-   const int dofs = first_fe.GetDof() + second_fe.GetDof();
+   const int rows = CheckedSize(
+      static_cast<long long>(quadratures[0]->GetNPoints()) +
+      quadratures[1]->GetNPoints(), context);
+   const int dofs = CheckedSize(static_cast<long long>(first_fe.GetDof()) +
+                               second_fe.GetDof(), context);
+   CheckedSize(static_cast<long long>(rows) * columns, context);
+   CheckedSize(static_cast<long long>(rows) * dofs, context);
+   CheckedSize(static_cast<long long>(dofs) * dofs, context);
    DenseMatrix weighted_polynomials(rows, powers.size());
    DenseMatrix weighted_shapes(rows, dofs);
    weighted_shapes = 0.0;
@@ -461,7 +628,14 @@ void ProjectionGhostPenaltyKernel::Assemble(
       for (int point = 0; point < quadratures[side]->GetNPoints(); ++point)
       {
          const auto &integration_point = quadratures[side]->IntPoint(point);
-         transforms[side]->SetIntPoint(&integration_point);
+         MFEM_VERIFY(std::isfinite(integration_point.weight) &&
+                        integration_point.weight > 0.0,
+                     "Ghost penalty: quadrature weight must be positive and "
+                     "finite; " << context);
+         const int original_side = reverse ? 1 - side : side;
+         auto &minimum = local_diagnostics.minimum_jacobians[original_side];
+         minimum = std::min(minimum, CheckJacobian(*transforms[side],
+                                                  integration_point, context));
          const real_t weight =
             integration_point.weight * transforms[side]->Weight();
          MFEM_VERIFY(
@@ -501,7 +675,11 @@ void ProjectionGhostPenaltyKernel::Assemble(
                << " p2=" << second_fe.GetOrder() << " degree=" << degree
                << " projection_space=" << ProjectionSpaceName(projection_space)
                << " geometry=" << first_fe.GetGeomType() << ','
-               << second_fe.GetGeomType();
+               << second_fe.GetGeomType()
+               << " geometry_orders=" << first_geometry.order << ','
+               << second_geometry.order
+               << " quadrature_orders=" << local_diagnostics.quadrature_orders[0]
+               << ',' << local_diagnostics.quadrature_orders[1];
    DenseMatrix coefficients, projected(rows, dofs);
    ComputeProjection(weighted_polynomials, weighted_shapes, options.svd_rtol,
                      coefficients, local_diagnostics, description.str());
@@ -560,6 +738,12 @@ GhostFaceSelection::GhostFaceSelection(FiniteElementSpace &fes,
    MFEM_VERIFY((mesh.Dimension() == 2 || mesh.Dimension() == 3) &&
                   mesh.Dimension() == mesh.SpaceDimension(),
                "Ghost penalty: require a 2D or 3D volume mesh.");
+   const auto *nodes = mesh.GetNodes();
+   MFEM_VERIFY(!nodes ||
+                  (!nodes->FESpace()->IsVariableOrder() &&
+                   dynamic_cast<const H1_FECollection *>(
+                      nodes->FESpace()->FEColl())),
+               "Ghost penalty: require conforming uniform-order H1 geometry.");
    MFEM_VERIFY(active.Size() == elements && cut.Size() == elements &&
                   extension_layers >= 0,
                "Ghost penalty: invalid flag sizes or extension layers.");
@@ -601,6 +785,16 @@ GhostFaceSelection::GhostFaceSelection(FiniteElementSpace &fes,
       MFEM_VERIFY(
          minimum_layers == maximum_layers,
          "Ghost penalty: extension layers must agree across MPI ranks.");
+      const int geometry_order = nodes ?
+                                 nodes->FESpace()->FEColl()->GetOrder() : 1;
+      int minimum_geometry, maximum_geometry;
+      MPI_Allreduce(&geometry_order, &minimum_geometry, 1, MPI_INT, MPI_MIN,
+                    communicator);
+      MPI_Allreduce(&geometry_order, &maximum_geometry, 1, MPI_INT, MPI_MAX,
+                    communicator);
+      MFEM_VERIFY(minimum_geometry == maximum_geometry,
+                  "Ghost penalty: geometry order must agree across MPI ranks.");
+      parallel_mesh->ExchangeFaceNbrNodes();
       marker_collection.reset(new L2_FECollection(0, mesh.Dimension()));
       marker_space.reset(
          new ParFiniteElementSpace(parallel_mesh, marker_collection.get()));

@@ -2,7 +2,7 @@
     @brief Serial/MPI example of a fully assembled projection ghost penalty.
 
     This miniapp assembles only the stabilization matrix, not a complete PDE.
-    It marks the physical domain x[0] < test_level_set on an affine
+    It marks the physical domain x[0] < test_level_set on a polynomial
     background mesh, selects active interior cell pairs near the cut, and
     penalizes residuals from a common two-cell polynomial projection. Both
     complete cells are integrated; no cut-cell quadrature is performed.
@@ -24,6 +24,9 @@
     build/miniapps/mtop/projection_ghost_penalty --serial --order 2 --vdim 3
     build/miniapps/mtop/projection_ghost_penalty --serial --dimension 3 \
       --element-type tensor --order 2 --vdim 3 --ordering byVDIM
+    build/miniapps/mtop/projection_ghost_penalty --serial --dimension 3 \
+      --element-type tensor --geometry-order 2 --warp 0.05 --order 2 \
+      --projection-space p --projection-degree 1
     mpiexec -n 4 build/miniapps/mtop/projection_ghost_penalty \
       --parallel --order 2 --vdim 3
     @endcode
@@ -36,20 +39,28 @@
     With no --mesh, generate an 8-by-2 triangle mesh in 2D or an 8-by-1-by-1
     tetrahedral mesh in 3D. --element-type tensor instead generates quads/hexes.
     A supplied mesh determines its dimension and ignores --element-type.
-    Supported cells are conforming first-order affine triangles, quads, tets,
-    and hexes, not curved, embedded, non-affine, or nonconforming cells.
+    Supported cells are conforming polynomial triangles, quads, tets, and hexes.
+    Embedded, rational/NURBS, and nonconforming geometries are excluded.
     Defaults are serial mode, dimension=2, order=2, vdim=1, ordering=byNODES,
     test-level-set=0.43, gamma=1, projection-degree=-1 (use the FE order),
-    quad-extra=2, svd-rtol=0 (automatic threshold), layers=0, and quiet output.
+    quad-extra=2, svd-rtol=0 (automatic threshold), layers=0, geometry-order=1,
+    warp=0, and quiet output. Geometry order is independent of solution order.
     --projection-space auto (default) uses P on simplices and Q on tensor
     cells. Explicit p/q select either space. Q requires compatible affine
-    tensor axes; request p explicitly for incompatible quad/hex frames.
+    tensor axes; request p explicitly for incompatible quad/hex frames and all
+    non-affine/higher-order geometry. There is no automatic fallback to P.
+    --geometry-order and --warp apply only to generated meshes, before MPI
+    partitioning. Warp adds a small polynomial deformation with amplitude at
+    most 0.1 in magnitude; order-one tensor maps can already be non-affine.
+    Loaded meshes retain their geometry; nondefault generation controls fail.
+    Curved level-set flags sample a reference lattice with 2*k subdivisions:
+    they are approximate markers, not certified cell-intersection tests.
     --layers expands the cut band through active-cell adjacency; --verbose
     prints per-patch SVD diagnostics from each rank. See the OptionsParser
     registrations below for all command-line switches.
 
     @par Output and limitations
-    Rank zero prints mode, ranks, dimension, order, vdim, true_dofs,
+    Rank zero prints mode, ranks, dimension, order, geometry_order, vdim, true_dofs,
     selected_faces, and energy. The MPI counts and energy are global; shared
     faces are counted once physically. true_dofs includes the whole background
     FE space, not only active cells. Changing partition or vector ordering
@@ -80,7 +91,8 @@ int main(int argc, char *argv[])
    const char *element_type = "simplex";
    const char *projection_name = "auto";
    int order = 2, components = 1, dimension = 2, layers = 0;
-   real_t level_set = 0.43;
+   int geometry_order = 1;
+   real_t level_set = 0.43, warp = 0.0;
    bool parallel = false;
    ProjectionGhostPenaltyOptions options;
    OptionsParser arguments(argc, argv);
@@ -92,6 +104,10 @@ int main(int argc, char *argv[])
    arguments.AddOption(&projection_name, "-ps", "--projection-space",
                        "auto, p (total degree), or q (common tensor frame).");
    arguments.AddOption(&order, "-o", "--order", "Uniform H1 polynomial order.");
+   arguments.AddOption(&geometry_order, "-go", "--geometry-order",
+                       "Generated geometry order; independent of --order.");
+   arguments.AddOption(&warp, "-w", "--warp",
+                       "Generated polynomial deformation amplitude, |warp|<=0.1.");
    arguments.AddOption(&components, "-v", "--vdim",
                        "Number of independent components.");
    arguments.AddOption(&dimension, "-d", "--dimension",
@@ -122,8 +138,11 @@ int main(int argc, char *argv[])
    }
    MFEM_VERIFY(
       order >= 1 && components >= 1 && (dimension == 2 || dimension == 3) &&
-         std::isfinite(level_set),
+         std::isfinite(level_set) && geometry_order >= 1 &&
+         std::isfinite(warp) && std::abs(warp) <= 0.1,
       "Invalid order, vector dimension, mesh dimension, or level set.");
+   MFEM_VERIFY(!mesh_file[0] || (geometry_order == 1 && warp == 0.0),
+               "Geometry generation options cannot be used with --mesh.");
    const std::string ordering_string(ordering_name);
    MFEM_VERIFY(ordering_string == "byNODES" || ordering_string == "byVDIM",
                "Ordering must be byNODES or byVDIM.");
@@ -160,6 +179,32 @@ int main(int argc, char *argv[])
       : Mesh::MakeCartesian3D(8, 1, 1, tensor ? Element::HEXAHEDRON
                              : Element::TETRAHEDRON);
    dimension = serial_mesh.Dimension();
+   if (!mesh_file[0] && (geometry_order > 1 || warp != 0.0))
+   {
+      serial_mesh.SetCurvature(geometry_order);
+      serial_mesh.Transform([=](const Vector &position, Vector &value)
+      {
+         value = position;
+         const real_t first = position(0), second = position(1);
+         value(0) += warp * first * second;
+         value(1) += warp * first * second;
+         if (geometry_order >= 2)
+         {
+            value(0) += warp * second * (1.0 - second);
+            value(1) += 0.3 * warp * first * first;
+         }
+         if (geometry_order >= 3)
+         { value(0) += 0.1 * warp * second * second * second; }
+         if (dimension == 3)
+         {
+            value(2) += warp * second * position(2);
+            if (geometry_order >= 2)
+            { value(2) += 0.2 * warp * first * first; }
+         }
+      });
+   }
+   if (serial_mesh.GetNE())
+   { geometry_order = serial_mesh.GetElementTransformation(0)->Order(); }
    Mesh *mesh = &serial_mesh;
    std::unique_ptr<Mesh> distributed_mesh;
    // Partition the replicated background mesh by element index for this demo.
@@ -192,18 +237,22 @@ int main(int argc, char *argv[])
       space.reset(
          new FiniteElementSpace(mesh, &collection, components, ordering));
    }
-   // For the planar level set on affine cells, vertex extrema determine flags.
-   // Strict inequalities mark a cut only when vertices lie on both sides.
+   // Curved level-set flags are sampled approximations, not cut-cell quadrature.
+   // The original vertex classification is retained for unwarped affine grids.
    Array<int> active(mesh->GetNE()), cut(mesh->GetNE());
+   GeometryRefiner geometry_refiner;
    for (int element = 0; element < mesh->GetNE(); ++element)
    {
       auto *trans = mesh->GetElementTransformation(element);
-      const auto &vertices = *Geometries.GetVertices(trans->GetGeometryType());
+      const auto &samples = !mesh_file[0] && warp == 0.0 && geometry_order == 1 ?
+         *Geometries.GetVertices(trans->GetGeometryType()) :
+         geometry_refiner.Refine(trans->GetGeometryType(),
+                                 2 * trans->Order())->RefPts;
       Vector position(dimension);
       real_t minimum = infinity(), maximum = -infinity();
-      for (int vertex = 0; vertex < vertices.GetNPoints(); ++vertex)
+      for (int sample = 0; sample < samples.GetNPoints(); ++sample)
       {
-         trans->Transform(vertices.IntPoint(vertex), position);
+         trans->Transform(samples.IntPoint(sample), position);
          minimum = std::min(minimum, position(0));
          maximum = std::max(maximum, position(0));
       }
@@ -301,6 +350,7 @@ int main(int argc, char *argv[])
                 << "mode=" << (parallel ? "MPI" : "serial")
                 << " ranks=" << ranks << " dimension=" << dimension
                 << " order=" << order << " vdim=" << components
+                << " geometry_order=" << geometry_order
                 << " projection_space=" << projection_name
                 << " true_dofs=" << true_dofs
                 << " selected_faces=" << selected_faces << " energy=" << energy

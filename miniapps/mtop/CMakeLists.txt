@@ -49,6 +49,25 @@ if (MFEM_USE_LAPACK)
           PROPERTIES LABELS ghost-penalty TIMEOUT 120)
       endforeach()
     endforeach()
+    foreach(dimension 2 3)
+      foreach(family simplex tensor)
+        foreach(geometry_order 2 3)
+          set(case ghost_penalty_demo_curved_${family}_${dimension}d_g${geometry_order})
+          add_test(NAME ${case}
+            COMMAND projection_ghost_penalty --serial --element-type ${family}
+            --dimension ${dimension} --geometry-order ${geometry_order}
+            --warp 0.05 --projection-space p --projection-degree 1 --order 2)
+          set_tests_properties(${case} PROPERTIES
+            LABELS "ghost-penalty;ghost-curved" TIMEOUT 120)
+        endforeach()
+      endforeach()
+      add_test(NAME ghost_penalty_demo_warped_${dimension}d
+        COMMAND projection_ghost_penalty --serial --element-type tensor
+        --dimension ${dimension} --geometry-order 1 --warp 0.05
+        --projection-space p --order 2)
+      set_tests_properties(ghost_penalty_demo_warped_${dimension}d PROPERTIES
+        LABELS "ghost-penalty;ghost-curved" TIMEOUT 120)
+    endforeach()
     if (MFEM_USE_MPI)
       foreach(ranks 1 2 4)
         add_test(NAME ghost_penalty_demo_np${ranks}
@@ -58,6 +77,17 @@ if (MFEM_USE_LAPACK)
         set_tests_properties(ghost_penalty_demo_np${ranks} PROPERTIES
           LABELS ghost-penalty TIMEOUT 120 PROCESSORS ${ranks})
         foreach(dimension 2 3)
+          foreach(family simplex tensor)
+            set(case ghost_penalty_demo_curved_${family}_${dimension}d_np${ranks})
+            add_test(NAME ${case}
+              COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${ranks}
+              ${MPIEXEC_PREFLAGS} $<TARGET_FILE:projection_ghost_penalty>
+              --parallel --element-type ${family} --dimension ${dimension}
+              --geometry-order 2 --warp 0.05 --projection-space p
+              --projection-degree 1 --order 2 --vdim 3 ${MPIEXEC_POSTFLAGS})
+            set_tests_properties(${case} PROPERTIES
+              LABELS "ghost-penalty;ghost-curved" TIMEOUT 120 PROCESSORS ${ranks})
+          endforeach()
           add_test(NAME ghost_penalty_demo_tensor_${dimension}d_np${ranks}
             COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${ranks}
             ${MPIEXEC_PREFLAGS} $<TARGET_FILE:projection_ghost_penalty>

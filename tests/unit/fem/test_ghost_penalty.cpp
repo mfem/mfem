@@ -106,6 +106,31 @@ FaceElementTransformations &InteriorFace(Mesh &mesh)
    return *mesh.GetFaceElementTransformations(0);
 }
 
+void CurveMesh(Mesh &mesh, int geometry_order, real_t amplitude = 0.12)
+{
+   mesh.SetCurvature(geometry_order);
+   mesh.Transform([=](const Vector &position, Vector &value)
+   {
+      value = position;
+      const real_t first = position(0), second = position(1);
+      value(0) += amplitude * first * second;
+      value(1) += amplitude * first * second;
+      if (geometry_order >= 2)
+      {
+         value(0) += amplitude * second * (1.0 - second);
+         value(1) += 0.3 * amplitude * first * first;
+      }
+      if (geometry_order >= 3)
+      { value(0) += 0.1 * amplitude * second * second * second; }
+      if (position.Size() == 3)
+      {
+         value(2) += amplitude * second * position(2);
+         if (geometry_order >= 2)
+         { value(2) += 0.2 * amplitude * first * first; }
+      }
+   });
+}
+
 template <typename Form>
 void AddPenalty(Form &form, std::shared_ptr<const GhostFaceSelection> selection,
                 const ProjectionGhostPenaltyOptions &options = {})
@@ -297,11 +322,12 @@ TEST_CASE("Ghost penalty mixed-order simplex kernels", "[GhostPenalty]")
 
 TEST_CASE("Ghost penalty independent quadrature energy", "[GhostPenalty]")
 {
-   for (int family : {0, 1, 2})
+   for (int family : {0, 1, 2, 3, 4})
    for (int dimension : {2, 3})
    {
-      Mesh mesh = family == 0 ? PatchMesh(dimension)
+      Mesh mesh = family == 0 || family == 3 ? PatchMesh(dimension)
                   : TensorPatchMesh(dimension);
+      if (family >= 3) { CurveMesh(mesh, 2); }
       auto &trans = InteriorFace(mesh);
       H1_FECollection first_collection(2, dimension),
          second_collection(3, dimension);
@@ -309,11 +335,12 @@ TEST_CASE("Ghost penalty independent quadrature energy", "[GhostPenalty]")
          trans.Elem1->GetGeometryType());
       const auto &second = *second_collection.FiniteElementForGeometry(
          trans.Elem2->GetGeometryType());
-      const IntegrationRule &first_rule = IntRules.Get(first.GetGeomType(), 4);
+      const IntegrationRule &first_rule =
+         IntRules.Get(first.GetGeomType(), family >= 3 ? 12 : 4);
       const IntegrationRule &second_rule =
-         IntRules.Get(second.GetGeomType(), 6);
+         IntRules.Get(second.GetGeomType(), family >= 3 ? 14 : 6);
       ProjectionGhostPenaltyOptions options;
-      if (family == 1)
+      if (family == 1 || family >= 3)
       { options.projection_space = ProjectionGhostPenaltySpace::TOTAL_DEGREE; }
       options.projection_degree = 0;
       options.gamma = 1.7;
@@ -374,11 +401,12 @@ TEST_CASE("Ghost penalty independent quadrature energy", "[GhostPenalty]")
 TEST_CASE("Ghost penalty well-conditioned mass-matrix reference",
           "[GhostPenalty]")
 {
-   for (int family : {0, 1, 2})
+   for (int family : {0, 1, 2, 3, 4})
    for (int dimension : {2, 3})
    {
-      Mesh mesh = family == 0 ? PatchMesh(dimension)
+      Mesh mesh = family == 0 || family == 3 ? PatchMesh(dimension)
                   : TensorPatchMesh(dimension);
+      if (family >= 3) { CurveMesh(mesh, 2); }
       auto &trans = InteriorFace(mesh);
       H1_FECollection collection(2, dimension);
       const auto &element =
@@ -391,7 +419,7 @@ TEST_CASE("Ghost penalty well-conditioned mass-matrix reference",
       coupling = 0.0;
       diagonal = 0.0;
       ElementTransformation *transforms[] = {trans.Elem1, trans.Elem2};
-      const auto &rule = IntRules.Get(element.GetGeomType(), 6);
+      const auto &rule = IntRules.Get(element.GetGeomType(), family >= 3 ? 14 : 6);
       Vector shape(element.GetDof()), position(dimension), basis(polynomials);
       for (int side = 0; side < 2; ++side)
       {
@@ -443,7 +471,7 @@ TEST_CASE("Ghost penalty well-conditioned mass-matrix reference",
       MultAtB(coupling, coefficients, projected);
       diagonal -= projected;
       ProjectionGhostPenaltyOptions options;
-      if (family == 1)
+      if (family == 1 || family >= 3)
       { options.projection_space = ProjectionGhostPenaltySpace::TOTAL_DEGREE; }
       options.projection_degree = 1;
       ProjectionGhostPenaltyDiagnostics diagnostics;
@@ -461,13 +489,14 @@ TEST_CASE("Ghost penalty well-conditioned mass-matrix reference",
 TEST_CASE("Ghost penalty serial vector assembly and selection",
           "[GhostPenalty]")
 {
-   for (int family : {0, 1, 2})
+   for (int family : {0, 1, 2, 3, 4})
    for (int dimension : {2, 3})
    {
-      Mesh mesh = family == 0 ? PatchMesh(dimension)
+      Mesh mesh = family == 0 || family == 3 ? PatchMesh(dimension)
                   : TensorPatchMesh(dimension, 2);
+      if (family >= 3) { CurveMesh(mesh, 2, 0.04); }
       ProjectionGhostPenaltyOptions options;
-      if (family == 1)
+      if (family == 1 || family >= 3)
       { options.projection_space = ProjectionGhostPenaltySpace::TOTAL_DEGREE; }
       for (int order : {1, 2, 3})
       {
@@ -715,6 +744,329 @@ TEST_CASE("Ghost penalty P and Q reproduction policies", "[GhostPenalty]")
    }
 }
 
+TEST_CASE("Ghost penalty curved physical P kernels", "[GhostPenalty][Curved]")
+{
+   for (int dimension : {2, 3})
+   for (bool tensor : {false, true})
+   for (int geometry_order : {1, 2, 3})
+   for (int degree : {1, 2})
+   {
+      if ((!tensor && geometry_order == 1) ||
+          (degree == 2 && geometry_order != 2)) { continue; }
+      CAPTURE(dimension, tensor, geometry_order, degree);
+      Mesh mesh = tensor ? TensorPatchMesh(dimension) : PatchMesh(dimension);
+      CurveMesh(mesh, geometry_order);
+      auto &trans = InteriorFace(mesh);
+      const int order = geometry_order * degree;
+      H1_FECollection first_collection(order, dimension),
+         second_collection(order + 1, dimension);
+      const auto geometry = trans.Elem1->GetGeometryType();
+      const auto &first = *first_collection.FiniteElementForGeometry(geometry);
+      const auto &second = *second_collection.FiniteElementForGeometry(geometry);
+      ProjectionGhostPenaltyOptions options;
+      options.projection_space = ProjectionGhostPenaltySpace::TOTAL_DEGREE;
+      options.projection_degree = degree;
+      options.quadrature_extra = 0;
+      ProjectionGhostPenaltyDiagnostics diagnostics, reversed;
+      DenseMatrix matrix, swapped, refined;
+      ProjectionGhostPenaltyKernel::Assemble(first, second, *trans.Elem1,
+         *trans.Elem2, options, matrix, &diagnostics);
+      ProjectionGhostPenaltyKernel::Assemble(second, first, *trans.Elem2,
+         *trans.Elem1, options, swapped, &reversed);
+      const int dofs = matrix.Height();
+      const real_t tolerance = Roundoff(matrix.FNorm(), dofs);
+      for (int row = 0; row < dofs; ++row)
+      {
+         const int reversed_row = row < first.GetDof() ? row + second.GetDof()
+                                  : row - first.GetDof();
+         for (int column = 0; column < dofs; ++column)
+         {
+            const int reversed_column = column < first.GetDof() ?
+                                        column + second.GetDof() :
+                                        column - first.GetDof();
+            REQUIRE(matrix(row, column) == matrix(column, row));
+            REQUIRE(std::abs(matrix(row, column) -
+                             swapped(reversed_row, reversed_column)) < tolerance);
+         }
+      }
+      Vector eigenvalues;
+      matrix.Eigenvalues(eigenvalues);
+      REQUIRE(eigenvalues.Min() >= -tolerance);
+      Vector values(dofs), action(dofs);
+      for (int first_power = 0; first_power <= degree; ++first_power)
+      for (int second_power = 0; second_power <= degree - first_power;
+           ++second_power)
+      for (int third_power = 0; third_power <= (dimension == 3 ?
+           degree - first_power - second_power : 0); ++third_power)
+      {
+         const std::vector<int> powers{first_power, second_power, third_power};
+         SamplePolynomial(first, *trans.Elem1, powers, values, 0);
+         SamplePolynomial(second, *trans.Elem2, powers, values, first.GetDof());
+         matrix.Mult(values, action);
+         REQUIRE(action.Norml2() < tolerance * values.Norml2());
+      }
+      ElementTransformation *transforms[] = {trans.Elem1, trans.Elem2};
+      const auto &reference_rule = IntRules.Get(geometry, 18);
+      for (int side = 0; side < 2; ++side)
+      {
+         REQUIRE(diagnostics.geometry_orders[side] == geometry_order);
+         const int weight_order = tensor ? dimension * geometry_order - 1 :
+                                  dimension * (geometry_order - 1);
+         REQUIRE(diagnostics.required_orders[side] ==
+                 2 * (order + side) + weight_order);
+         REQUIRE(diagnostics.quadrature_orders[side] >=
+                 diagnostics.required_orders[side]);
+         REQUIRE(diagnostics.minimum_jacobians[side] > 0.0);
+         REQUIRE(diagnostics.volumes[side] == reversed.volumes[1 - side]);
+         real_t volume = 0.0;
+         Vector centroid(dimension), position(dimension);
+         centroid = 0.0;
+         for (int point = 0; point < reference_rule.GetNPoints(); ++point)
+         {
+            const auto &integration_point = reference_rule.IntPoint(point);
+            transforms[side]->SetIntPoint(&integration_point);
+            const real_t weight = integration_point.weight *
+                                  transforms[side]->Weight();
+            transforms[side]->Transform(integration_point, position);
+            volume += weight;
+            centroid.Add(weight, position);
+         }
+         centroid /= volume;
+         centroid -= diagnostics.centroids[side];
+         REQUIRE(centroid.Norml2() < Roundoff(diagnostics.face_length, 10));
+         REQUIRE(std::abs(volume - diagnostics.volumes[side]) <
+                 Roundoff(volume, 10));
+      }
+      options.quadrature_extra = 6;
+      ProjectionGhostPenaltyKernel::Assemble(first, second, *trans.Elem1,
+         *trans.Elem2, options, refined);
+      refined -= matrix;
+      REQUIRE(refined.FNorm() < tolerance);
+      mesh.Transform([](const Vector &position, Vector &value)
+      {
+         value = position;
+         value(0) = 0.8 * position(0) - 0.6 * position(1);
+         value(1) = 0.6 * position(0) + 0.8 * position(1);
+         value *= 2.5;
+         value(0) += 3.1;
+      });
+      auto &scaled_trans = InteriorFace(mesh);
+      ProjectionGhostPenaltyKernel::Assemble(first, second, *scaled_trans.Elem1,
+         *scaled_trans.Elem2, options, refined);
+      refined *= std::pow(2.5, 2 - dimension);
+      refined -= matrix;
+      REQUIRE(refined.FNorm() < tolerance);
+      options.gamma = 0.0;
+      ProjectionGhostPenaltyKernel::Assemble(first, second, *scaled_trans.Elem1,
+         *scaled_trans.Elem2, options, refined);
+      REQUIRE(refined.FNorm() == 0.0);
+   }
+}
+
+TEST_CASE("Ghost penalty curved geometry metrics", "[GhostPenalty][Curved]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL, true);
+   mesh.SetCurvature(2);
+   mesh.Transform([](const Vector &position, Vector &value)
+   {
+      value = position;
+      value(0) += 4.0 * position(1) * (1.0 - position(1));
+   });
+   auto &trans = InteriorFace(mesh);
+   H1_QuadrilateralElement element(2);
+   ProjectionGhostPenaltyOptions options;
+   options.projection_space = ProjectionGhostPenaltySpace::TOTAL_DEGREE;
+   options.projection_degree = 1;
+   ProjectionGhostPenaltyDiagnostics diagnostics;
+   DenseMatrix matrix;
+   ProjectionGhostPenaltyKernel::Assemble(element, element, *trans.Elem1,
+      *trans.Elem2, options, matrix, &diagnostics);
+   for (int side = 0; side < 2; ++side)
+   {
+      REQUIRE(std::abs(diagnostics.volumes[side] - 0.5) < Roundoff(1.0));
+      REQUIRE(std::abs(diagnostics.centroids[side](0) -
+                       (0.25 + 0.5 * side + 4.0 / 6.0)) < Roundoff(2.0));
+      REQUIRE(std::abs(diagnostics.centroids[side](1) - 0.5) < Roundoff(1.0));
+   }
+   REQUIRE(diagnostics.face_length > std::sqrt(1.25));
+   GeometryRefiner refiner;
+   const auto &points = refiner.Refine(Geometry::SQUARE, 16)->RefPts;
+   DenseMatrix physical;
+   trans.Elem1->Transform(points, physical);
+   real_t fine_diameter = 0.0;
+   for (int first = 0; first < points.GetNPoints(); ++first)
+   for (int second = 0; second < first; ++second)
+   {
+      fine_diameter = std::max(fine_diameter,
+                              std::hypot(physical(0, first) - physical(0, second),
+                                         physical(1, first) - physical(1, second)));
+   }
+   REQUIRE(fine_diameter >= diagnostics.face_length - Roundoff(fine_diameter));
+   REQUIRE(fine_diameter < 1.05 * diagnostics.face_length);
+   Mesh variable = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL, true);
+   variable.SetCurvature(2);
+   variable.Transform([](const Vector &position, Vector &value)
+   {
+      value = position;
+      value(0) *= 1.0 + 0.2 * position(1);
+      value(1) *= 1.0 + 0.2 * position(1);
+   });
+   auto &variable_trans = InteriorFace(variable);
+   ProjectionGhostPenaltyKernel::Assemble(element, element,
+      *variable_trans.Elem1, *variable_trans.Elem2, options, matrix, &diagnostics);
+   const real_t exact_volume = 0.5 * (1.0 + 0.3 + 0.08 / 3.0);
+   REQUIRE(std::abs(diagnostics.volumes[0] - exact_volume) < Roundoff(1.0));
+   variable_trans.Elem1->SetIntPoint(&Geometries.GetCenter(Geometry::SQUARE));
+   REQUIRE(std::abs(variable_trans.Elem1->Weight() - exact_volume) > 1.e-3);
+}
+
+TEST_CASE("Ghost penalty mixed geometry orders", "[GhostPenalty][Curved]")
+{
+   for (int dimension : {2, 3})
+   for (bool tensor : {false, true})
+   {
+      Mesh affine = tensor ? TensorPatchMesh(dimension) : PatchMesh(dimension);
+      Mesh curved(affine);
+      curved.SetCurvature(2);
+      curved.Transform([=](const Vector &position, Vector &value)
+      {
+         value = position;
+         if (tensor)
+         {
+            value(0) += 0.04 * (position(0) - 1.0) *
+                        position(1) * (1.0 - position(1));
+         }
+         else { value(dimension - 1) += 0.04 * std::pow(position(dimension - 1), 2); }
+      });
+      auto &first_trans = InteriorFace(affine);
+      auto &second_trans = InteriorFace(curved);
+      H1_FECollection collection(2, dimension);
+      const auto &element = *collection.FiniteElementForGeometry(
+         first_trans.Elem1->GetGeometryType());
+      ProjectionGhostPenaltyOptions options;
+      options.projection_space = ProjectionGhostPenaltySpace::TOTAL_DEGREE;
+      options.projection_degree = 1;
+      ProjectionGhostPenaltyDiagnostics diagnostics;
+      DenseMatrix matrix;
+      ProjectionGhostPenaltyKernel::Assemble(element, element, *first_trans.Elem1,
+         *second_trans.Elem2, options, matrix, &diagnostics);
+      REQUIRE(diagnostics.geometry_orders[0] == 1);
+      REQUIRE(diagnostics.geometry_orders[1] == 2);
+      REQUIRE(diagnostics.required_orders[0] < diagnostics.required_orders[1]);
+      Vector values(matrix.Height()), action(matrix.Height());
+      for (int axis = 0; axis < dimension; ++axis)
+      {
+         std::vector<int> powers(dimension, 0);
+         powers[axis] = 1;
+         SamplePolynomial(element, *first_trans.Elem1, powers, values, 0);
+         SamplePolynomial(element, *second_trans.Elem2, powers, values,
+                          element.GetDof());
+         matrix.Mult(values, action);
+         REQUIRE(action.Norml2() < Roundoff(matrix.FNorm() * values.Norml2(),
+                                           values.Size()));
+      }
+   }
+}
+
+TEST_CASE("Ghost penalty curved tensor reference orientation",
+          "[GhostPenalty][Curved]")
+{
+   for (int dimension : {2, 3})
+   {
+      Mesh original = TensorPatchMesh(dimension);
+      Mesh permuted = TensorPatchMesh(dimension, 0, 1.0, true);
+      CurveMesh(original, 2);
+      CurveMesh(permuted, 2);
+      auto &first_trans = InteriorFace(original);
+      auto &second_trans = InteriorFace(permuted);
+      H1_FECollection collection(2, dimension);
+      const auto &element = *collection.FiniteElementForGeometry(
+         first_trans.Elem1->GetGeometryType());
+      ProjectionGhostPenaltyOptions options;
+      options.projection_space = ProjectionGhostPenaltySpace::TOTAL_DEGREE;
+      options.projection_degree = 1;
+      DenseMatrix first, second;
+      ProjectionGhostPenaltyKernel::Assemble(element, element, *first_trans.Elem1,
+         *first_trans.Elem2, options, first);
+      ProjectionGhostPenaltyKernel::Assemble(element, element, *second_trans.Elem1,
+         *second_trans.Elem2, options, second);
+      Array<int> permutation(first.Height());
+      ElementTransformation *original_sides[] = {first_trans.Elem1, first_trans.Elem2};
+      ElementTransformation *permuted_sides[] = {second_trans.Elem1, second_trans.Elem2};
+      for (int side = 0; side < 2; ++side)
+      {
+         DenseMatrix original_points, permuted_points;
+         original_sides[side]->Transform(element.GetNodes(), original_points);
+         permuted_sides[side]->Transform(element.GetNodes(), permuted_points);
+         for (int node = 0; node < element.GetDof(); ++node)
+         {
+            int match = -1;
+            for (int candidate = 0; candidate < element.GetDof(); ++candidate)
+            {
+               real_t distance = 0.0;
+               for (int axis = 0; axis < dimension; ++axis)
+               {
+                  distance = std::hypot(distance, original_points(axis, node) -
+                                        permuted_points(axis, candidate));
+               }
+               if (distance < Roundoff(4.0)) { match = candidate; }
+            }
+            REQUIRE(match >= 0);
+            permutation[side * element.GetDof() + node] =
+               side * element.GetDof() + match;
+         }
+      }
+      const real_t tolerance = Roundoff(first.FNorm(), first.Height());
+      for (int row = 0; row < first.Height(); ++row)
+      for (int column = 0; column < first.Width(); ++column)
+      {
+         REQUIRE(std::abs(first(row, column) -
+                          second(permutation[row], permutation[column])) < tolerance);
+      }
+   }
+}
+
+TEST_CASE("Ghost penalty curved representability and straight geometry",
+          "[GhostPenalty][Curved]")
+{
+   for (int dimension : {2, 3})
+   for (bool tensor : {false, true})
+   {
+      Mesh mesh = tensor ? TensorPatchMesh(dimension) : PatchMesh(dimension);
+      H1_FECollection collection(1, dimension);
+      auto &trans = InteriorFace(mesh);
+      const auto &element = *collection.FiniteElementForGeometry(
+         trans.Elem1->GetGeometryType());
+      ProjectionGhostPenaltyOptions options;
+      options.projection_space = ProjectionGhostPenaltySpace::TOTAL_DEGREE;
+      DenseMatrix affine, straight, curved;
+      ProjectionGhostPenaltyKernel::Assemble(element, element, *trans.Elem1,
+         *trans.Elem2, options, affine);
+      mesh.SetCurvature(2);
+      auto &straight_trans = InteriorFace(mesh);
+      ProjectionGhostPenaltyKernel::Assemble(element, element,
+         *straight_trans.Elem1, *straight_trans.Elem2, options, straight);
+      straight -= affine;
+      REQUIRE(straight.FNorm() < Roundoff(affine.FNorm(), affine.Height()));
+      CurveMesh(mesh, 2);
+      auto &curved_trans = InteriorFace(mesh);
+      ProjectionGhostPenaltyKernel::Assemble(element, element,
+         *curved_trans.Elem1, *curved_trans.Elem2, options, curved);
+      Vector values(curved.Height()), action(curved.Height());
+      const std::vector<int> powers{1, 0, 0};
+      SamplePolynomial(element, *curved_trans.Elem1, powers, values, 0);
+      SamplePolynomial(element, *curved_trans.Elem2, powers, values,
+                       element.GetDof());
+      curved.Mult(values, action);
+      REQUIRE(values * action > Roundoff(curved.FNorm() * (values * values),
+                                         values.Size()));
+      values = 1.0;
+      curved.Mult(values, action);
+      REQUIRE(action.Norml2() < Roundoff(curved.FNorm() * values.Norml2(),
+                                        values.Size()));
+   }
+}
+
 #ifdef MFEM_USE_MPI
 namespace
 {
@@ -776,7 +1128,7 @@ void ParallelComparison(int dimension, int order, int components,
                         Ordering::Type ordering, int scenario, int layers,
                         MPI_Comm communicator, bool tensor = false,
                         const ProjectionGhostPenaltyOptions &options = {},
-                        int mapping = 0)
+                        int mapping = 0, int geometry_order = 0)
 {
    int ranks;
    MPI_Comm_size(communicator, &ranks);
@@ -794,6 +1146,7 @@ void ParallelComparison(int dimension, int order, int components,
          std::min(ranks - 1, static_cast<int>(center(0) * ranks));
    }
    TransformTensorMesh(mesh, mapping);
+   if (geometry_order) { CurveMesh(mesh, geometry_order); }
    H1_FECollection collection(order, dimension);
    FiniteElementSpace serial_space(&mesh, &collection, components, ordering);
    Array<int> active, cut;
@@ -981,5 +1334,33 @@ TEST_CASE("Ghost penalty distributed tensor true-DOF matrices",
                          MPI_COMM_WORLD, true);
    }
    ParallelComparison(2, 1, 1, Ordering::byNODES, 0, 0, MPI_COMM_SELF, true);
+}
+
+TEST_CASE("Ghost penalty distributed curved true-DOF matrices",
+          "[GhostPenalty][Curved][Parallel]")
+{
+   ProjectionGhostPenaltyOptions options;
+   options.projection_space = ProjectionGhostPenaltySpace::TOTAL_DEGREE;
+   options.projection_degree = 1;
+   for (int dimension : {2, 3})
+   for (bool tensor : {false, true})
+   for (int geometry_order : {1, 2, 3})
+   {
+      if (!tensor && geometry_order == 1) { continue; }
+      for (auto ordering : {Ordering::byNODES, Ordering::byVDIM})
+      for (int components : {1, 2})
+      {
+         CAPTURE(dimension, tensor, geometry_order, ordering, components);
+         ParallelComparison(dimension, 2, components, ordering, 0, 0,
+                            MPI_COMM_WORLD, tensor, options, 0, geometry_order);
+      }
+      for (int scenario : {1, 2})
+      {
+         ParallelComparison(dimension, 1, 2, Ordering::byVDIM, scenario, 1,
+                            MPI_COMM_WORLD, tensor, options, 0, geometry_order);
+      }
+   }
+   ParallelComparison(2, 2, 2, Ordering::byNODES, 0, 0, MPI_COMM_SELF,
+                      true, options, 0, 2);
 }
 #endif

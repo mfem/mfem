@@ -1,8 +1,9 @@
 /** @file ghost_penalty.hpp
     @brief SVD-based projection ghost penalties for full H1 assembly.
 
-    The API is available when MFEM_USE_LAPACK is enabled. It supports affine
+    The API is available when MFEM_USE_LAPACK is enabled. It supports polynomial
     triangles/quads in 2D and tetrahedra/hexes in 3D, with MPI shared faces.
+    Non-affine and higher-order geometry require explicit physical P projection.
     See doc/projection-ghost-penalty.md for the mathematical formulation and
     miniapps/mtop/projection_ghost_penalty.cpp for a complete example. */
 
@@ -25,8 +26,8 @@ namespace mfem
 /// Common polynomial space used by a two-cell projection.
 enum class ProjectionGhostPenaltySpace
 {
-   AUTO,          ///< P on simplices, Q on compatible tensor-product cells.
-   TOTAL_DEGREE,  ///< Physical total-degree P_r on either supported cell family.
+   AUTO,          ///< P/Q on first-order affine simplex/tensor cells only.
+   TOTAL_DEGREE,  ///< Physical P_r, including supported curved polynomial maps.
    TENSOR_PRODUCT ///< Q_r in a common affine tensor frame; no fallback to P_r.
 };
 
@@ -42,8 +43,11 @@ struct ProjectionGhostPenaltyOptions
    /// Common polynomial degree >= 0; -1 uses the minimum of the two FE orders.
    int projection_degree = -1;
    /** @brief Nonnegative extra order for generated volume quadrature rules.
-       On side i, the target order is 2*max(FE order, projection degree) plus
-       this value. Caller-supplied rules need only meet the order without it. */
+       The affine target is 2*max(FE order, projection degree) plus this value.
+       For curved geometry of degree k, the target is
+       2*max(FE order, k*projection degree) + OrderW() plus this value.
+       Orders are total on simplices and per-coordinate on tensor cells.
+       Caller-supplied rules need only meet the order without this extra. */
    int quadrature_extra = 2;
    /** @brief Relative singular-value threshold in [0,1).
        Zero selects 32*max(number of quadrature points, number of polynomial
@@ -52,7 +56,7 @@ struct ProjectionGhostPenaltyOptions
    real_t svd_rtol = 0.0;
    /// Print per-patch SVD rank, conditioning, and geometry data on each rank.
    bool verbose = false;
-   /// Select P_r or Q_r; AUTO requires compatible tensor axes on quads/hexes.
+   /// Select P_r or Q_r; curved/higher-order geometry requires TOTAL_DEGREE.
    ProjectionGhostPenaltySpace projection_space =
       ProjectionGhostPenaltySpace::AUTO;
 };
@@ -70,13 +74,27 @@ struct ProjectionGhostPenaltyDiagnostics
    real_t relative_threshold = 0.0;
    /// Largest divided by smallest singular value for a full-rank projection.
    real_t condition_number = 0.0;
-   /// Penalty length h_F = max(diameter(first cell), diameter(second cell)).
+   /** @brief Maximum cell diameter; sampled on a closed-uniform reference
+       lattice with 2*k subdivisions for non-affine/higher-order geometry.
+       On the first-order affine path this is the exact vertex diameter. */
    real_t face_length = 0.0;
    /// Polynomial normalization length (volume(first)+volume(second))^(1/dim).
    real_t basis_length = 0.0;
    /// Resolved space for Assemble(); ComputeProjection() leaves this unchanged.
    ProjectionGhostPenaltySpace projection_space =
       ProjectionGhostPenaltySpace::AUTO;
+   /// Geometry polynomial orders, in the caller's first/second cell order.
+   int geometry_orders[2] = {0, 0};
+   /// Minimum integration orders, including mapping and determinant degrees.
+   int required_orders[2] = {0, 0};
+   /// Advertised orders of the actual first/second volume quadrature rules.
+   int quadrature_orders[2] = {0, 0};
+   /// Integrated physical cell volumes.
+   real_t volumes[2] = {0.0, 0.0};
+   /// Physical cell centroids, integrated on the curved-geometry path.
+   Vector centroids[2];
+   /// Minimum sampled det(J/||J||_F); not a global validity certificate.
+   real_t minimum_jacobians[2] = {0.0, 0.0};
 };
 
 /** @brief Local dense kernels, independent of face selection and MPI.
@@ -127,22 +145,38 @@ class ProjectionGhostPenaltyKernel
        @param[in] second_rule Optional second-cell reference-volume quadrature.
        @param[in] context Label included in error and verbose diagnostics.
 
-       Both cells must have the same geometry: affine triangles/quads in 2D or
-       tetrahedra/hexes in 3D, with first-order geometry and no embedding.
-       Solution FE orders may be higher. The caller
+       Both cells must have the same reference geometry: triangles/quads in 2D
+       or tetrahedra/hexes in 3D, without embedding. Polynomial isoparametric
+       geometry is supported; rational/NURBS maps are excluded. Solution FE
+       orders are independent of geometry orders. The caller
        supplies the cell pair; adjacency and active/cut flags are not checked.
        Rules are borrowed only for this call. A null rule is generated with
        positive weights; a supplied rule must truthfully advertise order at
-       least 2*max(its FE order, projection degree). Every physical quadrature
-       weight must be finite and strictly positive.
+       least 2*max(its FE order, k*projection degree) + OrderW() for geometry
+       degree k. The first-order affine path uses k=1 and determinant order 0.
+       Reference and physical weights must be finite and strictly positive.
 
-       AUTO uses physical P_r on simplices and Q_r on quads/hexes. Q_r uses
+       AUTO uses physical P_r on first-order affine simplices and Q_r on
+       first-order affine quads/hexes. Q_r uses
        the canonical cell's normalized affine edge directions as a common
        (possibly sheared) frame. Neighbor axes must agree up to signs,
        permutation, and independent scaling; otherwise Q/AUTO fails without
-       fallback. TOTAL_DEGREE works for incompatible tensor frames but only
-       reproduces P_r. Tensor rules use the required order per coordinate.
-       Non-affine bilinear/trilinear maps and mixed-type pairs are rejected.
+       fallback. Non-affine and higher-order geometry (including higher-order
+       representations of straight cells) require explicit TOTAL_DEGREE.
+       Tensor rules use the required order per coordinate. Mixed-type pairs
+       and curved Q projection are rejected.
+
+       Reproduction applies only to physical polynomials also representable
+       in both mapped FE spaces. For P_r, FE order >= k*r on each side is a
+       sufficient condition, not an input requirement. Interpolation of a
+       nonrepresentable physical polynomial need not have zero penalty.
+
+       Geometry must be injective and orientation-preserving. Signed normalized
+       Jacobians must exceed 64*dimension*epsilon(real_t) at sampled geometry
+       and integration points; this does not certify global validity. Curved
+       volume/centroid integration uses a geometry-only rule of order k+OrderW().
+       The sampled diameter assumes shape-regular cells and is not a certified
+       bound on the true curved diameter. Rebuild after any geometry changes.
 
        Internally the cells are canonically ordered by physical vertices, but
        output DOFs always follow the caller's first/second ordering. Weighted
@@ -164,11 +198,13 @@ class ProjectionGhostPenaltyKernel
 /** @brief Prepared selection of local and MPI-shared interior faces.
 
     A face is selected when both cells are active and at least one lies in the
-    cut/extension band. The mesh must be conforming and consist of first-order
-    affine triangles, quads, tetrahedra, or hexes; the space must use a
+    cut/extension band. The mesh must be conforming and consist of polynomially
+    mapped triangles, quads, tetrahedra, or hexes; the space must use a
     uniform-order H1_FECollection. Selected mixed-type pairs are unsupported.
-    Curved/embedded cells and ambiguous multiple-face element pairings are
-    unsupported. Use a ParFiniteElementSpace when the mesh is a ParMesh.
+    Nodal geometry must use uniform-order continuous H1 spaces. Embedded cells,
+    rational maps, and ambiguous multiple-face element pairings are unsupported.
+    Use a ParFiniteElementSpace when the mesh is a ParMesh. MPI preparation
+    exchanges high-order neighbor nodes before using shared transformations.
 
     The FE space and mesh are borrowed and must outlive this object and all
     integrators that use it. Flags are consumed during construction, not kept
