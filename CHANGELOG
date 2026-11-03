@@ -11,6 +11,10 @@
 Version 4.10.1 (development)
 ============================
 
+GPU computing
+-------------
+- Fixed RAJA CUDA/HIP element coverage when using a smaller fixed launch grid.
+
 Discretization improvements
 ---------------------------
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
@@ -32,6 +36,9 @@ Linear and nonlinear solvers
 
 Miscellaneous
 -------------
+- Added continuous benchmarking of selected tests/benchmarks in GitHub CI
+  using CodSpeed (https://codspeed.io), enabled by the new CMake option
+  MFEM_USE_CODSPEED.
 - Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
   column so the inner loop vectorizes. This roughly doubles the speed of full
   assembly for DiffusionIntegrator at higher orders.
@@ -39,6 +46,9 @@ Miscellaneous
 - Fixed a bug in the Method of Moving Asymptotes (MMA) solver that would cause
   failure if an MPI rank had no design parameters (aka decision variables).
   Also plugged a MPI communicator leak that would cause memory leaks.
+
+- Removes the SidreDataCollection class from MFEM in favor of the
+  MFEMSidreDataCollection class in the Axom library (https://github.com/llnl/axom).
 
 
 Version 4.10, released on Sep 1, 2026
