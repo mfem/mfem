@@ -1287,6 +1287,62 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
    }
 }
 
+void BlockNonlinearForm::Mult(const Array<const Vector *> &x,
+                              const Array<Vector *> &y) const
+{
+   MFEM_VERIFY(is_serial, "BlockNonlinearForm::Mult with arrays of blocks "
+               "is not supported in parallel yet");
+   MFEM_VERIFY(x.Size() == fes.Size() && y.Size() == fes.Size(),
+               "the input and output arrays must have one entry per space");
+
+   aux_x.resize(fes.Size());
+   aux_y.resize(fes.Size());
+   Array<const Vector *> px(fes.Size());
+   Array<Vector *> py(fes.Size());
+
+   for (int s = 0; s < fes.Size(); s++)
+   {
+      MFEM_ASSERT(!x[s] || x[s]->Size() == fes[s]->GetTrueVSize(),
+                  "invalid input Vector size for block " << s);
+      MFEM_ASSERT(!y[s] || y[s]->Size() == fes[s]->GetTrueVSize(),
+                  "invalid output Vector size for block " << s);
+
+      if (x[s] && P[s])
+      {
+         aux_x[s].SetSize(fes[s]->GetVSize());
+         P[s]->Mult(*x[s], aux_x[s]);
+         px[s] = &aux_x[s];
+      }
+      else
+      {
+         px[s] = x[s];
+      }
+
+
+      if (y[s] && cP[s])
+      {
+         aux_y[s].SetSize(fes[s]->GetVSize());
+         py[s] = &aux_y[s];
+      }
+      else
+      {
+         py[s] = y[s];
+      }
+   }
+
+   MultBlocked(px, py);
+
+   for (int s = 0; s < fes.Size(); s++)
+   {
+      if (!y[s]) { continue; }
+      if (cP[s])
+      {
+         cP[s]->MultTranspose(*py[s], *y[s]);
+      }
+      y[s]->SetSubVector(*ess_tdofs[s], 0.0);
+   }
+}
+
 void BlockNonlinearForm::ComputeGradientBlocked(const BlockVector &bx,
                                                 bool finalize) const
 {

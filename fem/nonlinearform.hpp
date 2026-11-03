@@ -303,6 +303,10 @@ protected:
 
    mutable BlockVector aux1, aux2;
 
+   /** Auxiliary L-vectors, one per space, used by the Array-based Mult() for
+       the blocks that need prolongation. */
+   mutable std::vector<Vector> aux_x, aux_y;
+
    const BlockVector &Prolongate(const BlockVector &bx) const;
 
    /// Specialized version of GetEnergy() for BlockVectors
@@ -413,6 +417,22 @@ public:
    /// Method is only called in serial, the parallel version calls MultBlocked
    /// directly.
    void Mult(const Vector &x, Vector &y) const override;
+
+   /** @brief Block T-Vector to Block T-Vector, with the blocks given as arrays
+       of pointers, one per space.
+
+       Entries of @a x and @a y may be NULL, in which case no memory is used for
+       that block and NULL is passed to the integrators in the corresponding
+       entry of their input (elfun) or output (elvec) array. The integrators
+       must therefore only access the blocks that are given.
+
+       Each non-NULL x[s] and y[s] must have size FESpace(s)->GetTrueVSize().
+       As in Mult(const Vector &, Vector &), the essential true dofs of each
+       given output are set to zero.
+
+       @note Currently only supported in serial. */
+   virtual void Mult(const Array<const Vector *> &x,
+                     const Array<Vector *> &y) const;
 
    /// Method is only called in serial, the parallel version calls
    /// GetGradientBlocked directly.
