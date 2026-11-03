@@ -526,6 +526,9 @@ public:
    /// @param y Result of the gradient action on T-dofs in the output space.
    void Mult(const MultiVector &x, MultiVector &y) const
    {
+      MFEM_VERIFY(!derivative_actions.empty(),
+                  "derivative can't be applied: the integrator was registered "
+                  "without DerivativeKernels::Action");
       prolongation(infds, x, infields_l);
       restriction(infds, in_rcache, infields_l, infields_e);
       prepare_residual(outfds, out_rcache, daction_e);
@@ -845,10 +848,6 @@ private:
    /// derivatives in DifferentiableOperator the callbacks represent certain
    /// combinations of actions of derivatives of the forward operator.
    std::vector<derivative_action_t> derivative_actions_transpose;
-
-   FieldDescriptor transpose_direction;
-
-   mutable std::vector<Vector> fields_e;
 
    mutable Vector direction_l;
 
