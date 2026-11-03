@@ -14,7 +14,6 @@ set(MESH_FILES
   blade.mesh
   cube.mesh
   cube-tet.mesh
-  cube01.mesh
   icf.mesh
   jagged.mesh
   square01.mesh

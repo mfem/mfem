@@ -25,8 +25,6 @@ using namespace std;
 class Line_Bottom : public Analytic2DCurve
 {
    public:
-   Line_Bottom(const Array<bool> &marker) : Analytic2DCurve(marker) { }
-
    void t_of_xy(double x, double y, double &dist, double &t) const override
    {
       t    = x;
@@ -50,8 +48,6 @@ class Line_Bottom : public Analytic2DCurve
 class Line_Left : public Analytic2DCurve
 {
    public:
-   Line_Left(const Array<bool> &marker) : Analytic2DCurve(marker) { }
-
    void t_of_xy(double x, double y, double &dist, double &t) const override
    {
       t    = y;
@@ -78,9 +74,8 @@ private:
    const double a, b, c, x_scale;
 
 public:
-   Curve_Sine_Top(const Array<bool> &marker, double a_, double b_, double c_)
-    : Analytic2DCurve(marker),
-    a(a_), b(b_), c(c_), x_scale(1.0 + a * sin(c * M_PI) + b) { }
+   Curve_Sine_Top(double a_, double b_, double c_)
+    : a(a_), b(b_), c(c_), x_scale(1.0 + a * sin(c * M_PI) + b) { }
 
    void t_of_xy(double x, double y, double &dist, double &t) const override
    {
@@ -112,9 +107,8 @@ private:
    const double a, b, c, y_scale;
 
 public:
-   Curve_Sine_Right(const Array<bool> &marker, double a_, double b_, double c_)
-    : Analytic2DCurve(marker),
-      a(a_), b(b_), c(c_), y_scale(1.0 + a * sin(c * M_PI) + b) { }
+   Curve_Sine_Right(double a_, double b_, double c_)
+    : a(a_), b(b_), c(c_), y_scale(1.0 + a * sin(c * M_PI) + b) { }
 
    void t_of_xy(double x, double y, double &dist, double &t) const override
    {
@@ -149,10 +143,8 @@ private:
 public:
    // Creates straight edge aligned with an axis (0 <-> x, 1 <-> y, 2 <-> z).
    // fixed_1 and fixed_2 give the coordinates on the normal plane to the axis.
-   AxisAlignedEdge(const Array<bool> &marker, int axis_,
-                   double fixed_1_, double fixed_2_)
-      : Analytic3DCurve(marker),
-        axis(axis_),
+   AxisAlignedEdge(int axis_, double fixed_1_, double fixed_2_)
+      : axis(axis_),
         fixed_1(fixed_1_),
         fixed_2(fixed_2_) { }
 
@@ -218,10 +210,8 @@ private:
    const double fixed_value;
 
 public:
-   AxisAlignedPlane(const Array<bool> &marker, int normal_axis_,
-                    double fixed_value_)
-      : Analytic3DSurface(marker),
-        normal_axis(normal_axis_),
+   AxisAlignedPlane(int normal_axis_, double fixed_value_)
+      : normal_axis(normal_axis_),
         fixed_value(fixed_value_) { }
 
    void uv_of_xyz(double x, double y, double z,
@@ -295,8 +285,8 @@ private:
    const double s = sin(c * M_PI);
 
 public:
-   CubeEdge_XY(const Array<bool> &marker, double a_, double b_, double c_)
-      : Analytic3DCurve(marker), a(a_), b(b_), c(c_) { }
+   CubeEdge_XY(double a_, double b_, double c_)
+      : a(a_), b(b_), c(c_) { }
 
    void t_of_xyz(double x, double y, double z,
                  double &dist1, double &dist2, double &t) const override
@@ -353,8 +343,8 @@ private:
    const double s = sin(c * M_PI);
 
 public:
-   CubeEdge_XZ(const Array<bool> &marker, double a_, double b_, double c_)
-      : Analytic3DCurve(marker), a(a_), b(b_), c(c_) { }
+   CubeEdge_XZ(double a_, double b_, double c_)
+      : a(a_), b(b_), c(c_) { }
 
    void t_of_xyz(double x, double y, double z,
                  double &dist1, double &dist2, double &t) const override
@@ -413,8 +403,8 @@ private:
    const double s = sin(c * M_PI);
 
 public:
-   CubeEdge_YZ(const Array<bool> &marker, double a_, double b_, double c_)
-      : Analytic3DCurve(marker), a(a_), b(b_), c(c_) { }
+   CubeEdge_YZ(double a_, double b_, double c_)
+      : a(a_), b(b_), c(c_) { }
 
    void t_of_xyz(double x, double y, double z,
                  double &dist1, double &dist2, double &t) const override
@@ -473,8 +463,8 @@ private:
    const double s = sin(c * M_PI);
 
 public:
-   CubeFace_X(const Array<bool> &marker, double a_, double b_, double c_)
-      : Analytic3DSurface(marker), a(a_), b(b_), c(c_) { }
+   CubeFace_X(double a_, double b_, double c_)
+      : a(a_), b(b_), c(c_) { }
 
    void uv_of_xyz(double x, double y, double z,
                   double &dist, double &u, double &v) const override
@@ -558,8 +548,8 @@ private:
    const double s = sin(c * M_PI);
 
 public:
-   CubeFace_Y(const Array<bool> &marker, double a_, double b_, double c_)
-      : Analytic3DSurface(marker), a(a_), b(b_), c(c_) { }
+   CubeFace_Y(double a_, double b_, double c_)
+      : a(a_), b(b_), c(c_) { }
 
    void uv_of_xyz(double x, double y, double z,
                   double &dist, double &u, double &v) const override
@@ -643,8 +633,8 @@ private:
    const double s = sin(c * M_PI);
 
 public:
-   CubeFace_Z(const Array<bool> &marker, double a_, double b_, double c_)
-      : Analytic3DSurface(marker), a(a_), b(b_), c(c_) { }
+   CubeFace_Z(double a_, double b_, double c_)
+      : a(a_), b(b_), c(c_) { }
 
    void uv_of_xyz(double x, double y, double z,
                   double &dist, double &u, double &v) const override

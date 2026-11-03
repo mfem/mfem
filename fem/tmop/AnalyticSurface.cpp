@@ -16,44 +16,20 @@
 
 #include "AnalyticSurface.hpp"
 
+#include <utility>
+
 namespace mfem
 {
 
-AnalyticSurface::AnalyticSurface(const Array<bool> &marker)
-    : dof_marker(marker), dists(0)
-{
-}
-
 AnalyticCompositeSurface::AnalyticCompositeSurface
-    (const Array<AnalyticSurface *> &surf)
-    : surfaces(surf), dof_to_surface(0)
+    (const Array<AnalyticSurface *> &surf, Array<int> dof_surface)
+    : surfaces(surf), dof_to_surface(std::move(dof_surface))
 {
-   UpdateDofToSurface();
-}
-
-// For each DOF, the Array dof_to_surface has its corresponding surface index.
-// -1: the DOF is not associated with any surface.
-// -2: the DOF is associated with more than one surface.
-void AnalyticCompositeSurface::UpdateDofToSurface()
-{
-   if (surfaces.Size() == 0)
+   for (int i = 0; i < dof_to_surface.Size(); i++)
    {
-      dof_to_surface.DeleteAll();
-      return;
-   }
-
-   dof_to_surface.SetSize(surfaces[0]->dof_marker.Size());
-   dof_to_surface = -1;
-   for (int s = 0; s < surfaces.Size(); s++)
-   {
-      for (int i = 0; i < dof_to_surface.Size(); i++)
-      {
-         if (surfaces[s]->dof_marker[i] == true)
-         {
-            if (dof_to_surface[i] == -1)    { dof_to_surface[i] =  s; }
-            else if (dof_to_surface[i] >= 0) { dof_to_surface[i] = -2; }
-         }
-      }
+      MFEM_VERIFY(dof_to_surface[i] >= -1 &&
+                  dof_to_surface[i] < surfaces.Size(),
+                  "Invalid analytic surface index.");
    }
 }
 
@@ -72,7 +48,8 @@ void AnalyticCompositeSurface::ConvertPhysCoordToParam(const Vector &coord_x,
    coord_t = coord_x;
    for (int s = 0; s < surfaces.Size(); s++)
    {
-      surfaces[s]->ConvertPhysCoordToParam(coord_x, coord_t);
+      surfaces[s]->ConvertPhysCoordToParam(coord_x, coord_t,
+                                           dof_to_surface, s);
    }
 }
 
@@ -82,7 +59,8 @@ void AnalyticCompositeSurface::ConvertParamCoordToPhys(const Vector &coord_t,
    coord_x = coord_t;
    for (int s = 0; s < surfaces.Size(); s++)
    {
-      surfaces[s]->ConvertParamCoordToPhys(coord_t, coord_x);
+      surfaces[s]->ConvertParamCoordToPhys(coord_t, coord_x,
+                                           dof_to_surface, s);
    }
 }
 
@@ -93,12 +71,15 @@ void AnalyticCompositeSurface::ConvertParamToPhys(const Array<int> &vdofs,
    coord_x = coord_t;
    for (int s = 0; s < surfaces.Size(); s++)
    {
-      surfaces[s]->ConvertParamToPhys(vdofs, coord_t, coord_x);
+      surfaces[s]->ConvertParamToPhys(vdofs, coord_t, coord_x,
+                                      dof_to_surface, s);
    }
 }
 
 void Analytic2DCurve::ConvertPhysCoordToParam(const Vector &coord_x,
-                                              Vector &coord_t)
+                                              Vector &coord_t,
+                                              const Array<int> &dof_to_surface,
+                                              int surface_id)
 {
    const int ndof = coord_x.Size() / 2;
    double t;
@@ -106,7 +87,7 @@ void Analytic2DCurve::ConvertPhysCoordToParam(const Vector &coord_x,
    dists = 0.0;
    for (int i = 0; i < ndof; i++)
    {
-      if (dof_marker[i])
+      if (dof_to_surface[i] == surface_id)
       {
          t_of_xy(coord_x(i), coord_x(ndof + i), dists(i), t);
          coord_t(i)        = t;
@@ -116,13 +97,15 @@ void Analytic2DCurve::ConvertPhysCoordToParam(const Vector &coord_x,
 }
 
 void Analytic2DCurve::ConvertParamCoordToPhys(const Vector &coord_t,
-                                              Vector &coord_x) const
+                                              Vector &coord_x,
+                                              const Array<int> &dof_to_surface,
+                                              int surface_id) const
 {
    const int ndof = coord_x.Size() / 2;
    double x, y;
    for (int i = 0; i < ndof; i++)
    {
-      if (dof_marker[i])
+      if (dof_to_surface[i] == surface_id)
       {
          xy_of_t(coord_t(i), dists(i), x, y);
          coord_x(i)        = x;
@@ -133,13 +116,15 @@ void Analytic2DCurve::ConvertParamCoordToPhys(const Vector &coord_t,
 
 void Analytic2DCurve::ConvertParamToPhys(const Array<int> &vdofs,
                                          const Vector &coord_t,
-                                         Vector &coord_x) const
+                                         Vector &coord_x,
+                                         const Array<int> &dof_to_surface,
+                                         int surface_id) const
 {
    const int ndof = vdofs.Size() / 2;
    double x, y;
    for (int i = 0; i < ndof; i++)
    {
-      if (dof_marker[vdofs[i]])
+      if (dof_to_surface[vdofs[i]] == surface_id)
       {
          xy_of_t(coord_t(i), dists(vdofs[i]), x, y);
          coord_x(i)        = x;
@@ -163,7 +148,9 @@ void Analytic2DCurve::Deriv_2(const double *param, DenseTensor &deriv) const
 }
 
 void Analytic3DCurve::ConvertPhysCoordToParam(const Vector &coord_x,
-                                              Vector &coord_t)
+                                              Vector &coord_t,
+                                              const Array<int> &dof_to_surface,
+                                              int surface_id)
 {
    const int ndof = coord_x.Size() / 3;
    double t;
@@ -171,7 +158,7 @@ void Analytic3DCurve::ConvertPhysCoordToParam(const Vector &coord_x,
    dists = 0.0;
    for (int i = 0; i < ndof; i++)
    {
-      if (dof_marker[i])
+      if (dof_to_surface[i] == surface_id)
       {
          t_of_xyz(coord_x(i), coord_x(ndof + i), coord_x(2 * ndof + i),
                   dists(i), dists(ndof + i), t);
@@ -183,13 +170,15 @@ void Analytic3DCurve::ConvertPhysCoordToParam(const Vector &coord_x,
 }
 
 void Analytic3DCurve::ConvertParamCoordToPhys(const Vector &coord_t,
-                                              Vector &coord_x) const
+                                              Vector &coord_x,
+                                              const Array<int> &dof_to_surface,
+                                              int surface_id) const
 {
    const int ndof = coord_x.Size() / 3;
    double x, y, z;
    for (int i = 0; i < ndof; i++)
    {
-      if (dof_marker[i])
+      if (dof_to_surface[i] == surface_id)
       {
          xyz_of_t(coord_t(i), dists(i), dists(ndof + i),
                   x, y, z);
@@ -202,16 +191,18 @@ void Analytic3DCurve::ConvertParamCoordToPhys(const Vector &coord_t,
 
 void Analytic3DCurve::ConvertParamToPhys(const Array<int> &vdofs,
                                          const Vector &coord_t,
-                                         Vector &coord_x) const
+                                         Vector &coord_x,
+                                         const Array<int> &dof_to_surface,
+                                         int surface_id) const
 {
    const int ndof = vdofs.Size() / 3;
    double x, y, z;
    for (int i = 0; i < ndof; i++)
    {
-      if (dof_marker[vdofs[i]])
+      if (dof_to_surface[vdofs[i]] == surface_id)
       {
          xyz_of_t(coord_t(i), dists(vdofs[i]),
-                  dists(dof_marker.Size() + vdofs[i]), x, y, z);
+                  dists(dof_to_surface.Size() + vdofs[i]), x, y, z);
          coord_x(i)            = x;
          coord_x(ndof + i)     = y;
          coord_x(2 * ndof + i) = z;
@@ -236,7 +227,9 @@ void Analytic3DCurve::Deriv_2(const double *param, DenseTensor &deriv) const
 }
 
 void Analytic3DSurface::ConvertPhysCoordToParam(const Vector &coord_x,
-                                                Vector &coord_t)
+                                                Vector &coord_t,
+                                                const Array<int> &dof_to_surface,
+                                                int surface_id)
 {
    const int ndof = coord_x.Size() / 3;
    double u, v;
@@ -244,7 +237,7 @@ void Analytic3DSurface::ConvertPhysCoordToParam(const Vector &coord_x,
    dists = 0.0;
    for (int i = 0; i < ndof; i++)
    {
-      if (dof_marker[i])
+      if (dof_to_surface[i] == surface_id)
       {
          uv_of_xyz(coord_x(i), coord_x(ndof + i), coord_x(2 * ndof + i),
                    dists(i), u, v);
@@ -256,13 +249,15 @@ void Analytic3DSurface::ConvertPhysCoordToParam(const Vector &coord_x,
 }
 
 void Analytic3DSurface::ConvertParamCoordToPhys(const Vector &coord_t,
-                                                Vector &coord_x) const
+                                                Vector &coord_x,
+                                                const Array<int> &dof_to_surface,
+                                                int surface_id) const
 {
    const int ndof = coord_x.Size() / 3;
    double x, y, z;
    for (int i = 0; i < ndof; i++)
    {
-      if (dof_marker[i])
+      if (dof_to_surface[i] == surface_id)
       {
          xyz_of_uv(coord_t(i), coord_t(ndof + i), dists(i), x, y, z);
          coord_x(i)            = x;
@@ -274,13 +269,15 @@ void Analytic3DSurface::ConvertParamCoordToPhys(const Vector &coord_t,
 
 void Analytic3DSurface::ConvertParamToPhys(const Array<int> &vdofs,
                                            const Vector &coord_t,
-                                           Vector &coord_x) const
+                                           Vector &coord_x,
+                                           const Array<int> &dof_to_surface,
+                                           int surface_id) const
 {
    const int ndof = vdofs.Size() / 3;
    double x, y, z;
    for (int i = 0; i < ndof; i++)
    {
-      if (dof_marker[vdofs[i]])
+      if (dof_to_surface[vdofs[i]] == surface_id)
       {
          xyz_of_uv(coord_t(i), coord_t(ndof + i), dists(vdofs[i]),
                   x, y, z);

@@ -21,6 +21,7 @@
 #include "../common/mfem-common.hpp"
 #include "tmop-tangent.hpp"
 #include <memory>
+#include <utility>
 #include <vector>
 
 using namespace mfem;
@@ -146,7 +147,8 @@ int main (int argc, char *argv[])
    MFEM_VERIFY(min_detJ > 0.0, "Inverted initial meshes are not supported.");
 
    // Mark which nodes to move tangentially.
-   std::vector<Array<bool>> fit_markers;
+   Array<int> dof_to_surface(pfes_mesh.GetNDofs());
+   dof_to_surface = -1;
    Array<int> ess_vdofs, ess_vdofs_marker;
    ess_vdofs_marker.SetSize(pfes_mesh.GetVSize());
    ess_vdofs_marker = 0;
@@ -163,17 +165,6 @@ int main (int argc, char *argv[])
          BOTTOM_MARKER,
          LEFT_MARKER
       };
-      fit_markers.reserve(4);
-      for (int i = 0; i < 4; i++)
-      {
-         fit_markers.emplace_back(pfes_mesh.GetNDofs());
-         fit_markers.back() = false;
-      }
-      Array<bool> &fit_marker_top = fit_markers[TOP_MARKER];
-      Array<bool> &fit_marker_right = fit_markers[RIGHT_MARKER];
-      Array<bool> &fit_marker_bottom = fit_markers[BOTTOM_MARKER];
-      Array<bool> &fit_marker_left = fit_markers[LEFT_MARKER];
-
       Array<int> top_bdr(pmesh.bdr_attributes.Max());
       Array<int> right_bdr(pmesh.bdr_attributes.Max());
       Array<int> bottom_bdr(pmesh.bdr_attributes.Max());
@@ -213,10 +204,10 @@ int main (int argc, char *argv[])
          }
          else if (boundary_count == 1)
          {
-            if (on_top) { fit_marker_top[dof] = true; }
-            if (on_right) { fit_marker_right[dof] = true; }
-            if (on_bottom) { fit_marker_bottom[dof] = true; }
-            if (on_left) { fit_marker_left[dof] = true; }
+            if (on_top) { dof_to_surface[dof] = TOP_MARKER; }
+            if (on_right) { dof_to_surface[dof] = RIGHT_MARKER; }
+            if (on_bottom) { dof_to_surface[dof] = BOTTOM_MARKER; }
+            if (on_left) { dof_to_surface[dof] = LEFT_MARKER; }
 
             // The parameter value is stored in the x-component of coord_t for
             // all 2D analytic curves, so the y-component is constrained.
@@ -249,34 +240,8 @@ int main (int argc, char *argv[])
          EDGE_Y1Z1_MARKER
       };
 
-      fit_markers.reserve(18);
-      for (int i = 0; i < 18; i++)
-      {
-         fit_markers.emplace_back(pfes_mesh.GetNDofs());
-         fit_markers.back() = false;
-      }
-
       // x0 <--> face aligned with plane x = 0.
       // x0y0 <--> edge between x0 and y0.
-      Array<bool> &fit_marker_face_x0 = fit_markers[FACE_X0_MARKER];
-      Array<bool> &fit_marker_face_x1 = fit_markers[FACE_X1_MARKER];
-      Array<bool> &fit_marker_face_y0 = fit_markers[FACE_Y0_MARKER];
-      Array<bool> &fit_marker_face_y1 = fit_markers[FACE_Y1_MARKER];
-      Array<bool> &fit_marker_face_z0 = fit_markers[FACE_Z0_MARKER];
-      Array<bool> &fit_marker_face_z1 = fit_markers[FACE_Z1_MARKER];
-      Array<bool> &fit_marker_edge_x0y0 = fit_markers[EDGE_X0Y0_MARKER];
-      Array<bool> &fit_marker_edge_x0y1 = fit_markers[EDGE_X0Y1_MARKER];
-      Array<bool> &fit_marker_edge_x1y0 = fit_markers[EDGE_X1Y0_MARKER];
-      Array<bool> &fit_marker_edge_x1y1 = fit_markers[EDGE_X1Y1_MARKER];
-      Array<bool> &fit_marker_edge_x0z0 = fit_markers[EDGE_X0Z0_MARKER];
-      Array<bool> &fit_marker_edge_x0z1 = fit_markers[EDGE_X0Z1_MARKER];
-      Array<bool> &fit_marker_edge_x1z0 = fit_markers[EDGE_X1Z0_MARKER];
-      Array<bool> &fit_marker_edge_x1z1 = fit_markers[EDGE_X1Z1_MARKER];
-      Array<bool> &fit_marker_edge_y0z0 = fit_markers[EDGE_Y0Z0_MARKER];
-      Array<bool> &fit_marker_edge_y0z1 = fit_markers[EDGE_Y0Z1_MARKER];
-      Array<bool> &fit_marker_edge_y1z0 = fit_markers[EDGE_Y1Z0_MARKER];
-      Array<bool> &fit_marker_edge_y1z1 = fit_markers[EDGE_Y1Z1_MARKER];
-
       Array<int> x0_bdr(pmesh.bdr_attributes.Max());
       Array<int> x1_bdr(pmesh.bdr_attributes.Max());
       Array<int> y0_bdr(pmesh.bdr_attributes.Max());
@@ -330,29 +295,29 @@ int main (int argc, char *argv[])
          }
          else if (boundary_face_count == 2)
          {
-            if (on_x0 && on_y0) { fit_marker_edge_x0y0[dof] = true; }
-            if (on_x0 && on_y1) { fit_marker_edge_x0y1[dof] = true; }
-            if (on_x1 && on_y0) { fit_marker_edge_x1y0[dof] = true; }
-            if (on_x1 && on_y1) { fit_marker_edge_x1y1[dof] = true; }
-            if (on_x0 && on_z0) { fit_marker_edge_x0z0[dof] = true; }
-            if (on_x0 && on_z1) { fit_marker_edge_x0z1[dof] = true; }
-            if (on_x1 && on_z0) { fit_marker_edge_x1z0[dof] = true; }
-            if (on_x1 && on_z1) { fit_marker_edge_x1z1[dof] = true; }
-            if (on_y0 && on_z0) { fit_marker_edge_y0z0[dof] = true; }
-            if (on_y0 && on_z1) { fit_marker_edge_y0z1[dof] = true; }
-            if (on_y1 && on_z0) { fit_marker_edge_y1z0[dof] = true; }
-            if (on_y1 && on_z1) { fit_marker_edge_y1z1[dof] = true; }
+            if (on_x0 && on_y0) { dof_to_surface[dof] = EDGE_X0Y0_MARKER; }
+            if (on_x0 && on_y1) { dof_to_surface[dof] = EDGE_X0Y1_MARKER; }
+            if (on_x1 && on_y0) { dof_to_surface[dof] = EDGE_X1Y0_MARKER; }
+            if (on_x1 && on_y1) { dof_to_surface[dof] = EDGE_X1Y1_MARKER; }
+            if (on_x0 && on_z0) { dof_to_surface[dof] = EDGE_X0Z0_MARKER; }
+            if (on_x0 && on_z1) { dof_to_surface[dof] = EDGE_X0Z1_MARKER; }
+            if (on_x1 && on_z0) { dof_to_surface[dof] = EDGE_X1Z0_MARKER; }
+            if (on_x1 && on_z1) { dof_to_surface[dof] = EDGE_X1Z1_MARKER; }
+            if (on_y0 && on_z0) { dof_to_surface[dof] = EDGE_Y0Z0_MARKER; }
+            if (on_y0 && on_z1) { dof_to_surface[dof] = EDGE_Y0Z1_MARKER; }
+            if (on_y1 && on_z0) { dof_to_surface[dof] = EDGE_Y1Z0_MARKER; }
+            if (on_y1 && on_z1) { dof_to_surface[dof] = EDGE_Y1Z1_MARKER; }
             ess_vdofs_marker[pfes_mesh.DofToVDof(dof, 1)] = 1;
             ess_vdofs_marker[pfes_mesh.DofToVDof(dof, 2)] = 1;
          }
          else if (boundary_face_count == 1)
          {
-            if (on_x0) { fit_marker_face_x0[dof] = true; }
-            if (on_x1) { fit_marker_face_x1[dof] = true; }
-            if (on_y0) { fit_marker_face_y0[dof] = true; }
-            if (on_y1) { fit_marker_face_y1[dof] = true; }
-            if (on_z0) { fit_marker_face_z0[dof] = true; }
-            if (on_z1) { fit_marker_face_z1[dof] = true; }
+            if (on_x0) { dof_to_surface[dof] = FACE_X0_MARKER; }
+            if (on_x1) { dof_to_surface[dof] = FACE_X1_MARKER; }
+            if (on_y0) { dof_to_surface[dof] = FACE_Y0_MARKER; }
+            if (on_y1) { dof_to_surface[dof] = FACE_Y1_MARKER; }
+            if (on_z0) { dof_to_surface[dof] = FACE_Z0_MARKER; }
+            if (on_z1) { dof_to_surface[dof] = FACE_Z1_MARKER; }
             ess_vdofs_marker[pfes_mesh.DofToVDof(dof, 2)] = 1;
          }
       }
@@ -385,39 +350,39 @@ int main (int argc, char *argv[])
 
    if (dim == 2)
    {
-      owned_surfaces.emplace_back(new Line_Bottom(fit_markers[2]));
-      owned_surfaces.emplace_back(new Line_Left(fit_markers[3]));
-      owned_surfaces.emplace_back(new Curve_Sine_Top(fit_markers[0], a, b, c));
-      owned_surfaces.emplace_back(new Curve_Sine_Right(fit_markers[1], a, b, c));
+      owned_surfaces.emplace_back(new Curve_Sine_Top(a, b, c));
+      owned_surfaces.emplace_back(new Curve_Sine_Right(a, b, c));
+      owned_surfaces.emplace_back(new Line_Bottom);
+      owned_surfaces.emplace_back(new Line_Left);
    }
    else if (dim == 3)
    {
       // Each 2D surface and 1D edge of cube has its own AnalyticSurface.
-      owned_surfaces.emplace_back(new AxisAlignedPlane(fit_markers[0], 0, 0.0));
-      owned_surfaces.emplace_back(new CubeFace_X(fit_markers[1], a, b, c));
-      owned_surfaces.emplace_back(new AxisAlignedPlane(fit_markers[2], 1, 0.0));
-      owned_surfaces.emplace_back(new CubeFace_Y(fit_markers[3], a, b, c));
-      owned_surfaces.emplace_back(new AxisAlignedPlane(fit_markers[4], 2, 0.0));
-      owned_surfaces.emplace_back(new CubeFace_Z(fit_markers[5], a, b, c));
-      owned_surfaces.emplace_back(new AxisAlignedEdge(fit_markers[6], 2, 0.0, 0.0));
-      owned_surfaces.emplace_back(new AxisAlignedEdge(fit_markers[7], 2, 0.0, 1.0));
-      owned_surfaces.emplace_back(new AxisAlignedEdge(fit_markers[8], 2, 1.0, 0.0));
-      owned_surfaces.emplace_back(new CubeEdge_XY(fit_markers[9], a, b, c));
-      owned_surfaces.emplace_back(new AxisAlignedEdge(fit_markers[10], 1, 0.0, 0.0));
-      owned_surfaces.emplace_back(new AxisAlignedEdge(fit_markers[11], 1, 0.0, 1.0));
-      owned_surfaces.emplace_back(new AxisAlignedEdge(fit_markers[12], 1, 1.0, 0.0));
-      owned_surfaces.emplace_back(new CubeEdge_XZ(fit_markers[13], a, b, c));
-      owned_surfaces.emplace_back(new AxisAlignedEdge(fit_markers[14], 0, 0.0, 0.0));
-      owned_surfaces.emplace_back(new AxisAlignedEdge(fit_markers[15], 0, 0.0, 1.0));
-      owned_surfaces.emplace_back(new AxisAlignedEdge(fit_markers[16], 0, 1.0, 0.0));
-      owned_surfaces.emplace_back(new CubeEdge_YZ(fit_markers[17], a, b, c));
+      owned_surfaces.emplace_back(new AxisAlignedPlane(0, 0.0));
+      owned_surfaces.emplace_back(new CubeFace_X(a, b, c));
+      owned_surfaces.emplace_back(new AxisAlignedPlane(1, 0.0));
+      owned_surfaces.emplace_back(new CubeFace_Y(a, b, c));
+      owned_surfaces.emplace_back(new AxisAlignedPlane(2, 0.0));
+      owned_surfaces.emplace_back(new CubeFace_Z(a, b, c));
+      owned_surfaces.emplace_back(new AxisAlignedEdge(2, 0.0, 0.0));
+      owned_surfaces.emplace_back(new AxisAlignedEdge(2, 0.0, 1.0));
+      owned_surfaces.emplace_back(new AxisAlignedEdge(2, 1.0, 0.0));
+      owned_surfaces.emplace_back(new CubeEdge_XY(a, b, c));
+      owned_surfaces.emplace_back(new AxisAlignedEdge(1, 0.0, 0.0));
+      owned_surfaces.emplace_back(new AxisAlignedEdge(1, 0.0, 1.0));
+      owned_surfaces.emplace_back(new AxisAlignedEdge(1, 1.0, 0.0));
+      owned_surfaces.emplace_back(new CubeEdge_XZ(a, b, c));
+      owned_surfaces.emplace_back(new AxisAlignedEdge(0, 0.0, 0.0));
+      owned_surfaces.emplace_back(new AxisAlignedEdge(0, 0.0, 1.0));
+      owned_surfaces.emplace_back(new AxisAlignedEdge(0, 1.0, 0.0));
+      owned_surfaces.emplace_back(new CubeEdge_YZ(a, b, c));
    }
    for (auto &surface : owned_surfaces)
    {
       surf_array.Append(surface.get());
    }
 
-   AnalyticCompositeSurface surfaces(surf_array);
+   AnalyticCompositeSurface surfaces(surf_array, std::move(dof_to_surface));
    surfaces.ConvertPhysCoordToParam(coord_x, coord_t);
 
    if (glvis)

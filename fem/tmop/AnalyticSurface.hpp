@@ -27,11 +27,9 @@ class AnalyticSurface
 protected:
    friend class AnalyticCompositeSurface;
 
-   Array<bool> dof_marker;
    Vector dists;
 
 public:
-   AnalyticSurface(const Array<bool> &marker);
    virtual ~AnalyticSurface() = default;
 
    // Go from physical to parametric coordinates on the whole mesh.
@@ -40,20 +38,26 @@ public:
    // 3D curve: (x, y, z) -> t.
    // 3D surf:  (x, y, z) -> (u, v).
    virtual void ConvertPhysCoordToParam(const Vector &coord_x,
-                                        Vector &coord_t) = 0;
+                                        Vector &coord_t,
+                                        const Array<int> &dof_to_surface,
+                                        int surface_id) = 0;
 
    // Go from parametric to physical coordinates on the whole mesh:
    // 2D curve: t      -> (x, y).
    // 3D curve: t      -> (x, y, z).
    // 3D surf:  (u, v) -> (x, y, z).
    virtual void ConvertParamCoordToPhys(const Vector &coord_t,
-                                        Vector &coord_x) const = 0;
+                                        Vector &coord_x,
+                                        const Array<int> &dof_to_surface,
+                                        int surface_id) const = 0;
 
    // Go from parametric to physical coordinates on a single element with given
    // vdofs.
    virtual void ConvertParamToPhys(const Array<int> &vdofs,
                                    const Vector &coord_t,
-                                   Vector &coord_x) const = 0;
+                                   Vector &coord_x,
+                                   const Array<int> &dof_to_surface,
+                                   int surface_id) const = 0;
 
    /// Number of free parameters stored for each constrained node.
    virtual int NumParams() const = 0;
@@ -77,10 +81,9 @@ protected:
    const Array<AnalyticSurface *> &surfaces;
    Array<int> dof_to_surface;
 
-   void UpdateDofToSurface();
-
 public:
-   AnalyticCompositeSurface(const Array<AnalyticSurface *> &surf);
+   AnalyticCompositeSurface(const Array<AnalyticSurface *> &surf,
+                            Array<int> dof_surface);
 
    /// Surface corresponding to dof_id.
    const AnalyticSurface *GetSurface(int dof_id) const;
@@ -99,21 +102,24 @@ public:
 class Analytic2DCurve : public AnalyticSurface
 {
 public:
-   Analytic2DCurve(const Array<bool> &marker)
-    : AnalyticSurface(marker) { }
-
    // (x, y) -> t on the whole curve.
    void ConvertPhysCoordToParam(const Vector &coord_x,
-                                Vector &coord_t) override;
+                                Vector &coord_t,
+                                const Array<int> &dof_to_surface,
+                                int surface_id) override;
 
    // t -> (x, y) on the whole curve.
    void ConvertParamCoordToPhys(const Vector &coord_t,
-                                Vector &coord_x) const override;
+                                Vector &coord_x,
+                                const Array<int> &dof_to_surface,
+                                int surface_id) const override;
 
    // t -> (x, y) on a single element given by vdofs.
    void ConvertParamToPhys(const Array<int> &vdofs,
                            const Vector &coord_t,
-                           Vector &coord_x) const override;
+                           Vector &coord_x,
+                           const Array<int> &dof_to_surface,
+                           int surface_id) const override;
 
    int NumParams() const override { return 1; }
 
@@ -138,21 +144,24 @@ public:
 class Analytic3DCurve : public AnalyticSurface
 {
 public:
-   Analytic3DCurve(const Array<bool> &marker)
-    : AnalyticSurface(marker) { }
-
    // (x,y,z) -> t on the whole curve.
    void ConvertPhysCoordToParam(const Vector &coord_x,
-                                Vector &coord_t) override;
+                                Vector &coord_t,
+                                const Array<int> &dof_to_surface,
+                                int surface_id) override;
 
    // t -> (x,y,z) on the whole curve.
    void ConvertParamCoordToPhys(const Vector &coord_t,
-                                Vector &coord_x) const override;
+                                Vector &coord_x,
+                                const Array<int> &dof_to_surface,
+                                int surface_id) const override;
 
    // t -> (x,y,z) on a single element given by vdofs.
    void ConvertParamToPhys(const Array<int> &vdofs,
                            const Vector &coord_t,
-                           Vector &coord_x) const override;
+                           Vector &coord_x,
+                           const Array<int> &dof_to_surface,
+                           int surface_id) const override;
 
    int NumParams() const override { return 1; }
 
@@ -179,21 +188,24 @@ public:
 class Analytic3DSurface : public AnalyticSurface
 {
 public:
-   Analytic3DSurface(const Array<bool> &marker)
-    : AnalyticSurface(marker) { }
-
    // (x,y,z) -> (u,v) on whole surface.
    void ConvertPhysCoordToParam(const Vector &coord_x,
-                                Vector &coord_t) override;
+                                Vector &coord_t,
+                                const Array<int> &dof_to_surface,
+                                int surface_id) override;
 
    // (u,v) -> (x,y,z) on whole surface.
    void ConvertParamCoordToPhys(const Vector &coord_t,
-                                Vector &coord_x) const override;
+                                Vector &coord_x,
+                                const Array<int> &dof_to_surface,
+                                int surface_id) const override;
 
    // (u,v) -> (x,y,z) on a single element given by vdofs.
    void ConvertParamToPhys(const Array<int> &vdofs,
                            const Vector &coord_t,
-                           Vector &coord_x) const override;
+                           Vector &coord_x,
+                           const Array<int> &dof_to_surface,
+                           int surface_id) const override;
 
    int NumParams() const override { return 2; }
 
