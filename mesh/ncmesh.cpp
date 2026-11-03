@@ -5310,6 +5310,32 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms() const
    return transforms;
 }
 
+void CoarseFineTransformations::GetParentGeometries(
+   Array<Geometry::Type> &parent_geometries, bool want_ghosts) const
+{
+   bool present[Geometry::NumGeom] = { false };
+   for (int i = 0; i < embeddings.Size(); i++)
+   {
+      const Embedding &emb = embeddings[i];
+      if ((emb.parent >= 0) && (!emb.ghost || want_ghosts))
+      {
+         MFEM_ASSERT(emb.geom < Geometry::NumGeom,
+                     "invalid parent geometry");
+         present[emb.geom] = true;
+      }
+   }
+
+   parent_geometries.SetSize(0);
+   parent_geometries.Reserve(Geometry::NumGeom);
+   for (int geom = 0; geom < Geometry::NumGeom; geom++)
+   {
+      if (present[geom])
+      {
+         parent_geometries.Append(Geometry::Type(geom));
+      }
+   }
+}
+
 void CoarseFineTransformations::MakeCoarseToFineTable(Table &coarse_to_fine,
                                                       bool want_ghosts) const
 {
