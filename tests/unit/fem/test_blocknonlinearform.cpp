@@ -11,6 +11,7 @@
 
 #include "mfem.hpp"
 #include "catch.hpp"
+#include "unit_tests.hpp"
 
 using namespace mfem;
 
@@ -87,6 +88,99 @@ public:
       return energy;
    }
 };
+
+// GradientIntegrator implemented as a BlockNonlinearFormIntegrator: reads only
+// space 0 (scalar u) and writes only space 1 (vector v), r = (grad u, v)
+class MixedExample : public BlockNonlinearFormIntegrator
+{
+private:
+   GradientIntegrator grad;
+   DenseMatrix elmat;
+public:
+   void AssembleElementVector(const Array<const FiniteElement *> &el,
+                              ElementTransformation &trans,
+                              const Array<const Vector *> &elfun,
+                              const Array<Vector *> &elvec) override
+   {
+      if (elvec[0]) { elvec[0]->SetSize(0); }
+      grad.AssembleElementMatrix2(*el[0], *el[1], trans, elmat);
+      elvec[1]->SetSize(elmat.Height());
+      elmat.Mult(*elfun[0], *elvec[1]);
+   }
+};
+
+TEST_CASE("BlockNonlinearForm selective Mult",
+          "[BlockNonlinearForm], [Mult]")
+{
+   const bool nonconforming = GENERATE(false, true);
+   const bool with_bc = GENERATE(false, true);
+   CAPTURE(nonconforming, with_bc);
+
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, true);
+   if (nonconforming)
+   {
+      mesh.EnsureNCMesh();
+      Array<int> refs({0, 5, 10});
+      mesh.GeneralRefinement(refs);
+   }
+   const int dim = mesh.Dimension();
+
+   H1_FECollection ufec(2, dim);
+   H1_FECollection vfec(1, dim);
+   FiniteElementSpace ufes(&mesh, &ufec);
+   FiniteElementSpace vfes(&mesh, &vfec, dim);
+
+   Array<FiniteElementSpace *> fes({&ufes, &vfes});
+   BlockNonlinearForm form(fes);
+   form.AddDomainIntegrator(new MixedExample);
+
+   // Essential b.c. only on the output space
+   Array<int> no_bdr(mesh.bdr_attributes.Max());
+   no_bdr = 0;
+   Array<int> ess_bdr(no_bdr);
+   ess_bdr[0] = 1;
+   Array<Array<int> *> bdr({&no_bdr, with_bc ? &ess_bdr : &no_bdr});
+   Array<Vector *> rhs(2);
+   rhs = nullptr;
+   form.SetEssentialBC(bdr, rhs);
+
+   Array<int> ess_tdofs;
+   vfes.GetEssentialTrueDofs(*bdr[1], ess_tdofs);
+
+   GridFunction u_gf(&ufes);
+   FunctionCoefficient u_coeff([](const Vector &x)
+   {
+      return 1.0 + x(0) * x(1) + x(0) * x(0);
+   });
+   u_gf.ProjectCoefficient(u_coeff);
+   u_gf.SetTrueVector();
+
+   // Reference: the full block Mult, with a zero dummy input for space 1
+   BlockVector x_full(form.GetBlockTrueOffsets());
+   BlockVector y_full(form.GetBlockTrueOffsets());
+   x_full.GetBlock(0) = u_gf.GetTrueVector();
+   x_full.GetBlock(1) = 0.0;
+   form.Mult(x_full, y_full);
+   const Vector &ref_y = y_full.GetBlock(1);
+   REQUIRE(ref_y.Normlinf() > 0.0);
+
+   Vector r(vfes.GetTrueVSize());
+
+   Array<const Vector *> x(2);
+   x[0] = &u_gf.GetTrueVector();
+   x[1] = nullptr;
+   Array<Vector *> y(2);
+   y[0] = nullptr;
+   y[1] = &r;
+   form.Mult(x, y);
+
+   for (int d : ess_tdofs)
+   {
+      REQUIRE(r(d) == 0.0);
+   }
+   r -= ref_y;
+   REQUIRE(r.Normlinf() == MFEM_Approx(0.0));
+}
 
 #ifdef MFEM_USE_MPI
 TEST_CASE("ParBlockNonlinearForm",
