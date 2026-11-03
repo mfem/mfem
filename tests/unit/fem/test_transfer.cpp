@@ -804,7 +804,7 @@ TEST_CASE("Parallel H1 L2 projection EA agrees with standard",
    const real_t backward_norm =
       std::sqrt(InnerProduct(MPI_COMM_WORLD, coarse_standard, coarse_standard));
    INFO("backward relative error: " << backward_error / backward_norm);
-   CHECK(backward_error < 1e-10 * std::max(real_t(1.0), backward_norm));
+   CHECK(backward_error < 1e-13 * std::max(real_t(1.0), backward_norm));
 }
 
 TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
