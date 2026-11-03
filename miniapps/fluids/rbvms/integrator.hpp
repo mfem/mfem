@@ -112,6 +112,7 @@ private:
 
    // Physical parameters
    Coefficient &c_rho;
+   VectorCoefficient *c_traction = nullptr;
 
    /// Numerical parameters
    DenseMatrix Gij;
@@ -136,9 +137,10 @@ private:
 
 public:
    /// Constructor
-   OutflowIntegrator(Coefficient &rho_)
-      : c_rho(rho_) {};
-
+   /// Object does not own @a traction
+   OutflowIntegrator(Coefficient &rho_,
+                     VectorCoefficient *traction = nullptr)
+      : c_rho(rho_), c_traction(traction) {};
 
    /// Set the time @a t
    void SetTime(const real_t &t) override
@@ -174,7 +176,7 @@ private:
    // Physical parameters
    Coefficient &c_rho;
    Coefficient &c_mu;
-   VectorCoefficient &c_sol;
+   VectorCoefficient *c_sol = nullptr;
 
    /// Numerical parameters
    DenseMatrix Gij;
@@ -205,9 +207,10 @@ private:
 
 public:
    /// Constructor
+   /// Object does not own @a sol
    WeakBCIntegrator(Coefficient &rho_,
                     Coefficient &mu_,
-                    VectorCoefficient &sol_)
+                    VectorCoefficient *sol_ = nullptr)
       : c_rho(rho_), c_mu(mu_), c_sol(sol_) {};
 
    /// Set the time @a d
@@ -215,7 +218,7 @@ public:
    {
       c_rho.SetTime(t);
       c_mu.SetTime(t);
-      c_sol.SetTime(t);
+      c_sol->SetTime(t);
    };
 
    /// Assemble the outflow boundary residual vectors

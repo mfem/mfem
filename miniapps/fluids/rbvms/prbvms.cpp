@@ -11,188 +11,13 @@
 
 #include <sys/stat.h>
 #include "mfem.hpp"
-//#include "../util/coefficients.hpp"
-//#include "../util/solver.hpp"
+#include "util.hpp"
 
-//#include "formulation.hpp"
 #include "integrator.hpp"
+#include "libcoefficients.hpp"
 
 using namespace std;
 using namespace mfem;
-
-void line(int len)
-{
-   for (int b=0; b<len; ++b) { cout<<"-"; }
-   cout<<"\n";
-}
-
-int problem = 1;
-
-void CheckBoundaries(Array<bool> &bnd_flags,
-                     Array<int> &markers,
-                     Array<int> &bc_bnds,
-                     int mark = 1)
-{
-   int amax = bnd_flags.Size();
-   markers.SetSize(amax);
-   markers = 0;
-   // Check strong boundaries
-   for (int b = 0; b < bc_bnds.Size(); b++)
-   {
-      int bnd = bc_bnds[b]-1;
-      if ( bnd < 0 || bnd >= amax )
-      {
-         mfem_error("Boundary out of range.");
-      }
-      if (bnd_flags[bnd])
-      {
-         mfem_error("Boundary specified more then once.");
-      }
-      bnd_flags[bnd] = true;
-      markers[bnd] = mark;
-   }
-}
-
-// Custom block preconditioner for the Jacobian
-class JacobianPreconditioner : public
-   BlockLowerTriangularPreconditioner
-{
-protected:
-   Array<Solver *> prec;
-
-public:
-   /// Constructor
-   JacobianPreconditioner(Array<int> &offsets)
-      : BlockLowerTriangularPreconditioner (offsets), prec(offsets.Size()-1)
-   { prec = nullptr;};
-
-   /// SetPreconditioners
-   void SetPreconditioner(int i, Solver *pc)
-   { prec[i] = pc; };
-
-   /// Set the diagonal and off-diagonal operators
-   virtual void SetOperator(const Operator &op)
-   {
-      BlockOperator *jacobian = (BlockOperator *) &op;
-
-      for (int i = 0; i < prec.Size(); ++i)
-      {
-         if (prec[i])
-         {
-            prec[i]->SetOperator(jacobian->GetBlock(i,i));
-            SetDiagonalBlock(i, prec[i]);
-         }
-         for (int j = i+1; j < prec.Size(); ++j)
-         {
-            SetBlock(j,i, &jacobian->GetBlock(j,i));
-         }
-      }
-   };
-
-   // Destructor
-   virtual ~JacobianPreconditioner()
-   {
-      for (int i = 0; i < prec.Size(); ++i)
-      {
-         if (prec[i]) { delete prec[i]; }
-      }
-   };
-};
-
-/// This class help monitor the convergence of the linear Krylov solve.
-class GeneralResidualMonitor : public IterativeSolverMonitor
-{
-private:
-   const std::string prefix;
-   int interval;
-   mutable real_t norm0;
-
-public:
-   /// Constructor
-   GeneralResidualMonitor( const std::string& prefix_,
-                           int print_iv)
-      : prefix(prefix_), interval(-1)
-   {
-      interval = print_iv;
-   }
-
-   /// Print residual
-   virtual void MonitorResidual(int it,
-                                real_t norm,
-                                const Vector &r,
-                                bool final)
-   {
-      if (interval < 0) { return; }
-      if (it == 0) { norm0 = norm; }
-
-      if ( ( it%interval == 0) || final )
-      {
-         mfem::out<<prefix<<" iteration "<<std::setw(3)<<it
-                  <<": ||r|| = "
-                  <<std::setw(8)<<std::defaultfloat<<std::setprecision(3)
-                  <<norm
-                  <<", ||r||/||r_0|| = "
-                  <<std::setw(6)<<std::fixed<<std::setprecision(2)
-                  <<100*norm/norm0<<" %\n";
-      }
-   };
-
-};
-
-void sol_u_fun(const Vector &coord,  real_t t, Vector &u)
-{
-   real_t x = coord[0];
-   real_t y = coord[1];
-   if (problem == 1)
-   {
-      real_t r = sqrt(x*x + y*y);
-      real_t r0 = 0.5;
-
-      // Base flow + BC
-      u[0] = fmin(1.0, r - r0);
-      u[1] = 0.0;
-
-      // Disturbance 1
-      x = coord[0];
-      y = coord[1] - 3.0;
-      r = sqrt(x*x + y*y);
-      r0 = 1.0;
-      u[0] += 2.0*fmax(0.0, r0 - r);
-      u[1] -= 0.5*fmax(0.0, r0 - r);
-
-      // Disturbance 2
-      x = coord[0] + 3.0;
-      y = coord[1];
-      r = sqrt(x*x + y*y);
-      r0 = 1.0;
-      u[0] -= 0.5*fmax(0.0, r0 - r);
-      u[1] += 2.0*fmax(0.0, r0 - r);
-   }
-   else
-   {
-      const real_t eps = 1e-6;
-
-      u[0] = pow(4.0*x*(1.0-x),0.01)*y*y*y;
-      u[1] = 0.0;
-
-      if (y     < eps) { u[0] = 0.0; }
-      if (x     < eps) { u[0] = 0.0; }
-      if (1.0-x < eps) { u[0] = 0.0; }
-      if (1.0-y < eps)
-      {
-         u[0] = 1.0;
-         u[1] = 0.0;
-         if (x     < eps) { u[0] = 0.5; }
-         if (1.0-x < eps) { u[0] = 0.5; }
-      }
-   }
-}
-
-real_t sol_p_fun(const Vector &coord,  real_t t)
-{
-   return 0;
-}
-
 
 int main(int argc, char *argv[])
 {
@@ -220,20 +45,21 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order isoparametric space.");
 
-   args.AddOption(&problem, "-p", "--problem",
-                  "Problem");
-
    // Problem parameters
+   const char *lib_file = "libfun.so";
+   real_t rho_param = 1.204;
+   real_t mu_param = 1.825e-5;
+   args.AddOption(&mu_param, "-mu", "--dyn-visc",
+                  "Sets the dynamic diffusion parameters, should be positive.");
+   args.AddOption(&rho_param, "-rho", "--density",
+                  "Sets the density parameters, should be positive.");
+   args.AddOption(&lib_file, "-l", "--lib",
+                  "Library file for case specific function definitions.");
+
+   // Boundary parameters
    Array<int> strong_bdr;
    Array<int> weak_bdr;
    Array<int> outflow_bdr;
-   Array<int> suction_bdr;
-   Array<int> blowing_bdr;
-   Array<int> master_bdr;
-   Array<int> slave_bdr;
-
-   real_t rho_param = 1.204;
-   real_t mu_param = 1.825e-5;
 
    args.AddOption(&strong_bdr, "-sbc", "--strong-bdr",
                   "Boundaries where Dirichelet BCs are enforced strongly.");
@@ -241,19 +67,6 @@ int main(int argc, char *argv[])
                   "Boundaries where Dirichelet BCs are enforced weakly.");
    args.AddOption(&outflow_bdr, "-out", "--outflow-bdr",
                   "Outflow boundaries.");
-   args.AddOption(&suction_bdr, "-suc", "--suction-bdr",
-                  "Suction boundaries.");
-   args.AddOption(&blowing_bdr, "-blow", "--blowing-bdr",
-                  "Blowing boundaries.");
-   args.AddOption(&master_bdr, "-mbc", "--master-bdr",
-                  "Periodic master boundaries.");
-   args.AddOption(&slave_bdr, "-sbc", "--slave-bdr",
-                  "Periodic slave boundaries.");
-
-   args.AddOption(&mu_param, "-mu", "--dyn-visc",
-                  "Sets the dynamic diffusion parameters, should be positive.");
-   args.AddOption(&rho_param, "-rho", "--density",
-                  "Sets the density parameters, should be positive.");
 
    // Time stepping params
    int ode_solver_type = 21;
@@ -347,9 +160,6 @@ int main(int argc, char *argv[])
       if (strong_bdr.Size()>0) {cout<<"Strong  = "; strong_bdr.Print();}
       if (weak_bdr.Size()>0) {cout<<"Weak    = "; weak_bdr.Print();}
       if (outflow_bdr.Size()>0) { cout<<"Outflow = "; outflow_bdr.Print() ;}
-      if (suction_bdr.Size()>0) { cout<<"Suction = "; suction_bdr.Print() ;}
-      if (blowing_bdr.Size()>0) { cout<<"Blowing = "; blowing_bdr.Print() ;}
-      if (master_bdr.Size()>0) {cout<<"Periodic (master) = "; master_bdr.Print();}
    }
 
    Array<bool> bnd_flag(pmesh.bdr_attributes.Max());
@@ -365,17 +175,9 @@ int main(int argc, char *argv[])
    CheckBoundaries(bnd_flag, strong_marker, strong_bdr);
    CheckBoundaries(bnd_flag, weak_marker, weak_bdr, 2);
    CheckBoundaries(bnd_flag, outflow_marker, outflow_bdr);
-   CheckBoundaries(bnd_flag, suction_marker, suction_bdr);
-   CheckBoundaries(bnd_flag, blowing_marker, blowing_bdr);
-   CheckBoundaries(bnd_flag, master_marker, master_bdr);
-   CheckBoundaries(bnd_flag, slave_marker, slave_bdr);
 
-   MFEM_VERIFY(master_bdr.Size() == slave_bdr.Size(),
-               "Master-slave count do not match.");
-   // bool allSet = true;
    for (int b = 0; b < bnd_flag.Size(); b++)
    {
-      //   allSet = allSet || bnd_flag[b];
       MFEM_VERIFY(bnd_flag[b], "Not all boundaries have a boundary condition set.");
    }
 
@@ -405,11 +207,8 @@ int main(int argc, char *argv[])
    }
 
    Array<ParFiniteElementSpace *> spaces(2);
-   spaces[0] = new ParFiniteElementSpace(&pmesh, fecs[0], dim,
-                                         Ordering::byNODES);  //, Ordering::byVDIM);
-   //,master_bdr, slave_bdr);
+   spaces[0] = new ParFiniteElementSpace(&pmesh, fecs[0], dim, Ordering::byNODES);
    spaces[1] = new ParFiniteElementSpace(&pmesh, fecs[1], 1, Ordering::byNODES);
-   //   ,master_bdr, slave_bdr);
 
    // Report the degree of freedoms used
    {
@@ -502,23 +301,24 @@ int main(int argc, char *argv[])
    newton_solver.SetSolver(j_gmres);
 
    // Define the physical parameters
-   ConstantCoefficient rho(1.0);
-   ConstantCoefficient mu(mu_param);
-   VectorFunctionCoefficient sol_u(dim, sol_u_fun);
-   FunctionCoefficient sol_p(sol_p_fun);
-
    Vector force_param(dim);
    force_param = 0.0;
    VectorConstantCoefficient force(force_param);
+
+   LibCoefficient rho(lib_file, "rho", false, rho_param);
+   LibCoefficient mu(lib_file, "mu", false, mu_param);
+   LibVectorCoefficient sol_u(dim, lib_file, "sol_u");
+   LibCoefficient sol_p(lib_file, "sol_p");
+   LibVectorCoefficient traction(dim, lib_file, "traction");
 
    // Define weak form and evolution
    ParBlockTimeDepNonlinearForm form(spaces);
    form.AddTimeDepDomainIntegrator(new RBVMSIntegrator(rho, mu, force));
 
-   form.AddTimeDepBdrFaceIntegrator(new OutflowIntegrator(rho),
+   form.AddTimeDepBdrFaceIntegrator(new OutflowIntegrator(rho, &traction),
                                     outflow_marker);
 
-   form.AddTimeDepBdrFaceIntegrator(new WeakBCIntegrator(rho, mu, sol_u),
+   form.AddTimeDepBdrFaceIntegrator(new WeakBCIntegrator(rho, mu, &sol_u),
                                     weak_marker);
 
    // {
@@ -663,7 +463,7 @@ int main(int argc, char *argv[])
    // 7. Actual time integration
 
    // Open output file
-   /*std::ofstream os;
+   std::ofstream os;
    if (Mpi::Root())
    {
       std::ostringstream filename;
@@ -687,7 +487,7 @@ int main(int argc, char *argv[])
          }
       }
       os<<endl;
-   }*/
+   }
 
    // Loop till final time reached
    while (t < t_final)
@@ -852,7 +652,7 @@ int main(int argc, char *argv[])
          cout<<"\n"<<std::flush;
       }
    }
-   //os.close();
+   os.close();
 
    // 8. Free the used memory.
    for (int i = 0; i < fecs.Size(); ++i)
@@ -866,7 +666,7 @@ int main(int argc, char *argv[])
    for (int i = 0; i < nstate; i++)
    {
       delete dx_u[i];
-      delete dx_p[i];
+      delete  dx_p[i];
    }
    return 0;
 }
