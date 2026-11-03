@@ -25,7 +25,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04  # ubuntu-latest until 2026-11-19 migration completes
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/sanitize/mfem
@@ -35,7 +35,7 @@ jobs:
 
   check:
     needs: [build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04  # ubuntu-latest until 2026-11-19 migration completes
     env:
       ex: ${{inputs.par && 'ex1p' || 'ex1'}}
     steps:
@@ -53,7 +53,7 @@ jobs:
 
   examples:
     needs: [check]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04  # ubuntu-latest until 2026-11-19 migration completes
     env:
       exclude: ${{inputs.par && '-E "_ser"' || ''}}
     steps:
@@ -77,7 +77,7 @@ jobs:
 
   miniapps:
     needs: [check]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04  # ubuntu-latest until 2026-11-19 migration completes
     env:
       exclude: ${{inputs.par && '-E "_ser"' || ''}}
     steps:
@@ -101,7 +101,7 @@ jobs:
 
   tests-miniapps:
     needs: [check]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04  # ubuntu-latest until 2026-11-19 migration completes
     env:
       run: ${{inputs.par && '-R "_cpu_np"' || ''}}
       exclude: ${{inputs.par && '"unit_tests|debug"' || '"^unit_tests$|debug"'}}
@@ -126,7 +126,7 @@ jobs:
 
   tests-unit-build:
     needs: [check]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04  # ubuntu-latest until 2026-11-19 migration completes
     env:
       unit_tests: ${{inputs.par && 'punit_tests' || 'unit_tests'}}
     steps:
@@ -155,7 +155,7 @@ jobs:
 
   tests-unit-run:
     needs: [tests-unit-build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04  # ubuntu-latest until 2026-11-19 migration completes
     strategy:
       matrix:
         tag: [0, 1, 2, 3]
