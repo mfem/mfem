@@ -478,7 +478,7 @@ void ParBlockNonlinearForm::MultSharedFaces(const Array<const Vector *> &lx,
       }
       else
       {
-         // Else still ensure face-neighbor FiniteElement is available
+         // Else still ensure face-neighbor mesh data is available
          // (This is done in pgfs[s]->ExchangeFaceNbrData()).
          pmesh->ExchangeFaceNbrData();
       }
