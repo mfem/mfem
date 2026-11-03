@@ -49,6 +49,8 @@ jobs:
       - name: MFEM Check
         if: ${{steps.restore.outputs.cache-hit != 'true'}}
         working-directory: mfem/build
+        env:
+          CTEST_OUTPUT_ON_FAILURE: 1
         run: ninja -v check
 
   examples:

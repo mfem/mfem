@@ -55,7 +55,7 @@ runs:
       with:
         path: ${{env.LSAN_DIR}}
         fail-on-cache-miss: true
-        key: build-lsan-suppression-file
+        key: ${{env.IMAGE_OS}}-build-lsan-suppression-file
 
     - uses: actions/checkout@v6  # Checkout the repository
       with:
