@@ -1493,13 +1493,6 @@ void DifferentiableOperator::AddIntegrator(
    derivative_ids_t derivative_ids,
    [[maybe_unused]] second_derivative_ids_t second_derivative_ids)
 {
-   if constexpr (!(std::is_same_v<entity_t, Entity::Element> ||
-                   std::is_same_v<entity_t, Entity::BoundaryElement>))
-   {
-      static_assert(dfem::always_false<entity_t>,
-                    "entity type not supported in AddIntegrator");
-   }
-
    static constexpr size_t num_inputs = tuple_size<input_t>::value;
    static constexpr size_t num_outputs = tuple_size<output_t>::value;
 
@@ -1575,15 +1568,7 @@ void DifferentiableOperator::AddIntegrator(
       inputs_vdim[i] = get<i>(inputs).vdim;
    });
 
-   const Array<int> *elem_attributes = nullptr;
-   if constexpr (std::is_same_v<entity_t, Entity::Element>)
-   {
-      elem_attributes = &mesh.GetElementAttributes();
-   }
-   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-   {
-      elem_attributes = &mesh.GetBdrFaceAttributes();
-   }
+   const Array<int> *elem_attributes = &EntityTraits<entity_t>::Attributes(mesh);
 
    const auto output_fop = get<0>(outputs);
    test_space_field_idx = FindIdx(output_fop.GetFieldId(), outfds);
