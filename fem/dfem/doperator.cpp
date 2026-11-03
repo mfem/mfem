@@ -56,22 +56,24 @@ const typename map_t::mapped_type *FindNonEmpty(
    return (it != map.end() && !it->second.empty()) ? &it->second : nullptr;
 }
 
-/// The callbacks and output fields of the derivatives keyed by @a key_t: a
-/// field id for first derivatives, a (gradient, direction) pair of field ids
-/// for second derivatives.
+/// The callbacks, and the assembly callbacks and output fields of the
+/// derivatives keyed by @a key_t: a field id for first derivatives, a
+/// (gradient, direction) pair of field ids for second derivatives. See
+/// detail::OperatorCallbacks.
 template <typename key_t>
 struct DerivativeCallbackSet
 {
-   const DerivativeMap<key_t, derivative_action_t> &actions;
-   const DerivativeMap<key_t, derivative_action_t> &cached_actions;
-   const DerivativeMap<key_t, derivative_action_t> &transpose_actions;
+   const detail::OperatorCallbacks &operator_callbacks;
    const DerivativeMap<key_t, FieldDescriptor> &outfds;
+   // The assembly callbacks are not part of detail::OperatorCallbacks:
+   // SparseMatrix, HypreParMatrix and diagonal assembly are only implemented
+   // for element integrators (the LocalQF assembly classes static_assert on
+   // Entity::Element). Move them there once other entity types support them.
    const DerivativeMap<key_t, assemble_derivative_sparsematrix_callback_t>
    &assemble_sparse;
    const DerivativeMap<key_t, assemble_derivative_hypreparmatrix_callback_t>
    &assemble_hypre;
    const DerivativeMap<key_t, assemble_diagonal_callback_t> &assemble_diagonal;
-   const DerivativeMap<key_t, derivative_setup_t> &setup;
 };
 
 std::string DerivativeName(size_t derivative_id)
@@ -103,21 +105,13 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
    bool lvector_mode,
    bool functional_gradient = false)
 {
-   // MF action
-   // Check that integrator was registered with DerivativeKernels::Action,
-   // If not we don't necessarily have to throw an error, because the integrator
-   // may have DerivativeKernels::Apply, for PA action.
-   static const std::vector<derivative_action_t> no_actions;
-   const auto it_action = callbacks.actions.find(key);
-   const auto &direct_actions =
-      it_action == callbacks.actions.end() ? no_actions : it_action->second;
-
-   // PA action
-   // The cached apply only exists if the integrator was registered with
-   // DerivativeKernels::Apply.
-   const auto *cached_actions =
-      use_cached_setup ? FindNonEmpty(callbacks.cached_actions, key) : nullptr;
-   MFEM_VERIFY(!use_cached_setup || cached_actions,
+   // MF action: exists if the integrator was registered with
+   // DerivativeKernels::Action. A missing one is not an error here, because the
+   // integrator may have DerivativeKernels::Apply, for PA action.
+   // PA action: the cached apply only exists if the integrator was registered
+   // with DerivativeKernels::Apply.
+   const auto &c = callbacks.operator_callbacks;
+   MFEM_VERIFY(!use_cached_setup || FindNonEmpty(c.Apply(key), key),
                "the cached derivative apply was requested for "
                << DerivativeName(key) << ", but the integrator was registered "
                "without DerivativeKernels::Apply; either add it or drop the "
@@ -125,14 +119,18 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
 
    const size_t dfidx = FindIdx(DirectionId(key), infds);
    const auto &doutfds = FindOrDefault(callbacks.outfds, key, default_outfds);
-   const auto &mult_callbacks =
-      cached_actions ? *cached_actions : direct_actions;
+
+   detail::DerivativeCallbacks derivative_callbacks
+   {
+      FindOrEmpty(use_cached_setup ? c.Apply(key) : c.Action(key), key),
+      FindOrEmpty(c.Transpose(key), key),
+      FindOrEmpty(c.Setup(key), key)
+   };
 
    return std::make_shared<DerivativeOperator>(
              GetTotalTrueVSize(doutfds),
              GetTrueVSize(infds[dfidx]),
-             mult_callbacks,
-             FindOrEmpty(callbacks.transpose_actions, key),
+             std::move(derivative_callbacks),
              infds[dfidx],
              x,
              infds,
@@ -140,10 +138,9 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
              FindOrEmpty(callbacks.assemble_sparse, key),
              FindOrEmpty(callbacks.assemble_hypre, key),
              FindOrEmpty(callbacks.assemble_diagonal, key),
-             FindOrEmpty(callbacks.setup, key),
              lvector_mode,
              functional_gradient,
-             cached_actions != nullptr);
+             use_cached_setup);
 }
 }
 
@@ -179,7 +176,7 @@ void DifferentiableOperator::SetMultLevel(MultLevel level)
 
 void DifferentiableOperator::Mult(const Vector &x, Vector &y) const
 {
-   MFEM_ASSERT(!action_callbacks.empty(),
+   MFEM_ASSERT(!operator_callbacks.actions.empty(),
                "no integrators have been set");
 
    MFEM_ASSERT(dynamic_cast<const BlockVector*>(&x),
@@ -206,14 +203,10 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
              derivative_id, x, infds, outfds,
              DerivativeCallbackSet<size_t>
    {
-      derivative_action_callbacks,
-      derivative_apply_callbacks,
-      daction_transpose_callbacks,
-      derivative_outfds,
+      operator_callbacks, derivative_outfds,
       assemble_derivative_sparsematrix_callbacks,
       assemble_derivative_hypreparmatrix_callbacks,
-      assemble_diagonal_callbacks,
-      derivative_setup_callbacks
+      assemble_diagonal_callbacks
    },
    false,
    mult_level == MultLevel::LVECTOR,
@@ -227,14 +220,10 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
              derivative_id, x, infds, outfds,
              DerivativeCallbackSet<size_t>
    {
-      derivative_action_callbacks,
-      derivative_apply_callbacks,
-      daction_transpose_callbacks,
-      derivative_outfds,
+      operator_callbacks, derivative_outfds,
       assemble_derivative_sparsematrix_callbacks,
       assemble_derivative_hypreparmatrix_callbacks,
-      assemble_diagonal_callbacks,
-      derivative_setup_callbacks
+      assemble_diagonal_callbacks
    },
    use_cached_setup,
    mult_level == MultLevel::LVECTOR,
@@ -247,8 +236,10 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    MFEM_ASSERT(HasFunctionalIntegrator(),
                "stateless GetDerivative is available only for functionals");
 
-   const auto it_action = derivative_action_callbacks.find(derivative_id);
-   MFEM_ASSERT(it_action != derivative_action_callbacks.end(),
+   detail::DerivativeCallbacks derivative_callbacks;
+   derivative_callbacks.actions =
+      FindOrEmpty(operator_callbacks.derivative_action, derivative_id);
+   MFEM_ASSERT(!derivative_callbacks.actions.empty(),
                "no derivative action has been found for ID " << derivative_id);
 
    const size_t dfidx = FindIdx(derivative_id, infds);
@@ -258,7 +249,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    return std::make_shared<DerivativeOperator>(
              GetTotalTrueVSize(doutfds),
              GetTrueVSize(infds[dfidx]),
-             it_action->second,
+             std::move(derivative_callbacks),
              infds,
              doutfds);
 }
@@ -280,14 +271,10 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
              infds, outfds,
              DerivativeCallbackSet<second_derivative_key_t>
    {
-      second_derivative_action_callbacks,
-      second_derivative_apply_callbacks,
-      second_daction_transpose_callbacks,
-      second_derivative_outfds,
+      operator_callbacks, second_derivative_outfds,
       assemble_second_derivative_sparsematrix_callbacks,
       assemble_second_derivative_hypreparmatrix_callbacks,
-      assemble_second_derivative_diagonal_callbacks,
-      second_derivative_setup_callbacks
+      assemble_second_derivative_diagonal_callbacks
    },
    false,
    mult_level == MultLevel::LVECTOR);
@@ -311,14 +298,10 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
              infds, outfds,
              DerivativeCallbackSet<second_derivative_key_t>
    {
-      second_derivative_action_callbacks,
-      second_derivative_apply_callbacks,
-      second_daction_transpose_callbacks,
-      second_derivative_outfds,
+      operator_callbacks, second_derivative_outfds,
       assemble_second_derivative_sparsematrix_callbacks,
       assemble_second_derivative_hypreparmatrix_callbacks,
-      assemble_second_derivative_diagonal_callbacks,
-      second_derivative_setup_callbacks
+      assemble_second_derivative_diagonal_callbacks
    },
    use_cached_setup,
    mult_level == MultLevel::LVECTOR);
@@ -328,8 +311,9 @@ bool DifferentiableOperator::HasSecondDerivative(size_t gradient_id,
                                                  size_t direction_id) const
 {
    const second_derivative_key_t derivative_key{gradient_id, direction_id};
-   const auto it = second_derivative_action_callbacks.find(derivative_key);
-   return it != second_derivative_action_callbacks.end() && !it->second.empty();
+   return FindNonEmpty(operator_callbacks.second_derivative_action,
+                       derivative_key) !=
+          nullptr;
 }
 
 
