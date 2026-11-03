@@ -130,7 +130,10 @@ class DerivativeAction
    std::array<bool, n_inputs> input_is_dependent;
    FieldDescriptor direction_fd;
    mutable Vector direction_e;
-   mutable RestrictionCache<entity_t> direction_rcache;
+   mutable RestrictionCache direction_rcache
+   {
+      EntityTraits<entity_t>::restriction
+   };
 
 public:
    //////////////////////////////////////////////////////////////////

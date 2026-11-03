@@ -96,8 +96,8 @@ class DerivativeApplyTranspose
    std::array<int, n_outputs> out_elem_dof_size;
    mutable Vector dir_out_e;
    /// One restriction cache per output field, resolved on first use.
-   mutable std::array<RestrictionCache<entity_t>, n_outputs>
-   out_rcaches;
+   mutable std::array<RestrictionCache, n_outputs> out_rcaches =
+      MakeRestrictionCaches<n_outputs>(EntityTraits<entity_t>::restriction);
 
 public:
    //////////////////////////////////////////////////////////////////

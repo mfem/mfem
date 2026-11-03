@@ -74,7 +74,10 @@ class DerivativeApply
    const int dim, ne, nq, q1d;
    FieldDescriptor direction_fd;
    mutable Vector direction_e;
-   mutable RestrictionCache<entity_t> direction_rcache;
+   mutable RestrictionCache direction_rcache
+   {
+      EntityTraits<entity_t>::restriction
+   };
 
 public:
    DerivativeApply() = delete;

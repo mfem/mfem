@@ -231,7 +231,10 @@ private:
    mutable std::array<Vector, n_outputs> dir_out_e_owned;
    mutable std::vector<Vector *> dir_out_l;
    mutable std::vector<Vector *> dir_out_e;
-   mutable RestrictionCache<Entity::Element> out_rcache;
+   mutable RestrictionCache out_rcache
+   {
+      EntityTraits<Entity::Element>::restriction
+   };
 
    int residual_size_on_qp = 0;
    int trial_vdim = 0;

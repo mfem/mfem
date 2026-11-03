@@ -896,8 +896,14 @@ private:
    mutable std::vector<Vector *> infields_e;
 
    /// Restrictions of infds/outfds, resolved on first use.
-   mutable RestrictionCache<Entity::Element> in_rcache;
-   mutable RestrictionCache<Entity::Element> out_rcache;
+   mutable RestrictionCache in_rcache
+   {
+      EntityTraits<Entity::Element>::restriction
+   };
+   mutable RestrictionCache out_rcache
+   {
+      EntityTraits<Entity::Element>::restriction
+   };
 
    FieldDescriptor direction;
 
@@ -1408,8 +1414,14 @@ private:
    mutable std::vector<Vector *> residual_e;
 
    /// Restrictions of infds/outfds, resolved on first use.
-   mutable RestrictionCache<Entity::Element> in_rcache;
-   mutable RestrictionCache<Entity::Element> out_rcache;
+   mutable RestrictionCache in_rcache
+   {
+      EntityTraits<Entity::Element>::restriction
+   };
+   mutable RestrictionCache out_rcache
+   {
+      EntityTraits<Entity::Element>::restriction
+   };
 
    // std::function<void(Vector &, Vector &)> prolongation_transpose;
    std::function<void(Vector &, Vector &)> output_restriction_transpose;

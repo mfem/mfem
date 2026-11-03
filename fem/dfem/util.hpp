@@ -1838,12 +1838,14 @@ std::shared_ptr<const Operator> get_restriction(const FieldDescriptor &f,
 ///
 /// A cache instance is bound to the field list it was first set up with; the
 /// owning operator should keep one instance per (field list, entity type) pair.
-///
-/// @tparam entity_t the entity type (see Entity).
-template <typename entity_t>
 class RestrictionCache
 {
 public:
+   /// @brief A cache for restrictions described by @a rest_descriptor, see
+   /// RestrictionDescriptor and EntityTraits.
+   explicit RestrictionCache(const RestrictionDescriptor &rest_descriptor) :
+      rest_descriptor(rest_descriptor) { }
+
    /// @brief Resolve the restrictions for @a fields. A no-op after the first
    /// call.
    void EnsureSetup(const std::vector<FieldDescriptor> &fields,
@@ -1895,10 +1897,18 @@ public:
    /// @brief The width of the restriction of field @a i, or -1 if it has none.
    int Width(std::size_t i = 0) const { return entries[i].width; }
 
+   /// @brief The restriction of field @a i as a FaceRestriction, or nullptr
+   /// if it is not one. Face restrictions also provide normal derivatives.
+   const FaceRestriction *GetFaceRestriction(std::size_t i = 0) const
+   {
+      return entries[i].face;
+   }
+
 private:
    struct Entry
    {
       const Operator *op = nullptr;
+      const FaceRestriction *face = nullptr;
       bool is_identity = false;
       int height = -1;
       int width = -1;
@@ -1922,14 +1932,17 @@ private:
          // The shared_ptr returned here is non-owning (no-op deleter): the
          // FiniteElementSpace owns the restriction and outlives this cache, so
          // the raw pointer stays valid past the temporary.
-         const std::shared_ptr<const Operator> R = get_restriction<entity_t>(f, o);
+         const std::shared_ptr<const Operator> R =
+            get_restriction(f, o, rest_descriptor);
          e.op = R.get();
+         e.face = dynamic_cast<const FaceRestriction *>(e.op);
       }
       e.is_identity = dynamic_cast<const IdentityOperator *>(e.op) != nullptr;
       if (e.op != nullptr) { e.height = e.op->Height(); e.width = e.op->Width(); }
       return e;
    }
 
+   RestrictionDescriptor rest_descriptor;
    std::vector<Entry> entries;
    /// Identity operators synthesized for quadrature space fields. Shared
    /// rather than unique so that the cache stays copyable: the backend structs
@@ -1938,6 +1951,26 @@ private:
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
    bool ready = false;
 };
+
+namespace detail
+{
+template <std::size_t... Is>
+std::array<RestrictionCache, sizeof...(Is)> MakeRestrictionCachesImpl(
+   const RestrictionDescriptor &rest_descriptor, std::index_sequence<Is...>)
+{
+   return {{ (static_cast<void>(Is), RestrictionCache(rest_descriptor))... }};
+}
+}
+
+/// @brief @a N restriction caches for restrictions described by
+/// @a rest_descriptor.
+template <std::size_t N>
+std::array<RestrictionCache, N> MakeRestrictionCaches(
+   const RestrictionDescriptor &rest_descriptor)
+{
+   return detail::MakeRestrictionCachesImpl(rest_descriptor,
+                                            std::make_index_sequence<N> {});
+}
 
 /// @brief Get a transpose restriction callback for a field descriptor.
 ///
@@ -2295,10 +2328,10 @@ void prolongation_transpose(
 /// re-resolving them on every call.
 ///
 /// @see RestrictionCache
-template <typename entity_t>
+inline
 void restriction(
    const std::vector<FieldDescriptor> &fields,
-   RestrictionCache<entity_t> &cache,
+   RestrictionCache &cache,
    const std::vector<Vector *> &x_l,
    std::vector<Vector *> &x_e)
 {
@@ -2338,10 +2371,10 @@ void restriction(
 /// re-resolving the restrictions on every call.
 ///
 /// @see RestrictionCache
-template <typename entity_t>
+inline
 void prepare_residual(
    const std::vector<FieldDescriptor> &fields,
-   RestrictionCache<entity_t> &cache,
+   RestrictionCache &cache,
    std::vector<Vector *> &r_e)
 {
    cache.EnsureSetup(fields);
@@ -2367,10 +2400,10 @@ void prepare_residual(
 /// avoid re-resolving them on every call.
 ///
 /// @see RestrictionCache
-template <typename entity_t>
+inline
 void restriction_transpose(
    const std::vector<FieldDescriptor> &fields,
-   RestrictionCache<entity_t> &cache,
+   RestrictionCache &cache,
    const std::vector<Vector *> &x_e,
    std::vector<Vector *> &x_l)
 {
@@ -2411,10 +2444,10 @@ void restriction_transpose(
 /// blocks of @a y, which keep their own memory.
 ///
 /// @see RestrictionCache
-template <typename entity_t>
+inline
 void restriction_transpose(
    const std::vector<FieldDescriptor> &fields,
-   RestrictionCache<entity_t> &cache,
+   RestrictionCache &cache,
    const std::vector<Vector *> &x_e,
    MultiVector &y)
 {
@@ -2502,9 +2535,9 @@ std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
 /// @param ordering the element dof ordering.
 /// @tparam entity_t the entity type (see Entity).
 /// @see RestrictionCache
-template <typename entity_t>
+inline
 void restriction(const FieldDescriptor &u,
-                 RestrictionCache<entity_t> &cache,
+                 RestrictionCache &cache,
                  const Vector &u_l,
                  Vector &field_e,
                  ElementDofOrdering ordering)

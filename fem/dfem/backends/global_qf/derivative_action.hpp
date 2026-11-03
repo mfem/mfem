@@ -189,7 +189,10 @@ struct DerivativeAction
    FieldDescriptor direction_fd;
    ElementDofOrdering dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
    mutable Vector direction_e;
-   mutable RestrictionCache<Entity::Element> direction_rcache;
+   mutable RestrictionCache direction_rcache
+   {
+      EntityTraits<Entity::Element>::restriction
+   };
 };
 
 } // namespace mfem::future::GlobalQFImpl

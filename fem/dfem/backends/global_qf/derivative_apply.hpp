@@ -232,7 +232,10 @@ private:
    Array<int> result_q_offsets;
    mutable BlockVector dir_q_local;
    mutable BlockVector result_q_local;
-   mutable RestrictionCache<Entity::Element> direction_rcache;
+   mutable RestrictionCache direction_rcache
+   {
+      EntityTraits<Entity::Element>::restriction
+   };
 
    int residual_size_on_qp = 0;
    int trial_vdim = 0;
