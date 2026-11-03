@@ -886,8 +886,8 @@ TEST_CASE("Uniform refinement transfer with mixed pyramid parents",
          const int child = child_offset + local;
          const Embedding &embedding = trans.embeddings[child];
          const Geometry::Type child_geom = pyramid ?
-            (local < 6 ? Geometry::PYRAMID : Geometry::TETRAHEDRON) :
-            Geometry::PRISM;
+                                           (local < 6 ? Geometry::PYRAMID : Geometry::TETRAHEDRON) :
+                                           Geometry::PRISM;
          CAPTURE(parent, child, local);
          // Children retain the correct parent across changing offsets.
          REQUIRE(embedding.parent == parent);
