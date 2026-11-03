@@ -3164,6 +3164,11 @@ void ND_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
 
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, vdim);
+#else
+   // 'vshape' is initialized with 'dim' (2) instead of 'vdim' (3) columns.
+   // 'vshape' may be modified by ND_R2D_FiniteElement::LocalInterpolation to
+   // use the number of dofs of another FE as the number of rows.
+   vshape.SetSize(dof, vdim);
 #endif
 
    real_t * tk_ptr = const_cast<real_t*>(tk);
@@ -3177,7 +3182,8 @@ void ND_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
 
       InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
       ip.Set(pt_data, dim);
-      if (Geometries.CheckPoint(geom_type, ip)) // do we need an epsilon here?
+      constexpr real_t eps = MFEM_PRECISION_SWITCH(1e-14,1e-6f);
+      if (Geometries.CheckPoint(geom_type, ip, eps))
       {
          CalcVShape(ip, vshape);
          Jinv.Mult(t2, pt_data);

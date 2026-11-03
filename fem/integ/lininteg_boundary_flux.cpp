@@ -120,7 +120,7 @@ static void BFLFEvalAssemble(const FiniteElementSpace &fes,
 {
    Mesh &mesh = *fes.GetMesh();
    const int dim = mesh.Dimension();
-   const FiniteElement &el = *fes.GetBE(0);
+   const FiniteElement &el = *fes.GetTypicalBE();
    const DofToQuad &maps = el.GetDofToQuad(ir, DofToQuad::TENSOR);
    const int d = maps.ndof, q = maps.nqpt;
    auto ker = (dim == 2) ? BFLFEvalAssemble2D<> : BFLFEvalAssemble3D<>;
@@ -166,7 +166,7 @@ void VectorFEBoundaryFluxLFIntegrator::AssembleDevice(
    const Array<int> &markers,
    Vector &b)
 {
-   const FiniteElement &fe = *fes.GetBE(0);
+   const FiniteElement &fe = *fes.GetTypicalBE();
    const int qorder = oa * fe.GetOrder() + ob;
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);

@@ -201,14 +201,17 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
 {
    auto mesh_fname = GENERATE("../../data/star.mesh",
                               "../../data/star-surf.mesh",
+                              "../../data/periodic-square.mesh",
                               "../../data/inline-tri.mesh",
                               "../../data/inline-quad.mesh",
                               "../../data/inline-hex.mesh",
                               "../../data/inline-tet.mesh",
                               "../../data/inline-wedge.mesh",
+                              "../../data/periodic-cube.mesh",
                               "../../data/beam-wedge.mesh");
+   CAPTURE(mesh_fname);
 
-   Mesh orig_mesh(mesh_fname, 1, 1);
+   Mesh orig_mesh(mesh_fname);
    Mesh simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
 
    Geometry::Type orig_geom = orig_mesh.GetTypicalElementGeometry();
@@ -236,8 +239,11 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
    // on the original mesh, but it doesn't happen for these test cases.
    REQUIRE(simplex_mesh.GetNE() == orig_mesh.GetNE()*factor);
 
+   auto *nodal_fes = orig_mesh.GetNodalFESpace();
+   bool dg = nodal_fes != nullptr && nodal_fes->IsDGSpace();
    auto curvature = GENERATE(1,2,3);
-   orig_mesh.SetCurvature(curvature, false, -1, GENERATE(0,1));
+   CAPTURE(curvature);
+   orig_mesh.SetCurvature(curvature, dg, -1, GENERATE(0,1));
    auto ho_simplex_mesh = Mesh::MakeSimplicial(orig_mesh);
 
    CHECK(orig_mesh.GetNV() == simplex_mesh.GetNV());
@@ -245,13 +251,12 @@ TEST_CASE("MakeSimplicial", "[Mesh]")
 
    // Vertex locations should be unchanged after higher order transformation.
    Vector vert;
-   constexpr real_t tol = 10*std::numeric_limits<real_t>::epsilon();
    for (int i = 0; i < ho_simplex_mesh.SpaceDimension(); i++)
    {
       ho_simplex_mesh.GetNodes()->GetNodalValues(vert, i+1);
       for (int j = 0; j < ho_simplex_mesh.GetNV(); j++)
       {
-         REQUIRE(std::abs(simplex_mesh.GetVertex(j)[i] - vert(j)) < tol);
+         REQUIRE(simplex_mesh.GetVertex(j)[i] - vert(j) == MFEM_Approx(0.0));
       }
    }
 }

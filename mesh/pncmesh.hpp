@@ -247,7 +247,7 @@ public:
    /** Extension of NCMesh::GetBoundaryClosure. Filters out ghost vertices and
        ghost edges from 'bdr_vertices' and 'bdr_edges', and uncovers hidden
        internal boundary faces. */
-   void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+   void GetBoundaryClosure(const Array<int> &bdr_attr_marked,
                            Array<int> &bdr_vertices,
                            Array<int> &bdr_edges, Array<int> &bdr_faces) override;
 
