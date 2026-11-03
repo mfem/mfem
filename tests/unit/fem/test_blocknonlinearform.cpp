@@ -256,6 +256,140 @@ TEST_CASE("ParBlockNonlinearForm",
       delete pmesh;
    }
 }
+
+// DGDiffusionIntegrator implemented as a BlockNonlinearFormIntegrator on
+// interior faces: reads and writes only space 0
+class FaceExample : public BlockNonlinearFormIntegrator
+{
+private:
+   DGDiffusionIntegrator dg;
+   DenseMatrix elmat;
+public:
+   FaceExample() : dg(-1.0, 1.0) {}
+
+   void AssembleFaceVector(const Array<const FiniteElement *> &el1,
+                           const Array<const FiniteElement *> &el2,
+                           FaceElementTransformations &Tr,
+                           const Array<const Vector *> &elfun,
+                           const Array<Vector *> &elvect) override
+   {
+      if (elvect[1]) { elvect[1]->SetSize(0); }
+      dg.AssembleFaceMatrix(*el1[0], *el2[0], Tr, elmat);
+      elvect[0]->SetSize(elmat.Height());
+      elmat.Mult(*elfun[0], *elvect[0]);
+   }
+};
+
+TEST_CASE("ParBlockNonlinearForm Array of Vectors Mult",
+          "[Parallel], [ParBlockNonlinearForm], [Mult]")
+{
+   const bool nonconforming = GENERATE(false, true);
+   const bool with_bc = GENERATE(false, true);
+   CAPTURE(nonconforming, with_bc);
+
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL, true);
+   if (nonconforming)
+   {
+      mesh.EnsureNCMesh();
+      Array<int> refs({0, 5, 10});
+      mesh.GeneralRefinement(refs);
+   }
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   mesh.Clear();
+   const int dim = pmesh.Dimension();
+
+   H1_FECollection ufec(2, dim);
+   H1_FECollection vfec(1, dim);
+   ParFiniteElementSpace ufes(&pmesh, &ufec);
+   ParFiniteElementSpace vfes(&pmesh, &vfec, dim);
+   Array<ParFiniteElementSpace *> fes({&ufes, &vfes});
+
+   ParGridFunction u_gf(&ufes);
+   FunctionCoefficient u_coeff([](const Vector &x)
+   {
+      return 1.0 + x(0) * x(1) + x(0) * x(0);
+   });
+   u_gf.ProjectCoefficient(u_coeff);
+   u_gf.SetTrueVector();
+
+   Array<const Vector *> x(2);
+   x[0] = &u_gf.GetTrueVector();
+   x[1] = nullptr;
+   Array<Vector *> y(2);
+
+   SECTION("Domain integrator, input in space 0, output in space 1")
+   {
+      ParBlockNonlinearForm form(fes);
+      form.AddDomainIntegrator(new MixedExample);
+
+      // Essential b.c. only on the output space
+      Array<int> no_bdr(pmesh.bdr_attributes.Max());
+      no_bdr = 0;
+      Array<int> ess_bdr(no_bdr);
+      ess_bdr[0] = 1;
+      Array<Array<int> *> bdr({&no_bdr, with_bc ? &ess_bdr : &no_bdr});
+      Array<Vector *> rhs(2);
+      rhs = nullptr;
+      form.SetEssentialBC(bdr, rhs);
+
+      Array<int> ess_tdofs;
+      vfes.GetEssentialTrueDofs(*bdr[1], ess_tdofs);
+
+      // Reference: the full block Mult, with a zero dummy input for space 1
+      BlockVector x_full(form.GetBlockTrueOffsets());
+      BlockVector y_full(form.GetBlockTrueOffsets());
+      x_full.GetBlock(0) = u_gf.GetTrueVector();
+      x_full.GetBlock(1) = 0.0;
+      form.Mult(x_full, y_full);
+      const Vector &ref_y = y_full.GetBlock(1);
+      REQUIRE(ParNormlp(ref_y, infinity(), MPI_COMM_WORLD) > 0.0);
+
+      Vector r(vfes.GetTrueVSize());
+      y[0] = nullptr;
+      y[1] = &r;
+      form.Mult(x, y);
+
+      for (int d : ess_tdofs)
+      {
+         REQUIRE(r(d) == 0.0);
+      }
+      r -= ref_y;
+      REQUIRE(r.Normlinf() == MFEM_Approx(0.0));
+   }
+
+   SECTION("Interior face integrator, input and output only in space 0")
+   {
+      // Discontinuous space 0, otherwise the face terms cancel out
+      L2_FECollection dfec(1, dim);
+      ParFiniteElementSpace dfes(&pmesh, &dfec);
+      Array<ParFiniteElementSpace *> dg_fes({&dfes, &vfes});
+
+      ParGridFunction d_gf(&dfes);
+      d_gf.ProjectCoefficient(u_coeff);
+      d_gf.SetTrueVector();
+
+      ParBlockNonlinearForm form(dg_fes);
+      form.AddInteriorFaceIntegrator(new FaceExample);
+
+      // Reference: the full block Mult, with a zero dummy input for space 1
+      BlockVector x_full(form.GetBlockTrueOffsets());
+      BlockVector y_full(form.GetBlockTrueOffsets());
+      x_full.GetBlock(0) = d_gf.GetTrueVector();
+      x_full.GetBlock(1) = 0.0;
+      form.Mult(x_full, y_full);
+      const Vector &ref_y = y_full.GetBlock(0);
+      REQUIRE(ParNormlp(ref_y, infinity(), MPI_COMM_WORLD) > 0.0);
+
+      Vector r(dfes.GetTrueVSize());
+      x[0] = &d_gf.GetTrueVector();
+      y[0] = &r;
+      y[1] = nullptr;
+      form.Mult(x, y);
+
+      r -= ref_y;
+      REQUIRE(r.Normlinf() == MFEM_Approx(0.0));
+   }
+}
 #endif
 
 } // namespace blocknonlinearform
