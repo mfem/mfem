@@ -321,7 +321,13 @@ public:
 
 /** Construct a compiled-in backend with its default configuration.
     Returns nullptr for an unknown or unavailable backend. Concrete backend
-    constructors provide algorithm-specific configuration. */
+    constructors provide algorithm-specific configuration.
+
+    Polynomial ALGOIM simplifies same-degree constraints with exactly equal or
+    opposite normalized Bernstein coefficients. Remaining nearly proportional
+    constraints at coefficient-roundoff scale return NumericalFailure. Degree
+    elevation and normalization are used only for this diagnostic; constraints
+    are never merged using a tolerance. */
 std::unique_ptr<CutQuadratureBackend> CreateCutQuadratureBackend(
    const std::string &name);
 
@@ -337,6 +343,8 @@ std::vector<std::string> GetCutQuadratureBackends();
     Integrator weights are for element integrators whose measure factor is
     that of this same parent transformation. They are not directly usable as
     face-coordinate rules in FaceElementTransformations-based integrators.
+    The measure ratio mu is positive, while volume retains the sign of
+    Tr.Weight(), including for orientation-reversing square mappings.
     Weight conversion alone does not turn volume operators into intrinsic
     surface differential operators. */
 enum class CutWeightType { Reference, Physical, Integrator };
@@ -386,11 +394,13 @@ struct MappedCutQuadrature
 
     For J = dT/dxi, G = J^T J, and reference conormal matrix N:
        mu = sqrt(det(G)) * sqrt(det(N^T G^{-1} N) / det(N^T N)).
-    For codimension zero mu = Tr.Weight(), including embedded elements.
+    For codimension zero mu = sqrt(det(G)), including embedded elements; for
+    square mappings this is abs(Tr.Weight()), not the signed integrator factor.
     Physical conormals are the normalized columns of J G^{-1} N.
     J and the active conormals must have full column rank; singular cases
     return DegenerateGeometry. There are no gradient evaluations at
     zero-weight nodes. On failure out is cleared, never partly usable.
+    Standard exceptions from mapping evaluation return NumericalFailure.
 
     Mapping generally does not preserve reference polynomial exactness.
     The transformation's current integration point is restored on return. */

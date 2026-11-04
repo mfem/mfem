@@ -40,6 +40,38 @@ public:
       return {status, "test"};
    }
 };
+
+class ThrowingCutTransformation : public IsoparametricTransformation
+{
+public:
+   bool fail = false;
+
+   explicit ThrowingCutTransformation(bool jacobian) : jacobian(jacobian)
+   { SetIdentityTransformation(Geometry::SQUARE); }
+
+   void Transform(const IntegrationPoint &point, Vector &physical) override
+   {
+      if (fail && !jacobian && point.x > 0.5)
+      { throw std::runtime_error("Requested transform failure."); }
+      IsoparametricTransformation::Transform(point, physical);
+   }
+
+protected:
+   const DenseMatrix &EvalJacobian() override
+   {
+      if (fail && jacobian && GetIntPoint().x > 0.5)
+      { throw std::runtime_error("Requested Jacobian failure."); }
+      DenseMatrix derivatives(GetFE()->GetDof(), GetFE()->GetDim());
+      GetFE()->CalcDShape(GetIntPoint(), derivatives);
+      dFdx.SetSize(GetSpaceDim(), GetFE()->GetDim());
+      Mult(GetPointMat(), derivatives, dFdx);
+      EvalState |= JACOBIAN_MASK;
+      return dFdx;
+   }
+
+private:
+   bool jacobian;
+};
 }
 
 TEST_CASE("Cut domain validation is geometry independent", "[CutQuadrature]")
@@ -115,6 +147,31 @@ TEST_CASE("Polynomial cut level sets preserve coefficients and gradients", "[Cut
       REQUIRE(extracted.Eval(point) == MFEM_Approx(coefficient.Eval(identity, point)));
       REQUIRE_FALSE(extracted.Set(field, -1).Succeeded());
       REQUIRE(extracted.AsPolynomial() == nullptr);
+   }
+}
+
+TEST_CASE("Cut polynomial conversion retains small interpolation entries", "[CutQuadrature]")
+{
+   IsoparametricTransformation identity;
+   identity.SetIdentityTransformation(Geometry::CUBE);
+   FunctionCoefficient coefficient([](const Vector &point)
+   { return point(0) + point(1) + point(2) - 0.9; });
+   L2_FECollection positive(4, 3, BasisType::Positive);
+   const auto &target = *positive.FiniteElementForGeometry(Geometry::CUBE);
+   for (int basis : {BasisType::GaussLegendre, BasisType::Positive})
+   {
+      L2_FECollection collection(4, 3, basis);
+      PolynomialLevelSet level_set;
+      REQUIRE(level_set.Project(coefficient, identity,
+         *collection.FiniteElementForGeometry(Geometry::CUBE)).Succeeded());
+      Vector coefficients;
+      REQUIRE(level_set.GetBernsteinCoefficients(target, coefficients).Succeeded());
+      for (int index = 0; index < coefficients.Size(); ++index)
+      {
+         const real_t exact = ((index % 5) + (index / 5) % 5 + index / 25) / 4.0 - 0.9;
+         REQUIRE(std::abs(coefficients(index) - exact) < 2e-13);
+      }
+      REQUIRE(identity.GetIntPointPointer() == nullptr);
    }
 }
 
@@ -249,6 +306,123 @@ TEST_CASE("Cut mapping uses generalized Nanson scaling and preserves state", "[C
    REQUIRE(mapped.rule.GetNPoints() == 0);
    reference.rule.IntPoint(0).weight = 0;
    REQUIRE(MapCutQuadrature(transformation, reference, {}, mapped).Succeeded());
+}
+
+TEST_CASE("Cut mapping clears transformation exceptions and restores state", "[CutQuadrature]")
+{
+   TestCutBackend backend;
+   backend.rule.SetSize(2);
+   backend.rule.IntPoint(0).Set2w(0.25, 0.5, 0.5);
+   backend.rule.IntPoint(1).Set2w(0.75, 0.5, 0.5);
+   CutQuadratureGenerator generator(backend);
+   FunctionLevelSet level_set(Geometry::SQUARE,
+      [](const IntegrationPoint &point) { return point.y - 0.5; },
+      [](const IntegrationPoint &, Vector &normal)
+   { normal = 0.; normal(1) = 1; });
+   Array<const ReferenceLevelSet *> level_sets(1);
+   level_sets[0] = &level_set;
+   CutQuadratureRequest request;
+   request.domain = CutDomain::Surface();
+   CutQuadrature reference;
+   REQUIRE(generator.Generate(Geometry::SQUARE, level_sets, request, reference).Succeeded());
+   CutMappingOptions options;
+   options.weight_type = CutWeightType::Physical;
+   options.data = CQ_PHYSICAL_POINTS | CQ_PHYSICAL_CONORMALS | CQ_MEASURE_SCALING;
+   for (bool jacobian : {false, true})
+      for (bool saved_point : {false, true})
+         for (bool composed : {false, true})
+         {
+            ThrowingCutTransformation transformation(jacobian);
+            transformation.GetPointMat() *= 2;
+            const IntegrationPoint *saved = saved_point ?
+               &Geometries.GetCenter(Geometry::SQUARE) : nullptr;
+            transformation.SetIntPoint(saved);
+            MappedCutQuadrature mapped;
+            auto generate = [&]()
+            {
+               return composed ? generator.Generate(transformation, level_sets,
+                                                     request, options, mapped) :
+                      MapCutQuadrature(transformation, reference, options, mapped);
+            };
+            REQUIRE(generate().Succeeded());
+            REQUIRE(mapped.GetNPoints() == 2);
+            transformation.fail = true;
+            CutQuadratureReport report;
+            REQUIRE_NOTHROW(report = generate());
+            REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
+            REQUIRE(report.message == (jacobian ? "Requested Jacobian failure." :
+                                       "Requested transform failure."));
+            REQUIRE(transformation.GetIntPointPointer() == saved);
+            REQUIRE(mapped.region == CutRegion::Unknown);
+            REQUIRE(mapped.weight_type == CutWeightType::Reference);
+            REQUIRE(mapped.GetNPoints() == 0);
+            REQUIRE(mapped.rule.GetOrder() == -1);
+            REQUIRE(mapped.physical_points.Height() == 0);
+            REQUIRE(mapped.physical_points.Width() == 0);
+            REQUIRE(mapped.physical_conormals.SizeI() == 0);
+            REQUIRE(mapped.physical_conormals.SizeJ() == 0);
+            REQUIRE(mapped.physical_conormals.SizeK() == 0);
+            REQUIRE(mapped.measure_scaling.Size() == 0);
+            REQUIRE(Measure(reference.rule) == MFEM_Approx(1));
+         }
+}
+
+TEST_CASE("Cut integrator weights preserve physical measure under reflections", "[CutQuadrature]")
+{
+   for (int dimension : {2, 3})
+      for (bool embedded : {false, true})
+      {
+         if (embedded && dimension == 3) { continue; }
+         const auto geometry = dimension == 2 ? Geometry::SQUARE : Geometry::CUBE;
+         IsoparametricTransformation transformation;
+         transformation.SetIdentityTransformation(geometry);
+         DenseMatrix points(dimension + (embedded ? 1 : 0),
+                            transformation.GetPointMat().Width());
+         const auto &vertices = *Geometries.GetVertices(geometry);
+         for (int vertex = 0; vertex < points.Width(); ++vertex)
+         {
+            points(0, vertex) = -2 * vertices.IntPoint(vertex).x;
+            points(1, vertex) = 3 * vertices.IntPoint(vertex).y;
+            if (dimension == 3) { points(2, vertex) = 4 * vertices.IntPoint(vertex).z; }
+            else if (embedded) { points(2, vertex) = 4 * vertices.IntPoint(vertex).y; }
+         }
+         transformation.SetPointMat(points);
+         for (int codimension : {0, 1})
+         {
+            CutQuadrature reference;
+            reference.geometry = geometry;
+            reference.domain = codimension ? CutDomain::Surface() : CutDomain();
+            reference.region = codimension ? CutRegion::Cut : CutRegion::Full;
+            reference.rule.SetSize(1);
+            reference.rule.IntPoint(0).Set3w(0.25, 0.5, 0.4, 0.7);
+            if (codimension)
+            {
+               reference.conormals.SetSize(dimension, 1, 1);
+               reference.conormals = 0.;
+               reference.conormals(0)(0, 0) = 1;
+            }
+            transformation.SetIntPoint(&reference.rule.IntPoint(0));
+            const real_t parent_weight = transformation.Weight();
+            REQUIRE((parent_weight > 0) == embedded);
+            CutMappingOptions options;
+            options.data = CQ_MEASURE_SCALING | CQ_PHYSICAL_CONORMALS;
+            options.weight_type = CutWeightType::Physical;
+            MappedCutQuadrature physical, integrator;
+            REQUIRE(MapCutQuadrature(transformation, reference, options, physical).Succeeded());
+            options.weight_type = CutWeightType::Integrator;
+            REQUIRE(MapCutQuadrature(transformation, reference, options, integrator).Succeeded());
+            const real_t scaling = std::abs(parent_weight) / (codimension ? 2 : 1);
+            REQUIRE(physical.rule.IntPoint(0).weight == MFEM_Approx(0.7 * scaling));
+            REQUIRE(integrator.rule.IntPoint(0).weight * transformation.Weight() ==
+                    MFEM_Approx(physical.rule.IntPoint(0).weight));
+            REQUIRE(integrator.measure_scaling(0) == MFEM_Approx(scaling));
+            REQUIRE(Measure(reference.rule) == MFEM_Approx(0.7));
+            if (codimension)
+            { REQUIRE(integrator.physical_conormals(0)(0, 0) == MFEM_Approx(-1)); }
+            REQUIRE(transformation.GetIntPointPointer() == &reference.rule.IntPoint(0));
+            transformation.SetIntPoint(nullptr);
+         }
+      }
 }
 
 TEST_CASE("Cut mapping handles curved maps and intersecting surfaces", "[CutQuadrature]")
@@ -805,6 +979,79 @@ TEST_CASE("Polynomial ALGOIM keeps nearby sign constraints distinct", "[CutQuadr
    REQUIRE(report.Succeeded());
    REQUIRE(output.region == CutRegion::Cut);
    REQUIRE(std::abs(Measure(output.rule) / width - 1) < 1e-5);
+
+   coefficients += width;
+   coefficients -= 1e-15;
+   REQUIRE(second.Set(element, coefficients).Succeeded());
+   report = generator.Generate(Geometry::SQUARE, level_sets, request, output);
+   REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
+   REQUIRE(output.region == CutRegion::Unknown);
+   REQUIRE(output.GetNPoints() == 0);
+}
+
+TEST_CASE("Polynomial ALGOIM rejects unresolved nearly proportional constraints", "[CutQuadrature]")
+{
+   const auto geometry = Geometry::CUBE;
+   IsoparametricTransformation identity;
+   identity.SetIdentityTransformation(geometry);
+   for (int first_degree : {1, 2, 3, 4})
+   {
+      FunctionCoefficient coefficient([first_degree](const Vector &point)
+      {
+         return first_degree == 2 ? (point(0) - 0.5) * (point(0) - 0.5) - 0.09 :
+                point(0) + point(1) + point(2) - 0.9;
+      });
+      const int second_degree = first_degree <= 2 ? 4 : (first_degree == 3 ? 3 : 1);
+      L2_FECollection first_collection(first_degree, 3);
+      L2_FECollection second_collection(second_degree, 3);
+      PolynomialLevelSet first, second;
+      REQUIRE(first.Project(coefficient, identity,
+         *first_collection.FiniteElementForGeometry(geometry)).Succeeded());
+      REQUIRE(second.Project(coefficient, identity,
+         *second_collection.FiniteElementForGeometry(geometry)).Succeeded());
+      Vector original(second.GetDofs());
+      for (real_t factor : {0.1, -0.1, 1.0})
+      {
+         if (factor == 1 && first_degree == second_degree) { continue; }
+         CAPTURE(first_degree, second_degree, factor);
+         Vector scaled(original);
+         scaled *= factor;
+         REQUIRE(second.Set(second.GetFE(), scaled).Succeeded());
+         Array<const ReferenceLevelSet *> level_sets(2);
+         level_sets[0] = &first; level_sets[1] = &second;
+         for (const char *name : {"algoim", "algoim-polynomial"})
+         {
+            auto backend = CreateCutQuadratureBackend(name);
+            CutQuadratureGenerator generator(*backend);
+            CutQuadratureRequest request;
+            request.order = 8;
+            request.domain = CutDomain::Negative();
+            CutQuadrature output;
+            REQUIRE(generator.Generate(geometry, level_sets, request, output).Succeeded());
+            REQUIRE(Measure(output.rule) == MFEM_Approx(first_degree == 2 ? 0.6 : 0.1215));
+            for (auto sign : {LevelSetSign::Negative, LevelSetSign::Positive})
+            {
+               request.domain = CutDomain::Negative().Add(1, sign);
+               REQUIRE(backend->CheckSupport(geometry, level_sets, request).Succeeded());
+               auto report = generator.Generate(geometry, level_sets, request, output);
+               REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
+               REQUIRE(report.message.find("Nearly proportional") != std::string::npos);
+               REQUIRE(output.geometry == Geometry::INVALID);
+               REQUIRE(output.region == CutRegion::Unknown);
+               REQUIRE(output.GetNPoints() == 0);
+               REQUIRE(output.rule.GetOrder() == -1);
+               REQUIRE(output.conormals.SizeK() == 0);
+               IntegrationRule rule(1);
+               CutRegion region = CutRegion::Full;
+               report = backend->Generate(geometry, level_sets, request, rule, region);
+               REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
+               REQUIRE(region == CutRegion::Unknown);
+               REQUIRE(rule.GetNPoints() == 0);
+               REQUIRE(rule.GetOrder() == -1);
+            }
+         }
+      }
+   }
 }
 
 TEST_CASE("Polynomial ALGOIM partitions two level sets and preserves moments", "[CutQuadrature]")

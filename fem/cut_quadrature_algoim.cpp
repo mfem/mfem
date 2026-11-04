@@ -333,6 +333,52 @@ CutQuadratureReport GenerateAlgoimGeneral(
 
 #ifdef MFEM_USE_LAPACKE
 template <int Dimension>
+void CopyPolynomialCoefficients(const AlgoimPolynomial &polynomial,
+                               algoim::xarray<real_t, Dimension> &target)
+{
+   for (auto indices = target.loop(); ~indices; ++indices)
+   {
+      int offset = 0, stride = 1;
+      for (int axis = 0; axis < Dimension; ++axis)
+      { offset += indices(axis) * stride; stride *= polynomial.extent; }
+      target.l(indices) = polynomial.coefficients[offset];
+   }
+}
+
+template <int Dimension>
+bool NearlyProportional(const AlgoimPolynomial &first,
+                        const AlgoimPolynomial &second)
+{
+   const int extent = std::max(first.extent, second.extent);
+   const size_t count = std::max(first.coefficients.size(), second.coefficients.size());
+   std::array<std::vector<real_t>, 2> coefficients;
+   for (int index = 0; index < 2; ++index)
+   {
+      const auto &polynomial = index == 0 ? first : second;
+      std::vector<real_t> storage(polynomial.coefficients.size());
+      algoim::xarray<real_t, Dimension> source(storage.data(),
+         algoim::uvector<int, Dimension>(polynomial.extent));
+      CopyPolynomialCoefficients(polynomial, source);
+      coefficients[index].resize(count);
+      algoim::xarray<real_t, Dimension> elevated(coefficients[index].data(),
+         algoim::uvector<int, Dimension>(extent));
+      algoim::bernstein::bernsteinElevate(source, elevated);
+      algoim::bernstein::normalise(elevated);
+   }
+   real_t same_residual = 0, opposite_residual = 0;
+   for (size_t index = 0; index < count; ++index)
+   {
+      const real_t first_value = Checked(coefficients[0][index]);
+      const real_t second_value = Checked(coefficients[1][index]);
+      same_residual = std::max(same_residual, std::abs(first_value - second_value));
+      opposite_residual = std::max(opposite_residual, std::abs(first_value + second_value));
+   }
+   const real_t tolerance = 64 * real_t(Dimension) * extent *
+                            std::numeric_limits<real_t>::epsilon();
+   return std::min(same_residual, opposite_residual) <= tolerance;
+}
+
+template <int Dimension>
 CutQuadratureReport ComputePolynomialRule(
    const std::vector<AlgoimPolynomial> &data, const std::vector<LevelSetSign> &signs,
    const CutQuadratureRequest &request, IntegrationRule &rule, CutRegion &region)
@@ -404,13 +450,7 @@ CutQuadratureReport ComputePolynomialRule(
                                   storage[index].data(),
                                   algoim::uvector<int, Dimension>(polynomial.extent)));
       auto &target = *polynomials.back();
-      for (auto indices = target.loop(); ~indices; ++indices)
-      {
-         int offset = 0, stride = 1;
-         for (int axis = 0; axis < Dimension; ++axis)
-         { offset += indices(axis) * stride; stride *= polynomial.extent; }
-         target.l(indices) = polynomial.coefficients[offset];
-      }
+      CopyPolynomialCoefficients(polynomial, target);
       std::vector<real_t> reduced_storage = storage[index];
       algoim::xarray<real_t, Dimension> reduced(reduced_storage.data(), target.ext());
       if (algoim::bernstein::autoReduction(reduced))
@@ -506,6 +546,13 @@ CutQuadratureReport GenerateAlgoimPolynomial(
             { region = CutRegion::Empty; return {}; }
             continue;
          }
+      }
+      if (!data.empty() && (geometry == Geometry::SQUARE ?
+                           NearlyProportional<2>(data[0], polynomial) :
+                           NearlyProportional<3>(data[0], polynomial)))
+      {
+         return {CutQuadratureStatus::NumericalFailure,
+                 "Nearly proportional polynomial constraints cannot be resolved reliably."};
       }
       data.push_back(std::move(polynomial));
       signs.push_back(constraint.sign);

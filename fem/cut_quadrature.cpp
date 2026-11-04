@@ -56,6 +56,33 @@ bool SupportedElement(const FiniteElement &element)
            dynamic_cast<const PositiveTensorFiniteElement *>(&element));
 }
 
+void ConvertNodalDofs(const FiniteElement &source, const Vector &values,
+                      const FiniteElement &target, Vector &converted)
+{
+   converted.SetSize(target.GetDof());
+   if (dynamic_cast<const PositiveTensorFiniteElement *>(&target))
+   {
+      DenseMatrix interpolation(source.GetDof(), target.GetDof());
+      Vector shape(target.GetDof());
+      for (int index = 0; index < source.GetDof(); ++index)
+      {
+         target.CalcShape(source.GetNodes().IntPoint(index), shape);
+         interpolation.SetRow(index, shape);
+      }
+      DenseMatrixInverse inverse(interpolation);
+      inverse.Mult(values, converted);
+   }
+   else
+   {
+      Vector shape(source.GetDof());
+      for (int index = 0; index < target.GetDof(); ++index)
+      {
+         source.CalcShape(target.GetNodes().IntPoint(index), shape);
+         converted(index) = shape * values;
+      }
+   }
+}
+
 class PointGuard
 {
 public:
@@ -234,12 +261,8 @@ CutQuadratureReport PolynomialLevelSet::Project(Coefficient &coefficient,
    nodal.Project(coefficient, transformation, values);
    if (!FiniteVector(values))
    { return Failure(CutQuadratureStatus::NumericalFailure, "Nonfinite projected coefficient."); }
-   IsoparametricTransformation identity;
-   identity.SetIdentityTransformation(new_element.GetGeomType());
-   DenseMatrix conversion(new_element.GetDof(), nodal.GetDof());
-   new_element.Project(nodal, identity, conversion);
    Vector projected(new_element.GetDof());
-   conversion.Mult(values, projected);
+   ConvertNodalDofs(nodal, values, new_element, projected);
    return Set(new_element, projected);
 }
 
@@ -287,12 +310,7 @@ CutQuadratureReport PolynomialLevelSet::GetBernsteinCoefficients(
       }
       return {};
    }
-   IsoparametricTransformation identity;
-   identity.SetIdentityTransformation(GetGeometry());
-   DenseMatrix conversion(bernstein_element.GetDof(), element->GetDof());
-   bernstein_element.Project(*element, identity, conversion);
-   coefficients.SetSize(bernstein_element.GetDof());
-   conversion.Mult(dofs, coefficients);
+   ConvertNodalDofs(*element, dofs, bernstein_element, coefficients);
    if (!FiniteVector(coefficients))
    {
       coefficients.SetSize(0);
@@ -458,7 +476,7 @@ catch (const std::exception &error)
 }
 
 CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
-   const CutQuadrature &reference, const CutMappingOptions &options, MappedCutQuadrature &out)
+   const CutQuadrature &reference, const CutMappingOptions &options, MappedCutQuadrature &out) try
 {
    out.Clear();
    if (!ValidGeometry(reference.geometry) || reference.geometry != transformation.GetGeometryType() ||
@@ -503,11 +521,11 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
       real_t mapping_measure;
       if (!FactorQR(jacobian, mapping_basis, mapping_upper, mapping_measure))
       { return fail(CutQuadratureStatus::DegenerateGeometry, "Singular element mapping."); }
-      const real_t volume = space_dimension == dimension ?
-                            std::abs(jacobian.Det()) : mapping_measure;
-      if (!(volume > 0) || !std::isfinite(volume))
+      const real_t physical_volume = space_dimension == dimension ?
+                                     std::abs(jacobian.Det()) : mapping_measure;
+      if (!(physical_volume > 0) || !std::isfinite(physical_volume))
       { return fail(CutQuadratureStatus::DegenerateGeometry, "Invalid element measure."); }
-      real_t scaling = volume;
+      real_t scaling = physical_volume;
       if (codimension)
       {
          const DenseMatrix &normals = reference.conormals(index);
@@ -521,7 +539,7 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
          real_t dual_measure;
          if (!FactorQR(dual, dual_basis, dual_upper, dual_measure))
          { return fail(CutQuadratureStatus::DegenerateGeometry, "Dependent physical conormals."); }
-         scaling = codimension == dimension ? 1 : volume * dual_measure;
+         scaling = codimension == dimension ? 1 : physical_volume * dual_measure;
          if (options.data & CQ_PHYSICAL_CONORMALS)
          {
             DenseMatrix original_dual;
@@ -543,11 +561,22 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
       { return fail(CutQuadratureStatus::NumericalFailure, "Invalid manifold measure."); }
       if (options.data & CQ_MEASURE_SCALING) { out.measure_scaling(index) = scaling; }
       if (options.weight_type == CutWeightType::Physical) { out.rule.IntPoint(index).weight *= scaling; }
-      else if (options.weight_type == CutWeightType::Integrator) { out.rule.IntPoint(index).weight *= scaling / volume; }
+      else if (options.weight_type == CutWeightType::Integrator)
+      {
+         const real_t parent_weight = transformation.Weight();
+         if (parent_weight == 0 || !std::isfinite(parent_weight))
+         { return fail(CutQuadratureStatus::DegenerateGeometry, "Invalid integrator measure."); }
+         out.rule.IntPoint(index).weight *= scaling / parent_weight;
+      }
       if (!std::isfinite(out.rule.IntPoint(index).weight))
       { return fail(CutQuadratureStatus::NumericalFailure, "Nonfinite mapped weight."); }
    }
    return {};
+}
+catch (const std::exception &error)
+{
+   out.Clear();
+   return Failure(CutQuadratureStatus::NumericalFailure, error.what());
 }
 
 CutQuadratureReport CutQuadratureGenerator::Generate(ElementTransformation &transformation,
