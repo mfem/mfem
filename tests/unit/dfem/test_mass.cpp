@@ -252,75 +252,94 @@ void mass_action(const char *filename, int p)
       REQUIRE(y.ComputeMaxError(zero) == MFEM_Approx(0.0));
    }
 
-   // Test boundary
-#if 0 // TODO: Boundary tests
-   // This ensures that we're not trying to test on fully periodic meshes
-   if (!((std::string("../../data/periodic-square.mesh").compare(filename) == 0) ||
-         (std::string("../../data/periodic-cube.mesh").compare(filename) == 0)))
+   // Test boundary integrators, on meshes that have a boundary. Boundaries of
+   // 2D meshes are 1D, which the LocalQF kernels do not support yet.
+   if constexpr (DIM == 3)
    {
-      constexpr int BDIM = DIM - 1;
-      SECTION("boundary")
+      if (pmesh.bdr_attributes.Size() > 0)
       {
-         Array<int> all_bdr_attr;
-         if (pmesh.bdr_attributes.Size() > 0)
-         {
-            all_bdr_attr.SetSize(pmesh.bdr_attributes.Max());
-            all_bdr_attr = 1;
-         }
+         constexpr int BDIM = DIM - 1;
+         const auto *bdr_ir =
+            &IntRules.Get(pmesh.GetTypicalFaceGeometry(), 2 * p);
 
-         ParBilinearForm blf(&pfes);
-         blf.AddBoundaryIntegrator(new MassIntegrator(one, ir));
-         blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-         blf.Assemble();
-         blf.Mult(x, y);
-         pfes.GetProlongationMatrix()->MultTranspose(y, Y);
+         Array<int> all_bdr_attr(pmesh.bdr_attributes.Max());
+         all_bdr_attr = 1;
 
-         static constexpr int U = 0, Coords = 1;
-         const auto in_fds = std::vector<FieldDescriptor> {{ U, &pfes }, { Coords, mfes }};
-         const auto out_fds = std::vector<FieldDescriptor> {{ U, &pfes }};
-         DifferentiableOperator dop(in_fds, out_fds, pmesh);
-         const auto mf_mass_qf =
+         auto bdr_mass_qf =
             [] MFEM_HOST_DEVICE(const dscalar_t &u,
                                 const tensor<real_t, DIM, BDIM> &J,
                                 const real_t &w,
-                                dscalar_t& v)
+                                dscalar_t &v)
          {
             v = u * weight(J) * w;
          };
 
-         auto derivatives = std::integer_sequence<size_t, U> {};
-         constexpr auto kernels = DerivativeKernels::Action;
-         dop.AddBoundaryIntegrator<QFBackend, kernels>(
-            mf_mass_qf,
-            tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
-            tuple{ Value<U>{} },
-            *ir, all_bdr_attr, derivatives);
+         // Checks the action and the derivative action of @a dop against @a a
+         const auto check = [&](DifferentiableOperator &dop, ParBilinearForm &a)
+         {
+            a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+            a.Assemble();
+            a.Mult(x, y);
+            pfes.GetProlongationMatrix()->MultTranspose(y, Y);
 
-         pfes.GetRestrictionMatrix()->Mult(x, X);
+            MultiVector MX{X, N}, MZ{Z};
+            dop.Mult(MX, MZ);
+            Z -= Y;
+            REQUIRE(ParNormlp(Z, infinity(), pmesh.GetComm()) == MFEM_Approx(0.0));
 
-         Vector N;
-         nodes->GetTrueDofs(N);
-         MultiVector MX{X, N}, MZ{Z};
-         dop.Mult(MX, MZ);
+            dop.GetDerivative(U, MX)->Mult(MX[0], MZ);
+            Z -= Y;
+            REQUIRE(ParNormlp(Z, infinity(), pmesh.GetComm()) == MFEM_Approx(0.0));
+         };
 
-         Y -= MZ[0];
-         real_t norm_g, norm_l = Y.Normlinf();
-         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-         REQUIRE(norm_g == MFEM_Approx(0.0));
+         SECTION("Boundary Action")
+         {
+            ParBilinearForm a(&pfes);
+            a.AddBoundaryIntegrator(new MassIntegrator(one, bdr_ir));
 
-         nodes->GetTrueDofs(N);
-         auto dRdU = dop.GetDerivative(U, MX);
-         dRdU->Mult(MX[0], MZ);
+            DifferentiableOperator dop(in_fds, out_fds, pmesh);
+            dop.AddBoundaryIntegrator<LocalQFBackend, DerivativeKernels::Action>(
+               bdr_mass_qf, IT{}, OT{}, *bdr_ir,
+               all_bdr_attr, DT{});
+            check(dop, a);
+         }
 
-         pfes.GetProlongationMatrix()->MultTranspose(y, Y);
-         Y -= Z;
-         norm_l = Y.Normlinf();
-         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-         REQUIRE(norm_g == MFEM_Approx(0.0));
-         MPI_Barrier(MPI_COMM_WORLD);
+         SECTION("Domain and Boundary Action")
+         {
+            ParBilinearForm a(&pfes);
+            a.AddDomainIntegrator(new MassIntegrator(one, ir));
+            a.AddBoundaryIntegrator(new MassIntegrator(one, bdr_ir));
+
+            DifferentiableOperator dop(in_fds, out_fds, pmesh);
+            local_mf_mass_qf<DIM> domain_mass_qf;
+            dop.AddDomainIntegrator<LocalQFBackend, DerivativeKernels::Action>(
+               domain_mass_qf, IT{}, OT{}, *ir, all_domain_attr, DT{});
+            dop.AddBoundaryIntegrator<LocalQFBackend, DerivativeKernels::Action>(
+               bdr_mass_qf, IT{}, OT{}, *bdr_ir,
+               all_bdr_attr, DT{});
+            check(dop, a);
+         }
+
+         if (pmesh.bdr_attributes.Max() > 1)
+         {
+            SECTION("Boundary Action on an attribute subset")
+            {
+               Array<int> bdr_attr(pmesh.bdr_attributes.Max());
+               bdr_attr = 0;
+               bdr_attr[0] = 1;
+
+               ParBilinearForm a(&pfes);
+               a.AddBoundaryIntegrator(new MassIntegrator(one, bdr_ir), bdr_attr);
+
+               DifferentiableOperator dop(in_fds, out_fds, pmesh);
+               dop.AddBoundaryIntegrator<LocalQFBackend, DerivativeKernels::Action>(
+                  bdr_mass_qf, IT{}, OT{}, *bdr_ir,
+                  bdr_attr, DT{});
+               check(dop, a);
+            }
+         }
       }
    }
-#endif // TODO: Boundary tests
 }
 
 // ────────────────────────────────────────────────────────────────────────────
