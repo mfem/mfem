@@ -18,8 +18,10 @@ namespace mfem::future::GlobalQFImpl
 {
 
 // nvcc does not allow extended host/device lambdas inside generic lambdas.
-inline void seed_shadow_column(const int gnqp_local, real_t *shadow_ptr,
-                               const int c_shadow, const int input_size_s)
+static inline void seed_shadow_column(const int gnqp_local,
+                                      real_t *shadow_ptr,
+                                      const int c_shadow,
+                                      const int input_size_s)
 {
    mfem::forall(gnqp_local, [=] MFEM_HOST_DEVICE(int gq)
    {
@@ -29,21 +31,21 @@ inline void seed_shadow_column(const int gnqp_local, real_t *shadow_ptr,
 
 // nvcc does not allow extended host/device lambdas inside generic lambdas.
 template<bool reset_shadow>
-void store_cache_columns(const int gnqp_local,
-                         const int num_qp_local,
-                         const int trial_vdim_local,
-                         const int total_trial_op_dim_local,
-                         const int residual_size_local,
-                         const int test_vdim_o,
-                         const int test_op_dim_o,
-                         const int yq_out_size,
-                         const int out_offset_o,
-                         const int col,
-                         const real_t *yq_d,
-                         real_t *cache_d,
-                         real_t *shadow_ptr,
-                         const int c_shadow,
-                         const int input_size_s)
+static void store_cache_columns(const int gnqp_local,
+                                const int num_qp_local,
+                                const int trial_vdim_local,
+                                const int total_trial_op_dim_local,
+                                const int residual_size_local,
+                                const int test_vdim_o,
+                                const int test_op_dim_o,
+                                const int yq_out_size,
+                                const int out_offset_o,
+                                const int col,
+                                const real_t *yq_d,
+                                real_t *cache_d,
+                                real_t *shadow_ptr,
+                                const int c_shadow,
+                                const int input_size_s)
 {
    // The cache is (q, cache_idx, e) with the quadrature index
    // fastest, so gq is the fastest-varying thread index to keep

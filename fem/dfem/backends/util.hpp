@@ -505,7 +505,7 @@ inline native_dual_t *native_dual_vector_w(Vector &v)
    return reinterpret_cast<native_dual_t *>(v.Write());
 }
 
-inline void pack_dual_from_primal_shadow(
+static inline void pack_dual_from_primal_shadow(
    const real_t *primal,
    const real_t *shadow,
    dual<real_t, real_t> *out,
@@ -520,7 +520,7 @@ inline void pack_dual_from_primal_shadow(
 }
 
 template <bool unpack_primal_values>
-inline void unpack_dual_to_real(
+static void unpack_dual_to_real(
    const dual<real_t, real_t> *dual_out,
    real_t *yq,
    const int n)

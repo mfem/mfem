@@ -21,19 +21,19 @@ namespace mfem::future::GlobalQFImpl
 {
 
 // nvcc does not allow extended host/device lambdas inside generic lambdas.
-inline void contract_cache_transpose(const int gnqp_local,
-                                     const int num_qp_local,
-                                     const int res_sz,
-                                     const int ncols_local,
-                                     const int tv_o,
-                                     const int to_o,
-                                     const int out_base,
-                                     const int size_o,
-                                     const real_t *dir_o,
-                                     const int c_offset,
-                                     const int size_s,
-                                     const real_t *cache_ptr,
-                                     real_t *res_s)
+static inline void contract_cache_transpose(const int gnqp_local,
+                                            const int num_qp_local,
+                                            const int res_sz,
+                                            const int ncols_local,
+                                            const int tv_o,
+                                            const int to_o,
+                                            const int out_base,
+                                            const int size_o,
+                                            const real_t *dir_o,
+                                            const int c_offset,
+                                            const int size_s,
+                                            const real_t *cache_ptr,
+                                            real_t *res_s)
 {
    mfem::forall(gnqp_local, [=] MFEM_HOST_DEVICE(int gq)
    {
