@@ -36,7 +36,7 @@ void LibCoefficient::GetLibFunction(string libName,
 
    // Search Function
    TDFunction = nullptr;
-   for (int i = 0; i < funNames.size(); i++)
+   for (std::size_t i = 0; i < funNames.size(); i++)
    {
       TDFunction = (TDFunPtr)dlsym(libHandle, funNames[i].c_str());
       if (TDFunction) { break; }
@@ -46,7 +46,7 @@ void LibCoefficient::GetLibFunction(string libName,
    if (!TDFunction)
    {
       cout <<"Functions:";
-      for (int i = 0; i < funNames.size(); i++)
+      for (std::size_t i = 0; i < funNames.size(); i++)
       {
          cout<<" "<<funNames[i];
       }
@@ -94,7 +94,7 @@ void LibVectorCoefficient::GetLibFunction(string libName,
          mfem_error("Can not obtain required function.\n");
       }
       cout <<"Functions:";
-      for (int i = 0; i < funNames.size(); i++)
+      for (std::size_t i = 0; i < funNames.size(); i++)
       {
          cout<<" "<<funNames[i];
       }
@@ -104,7 +104,7 @@ void LibVectorCoefficient::GetLibFunction(string libName,
 
    // Search Function
    TDFunction = nullptr;
-   for (int i = 0; i < funNames.size(); i++)
+   for (std::size_t i = 0; i < funNames.size(); i++)
    {
       TDFunction = (TDFunPtr)dlsym(libHandle, funNames[i].c_str());
       if (TDFunction) { break; }
