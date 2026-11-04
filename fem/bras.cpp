@@ -303,8 +303,8 @@ void BRASPreconditioner::Setup()
       cq.SetSize(height);
    }
 
-   // Re-applies the (possibly updated) essential DOFs to the new diagonal.
-   // This uses the work vectors for the Chebyshev setup.
+   // Re-applies the (possibly updated) essential DOFs to the new diagonal,
+   // and selects the nonconforming method.
    SetEssentialTrueDofs(ess_tdof_list);
 }
 
@@ -739,103 +739,61 @@ void BRASPreconditioner::SetupProlongation()
 // The Chebyshev polynomial in S A_W (see ApplyChebyshev()) needs an interval
 // [a, b] containing the spectrum of S A_W on the free DOFs. Since
 // A_W >= Lambda_u, the spectrum is bounded below by a = min(Lambda_u S). The
-// upper bound b is estimated by power iteration on S A_W, using the
-// generalized Rayleigh quotient (v^T A_W v)/(v^T S^{-1} v), and multiplied by
-// a safety factor, since the estimate is below the largest eigenvalue. This
-// gives a better polynomial than the (several times larger) upper bounds of
-// Gershgorin type. Since the trace of S A_W is the number of free DOFs, its
-// eigenvalues average to one, so a <= 1 and the largest eigenvalue is at
-// least 1.
-//
-// The start vector of the power iteration must not be (nearly) orthogonal to
-// the dominant eigenvectors. Smooth vectors, such as the vector of ones, are
-// invariant under the symmetries of the mesh and can be: then 20 iterations
-// underestimate the largest eigenvalue by up to 35%, and the Chebyshev
-// polynomial is a poor approximation of A_W^{-1}. A random vector would
-// depend on the parallel partitioning. Instead, the start vector is
-// v = P^T v_L, where element e adds the value ChebyshevStartValue(c_e, j) to
-// its j-th local DOF (with the orientation sign), c_e being the average of
-// the vertices of e. This vector is quasi-random and is the same for any
-// partitioning, up to the orientation signs of the true DOFs.
-static real_t ChebyshevStartValue(const Vector &c, int j)
+// spectrum of S A_W is that of S^{1/2} A_W S^{1/2}, whose largest eigenvalue
+// is bounded by the largest row sum of its absolute values (Gershgorin). The
+// absolute values of A_W = P_L^T D_W P_L are bounded entrywise by
+// |P_L|^T D_W |P_L|, so b is the largest entry of
+// S^{1/2} |P_L|^T D_W |P_L| S^{1/2} 1. Unlike the row sums of |A_W|, this is a
+// product with one vector, so it needs neither the entries of A_W nor more
+// communication than one application of A_W. With S^{1/2} = diag(scale)^{1/2},
+// which vanishes on the essential DOFs, the bound is for A_W on the free DOFs.
+// The diagonal of S^{1/2} A_W S^{1/2} is 1 on the free DOFs, so a <= 1 <= b.
+void BRASPreconditioner::SetupNCMethod()
 {
-   real_t t = 2.39996322972865332*j; // golden angle
-   const real_t k[3] = { 12.9898, 78.233, 37.719 };
-   for (int d = 0; d < c.Size(); d++) { t += k[d]*c(d); }
-   return std::sin(t);
-}
+   nc_active = nc_method == NCMethod::CHEBYSHEV ? NCMethod::CHEBYSHEV :
+               NCMethod::LEFT_INVERSE;
+   if (!nc || nc_method == NCMethod::LEFT_INVERSE) { return; }
 
-void BRASPreconditioner::SetupChebyshev()
-{
    // On the free DOFs, scale = diag_inv > 0; on the essential DOFs, scale = 0.
    const real_t *h_s = scale.HostRead();
    const real_t *h_lu = lu_inv.HostRead();
    real_t a = infinity();
+   Vector v(height), Av(height), vl(P->Height());
+   v.UseDevice(true);
+   Av.UseDevice(true);
+   vl.UseDevice(true);
+   real_t *h_v = v.HostWrite();
    for (int i = 0; i < height; i++)
    {
       if (h_s[i] != 0.0) { a = std::min(a, h_s[i]/h_lu[i]); }
+      h_v[i] = std::sqrt(h_s[i]);
    }
    a = GlobalReduce(*fes, a, true);
    cheb_a = cheb_b = 1.0;
-   // No free DOFs: the Chebyshev polynomial is never applied to a nonzero
-   // vector.
+   // No free DOFs: the preconditioner vanishes on the free DOFs for both
+   // methods.
    if (a == infinity()) { return; }
 
-   // The start vector, see above, on the free DOFs.
-   const Mesh &mesh = *fes->GetMesh();
-   const int sdim = mesh.SpaceDimension();
-   Vector vl(fes->GetVSize()), c(sdim);
-   vl.UseDevice(true);
-   vl = 0.0;
-   real_t *h_vl = vl.HostReadWrite();
-   Array<int> verts, vdofs;
-   for (int e = 0; e < fes->GetNE(); e++)
+   P->AbsMult(v, vl);
+   vl *= dl;
+   P->AbsMultTranspose(vl, Av);
+   const real_t *h_Av = Av.HostRead();
+   real_t b = 0.0;
+   for (int i = 0; i < height; i++)
    {
-      mesh.GetElementVertices(e, verts);
-      c = 0.0;
-      for (int i : verts)
-      {
-         const real_t *x = mesh.GetVertex(i);
-         for (int d = 0; d < sdim; d++) { c(d) += x[d]; }
-      }
-      c *= 1.0/verts.Size();
-      fes->GetElementVDofs(e, vdofs);
-      for (int j = 0; j < vdofs.Size(); j++)
-      {
-         const int k = vdofs[j];
-         const real_t s = ChebyshevStartValue(c, j);
-         if (k >= 0) { h_vl[k] += s; }
-         else { h_vl[-1-k] -= s; }
-      }
+      b = std::max(b, std::sqrt(h_s[i])*h_Av[i]);
    }
-   Vector v(height), Av(height), Sinv(diag_inv);
-   v.UseDevice(true);
-   Av.UseDevice(true);
-   Sinv.Reciprocal();
-   P->MultTranspose(vl, v);
-   v.SetSubVector(ess_tdof_list, 0.0);
-
-   // Power iteration. The number of iterations and the safety factor are
-   // enough for the purpose of the estimate.
-   const int power_its = 20;
-   const real_t safety = 1.1;
-   real_t b = 1.0;
-   for (int it = 0; it < power_its; it++)
-   {
-      ApplyAW(v, Av);
-      Vector vSinv(v);
-      vSinv *= Sinv;
-      b = GlobalReduce(*fes, v*Av, false)/GlobalReduce(*fes, v*vSinv, false);
-      // v = S A_W v, normalized.
-      v = Av;
-      v *= scale;
-      v /= std::sqrt(GlobalReduce(*fes, v*v, false));
-   }
+   // The maximum over the ranks.
+   b = -GlobalReduce(*fes, -b, true);
    cheb_a = a;
    // Keep the interval nondegenerate: if A_W is diagonal on the free DOFs
    // (e.g. when all the hanging DOFs depend only on essential DOFs), the
    // spectrum is {1}, a = b = 1, and any interval containing 1 is valid.
-   cheb_b = std::max({safety*b, 1.0_r, (1.0_r + 1e-6_r)*a});
+   cheb_b = std::max({b, 1.0_r, (1.0_r + 1e-6_r)*a});
+   if (nc_method == NCMethod::AUTO && cheb_b >= auto_ratio*cheb_a)
+   {
+      nc_active = NCMethod::CHEBYSHEV;
+   }
 }
 
 // Let P_0 be P restricted to the columns of the free (non-essential) true
@@ -864,9 +822,9 @@ void BRASPreconditioner::SetEssentialTrueDofs(const Array<int> &list)
    {
       lu_scale = lu_inv;
       lu_scale.SetSubVector(ess_tdof_list, 0.0);
-      // The spectrum of S A_0 depends on the essential DOFs.
-      if (nc_method == NCMethod::CHEBYSHEV) { SetupChebyshev(); }
    }
+   // The spectrum of S A_0 depends on the essential DOFs.
+   SetupNCMethod();
 }
 
 void BRASPreconditioner::SetNCMethod(NCMethod method, int degree)
@@ -874,7 +832,7 @@ void BRASPreconditioner::SetNCMethod(NCMethod method, int degree)
    MFEM_VERIFY(degree >= 1, "the Chebyshev degree must be at least 1");
    nc_method = method;
    cheb_degree = degree;
-   if (nc && nc_method == NCMethod::CHEBYSHEV) { SetupChebyshev(); }
+   SetupNCMethod();
 }
 
 // Setup() reads the space from the form and recomputes everything, so it
@@ -1047,15 +1005,24 @@ void BRASPreconditioner::ApplyChebyshev(const Vector &b, Vector &x) const
 // where o is the entrywise product: three products with P_L and three with
 // P_L^T. On the free DOFs S = diag(scale) and Lambda_u^{-1} = diag(lu_scale);
 // see SetEssentialTrueDofs().
-void BRASPreconditioner::MultLeftInverse(const Vector &x, Vector &y) const
+//
+// The Chebyshev method replaces X by q_k(A_0) C^T Lambda_h, i.e. the two
+// products with S above by q_k(A_0) (see ApplyChebyshev()), each of which
+// adds k products with P_L and with P_L^T.
+void BRASPreconditioner::MultLeftInverse(const Vector &x, Vector &y,
+                                         bool chebyshev) const
 {
    const int nl = P->Height();
    const auto d_j = jmask.Read();
    const auto d_h = hdl.Read();
 
    // c = P_L S x, stored in xl.
-   xt = x;
-   xt *= scale;
+   if (chebyshev) { ApplyChebyshev(x, xt); }
+   else
+   {
+      xt = x;
+      xt *= scale;
+   }
    P->Mult(xt, xl);
    // z = x - P_L^T (hdl o c), stored in ut, then ut = Lambda_u^{-1} z.
    zl = xl;
@@ -1093,6 +1060,13 @@ void BRASPreconditioner::MultLeftInverse(const Vector &x, Vector &y) const
       });
    }
    P->MultTranspose(zl, xt);
+   if (chebyshev)
+   {
+      // y = v + q_k(A_0) xt.
+      ApplyChebyshev(xt, y);
+      y += ut;
+      return;
+   }
    // y = v + S xt.
    const int n = height;
    const auto d_s = scale.Read();
@@ -1105,28 +1079,16 @@ void BRASPreconditioner::MultLeftInverse(const Vector &x, Vector &y) const
    });
 }
 
-// The Chebyshev method, q_k(A_0) P_L^T G_m P_L q_k(A_0) on the free DOFs, with
-// G_m as in MultLeftInverse().
-void BRASPreconditioner::MultChebyshev(const Vector &x, Vector &y) const
-{
-   ApplyChebyshev(x, ut);
-   P->Mult(ut, xl);
-   ApplyBroken(xl, xl);
-   P->MultTranspose(xl, xt);
-   ApplyChebyshev(xt, y);
-}
-
 // On conforming spaces, apply B_W, i.e.
 // y = S P_L^T R_E^T (W M_br^{-1} W) R_E P_L S x on the free DOFs, where
 // S = diag(scale); see SetEssentialTrueDofs(). The nonconforming methods are
-// applied by MultLeftInverse() and MultChebyshev(). In all cases y = x on the
+// applied by MultLeftInverse(). In all cases y = x on the
 // essential DOFs. The only communication is in P_L and P_L^T.
 void BRASPreconditioner::Mult(const Vector &x, Vector &y) const
 {
    MFEM_ASSERT(x.Size() == height && y.Size() == height, "invalid sizes");
 
-   if (nc && nc_method == NCMethod::LEFT_INVERSE) { MultLeftInverse(x, y); }
-   else if (nc && nc_method == NCMethod::CHEBYSHEV) { MultChebyshev(x, y); }
+   if (nc) { MultLeftInverse(x, y, nc_active == NCMethod::CHEBYSHEV); }
    else
    {
       // xt = S x (T-vector).
@@ -1273,8 +1235,9 @@ static Vector Complement(const Vector &mask)
 // so adding the identity on the essential DOFs gives the operator of Mult().
 SparseMatrix *BRASPreconditioner::AssembleMatrix() const
 {
-   MFEM_VERIFY(!nc || nc_method == NCMethod::LEFT_INVERSE,
-               "NCMethod::CHEBYSHEV cannot be assembled");
+   MFEM_VERIFY(!nc || nc_active == NCMethod::LEFT_INVERSE,
+               "NCMethod::CHEBYSHEV cannot be assembled; see "
+               "GetActiveNCMethod()");
 #ifdef MFEM_USE_MPI
    MFEM_VERIFY(!dynamic_cast<const ParFiniteElementSpace*>(fes),
                "use ParallelAssembleMatrix() for parallel spaces");
@@ -1335,8 +1298,9 @@ HypreParMatrix *BRASPreconditioner::ParallelAssembleMatrix() const
 {
    auto pfes = dynamic_cast<const ParFiniteElementSpace*>(fes);
    MFEM_VERIFY(pfes, "use AssembleMatrix() for serial spaces");
-   MFEM_VERIFY(!nc || nc_method == NCMethod::LEFT_INVERSE,
-               "NCMethod::CHEBYSHEV cannot be assembled");
+   MFEM_VERIFY(!nc || nc_active == NCMethod::LEFT_INVERSE,
+               "NCMethod::CHEBYSHEV cannot be assembled; see "
+               "GetActiveNCMethod()");
    // The parallel matrix G uses the data of G_loc.
    std::unique_ptr<SparseMatrix> G_loc(AssembleBroken());
    HypreParMatrix G(pfes->GetComm(), pfes->GlobalVSize(),

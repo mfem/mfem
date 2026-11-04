@@ -98,8 +98,9 @@ affine tensor-product elements, and the application of BRAS runs on devices.
 The miniapp `bras_mass` solves an L2 projection with CG, preconditioned with
 Jacobi and with BRAS, on conforming meshes and on meshes refined locally around
 a circle or sphere (option `-amr`). On nonconforming meshes, the hanging DOFs
-are treated by a left-inverse approximation (default) or a Chebyshev
-approximation (option `-cheb`).
+are treated by a left-inverse approximation, which uses either a diagonal or a
+Chebyshev approximation of the operator coupling them (option `-ncm`; by
+default the method is selected automatically).
 
 The miniapp `bras_darcy` solves the mixed Darcy problem of Example 5 with
 MINRES, preconditioned with the block diagonal preconditioner

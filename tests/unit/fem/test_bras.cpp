@@ -338,41 +338,7 @@ struct Reference
    DenseMatrix Gm;      ///< P_0^T W M_br^{-1} W P_0.
    DenseMatrix M;       ///< E^T P_0^T M_br P_0 E, zero on the essential DOFs.
    real_t alpha, beta;  ///< The constants in alpha W <= M_br <= beta W.
-   Vector v0;           ///< The start vector of the Chebyshev power iteration.
 };
-
-// The start vector of the power iteration in the setup of
-// NCMethod::CHEBYSHEV, as in the implementation: E^T v_L, where element e
-// adds sin(2.39996322972865332 j + k . c_e) to its j-th local DOF (with the
-// orientation sign), c_e being the average of its vertices.
-Vector ChebyshevStartVector(const FiniteElementSpace &fes, const DenseMatrix &E)
-{
-   const Mesh &mesh = *fes.GetMesh();
-   const real_t k[3] = { 12.9898, 78.233, 37.719 };
-   Vector vl(fes.GetVSize()), v(E.Width());
-   vl = 0.0;
-   Array<int> verts, vdofs;
-   for (int e = 0; e < fes.GetNE(); e++)
-   {
-      mesh.GetElementVertices(e, verts);
-      real_t kc = 0.0;
-      for (int d = 0; d < mesh.SpaceDimension(); d++)
-      {
-         real_t c = 0.0;
-         for (int i : verts) { c += mesh.GetVertex(i)[d]; }
-         kc += k[d]*(c/verts.Size());
-      }
-      fes.GetElementVDofs(e, vdofs);
-      for (int j = 0; j < vdofs.Size(); j++)
-      {
-         const real_t s = std::sin(2.39996322972865332*j + kc);
-         if (vdofs[j] >= 0) { vl(vdofs[j]) += s; }
-         else { vl(-1 - vdofs[j]) -= s; }
-      }
-   }
-   E.MultTranspose(vl, v);
-   return v;
-}
 
 Reference BuildReference(BilinearForm &a, Weighting weighting,
                          const Array<int> &ess)
@@ -465,7 +431,6 @@ Reference BuildReference(BilinearForm &a, Weighting weighting,
    a.SpMat().ToDenseMatrix(ML);
    REQUIRE(MaxDiff(ML, P0tMP0) <= 1e-12*ML.MaxMaxNorm());
    r.M = RtAR(ML, r.E);
-   r.v0 = ChebyshevStartVector(fes, r.E);
    return r;
 }
 
@@ -492,19 +457,14 @@ DenseMatrix ReferenceBW(const Reference &r)
    return B;
 }
 
-// Reference for the nonconforming methods, from the formulas in the
-// documentation of BRASPreconditioner::NCMethod, with dense matrices. The J
-// rows of E are the rows with at most one nonzero, and the H rows form C.
-// On the free DOFs, S = diag(A)^{-1} and Lambda_u = E_J^T D_W E_J; both are
-// set to zero on the essential DOFs. If E has no H rows, A is diagonal and
-// all methods reduce to B_W.
-DenseMatrix ReferenceNC(const Reference &r, NCMethod method, int degree)
+// The diagonals of S = diag(A)^{-1} and Lambda_u^{-1} on the free DOFs, set to
+// zero on the essential DOFs, where Lambda_u = E_J^T D_W E_J and the J rows of
+// E are the rows with at most one nonzero.
+void NCDiagonals(const Reference &r, Vector &s, Vector &lus)
 {
    const int nl = r.E.Height(), nt = r.E.Width();
-   if (r.row_nnz.Max() <= 1) { return ReferenceBW(r); }
-
-   // s = diag(S), lus = diag(Lambda_u^{-1}).
-   Vector s(nt), lus(nt);
+   s.SetSize(nt);
+   lus.SetSize(nt);
    for (int j = 0; j < nt; j++)
    {
       real_t d = 0.0, lu = 0.0;
@@ -517,96 +477,81 @@ DenseMatrix ReferenceNC(const Reference &r, NCMethod method, int degree)
       s(j) = r.free[j] ? 1.0/d : 0.0;
       lus(j) = r.free[j] ? 1.0/lu : 0.0;
    }
-   const DenseMatrix G = RtAR(r.Gm, r.E);
-   DenseMatrix B(nt);
+}
 
+// The Chebyshev interval of NCMethod::CHEBYSHEV, as documented: a is the
+// minimum of Lambda_u S on the free DOFs, and b the largest entry of
+// S^{1/2} |E|^T D_W |E| S^{1/2} 1, with b >= max(1, (1 + 1e-6) a).
+void ChebyshevInterval(const Reference &r, real_t &a, real_t &b)
+{
+   const int nl = r.E.Height(), nt = r.E.Width();
+   Vector s, lus;
+   NCDiagonals(r, s, lus);
+   a = infinity();
+   for (int j = 0; j < nt; j++)
+   {
+      if (r.free[j]) { a = std::min(a, s(j)/lus(j)); }
+   }
+   Vector vl(nl);
+   for (int i = 0; i < nl; i++)
+   {
+      vl(i) = 0.0;
+      for (int j = 0; j < nt; j++)
+      {
+         vl(i) += std::abs(r.E(i,j))*std::sqrt(s(j));
+      }
+      vl(i) *= r.dl(i);
+   }
+   b = 0.0;
+   for (int j = 0; j < nt; j++)
+   {
+      real_t sum = 0.0;
+      for (int i = 0; i < nl; i++) { sum += std::abs(r.E(i,j))*vl(i); }
+      b = std::max(b, std::sqrt(s(j))*sum);
+   }
+   b = std::max({b, 1.0_r, (1.0_r + 1e-6_r)*a});
+}
+
+// Reference for the nonconforming methods, from the formulas in the
+// documentation of BRASPreconditioner::NCMethod, with dense matrices. The H
+// rows of E (the rows with more than one nonzero) form C. NCMethod::AUTO is
+// resolved from the Chebyshev interval. If E has no H rows, A is diagonal and
+// all methods reduce to B_W.
+DenseMatrix ReferenceNC(const Reference &r, NCMethod method, int degree)
+{
+   const int nl = r.E.Height(), nt = r.E.Width();
+   if (r.row_nnz.Max() <= 1) { return ReferenceBW(r); }
+
+   Vector s, lus;
+   NCDiagonals(r, s, lus);
+   real_t a, b;
+   ChebyshevInterval(r, a, b);
+   if (method == NCMethod::AUTO)
+   {
+      method = b >= BRASPreconditioner::auto_ratio*a ? NCMethod::CHEBYSHEV :
+               NCMethod::LEFT_INVERSE;
+   }
+
+   // The approximation Y of A_0^{-1}, where A_0 = E^T D_W E with zero
+   // essential rows and columns: S for NCMethod::LEFT_INVERSE, and q_k(A_0)
+   // for NCMethod::CHEBYSHEV.
+   DenseMatrix Y(nt);
    if (method == NCMethod::LEFT_INVERSE)
    {
-      // X C = S C^T Lambda_h C with X = S C^T Lambda_h.
-      DenseMatrix XC(nt);
-      XC = 0.0;
-      for (int i = 0; i < nl; i++)
-      {
-         if (r.row_nnz[i] <= 1) { continue; }
-         for (int j = 0; j < nt; j++)
-         {
-            if (r.E(i,j) == 0.0) { continue; }
-            for (int k = 0; k < nt; k++)
-            {
-               XC(j,k) += s(j)*r.E(i,j)*r.dl(i)*r.E(i,k);
-            }
-         }
-      }
-      // L_X = [(I - X C) Lambda_u^{-1} E_J^T, X Lambda_h^{-1}], with the
-      // columns in the order of the L-DOFs; X Lambda_h^{-1} = S C^T. A J row
-      // i of E has at most one nonzero, in column k, so column i of
-      // (I - X C) Lambda_u^{-1} E_J^T is column k of I - X C, scaled.
-      DenseMatrix Lx(nt, nl);
-      Lx = 0.0;
-      for (int i = 0; i < nl; i++)
-      {
-         if (r.row_nnz[i] <= 1)
-         {
-            for (int k = 0; k < nt; k++)
-            {
-               if (r.E(i,k) == 0.0) { continue; }
-               for (int j = 0; j < nt; j++)
-               {
-                  Lx(j,i) = ((j == k) - XC(j,k))*lus(k)*r.E(i,k);
-               }
-            }
-         }
-         else
-         {
-            for (int j = 0; j < nt; j++) { Lx(j,i) = s(j)*r.E(i,j); }
-         }
-      }
-      // L_X D_W E = I on the free DOFs, so that R_X = L_X P_0^T W is a left
-      // inverse of P. The essential rows and columns are zero.
-      DenseMatrix LxD(Lx), LxDE(nt);
-      LxD.RightScaling(r.dl);
-      Mult(LxD, r.E, LxDE);
-      for (int j = 0; j < nt; j++) { if (r.free[j]) { LxDE(j,j) -= 1.0; } }
-      REQUIRE(LxDE.MaxMaxNorm() <= 1e-12);
-      // B_X = L_X Gm L_X^T.
-      DenseMatrix LxGm(nt, nl);
-      Mult(Lx, r.Gm, LxGm);
-      MultABt(LxGm, Lx, B);
+      Y.Diag(s.GetData(), nt);
    }
    else
    {
-      // A_0 = E^T D_W E, with zero essential rows and columns.
       DenseMatrix Dl(nl);
       Dl.Diag(r.dl.GetData(), nl);
       const DenseMatrix A0 = RtAR(Dl, r.E);
-      // The interval: a = min(Lambda_u S) on the free DOFs, and b equal to
-      // 1.1 times the estimate from 20 power iterations on S A_0, from the
-      // start vector r.v0, as in the implementation.
-      real_t a = infinity();
-      Vector v(r.v0), Av(nt);
-      for (int j = 0; j < nt; j++)
-      {
-         if (r.free[j]) { a = std::min(a, s(j)/lus(j)); }
-      }
-      real_t b = 1.0;
-      for (int it = 0; it < 20; it++)
-      {
-         A0.Mult(v, Av);
-         real_t vSinvv = 0.0;
-         for (int j = 0; j < nt; j++) { if (r.free[j]) { vSinvv += v(j)*v(j)/s(j); } }
-         b = (v*Av)/vSinvv;
-         for (int j = 0; j < nt; j++) { v(j) = s(j)*Av(j); }
-         v /= v.Norml2();
-      }
-      b = std::max({1.1_r*b, 1.0_r, (1.0_r + 1e-6_r)*a});
-
-      // The Chebyshev semi-iteration for A_0 Q = I, with preconditioner S,
-      // from Q = 0, gives the matrix Q = q_k(A_0).
+      // The Chebyshev semi-iteration for A_0 Y = I, with preconditioner S,
+      // from Y = 0, gives the matrix Y = q_k(A_0).
       const real_t theta = 0.5*(b + a), delta = 0.5*(b - a);
       const real_t sigma = theta/delta;
       real_t rho = 1.0/sigma;
-      DenseMatrix Q(nt), R(nt), D(nt), AD(nt);
-      Q = 0.0;
+      DenseMatrix R(nt), D(nt), AD(nt);
+      Y = 0.0;
       R = 0.0;
       for (int j = 0; j < nt; j++) { R(j,j) = 1.0; }
       D = R;
@@ -614,7 +559,7 @@ DenseMatrix ReferenceNC(const Reference &r, NCMethod method, int degree)
       D *= 1.0/theta;
       for (int it = 0; ; it++)
       {
-         Q += D;
+         Y += D;
          if (it == degree) { break; }
          Mult(A0, D, AD);
          R -= AD;
@@ -625,11 +570,62 @@ DenseMatrix ReferenceNC(const Reference &r, NCMethod method, int degree)
          D.Add(2.0*rho_new/delta, SR);
          rho = rho_new;
       }
-      // Q G Q.
-      DenseMatrix QG(nt);
-      Mult(Q, G, QG);
-      Mult(QG, Q, B);
    }
+
+   // X C = Y C^T Lambda_h C with X = Y C^T Lambda_h.
+   DenseMatrix CtLC(nt);
+   CtLC = 0.0;
+   for (int i = 0; i < nl; i++)
+   {
+      if (r.row_nnz[i] <= 1) { continue; }
+      for (int j = 0; j < nt; j++)
+      {
+         for (int k = 0; k < nt; k++)
+         {
+            CtLC(j,k) += r.E(i,j)*r.dl(i)*r.E(i,k);
+         }
+      }
+   }
+   DenseMatrix XC(nt);
+   Mult(Y, CtLC, XC);
+   // L_X = [(I - X C) Lambda_u^{-1} E_J^T, X Lambda_h^{-1}], with the columns
+   // in the order of the L-DOFs; X Lambda_h^{-1} = Y C^T. A J row i of E has
+   // at most one nonzero, in column k, so column i of
+   // (I - X C) Lambda_u^{-1} E_J^T is column k of I - X C, scaled.
+   DenseMatrix Lx(nt, nl);
+   Lx = 0.0;
+   for (int i = 0; i < nl; i++)
+   {
+      if (r.row_nnz[i] <= 1)
+      {
+         for (int k = 0; k < nt; k++)
+         {
+            if (r.E(i,k) == 0.0) { continue; }
+            for (int j = 0; j < nt; j++)
+            {
+               Lx(j,i) = ((j == k) - XC(j,k))*lus(k)*r.E(i,k);
+            }
+         }
+      }
+      else
+      {
+         for (int j = 0; j < nt; j++)
+         {
+            for (int k = 0; k < nt; k++) { Lx(j,i) += Y(j,k)*r.E(i,k); }
+         }
+      }
+   }
+   // L_X D_W E = I on the free DOFs, so that R_X = L_X P_0^T W is a left
+   // inverse of P. The essential rows and columns are zero.
+   DenseMatrix LxD(Lx), LxDE(nt);
+   LxD.RightScaling(r.dl);
+   Mult(LxD, r.E, LxDE);
+   for (int j = 0; j < nt; j++) { if (r.free[j]) { LxDE(j,j) -= 1.0; } }
+   REQUIRE(LxDE.MaxMaxNorm() <= 1e-12);
+   // B_X = L_X Gm L_X^T.
+   DenseMatrix LxGm(nt, nl), B(nt);
+   Mult(Lx, r.Gm, LxGm);
+   MultABt(LxGm, Lx, B);
    for (int j = 0; j < nt; j++) { if (!r.free[j]) { B(j,j) = 1.0; } }
    return B;
 }
@@ -763,9 +759,10 @@ TEST_CASE("BRAS dense reference", "[BRAS][GPU]")
    CheckSpectralBounds(B, ref.M, ess, 1.0, K);
 }
 
-// On nonconforming meshes, each NCMethod equals its dense reference. The
-// left inverse method satisfies lambda_min(B_X M) >= 1, and all methods
-// satisfy an upper bound close to that of B_W.
+// On nonconforming meshes, each NCMethod equals its dense reference, and
+// NCMethod::AUTO selects the method of the reference. All the methods are
+// left inverses, so they satisfy lambda_min(B_X M) >= 1, and they satisfy an
+// upper bound close to that of B_W.
 TEST_CASE("BRAS nonconforming dense reference", "[BRAS][GPU]")
 {
    const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::HEX);
@@ -773,7 +770,8 @@ TEST_CASE("BRAS nonconforming dense reference", "[BRAS][GPU]")
                                Space::ND_1, Space::ND_2, Space::RT_0,
                                Space::RT_1);
    const auto weighting = GENERATE(Weighting::IDENTITY, Weighting::DIAGONAL);
-   const auto method = GENERATE(NCMethod::LEFT_INVERSE, NCMethod::CHEBYSHEV);
+   const auto method = GENERATE(NCMethod::AUTO, NCMethod::LEFT_INVERSE,
+                                NCMethod::CHEBYSHEV);
    const bool use_ess = GENERATE(false, true);
    CAPTURE(int(mesh_type), int(space), int(weighting), int(method), use_ess);
 
@@ -803,20 +801,58 @@ TEST_CASE("BRAS nonconforming dense reference", "[BRAS][GPU]")
    a.Assemble();
    a.Finalize();
    BRASPreconditioner bras(a, ess, weighting);
-   REQUIRE(bras.GetNCMethod() == NCMethod::LEFT_INVERSE);
+   REQUIRE(bras.GetNCMethod() == NCMethod::AUTO);
    const int degree = 2;
    bras.SetNCMethod(method, degree);
+   REQUIRE(bras.GetNCMethod() == method);
 
    const DenseMatrix B = ToDense(bras);
    const Reference ref = BuildReference(a, weighting, ess);
    const DenseMatrix B_ref = ReferenceNC(ref, method, degree);
    REQUIRE(MaxDiff(B, B_ref) <= 1e-10*B_ref.MaxMaxNorm());
 
-   // The upper bound of B_W holds for B_X and the Chebyshev method only
-   // approximately, so allow a factor 2. Only B_X has the lower bound 1.
+   real_t cheb_a, cheb_b;
+   ChebyshevInterval(ref, cheb_a, cheb_b);
+   CAPTURE(cheb_a, cheb_b);
+   const bool cheb = method == NCMethod::CHEBYSHEV ||
+                     (method == NCMethod::AUTO &&
+                      cheb_b >= BRASPreconditioner::auto_ratio*cheb_a);
+   REQUIRE(bras.GetActiveNCMethod() == (cheb ? NCMethod::CHEBYSHEV :
+                                        NCMethod::LEFT_INVERSE));
+
+   // The upper bound of B_W holds for the left inverses only approximately,
+   // so allow a factor 2.
    const real_t K = Kantorovich(ref.alpha, ref.beta);
-   const real_t lmin = method == NCMethod::LEFT_INVERSE ? 1.0 : 0.0;
-   CheckSpectralBounds(B, ref.M, ess, lmin, 2.0*K);
+   CheckSpectralBounds(B, ref.M, ess, 1.0, 2.0*K);
+}
+
+// NCMethod::AUTO selects NCMethod::CHEBYSHEV for bases with a large
+// Chebyshev interval ratio b/a, such as high order closed uniform bases, and
+// NCMethod::LEFT_INVERSE for Gauss-Lobatto bases at low order, for which the
+// ratio is small. The selection does not depend on the parallel partitioning,
+// and AUTO selects LEFT_INVERSE on conforming spaces.
+TEST_CASE("BRAS nonconforming method selection", "[BRAS][GPU]")
+{
+   Mesh mesh = MakeMesh(MeshType::QUAD, 2);
+   RefineNC(mesh);
+
+   H1_FECollection fec_gl(2, 2), fec_u(8, 2, BasisType::ClosedUniform);
+   FiniteElementSpace fes_gl(&mesh, &fec_gl), fes_u(&mesh, &fec_u);
+   BRASPreconditioner bras_gl(fes_gl, Array<int>());
+   BRASPreconditioner bras_u(fes_u, Array<int>());
+   REQUIRE(bras_gl.GetActiveNCMethod() == NCMethod::LEFT_INVERSE);
+   REQUIRE(bras_u.GetActiveNCMethod() == NCMethod::CHEBYSHEV);
+
+   // A fixed method is applied as set.
+   bras_u.SetNCMethod(NCMethod::LEFT_INVERSE);
+   REQUIRE(bras_u.GetActiveNCMethod() == NCMethod::LEFT_INVERSE);
+   bras_gl.SetNCMethod(NCMethod::CHEBYSHEV, 3);
+   REQUIRE(bras_gl.GetActiveNCMethod() == NCMethod::CHEBYSHEV);
+
+   Mesh cmesh = MakeMesh(MeshType::QUAD, 2);
+   FiniteElementSpace fes_c(&cmesh, &fec_u);
+   BRASPreconditioner bras_c(fes_c, Array<int>());
+   REQUIRE(bras_c.GetActiveNCMethod() == NCMethod::LEFT_INVERSE);
 }
 
 TEST_CASE("BRAS L2 space is exact", "[BRAS][GPU]")
@@ -957,7 +993,8 @@ TEST_CASE("BRAS Update", "[BRAS][GPU]")
 // preconditioner built from scratch on the refined space.
 TEST_CASE("BRAS nonconforming Update", "[BRAS][GPU]")
 {
-   const auto method = GENERATE(NCMethod::LEFT_INVERSE, NCMethod::CHEBYSHEV);
+   const auto method = GENERATE(NCMethod::AUTO, NCMethod::LEFT_INVERSE,
+                                NCMethod::CHEBYSHEV);
    Mesh mesh = MakeMesh(MeshType::QUAD, 2);
    mesh.EnsureNCMesh();
    H1_FECollection fec(2, 2);
@@ -1024,6 +1061,9 @@ TEST_CASE("BRAS assembled matrix", "[BRAS][GPU]")
    {
       bras.reset(new BRASPreconditioner(fes, Q, ess));
    }
+
+   // NCMethod::AUTO may select NCMethod::CHEBYSHEV, which is not assembled.
+   bras->SetNCMethod(NCMethod::LEFT_INVERSE);
 
    // Mult() first, so that the assembly reads data used on the device.
    const DenseMatrix B_op = ToDense(*bras);
@@ -1097,6 +1137,9 @@ TEST_CASE("BRAS tensor element inverse", "[BRAS][GPU]")
    BRASPreconditioner bras_tensor(fes, Q, ess, weighting,
                                   ElementInverse::TENSOR);
    REQUIRE(bras_tensor.GetElementInverse() == ElementInverse::TENSOR);
+   // As in "BRAS assembled matrix".
+   bras_dense.SetNCMethod(NCMethod::LEFT_INVERSE);
+   bras_tensor.SetNCMethod(NCMethod::LEFT_INVERSE);
    // The Bernstein mass matrices are ill-conditioned, which affects the
    // rounding errors of the dense Cholesky factorization in 3D.
    const real_t tol = space == Space::H1_POS_3 ? 1e-10 : 1e-12;
@@ -1301,7 +1344,8 @@ TEST_CASE("BRAS parallel nonconforming", "[BRAS][GPU][Parallel]")
    const auto mesh_type = GENERATE(MeshType::QUAD, MeshType::HEX);
    const auto space = GENERATE(Space::H1_3, Space::H1_VDIM, Space::ND_2,
                                Space::RT_1);
-   const auto method = GENERATE(NCMethod::LEFT_INVERSE, NCMethod::CHEBYSHEV);
+   const auto method = GENERATE(NCMethod::AUTO, NCMethod::LEFT_INVERSE,
+                                NCMethod::CHEBYSHEV);
    CAPTURE(int(mesh_type), int(space), int(method));
 
    const int nranks = Mpi::WorldSize();
@@ -1446,6 +1490,8 @@ TEST_CASE("BRAS parallel assembled matrix", "[BRAS][GPU][Parallel]")
    {
       bras.reset(new BRASPreconditioner(pfes, Q, ess));
    }
+   // As in "BRAS assembled matrix".
+   bras->SetNCMethod(NCMethod::LEFT_INVERSE);
    std::unique_ptr<HypreParMatrix> B(bras->ParallelAssembleMatrix());
 
    Vector X(pfes.GetTrueVSize()), Y(X.Size()), Y_ref(X.Size());
@@ -1500,6 +1546,9 @@ TEST_CASE("BRAS parallel tensor", "[BRAS][GPU][Parallel]")
    BRASPreconditioner bras_s(sfes, pw, ess_s);
    BRASPreconditioner bras_p(pfes, pw, ess_p, Weighting::DIAGONAL,
                              ElementInverse::TENSOR);
+   // As in "BRAS assembled matrix".
+   bras_s.SetNCMethod(NCMethod::LEFT_INVERSE);
+   bras_p.SetNCMethod(NCMethod::LEFT_INVERSE);
 
    bras_s.Mult(Xs, Ys);
    ys.SetFromTrueDofs(Ys);

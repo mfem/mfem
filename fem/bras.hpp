@@ -50,7 +50,8 @@ namespace mfem
     with more than one entry (H, forming the matrix C), and
     $A_W = \Lambda_u + C^T \Lambda_h C$ with diagonal $\Lambda_u$ and
     $\Lambda_h$. The action of $A_W^{-1}$ is then approximated with one of the
-    methods in NCMethod; see SetNCMethod(). The same holds for parallel
+    methods in NCMethod, which keep $\lambda_{\min}(B M) \geq 1$; see
+    SetNCMethod(). The same holds for parallel
     Nedelec spaces with DOFs on shared triangular faces, whose prolongation
     has rows with two entries (a change of basis between the face DOFs seen
     by the two ranks).
@@ -129,28 +130,40 @@ public:
    /** @brief Approximation of $A_W^{-1}$ on nonconforming spaces. All methods
        reduce to $B_W$ on conforming spaces.
 
-       With $S = \mathrm{diag}(A_W)^{-1}$ and
-       $G = P^T W M_{br}^{-1} W P$, the methods are: */
+       The methods are left inverses $B_X = R_X M_{br}^{-1} R_X^T$, where
+       $R_X$ is the left inverse of $P$ (i.e. $R_X P = I$) obtained from the
+       exact one, $A_W^{-1} P^T W$, by replacing $A_W^{-1}$ by an
+       approximation in the coupling $X = A_W^{-1} C^T \Lambda_h$ of the
+       hanging DOFs. Since $R_X$ is a left inverse,
+       $\lambda_{\min}(B_X M) \geq 1$ for every method. With
+       $S = \mathrm{diag}(A_W)^{-1}$, the approximations are: */
    enum class NCMethod
    {
-      /** The left inverse $B_X = R_X M_{br}^{-1} R_X^T$, where $R_X$ is the
-          left inverse of $P$ (i.e. $R_X P = I$) obtained from the exact one,
-          $A_W^{-1} P^T W$, by replacing $A_W^{-1}$ by $S$ in the coupling
-          $X = A_W^{-1} C^T \Lambda_h$ of the hanging DOFs. Since $R_X$ is a
-          left inverse, $\lambda_{\min}(B_X M) \geq 1$. Each application
-          requires three products with $P_L$ and three with $P_L^T$
-          (recommended). */
+      /** CHEBYSHEV if the ratio b/a of the Chebyshev interval [a, b] (see
+          CHEBYSHEV) is at least @ref auto_ratio, and LEFT_INVERSE
+          otherwise (default). A small ratio means that $S$ is already a good
+          approximation of $A_W^{-1}$, and then the Chebyshev polynomial
+          does not reduce the iterations enough to pay for its cost. Use
+          GetActiveNCMethod() to obtain the selected method. */
+      AUTO,
+      /** $X = S C^T \Lambda_h$. Each application requires three products
+          with $P_L$ and three with $P_L^T$. */
       LEFT_INVERSE,
-      /** $q_k(A_W) G q_k(A_W)$, where $q_k(A_W) \approx A_W^{-1}$ is the
-          Chebyshev polynomial approximation of degree k (in $S A_W$) for the
-          spectral interval [a, b] of $S A_W$. In the setup, a is set to a
-          lower bound, $\min (\Lambda_u S)$, and b to 1.1 times an estimate
-          from 20 power iterations. As k increases the preconditioner
-          converges to $B_W$; k = 2 or 3 is usually close to it. Each
-          application requires 2k products with $A_W$, i.e. 2k + 1 products
-          with $P_L$ and with $P_L^T$. */
+      /** $X = q_k(A_W) C^T \Lambda_h$, where $q_k(A_W) \approx A_W^{-1}$ is
+          the Chebyshev polynomial approximation of degree k (in $S A_W$) for
+          an interval [a, b] containing the spectrum of $S A_W$. In the setup,
+          a is set to the lower bound $\min (\Lambda_u S)$, and b to the
+          Gershgorin-type upper bound
+          $\max_i (S^{1/2} |P_L|^T D_W |P_L| S^{1/2} \mathbf{1})_i$, computed
+          with one product with $|P_L|$ and one with $|P_L|^T$. As k
+          increases the preconditioner converges to $B_W$. Each application
+          requires 2k + 3 products with $P_L$ and with $P_L^T$. */
       CHEBYSHEV
    };
+
+   /// The ratio b/a of the Chebyshev interval above which NCMethod::AUTO
+   /// selects NCMethod::CHEBYSHEV.
+   static constexpr real_t auto_ratio = 5.0;
 
 protected:
    /// The bilinear form defining the element matrices. Not owned, unless
@@ -188,7 +201,9 @@ protected:
    /// vector on both sides gives weighted BRAS for the free DOFs.
    Vector scale;
 
-   NCMethod nc_method = NCMethod::LEFT_INVERSE;
+   /// The method set with SetNCMethod(), and the method applied: equal to
+   /// @ref nc_method, unless that is NCMethod::AUTO.
+   NCMethod nc_method = NCMethod::AUTO, nc_active = NCMethod::LEFT_INVERSE;
    int cheb_degree = 2;
    /// True if $P_L$ has rows with more than one entry (the H rows) on any
    /// rank. Then $A_W$ is not diagonal and @ref nc_method is used.
@@ -204,7 +219,8 @@ protected:
    /// the same with the essential DOFs set to zero.
    Vector lu_inv, lu_scale;
    /// Only if @ref nc is true: an interval [a, b] containing the spectrum of
-   /// $S A_W$, used by NCMethod::CHEBYSHEV.
+   /// $S A_W$ on the free DOFs, used by NCMethod::AUTO and
+   /// NCMethod::CHEBYSHEV.
    real_t cheb_a = 1.0, cheb_b = 1.0;
 
    /// Work vectors for Mult(): true DOFs (xt, ut), L-DOFs (xl, zl), the
@@ -226,8 +242,9 @@ protected:
    /// @ref dl and the prolongation.
    void SetupProlongation();
 
-   /// Compute the interval @ref cheb_a, @ref cheb_b for the free DOFs.
-   void SetupChebyshev();
+   /// Compute the interval @ref cheb_a, @ref cheb_b for the free DOFs, if
+   /// needed, and set @ref nc_active.
+   void SetupNCMethod();
 
    /// y = R_E^T (W M_br^{-1} W) R_E x, for L-vectors x and y (which may be
    /// the same vector).
@@ -247,19 +264,16 @@ public:
    ///@{
 
    /// x = q_k(A_W) b on the free DOFs, the Chebyshev approximation of
-   /// A_W^{-1} b; x is zero on the essential DOFs.
+   /// A_W^{-1} b; x is zero on the essential DOFs. Uses zl, cr, cd and cq.
    void ApplyChebyshev(const Vector &b, Vector &x) const;
 
-   /// Apply the NCMethod::LEFT_INVERSE method on the free DOFs; y is zero on
-   /// the essential DOFs.
-   void MultLeftInverse(const Vector &x, Vector &y) const;
+   /// Apply the NCMethod::LEFT_INVERSE method, or NCMethod::CHEBYSHEV if
+   /// @a chebyshev is true, on the free DOFs; y is zero on the essential
+   /// DOFs.
+   void MultLeftInverse(const Vector &x, Vector &y, bool chebyshev) const;
    ///@}
 
 protected:
-   /// Apply the NCMethod::CHEBYSHEV method on the free DOFs; y is zero on the
-   /// essential DOFs.
-   void MultChebyshev(const Vector &x, Vector &y) const;
-
    /// Return the local matrix R_E^T (W M_br^{-1} W) R_E on the L-DOFs, owned
    /// by the caller.
    SparseMatrix *AssembleBroken() const;
@@ -344,13 +358,23 @@ public:
 
    /** @brief Set the approximation of $A_W^{-1}$ used on nonconforming
        spaces, and the polynomial degree (at least 1) used by
-       NCMethod::CHEBYSHEV. The default is NCMethod::LEFT_INVERSE. Has no
-       effect on conforming spaces, where $A_W$ is diagonal. In parallel, this
-       must be called on all ranks. */
+       NCMethod::CHEBYSHEV, also when selected by NCMethod::AUTO. The default
+       is NCMethod::AUTO with degree 2. Has no effect on conforming spaces,
+       where $A_W$ is diagonal. In parallel, this must be called on all
+       ranks. */
    void SetNCMethod(NCMethod method, int degree = 2);
 
-   /// Return the approximation of $A_W^{-1}$ used on nonconforming spaces.
+   /// Return the approximation of $A_W^{-1}$ set with SetNCMethod().
    NCMethod GetNCMethod() const { return nc_method; }
+
+   /** @brief Return the approximation of $A_W^{-1}$ applied by Mult():
+       NCMethod::LEFT_INVERSE or NCMethod::CHEBYSHEV.
+
+       This is GetNCMethod(), unless that is NCMethod::AUTO, which selects
+       one of the two methods in the setup (construction, Update(),
+       SetEssentialTrueDofs() and SetNCMethod()). On conforming spaces,
+       NCMethod::AUTO selects NCMethod::LEFT_INVERSE. */
+   NCMethod GetActiveNCMethod() const { return nc_active; }
 
    /** @brief Return the preconditioner as a sparse matrix, owned by the
        caller. Only for serial spaces; see ParallelAssembleMatrix().
@@ -362,7 +386,10 @@ public:
        LEFT_INVERSE gives $B_X = Q^T R_E^T W M_{br}^{-1} W R_E Q$, where the
        sparse matrix $Q = R_X^T$ has the shape of $P_L$ with a wider stencil
        at the hanging DOFs. NCMethod::CHEBYSHEV cannot be assembled, since its
-       matrix is not sparse; then this method aborts. */
+       matrix is not sparse; then this method aborts. This includes
+       NCMethod::AUTO when it selects NCMethod::CHEBYSHEV (see
+       GetActiveNCMethod()), so call SetNCMethod(NCMethod::LEFT_INVERSE)
+       before assembling on nonconforming spaces. */
    SparseMatrix *AssembleMatrix() const;
 
 #ifdef MFEM_USE_MPI

@@ -260,6 +260,9 @@ int main(int argc, char *argv[])
       StopWatch chrono;
       chrono.Start();
       BRASPreconditioner invM(m, ess_tdof_list);
+      // On nonconforming meshes, only the left inverse with the diagonal can
+      // be assembled.
+      invM.SetNCMethod(BRASPreconditioner::NCMethod::LEFT_INVERSE);
       unique_ptr<HypreParMatrix> BW(invM.ParallelAssembleMatrix());
       unique_ptr<HypreParMatrix> S(RAP(BW.get(), Bt.get()));
       chrono.Stop();

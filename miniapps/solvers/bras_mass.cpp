@@ -24,9 +24,11 @@
 // weighting, its condition number bound depends only on the element-local
 // spectral equivalence of the element mass matrices and their diagonals, so it
 // is independent of the mesh size and of the local refinement. On
-// nonconforming meshes (option -amr), the hanging DOFs are treated with the
-// left-inverse approximation of BRAS (default) or a Chebyshev approximation of
-// degree -cheb. Option -t selects the sum factorization of the element solves,
+// nonconforming meshes (option -amr), the hanging DOFs are treated with a
+// left-inverse approximation of BRAS, using either the diagonal of the
+// operator coupling the hanging DOFs or a Chebyshev polynomial of degree -cheb
+// (option -ncm). By default, the Chebyshev polynomial is used only if the
+// diagonal is a poor approximation of the coupling. Option -t selects the sum factorization of the element solves,
 // which is available on affine quadrilateral and hexahedral meshes (and, for
 // H(curl) and H(div), only on rectangular elements).
 //
@@ -44,7 +46,8 @@
 //    mpirun -np 4 bras_mass -fe l
 //    mpirun -np 4 bras_mass -fe h -b U -o 5
 //    mpirun -np 4 bras_mass -fe r -amr 4 -t
-//    mpirun -np 4 bras_mass -fe n -amr 4 -cheb 3
+//    mpirun -np 4 bras_mass -fe n -amr 4 -ncm c -cheb 3
+//    mpirun -np 4 bras_mass -fe r -amr 2 -b U -o 4
 //    mpirun -np 4 bras_mass -m ../../data/inline-hex.mesh -rs 1 -fe r -amr 2
 //    mpirun -np 4 bras_mass -m ../../data/star.mesh -fe h -iw
 //    mpirun -np 4 bras_mass -m ../../data/inline-tet.mesh -rs 0 -fe n
@@ -96,7 +99,8 @@ int main(int argc, char *argv[])
    const char *basis = "G";
    bool identity_weighting = false;
    bool tensor = false;
-   int cheb_degree = 0;
+   const char *nc_method = "a";
+   int cheb_degree = 2;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = true;
@@ -124,10 +128,13 @@ int main(int argc, char *argv[])
                   "Use the identity or the diagonal BRAS weighting.");
    args.AddOption(&tensor, "-t", "--tensor", "-no-t", "--no-tensor",
                   "Apply the element inverses by sum factorization.");
+   args.AddOption(&nc_method, "-ncm", "--nc-method",
+                  "Approximation of A_W^{-1} on nonconforming spaces: "
+                  "a - automatic, l - left inverse with the diagonal, "
+                  "c - left inverse with the Chebyshev polynomial.");
    args.AddOption(&cheb_degree, "-cheb", "--chebyshev-degree",
                   "Degree of the Chebyshev approximation of A_W^{-1} on "
-                  "nonconforming spaces; 0 selects the left-inverse "
-                  "approximation.");
+                  "nonconforming spaces.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly",
                   "Use partial assembly for the mass operator.");
@@ -258,11 +265,26 @@ int main(int argc, char *argv[])
    BRAS bras(m, ess_dofs, identity_weighting ? BRAS::Weighting::IDENTITY :
              BRAS::Weighting::DIAGONAL, tensor ? BRAS::ElementInverse::TENSOR :
              BRAS::ElementInverse::DENSE);
-   if (cheb_degree > 0)
+   if (string(nc_method) == "a")
+   {
+      bras.SetNCMethod(BRAS::NCMethod::AUTO, cheb_degree);
+   }
+   else if (string(nc_method) == "l")
+   {
+      bras.SetNCMethod(BRAS::NCMethod::LEFT_INVERSE);
+   }
+   else if (string(nc_method) == "c")
    {
       bras.SetNCMethod(BRAS::NCMethod::CHEBYSHEV, cheb_degree);
    }
+   else { MFEM_ABORT("Bad NC method. Must be 'a', 'l', or 'c'."); }
    chrono.Stop();
+   if (Mpi::Root() && amr_steps > 0)
+   {
+      cout << "BRAS nonconforming method: "
+           << (bras.GetActiveNCMethod() == BRAS::NCMethod::CHEBYSHEV ?
+               "Chebyshev" : "left inverse") << endl;
+   }
    solve(bras, "BRAS", chrono.RealTime());
 
    // Send the BRAS solution by socket to a GLVis server.
