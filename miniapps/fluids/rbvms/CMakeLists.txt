@@ -9,15 +9,13 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-
-
-add_library(liddriven SHARED lid-driven-cavity.cpp)
-add_library(karman    SHARED von-karman.cpp)
-add_library(kovasznay SHARED kovasznay.cpp)
-
-target_include_directories(liddriven PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(karman PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(kovasznay PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+foreach(target liddriven kovasznay vonkarman)
+   add_library(${target} SHARED ${target}.cpp)
+   target_include_directories(${target} PRIVATE
+       ${PROJECT_SOURCE_DIR}
+       ${PROJECT_BINARY_DIR}/config
+   )
+endforeach()
 
 add_mfem_miniapp(rbvms
   MAIN rbvms.cpp 
@@ -46,7 +44,7 @@ if (MFEM_ENABLE_TESTING)
          COMMAND  $<TARGET_FILE:rbvms>
                   --mesh von-karman-nurbs.mesh
                   --strong-bdr "1 2" --outflow-bdr 4 --weak-bdr 3
-                  --lib libkarman.so -rho 1 -mu 0.01
+                  --lib libvonkarman.so -rho 1 -mu 0.01
                   -r 1 -o 2 -s 45 -dt 0.1 -tf 1)
 endif()
 
@@ -74,7 +72,7 @@ if (MFEM_USE_MPI)
       $<TARGET_FILE:prbvms>
                   --mesh von-karman-nurbs.mesh
                   --strong-bdr "1 2" --outflow-bdr 4 --weak-bdr 3 
-                  --lib libkarman.so -rho 1 -mu 0.01
+                  --lib libvonkarman.so -rho 1 -mu 0.01
                   -r 1 -o 2 -s 45 -dt 0.1  -tf 1
       ${MPIEXEC_POSTFLAGS})
   endif()

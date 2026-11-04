@@ -10,7 +10,10 @@
 // CONTRIBUTING.md for details.
 
 #include <cmath>
-#include "../../../config/config.hpp"
+//#include "mfem.hpp"
+//#include "config/_config.hpp"
+//#include "config/config.hpp"
+#include "config/config.hpp"
 
 namespace mfem
 {
