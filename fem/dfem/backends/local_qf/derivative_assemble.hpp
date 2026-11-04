@@ -1029,6 +1029,21 @@ public:
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
+         MFEM_CONTRACT_VAR(out_group);
+         MFEM_CONTRACT_VAR(group);
+         MFEM_CONTRACT_VAR(Ae);
+         MFEM_CONTRACT_VAR(qpdc);
+         MFEM_CONTRACT_VAR(itod);
+         MFEM_CONTRACT_VAR(inputs);
+         MFEM_CONTRACT_VAR(outputs);
+         MFEM_CONTRACT_VAR(input_dtq_maps);
+         MFEM_CONTRACT_VAR(output_dtq_maps);
+         MFEM_CONTRACT_VAR(out_offsets);
+         MFEM_CONTRACT_VAR(out_vdim);
+         MFEM_CONTRACT_VAR(out_op_dim);
+         MFEM_CONTRACT_VAR(q1d);
+         MFEM_CONTRACT_VAR(num_trial_dof_1d);
+
          static constexpr int DIM = backend_t::DIM;
          static constexpr int MQ1 = max_q1d_v<backend_t, T_Q1D>;
 

@@ -863,19 +863,10 @@ struct tuple_element<I, mfem::future::tuple<T...>>
                 mfem::future::tuple_element<I, mfem::future::tuple<T...>>::type;
 };
 
-template <size_t I, typename... T>
-constexpr decltype(auto) get(mfem::future::tuple<T...>& t) noexcept
-{ return mfem::future::get<I>(t); }
-
-template <size_t I, typename... T>
-constexpr decltype(auto) get(const mfem::future::tuple<T...>& t) noexcept
-{ return mfem::future::get<I>(t); }
-
-template <size_t I, typename... T>
-constexpr decltype(auto) get(mfem::future::tuple<T...>&& t) noexcept
-{ return mfem::future::get<I>(std::move(t)); }
-
-template <size_t I, typename... T>
-constexpr decltype(auto) get(const mfem::future::tuple<T...>&& t) noexcept
-{ return mfem::future::get<I>(std::move(t)); }
+// Less specialized than mfem::future::get, so that structured bindings are not
+// ambiguous with nvcc, which also considers std::get for them.
+template <size_t I, typename T, typename = enable_if_t<
+             mfem::future::is_tuple<remove_cv_t<remove_reference_t<T>>>::value>>
+constexpr decltype(auto) get(T&& t) noexcept
+{ return mfem::future::get<I>(std::forward<T>(t)); }
 }

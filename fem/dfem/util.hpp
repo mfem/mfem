@@ -1020,7 +1020,9 @@ struct ThreadBlocks
 };
 
 #if defined(MFEM_USE_CUDA_OR_HIP)
-#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
+// Clang 19 does not know __grid_constant__ and warns at each use
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__) && \
+    (defined(__NVCC__) || __has_attribute(grid_constant))
 #define MFEM_DFEM_GRID_CONSTANT __grid_constant__
 #else
 #define MFEM_DFEM_GRID_CONSTANT

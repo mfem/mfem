@@ -1187,7 +1187,7 @@ MFEM_HOST_DEVICE static void call_qfunc_no_move(const func_t &func,
 }
 
 template <typename qfunc_t, typename... Args>
-MFEM_FORCE_INLINE
+inline MFEM_FORCE_INLINE
 MFEM_HOST_DEVICE static void enzyme_fwddiff_wrapper(qfunc_t *qf, Args &...args)
 {
    (*qf)(args...);
@@ -1341,7 +1341,7 @@ MFEM_HOST_DEVICE static void call_enzyme_fwddiff_active(
 #endif // MFEM_USE_ENZYME
 
 template <typename qfunc_t, typename qfunc_shadow_t, typename args_t, int... Is>
-MFEM_FORCE_INLINE
+inline MFEM_FORCE_INLINE
 MFEM_HOST_DEVICE static void call_enzyme_fwddiff_impl(
    qfunc_t &qfunc,
    qfunc_shadow_t &qfunc_shadow,

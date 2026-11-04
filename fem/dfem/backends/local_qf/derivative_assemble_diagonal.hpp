@@ -363,6 +363,15 @@ public:
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
+         MFEM_CONTRACT_VAR(out_group);
+         MFEM_CONTRACT_VAR(row_group);
+         MFEM_CONTRACT_VAR(output_dtq_maps);
+         MFEM_CONTRACT_VAR(out_op_dim);
+         MFEM_CONTRACT_VAR(out_offsets);
+         MFEM_CONTRACT_VAR(inputs_trial_op_dim);
+         MFEM_CONTRACT_VAR(input_dtq_maps);
+         MFEM_CONTRACT_VAR(q1d);
+
          // The cache is written with the quadrature index fastest, then the
          // trial vdim, then the trial op index (see derivative_cache_col),
          // then the (test vdim, test op) rows of all outputs, via out_offsets.

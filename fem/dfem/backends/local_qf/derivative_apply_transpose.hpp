@@ -357,6 +357,8 @@ public:
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
+         MFEM_CONTRACT_VAR(cache_tensor);
+
          // -----------------------------------------------
          // Output cotangent (direction) registers live in oargs; the trial
          // integration data is pushed into iargs, which only holds the dependent

@@ -372,6 +372,13 @@ public:
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
+         MFEM_CONTRACT_VAR(qfunc);
+         MFEM_CONTRACT_VAR(out_YE);
+         MFEM_CONTRACT_VAR(out_d1d);
+         MFEM_CONTRACT_VAR(out_q1d);
+         MFEM_CONTRACT_VAR(out_B);
+         MFEM_CONTRACT_VAR(out_G);
+
          // -----------------------------------------------
          // Inputs and outputs argument registers
          // -----------------------------------------------

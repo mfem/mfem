@@ -17,6 +17,58 @@
 namespace mfem::future::GlobalQFImpl
 {
 
+// nvcc does not allow extended host/device lambdas inside generic lambdas.
+inline void seed_shadow_column(const int gnqp_local, real_t *shadow_ptr,
+                               const int c_shadow, const int input_size_s)
+{
+   mfem::forall(gnqp_local, [=] MFEM_HOST_DEVICE(int gq)
+   {
+      shadow_ptr[c_shadow + input_size_s * gq] = 1.0;
+   });
+}
+
+// nvcc does not allow extended host/device lambdas inside generic lambdas.
+template<bool reset_shadow>
+void store_cache_columns(const int gnqp_local,
+                         const int num_qp_local,
+                         const int trial_vdim_local,
+                         const int total_trial_op_dim_local,
+                         const int residual_size_local,
+                         const int test_vdim_o,
+                         const int test_op_dim_o,
+                         const int yq_out_size,
+                         const int out_offset_o,
+                         const int col,
+                         const real_t *yq_d,
+                         real_t *cache_d,
+                         real_t *shadow_ptr,
+                         const int c_shadow,
+                         const int input_size_s)
+{
+   // The cache is (q, cache_idx, e) with the quadrature index
+   // fastest, so gq is the fastest-varying thread index to keep
+   // the stores coalesced.
+   mfem::forall(gnqp_local * yq_out_size, [=] MFEM_HOST_DEVICE(int idx)
+   {
+      const int gq       = idx % gnqp_local;
+      const int c_out    = idx / gnqp_local;
+      const int q        = gq % num_qp_local;
+      const int entity   = gq / num_qp_local;
+      const int out_comp = out_offset_o +
+                           (c_out % test_vdim_o) * test_op_dim_o +
+                           c_out / test_vdim_o;
+      const int cache_idx =
+         out_comp * trial_vdim_local * total_trial_op_dim_local + col;
+      cache_d[q + num_qp_local *
+                (cache_idx + residual_size_local * entity)] =
+                 yq_d[c_out + yq_out_size * gq];
+      if (reset_shadow && c_out == 0)
+      {
+         shadow_ptr[c_shadow + input_size_s * gq] = 0.0;
+      }
+   });
+}
+
 template<
    int derivative_id,
    typename qfunc_t,
@@ -155,10 +207,8 @@ struct DerivativeSetup
                // Set component (j + input_vdim_s * m) to 1 at all QPs
                const int c_shadow = j + input_vdim_s * m;
                real_t *shadow_ptr = shadow_xq.GetBlock(s.value).ReadWrite();
-               mfem::forall(gnqp_local, [=] MFEM_HOST_DEVICE(int gq)
-               {
-                  shadow_ptr[c_shadow + input_size_s * gq] = 1.0;
-               });
+               seed_shadow_column(gnqp_local, shadow_ptr, c_shadow,
+                                  input_size_s);
 
                if constexpr (detail::qfunc_uses_scratch_v<qfunc_t>)
                {
@@ -196,30 +246,11 @@ struct DerivativeSetup
                   const int out_offset_o  = out_offset;
                   const real_t *yq_d      = yq.GetBlock(o.value).Read();
 
-                  // The cache is (q, cache_idx, e) with the quadrature index
-                  // fastest, so gq is the fastest-varying thread index to keep
-                  // the stores coalesced.
-                  mfem::forall(gnqp_local * yq_out_size, [=] MFEM_HOST_DEVICE(int idx)
-                  {
-                     const int gq       = idx % gnqp_local;
-                     const int c_out    = idx / gnqp_local;
-                     const int q        = gq % num_qp_local;
-                     const int entity   = gq / num_qp_local;
-                     const int out_comp = out_offset_o + (c_out % test_vdim_o) * test_op_dim_o +
-                                          c_out / test_vdim_o;
-                     const int cache_idx =
-                        out_comp * trial_vdim_local * total_trial_op_dim_local + col;
-                     cache_d[q + num_qp_local *
-                               (cache_idx + residual_size_local * entity)] =
-                                yq_d[c_out + yq_out_size * gq];
-                     if constexpr (o.value == 0)
-                     {
-                        if (c_out == 0)
-                        {
-                           shadow_ptr[c_shadow + input_size_s * gq] = 0.0;
-                        }
-                     }
-                  });
+                  store_cache_columns<o.value == 0>(
+                     gnqp_local, num_qp_local, trial_vdim_local,
+                     total_trial_op_dim_local, residual_size_local,
+                     test_vdim_o, test_op_dim_o, yq_out_size, out_offset_o,
+                     col, yq_d, cache_d, shadow_ptr, c_shadow, input_size_s);
                   out_offset += yq_out_size;
                });
             }
