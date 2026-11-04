@@ -16,6 +16,7 @@
 
 #include "../../integrator_ctx.hpp"
 #include "../../util.hpp"
+#include "../../entity_utils.hpp"
 
 #include <algorithm>
 #include <array>
@@ -1154,7 +1155,7 @@ inline int compute_element_dof_sz(
    int num_entities,
    ElementDofOrdering ordering)
 {
-   auto R = get_restriction<entity_t>(fd, ordering);
+   auto R = get_restriction(fd, ordering, EntityTraits<entity_t>::restriction);
    MFEM_ASSERT(R != nullptr, "LocalQF: missing element restriction");
    return num_entities ? (R->Height() / num_entities) : 0;
 }

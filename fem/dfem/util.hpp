@@ -997,17 +997,6 @@ namespace dfem
 template <class... T> constexpr bool always_false = false;
 }
 
-/// @brief Entity struct
-///
-/// This struct is used to store information about an entity type.
-namespace Entity
-{
-struct Element;
-struct BoundaryElement;
-struct Face;
-struct BoundaryFace;
-}
-
 /// @brief How the dofs of a field are restricted to an entity kind.
 ///
 /// Elements use the element restriction. Face kinds use the face restriction
@@ -1020,82 +1009,9 @@ struct RestrictionDescriptor
    L2FaceValues face_values;
 };
 
-/// @brief Properties of the entity type @a entity_t (see Entity).
-///
-/// This is the one place that defines what an entity type means: how many
-/// there are, their reference dimension, where their attributes come from,
-/// how fields are restricted to them and which finite element describes a
-/// field on them.
+/// @brief Properties of the entity type @a entity_t, see entity_utils.hpp.
 template <typename entity_t>
-struct EntityTraits
-{
-   static_assert(dfem::always_false<entity_t>, "entity type not supported");
-};
-
-
-/// Volume elements use the element restriction; face settings are unused.
-template <>
-struct EntityTraits<Entity::Element>
-{
-   static constexpr RestrictionDescriptor restriction
-   {
-      false, FaceType::Interior, L2FaceValues::SingleValued
-   };
-
-   static int Count(const Mesh &mesh) { return mesh.GetNE(); }
-
-   static int Dimension(const Mesh &mesh) { return mesh.Dimension(); }
-
-   static const Array<int> &Attributes(const Mesh &mesh)
-   {
-      return mesh.GetElementAttributes();
-   }
-
-   static const FiniteElement *TypicalFE(const FiniteElementSpace &fes)
-   {
-      return fes.GetTypicalFE();
-   }
-};
-
-/// Boundary elements use a single-sided restriction to boundary faces and
-/// the trace finite element on a reference entity of dimension mesh.Dimension() - 1.
-template <>
-struct EntityTraits<Entity::BoundaryElement>
-{
-   static constexpr RestrictionDescriptor restriction
-   {
-      true, FaceType::Boundary, L2FaceValues::SingleValued
-   };
-
-   static int Count(const Mesh &mesh)
-   {
-      return mesh.GetNFbyType(FaceType::Boundary);
-   }
-
-   static int Dimension(const Mesh &mesh) { return mesh.Dimension() - 1; }
-
-   static const Array<int> &Attributes(const Mesh &mesh)
-   {
-      return mesh.GetBdrFaceAttributes();
-   }
-
-   static const FiniteElement *TypicalFE(const FiniteElementSpace &fes)
-   {
-      return fes.GetTypicalTraceElement();
-   }
-};
-
-/// @brief Get the reference dimension of the entities of a given type.
-///
-/// @param mesh the mesh.
-/// @tparam entity_t the entity type (see Entity).
-/// @returns the reference dimension of the given entity type, i.e. the mesh
-/// dimension for elements and one less for boundary elements.
-template <typename entity_t>
-int GetEntityDimension(const mfem::Mesh &mesh)
-{
-   return EntityTraits<entity_t>::Dimension(mesh);
-}
+struct EntityTraits;
 
 /// @brief ThreadBlocks struct
 ///
@@ -1628,7 +1544,7 @@ int GetDimension(const FieldDescriptor &f)
       if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
                     std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         return GetEntityDimension<entity_t>(*arg->GetMesh());
+         return EntityTraits<entity_t>::Dimension(*arg->GetMesh());
       }
       else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
@@ -1815,16 +1731,6 @@ inline std::shared_ptr<const Operator> get_restriction(const FieldDescriptor &f,
       return get_face_restriction(f, o, r.face_type, r.face_values);
    }
    return get_element_restriction(f, o);
-}
-
-/// @brief Get the restriction operator of a field descriptor to the entities
-/// of type @a entity_t (see Entity).
-template <typename entity_t>
-inline
-std::shared_ptr<const Operator> get_restriction(const FieldDescriptor &f,
-                                                const ElementDofOrdering &o)
-{
-   return get_restriction(f, o, EntityTraits<entity_t>::restriction);
 }
 
 /// @brief Restriction operators for a fixed list of fields, resolved once.
@@ -2509,17 +2415,6 @@ void restriction(const FieldDescriptor &u,
                "restriction not applicable to given data size");
    field_e.SetSize(cache.Height());
    cache.Get()->Mult(u_l, field_e);
-}
-
-/// @brief Get the number of entities of a given type.
-///
-/// @param mesh the mesh.
-/// @tparam entity_t the entity type (see Entity).
-/// @returns the number of entities of the given type.
-template <typename entity_t>
-int GetNumEntities(const mfem::Mesh &mesh)
-{
-   return EntityTraits<entity_t>::Count(mesh);
 }
 
 /// @brief Get the GetDofToQuad object for a given entity type.

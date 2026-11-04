@@ -226,6 +226,7 @@ set(HDRS
   dgmassinv_kernels.hpp
   doftrans.hpp
   dfem/doperator.hpp
+  dfem/entity_utils.hpp
   dfem/fielddescriptor.hpp
   dfem/fieldoperator.hpp
   dfem/integrator_ctx.hpp

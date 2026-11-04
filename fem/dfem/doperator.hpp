@@ -20,6 +20,7 @@
 #include "../../linalg/multivector.hpp"
 
 #include "util.hpp"
+#include "entity_utils.hpp"
 #include "integrator_ctx.hpp"
 #include "backends/util.hpp"
 

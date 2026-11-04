@@ -18,6 +18,7 @@
 
 #include "../fielddescriptor.hpp"
 #include "../util.hpp"
+#include "../entity_utils.hpp"
 
 #include "../tuple.hpp"
 using mfem::future::tuple;
