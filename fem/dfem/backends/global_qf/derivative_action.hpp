@@ -143,6 +143,7 @@ struct DerivativeAction
                    input_qlayouts,
                    output_qlayouts,
                    primal_output_storage,
+                   dual_input_storage, dual_output_storage,
                    std::make_index_sequence<ninputs> {},
                    std::make_index_sequence<noutputs> {});
       }
@@ -157,6 +158,7 @@ struct DerivativeAction
             input_qlayouts,
             output_qlayouts,
             primal_output_storage,
+            dual_input_storage, dual_output_storage,
             std::make_index_sequence<ninputs> {},
             std::make_index_sequence<noutputs> {});
       }
@@ -184,6 +186,8 @@ struct DerivativeAction
    Array<int> xq_offsets, shadow_xq_offsets, yq_offsets;
    mutable BlockVector xq, shadow_xq, yq;
    mutable std::array<Vector, noutputs> primal_output_storage;
+   mutable std::array<Vector, ninputs> dual_input_storage;
+   mutable std::array<Vector, noutputs> dual_output_storage;
    bool buffers_ready = false;
 
    FieldDescriptor direction_fd;

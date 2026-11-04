@@ -167,6 +167,7 @@ struct DerivativeSetup
                             qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp,
                             input_qlayouts, output_qlayouts,
                             primal_output_storage,
+                            dual_input_storage, dual_output_storage,
                             std::make_index_sequence<ninputs> {},
                             std::make_index_sequence<noutputs> {});
                }
@@ -176,6 +177,7 @@ struct DerivativeSetup
                      qfunc, xq, shadow_xq, yq, gnqp,
                      input_qlayouts, output_qlayouts,
                      primal_output_storage,
+                     dual_input_storage, dual_output_storage,
                      std::make_index_sequence<ninputs> {},
                      std::make_index_sequence<noutputs> {});
                }
@@ -249,6 +251,8 @@ struct DerivativeSetup
    Array<int> xq_offsets, shadow_xq_offsets, yq_offsets;
    mutable BlockVector xq, shadow_xq, yq;
    mutable std::array<Vector, noutputs> primal_output_storage;
+   mutable std::array<Vector, ninputs> dual_input_storage;
+   mutable std::array<Vector, noutputs> dual_output_storage;
    bool buffers_ready = false;
 
    int total_out_size_on_qp = 0;

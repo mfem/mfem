@@ -624,6 +624,8 @@ inline void native_dual_evaluate_qfunc(
    const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
    const std::array<bool, sizeof...(Is)> *input_active,
+   std::array<Vector, sizeof...(Is)> &dual_inputs,
+   std::array<Vector, sizeof...(Os)> &dual_outputs,
    std::index_sequence<Is...>,
    std::index_sequence<Os...>)
 {
@@ -632,9 +634,6 @@ inline void native_dual_evaluate_qfunc(
 
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
-
-   std::array<Vector, ninputs> dual_inputs {};
-   std::array<Vector, noutputs> dual_outputs {};
 
    using input_decay_ts = std::tuple<qf_param_decay_t<
                           typename tuple_element<Is, qf_param_ts>::type>...>;
@@ -673,6 +672,8 @@ inline void call_qfunc(
    int gnqp,
    const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
+   std::array<Vector, sizeof...(Is)> &dual_input_storage,
+   std::array<Vector, sizeof...(Os)> &dual_output_storage,
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
@@ -682,10 +683,13 @@ inline void call_qfunc(
    if constexpr (qf_signature_uses_dual_v<qf_param_ts>)
    {
       native_dual_evaluate_qfunc<true, qfunc_t>(
-         qfunc, xq, xq, yq, gnqp, in_layouts, out_layouts, nullptr, is, os);
+         qfunc, xq, xq, yq, gnqp, in_layouts, out_layouts, nullptr,
+         dual_input_storage, dual_output_storage, is, os);
    }
    else
    {
+      MFEM_CONTRACT_VAR(dual_input_storage);
+      MFEM_CONTRACT_VAR(dual_output_storage);
       constexpr std::size_t ninputs = sizeof...(Is);
 
       auto inputs =
@@ -720,12 +724,15 @@ inline void native_dual_fwddiff(
    const int &gnqp,
    const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
+   std::array<Vector, sizeof...(Is)> &dual_input_storage,
+   std::array<Vector, sizeof...(Os)> &dual_output_storage,
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
    constexpr auto activity_map = make_activity_map<derivative_id>(inputs_t {});
    native_dual_evaluate_qfunc<false, qfunc_t>(
-      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, &activity_map, is, os);
+      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, &activity_map,
+      dual_input_storage, dual_output_storage, is, os);
 }
 
 #ifdef MFEM_USE_ENZYME
@@ -955,10 +962,14 @@ inline void fwddiff(
    const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
    std::array<Vector, sizeof...(Os)> &primal_storage,
+   std::array<Vector, sizeof...(Is)> &dual_input_storage,
+   std::array<Vector, sizeof...(Os)> &dual_output_storage,
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
 #ifdef MFEM_USE_ENZYME
+   MFEM_CONTRACT_VAR(dual_input_storage);
+   MFEM_CONTRACT_VAR(dual_output_storage);
    enzyme_fwddiff<derivative_id, qfunc_t, qfunc_shadow_t, inputs_t, outputs_t>(
       qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
       primal_storage, is, os);
@@ -966,7 +977,8 @@ inline void fwddiff(
    MFEM_CONTRACT_VAR(qfunc_shadow);
    MFEM_CONTRACT_VAR(primal_storage);
    native_dual_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
-      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, is, os);
+      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
+      dual_input_storage, dual_output_storage, is, os);
 #endif
 }
 
@@ -986,6 +998,8 @@ inline void fwddiff(
    const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
    std::array<Vector, sizeof...(Os)> &primal_storage,
+   std::array<Vector, sizeof...(Is)> &dual_input_storage,
+   std::array<Vector, sizeof...(Os)> &dual_output_storage,
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
@@ -995,11 +1009,12 @@ inline void fwddiff(
    unused_qfunc_shadow qfunc_shadow;
    fwddiff<derivative_id, qfunc_t, unused_qfunc_shadow, inputs_t, outputs_t>(
       qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
-      primal_storage, is, os);
+      primal_storage, dual_input_storage, dual_output_storage, is, os);
 #else
    MFEM_CONTRACT_VAR(primal_storage);
    native_dual_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
-      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, is, os);
+      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
+      dual_input_storage, dual_output_storage, is, os);
 #endif
 }
 

@@ -121,6 +121,7 @@ struct Action
 
       detail::call_qfunc(
          qfunc, xq, yq, gnqp, input_qlayouts, output_qlayouts,
+         dual_input_storage, dual_output_storage,
          std::make_index_sequence<ninputs> {},
          std::make_index_sequence<noutputs> {});
 
@@ -145,6 +146,8 @@ struct Action
    int gnqp = 0;
    Array<int> xq_offsets, yq_offsets;
    mutable BlockVector xq, yq;
+   mutable std::array<Vector, ninputs> dual_input_storage;
+   mutable std::array<Vector, noutputs> dual_output_storage;
    mutable bool buffers_ready = false;
 };
 
