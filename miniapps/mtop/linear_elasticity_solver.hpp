@@ -48,6 +48,17 @@ public:
    explicit LinearElasticitySolver(
       std::shared_ptr<ParFiniteElementSpace> fespace);
 
+   /// Refresh the solver after FE-space or mesh changes on all MPI ranks.
+   ///
+   /// Call after changing mesh coordinates, including direct nodal edits.
+   /// After refinement or a change in polynomial order, update the supplied
+   /// FE space and any caller-owned grid functions before calling Update().
+   /// This invalidates mesh geometric factors, assembled operators and
+   /// preconditioners, and the cached initial guess, and updates solver sizes.
+   /// Materials, boundary conditions, loads, and solver settings are retained.
+   /// The supplied FE space is not replaced; assembly remains lazy.
+   void Update();
+
    /// Set the first Lame parameter to a constant and mark the solver dirty.
    void SetLambda(real_t value);
 
@@ -226,6 +237,9 @@ private:
 
    /// Verify that the supplied FE space is supported by elasticity PA.
    void ValidateSpace() const;
+
+   /// Release assembled operators and preconditioners in dependency order.
+   void ResetAssembly() const;
 
    /// Build essential true dofs from homogeneous and component-wise data.
    void BuildEssentialTrueDofs() const;

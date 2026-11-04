@@ -303,7 +303,8 @@ int main(int argc, char *argv[])
    // 7. Exercise vector-valued Dirichlet data and internally assembled volume
    // and boundary loads with a rigid translation, which has zero strain.
    solver.ClearBoundaryConditions();
-   Vector translation_value(2);
+   Vector translation_value(fes.GetVDim());
+   translation_value = 0.0;
    translation_value(0) = 0.125;
    translation_value(1) = -0.25;
    VectorConstantCoefficient translation(translation_value);
@@ -311,7 +312,7 @@ int main(int argc, char *argv[])
    {
       solver.AddDisplacementBC(id, translation);
    }
-   Vector zero_value(2);
+   Vector zero_value(fes.GetVDim());
    zero_value = 0.0;
    VectorConstantCoefficient zero_vector(zero_value);
    solver.AddVolumeLoad(1, zero_vector);

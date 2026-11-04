@@ -105,6 +105,22 @@ void LinearElasticitySolver::ValidateSpace() const
                "Elasticity space vector dimension must equal mesh dimension.");
 }
 
+void LinearElasticitySolver::Update()
+{
+   ValidateSpace();
+   ResetAssembly();
+   fespace_.GetParMesh()->NodesUpdated();
+   height = width = fespace_.GetTrueVSize();
+   ess_tdofs_.SetSize(0);
+   boundary_true_values_.SetSize(0);
+   solve_rhs_.SetSize(0);
+   previous_solution_.SetSize(0);
+   has_previous_solution_ = false;
+   assembly_time_ = 0.0;
+   prec_assembly_time_ = 0.0;
+   SetNeedsAssembly();
+}
+
 std::shared_ptr<Coefficient> LinearElasticitySolver::ShareCoefficient(
    Coefficient &coefficient, bool transfer_ownership)
 {
@@ -301,9 +317,6 @@ void LinearElasticitySolver::SetPreconditionerType(PreconditionerType type)
 
 void LinearElasticitySolver::SetMonolithicLOROrdering(Ordering::Type ordering)
 {
-   MFEM_VERIFY(ordering == Ordering::byNODES ||
-               ordering == Ordering::byVDIM,
-               "AMG ordering must be byNODES or byVDIM.");
    monolithic_lor_ordering_ = ordering;
    SetNeedsAssembly();
 }
@@ -525,8 +538,9 @@ void LinearElasticitySolver::BuildLORMonolithicAMG() const
                             monolithic_lor_ordering_));
 }
 
-void LinearElasticitySolver::BuildPreconditioner() const
+void LinearElasticitySolver::ResetAssembly() const
 {
+   cg_.reset();
    preconditioner_.reset();
    amg_matrix_.reset();
    amg_form_.reset();
@@ -540,7 +554,13 @@ void LinearElasticitySolver::BuildPreconditioner() const
    lor_integrator_.reset();
    lor_scalar_fespace_.reset();
    lor_disc_.reset();
+   lor_block_offsets_.SetSize(0);
+   system_operator_.Clear();
+   form_.reset();
+}
 
+void LinearElasticitySolver::BuildPreconditioner() const
+{
    if (preconditioner_type_ == PreconditionerType::Jacobi)
    {
       preconditioner_.reset(
@@ -620,9 +640,7 @@ void LinearElasticitySolver::Assemble() const
    if (!GlobalBooleanOr(fespace_.GetComm(), needs_assembly_)) { return; }
 
    BuildEssentialTrueDofs();
-   cg_.reset();
-   preconditioner_.reset();
-   system_operator_.Clear();
+   ResetAssembly();
 
    StopWatch assembly_timer;
    assembly_timer.Start();
