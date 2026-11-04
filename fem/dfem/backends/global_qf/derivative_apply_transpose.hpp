@@ -20,6 +20,50 @@
 namespace mfem::future::GlobalQFImpl
 {
 
+// nvcc does not allow extended host/device lambdas inside generic lambdas.
+inline void contract_cache_transpose(const int gnqp_local,
+                                     const int num_qp_local,
+                                     const int res_sz,
+                                     const int ncols_local,
+                                     const int tv_o,
+                                     const int to_o,
+                                     const int out_base,
+                                     const int size_o,
+                                     const real_t *dir_o,
+                                     const int c_offset,
+                                     const int size_s,
+                                     const real_t *cache_ptr,
+                                     real_t *res_s)
+{
+   mfem::forall(gnqp_local, [=] MFEM_HOST_DEVICE(int gq)
+   {
+      // Cache is (q, cache_idx, e): adjacent threads (adjacent gq)
+      // read adjacent addresses for a fixed cache_idx.
+      const int cache_base =
+         (gq % num_qp_local) +
+         num_qp_local * res_sz * (gq / num_qp_local);
+
+      for (int i = 0; i < tv_o; ++i)
+      {
+         for (int k = 0; k < to_o; ++k)
+         {
+            // Cache row i * op_dim + k holds output component (i, k),
+            // which the byVDIM Q-vector stores at i + vdim * k.
+            const int out_comp = out_base + i * to_o + k;
+            const real_t w = dir_o[(i + tv_o * k) + size_o * gq];
+
+            for (int c = 0; c < size_s; ++c)
+            {
+               const int cache_idx = out_comp * ncols_local + c_offset + c;
+               const real_t d =
+                  cache_ptr[cache_base + num_qp_local * cache_idx];
+               res_s[c + size_s * gq] += d * w;
+            }
+         }
+      }
+   });
+}
+
 // Q-function-shape-agnostic cached transpose apply (Jᵀ·w)
 template<
    int derivative_id,
@@ -162,32 +206,9 @@ struct DerivativeApplyTranspose
             const int size_s = get<s>(inputs).size_on_qp;
             real_t *res_s = result_q_local.GetBlock(s.value).ReadWrite();
 
-            mfem::forall(gnqp_local, [=] MFEM_HOST_DEVICE(int gq)
-            {
-               // Cache is (q, cache_idx, e): adjacent threads (adjacent gq)
-               // read adjacent addresses for a fixed cache_idx.
-               const int cache_base =
-                  (gq % num_qp_local) +
-                  num_qp_local * res_sz * (gq / num_qp_local);
-
-               for (int i = 0; i < tv_o; ++i)
-               {
-                  for (int k = 0; k < to_o; ++k)
-                  {
-                     // Cache row i * op_dim + k holds output component (i, k),
-                     // which the byVDIM Q-vector stores at i + vdim * k.
-                     const int out_comp = out_base + i * to_o + k;
-                     const real_t w = dir_o[(i + tv_o * k) + size_o * gq];
-
-                     for (int c = 0; c < size_s; ++c)
-                     {
-                        const int cache_idx = out_comp * ncols_local + c_offset + c;
-                        const real_t d = cache_ptr[cache_base + num_qp_local * cache_idx];
-                        res_s[c + size_s * gq] += d * w;
-                     }
-                  }
-               }
-            });
+            contract_cache_transpose(gnqp_local, num_qp_local, res_sz,
+                                     ncols_local, tv_o, to_o, out_base, size_o,
+                                     dir_o, c_offset, size_s, cache_ptr, res_s);
             c_offset += size_s;
          });
       });

@@ -346,6 +346,8 @@ public:
       {
          if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
 
+         MFEM_CONTRACT_VAR(cache_tensor);
+
          // -----------------------------------------------
          // Output integration registers, trial direction (shadow) registers
          // and shared memory. `rargs` only ever holds test-function data, so
