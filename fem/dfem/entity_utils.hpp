@@ -163,22 +163,31 @@ public:
    }
 
    /// Apply the transposed restrictions of the fields @a outfds to out_e and
-   /// write the result to @a y, a std::vector<Vector *> or a MultiVector.
-   /// Writing may alias the entries of a std::vector to out_e, see
-   /// restriction_transpose().
+   /// write the result to @a y if @a overwrite, or add it to @a y otherwise.
+   /// @a y is a std::vector<Vector *> or a MultiVector. Writing may alias the
+   /// entries of a std::vector to out_e, see restriction_transpose().
    template <typename lvectors_t>
    void TransposeOutputs(const std::vector<FieldDescriptor> &outfds,
-                         lvectors_t &y)
+                         lvectors_t &y, bool overwrite)
    {
-      restriction_transpose(outfds, out_rcache, out_e, y);
+      Transpose(outfds, out_rcache, out_e, y, overwrite);
    }
 
    /// Like TransposeOutputs(), for in_result_e and the fields @a infds.
    template <typename lvectors_t>
    void TransposeInputResults(const std::vector<FieldDescriptor> &infds,
-                              lvectors_t &y)
+                              lvectors_t &y, bool overwrite)
    {
-      restriction_transpose(infds, in_rcache, in_result_e, y);
+      Transpose(infds, in_rcache, in_result_e, y, overwrite);
+   }
+
+   /// Delete the owned E-vectors that are not in @a deleted yet, see
+   /// DeleteOwnedVectorPointers().
+   void DeleteOwned(std::vector<Vector *> &deleted)
+   {
+      DeleteOwnedVectorPointersImpl(deleted, in_e);
+      DeleteOwnedVectorPointersImpl(deleted, out_e);
+      DeleteOwnedVectorPointersImpl(deleted, in_result_e);
    }
 
    std::vector<Vector *> in_e;
@@ -186,9 +195,79 @@ public:
    std::vector<Vector *> in_result_e;
 
 private:
+   template <typename lvectors_t>
+   static void Transpose(const std::vector<FieldDescriptor> &fields,
+                         RestrictionCache &cache,
+                         const std::vector<Vector *> &x_e,
+                         lvectors_t &y, bool overwrite)
+   {
+      if (overwrite) { restriction_transpose(fields, cache, x_e, y); }
+      else { restriction_transpose_add(fields, cache, x_e, y); }
+   }
+
    RestrictionCache in_rcache;
    RestrictionCache out_rcache;
 };
+
+/// @brief The callbacks and E-vectors of the integrators of one entity type.
+template <typename callbacks_t>
+struct EntityIntegrators
+{
+   EntityEVectors ev;
+   callbacks_t callbacks;
+};
+
+/// @brief The EntityIntegrators of the entity type @a entity_t, with
+/// E-vectors for @a num_inputs inputs and @a num_outputs outputs restricted
+/// as EntityTraits<entity_t>::restriction describes.
+template <typename entity_t, typename callbacks_t>
+EntityIntegrators<callbacks_t> MakeEntityIntegrators(size_t num_inputs,
+                                                     size_t num_outputs,
+                                                     callbacks_t callbacks = {})
+{
+   return
+   {
+      EntityEVectors(EntityTraits<entity_t>::restriction, num_inputs,
+                     num_outputs),
+      std::move(callbacks)
+   };
+}
+
+/// @brief Forget the entries of @a y that alias an E-vector of any of the
+/// EntityIntegrators @a kinds.
+///
+/// An overwriting transpose (restriction_transpose()) aliases L-vectors of
+/// pass-through fields to the E-vectors of the entity type that writes
+/// first, and deletes an entry that does not alias its own E-vector. When
+/// another entity type writes first later on, the entry must not be
+/// deleted or written through. The E-vectors stay owned by their
+/// EntityEVectors.
+template <typename kinds_t>
+void ForgetEVectorAliases(const kinds_t &kinds, std::vector<Vector *> &y)
+{
+   for (auto *&v : y)
+   {
+      for (const auto *k : kinds)
+      {
+         for (const auto *e_vectors : { &k->ev.out_e, &k->ev.in_result_e })
+         {
+            if (std::find(e_vectors->begin(), e_vectors->end(), v) !=
+                e_vectors->end()) { v = nullptr; }
+         }
+      }
+   }
+}
+
+/// @brief Delete the owned E-vectors of the EntityIntegrators @a kinds
+/// together with the @a other vector groups, which may alias them, see
+/// DeleteOwnedVectorPointers().
+template <typename kinds_t, typename... groups_t>
+void DeleteOwnedEVectors(const kinds_t &kinds, groups_t &... other)
+{
+   std::vector<Vector *> deleted;
+   (DeleteOwnedVectorPointersImpl(deleted, other), ...);
+   for (auto *k : kinds) { k->ev.DeleteOwned(deleted); }
+}
 
 } // namespace detail
 

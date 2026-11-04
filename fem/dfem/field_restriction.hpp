@@ -422,6 +422,62 @@ void restriction_transpose(
    }
 }
 
+/// @brief Add the transposed restrictions of @a fields applied to @a x_e to
+/// the L-vectors @a x_l.
+///
+/// Unlike restriction_transpose(), this never aliases @a x_l to @a x_e, so the
+/// E-vectors of several entity types can be summed into the same L-vectors.
+/// @a x_l must already have the L-vector sizes of @a fields.
+///
+/// @see RestrictionCache
+inline
+void restriction_transpose_add(
+   const std::vector<FieldDescriptor> &fields,
+   RestrictionCache &cache,
+   const std::vector<Vector *> &x_e,
+   std::vector<Vector *> &x_l)
+{
+   cache.EnsureSetup(fields);
+   for (size_t i = 0; i < fields.size(); i++)
+   {
+      const Operator *R = cache.Get(i);
+      if (R == nullptr || cache.IsPassthrough(i))
+      {
+         *x_l[i] += *x_e[i];
+         continue;
+      }
+      MFEM_ASSERT(x_l[i]->Size() == cache.Width(i),
+                  "L-vector size " << x_l[i]->Size() << " does not match the "
+                  "restriction width " << cache.Width(i));
+      R->AddMultTranspose(*x_e[i], *x_l[i]);
+   }
+}
+
+/// @brief Add the transposed restrictions of @a fields applied to @a x_e to
+/// the blocks of @a y, see the std::vector overload.
+inline
+void restriction_transpose_add(
+   const std::vector<FieldDescriptor> &fields,
+   RestrictionCache &cache,
+   const std::vector<Vector *> &x_e,
+   MultiVector &y)
+{
+   cache.EnsureSetup(fields);
+   for (size_t i = 0; i < fields.size(); i++)
+   {
+      const Operator *R = cache.Get(i);
+      if (R == nullptr || cache.IsPassthrough(i))
+      {
+         y[i] += *x_e[i];
+         continue;
+      }
+      MFEM_ASSERT(y[i].Size() == cache.Width(i),
+                  "L-vector size " << y[i].Size() << " does not match the "
+                  "restriction width " << cache.Width(i));
+      R->AddMultTranspose(*x_e[i], y[i]);
+   }
+}
+
 /// @brief Apply the restriction operator to a field, using @a cache to avoid
 /// re-resolving it on every call.
 ///
