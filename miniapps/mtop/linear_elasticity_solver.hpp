@@ -131,6 +131,16 @@ public:
    /// Assemble the PA operator, constrained system, preconditioner, and CG.
    void Assemble() const;
 
+   /// Release solver-owned assembly data and work vectors on all MPI ranks.
+   ///
+   /// Invalidates pointers returned by GetOperator() and GetPreconditioner().
+   /// Clears the cached initial guess and assembly timings, but retains the FE
+   /// space, materials, boundary conditions, loads, and solver settings.
+   /// Mesh/FE-space caches are not released. The next Assemble() call, including
+   /// lazy assembly from solves and accessors, rebuilds the solver.
+   /// Safe before assembly and on repeated calls.
+   void ClearAssembly() const;
+
    /// Set the CG relative tolerance.
    void SetRelTol(real_t rel_tol);
 

@@ -24,16 +24,15 @@ MTOP_COMMON_SRC = mtop_solvers.cpp linear_elasticity_solver.cpp
 
 MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
-MTOP_MPI_MINIAPPS = mtop_test_iso_elasticity mtop_ex_linear_elasticity_solver
+SEQ_MINIAPPS =
+PAR_MINIAPPS = mtop_test_iso_elasticity mtop_ex_linear_elasticity_solver
 ifeq ($(MFEM_USE_MPI),NO)
-   MINIAPPS =
+   MINIAPPS = $(SEQ_MINIAPPS)
 else
-   MINIAPPS = $(MTOP_MPI_MINIAPPS)
+   MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
-# The first explicit rule below is for an MPI executable. Ensure an invocation
-# without a target still selects the serial-safe aggregate target.
-.DEFAULT_GOAL := all
+all: $(MINIAPPS)
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
@@ -43,24 +42,22 @@ endif
 %: %.cpp
 %.o: %.cpp
 
-$(MTOP_MPI_MINIAPPS): %: %.o $(MTOP_COMMON_OBJ)
+$(PAR_MINIAPPS): %: %.o $(MTOP_COMMON_OBJ)
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
-all: $(MINIAPPS)
-
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
-# Testing: Parallel vs. serial runs
+# Testing: Parallel runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 TEST_NAME := MTop miniapp
+mtop_ex_linear_elasticity_solver-test-par: mtop_ex_linear_elasticity_solver
+	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME),,NO_VIS_OPTION)
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
-%-test-seq: %
-	@$(call mfem-test,$<,, $(TEST_NAME),,NO_VIS_OPTION)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
@@ -71,7 +68,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ $(MTOP_MPI_MINIAPPS)
+	rm -f *.o *~ $(SEQ_MINIAPPS) $(PAR_MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

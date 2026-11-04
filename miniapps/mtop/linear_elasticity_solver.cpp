@@ -282,6 +282,23 @@ void LinearElasticitySolver::SetNeedsAssembly(bool needs_assembly) const
    needs_assembly_ = needs_assembly;
 }
 
+void LinearElasticitySolver::ClearAssembly() const
+{
+   ResetAssembly();
+   lor_amg_blocks_.shrink_to_fit();
+   lor_blocks_.shrink_to_fit();
+   lor_forms_.shrink_to_fit();
+   lor_block_offsets_.DeleteAll();
+   ess_tdofs_.DeleteAll();
+   boundary_true_values_.Destroy();
+   solve_rhs_.Destroy();
+   previous_solution_.Destroy();
+   has_previous_solution_ = false;
+   assembly_time_ = 0.0;
+   prec_assembly_time_ = 0.0;
+   SetNeedsAssembly();
+}
+
 void LinearElasticitySolver::SetRelTol(real_t value)
 {
    MFEM_VERIFY(value >= 0.0, "Relative tolerance must be nonnegative.");
@@ -324,7 +341,9 @@ void LinearElasticitySolver::SetMonolithicLOROrdering(Ordering::Type ordering)
 int LinearElasticitySolver::GetNumIterations() const
 {
    Assemble();
-   MFEM_VERIFY(cg_ != nullptr, "LinearElasticitySolver is not assembled.");
+   MFEM_VERIFY(cg_ != nullptr,
+               "Cannot report iteration count: internal CG solver is null "
+               "after Assemble().");
    return cg_->GetNumIterations();
 }
 
@@ -732,7 +751,6 @@ void LinearElasticitySolver::MultTransposeAssembled(
    solve_rhs_ = rhs;
    ZeroConstrainedDofs(solve_rhs_);
    solution.SetSize(Width());
-   if (!iterative_mode) { solution = 0.0; }
    cg_->iterative_mode = iterative_mode;
    cg_->Mult(solve_rhs_, solution);
    ZeroConstrainedDofs(solution);
