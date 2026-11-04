@@ -490,6 +490,23 @@ CutQuadratureReport GenerateAlgoimPolynomial(
       if (classification == CutRegion::Empty)
       { region = CutRegion::Empty; return {}; }
       if (classification == CutRegion::Full) { continue; }
+      if (!data.empty() && polynomial.extent == data[0].extent)
+      {
+         bool same = true, opposite = true;
+         for (size_t coefficient = 0; coefficient < polynomial.coefficients.size(); ++coefficient)
+         {
+            const real_t first = data[0].coefficients[coefficient];
+            const real_t second = polynomial.coefficients[coefficient];
+            same = same && first == second;
+            opposite = opposite && first == -second;
+         }
+         if (same || opposite)
+         {
+            if ((constraint.sign == signs[0]) != same)
+            { region = CutRegion::Empty; return {}; }
+            continue;
+         }
+      }
       data.push_back(std::move(polynomial));
       signs.push_back(constraint.sign);
    }

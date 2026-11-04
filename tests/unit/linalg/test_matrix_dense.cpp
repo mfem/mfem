@@ -35,6 +35,25 @@ TEST_CASE("DenseMatrix init-list construction", "[DenseMatrix]")
    }
 }
 
+TEST_CASE("DenseMatrix embedded weights avoid Gram determinant cancellation", "[DenseMatrix]")
+{
+   for (real_t scale : {1e-100, 1., 1e100})
+   {
+      for (real_t thickness : {1e-4, 1e-8, 1e-10})
+      {
+         DenseMatrix jacobian({{1., 1.}, {0., thickness}, {0., 2 * thickness}});
+         jacobian *= scale;
+         const real_t expected = std::sqrt(5.0) * thickness * scale * scale;
+         REQUIRE(jacobian.Weight() / expected == MFEM_Approx(1));
+         for (int row = 0; row < jacobian.Height(); ++row)
+         { std::swap(jacobian(row, 0), jacobian(row, 1)); }
+         REQUIRE(jacobian.Weight() / expected == MFEM_Approx(1));
+      }
+   }
+   DenseMatrix singular({{1., 2.}, {2., 4.}, {3., 6.}});
+   REQUIRE(singular.Weight() == 0);
+}
+
 TEST_CASE("DenseMatrix LinearSolve methods",
           "[DenseMatrix]")
 {

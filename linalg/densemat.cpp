@@ -567,11 +567,11 @@ real_t DenseMatrix::Weight() const
    }
    else if ((Height() == 3) && (Width() == 2))
    {
-      const real_t *d = data;
-      real_t E = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
-      real_t G = d[3] * d[3] + d[4] * d[4] + d[5] * d[5];
-      real_t F = d[0] * d[3] + d[1] * d[4] + d[2] * d[5];
-      return sqrt(E * G - F * F);
+      const real_t *values = data;
+      const real_t cross_x = values[1] * values[5] - values[2] * values[4];
+      const real_t cross_y = values[2] * values[3] - values[0] * values[5];
+      const real_t cross_z = values[0] * values[4] - values[1] * values[3];
+      return std::hypot(std::hypot(cross_x, cross_y), cross_z);
    }
    mfem_error("DenseMatrix::Weight(): mismatched or unsupported dimensions");
    return 0.0;

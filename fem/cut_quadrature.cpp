@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <exception>
 #include <limits>
 #include <utility>
 
@@ -66,10 +67,14 @@ private:
    const IntegrationPoint *point;
 };
 
-bool FullRank(const DenseMatrix &matrix)
+bool FactorQR(const DenseMatrix &matrix, DenseMatrix &basis,
+              DenseMatrix &triangular, real_t &measure)
 {
    if (matrix.Width() > matrix.Height()) { return false; }
-   DenseMatrix basis(matrix);
+   basis = matrix;
+   triangular.SetSize(matrix.Width());
+   triangular = 0.;
+   measure = 1;
    real_t scale = 0;
    for (int column = 0; column < basis.Width(); ++column)
    {
@@ -84,22 +89,51 @@ bool FullRank(const DenseMatrix &matrix)
    const real_t tolerance = 64 * std::numeric_limits<real_t>::epsilon() * scale;
    for (int column = 0; column < basis.Width(); ++column)
    {
-      for (int previous = 0; previous < column; ++previous)
+      for (int pass = 0; pass < 2; ++pass)
       {
-         real_t product = 0;
-         for (int row = 0; row < basis.Height(); ++row)
-         { product += basis(row, previous) * basis(row, column); }
-         for (int row = 0; row < basis.Height(); ++row)
-         { basis(row, column) -= product * basis(row, previous); }
+         for (int previous = 0; previous < column; ++previous)
+         {
+            real_t product = 0;
+            for (int row = 0; row < basis.Height(); ++row)
+            { product += basis(row, previous) * basis(row, column); }
+            triangular(previous, column) += product;
+            for (int row = 0; row < basis.Height(); ++row)
+            { basis(row, column) -= product * basis(row, previous); }
+         }
       }
       real_t norm = 0;
       for (int row = 0; row < basis.Height(); ++row)
       { norm = std::hypot(norm, basis(row, column)); }
       if (norm <= tolerance || !std::isfinite(norm)) { return false; }
+      triangular(column, column) = norm;
+      measure *= norm;
       for (int row = 0; row < basis.Height(); ++row)
       { basis(row, column) /= norm; }
    }
    return true;
+}
+
+bool FullRank(const DenseMatrix &matrix)
+{
+   DenseMatrix basis, triangular;
+   real_t measure;
+   return FactorQR(matrix, basis, triangular, measure);
+}
+
+void SolveUpperTranspose(const DenseMatrix &triangular,
+                         const DenseMatrix &right_hand_side, DenseMatrix &solution)
+{
+   solution.SetSize(right_hand_side.Height(), right_hand_side.Width());
+   for (int column = 0; column < solution.Width(); ++column)
+   {
+      for (int row = 0; row < solution.Height(); ++row)
+      {
+         real_t value = right_hand_side(row, column);
+         for (int previous = 0; previous < row; ++previous)
+         { value -= triangular(previous, row) * solution(previous, column); }
+         solution(row, column) = value / triangular(row, row);
+      }
+   }
 }
 
 CutQuadratureReport FaceConormal(Geometry::Type geometry, int face, Vector &normal)
@@ -337,7 +371,7 @@ CutQuadratureGenerator::CutQuadratureGenerator(const CutQuadratureBackend &imple
 
 CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
    const Array<const ReferenceLevelSet *> &level_sets,
-   const CutQuadratureRequest &request, CutQuadrature &out) const
+   const CutQuadratureRequest &request, CutQuadrature &out) const try
 {
    out.Clear();
    auto report = request.domain.Validate(geometry, level_sets.Size());
@@ -417,6 +451,11 @@ CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
    }
    return report;
 }
+catch (const std::exception &error)
+{
+   out.Clear();
+   return Failure(CutQuadratureStatus::NumericalFailure, error.what());
+}
 
 CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
    const CutQuadrature &reference, const CutMappingOptions &options, MappedCutQuadrature &out)
@@ -460,28 +499,35 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
       if (point.weight == 0) { continue; }
       transformation.SetIntPoint(&point);
       const DenseMatrix &jacobian = transformation.Jacobian();
-      if (!FullRank(jacobian))
+      DenseMatrix mapping_basis, mapping_upper;
+      real_t mapping_measure;
+      if (!FactorQR(jacobian, mapping_basis, mapping_upper, mapping_measure))
       { return fail(CutQuadratureStatus::DegenerateGeometry, "Singular element mapping."); }
-      DenseMatrix metric(dimension), inverse(dimension);
-      MultAtB(jacobian, jacobian, metric);
-      const real_t volume = std::sqrt(metric.Det());
+      const real_t volume = space_dimension == dimension ?
+                            std::abs(jacobian.Det()) : mapping_measure;
       if (!(volume > 0) || !std::isfinite(volume))
       { return fail(CutQuadratureStatus::DegenerateGeometry, "Invalid element measure."); }
       real_t scaling = volume;
       if (codimension)
       {
          const DenseMatrix &normals = reference.conormals(index);
-         if (!FullRank(normals))
+         DenseMatrix normal_basis, normal_upper;
+         real_t normal_measure;
+         if (!FactorQR(normals, normal_basis, normal_upper, normal_measure))
          { return fail(CutQuadratureStatus::DegenerateGeometry, "Dependent reference conormals."); }
-         CalcInverse(metric, inverse);
-         DenseMatrix dual(dimension, codimension), physical(space_dimension, codimension);
-         Mult(inverse, normals, dual);
-         DenseMatrix gram(codimension), dual_gram(codimension);
-         MultAtB(normals, normals, gram); MultAtB(normals, dual, dual_gram);
-         scaling *= std::sqrt(dual_gram.Det() / gram.Det());
+         DenseMatrix dual;
+         SolveUpperTranspose(mapping_upper, normal_basis, dual);
+         DenseMatrix dual_basis, dual_upper;
+         real_t dual_measure;
+         if (!FactorQR(dual, dual_basis, dual_upper, dual_measure))
+         { return fail(CutQuadratureStatus::DegenerateGeometry, "Dependent physical conormals."); }
+         scaling = codimension == dimension ? 1 : volume * dual_measure;
          if (options.data & CQ_PHYSICAL_CONORMALS)
          {
-            Mult(jacobian, dual, physical);
+            DenseMatrix original_dual;
+            DenseMatrix physical(space_dimension, codimension);
+            SolveUpperTranspose(mapping_upper, normals, original_dual);
+            Mult(mapping_basis, original_dual, physical);
             for (int column = 0; column < codimension; ++column)
             {
                Vector normal(space_dimension);
