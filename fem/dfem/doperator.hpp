@@ -21,6 +21,7 @@
 
 #include "util.hpp"
 #include "entity_utils.hpp"
+#include "field_prolongation.hpp"
 #include "integrator_ctx.hpp"
 #include "backends/util.hpp"
 

@@ -15,6 +15,7 @@
 #ifdef MFEM_USE_MPI
 
 #include "util.hpp"
+#include "field_restriction.hpp"
 
 namespace mfem::future
 {
