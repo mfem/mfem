@@ -191,6 +191,28 @@ for_constexpr_with_arg(lambda&& f, arg_t&& arg)
                           indices{});
 }
 
+/// Host-only versions of for_constexpr, for host lambdas outside of kernels
+template <typename lambda, std::size_t... i>
+constexpr void for_constexpr_host(lambda&& f,
+                                  std::integer_sequence<std::size_t, i...>)
+{
+   (f(std::integral_constant<std::size_t, i> {}), ...);
+}
+
+template <int n, typename lambda>
+constexpr void for_constexpr_host(lambda&& f)
+{
+   for_constexpr_host(f, std::make_integer_sequence<std::size_t, n> {});
+}
+
+template <typename lambda, typename arg_t>
+constexpr void for_constexpr_with_arg_host(lambda&& f, arg_t&& arg)
+{
+   using indices =
+      std::make_index_sequence<tuple_size<std::remove_reference_t<arg_t>>::value>;
+   for_constexpr_host([&](auto i) { f(i, get<i>(arg)); }, indices{});
+}
+
 template <auto start, auto end, auto inc = 1, typename F>
 constexpr void constexpr_for(F&& f)
 {
@@ -2704,7 +2726,7 @@ create_descriptors_to_fields_map(
       }
    };
 
-   for_constexpr<tuple_size<field_operator_ts>::value>([&](auto idx)
+   for_constexpr_host<tuple_size<field_operator_ts>::value>([&](auto idx)
    {
       f(get<idx>(fops), map[idx]);
    });

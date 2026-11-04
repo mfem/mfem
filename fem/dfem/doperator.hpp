@@ -1518,7 +1518,7 @@ void DifferentiableOperator::AddIntegrator(
 
    // TODO: factor out
    std::vector<int> inputs_vdim(num_inputs);
-   for_constexpr<num_inputs>([&](auto i)
+   for_constexpr_host<num_inputs>([&](auto i)
    {
       inputs_vdim[i] = get<i>(inputs).vdim;
    });
@@ -1557,7 +1557,7 @@ void DifferentiableOperator::AddIntegrator(
    {
       using fops_t = std::decay_t<decltype(fops)>;
       std::vector<FieldDescriptor> fds;
-      for_constexpr<tuple_size<fops_t>::value>([&](auto i)
+      for_constexpr_host<tuple_size<fops_t>::value>([&](auto i)
       {
          constexpr size_t idx = decltype(i)::value;
          using fop_t = tuple_element_t<idx, fops_t>;
@@ -1648,7 +1648,7 @@ void DifferentiableOperator::AddIntegrator(
       };
    };
 
-   for_constexpr([&](auto i)
+   for_constexpr_host([&](auto i)
    {
       auto create_callbacks = [&](auto derivative_id,
                                   auto callback_key,
@@ -1673,7 +1673,7 @@ void DifferentiableOperator::AddIntegrator(
          // But this would silently disable assembly for other valid outputs across
          // different fields.
          bool any_assemblable_output = false;
-         for_constexpr([&](auto j)
+         for_constexpr_host([&](auto j)
          {
             using output_fop_t =
                std::decay_t<tuple_element_t<j, callback_outputs_t>>;
@@ -1839,7 +1839,8 @@ void DifferentiableOperator::AddIntegrator(
          if constexpr (all_second_derivatives)
          {
             // Every block formed from the requested derivatives.
-            for_constexpr(create_second_derivative_callbacks, derivative_ids);
+            for_constexpr_host(create_second_derivative_callbacks,
+                               derivative_ids);
          }
          else if constexpr (diagonal_second_derivatives)
          {
@@ -1848,7 +1849,7 @@ void DifferentiableOperator::AddIntegrator(
          }
          else if constexpr (!no_second_derivatives)
          {
-            for_constexpr_with_arg([&](auto, auto pair)
+            for_constexpr_with_arg_host([&](auto, auto pair)
             {
                using pair_t = decltype(pair);
                if constexpr (pair_t::gradient_id == decltype(i)::value)

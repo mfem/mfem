@@ -1103,7 +1103,7 @@ struct OutputFieldGroups
       }
 
       // Use the operator-wide output-field index as the group index.
-      for_constexpr<n_outputs>([&](auto o)
+      for_constexpr_host<n_outputs>([&](auto o)
       {
          output_to_group[o] = static_cast<int>(output_to_descriptor[o]);
       });
@@ -1116,7 +1116,7 @@ struct OutputFieldGroups
 
       // Resolve metadata only for fields used by this integrator. Outputs with
       // the same field write the same slot and necessarily share its vdim.
-      for_constexpr<n_outputs>([&](auto o)
+      for_constexpr_host<n_outputs>([&](auto o)
       {
          const int group = output_to_group[o];
          test_vdim[group] = get<o>(outputs).vdim;
@@ -1163,7 +1163,7 @@ inline int compute_kernel_thread_1d(
    const std::array<int, N_out> &out_d1d)
 {
    int t1d = q1d;
-   for_constexpr<N_in>([&](auto ic)
+   for_constexpr_host<N_in>([&](auto ic)
    {
       using FOP = tuple_element_t<ic.value, inputs_t>;
       if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
@@ -1171,7 +1171,7 @@ inline int compute_kernel_thread_1d(
          t1d = std::max(t1d, in_d1d[ic.value]);
       }
    });
-   for_constexpr<N_out>([&](auto ic)
+   for_constexpr_host<N_out>([&](auto ic)
    {
       using FOP = tuple_element_t<ic.value, outputs_t>;
       if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
@@ -1189,7 +1189,7 @@ inline int compute_kernel_thread_1d(
    const std::array<int, N_in> &in_d1d)
 {
    int t1d = q1d;
-   for_constexpr<N_in>([&](auto ic)
+   for_constexpr_host<N_in>([&](auto ic)
    {
       using FOP = tuple_element_t<ic.value, inputs_t>;
       if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)

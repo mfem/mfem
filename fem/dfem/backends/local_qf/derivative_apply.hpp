@@ -113,7 +113,7 @@ public:
                               [&]
    {
       int s = 0;
-      for_constexpr<n_outputs>([&](auto o)
+      for_constexpr_host<n_outputs>([&](auto o)
       { s += get<o>(outputs).size_on_qp; });
       return s;
    }()),
@@ -254,7 +254,7 @@ public:
       MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
 
       // Check that the q-function parameter size matches the field size for each input
-      for_constexpr<n_inputs>([&](auto sc)
+      for_constexpr_host<n_inputs>([&](auto sc)
       {
          constexpr size_t s = sc.value;
          if constexpr (Layout::template StaticInputDep<s>())
@@ -287,7 +287,7 @@ public:
       // --------------------------------------------------
       const auto d_direction = direction_e.Read();
       std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_inputs> in_XE_dir;
-      for_constexpr<n_inputs>([&](auto ic)
+      for_constexpr_host<n_inputs>([&](auto ic)
       {
          constexpr size_t i = ic.value;
          const int d = in_d1d[i], q = in_q1d[i], v = in_vdim[i];
@@ -312,7 +312,7 @@ public:
       // OUTPUTS: YE, 3(max DIM) + 1(VDIM) + 1(number of elements)
       // --------------------------------------------------
       std::array<DeviceTensor<3 + 1 + 1, real_t>, n_outputs> out_YE;
-      for_constexpr<n_outputs>([&](auto ic)
+      for_constexpr_host<n_outputs>([&](auto ic)
       {
          constexpr size_t i = ic.value;
          const size_t k = out_idx[i];

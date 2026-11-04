@@ -136,7 +136,7 @@ public:
       [&]
    {
       int s = 0;
-      for_constexpr<n_outputs>([&](auto o)
+      for_constexpr_host<n_outputs>([&](auto o)
       { s += get<o>(outputs).size_on_qp; });
       return s;
    }()),
@@ -171,7 +171,7 @@ public:
          v[g] = (output_groups->fes[g] != nullptr) &&
          (output_groups->fes[g] == trial_fes);
       }
-      for_constexpr<n_outputs>([&](auto o)
+      for_constexpr_host<n_outputs>([&](auto o)
       {
          using output_fop_t = std::decay_t<decltype(get<o>(outputs))>;
          if constexpr (is_identity_fop_v<output_fop_t>)
@@ -200,7 +200,7 @@ public:
       [&]
    {
       std::array<int, n_inputs> itod{};
-      for_constexpr<n_inputs>([&](auto i)
+      for_constexpr_host<n_inputs>([&](auto i)
       {
          itod[i] = input_is_dependent[i]
                    ? get<i>(inputs).size_on_qp / get<i>(inputs).vdim
@@ -219,7 +219,7 @@ public:
                   "LocalQFBackend: could not determine trial vdim");
       MFEM_ASSERT(total_trial_op_dim > 0,
                   "LocalQFBackend: no dependent inputs found");
-      for_constexpr<n_outputs>([&](auto o)
+      for_constexpr_host<n_outputs>([&](auto o)
       {
          MFEM_ASSERT(
             out_vdim[o] ==

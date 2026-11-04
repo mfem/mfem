@@ -235,7 +235,7 @@ inline void AddLocalSpecializations()
 {
    AddAction<DIM, Q1D, QT, IT, OT>();
 
-   for_constexpr([&](auto i)
+   for_constexpr_host([&](auto i)
    {
       using derivative_id = decltype(i);
       if constexpr (HasAllKernels(kernels, DerivativeKernels::Action))

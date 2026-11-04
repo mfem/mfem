@@ -96,7 +96,7 @@ public:
                               [&]
    {
       int s = 0;
-      for_constexpr<n_outputs>([&](auto o)
+      for_constexpr_host<n_outputs>([&](auto o)
       { s += get<o>(outputs).size_on_qp; });
       return s;
    }()),
@@ -269,7 +269,7 @@ public:
       // INPUTS: XE, 3(max DIM) + 1(VDIM) + 1(number of elements)
       // --------------------------------------------------
       std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_inputs> in_XE;
-      for_constexpr<n_inputs>([&](auto ic)
+      for_constexpr_host<n_inputs>([&](auto ic)
       {
          constexpr size_t i = ic.value;
          const size_t k = in_idx[i];

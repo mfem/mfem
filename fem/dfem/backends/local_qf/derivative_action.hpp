@@ -679,7 +679,7 @@ public:
       // INPUTS: XE, 3(max DIM) + 1(VDIM) + 1(number of elements)
       // --------------------------------------------------
       std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_inputs> in_XE;
-      for_constexpr<n_inputs>([&](auto ic)
+      for_constexpr_host<n_inputs>([&](auto ic)
       {
          constexpr size_t i = ic.value;
          const size_t k = in_idx[i];
@@ -710,7 +710,7 @@ public:
 
       const auto d_direction = direction_e.Read();
       std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_inputs> in_XE_dir;
-      for_constexpr<n_inputs>([&](auto ic)
+      for_constexpr_host<n_inputs>([&](auto ic)
       {
          constexpr size_t i = ic.value;
          const size_t k = in_idx[i];
@@ -754,7 +754,7 @@ public:
       // OUTPUTS: YE, 3(max DIM) + 1(VDIM) + 1(number of elements)
       // --------------------------------------------------
       std::array<DeviceTensor<3 + 1 + 1, real_t>, n_outputs> out_YE;
-      for_constexpr<n_outputs>([&](auto ic)
+      for_constexpr_host<n_outputs>([&](auto ic)
       {
          constexpr size_t i = ic.value;
          const size_t k = out_idx[i];

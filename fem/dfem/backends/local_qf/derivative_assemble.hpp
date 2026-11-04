@@ -761,7 +761,7 @@ public:
       [&]
    {
       int s = 0;
-      for_constexpr<n_outputs>([&](auto o) { s += get<o>(outputs).size_on_qp; });
+      for_constexpr_host<n_outputs>([&](auto o) { s += get<o>(outputs).size_on_qp; });
       return s;
    }()),
    output_groups(std::move(output_groups_in)),
@@ -780,7 +780,7 @@ public:
       {
          v[g] = output_groups->fes[g] != nullptr;
       }
-      for_constexpr<n_outputs>([&](auto o)
+      for_constexpr_host<n_outputs>([&](auto o)
       {
          using output_fop_t = std::decay_t<decltype(get<o>(outputs))>;
          if constexpr (is_identity_fop_v<output_fop_t>)
@@ -794,7 +794,7 @@ public:
       [&]
    {
       int top = 0;
-      for_constexpr<n_inputs>([&](auto i)
+      for_constexpr_host<n_inputs>([&](auto i)
       {
          if (get<i>(inputs).GetFieldId() == derivative_id)
          {
@@ -829,7 +829,7 @@ public:
       inputs_trial_op_dim.UseDevice(true);
       inputs_trial_op_dim.SetSize(n_inputs);
       auto inputs_trial_op_dim_host = inputs_trial_op_dim.HostWrite();
-      for_constexpr<n_inputs>([&](auto i)
+      for_constexpr_host<n_inputs>([&](auto i)
       {
          inputs_trial_op_dim_host[i] =
             input_is_dependent[i]
@@ -997,7 +997,7 @@ public:
       MFEM_VERIFY(q1d <= MQ1, "q1d exceeds backend MQ1 limit");
       MFEM_VERIFY(nq <= MNQ,
                   "DerivativeAssemble: nq exceeds backend quadrature capacity");
-      for_constexpr<n_outputs>([&](auto o)
+      for_constexpr_host<n_outputs>([&](auto o)
       {
          if (out_group[o] != group) { return; }
          MFEM_VERIFY(out_op_dim[o] <= DIM,

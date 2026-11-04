@@ -136,7 +136,7 @@ public:
                               [&]
    {
       int s = 0;
-      for_constexpr<n_outputs>([&](auto o)
+      for_constexpr_host<n_outputs>([&](auto o)
       { s += get<o>(outputs).size_on_qp; });
       return s;
    }()),
@@ -157,7 +157,7 @@ public:
       // Size the workspace that holds the output cotangent(s) in element
       // layout.
       int total_dir_e_size = 0;
-      for_constexpr<n_outputs>([&](auto o)
+      for_constexpr_host<n_outputs>([&](auto o)
       {
          const int elem_sz = compute_element_dof_sz(
             ctx.outfds[output_idx[o]], ne, ElementDofOrdering::LEXICOGRAPHIC);
@@ -221,7 +221,7 @@ public:
       // Restrict output cotangent from L-vectors into element layout
       // (dir_out_e).
       int e_offset = 0;
-      for_constexpr<n_outputs>([&](auto o)
+      for_constexpr_host<n_outputs>([&](auto o)
       {
          const size_t outfd = output_idx[o];
          const auto &fd = ctx.outfds[outfd];
@@ -316,7 +316,7 @@ public:
       const auto d_dir = dir_e.Read();
       std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_outputs> out_XE_dir;
       int e_offset = 0;
-      for_constexpr<n_outputs>([&](auto oc)
+      for_constexpr_host<n_outputs>([&](auto oc)
       {
          constexpr size_t o = oc.value;
          const int d = out_d1d[o], q = out_q1d[o], v = out_vdim[o];
