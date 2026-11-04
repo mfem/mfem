@@ -11,9 +11,9 @@
 #pragma once
 #include "../../../general/error.hpp"
 #include "../../../linalg/vector.hpp"
-#include "../tuple.hpp"
 #include <initializer_list>
 #include <memory>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -47,7 +47,7 @@ struct ScratchBank
    ///<--- Global scratch utilities.
    //=================================
 
-   using GlobalScratchTuple = tuple<GlobalScratchTypes...>;
+   using GlobalScratchTuple = std::tuple<GlobalScratchTypes...>;
 
    template <typename T>
    static T MakeGlobalScratchShadow(const T &)
@@ -67,14 +67,15 @@ struct ScratchBank
    static auto MakeGlobalScratchShadowTuple(const Tuple &primal,
                                             std::index_sequence<Is...>)
    {
-      return make_tuple(MakeGlobalScratchShadow(get<Is>(primal))...);
+      return std::make_tuple(MakeGlobalScratchShadow(std::get<Is>(primal))...);
    }
 
    template <typename Tuple>
    static auto MakeGlobalScratchShadowTuple(const Tuple &primal)
    {
-      return MakeGlobalScratchShadowTuple(
-                primal, std::make_index_sequence<tuple_size<Tuple>::value> {});
+      constexpr size_t N = std::tuple_size<Tuple>::value;
+      return MakeGlobalScratchShadowTuple(primal,
+                                          std::make_index_sequence<N> {});
    }
 
 
@@ -155,7 +156,7 @@ struct ScratchBank
    template <int I>
    auto &GetGlobalScratch() const
    {
-      return get<I>(global);
+      return std::get<I>(global);
    }
 
 
@@ -178,7 +179,9 @@ struct ScratchBank
 template <typename scalar_t, typename... GlobalScratchTypes>
 struct QFWithScratch
 {
-   using GlobalScratchTuple = tuple<GlobalScratchTypes...>;
+   // Host-only std::tuple: mfem::future::tuple is host/device, and copying a
+   // host mfem::Vector into it triggers nvcc warning #20011.
+   using GlobalScratchTuple = std::tuple<GlobalScratchTypes...>;
    using ScratchScalar = scalar_t;
 
    /// Number of real_t backing one scratch entry; see ScratchBank.

@@ -355,7 +355,7 @@ constexpr size_t find_single_active_qparam_impl(std::index_sequence<Is...>)
 {
    size_t idx = tuple_size<activity_tuple_t>::value, count = 0;
    (((Is >= Lo && Is < Hi && qf_param_is_active_v<activity_tuple_t, Is>) ?
-     (idx = Is, ++count) : size_t{0}), ...);
+     void((idx = Is, ++count)) : void()), ...);
    return count == 1 ? idx : tuple_size<activity_tuple_t>::value;
 }
 

@@ -539,7 +539,7 @@ TEST_CASE("dFEM Global Scratch with tuple objects",
    CubicQFWithGlobalScratch cubic_qf;
    cubic_qf.SetScratch(pmesh.GetNE() * ir.GetNPoints(), {1});
    cubic_qf.SetGlobalScratch(
-      mfem::future::make_tuple(global_flag, global_scalar, global_vec));
+      std::make_tuple(global_flag, global_scalar, global_vec));
    constexpr auto kernels = DerivativeKernels::Action;
    dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
       cubic_qf,
