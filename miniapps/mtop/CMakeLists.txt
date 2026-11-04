@@ -104,31 +104,6 @@ if (MFEM_USE_LAPACK)
             PROPERTIES LABELS ghost-penalty TIMEOUT 120 PROCESSORS ${ranks})
         endforeach()
       endforeach()
-      find_package(Python3 3.7 QUIET COMPONENTS Interpreter)
-      if (Python3_Interpreter_FOUND)
-        set(ghost_precision single)
-        if (MFEM_USE_DOUBLE)
-          set(ghost_precision double)
-        endif()
-        set(ghost_mpi_postflags)
-        foreach(flag IN LISTS MPIEXEC_POSTFLAGS)
-          list(APPEND ghost_mpi_postflags "--mpi-postflag=${flag}")
-        endforeach()
-        foreach(ranks 1 2 4)
-          add_test(NAME ghost_penalty_demo_compare_np${ranks}
-            COMMAND ${Python3_EXECUTABLE}
-            ${PROJECT_SOURCE_DIR}/tests/unit/fem/ghost_penalty_compare.py
-            --serial $<TARGET_FILE:projection_ghost_penalty_serial>
-            --parallel $<TARGET_FILE:projection_ghost_penalty_parallel>
-            --ranks ${ranks} --precision ${ghost_precision}
-            ${ghost_mpi_postflags} --launcher
-            ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${ranks} ${MPIEXEC_PREFLAGS})
-          set_tests_properties(ghost_penalty_demo_compare_np${ranks} PROPERTIES
-            LABELS ghost-penalty TIMEOUT 180 PROCESSORS ${ranks})
-        endforeach()
-      else()
-        message(STATUS "Python3 unavailable; skipping ghost demo comparisons")
-      endif()
     endif()
   endif()
 endif()

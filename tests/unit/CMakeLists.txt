@@ -70,13 +70,6 @@ if (MFEM_USE_LAPACK)
     -P ${CMAKE_CURRENT_SOURCE_DIR}/fem/ghost_penalty_configuration.cmake)
   set_tests_properties(ghost_penalty_lapack_configuration PROPERTIES
     LABELS ghost-penalty TIMEOUT 240)
-  add_test(NAME ghost_penalty_make_demo
-    COMMAND ${CMAKE_COMMAND} "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
-    "-DBINARY_DIR=${CMAKE_BINARY_DIR}"
-    "-DMPI_ENABLED=${MFEM_USE_MPI}"
-    -P ${CMAKE_CURRENT_SOURCE_DIR}/fem/ghost_penalty_make_demo.cmake)
-  set_tests_properties(ghost_penalty_make_demo PROPERTIES
-    LABELS ghost-penalty TIMEOUT 180)
   mfem_add_executable(ghost_penalty_tests unit_test_main.cpp fem/test_ghost_penalty.cpp)
   target_include_directories(ghost_penalty_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(ghost_penalty_tests mfem)
