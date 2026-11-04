@@ -1,12 +1,15 @@
-# Mixed null-space and coarse-space deflation
+# Coarse-corrected Krylov solvers with null-space support
 
-`linalg/deflation.hpp` provides `DeflatedCGSolver`, `DeflatedGMRESSolver`, and
-`DeflatedFGMRESSolver`. Exact null-space bases control RHS compatibility and
-the solution gauge. Coarse bases are optional acceleration candidates. Either
+`linalg/deflation.hpp` provides `CoarseCorrectedCGSolver`,
+`CoarseCorrectedGMRESSolver`, and `CoarseCorrectedFGMRESSolver`, sharing
+`CoarseCorrectedSolverBase`. The names cover both projected deflation and
+balanced two-level preconditioning; they do not imply an explicitly augmented
+Krylov basis. Exact null-space bases control RHS compatibility and the
+solution gauge. Coarse bases are optional acceleration candidates. Either
 category can be set, replaced, or cleared without changing the other.
 
 ```cpp
-mfem::DeflatedCGSolver solver;
+mfem::CoarseCorrectedCGSolver solver;
 solver.SetOperator(A);
 solver.SetNullSpace(N);       // N spans ker(A) and ker(A^T).
 solver.SetCoarseSpace(Z);     // Z contains acceleration candidates.
@@ -23,7 +26,7 @@ differ, use GMRES or FGMRES with paired null bases and an explicit
 preconditioner that maps the left complement invertibly to the right one:
 
 ```cpp
-mfem::DeflatedFGMRESSolver solver(comm);
+mfem::CoarseCorrectedFGMRESSolver solver(comm);
 solver.SetOperator(A);
 solver.SetPreconditioner(M);
 solver.SetNullSpaces(N_right, N_left);
@@ -38,9 +41,48 @@ both together—are supported where the solver's mathematical assumptions
 hold. `BALANCED` correction is the default. `PROJECTED` is selected with
 `SetCoarseCorrectionType(CoarseCorrectionType::PROJECTED)`.
 
+## Correction modes
+
+Ignoring exact null-space projections for the moment, let `U` and `V` be the
+right and left coarse bases, and define
+
+```text
+E   = V^T A U
+Q   = U E^{-1} V^T
+P_L = I - A Q
+P_R = I - Q A
+```
+
+- **PROJECTED: projected deflation.** Solve `P_L A y = P_L b` and recover
+  `x = Q b + P_R y`. With an exact coarse solve, `P_L A U = 0`, so the
+  coarse directions are removed from the projected operator. Recovery adds
+  the coarse contribution implicitly; no augmented Krylov basis is stored.
+  An exact coarse solve is required for the projection and recovery identities.
+- **BALANCED: balanced two-level preconditioning (default).** Keep the
+  original operator `A` and apply the preconditioner
+  `B = P_R M^{-1} P_L + Q`, where `M^{-1}` is the fine preconditioner (the
+  identity if none is registered and that is admissible). With an exact
+  coarse solve, `B A U = U`: the coarse modes are corrected, not annihilated.
+  The operator coarse-space path also accepts an inexact coarse solver `S`,
+  replacing `E^{-1}` in `Q`. In that case, `P_L` and `P_R` need not be
+  projectors and the exact coarse-mode identity need not hold.
+
+With exact null spaces, `Pi_L` and `Pi_R` denote the orthogonal projections
+off the left and right null spaces. `PROJECTED` solves
+`P_L A y = P_L Pi_L b` and returns `Q Pi_L b + Pi_R P_R y`; `BALANCED` uses
+`Pi_R (P_R M^{-1} P_L + Q) Pi_L` and returns `Pi_R x_internal`. Null-space
+handling enforces RHS compatibility and the solution gauge independently
+of the chosen coarse-correction mode.
+
+These solvers use user-supplied coarse spaces. They do not implement explicit
+Krylov augmentation, automatic Ritz-vector extraction, or recycling methods
+such as GMRES-DR or GCRO-DR. The shared algebra remains available through
+`DeflationSpaces`, and the basis, option, and diagnostic types retain their
+`Deflation` names.
+
 ## Coarse-space representations
 
-Two representations are available; both give the same correction
+Two representations are available; with an exact coarse solve, both give
 `Q = Pi_R Z_R (Z_L^T A Z_R)^{-1} Z_L^T Pi_L` in exact arithmetic.
 
 **Dense.** `SetCoarseSpace(Z)` takes any operator mapping replicated
@@ -84,8 +126,9 @@ e.g. a direct solver. `PROJECTED` correction requires an exact coarse solve,
 because its projected operator and solution recovery rely on `P_L` and `P_R`
 being projectors; `Mult()` rejects it otherwise. `BALANCED` correction
 accepts an inexact `S`; CG then requires `S` to be fixed and symmetric
-positive definite, while FGMRES also allows a varying `S`. The SVD and
-transpose-caching setup options apply only to the dense path.
+positive definite, GMRES requires a fixed linear `S`, and FGMRES also allows
+a varying `S`. The SVD and transpose-caching setup options apply only to the
+dense path.
 `GetCoarseOperator()` returns the coarse operator on either path, and
 `GetCoarseSpaceDimension()` sums the local widths of `Z_R` on the operator
 path.

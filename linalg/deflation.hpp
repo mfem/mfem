@@ -20,7 +20,9 @@
 namespace mfem
 {
 
-/// Select the projected solve or balanced coarse-correction preconditioner.
+/** Select projected deflation or balanced two-level preconditioning.
+    PROJECTED requires an exact coarse solve. BALANCED is the solver default
+    and also permits inexact coarse solves. */
 enum class CoarseCorrectionType { PROJECTED, BALANCED };
 /// Select the default direct coarse solve or an opt-in LAPACK SVD solve.
 enum class CoarseSolveMethod { DIRECT, SVD };
@@ -242,23 +244,28 @@ public:
    bool ValidateNullSpaces(real_t absolute_tolerance) const;
 };
 
-/** Shared solver lifecycle. CG requires a symmetric positive semidefinite A,
-    shared spaces, and a fixed SPD fine preconditioner on the complement.
+/** Shared lifecycle for coarse-corrected Krylov solvers.
+    CG requires a symmetric positive semidefinite A, shared spaces, and a
+    fixed SPD fine preconditioner on the complement.
     GMRES requires a fixed linear fine preconditioner; FGMRES permits a
     varying one. Paired null spaces require an explicit preconditioner which
     maps the left complement invertibly to the right complement. These are
     caller preconditions, not properties that Setup can prove.
 
-    PROJECTED solves P_L A y = P_L Pi_L b and returns
-    Q Pi_L b + Pi_R P_R y. BALANCED applies
-    Pi_R (P_R M^{-1} P_L + Q) Pi_L and returns Pi_R x_internal.
+    PROJECTED uses classical projected deflation: it solves
+    P_L A y = P_L Pi_L b and returns Q Pi_L b + Pi_R P_R y.
+    BALANCED (the default) uses the original A with the two-level
+    preconditioner Pi_R (P_R M^{-1} P_L + Q) Pi_L and returns
+    Pi_R x_internal. Neither mode explicitly augments the Krylov basis or
+    automatically extracts or recycles Ritz vectors. Exact null-space
+    handling is independent of the coarse correction.
     Both b and the original operator are preserved. b and x must not alias;
     projector methods do support aliasing. Inputs and the fine preconditioner
     are borrowed and must outlive registration. Update rebuilds after in-place
     input changes. The solver is non-reentrant. */
 /// Only CGSolver, GMRESSolver, and FGMRESSolver are explicitly instantiated.
 template <typename KrylovSolver>
-class DeflatedSolverBase : public KrylovSolver
+class CoarseCorrectedSolverBase : public KrylovSolver
 {
 private:
    /// Own shared solver algebra, adapters, and solve diagnostics.
@@ -277,18 +284,19 @@ private:
 
 protected:
    /// Construct with a local Krylov inner product and stable internal adapters.
-   DeflatedSolverBase();
+   CoarseCorrectedSolverBase();
 #ifdef MFEM_USE_MPI
    /// Construct with global Krylov products over the borrowed communicator.
-   explicit DeflatedSolverBase(MPI_Comm comm);
+   explicit CoarseCorrectedSolverBase(MPI_Comm comm);
 #endif
    /// Return the inherited restart dimension, or zero for CG.
    int RestartDimension() const;
 
 public:
-   ~DeflatedSolverBase() override;
-   DeflatedSolverBase(const DeflatedSolverBase &) = delete;
-   DeflatedSolverBase &operator=(const DeflatedSolverBase &) = delete;
+   ~CoarseCorrectedSolverBase() override;
+   CoarseCorrectedSolverBase(const CoarseCorrectedSolverBase &) = delete;
+   CoarseCorrectedSolverBase &operator=(
+      const CoarseCorrectedSolverBase &) = delete;
    /// Register the original operator, never an internal projection.
    void SetOperator(const Operator &A) override;
    /// Register a borrowed fine preconditioner for the original operator.
@@ -331,7 +339,7 @@ public:
    void SetRHSOptions(const DeflationRHSOptions &options);
    /// Return the configured incompatible RHS policy.
    const DeflationRHSOptions &GetRHSOptions() const;
-   /// Build deflation algebra and bind the fine preconditioner to original A.
+   /// Build null/coarse algebra and bind the fine preconditioner to original A.
    void Setup();
    /// Force rebuilding after in-place changes to registered inputs.
    void Update();
@@ -345,39 +353,42 @@ public:
    void Mult(const Vector &b, Vector &x) const override;
 };
 
-/// Deflated PCG for symmetric operators positive on the null complement.
-class DeflatedCGSolver final : public DeflatedSolverBase<CGSolver>
+/// Coarse-corrected PCG for symmetric A positive on the null complement.
+class CoarseCorrectedCGSolver final :
+   public CoarseCorrectedSolverBase<CGSolver>
 {
 public:
    /// Construct a local solver.
-   DeflatedCGSolver();
+   CoarseCorrectedCGSolver();
 #ifdef MFEM_USE_MPI
    /// Construct a solver with global dot products over the communicator.
-   explicit DeflatedCGSolver(MPI_Comm comm);
+   explicit CoarseCorrectedCGSolver(MPI_Comm comm);
 #endif
 };
 
-/// Deflated restarted GMRES with fixed linear fine preconditioning.
-class DeflatedGMRESSolver final : public DeflatedSolverBase<GMRESSolver>
+/// Coarse-corrected restarted GMRES with fixed linear fine preconditioning.
+class CoarseCorrectedGMRESSolver final :
+   public CoarseCorrectedSolverBase<GMRESSolver>
 {
 public:
    /// Construct a local solver.
-   DeflatedGMRESSolver();
+   CoarseCorrectedGMRESSolver();
 #ifdef MFEM_USE_MPI
    /// Construct a solver with global dot products over the communicator.
-   explicit DeflatedGMRESSolver(MPI_Comm comm);
+   explicit CoarseCorrectedGMRESSolver(MPI_Comm comm);
 #endif
 };
 
-/// Deflated FGMRES allowing variable fine preconditioning within a solve.
-class DeflatedFGMRESSolver final : public DeflatedSolverBase<FGMRESSolver>
+/// Coarse-corrected FGMRES allowing variable fine preconditioning.
+class CoarseCorrectedFGMRESSolver final :
+   public CoarseCorrectedSolverBase<FGMRESSolver>
 {
 public:
    /// Construct a local solver.
-   DeflatedFGMRESSolver();
+   CoarseCorrectedFGMRESSolver();
 #ifdef MFEM_USE_MPI
    /// Construct a solver with global dot products over the communicator.
-   explicit DeflatedFGMRESSolver(MPI_Comm comm);
+   explicit CoarseCorrectedFGMRESSolver(MPI_Comm comm);
 #endif
 };
 

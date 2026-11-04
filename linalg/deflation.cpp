@@ -1091,7 +1091,7 @@ bool DeflationSpaces::ValidateNullSpaces(real_t absolute_tolerance) const
 }
 
 template <typename KrylovSolver>
-class DeflatedSolverBase<KrylovSolver>::Impl
+class CoarseCorrectedSolverBase<KrylovSolver>::Impl
 {
 public:
    DeflationSpaces spaces;
@@ -1255,7 +1255,7 @@ public:
 };
 
 template <typename KrylovSolver>
-DeflatedSolverBase<KrylovSolver>::DeflatedSolverBase()
+CoarseCorrectedSolverBase<KrylovSolver>::CoarseCorrectedSolverBase()
    : KrylovSolver(), impl(new Impl())
 {
    this->oper = &impl->operator_adapter;
@@ -1264,7 +1264,8 @@ DeflatedSolverBase<KrylovSolver>::DeflatedSolverBase()
 
 #ifdef MFEM_USE_MPI
 template <typename KrylovSolver>
-DeflatedSolverBase<KrylovSolver>::DeflatedSolverBase(MPI_Comm comm)
+CoarseCorrectedSolverBase<KrylovSolver>::CoarseCorrectedSolverBase(
+   MPI_Comm comm)
    : KrylovSolver(comm), impl(new Impl(comm))
 {
    this->oper = &impl->operator_adapter;
@@ -1273,21 +1274,21 @@ DeflatedSolverBase<KrylovSolver>::DeflatedSolverBase(MPI_Comm comm)
 #endif
 
 template <typename KrylovSolver>
-DeflatedSolverBase<KrylovSolver>::~DeflatedSolverBase()
+CoarseCorrectedSolverBase<KrylovSolver>::~CoarseCorrectedSolverBase()
 {
    this->oper = nullptr;
    this->prec = nullptr;
 }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::Invalidate()
+void CoarseCorrectedSolverBase<KrylovSolver>::Invalidate()
 {
    impl->Invalidate();
    ResetSolveInfo();
 }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::ResetSolveInfo()
+void CoarseCorrectedSolverBase<KrylovSolver>::ResetSolveInfo()
 {
    impl->info = DeflationSolveInfo();
    this->final_iter = -1;
@@ -1296,7 +1297,7 @@ void DeflatedSolverBase<KrylovSolver>::ResetSolveInfo()
 }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::CheckCollective(
+void CoarseCorrectedSolverBase<KrylovSolver>::CheckCollective(
    bool good, const char *message) const
 {
 #ifdef MFEM_USE_MPI
@@ -1312,7 +1313,7 @@ void DeflatedSolverBase<KrylovSolver>::CheckCollective(
 }
 
 template <typename KrylovSolver>
-bool DeflatedSolverBase<KrylovSolver>::AnyRank(bool local) const
+bool CoarseCorrectedSolverBase<KrylovSolver>::AnyRank(bool local) const
 {
 #ifdef MFEM_USE_MPI
    const MPI_Comm comm = this->GetComm();
@@ -1327,7 +1328,8 @@ bool DeflatedSolverBase<KrylovSolver>::AnyRank(bool local) const
 }
 
 template <typename KrylovSolver>
-bool DeflatedSolverBase<KrylovSolver>::CollectiveStop(bool local_stop) const
+bool CoarseCorrectedSolverBase<KrylovSolver>::CollectiveStop(
+   bool local_stop) const
 {
 #ifdef MFEM_USE_MPI
    const MPI_Comm comm = this->GetComm();
@@ -1342,7 +1344,7 @@ bool DeflatedSolverBase<KrylovSolver>::CollectiveStop(bool local_stop) const
 }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::SetOperator(const Operator &A)
+void CoarseCorrectedSolverBase<KrylovSolver>::SetOperator(const Operator &A)
 {
    impl->original = &A;
    impl->preconditioner_bound = false;
@@ -1355,7 +1357,8 @@ void DeflatedSolverBase<KrylovSolver>::SetOperator(const Operator &A)
 }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::SetPreconditioner(Solver &M_inverse)
+void CoarseCorrectedSolverBase<KrylovSolver>::SetPreconditioner(
+   Solver &M_inverse)
 {
    impl->user_prec = &M_inverse;
    impl->preconditioner_bound = false;
@@ -1364,7 +1367,7 @@ void DeflatedSolverBase<KrylovSolver>::SetPreconditioner(Solver &M_inverse)
 }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::ClearPreconditioner()
+void CoarseCorrectedSolverBase<KrylovSolver>::ClearPreconditioner()
 {
    impl->user_prec = nullptr;
    impl->preconditioner_bound = false;
@@ -1372,23 +1375,24 @@ void DeflatedSolverBase<KrylovSolver>::ClearPreconditioner()
 }
 
 template <typename KrylovSolver>
-const Operator *DeflatedSolverBase<KrylovSolver>::GetOriginalOperator() const
+const Operator *
+CoarseCorrectedSolverBase<KrylovSolver>::GetOriginalOperator() const
 { return impl->original; }
 
 template <typename KrylovSolver>
-Solver *DeflatedSolverBase<KrylovSolver>::GetUserPreconditioner() const
+Solver *CoarseCorrectedSolverBase<KrylovSolver>::GetUserPreconditioner() const
 { return impl->user_prec; }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::SetNullSpace(const Operator &N)
+void CoarseCorrectedSolverBase<KrylovSolver>::SetNullSpace(const Operator &N)
 {
    impl->spaces.SetNullSpace(N);
    Invalidate();
 }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::SetNullSpaces(const Operator &right,
-                                                    const Operator &left)
+void CoarseCorrectedSolverBase<KrylovSolver>::SetNullSpaces(
+   const Operator &right, const Operator &left)
 {
    const bool cg = std::is_same<KrylovSolver, CGSolver>::value;
    MFEM_VERIFY(!cg,
@@ -1398,22 +1402,22 @@ void DeflatedSolverBase<KrylovSolver>::SetNullSpaces(const Operator &right,
 }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::ClearNullSpace()
+void CoarseCorrectedSolverBase<KrylovSolver>::ClearNullSpace()
 {
    impl->spaces.ClearNullSpace();
    Invalidate();
 }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::SetCoarseSpace(const Operator &Z)
+void CoarseCorrectedSolverBase<KrylovSolver>::SetCoarseSpace(const Operator &Z)
 {
    impl->spaces.SetCoarseSpace(Z);
    Invalidate();
 }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::SetCoarseSpaces(const Operator &right,
-                                                      const Operator &left)
+void CoarseCorrectedSolverBase<KrylovSolver>::SetCoarseSpaces(
+   const Operator &right, const Operator &left)
 {
    const bool cg = std::is_same<KrylovSolver, CGSolver>::value;
    MFEM_VERIFY(!cg,
@@ -1423,16 +1427,15 @@ void DeflatedSolverBase<KrylovSolver>::SetCoarseSpaces(const Operator &right,
 }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::SetCoarseSpace(const Operator &Z,
-                                                     Solver &S,
-                                                     bool exact_coarse_solve)
+void CoarseCorrectedSolverBase<KrylovSolver>::SetCoarseSpace(
+   const Operator &Z, Solver &S, bool exact_coarse_solve)
 {
    impl->spaces.SetCoarseSpace(Z, S, exact_coarse_solve);
    Invalidate();
 }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::SetCoarseSpaces(
+void CoarseCorrectedSolverBase<KrylovSolver>::SetCoarseSpaces(
    const Operator &right, const Operator &left, Solver &S,
    bool exact_coarse_solve)
 {
@@ -1444,14 +1447,14 @@ void DeflatedSolverBase<KrylovSolver>::SetCoarseSpaces(
 }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::ClearCoarseSpace()
+void CoarseCorrectedSolverBase<KrylovSolver>::ClearCoarseSpace()
 {
    impl->spaces.ClearCoarseSpace();
    Invalidate();
 }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::SetCoarseCorrectionType(
+void CoarseCorrectedSolverBase<KrylovSolver>::SetCoarseCorrectionType(
    CoarseCorrectionType type)
 {
    MFEM_VERIFY(type == CoarseCorrectionType::PROJECTED ||
@@ -1463,11 +1466,11 @@ void DeflatedSolverBase<KrylovSolver>::SetCoarseCorrectionType(
 
 template <typename KrylovSolver>
 CoarseCorrectionType
-DeflatedSolverBase<KrylovSolver>::GetCoarseCorrectionType() const
+CoarseCorrectedSolverBase<KrylovSolver>::GetCoarseCorrectionType() const
 { return impl->mode; }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::SetSetupOptions(
+void CoarseCorrectedSolverBase<KrylovSolver>::SetSetupOptions(
    const DeflationSetupOptions &options)
 {
    impl->spaces.SetSetupOptions(options);
@@ -1476,11 +1479,11 @@ void DeflatedSolverBase<KrylovSolver>::SetSetupOptions(
 
 template <typename KrylovSolver>
 const DeflationSetupOptions &
-DeflatedSolverBase<KrylovSolver>::GetSetupOptions() const
+CoarseCorrectedSolverBase<KrylovSolver>::GetSetupOptions() const
 { return impl->spaces.GetSetupOptions(); }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::SetRHSOptions(
+void CoarseCorrectedSolverBase<KrylovSolver>::SetRHSOptions(
    const DeflationRHSOptions &options)
 {
    impl->rhs_options = options;
@@ -1489,11 +1492,11 @@ void DeflatedSolverBase<KrylovSolver>::SetRHSOptions(
 
 template <typename KrylovSolver>
 const DeflationRHSOptions &
-DeflatedSolverBase<KrylovSolver>::GetRHSOptions() const
+CoarseCorrectedSolverBase<KrylovSolver>::GetRHSOptions() const
 { return impl->rhs_options; }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::Setup()
+void CoarseCorrectedSolverBase<KrylovSolver>::Setup()
 {
    Invalidate();
    // Rebuild on every rank if any rank's algebra is stale, so that all ranks
@@ -1534,7 +1537,7 @@ void DeflatedSolverBase<KrylovSolver>::Setup()
 }
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::Update()
+void CoarseCorrectedSolverBase<KrylovSolver>::Update()
 {
    Invalidate();
    impl->preconditioner_bound = false;
@@ -1543,28 +1546,29 @@ void DeflatedSolverBase<KrylovSolver>::Update()
 }
 
 template <typename KrylovSolver>
-bool DeflatedSolverBase<KrylovSolver>::IsSetup() const
+bool CoarseCorrectedSolverBase<KrylovSolver>::IsSetup() const
 { return impl->bound && impl->spaces.IsSetup(); }
 
 template <typename KrylovSolver>
 const DeflationSpaces &
-DeflatedSolverBase<KrylovSolver>::GetDeflationSpaces() const
+CoarseCorrectedSolverBase<KrylovSolver>::GetDeflationSpaces() const
 { return impl->spaces; }
 
 template <typename KrylovSolver>
 const DeflationSolveInfo &
-DeflatedSolverBase<KrylovSolver>::GetSolveInfo() const
+CoarseCorrectedSolverBase<KrylovSolver>::GetSolveInfo() const
 { return impl->info; }
 
 template <typename KrylovSolver>
-int DeflatedSolverBase<KrylovSolver>::RestartDimension() const { return 0; }
+int CoarseCorrectedSolverBase<KrylovSolver>::RestartDimension() const
+{ return 0; }
 
 template <>
-int DeflatedSolverBase<GMRESSolver>::RestartDimension() const
+int CoarseCorrectedSolverBase<GMRESSolver>::RestartDimension() const
 { return this->m; }
 
 template <>
-int DeflatedSolverBase<FGMRESSolver>::RestartDimension() const
+int CoarseCorrectedSolverBase<FGMRESSolver>::RestartDimension() const
 { return this->m; }
 
 namespace
@@ -1593,7 +1597,8 @@ bool BackSubstitute(const DenseMatrix &H, const std::vector<real_t> &g,
 } // namespace
 
 template <typename KrylovSolver>
-void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
+void CoarseCorrectedSolverBase<KrylovSolver>::Mult(
+   const Vector &b, Vector &x) const
 {
    impl->info = DeflationSolveInfo();
    this->final_iter = -1;
@@ -1609,10 +1614,10 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
                         RangesOverlap(b.Read(use_device), b.Size(),
                                       x.Read(use_device), x.Size());
    CheckCollective(&b != &x && !overlap,
-                   "Deflation Mult does not support b/x aliasing");
+                   "Coarse-corrected Mult does not support b/x aliasing");
    x.UseDevice(use_device);
    CheckCollective(this->dot_oper == nullptr,
-                   "Deflation requires Euclidean inner products");
+                   "Coarse-corrected requires Euclidean inner products");
    CheckCollective(this->max_iter >= 0, "Negative iteration budget");
    CheckCollective(ValidTolerance(this->rel_tol) &&
                    ValidTolerance(this->abs_tol),
@@ -1651,17 +1656,18 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
       {
          same = same && lo_tol[i] == hi_tol[i];
       }
-      MFEM_VERIFY(same, "Deflation solve options differ across MPI ranks");
+      MFEM_VERIFY(same,
+                  "Coarse-corrected solve options differ across MPI ranks");
    }
 #endif
 
    // Decide collectively, so that all ranks enter Setup() and its reductions.
    if (AnyRank(!IsSetup()))
    {
-      const_cast<DeflatedSolverBase *>(this)->Setup();
+      const_cast<CoarseCorrectedSolverBase *>(this)->Setup();
    }
    CheckCollective(b.Size() == this->height && x.Size() == this->width,
-                   "Deflation vector has wrong local size");
+                   "Coarse-corrected vector has wrong local size");
    // Its projected operator and recovery assume P_L and P_R are projectors.
    CheckCollective(impl->mode != CoarseCorrectionType::PROJECTED ||
                    impl->spaces.HasExactCoarseSolve(),
@@ -1679,7 +1685,7 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
    const real_t removed = impl->spaces.GetIncompatibleRHSNorm(b);
    const real_t original_rhs_norm = this->Norm(b);
    CheckCollective(std::isfinite(original_rhs_norm) && std::isfinite(removed),
-                   "Deflation RHS is not finite");
+                   "Coarse-corrected RHS is not finite");
    const bool compatible = removed <= impl->rhs_options.atol +
                            impl->rhs_options.rtol * original_rhs_norm;
    impl->info.rhs_compatible = compatible;
@@ -1703,13 +1709,13 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
    const real_t original_initial_norm = this->Norm(original_initial);
    CheckCollective(std::isfinite(working_initial_norm) &&
                    std::isfinite(original_initial_norm),
-                   "Deflation initial residual norm is not finite");
+                   "Coarse-corrected initial residual norm is not finite");
    const real_t target = std::max(this->abs_tol,
                                   this->rel_tol * working_initial_norm);
    const real_t original_target =
       std::max(this->abs_tol, this->rel_tol * original_initial_norm);
    CheckCollective(std::isfinite(target) && std::isfinite(original_target),
-                   "Deflation stopping tolerance is not finite");
+                   "Coarse-corrected stopping tolerance is not finite");
    this->initial_norm = working_initial_norm;
    impl->info.initial_working_residual_norm = working_initial_norm;
    impl->info.initial_original_residual_norm = original_initial_norm;
@@ -1723,10 +1729,10 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
    impl->Residual(b_work, physical, residual);
    real_t physical_norm = this->Norm(residual);
    CheckCollective(std::isfinite(physical_norm),
-                   "Deflation physical residual norm is not finite");
+                   "Coarse-corrected physical residual norm is not finite");
    if (this->print_options.first_and_last)
    {
-      mfem::out << "Deflated solver initial ||b_work-Ax|| = "
+      mfem::out << "Coarse-corrected solver initial ||b_work-Ax|| = "
                 << physical_norm << '\n';
    }
    this->final_iter = 0;
@@ -1793,11 +1799,11 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
                impl->Residual(b_work, physical, residual);
                physical_norm = this->Norm(residual);
                CheckCollective(std::isfinite(physical_norm),
-                               "Deflation physical residual norm "
+                               "Coarse-corrected physical residual norm "
                                "is not finite");
                if (this->print_options.iterations)
                {
-                  mfem::out << "Deflated CG iteration " << it
+                  mfem::out << "Coarse-corrected CG iteration " << it
                             << ": ||b_work-Ax|| = " << physical_norm << '\n';
                }
                if (this->controller)
@@ -1964,11 +1970,12 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
                impl->Residual(b_work, physical, residual);
                physical_norm = this->Norm(residual);
                CheckCollective(std::isfinite(physical_norm),
-                               "Deflation physical residual norm "
+                               "Coarse-corrected physical residual norm "
                                "is not finite");
                if (this->print_options.iterations)
                {
-                  mfem::out << "Deflated " << (flexible ? "FGMRES" : "GMRES")
+                  mfem::out << "Coarse-corrected "
+                            << (flexible ? "FGMRES" : "GMRES")
                             << " iteration " << iterations
                             << ": ||b_work-Ax|| = " << physical_norm << '\n';
                }
@@ -1990,7 +1997,7 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
                impl->Residual(b_work, physical, residual);
                physical_norm = this->Norm(residual);
                CheckCollective(std::isfinite(physical_norm),
-                               "Deflation physical residual norm "
+                               "Coarse-corrected physical residual norm "
                                "is not finite");
                success = physical_norm <= target;
             }
@@ -2016,7 +2023,7 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
    CheckCollective(std::isfinite(final_working) &&
                    std::isfinite(final_original) &&
                    std::isfinite(solution_null_norm),
-                   "Deflation final residual or null-component norm "
+                   "Coarse-corrected final residual or null-component norm "
                    "is not finite");
    impl->info.valid = true;
    impl->info.iterations = iterations;
@@ -2033,7 +2040,7 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
    if (this->print_options.summary || this->print_options.first_and_last ||
        (this->print_options.warnings && !this->converged))
    {
-      mfem::out << "Deflated solver: " << iterations << " iterations, "
+      mfem::out << "Coarse-corrected solver: " << iterations << " iterations, "
                 << "||b_work-Ax|| = " << final_working
                 << (this->converged ? " (converged)" : " (not converged)")
                 << '\n';
@@ -2041,20 +2048,20 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
    this->Monitor(iterations, final_working, residual, x, true);
 }
 
-template class DeflatedSolverBase<CGSolver>;
-template class DeflatedSolverBase<GMRESSolver>;
-template class DeflatedSolverBase<FGMRESSolver>;
+template class CoarseCorrectedSolverBase<CGSolver>;
+template class CoarseCorrectedSolverBase<GMRESSolver>;
+template class CoarseCorrectedSolverBase<FGMRESSolver>;
 
-DeflatedCGSolver::DeflatedCGSolver() = default;
-DeflatedGMRESSolver::DeflatedGMRESSolver() = default;
-DeflatedFGMRESSolver::DeflatedFGMRESSolver() = default;
+CoarseCorrectedCGSolver::CoarseCorrectedCGSolver() = default;
+CoarseCorrectedGMRESSolver::CoarseCorrectedGMRESSolver() = default;
+CoarseCorrectedFGMRESSolver::CoarseCorrectedFGMRESSolver() = default;
 #ifdef MFEM_USE_MPI
-DeflatedCGSolver::DeflatedCGSolver(MPI_Comm comm)
-   : DeflatedSolverBase<CGSolver>(comm) { }
-DeflatedGMRESSolver::DeflatedGMRESSolver(MPI_Comm comm)
-   : DeflatedSolverBase<GMRESSolver>(comm) { }
-DeflatedFGMRESSolver::DeflatedFGMRESSolver(MPI_Comm comm)
-   : DeflatedSolverBase<FGMRESSolver>(comm) { }
+CoarseCorrectedCGSolver::CoarseCorrectedCGSolver(MPI_Comm comm)
+   : CoarseCorrectedSolverBase<CGSolver>(comm) { }
+CoarseCorrectedGMRESSolver::CoarseCorrectedGMRESSolver(MPI_Comm comm)
+   : CoarseCorrectedSolverBase<GMRESSolver>(comm) { }
+CoarseCorrectedFGMRESSolver::CoarseCorrectedFGMRESSolver(MPI_Comm comm)
+   : CoarseCorrectedSolverBase<FGMRESSolver>(comm) { }
 #endif
 
 } // namespace mfem

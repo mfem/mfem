@@ -400,7 +400,7 @@ TEST_CASE("Deflation configuration and projectors", "[Deflation]")
    REQUIRE(spaces.GetCoarseSpaceDimension() == 1);
 }
 
-TEST_CASE("Deflated CG mixed semidefinite spaces and RHS policy",
+TEST_CASE("Coarse-corrected CG mixed semidefinite spaces and RHS policy",
           "[Deflation]")
 {
    DenseMatrix A = Diagonal(0, 2, 5);
@@ -411,7 +411,7 @@ TEST_CASE("Deflated CG mixed semidefinite spaces and RHS policy",
 
    for (int correction = 0; correction < 2; ++correction)
    {
-      DeflatedCGSolver solver;
+      CoarseCorrectedCGSolver solver;
       solver.SetCoarseSpace(Z);
       solver.SetOperator(A);
       solver.SetNullSpace(N);
@@ -479,7 +479,7 @@ TEST_CASE("Deflation independent configurations and controller stop",
    {
       for (int coarse = 0; coarse < 2; ++coarse)
       {
-         DeflatedCGSolver solver;
+         CoarseCorrectedCGSolver solver;
          solver.SetOperator(A);
          if (coarse) { solver.SetCoarseSpace(Z); }
          solver.SetCoarseCorrectionType(correction == 0 ?
@@ -494,7 +494,7 @@ TEST_CASE("Deflation independent configurations and controller stop",
       }
    }
 
-   DeflatedCGSolver interrupted;
+   CoarseCorrectedCGSolver interrupted;
    StopAfterOneController controller;
    interrupted.SetOperator(A);
    interrupted.SetController(controller);
@@ -523,7 +523,7 @@ TEST_CASE("GMRES and FGMRES optional spaces in both modes", "[Deflation]")
             x = 0.0;
             if (flexible)
             {
-               DeflatedFGMRESSolver solver;
+               CoarseCorrectedFGMRESSolver solver;
                solver.SetOperator(A);
                if (configuration & 1) { solver.SetNullSpace(N); }
                if (configuration & 2) { solver.SetCoarseSpace(Z); }
@@ -538,7 +538,7 @@ TEST_CASE("GMRES and FGMRES optional spaces in both modes", "[Deflation]")
             }
             else
             {
-               DeflatedGMRESSolver solver;
+               CoarseCorrectedGMRESSolver solver;
                solver.SetOperator(A);
                if (configuration & 1) { solver.SetNullSpace(N); }
                if (configuration & 2) { solver.SetCoarseSpace(Z); }
@@ -557,7 +557,8 @@ TEST_CASE("GMRES and FGMRES optional spaces in both modes", "[Deflation]")
    }
 }
 
-TEST_CASE("Deflated solvers accelerate SPD and preserve preconditioner A",
+TEST_CASE("Coarse-corrected solvers accelerate SPD and preserve "
+          "preconditioner A",
           "[Deflation]")
 {
    DenseMatrix A = Diagonal(real_t(0.001), 2, 5);
@@ -567,7 +568,7 @@ TEST_CASE("Deflated solvers accelerate SPD and preserve preconditioner A",
    b(0) = 1; b(1) = 4; b(2) = 10;
    expected(0) = 1000; expected(1) = 2; expected(2) = 2;
 
-   DeflatedCGSolver cg;
+   CoarseCorrectedCGSolver cg;
    cg.SetPreconditioner(M);
    cg.SetCoarseSpace(Z);
    cg.SetOperator(A);
@@ -590,7 +591,7 @@ TEST_CASE("Deflated solvers accelerate SPD and preserve preconditioner A",
       x = 0.0;
       if (flexible)
       {
-         DeflatedFGMRESSolver solver;
+         CoarseCorrectedFGMRESSolver solver;
          solver.SetOperator(A);
          solver.SetCoarseSpace(Z);
          solver.SetKDim(2);
@@ -601,7 +602,7 @@ TEST_CASE("Deflated solvers accelerate SPD and preserve preconditioner A",
       }
       else
       {
-         DeflatedGMRESSolver solver;
+         CoarseCorrectedGMRESSolver solver;
          solver.SetOperator(A);
          solver.SetCoarseSpace(Z);
          solver.SetKDim(2);
@@ -618,7 +619,7 @@ TEST_CASE("Deflation Update observes in-place operator changes", "[Deflation]")
    DenseMatrix A = Diagonal(1, 2, 3), Z = Coordinate(1);
    Vector b(3), x(3);
    b(0) = 1; b(1) = 4; b(2) = 9;
-   DeflatedCGSolver solver;
+   CoarseCorrectedCGSolver solver;
    solver.SetOperator(A);
    solver.SetCoarseSpace(Z);
    solver.SetRelTol(TestTolerance());
@@ -639,7 +640,7 @@ TEST_CASE("A targeted coarse mode gives a coarse-only solve", "[Deflation]")
    DenseMatrix A = Diagonal(real_t(0.001), 2, 5), Z = Coordinate(0);
    Vector b(3), x(3);
    b = 0.0; b(0) = 1.0;
-   DeflatedCGSolver baseline;
+   CoarseCorrectedCGSolver baseline;
    baseline.SetOperator(A);
    baseline.SetMaxIter(0);
    baseline.SetRelTol(TestTolerance());
@@ -647,7 +648,7 @@ TEST_CASE("A targeted coarse mode gives a coarse-only solve", "[Deflation]")
    baseline.Mult(b, x);
    REQUIRE_FALSE(baseline.GetConverged());
 
-   DeflatedCGSolver accelerated;
+   CoarseCorrectedCGSolver accelerated;
    accelerated.SetOperator(A);
    accelerated.SetCoarseSpace(Z);
    accelerated.SetCoarseCorrectionType(CoarseCorrectionType::PROJECTED);
@@ -680,7 +681,7 @@ TEST_CASE("Paired nonsymmetric null and coarse candidates", "[Deflation]")
          x = 0.0;
          if (flexible)
          {
-            DeflatedFGMRESSolver solver;
+            CoarseCorrectedFGMRESSolver solver;
             solver.SetOperator(A);
             solver.SetPreconditioner(M);
             solver.SetNullSpaces(NR, NL);
@@ -698,7 +699,7 @@ TEST_CASE("Paired nonsymmetric null and coarse candidates", "[Deflation]")
          }
          else
          {
-            DeflatedGMRESSolver solver;
+            CoarseCorrectedGMRESSolver solver;
             solver.SetOperator(A);
             solver.SetPreconditioner(M);
             solver.SetNullSpaces(NR, NL);
@@ -716,7 +717,7 @@ TEST_CASE("Paired nonsymmetric null and coarse candidates", "[Deflation]")
    }
 
    DenseMatrix ZR = Coordinate(1), ZL = Coordinate(0);
-   DeflatedGMRESSolver paired;
+   CoarseCorrectedGMRESSolver paired;
    paired.SetOperator(A);
    paired.SetPreconditioner(M);
    paired.SetNullSpaces(NR, NL);
@@ -741,7 +742,7 @@ TEST_CASE("Shared null basis with paired nonsymmetric coarse candidates",
    expected(0) = 0; expected(1) = real_t(1.5); expected(2) = 2;
    for (int correction = 0; correction < 2; ++correction)
    {
-      DeflatedFGMRESSolver solver;
+      CoarseCorrectedFGMRESSolver solver;
       solver.SetOperator(A);
       solver.SetNullSpace(N);
       solver.SetCoarseSpaces(ZR, ZL);
@@ -877,7 +878,7 @@ TEST_CASE("Device CG GMRES FGMRES spaces and correction modes",
             M.variable = kind == 2;
             if (kind == 0)
             {
-               DeflatedCGSolver solver;
+               CoarseCorrectedCGSolver solver;
                solver.SetOperator(A);
                solver.SetPreconditioner(M);
                if (configuration & 1) { solver.SetNullSpace(N); }
@@ -890,7 +891,7 @@ TEST_CASE("Device CG GMRES FGMRES spaces and correction modes",
             }
             else if (kind == 1)
             {
-               DeflatedGMRESSolver solver;
+               CoarseCorrectedGMRESSolver solver;
                solver.SetOperator(A);
                solver.SetPreconditioner(M);
                if (configuration & 1) { solver.SetNullSpace(N); }
@@ -904,7 +905,7 @@ TEST_CASE("Device CG GMRES FGMRES spaces and correction modes",
             }
             else
             {
-               DeflatedFGMRESSolver solver;
+               CoarseCorrectedFGMRESSolver solver;
                solver.SetOperator(A);
                solver.SetPreconditioner(M);
                if (configuration & 1) { solver.SetNullSpace(N); }
@@ -952,7 +953,7 @@ TEST_CASE("Device paired spaces and in-place operator Update",
          M.variable = flexible != 0;
          if (flexible)
          {
-            DeflatedFGMRESSolver solver;
+            CoarseCorrectedFGMRESSolver solver;
             solver.SetOperator(A);
             solver.SetPreconditioner(M);
             solver.SetNullSpaces(NR, NL);
@@ -966,7 +967,7 @@ TEST_CASE("Device paired spaces and in-place operator Update",
          }
          else
          {
-            DeflatedGMRESSolver solver;
+            CoarseCorrectedGMRESSolver solver;
             solver.SetOperator(A);
             solver.SetPreconditioner(M);
             solver.SetNullSpaces(NR, NL);
@@ -985,7 +986,7 @@ TEST_CASE("Device paired spaces and in-place operator Update",
 
    DeviceMatrixAction SPD(Diagonal(1, 2, 3));
    DeviceMatrixAction Z(Coordinate(1));
-   DeflatedCGSolver solver;
+   CoarseCorrectedCGSolver solver;
    solver.SetOperator(SPD);
    solver.SetCoarseSpace(Z);
    solver.SetMaxIter(8);
@@ -1081,7 +1082,7 @@ TEST_CASE("Cached transpose images make nonsymmetric P_R operator-free",
 
    Vector b(3), x(3);
    b(0) = 3; b(1) = 6; b(2) = 9;
-   DeflatedGMRESSolver solver;
+   CoarseCorrectedGMRESSolver solver;
    options.cache_transpose_images = true;
    solver.SetOperator(matrix);
    solver.SetCoarseSpace(Z);
@@ -1172,7 +1173,7 @@ TEST_CASE("Vector and operator coarse spaces match the dense algebra",
    {
       for (int path = 0; path < 2; ++path)
       {
-         DeflatedCGSolver solver;
+         CoarseCorrectedCGSolver solver;
          solver.SetOperator(A);
          solver.SetNullSpace(N);
          if (path == 0) { solver.SetCoarseSpace(Z); }
@@ -1230,7 +1231,7 @@ TEST_CASE("Operator coarse spaces with paired nonsymmetric bases",
    solution(0) = 0; solution(1) = 3; solution(2) = 2;
    for (int mode = 0; mode < 2; ++mode)
    {
-      DeflatedGMRESSolver solver;
+      CoarseCorrectedGMRESSolver solver;
       solver.SetOperator(A);
       solver.SetPreconditioner(M);
       solver.SetNullSpaces(NR, NL);
@@ -1252,7 +1253,7 @@ TEST_CASE("Inexact operator coarse solves allow balanced correction",
    DenseMatrix A = Diagonal(1, 2, 3), Z(3, 1);
    Z = 1.0;
    DenseInverseSolver inexact(real_t(0.8));
-   DeflatedCGSolver solver;
+   CoarseCorrectedCGSolver solver;
    solver.SetOperator(A);
    solver.SetCoarseSpace(Z, inexact);
    solver.SetRelTol(TestTolerance());
@@ -1307,7 +1308,7 @@ TEST_CASE("Deflation diagnostics reject nonfinite values", "[Deflation]")
    REQUIRE_FALSE(corrupted_spaces.ValidateNullSpaces(1e-8));
 #ifdef MFEM_USE_EXCEPTIONS
    DenseMatrix regular = Diagonal(1, 2, 3);
-   DeflatedCGSolver solver;
+   CoarseCorrectedCGSolver solver;
    solver.SetOperator(regular);
    Vector x(3);
    x = 0.0;
@@ -1318,8 +1319,8 @@ TEST_CASE("Deflation diagnostics reject nonfinite values", "[Deflation]")
 
 #ifdef MFEM_USE_EXCEPTIONS
 TEMPLATE_TEST_CASE("Deflation rejects overflowed convergence metrics",
-                   "[Deflation]", DeflatedCGSolver, DeflatedGMRESSolver,
-                   DeflatedFGMRESSolver)
+                   "[Deflation]", CoarseCorrectedCGSolver,
+                   CoarseCorrectedGMRESSolver, CoarseCorrectedFGMRESSolver)
 {
    const auto mode = GENERATE(CoarseCorrectionType::PROJECTED,
                               CoarseCorrectionType::BALANCED);
@@ -1360,8 +1361,8 @@ TEMPLATE_TEST_CASE("Deflation rejects overflowed convergence metrics",
 }
 
 TEMPLATE_TEST_CASE("Deflation rejects nonfinite physical residuals",
-                   "[Deflation]", DeflatedCGSolver, DeflatedGMRESSolver,
-                   DeflatedFGMRESSolver)
+                   "[Deflation]", CoarseCorrectedCGSolver,
+                   CoarseCorrectedGMRESSolver, CoarseCorrectedFGMRESSolver)
 {
    class NonfiniteImageOperator : public Operator
    {
@@ -1465,7 +1466,7 @@ TEST_CASE("Opt-in SVD coarse solve matches direct correction",
    svd.ApplyResidualProjector(r, svd_correction);
    CheckVector(svd_correction, direct_correction);
 
-   DeflatedGMRESSolver solver;
+   CoarseCorrectedGMRESSolver solver;
    solver.SetOperator(A);
    solver.SetCoarseSpace(Z);
    solver.SetSetupOptions(options);
@@ -1516,7 +1517,7 @@ TEST_CASE("Deflation option changes preserve preconditioner binding",
 {
    DenseMatrix A = Diagonal(1, 2, 3), Z = Coordinate(1);
    MatrixActionSolver M(Diagonal(1, 1, 1));
-   DeflatedCGSolver solver;
+   CoarseCorrectedCGSolver solver;
    Vector b(3), x(3);
    b = 1.0;
    solver.SetOperator(A);
@@ -1567,7 +1568,7 @@ TEST_CASE("Deflation exhausted budget reports physical residual",
    Vector b(3), x(3);
    b = 1.0;
    x = 0.0;
-   DeflatedCGSolver solver;
+   CoarseCorrectedCGSolver solver;
    solver.SetOperator(A);
    solver.SetRelTol(0);
    solver.SetAbsTol(0);
@@ -1588,7 +1589,7 @@ TEST_CASE("Restarted GMRES progress and physical breakdown reporting",
    b = 1.0;
    x = 0.0;
    ResidualTraceController trace;
-   DeflatedGMRESSolver restarted;
+   CoarseCorrectedGMRESSolver restarted;
    restarted.SetOperator(A);
    restarted.SetController(trace);
    restarted.SetKDim(1);
@@ -1614,7 +1615,7 @@ TEST_CASE("Restarted GMRES progress and physical breakdown reporting",
 
    DenseMatrix identity = Diagonal(1, 1, 1), zero(3);
    zero = 0.0;
-   DeflatedGMRESSolver happy;
+   CoarseCorrectedGMRESSolver happy;
    happy.SetOperator(identity);
    happy.SetKDim(2);
    happy.SetMaxIter(4);
@@ -1624,7 +1625,7 @@ TEST_CASE("Restarted GMRES progress and physical breakdown reporting",
    REQUIRE(happy.GetConverged());
    REQUIRE(happy.GetNumIterations() == 1);
 
-   DeflatedGMRESSolver unhappy;
+   CoarseCorrectedGMRESSolver unhappy;
    unhappy.SetOperator(zero);
    unhappy.SetKDim(2);
    unhappy.SetMaxIter(4);
@@ -1643,7 +1644,7 @@ TEST_CASE("Restarted GMRES progress and physical breakdown reporting",
    Vector inconsistent(3);
    inconsistent = 0.0;
    inconsistent(0) = 1.0;
-   DeflatedGMRESSolver after_one;
+   CoarseCorrectedGMRESSolver after_one;
    after_one.SetOperator(later_breakdown);
    after_one.SetKDim(3);
    after_one.SetMaxIter(4);
@@ -1666,13 +1667,13 @@ TEST_CASE("Deflation rejects paired CG setters and missing preconditioner",
    A = 0.0;
    A(0, 1) = 1;
    A(2, 2) = 2;
-   DeflatedCGSolver cg;
+   CoarseCorrectedCGSolver cg;
    REQUIRE_THROWS_WITH(cg.SetNullSpaces(right, left),
                        Catch::Matchers::Contains("CG accepts only shared"));
    REQUIRE_THROWS_WITH(cg.SetCoarseSpaces(right, left),
                        Catch::Matchers::Contains("CG accepts only shared"));
 
-   DeflatedGMRESSolver gmres;
+   CoarseCorrectedGMRESSolver gmres;
    gmres.SetOperator(A);
    gmres.SetNullSpaces(right, left);
    REQUIRE_THROWS_WITH(gmres.Setup(),
@@ -1687,7 +1688,7 @@ TEST_CASE("Deflation rejects invalid tolerances and basis shapes",
    DenseMatrix A = Diagonal(1, 2, 3), short_basis(2, 1);
    Vector b(3), x(3);
    b = 1.0; x = 0.0;
-   DeflatedGMRESSolver solver;
+   CoarseCorrectedGMRESSolver solver;
    solver.SetOperator(A);
    solver.SetKDim(2);
    solver.SetRelTol(-1);
@@ -1782,7 +1783,7 @@ TEST_CASE("Deflation rejects invalid restart and rank", "[Deflation]")
    Z(0, 0) = Z(0, 1) = 1.0;
    Vector b(3), x(3);
    b = 1.0; x = 0.0;
-   DeflatedGMRESSolver solver;
+   CoarseCorrectedGMRESSolver solver;
    solver.SetOperator(A);
    solver.SetKDim(0);
    REQUIRE_THROWS(solver.Mult(b, x));
@@ -1814,13 +1815,13 @@ TEST_CASE("Deflation rejects invalid restart and rank", "[Deflation]")
    precision_check.SetSetupOptions(explicit_thresholds);
    REQUIRE_NOTHROW(precision_check.Setup(true));
 
-   DeflatedCGSolver cg;
+   CoarseCorrectedCGSolver cg;
    cg.SetOperator(A);
    cg.SetMaxIter(-1);
    REQUIRE_THROWS(cg.Mult(b, x));
 
    DenseMatrix singular = Diagonal(0, 2, 5), N = Coordinate(0);
-   DeflatedCGSolver rejected_rhs;
+   CoarseCorrectedCGSolver rejected_rhs;
    rejected_rhs.SetOperator(singular);
    rejected_rhs.SetNullSpace(N);
    b(0) = 1.0;
@@ -1831,7 +1832,7 @@ TEST_CASE("Device deflation rejects shared input/output storage",
           "[Deflation][GPU]")
 {
    DeviceMatrixAction A(Diagonal(1, 2, 3));
-   DeflatedCGSolver solver;
+   CoarseCorrectedCGSolver solver;
    solver.SetOperator(A);
    Vector b(3), alias;
    b = 1.0;
@@ -1897,7 +1898,7 @@ TEST_CASE("Deflation serial and distributed coupled systems agree",
               .margin(TestTolerance()));
    };
 
-   DeflatedCGSolver serial_cg, parallel_cg(MPI_COMM_WORLD);
+   CoarseCorrectedCGSolver serial_cg, parallel_cg(MPI_COMM_WORLD);
    serial_cg.SetOperator(A);
    serial_cg.SetCoarseSpace(global_Z);
    parallel_cg.SetOperator(local_A);
@@ -1916,7 +1917,7 @@ TEST_CASE("Deflation serial and distributed coupled systems agree",
            .margin(TestTolerance()));
    compare(serial_cg.GetSolveInfo(), parallel_cg.GetSolveInfo());
 
-   DeflatedGMRESSolver serial_gmres, parallel_gmres(MPI_COMM_WORLD);
+   CoarseCorrectedGMRESSolver serial_gmres, parallel_gmres(MPI_COMM_WORLD);
    serial_gmres.SetOperator(A);
    serial_gmres.SetCoarseSpace(global_Z);
    parallel_gmres.SetOperator(local_A);
@@ -1940,7 +1941,7 @@ TEST_CASE("Deflation serial and distributed coupled systems agree",
 #ifdef MFEM_USE_LAPACK
    DeflationSetupOptions svd_options;
    svd_options.coarse_solve_method = CoarseSolveMethod::SVD;
-   DeflatedCGSolver serial_svd, parallel_svd(MPI_COMM_WORLD);
+   CoarseCorrectedCGSolver serial_svd, parallel_svd(MPI_COMM_WORLD);
    serial_svd.SetOperator(A);
    serial_svd.SetCoarseSpace(global_Z);
    serial_svd.SetSetupOptions(svd_options);
@@ -1966,8 +1967,8 @@ TEST_CASE("Deflation serial and distributed coupled systems agree",
 
 #ifdef MFEM_USE_EXCEPTIONS
 TEMPLATE_TEST_CASE("Deflation residual overflow fails on every MPI rank",
-                   "[Deflation][Parallel]", DeflatedCGSolver,
-                   DeflatedGMRESSolver, DeflatedFGMRESSolver)
+                   "[Deflation][Parallel]", CoarseCorrectedCGSolver,
+                   CoarseCorrectedGMRESSolver, CoarseCorrectedFGMRESSolver)
 {
    int rank = 0;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -2095,17 +2096,17 @@ TEST_CASE("Operator coarse space with HypreParMatrix aggregates",
    {
       amg->SetPrintLevel(0);
    }
-   DeflatedCGSolver deflated(MPI_COMM_WORLD);
-   deflated.SetOperator(*A);
-   deflated.SetPreconditioner(fine);
-   deflated.SetCoarseSpace(Z, coarse);
-   deflated.SetRelTol(1e-10);
-   deflated.SetMaxIter(200);
-   deflated.iterative_mode = false;
+   CoarseCorrectedCGSolver corrected(MPI_COMM_WORLD);
+   corrected.SetOperator(*A);
+   corrected.SetPreconditioner(fine);
+   corrected.SetCoarseSpace(Z, coarse);
+   corrected.SetRelTol(1e-10);
+   corrected.SetMaxIter(200);
+   corrected.iterative_mode = false;
    x = 0.0;
-   deflated.Mult(b, x);
-   REQUIRE(deflated.GetConverged());
-   const DeflationSpaces &spaces = deflated.GetDeflationSpaces();
+   corrected.Mult(b, x);
+   REQUIRE(corrected.GetConverged());
+   const DeflationSpaces &spaces = corrected.GetDeflationSpaces();
    REQUIRE(dynamic_cast<const HypreParMatrix*>(spaces.GetCoarseOperator()) !=
            nullptr);
    REQUIRE(spaces.GetCoarseSpaceDimension() == total);
@@ -2135,7 +2136,7 @@ TEST_CASE("Operator coarse space with HypreParMatrix aggregates",
    HypreBoomerAMG gmres_fine(*A), gmres_coarse;
    gmres_fine.SetPrintLevel(0);
    gmres_coarse.SetPrintLevel(0);
-   DeflatedGMRESSolver paired(MPI_COMM_WORLD);
+   CoarseCorrectedGMRESSolver paired(MPI_COMM_WORLD);
    paired.SetOperator(*A);
    paired.SetPreconditioner(gmres_fine);
    paired.SetCoarseSpaces(Z, rank == 0 ? Z : Z_copy, gmres_coarse);
@@ -2173,7 +2174,7 @@ TEST_CASE("Deflation setup decisions are collective",
    Vector b(local_rows), x(local_rows);
    if (local_rows) { b(0) = rank == 0 ? 0 : real_t(rank + 2); }
    MatrixActionSolver M(identity);
-   DeflatedCGSolver solver(MPI_COMM_WORLD);
+   CoarseCorrectedCGSolver solver(MPI_COMM_WORLD);
    solver.SetOperator(A);
    solver.SetPreconditioner(M);
    solver.SetNullSpace(N);
@@ -2219,7 +2220,7 @@ TEST_CASE("Deflation MPI reductions with owned rows", "[Deflation][Parallel]")
    }
    Vector b(local_rows), x(local_rows);
    if (local_rows) { b(0) = rank == 0 ? 0 : real_t(rank + 2); }
-   DeflatedCGSolver solver(MPI_COMM_WORLD);
+   CoarseCorrectedCGSolver solver(MPI_COMM_WORLD);
    solver.SetOperator(A);
    solver.SetNullSpace(N);
    solver.SetCoarseSpace(Z);
@@ -2266,7 +2267,7 @@ TEST_CASE("Device deflation MPI reductions without GPU-aware MPI",
          x = 0.0;
          if (kind == 0)
          {
-            DeflatedCGSolver solver(MPI_COMM_WORLD);
+            CoarseCorrectedCGSolver solver(MPI_COMM_WORLD);
             solver.SetOperator(A);
             solver.SetNullSpace(N);
             solver.SetCoarseSpace(Z);
@@ -2280,7 +2281,7 @@ TEST_CASE("Device deflation MPI reductions without GPU-aware MPI",
          }
          else if (kind == 1)
          {
-            DeflatedGMRESSolver solver(MPI_COMM_WORLD);
+            CoarseCorrectedGMRESSolver solver(MPI_COMM_WORLD);
             solver.SetOperator(A);
             solver.SetNullSpace(N);
             solver.SetCoarseSpace(Z);
@@ -2293,7 +2294,7 @@ TEST_CASE("Device deflation MPI reductions without GPU-aware MPI",
          }
          else
          {
-            DeflatedFGMRESSolver solver(MPI_COMM_WORLD);
+            CoarseCorrectedFGMRESSolver solver(MPI_COMM_WORLD);
             solver.SetOperator(A);
             solver.SetNullSpace(N);
             solver.SetCoarseSpace(Z);
