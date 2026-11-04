@@ -58,7 +58,6 @@ void LibCoefficient::GetLibFunction(string libName,
       }
       cout<<"Function will be set to val = "<<val<< endl;
    }
-   // dlclose(libHandle);
 }
 
 // Evaluate

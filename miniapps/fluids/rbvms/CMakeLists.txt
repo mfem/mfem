@@ -18,7 +18,7 @@ foreach(target liddriven kovasznay vonkarman)
 endforeach()
 
 add_mfem_miniapp(rbvms
-  MAIN rbvms.cpp 
+  MAIN rbvms.cpp
   EXTRA_SOURCES integrator.cpp libcoefficients.cpp
   EXTRA_HEADERS integrator.hpp libcoefficients.hpp util.hpp
   LIBRARIES mfem)
@@ -50,10 +50,10 @@ endif()
 
 if (MFEM_USE_MPI)
   add_mfem_miniapp(prbvms
-  MAIN prbvms.cpp
-  EXTRA_SOURCES integrator.cpp libcoefficients.cpp
-  EXTRA_HEADERS integrator.hpp libcoefficients.hpp util.hpp
-  LIBRARIES mfem)
+    MAIN prbvms.cpp
+    EXTRA_SOURCES integrator.cpp libcoefficients.cpp
+    EXTRA_HEADERS integrator.hpp libcoefficients.hpp util.hpp
+    LIBRARIES mfem)
 
   # Add the corresponding tests to the "test" target
   if (MFEM_ENABLE_TESTING)
@@ -76,10 +76,6 @@ if (MFEM_USE_MPI)
                   -r 1 -o 2 -s 45 -dt 0.1  -tf 1
       ${MPIEXEC_POSTFLAGS})
   endif()
-  
-  
+
 endif()
-
-
-
 
