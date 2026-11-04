@@ -173,7 +173,7 @@ public:
    NURBS3DFiniteElement(int px, int py, int pz)
       : ScalarFiniteElement(3, Geometry::CUBE, (px + 1)*(py + 1)*(pz + 1),
                             std::max(std::max(px,py),pz), FunctionSpace::Qk),
-        NURBSFiniteElement(2),
+        NURBSFiniteElement(3),
         u(dof), shape_x(px + 1), shape_y(py + 1), shape_z(pz + 1),
         dshape_x(px + 1), dshape_y(py + 1), dshape_z(pz + 1),
         d2shape_x(px + 1), d2shape_y(py + 1), d2shape_z(pz + 1), du(dof,3)
