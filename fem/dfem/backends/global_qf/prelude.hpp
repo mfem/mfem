@@ -118,7 +118,7 @@ struct GlobalQFBackend
       static_assert(std::is_same_v<entity_t, Entity::Element>,
                     "GlobalQFBackend only supports domain integrators");
       return GlobalQFImpl::DerivativeAction<
-               derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(
+             derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(
                 ctx, qfunc, inputs, outputs);
    }
 
@@ -146,7 +146,7 @@ struct GlobalQFBackend
       static_assert(std::is_same_v<entity_t, Entity::Element>,
                     "GlobalQFBackend only supports domain integrators");
       return GlobalQFImpl::DerivativeSetup<
-               derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(
+             derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(
                 ctx, qfunc, inputs, outputs, qp_cache);
    }
 
@@ -193,7 +193,7 @@ struct GlobalQFBackend
       static_assert(std::is_same_v<entity_t, Entity::Element>,
                     "GlobalQFBackend only supports domain integrators");
       return GlobalQFImpl::DerivativeApplyTranspose<
-               derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(
+             derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(
                 ctx, qfunc, inputs, outputs, qp_cache);
    }
 
