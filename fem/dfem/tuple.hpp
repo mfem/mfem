@@ -867,6 +867,6 @@ struct tuple_element<I, mfem::future::tuple<T...>>
 // ambiguous with nvcc, which also considers std::get for them.
 template <size_t I, typename T, typename = enable_if_t<
              mfem::future::is_tuple<remove_cv_t<remove_reference_t<T>>>::value>>
-constexpr decltype(auto) get(T&& t) noexcept
+             constexpr decltype(auto) get(T&& t) noexcept
 { return mfem::future::get<I>(std::forward<T>(t)); }
 }
