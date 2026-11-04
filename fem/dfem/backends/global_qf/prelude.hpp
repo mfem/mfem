@@ -68,6 +68,118 @@ template <typename qfunc_t>
 using LocalQFShapeFunctionFor = LocalQFShapeFunction<
                                 typename get_function_signature<qfunc_t>::type::parameter_ts>;
 
+// Quadrature point array of a pointwise q-function argument, the inverse of
+// LocalQFShapeArg. Const references and values are inputs, the others outputs.
+template <typename arg_t>
+inline constexpr bool is_local_input_v =
+   !std::is_lvalue_reference_v<arg_t> ||
+   std::is_const_v<std::remove_reference_t<arg_t>>;
+
+template <typename T, bool input>
+struct TensorArray
+{
+   using type = tensor_array<std::conditional_t<input, const T, T>>;
+};
+
+template <typename T, int... n, bool input>
+struct TensorArray<tensor<T, n...>, input>
+{
+   using type = tensor_array<std::conditional_t<input, const T, T>, n...>;
+};
+
+template <typename arg_t>
+using tensor_array_t =
+   typename TensorArray<qf_param_decay_t<arg_t>, is_local_input_v<arg_t>>::type;
+
+template <typename T>
+inline constexpr bool is_tensor_array_v = false;
+
+template <typename T, int ndims, int... n>
+inline constexpr bool is_tensor_array_v<tensor_ndarray<T, ndims, n...>> = true;
+
+template <typename... args_t>
+constexpr bool HasNoTensorArray(const tuple<args_t...> *)
+{
+   return !(is_tensor_array_v<qf_param_decay_t<args_t>> || ...);
+}
+
+// A q-function is local when none of its arguments is a tensor array.
+// Q-functions with scratch are left as they are.
+template <typename qfunc_t, typename = void>
+struct IsLocalQF : std::false_type { };
+
+template <typename qfunc_t>
+struct IsLocalQF<qfunc_t, std::void_t<decltype(&qfunc_t::operator())>>
+{
+   using params_t =
+      typename get_function_signature<qfunc_t>::type::parameter_ts;
+   static constexpr bool value =
+      !qfunc_uses_scratch_v<qfunc_t> &&
+      HasNoTensorArray(static_cast<const params_t *>(nullptr));
+};
+
+template <typename qfunc_t>
+inline constexpr bool is_local_qfunc_v = IsLocalQF<qfunc_t>::value;
+
+// nvcc needs internal linkage for header functions launching forall kernels,
+// and its extended lambdas cannot capture packs: the arrays come as a tuple.
+template <typename qf_t, typename arrays_t>
+static void ForallLocal(const qf_t qf, const int nq, const arrays_t a)
+{
+   mfem::forall<UseEnzyme>(nq, [=] MFEM_HOST_DEVICE (int q)
+   {
+      qf.Local(q, a, std::make_index_sequence<tuple_size<arrays_t>::value> {});
+   });
+}
+
+/// Global q-function running a pointwise one at every quadrature point.
+/// The q-function is copied by value into the kernel, the outputs start
+/// from value-initialized tensors.
+template <typename qfunc_t, typename = typename
+          get_function_signature<qfunc_t>::type::parameter_ts>
+struct GlobalFromLocalQF;
+
+template <typename qfunc_t, typename... args_t>
+struct GlobalFromLocalQF<qfunc_t, tuple<args_t...>>
+{
+   qfunc_t qfunc;
+
+   GlobalFromLocalQF(const qfunc_t &f): qfunc(f) { }
+
+   template <typename arg_t, typename array_t> MFEM_HOST_DEVICE static
+   qf_param_decay_t<arg_t> Load(const array_t &a, const int q)
+   {
+      if constexpr (is_local_input_v<arg_t>) { return a(q); }
+      else { return qf_param_decay_t<arg_t> {}; }
+   }
+
+   template <typename arg_t, typename array_t, typename value_t>
+   MFEM_HOST_DEVICE static
+   void Store(const array_t &a, const value_t &v, const int q)
+   {
+      if constexpr (!is_local_input_v<arg_t>) { a(q) = v; }
+   }
+
+   template <std::size_t... i> MFEM_HOST_DEVICE
+   void Local(const int q, const tuple<tensor_array_t<args_t>...> &a,
+              std::index_sequence<i...>) const
+   {
+      tuple<qf_param_decay_t<args_t>...> x{Load<args_t>(get<i>(a), q)...};
+      qfunc(get<i>(x)...);
+      (Store<args_t>(get<i>(a), get<i>(x), q), ...);
+   }
+
+   void operator()(tensor_array_t<args_t> &...a) const
+   {
+      const int nq = static_cast<int>((a.size(), ...));
+      ForallLocal(*this, nq, tuple<tensor_array_t<args_t>...> {a...});
+   }
+};
+
+template <typename qfunc_t>
+using global_qfunc_t = std::conditional_t<is_local_qfunc_v<qfunc_t>,
+      GlobalFromLocalQF<qfunc_t>, qfunc_t>;
+
 } // namespace detail
 
 struct GlobalQFBackend
@@ -89,7 +201,8 @@ struct GlobalQFBackend
       inputs_t inputs,
       outputs_t outputs)
    {
-      return GlobalQFImpl::Action(ctx, qfunc, inputs, outputs);
+      return GlobalQFImpl::Action<detail::global_qfunc_t<qfunc_t>, inputs_t,
+             outputs_t>(ctx, qfunc, inputs, outputs);
    }
 
    /**
@@ -112,8 +225,8 @@ struct GlobalQFBackend
       outputs_t outputs)
    {
       return GlobalQFImpl::DerivativeAction<
-             derivative_id, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs);
+             derivative_id, detail::global_qfunc_t<qfunc_t>, inputs_t,
+             outputs_t>(ctx, qfunc, inputs, outputs);
    }
 
    /**
@@ -137,8 +250,8 @@ struct GlobalQFBackend
       Vector &qp_cache)
    {
       return GlobalQFImpl::DerivativeSetup<
-             derivative_id, qfunc_t, inputs_t, outputs_t>(
-                ctx, qfunc, inputs, outputs, qp_cache);
+             derivative_id, detail::global_qfunc_t<qfunc_t>, inputs_t,
+             outputs_t>(ctx, qfunc, inputs, outputs, qp_cache);
    }
 
    template<
