@@ -14,7 +14,7 @@ on:
   workflow_call:
 jobs:
   build-file-lsan:
-    runs-on: ubuntu-26.04  # ubuntu-latest until 2026-11-19 migration completes
+    runs-on: ubuntu-26.04  # can switch to 'ubuntu-latest' after 2026-11-19
     name: lsan.supp
     steps:
       - uses: actions/checkout@v6
