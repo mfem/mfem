@@ -415,6 +415,8 @@ public:
       derivative_callbacks(std::move(derivative_callbacks)),
       infds(infds),
       outfds(outfds),
+      ev(EntityTraits<Entity::Element>::restriction, infds.size(),
+         outfds.size()),
       direction(direction),
       assemble_derivative_sparsematrix_callbacks(assemble_sparsematrix_callbacks),
       assemble_derivative_hypreparmatrix_callbacks(assemble_hypreparmatrix_callbacks),
@@ -424,8 +426,6 @@ public:
       cached_apply(cached_apply)
    {
       daction_l.resize(outfds.size());
-      daction_e.resize(outfds.size());
-      infields_e.resize(infds.size());
       infields_l.resize(infds.size());
       for (size_t i = 0; i < infds.size(); i++)
       {
@@ -445,7 +445,6 @@ public:
       // Null-initialised: restriction_transpose / prepare_residual allocate on
       // first use and resize on subsequent calls.
       transpose_result_l.resize(infds.size(), nullptr);
-      transpose_result_e.resize(infds.size(), nullptr);
 
       // Prolong from T-vector to L-vector
       if constexpr (std::is_same_v<vector_t, Vector>)
@@ -509,11 +508,11 @@ public:
       Operator(height, width),
       derivative_callbacks(std::move(derivative_callbacks)),
       infds(infds),
-      outfds(outfds)
+      outfds(outfds),
+      ev(EntityTraits<Entity::Element>::restriction, infds.size(),
+         outfds.size())
    {
       daction_l.resize(outfds.size());
-      daction_e.resize(outfds.size());
-      infields_e.resize(infds.size());
       infields_l.resize(infds.size());
       for (size_t i = 0; i < infds.size(); i++)
       {
@@ -523,9 +522,9 @@ public:
 
    ~DerivativeOperator() override
    {
-      detail::DeleteOwnedVectorPointers(infields_l, infields_e);
-      detail::DeleteOwnedVectorPointers(daction_l, daction_e);
-      detail::DeleteOwnedVectorPointers(transpose_result_l, transpose_result_e);
+      detail::DeleteOwnedVectorPointers(infields_l, daction_l,
+                                        transpose_result_l, ev.in_e, ev.out_e,
+                                        ev.in_result_e);
    }
 
    DerivativeOperator(const DerivativeOperator &) = delete;
@@ -558,23 +557,22 @@ public:
                   "without DerivativeKernels::Action");
       if (cached_apply) { EnsureQpCache(); }
       prolongation(direction, x, direction_l, lvector_mode);
-      if (!cached_apply) { restriction(infds, in_rcache, infields_l, infields_e); }
-      prepare_residual(outfds, out_rcache, daction_e);
-      for (auto *v : daction_e) { *v = 0.0; }
+      if (!cached_apply) { ev.RestrictInputs(infds, infields_l); }
+      ev.ZeroOutputs(outfds);
       for (const auto &f : derivative_callbacks.actions)
       {
-         f(infields_e, &direction_l, daction_e);
+         f(ev.in_e, &direction_l, ev.out_e);
       }
       if constexpr (std::is_same_v<vector_t, MultiVector>)
       {
          if (lvector_mode)
          {
             // Apply transposed restriction straight into the output vector.
-            restriction_transpose(outfds, out_rcache, daction_e, y);
+            ev.TransposeOutputs(outfds, y);
             return;
          }
       }
-      restriction_transpose(outfds, out_rcache, daction_e, daction_l);
+      ev.TransposeOutputs(outfds, daction_l);
       prolongation_transpose(outfds, daction_l, y, lvector_mode);
    }
 
@@ -594,15 +592,14 @@ public:
                   "derivative can't be applied: the integrator was registered "
                   "without DerivativeKernels::Action");
       prolongation(infds, x, infields_l);
-      restriction(infds, in_rcache, infields_l, infields_e);
-      prepare_residual(outfds, out_rcache, daction_e);
-      for (auto *v : daction_e) { *v = 0.0; }
+      ev.RestrictInputs(infds, infields_l);
+      ev.ZeroOutputs(outfds);
       for (const auto &f : derivative_callbacks.actions)
       {
          // The first-derivative (gradient) action ignores the direction.
-         f(infields_e, nullptr, daction_e);
+         f(ev.in_e, nullptr, ev.out_e);
       }
-      restriction_transpose(outfds, out_rcache, daction_e, daction_l);
+      ev.TransposeOutputs(outfds, daction_l);
       prolongation_transpose(outfds, daction_l, y);
    }
 
@@ -658,19 +655,17 @@ public:
 
       if (!cached_transpose)
       {
-         restriction(infds, in_rcache, infields_l, infields_e);
+         ev.RestrictInputs(infds, infields_l);
       }
 
-      prepare_residual(infds, in_rcache, transpose_result_e);
-      for (auto *v : transpose_result_e) { *v = 0.0; }
+      ev.ZeroInputResults(infds);
 
       for (const auto &f : derivative_callbacks.transpose)
       {
-         f(infields_e, &transpose_direction_l, transpose_result_e);
+         f(ev.in_e, &transpose_direction_l, ev.in_result_e);
       }
 
-      restriction_transpose(infds, in_rcache, transpose_result_e,
-                            transpose_result_l);
+      ev.TransposeInputResults(infds, transpose_result_l);
 
       const size_t deriv_idx = FindIdx(direction.id, infds);
       if constexpr (std::is_same_v<result_t, MultiVector>)
@@ -784,15 +779,14 @@ public:
                   "single derivative output field");
       EnsureQpCache();
 
-      restriction(infds, in_rcache, infields_l, infields_e);
-      prepare_residual(outfds, out_rcache, daction_e);
-      for (auto *v : daction_e) { *v = 0.0; }
+      ev.RestrictInputs(infds, infields_l);
+      ev.ZeroOutputs(outfds);
       for (const auto &f : derivative_callbacks.actions)
       {
          // The first-derivative (gradient) action ignores the direction.
-         f(infields_e, nullptr, daction_e);
+         f(ev.in_e, nullptr, ev.out_e);
       }
-      restriction_transpose(outfds, out_rcache, daction_e, daction_l);
+      ev.TransposeOutputs(outfds, daction_l);
       if (lvector_mode)
       {
          g = *daction_l[0];
@@ -843,15 +837,14 @@ public:
                   "so has no diagonal; its test space is not the trial space "
                   "of the differentiated field");
 
-      prepare_residual(outfds, out_rcache, daction_e);
-      for (auto *v : daction_e) { *v = 0.0; }
+      ev.ZeroOutputs(outfds);
 
       for (const auto &f : assemble_diagonal_callbacks)
       {
-         f(static_cast<int>(out_field_id), *daction_e[diagonal_idx]);
+         f(static_cast<int>(out_field_id), *ev.out_e[diagonal_idx]);
       }
 
-      restriction_transpose(outfds, out_rcache, daction_e, daction_l);
+      ev.TransposeOutputs(outfds, daction_l);
       prolongation_transpose(outfds[diagonal_idx],
                              *daction_l[diagonal_idx], diag);
    }
@@ -895,22 +888,14 @@ private:
    const std::vector<FieldDescriptor> outfds;
 
    mutable std::vector<Vector *> infields_l;
-   mutable std::vector<Vector *> infields_e;
 
-   /// Restrictions of infds/outfds, resolved on first use.
-   mutable RestrictionCache in_rcache
-   {
-      EntityTraits<Entity::Element>::restriction
-   };
-   mutable RestrictionCache out_rcache
-   {
-      EntityTraits<Entity::Element>::restriction
-   };
+   /// Restrictions and E-vectors of infds/outfds. The restrictions are
+   /// resolved on first use.
+   mutable detail::EntityEVectors ev;
 
    FieldDescriptor direction;
 
    mutable std::vector<Vector *> daction_l;
-   mutable std::vector<Vector *> daction_e;
 
    // const int daction_l_size;
 
@@ -919,7 +904,6 @@ private:
    // Pre-allocated workspace for MultTranspose (avoids per-call heap traffic).
    mutable Vector transpose_direction_l;
    mutable std::vector<Vector *> transpose_result_l;
-   mutable std::vector<Vector *> transpose_result_e;
 
    /// Callbacks that assemble derivatives into a SparseMatrix.
    std::vector<assemble_derivative_sparsematrix_callback_t>
@@ -959,14 +943,14 @@ private:
    {
       if (qp_cache_filled || derivative_callbacks.setup.empty()) { return; }
 
-      restriction(infds, in_rcache, infields_l, infields_e);
+      ev.RestrictInputs(infds, infields_l);
       for (size_t i = 0; i < captured_state.size(); i++)
       {
          captured_state[i]->SyncMemory(*infields_l[i]);
       }
       for (const auto &setup_callback : derivative_callbacks.setup)
       {
-         setup_callback(infields_e);
+         setup_callback(ev.in_e);
       }
       qp_cache_filled = true;
    }
@@ -1004,8 +988,8 @@ public:
 
    ~DifferentiableOperator() override
    {
-      detail::DeleteOwnedVectorPointers(infields_l, infields_e);
-      detail::DeleteOwnedVectorPointers(residual_l, residual_e);
+      detail::DeleteOwnedVectorPointers(infields_l, residual_l, ev.in_e,
+                                        ev.out_e, ev.in_result_e);
    }
 
    DifferentiableOperator(const DifferentiableOperator &) = delete;
@@ -1070,24 +1054,23 @@ public:
 
       const bool is_lvector = (mult_level == MultLevel::LVECTOR);
       prolongation(infds, x, infields_l, is_lvector);
-      restriction(infds, in_rcache, infields_l, infields_e);
+      ev.RestrictInputs(infds, infields_l);
       if (is_lvector)
       {
          detail::SyncLVectorAliasMemory(x, infields_l);
       }
-      prepare_residual(outfds, out_rcache, residual_e);
-      for (auto *v : residual_e) { *v = 0.0; }
-      for (const auto &f : operator_callbacks.actions) { f(infields_e, residual_e); }
+      ev.ZeroOutputs(outfds);
+      for (const auto &f : operator_callbacks.actions) { f(ev.in_e, ev.out_e); }
       if constexpr (std::is_same_v<y_t, MultiVector>)
       {
          if (is_lvector)
          {
             // Apply transposed restriction straight into the output vector.
-            restriction_transpose(outfds, out_rcache, residual_e, y);
+            ev.TransposeOutputs(outfds, y);
             return;
          }
       }
-      restriction_transpose(outfds, out_rcache, residual_e, residual_l);
+      ev.TransposeOutputs(outfds, residual_l);
       prolongation_transpose(outfds, residual_l, y, is_lvector);
    }
 
@@ -1410,20 +1393,12 @@ private:
    std::vector<FieldDescriptor> unionfds;
 
    mutable std::vector<Vector *> infields_l;
-   mutable std::vector<Vector *> infields_e;
 
    mutable std::vector<Vector *> residual_l;
-   mutable std::vector<Vector *> residual_e;
 
-   /// Restrictions of infds/outfds, resolved on first use.
-   mutable RestrictionCache in_rcache
-   {
-      EntityTraits<Entity::Element>::restriction
-   };
-   mutable RestrictionCache out_rcache
-   {
-      EntityTraits<Entity::Element>::restriction
-   };
+   /// Restrictions and E-vectors of infds/outfds. The restrictions are
+   /// resolved on first use.
+   mutable detail::EntityEVectors ev;
 
    // std::function<void(Vector &, Vector &)> prolongation_transpose;
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
@@ -1589,7 +1564,6 @@ void DifferentiableOperator::AddIntegrator(
 
    const int num_entities = GetNumEntities<entity_t>(mesh);
 
-   residual_e.resize(outfds.size());
    residual_l.resize(outfds.size());
 
    // TODO: Is this a hack?

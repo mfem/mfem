@@ -119,6 +119,79 @@ int GetNumEntities(const mfem::Mesh &mesh)
    return EntityTraits<entity_t>::Count(mesh);
 }
 
+namespace detail
+{
+
+/// @brief Restrictions and E-vectors of the integrators of one entity type,
+/// and the steps that move data between them and the operator's L-vectors.
+///
+/// The input E-vectors hold the restricted input fields, the output E-vectors
+/// the residual (or derivative action) and the input result E-vectors the
+/// result of a transpose action, which lives in the input fields. Operators
+/// only use the steps below, so that an entity type which needs more than a
+/// restriction to move its data can provide it here.
+class EntityEVectors
+{
+public:
+   EntityEVectors(const RestrictionDescriptor &rest_descriptor,
+                  size_t num_inputs, size_t num_outputs) :
+      in_e(num_inputs, nullptr),
+      out_e(num_outputs, nullptr),
+      in_result_e(num_inputs, nullptr),
+      in_rcache(rest_descriptor),
+      out_rcache(rest_descriptor) { }
+
+   /// Restrict the L-vectors @a x_l of the fields @a infds to in_e.
+   void RestrictInputs(const std::vector<FieldDescriptor> &infds,
+                       const std::vector<Vector *> &x_l)
+   {
+      restriction(infds, in_rcache, x_l, in_e);
+   }
+
+   /// Size out_e for the fields @a outfds and zero it.
+   void ZeroOutputs(const std::vector<FieldDescriptor> &outfds)
+   {
+      prepare_residual(outfds, out_rcache, out_e);
+      for (auto *v : out_e) { *v = 0.0; }
+   }
+
+   /// Size in_result_e for the fields @a infds and zero it.
+   void ZeroInputResults(const std::vector<FieldDescriptor> &infds)
+   {
+      prepare_residual(infds, in_rcache, in_result_e);
+      for (auto *v : in_result_e) { *v = 0.0; }
+   }
+
+   /// Apply the transposed restrictions of the fields @a outfds to out_e and
+   /// write the result to @a y, a std::vector<Vector *> or a MultiVector.
+   /// Writing may alias the entries of a std::vector to out_e, see
+   /// restriction_transpose().
+   template <typename lvectors_t>
+   void TransposeOutputs(const std::vector<FieldDescriptor> &outfds,
+                         lvectors_t &y)
+   {
+      restriction_transpose(outfds, out_rcache, out_e, y);
+   }
+
+   /// Like TransposeOutputs(), for in_result_e and the fields @a infds.
+   template <typename lvectors_t>
+   void TransposeInputResults(const std::vector<FieldDescriptor> &infds,
+                              lvectors_t &y)
+   {
+      restriction_transpose(infds, in_rcache, in_result_e, y);
+   }
+
+   std::vector<Vector *> in_e;
+   std::vector<Vector *> out_e;
+   std::vector<Vector *> in_result_e;
+
+private:
+   RestrictionCache in_rcache;
+   RestrictionCache out_rcache;
+};
+
+} // namespace detail
+
 } // namespace mfem::future
 
 #endif // MFEM_USE_MPI

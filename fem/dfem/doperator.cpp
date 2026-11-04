@@ -151,7 +151,8 @@ DifferentiableOperator::DifferentiableOperator(
    Operator(),
    mesh(mesh),
    infds(infds),
-   outfds(outfds)
+   outfds(outfds),
+   ev(EntityTraits<Entity::Element>::restriction, infds.size(), outfds.size())
 {
    unionfds.clear();
    unionfds.insert(unionfds.end(), infds.begin(), infds.end());
@@ -165,8 +166,6 @@ DifferentiableOperator::DifferentiableOperator(
    {
       infields_l[i] = new Vector(GetVSize(infds[i]));
    }
-
-   infields_e.resize(infds.size());
 }
 
 void DifferentiableOperator::SetMultLevel(MultLevel level)
