@@ -1972,44 +1972,6 @@ std::array<RestrictionCache, N> MakeRestrictionCaches(
                                             std::make_index_sequence<N> {});
 }
 
-/// @brief Get a transpose restriction callback for a field descriptor.
-///
-/// @param f the field descriptor.
-/// @param o the element dof ordering.
-/// @param fop the field operator.
-/// @returns a tuple containing a std::function with the transpose
-/// restriction callback and it's height.
-template <typename entity_t, typename fop_t>
-inline std::tuple<std::function<void(const Vector&, Vector&)>, int>
-get_restriction_transpose(
-   const FieldDescriptor &f,
-   const ElementDofOrdering &o,
-   [[maybe_unused]] const fop_t &fop)
-{
-   if constexpr (is_sum_fop<fop_t>::value)
-   {
-      auto RT = [=](const Vector &v_e, Vector &v_l)
-      {
-         v_l += v_e;
-      };
-      return std::make_tuple(RT, 1);
-   }
-   else
-   {
-      auto R = get_restriction<entity_t>(f, o);
-      std::function<void(const Vector&, Vector&)> RT = [R](const Vector &x, Vector &y)
-      {
-         R->AddMultTranspose(x, y);
-      };
-      return std::make_tuple(RT, R->Height());
-   }
-   return std::make_tuple(
-             std::function<void(const Vector&, Vector&)>([](const Vector&, Vector&)
-   {
-      /* no-op */
-   }), 0); // Never reached, but avoids compiler warning.
-}
-
 /// @brief Apply the prolongation operator to a field.
 ///
 /// @param field the field descriptor.
@@ -2547,58 +2509,6 @@ void restriction(const FieldDescriptor &u,
                "restriction not applicable to given data size");
    field_e.SetSize(cache.Height());
    cache.Get()->Mult(u_l, field_e);
-}
-
-/// @brief Apply the restriction operator to a vector of fields.
-///
-/// @param u the vector of field descriptors.
-/// @param u_l the vector of input vectors in vdofs.
-/// @param fields_e the vector of output vectors in edofs.
-/// @param ordering the element dof ordering.
-/// @param offset the array index offset to start writing in fields_e.
-/// @tparam entity_t the entity type (see Entity).
-template <typename entity_t>
-void restriction(const std::vector<FieldDescriptor> &u,
-                 const std::vector<Vector> &u_l,
-                 std::vector<Vector> &fields_e,
-                 ElementDofOrdering ordering,
-                 const int offset = 0)
-{
-   for (std::size_t i = 0; i < u.size(); i++)
-   {
-      const auto R = get_restriction<entity_t>(u[i], ordering);
-      MFEM_ASSERT(R->Width() == u_l[i].Size(),
-                  "restriction not applicable to given data size");
-      const int height = R->Height();
-      fields_e[i + offset].SetSize(height);
-      if (dynamic_cast<const IdentityOperator*>(R.get()))
-      {
-         fields_e[i + offset].NewMemoryAndSize(u_l[i].GetMemory(), u_l[i].Size(), false);
-      }
-      else
-      {
-         R->Mult(u_l[i], fields_e[i + offset]);
-      }
-   }
-}
-
-// TODO: keep this temporarily
-template <std::size_t N, std::size_t M>
-void element_restriction(const std::array<FieldDescriptor, N> u,
-                         const std::array<Vector, N> &u_l,
-                         std::array<Vector, M> &fields_e,
-                         ElementDofOrdering ordering,
-                         const int offset = 0)
-{
-   for (int i = 0; i < N; i++)
-   {
-      const auto R = get_element_restriction(u[i], ordering);
-      MFEM_ASSERT(R->Width() == u_l[i].Size(),
-                  "element restriction not applicable to given data size");
-      const int height = R->Height();
-      fields_e[i + offset].SetSize(height);
-      R->Mult(u_l[i], fields_e[i + offset]);
-   }
 }
 
 /// @brief Get the number of entities of a given type.
