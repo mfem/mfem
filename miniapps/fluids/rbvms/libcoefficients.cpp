@@ -76,7 +76,7 @@ real_t LibCoefficient::Eval(ElementTransformation &T,
 // Destructor
 LibCoefficient::~LibCoefficient()
 {
-   //if (libHandle) { dlclose(libHandle); }
+   if (libHandle) { dlclose(libHandle); }
 }
 
 
@@ -151,5 +151,5 @@ void LibVectorCoefficient::Eval(Vector &V,
 //  Destructor
 LibVectorCoefficient::~LibVectorCoefficient()
 {
-   //if (libHandle) { dlclose(libHandle); }
+   if (libHandle) { dlclose(libHandle); }
 }
