@@ -78,6 +78,65 @@ TEST_CASE("PetscNonlinearSolver accepts non-empty rhs", "[Parallel][PETSc]")
    REQUIRE(x(0) == MFEM_Approx(nonempty_rhs(0)));
 }
 
+TEST_CASE("PETSc memory placement supports empty local vectors",
+          "[Parallel][PETSc][GPU]")
+{
+   EnsurePetscSession();
+   // Exercise both an empty global vector and empty ranks in a non-empty one.
+   const int global_size = GENERATE(0, 4);
+   const int n = Mpi::WorldRank() == 0 ? global_size : 0;
+   IdentityOperator op(n);
+   PetscParVector x(MPI_COMM_WORLD, op, false, false);
+   Vector values(n);
+
+   SECTION("Read-only placement")
+   {
+      values = 2.0;
+      const Vector &input = values;
+      x.PlaceMemory(input.GetMemory());
+      PetscReal norm;
+      REQUIRE(VecNorm(x, NORM_1, &norm) == 0);
+      REQUIRE(norm == MFEM_Approx(2.0 * global_size));
+      x.ResetMemory();
+      for (int i = 0; i < n; ++i)
+      {
+         REQUIRE(values.HostRead()[i] == MFEM_Approx(2.0));
+      }
+   }
+   SECTION("Write-only placement")
+   {
+      x.PlaceMemory(values.GetMemory(), false);
+      REQUIRE(VecSet(x, 3.0) == 0);
+      x.ResetMemory();
+      for (int i = 0; i < n; ++i)
+      {
+         REQUIRE(values.HostRead()[i] == MFEM_Approx(3.0));
+      }
+   }
+   SECTION("Read-write placement")
+   {
+      values = 2.0;
+      x.PlaceMemory(values.GetMemory(), true);
+      REQUIRE(VecScale(x, 3.0) == 0);
+      x.ResetMemory();
+      for (int i = 0; i < n; ++i)
+      {
+         REQUIRE(values.HostRead()[i] == MFEM_Approx(6.0));
+      }
+   }
+
+   // A reset must release both aliases and the PETSc read lock, including on
+   // empty ranks, so the same wrapper can be placed again.
+   REQUIRE(x.GetMemory().Empty());
+   x.PlaceMemory(values.GetMemory(), false);
+   REQUIRE(VecSet(x, 5.0) == 0);
+   x.ResetMemory();
+   for (int i = 0; i < n; ++i)
+   {
+      REQUIRE(values.HostRead()[i] == MFEM_Approx(5.0));
+   }
+}
+
 TEST_CASE("PETSc vector operations synchronize MFEM data",
           "[Parallel][PETSc][GPU]")
 {
