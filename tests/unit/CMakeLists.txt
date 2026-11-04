@@ -24,7 +24,8 @@ if (MFEM_USE_LAPACK)
       curved-inverted curved-singular curved-near-singular curved-fold
       curved-nonfinite curved-overflow curved-zero-gamma rational-geometry
       embedded-geometry offset-quad-auto offset-hex-auto offset-quad-q
-      offset-hex-q offset-frame-quad offset-frame-hex)
+      offset-hex-q offset-frame-quad offset-frame-hex allocation-scalar
+      allocation-scalar-unselected allocation-vector allocation-vector-unselected)
   set(ghost_failure_messages "rank-deficient projection" "rank-deficient projection"
       "invalid projection dimensions" "gamma must be finite and nonnegative"
       "quadrature weight must be positive" "quadrature weight must be positive"
@@ -45,7 +46,9 @@ if (MFEM_USE_LAPACK)
       "require polynomial" "require polynomial"
       "explicit TOTAL_DEGREE" "explicit TOTAL_DEGREE"
       "explicit TOTAL_DEGREE" "explicit TOTAL_DEGREE"
-      "incompatible tensor frames" "incompatible tensor frames")
+      "incompatible tensor frames" "incompatible tensor frames"
+      "order or allocation size overflow" "order or allocation size overflow"
+      "order or allocation size overflow" "order or allocation size overflow")
   list(LENGTH ghost_failure_cases ghost_failure_count)
   math(EXPR ghost_failure_last "${ghost_failure_count}-1")
   foreach(index RANGE 0 ${ghost_failure_last})
@@ -67,6 +70,13 @@ if (MFEM_USE_LAPACK)
     -P ${CMAKE_CURRENT_SOURCE_DIR}/fem/ghost_penalty_configuration.cmake)
   set_tests_properties(ghost_penalty_lapack_configuration PROPERTIES
     LABELS ghost-penalty TIMEOUT 240)
+  add_test(NAME ghost_penalty_make_demo
+    COMMAND ${CMAKE_COMMAND} "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+    "-DBINARY_DIR=${CMAKE_BINARY_DIR}"
+    "-DMPI_ENABLED=${MFEM_USE_MPI}"
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/fem/ghost_penalty_make_demo.cmake)
+  set_tests_properties(ghost_penalty_make_demo PROPERTIES
+    LABELS ghost-penalty TIMEOUT 180)
   mfem_add_executable(ghost_penalty_tests unit_test_main.cpp fem/test_ghost_penalty.cpp)
   target_include_directories(ghost_penalty_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
   target_link_libraries(ghost_penalty_tests mfem)

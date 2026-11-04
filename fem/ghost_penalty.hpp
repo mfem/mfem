@@ -5,7 +5,7 @@
     triangles/quads in 2D and tetrahedra/hexes in 3D, with MPI shared faces.
     Non-affine and higher-order geometry require explicit physical P projection.
     See doc/projection-ghost-penalty.md for the mathematical formulation and
-    miniapps/mtop/projection_ghost_penalty.cpp for a complete example. */
+    miniapps/mtop/projection_ghost_penalty_serial.cpp for a complete example. */
 
 #ifndef MFEM_GHOST_PENALTY_HPP
 #define MFEM_GHOST_PENALTY_HPP

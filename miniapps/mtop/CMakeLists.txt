@@ -30,20 +30,27 @@ if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 endif (MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 
 if (MFEM_USE_LAPACK)
-  add_mfem_miniapp(projection_ghost_penalty
-    MAIN projection_ghost_penalty.cpp
+  add_mfem_miniapp(projection_ghost_penalty_serial
+    MAIN projection_ghost_penalty_serial.cpp
     EXTRA_SOURCES
     EXTRA_HEADERS
     LIBRARIES mfem)
+  if (MFEM_USE_MPI)
+    add_mfem_miniapp(projection_ghost_penalty_parallel
+      MAIN projection_ghost_penalty_parallel.cpp
+      EXTRA_SOURCES
+      EXTRA_HEADERS
+      LIBRARIES mfem)
+  endif()
   if (MFEM_ENABLE_TESTING)
     add_test(NAME ghost_penalty_demo_serial
-      COMMAND projection_ghost_penalty --serial --order 2 --vdim 3)
+      COMMAND projection_ghost_penalty_serial --order 2 --vdim 3)
     set_tests_properties(ghost_penalty_demo_serial PROPERTIES
       LABELS ghost-penalty TIMEOUT 120)
     foreach(dimension 2 3)
       foreach(space auto p q)
         add_test(NAME ghost_penalty_demo_tensor_${dimension}d_${space}_serial
-          COMMAND projection_ghost_penalty --serial --element-type tensor
+          COMMAND projection_ghost_penalty_serial --element-type tensor
           --dimension ${dimension} --projection-space ${space} --order 2 --vdim 3)
         set_tests_properties(ghost_penalty_demo_tensor_${dimension}d_${space}_serial
           PROPERTIES LABELS ghost-penalty TIMEOUT 120)
@@ -54,7 +61,7 @@ if (MFEM_USE_LAPACK)
         foreach(geometry_order 2 3)
           set(case ghost_penalty_demo_curved_${family}_${dimension}d_g${geometry_order})
           add_test(NAME ${case}
-            COMMAND projection_ghost_penalty --serial --element-type ${family}
+            COMMAND projection_ghost_penalty_serial --element-type ${family}
             --dimension ${dimension} --geometry-order ${geometry_order}
             --warp 0.05 --projection-space p --projection-degree 1 --order 2)
           set_tests_properties(${case} PROPERTIES
@@ -62,7 +69,7 @@ if (MFEM_USE_LAPACK)
         endforeach()
       endforeach()
       add_test(NAME ghost_penalty_demo_warped_${dimension}d
-        COMMAND projection_ghost_penalty --serial --element-type tensor
+        COMMAND projection_ghost_penalty_serial --element-type tensor
         --dimension ${dimension} --geometry-order 1 --warp 0.05
         --projection-space p --order 2)
       set_tests_properties(ghost_penalty_demo_warped_${dimension}d PROPERTIES
@@ -72,8 +79,8 @@ if (MFEM_USE_LAPACK)
       foreach(ranks 1 2 4)
         add_test(NAME ghost_penalty_demo_np${ranks}
           COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${ranks}
-          ${MPIEXEC_PREFLAGS} $<TARGET_FILE:projection_ghost_penalty>
-          --parallel --order 2 --vdim 3 ${MPIEXEC_POSTFLAGS})
+          ${MPIEXEC_PREFLAGS} $<TARGET_FILE:projection_ghost_penalty_parallel>
+          --order 2 --vdim 3 ${MPIEXEC_POSTFLAGS})
         set_tests_properties(ghost_penalty_demo_np${ranks} PROPERTIES
           LABELS ghost-penalty TIMEOUT 120 PROCESSORS ${ranks})
         foreach(dimension 2 3)
@@ -81,8 +88,8 @@ if (MFEM_USE_LAPACK)
             set(case ghost_penalty_demo_curved_${family}_${dimension}d_np${ranks})
             add_test(NAME ${case}
               COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${ranks}
-              ${MPIEXEC_PREFLAGS} $<TARGET_FILE:projection_ghost_penalty>
-              --parallel --element-type ${family} --dimension ${dimension}
+              ${MPIEXEC_PREFLAGS} $<TARGET_FILE:projection_ghost_penalty_parallel>
+              --element-type ${family} --dimension ${dimension}
               --geometry-order 2 --warp 0.05 --projection-space p
               --projection-degree 1 --order 2 --vdim 3 ${MPIEXEC_POSTFLAGS})
             set_tests_properties(${case} PROPERTIES
@@ -90,13 +97,38 @@ if (MFEM_USE_LAPACK)
           endforeach()
           add_test(NAME ghost_penalty_demo_tensor_${dimension}d_np${ranks}
             COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${ranks}
-            ${MPIEXEC_PREFLAGS} $<TARGET_FILE:projection_ghost_penalty>
-            --parallel --element-type tensor --dimension ${dimension}
+            ${MPIEXEC_PREFLAGS} $<TARGET_FILE:projection_ghost_penalty_parallel>
+            --element-type tensor --dimension ${dimension}
             --order 2 --vdim 3 ${MPIEXEC_POSTFLAGS})
           set_tests_properties(ghost_penalty_demo_tensor_${dimension}d_np${ranks}
             PROPERTIES LABELS ghost-penalty TIMEOUT 120 PROCESSORS ${ranks})
         endforeach()
       endforeach()
+      find_package(Python3 3.7 QUIET COMPONENTS Interpreter)
+      if (Python3_Interpreter_FOUND)
+        set(ghost_precision single)
+        if (MFEM_USE_DOUBLE)
+          set(ghost_precision double)
+        endif()
+        set(ghost_mpi_postflags)
+        foreach(flag IN LISTS MPIEXEC_POSTFLAGS)
+          list(APPEND ghost_mpi_postflags "--mpi-postflag=${flag}")
+        endforeach()
+        foreach(ranks 1 2 4)
+          add_test(NAME ghost_penalty_demo_compare_np${ranks}
+            COMMAND ${Python3_EXECUTABLE}
+            ${PROJECT_SOURCE_DIR}/tests/unit/fem/ghost_penalty_compare.py
+            --serial $<TARGET_FILE:projection_ghost_penalty_serial>
+            --parallel $<TARGET_FILE:projection_ghost_penalty_parallel>
+            --ranks ${ranks} --precision ${ghost_precision}
+            ${ghost_mpi_postflags} --launcher
+            ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${ranks} ${MPIEXEC_PREFLAGS})
+          set_tests_properties(ghost_penalty_demo_compare_np${ranks} PROPERTIES
+            LABELS ghost-penalty TIMEOUT 180 PROCESSORS ${ranks})
+        endforeach()
+      else()
+        message(STATUS "Python3 unavailable; skipping ghost demo comparisons")
+      endif()
     endif()
   endif()
 endif()

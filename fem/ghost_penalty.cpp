@@ -948,12 +948,16 @@ void ScalarProjectionGhostPenaltyIntegrator::AssembleFaceMatrix(
    const FiniteElement &first_fe, const FiniteElement &second_fe,
    FaceElementTransformations &trans, DenseMatrix &matrix)
 {
-   matrix.SetSize(first_fe.GetDof() + second_fe.GetDof());
+   const auto context = FaceContext(*selection, trans);
+   const int dofs = CheckedSize(static_cast<long long>(first_fe.GetDof()) +
+                               second_fe.GetDof(), context);
+   CheckedSize(static_cast<long long>(dofs) * dofs, context);
+   matrix.SetSize(dofs);
    matrix = 0.0;
    if (!selection->IsSelected(trans)) { return; }
    ProjectionGhostPenaltyKernel::Assemble(
       first_fe, second_fe, *trans.Elem1, *trans.Elem2, options, matrix, nullptr,
-      nullptr, nullptr, FaceContext(*selection, trans));
+      nullptr, nullptr, context);
 }
 
 VectorProjectionGhostPenaltyIntegrator::VectorProjectionGhostPenaltyIntegrator(
@@ -970,17 +974,22 @@ void VectorProjectionGhostPenaltyIntegrator::AssembleFaceMatrix(
    const FiniteElement &first_fe, const FiniteElement &second_fe,
    FaceElementTransformations &trans, DenseMatrix &matrix)
 {
+   const auto context = FaceContext(*selection, trans);
    const int first_dofs = first_fe.GetDof();
    const int second_dofs = second_fe.GetDof();
-   const int dofs = first_dofs + second_dofs;
+   const int dofs = CheckedSize(static_cast<long long>(first_dofs) + second_dofs,
+                               context);
    const int components = selection->GetVDim();
-   matrix.SetSize(components * dofs);
+   const int vector_dofs = CheckedSize(static_cast<long long>(components) * dofs,
+                                      context);
+   CheckedSize(static_cast<long long>(vector_dofs) * vector_dofs, context);
+   matrix.SetSize(vector_dofs);
    matrix = 0.0;
    if (!selection->IsSelected(trans)) { return; }
    DenseMatrix scalar;
    ProjectionGhostPenaltyKernel::Assemble(
       first_fe, second_fe, *trans.Elem1, *trans.Elem2, options, scalar, nullptr,
-      nullptr, nullptr, FaceContext(*selection, trans));
+      nullptr, nullptr, context);
    for (int component = 0; component < components; ++component)
    {
       auto index = [&](int scalar_index)

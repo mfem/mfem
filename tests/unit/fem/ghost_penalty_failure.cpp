@@ -47,6 +47,35 @@ int main(int argc, char *argv[])
          "failure test face=(0,1) p1=1 p2=1");
       return 0;
    }
+   if (scenario.find("allocation-") == 0)
+   {
+      const bool vector = scenario.find("vector") != std::string::npos;
+      Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL, true);
+      H1_FECollection collection(1, 2);
+      FiniteElementSpace space(&mesh, &collection, vector ? 8192 : 1);
+      Array<int> active(mesh.GetNE()), cut(mesh.GetNE());
+      active = 1;
+      cut = scenario.find("unselected") == std::string::npos ? 1 : 0;
+      auto selection = std::make_shared<GhostFaceSelection>(space, active, cut);
+      H1_QuadrilateralElement element(vector ? 1 : 255);
+      for (int face = 0; face < mesh.GetNumFaces(); ++face)
+      {
+         auto *trans = mesh.GetInteriorFaceTransformations(face);
+         if (!trans) { continue; }
+         DenseMatrix matrix;
+         if (vector)
+         {
+            VectorProjectionGhostPenaltyIntegrator integrator(selection);
+            integrator.AssembleFaceMatrix(element, element, *trans, matrix);
+         }
+         else
+         {
+            ScalarProjectionGhostPenaltyIntegrator integrator(selection);
+            integrator.AssembleFaceMatrix(element, element, *trans, matrix);
+         }
+      }
+      return 0;
+   }
    if (scenario.find("offset-") == 0)
    {
       const int dimension = scenario.find("hex") != std::string::npos ? 3 : 2;

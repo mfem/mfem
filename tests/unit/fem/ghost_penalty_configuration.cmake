@@ -32,6 +32,30 @@ if (ghost_make)
     "\t$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c "
     "$(SRC)fem/ghost_penalty_failure.cpp -o ghost_penalty_failure-check.o\n"
     "endif\n")
+  set(mtop_directory "${BINARY_DIR}/ghost-mtop-regression")
+  file(MAKE_DIRECTORY "${mtop_directory}")
+  file(WRITE "${mtop_directory}/makefile"
+    "include ${SOURCE_DIR}/miniapps/mtop/makefile\n"
+    "ifneq ($(.DEFAULT_GOAL),all)\n"
+    "$(error The default mtop make goal changed)\nendif\n"
+    "ifeq ($(MFEM_USE_LAPACK),YES)\n"
+    "ifneq ($(filter projection_ghost_penalty_serial,$(SEQ_MINIAPPS)),projection_ghost_penalty_serial)\n"
+    "$(error Missing sequential ghost demo target)\nendif\n"
+    "ifneq ($(filter projection_ghost_penalty_serial,$(MINIAPPS)),projection_ghost_penalty_serial)\n"
+    "$(error Ghost demo is not built by default)\nendif\n"
+    "ifeq ($(MFEM_USE_MPI),YES)\n"
+    "ifneq ($(filter projection_ghost_penalty_parallel,$(PAR_MINIAPPS)),projection_ghost_penalty_parallel)\n"
+    "$(error Missing parallel ghost demo target)\nendif\n"
+    "ifneq ($(filter projection_ghost_penalty_parallel,$(MINIAPPS)),projection_ghost_penalty_parallel)\n"
+    "$(error Parallel ghost demo is not built by default)\nendif\n"
+    "else\n"
+    "ifneq ($(filter projection_ghost_penalty_parallel,$(PAR_MINIAPPS) $(MINIAPPS)),)\n"
+    "$(error Parallel ghost demo remains enabled without MPI)\nendif\nendif\n"
+    "else\n"
+    "ifneq ($(filter projection_ghost_penalty_serial projection_ghost_penalty_parallel,$(SEQ_MINIAPPS) $(PAR_MINIAPPS) $(MINIAPPS)),)\n"
+    "$(error Ghost demo remains enabled without LAPACK)\nendif\nendif\n"
+    ".PHONY: ghost-penalty-check\n"
+    "ghost-penalty-check: ;\n")
 else()
   message(STATUS "GNU Make unavailable; skipping legacy Make compile checks")
 endif()
@@ -56,6 +80,10 @@ foreach(lapack_enabled OFF ON OFF)
     REGEX "^#define MFEM_USE_LAPACK")
   file(READ "${BINARY_DIR}/tests/unit/CTestTestfile.cmake" unit_tests)
   file(READ "${BINARY_DIR}/miniapps/mtop/CTestTestfile.cmake" demo_tests)
+  file(READ "${BINARY_DIR}/CMakeFiles/TargetDirectories.txt" targets)
+  if (targets MATCHES "/projection_ghost_penalty_parallel.dir")
+    message(FATAL_ERROR "Parallel ghost demo remains enabled without MPI")
+  endif()
   if (lapack_enabled)
     if (NOT lapack_definition OR NOT unit_tests MATCHES "ghost_penalty_serial"
         OR NOT demo_tests MATCHES "ghost_penalty_demo_serial")
@@ -78,5 +106,17 @@ foreach(lapack_enabled OFF ON OFF)
       message(FATAL_ERROR
         "LAPACK=${lapack_enabled} Make compile failed: ${result}\n${output}\n${error}")
     endif()
+    foreach(mpi_enabled NO YES)
+      execute_process(
+        COMMAND "${ghost_make}" -C "${mtop_directory}"
+          "MFEM_DIR=${SOURCE_DIR}" "MFEM_BUILD_DIR=${BINARY_DIR}"
+          "MFEM_USE_MPI=${mpi_enabled}" ghost-penalty-check
+        RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE error
+        TIMEOUT 30)
+      if (NOT "${result}" STREQUAL "0")
+        message(FATAL_ERROR
+          "LAPACK=${lapack_enabled} MPI=${mpi_enabled} Make demo registration failed: ${result}\n${output}\n${error}")
+      endif()
+    endforeach()
   endif()
 endforeach()
