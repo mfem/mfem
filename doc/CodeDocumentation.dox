@@ -204,6 +204,10 @@ namespace mfem {
  * - <a class="el" href="nurbs__surface_8cpp_source.html">NURBS Surface</a>: interpolate a 3D Surface in a NURBS Patch
  *
  * <H3>Miniapps</H3>
+ * - \ref projection_ghost_penalty_serial.cpp "Serial Projection Ghost Penalty":
+ *   serial scalar/vector full assembly with SVD projection
+ * - \ref projection_ghost_penalty_parallel.cpp "Parallel Projection Ghost Penalty":
+ *   collective face selection, shared-face assembly, and true-DOF algebra
  * - <a class="el" href="volta_8cpp_source.html">Volta</a>: simple electrostatics simulation code
  * - <a class="el" href="tesla_8cpp_source.html">Tesla</a>: simple magnetostatics simulation code
  * - <a class="el" href="maxwell_8cpp_source.html">Maxwell</a>: simple transient full-wave electromagnetics simulation code
