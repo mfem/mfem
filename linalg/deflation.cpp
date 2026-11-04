@@ -426,7 +426,11 @@ public:
       }
       Restrict(V, *source, coeff);
       SolveCoarse(coeff);
-      if (coarse) { Expand(U, coeff, *coarse); }
+      if (coarse)
+      {
+         coarse->UseDevice(coarse->UseDevice() || source->UseDevice());
+         Expand(U, coeff, *coarse);
+      }
       projected.UseDevice(projected.UseDevice() || source->UseDevice());
       projected = *source;
       for (int j = 0; j < AU.Width(); ++j)
@@ -969,6 +973,7 @@ void DeflationSpaces::ApplyCoarseCorrection(const Vector &r, Vector &y) const
    }
    impl->Restrict(impl->V, *source, coeff);
    impl->SolveCoarse(coeff);
+   y.UseDevice(y.UseDevice() || source->UseDevice());
    impl->Expand(impl->U, coeff, y);
 }
 void DeflationSpaces::ApplyResidualProjector(const Vector &r, Vector &y) const
@@ -1696,10 +1701,15 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
    impl->Residual(b, x0, original_initial);
    const real_t working_initial_norm = this->Norm(working_initial);
    const real_t original_initial_norm = this->Norm(original_initial);
+   CheckCollective(std::isfinite(working_initial_norm) &&
+                   std::isfinite(original_initial_norm),
+                   "Deflation initial residual norm is not finite");
    const real_t target = std::max(this->abs_tol,
                                   this->rel_tol * working_initial_norm);
    const real_t original_target =
       std::max(this->abs_tol, this->rel_tol * original_initial_norm);
+   CheckCollective(std::isfinite(target) && std::isfinite(original_target),
+                   "Deflation stopping tolerance is not finite");
    this->initial_norm = working_initial_norm;
    impl->info.initial_working_residual_norm = working_initial_norm;
    impl->info.initial_original_residual_norm = original_initial_norm;
@@ -1712,6 +1722,8 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
    impl->Recover(internal, b_work, physical);
    impl->Residual(b_work, physical, residual);
    real_t physical_norm = this->Norm(residual);
+   CheckCollective(std::isfinite(physical_norm),
+                   "Deflation physical residual norm is not finite");
    if (this->print_options.first_and_last)
    {
       mfem::out << "Deflated solver initial ||b_work-Ax|| = "
@@ -1780,6 +1792,9 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
                impl->Recover(internal, b_work, physical);
                impl->Residual(b_work, physical, residual);
                physical_norm = this->Norm(residual);
+               CheckCollective(std::isfinite(physical_norm),
+                               "Deflation physical residual norm "
+                               "is not finite");
                if (this->print_options.iterations)
                {
                   mfem::out << "Deflated CG iteration " << it
@@ -1948,6 +1963,9 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
                impl->Recover(internal, b_work, physical);
                impl->Residual(b_work, physical, residual);
                physical_norm = this->Norm(residual);
+               CheckCollective(std::isfinite(physical_norm),
+                               "Deflation physical residual norm "
+                               "is not finite");
                if (this->print_options.iterations)
                {
                   mfem::out << "Deflated " << (flexible ? "FGMRES" : "GMRES")
@@ -1971,6 +1989,9 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
                impl->Recover(internal, b_work, physical);
                impl->Residual(b_work, physical, residual);
                physical_norm = this->Norm(residual);
+               CheckCollective(std::isfinite(physical_norm),
+                               "Deflation physical residual norm "
+                               "is not finite");
                success = physical_norm <= target;
             }
          }
@@ -1990,14 +2011,22 @@ void DeflatedSolverBase<KrylovSolver>::Mult(const Vector &b, Vector &x) const
    null_component.UseDevice(x.UseDevice());
    null_component = x;
    null_component -= projected_solution;
+   const real_t final_original = this->Norm(original_residual);
+   const real_t solution_null_norm = this->Norm(null_component);
+   CheckCollective(std::isfinite(final_working) &&
+                   std::isfinite(final_original) &&
+                   std::isfinite(solution_null_norm),
+                   "Deflation final residual or null-component norm "
+                   "is not finite");
    impl->info.valid = true;
    impl->info.iterations = iterations;
    impl->info.final_working_residual_norm = final_working;
-   impl->info.final_original_residual_norm = this->Norm(original_residual);
-   impl->info.solution_null_component_norm = this->Norm(null_component);
-   impl->info.converged_working_system = final_working <= target;
+   impl->info.final_original_residual_norm = final_original;
+   impl->info.solution_null_component_norm = solution_null_norm;
+   impl->info.converged_working_system =
+      std::isfinite(final_working) && final_working <= target;
    impl->info.converged_original_system =
-      impl->info.final_original_residual_norm <= original_target;
+      std::isfinite(final_original) && final_original <= original_target;
    this->final_iter = iterations;
    this->final_norm = final_working;
    this->converged = impl->info.converged_working_system;

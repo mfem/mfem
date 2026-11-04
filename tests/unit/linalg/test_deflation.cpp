@@ -786,6 +786,15 @@ TEST_CASE("Device deflation spaces refresh bases and coarse factors",
    CheckVector(correction, expected);
    REQUIRE(spaces.GetCoarseMatrix()(0, 0) == Approx(2));
 
+   Vector projected, combined_coarse;
+   spaces.ApplyResidualProjectorAndCoarseCorrection(b, projected,
+                                                    combined_coarse);
+   REQUIRE(combined_coarse.UseDevice());
+   CheckVector(combined_coarse, expected);
+   expected(1) = 0;
+   expected(2) = 10;
+   CheckVector(projected, expected);
+
    // Update after an in-place device-capable basis change.
    Z.SetEntry(1, 0, 0);
    Z.SetEntry(2, 0, 1);
@@ -1306,6 +1315,96 @@ TEST_CASE("Deflation diagnostics reject nonfinite values", "[Deflation]")
                        Catch::Matchers::Contains("RHS is not finite"));
 #endif
 }
+
+#ifdef MFEM_USE_EXCEPTIONS
+TEMPLATE_TEST_CASE("Deflation rejects overflowed convergence metrics",
+                   "[Deflation]", DeflatedCGSolver, DeflatedGMRESSolver,
+                   DeflatedFGMRESSolver)
+{
+   const auto mode = GENERATE(CoarseCorrectionType::PROJECTED,
+                              CoarseCorrectionType::BALANCED);
+   DenseMatrix matrix = Diagonal(1, 2, 3);
+   Vector rhs(3), solution(3);
+   rhs = 1.0;
+   solution = 0.0;
+   TestType solver;
+   solver.SetOperator(matrix);
+   solver.SetCoarseCorrectionType(mode);
+   solver.SetRelTol(TestTolerance());
+   solver.SetMaxIter(20);
+   solver.SetPrintLevel(-1);
+   solver.Mult(rhs, solution);
+   REQUIRE(solver.GetConverged());
+   REQUIRE(solver.GetSolveInfo().valid);
+
+   SECTION("Finite initial guess overflows the residual norm")
+   {
+      solver.iterative_mode = true;
+      solution = real_t(2) * std::sqrt(std::numeric_limits<real_t>::max());
+      REQUIRE_THROWS_WITH(solver.Mult(rhs, solution),
+                          Catch::Matchers::Contains(
+                             "initial residual norm is not finite"));
+   }
+   SECTION("Finite relative tolerance overflows the stopping threshold")
+   {
+      solver.SetRelTol(std::numeric_limits<real_t>::max());
+      solution = 0.0;
+      REQUIRE_THROWS_WITH(solver.Mult(rhs, solution),
+                          Catch::Matchers::Contains(
+                             "stopping tolerance is not finite"));
+   }
+   REQUIRE_FALSE(solver.GetConverged());
+   REQUIRE_FALSE(solver.GetSolveInfo().valid);
+   REQUIRE_FALSE(solver.GetSolveInfo().converged_working_system);
+   REQUIRE_FALSE(solver.GetSolveInfo().converged_original_system);
+}
+
+TEMPLATE_TEST_CASE("Deflation rejects nonfinite physical residuals",
+                   "[Deflation]", DeflatedCGSolver, DeflatedGMRESSolver,
+                   DeflatedFGMRESSolver)
+{
+   class NonfiniteImageOperator : public Operator
+   {
+   public:
+      int corrupt_application = 0;
+      mutable int applications = 0;
+
+      NonfiniteImageOperator() : Operator(3) { }
+
+      void Mult(const Vector &input, Vector &output) const override
+      {
+         output = input;
+         if (++applications == corrupt_application)
+         {
+            output = std::numeric_limits<real_t>::infinity();
+         }
+      }
+   } matrix;
+   const auto mode = GENERATE(CoarseCorrectionType::PROJECTED,
+                              CoarseCorrectionType::BALANCED);
+   const int corrupt_application = GENERATE(3, 4, 5, 6);
+   INFO("Nonfinite operator image on application " << corrupt_application);
+   matrix.corrupt_application = corrupt_application;
+   Vector rhs(3), solution(3);
+   rhs = 1.0;
+   solution = 0.0;
+   TestType solver;
+   solver.SetOperator(matrix);
+   solver.SetCoarseCorrectionType(mode);
+   solver.SetRelTol(TestTolerance());
+   solver.SetMaxIter(corrupt_application == 6 ? 1 : 0);
+   solver.SetPrintLevel(-1);
+   const char *message = corrupt_application == 3 || corrupt_application == 6 ?
+                         "physical residual norm is not finite" :
+                         "final residual or null-component norm is not finite";
+   REQUIRE_THROWS_WITH(solver.Mult(rhs, solution),
+                       Catch::Matchers::Contains(message));
+   REQUIRE_FALSE(solver.GetConverged());
+   REQUIRE_FALSE(solver.GetSolveInfo().valid);
+   REQUIRE_FALSE(solver.GetSolveInfo().converged_working_system);
+   REQUIRE_FALSE(solver.GetSolveInfo().converged_original_system);
+}
+#endif
 
 TEST_CASE("Near-null coarse candidates stay on the null complement",
           "[Deflation]")
@@ -1866,6 +1965,39 @@ TEST_CASE("Deflation serial and distributed coupled systems agree",
 }
 
 #ifdef MFEM_USE_EXCEPTIONS
+TEMPLATE_TEST_CASE("Deflation residual overflow fails on every MPI rank",
+                   "[Deflation][Parallel]", DeflatedCGSolver,
+                   DeflatedGMRESSolver, DeflatedFGMRESSolver)
+{
+   int rank = 0;
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   const auto mode = GENERATE(CoarseCorrectionType::PROJECTED,
+                              CoarseCorrectionType::BALANCED);
+   DenseMatrix matrix = Diagonal(1, 2, 3);
+   Vector rhs(3), solution(3);
+   rhs = 1.0;
+   solution = rank == 0 ?
+              real_t(2) * std::sqrt(std::numeric_limits<real_t>::max()) : 0;
+   TestType solver(MPI_COMM_WORLD);
+   solver.SetOperator(matrix);
+   solver.SetCoarseCorrectionType(mode);
+   solver.SetRelTol(TestTolerance());
+   solver.SetMaxIter(20);
+   solver.SetPrintLevel(-1);
+   solver.iterative_mode = true;
+   int caught = 0;
+   try { solver.Mult(rhs, solution); }
+   catch (...) { caught = 1; }
+   int everyone_caught = 0;
+   MPI_Allreduce(&caught, &everyone_caught, 1, MPI_INT, MPI_MIN,
+                 MPI_COMM_WORLD);
+   REQUIRE(everyone_caught == 1);
+   REQUIRE_FALSE(solver.GetConverged());
+   REQUIRE_FALSE(solver.GetSolveInfo().valid);
+   REQUIRE_FALSE(solver.GetSolveInfo().converged_working_system);
+   REQUIRE_FALSE(solver.GetSolveInfo().converged_original_system);
+}
+
 TEST_CASE("Deflation setup failures reach every MPI rank",
           "[Deflation][Parallel]")
 {

@@ -95,7 +95,10 @@ and `Z = (1, 0, 0)`. With `PROJECTED` correction, the coarse solve returns
 `x = (1000, 0, 0)` at a zero iteration budget. With no coarse space, the
 same budget returns the zero initial guess. The unit test checks this case.
 
-`Mult()` rejects a RHS with NaN or infinite entries on every rank. The
+`Mult()` rejects a RHS with NaN or infinite entries on every rank. It also
+rejects nonfinite initial or recomputed physical residual norms and stopping
+thresholds, including overflow from finite inputs, without marking the solve
+diagnostics valid or reporting convergence. The
 diagnostics `IsConsistent()` and `ValidateNullSpaces()` report such values as
 failures rather than treating them as zero.
 The default RHS policy rejects an incompatible component above its tolerance.
