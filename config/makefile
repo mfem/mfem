@@ -103,7 +103,8 @@ config-mk:
 	   eval var=\$$$$ref && \
 	   set -- "$$@" -e "s#@$${ref}@#$${var}#g"; \
 	done && \
-	set -- "$$@" -e 's/@\([^@]*\)@/$$(\1)/g' -e 's/  *$$//g' && \
+	set -- "$$@" -e 's/@\([A-Z][A-Z0-9_]*\)@/$$(\1)/g' && \
+	set -- "$$@" -e 's/  *$$//g' && \
 	set -- "$$@" -e tb -e ba -e ":b" -e 's/^$$//' -e tc -e ba && \
 	set -- "$$@" -e ":c" -e d -e ":a" && \
 	sed "$$@" $(SRC)config.mk.in > $(CONFIG_MK)
