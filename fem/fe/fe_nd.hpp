@@ -347,6 +347,151 @@ protected:
                           Vector &dofs) const;
 };
 
+
+/// Arbitrary order Nedelec elements on a tetrahedron using Bernstein basis functions,
+/// see [1].
+///    [1] Ainsworth, M., & Fu, G. (2018). Bernstein–Bézier bases for tetrahedral finite elements.
+///        Computer Methods in Applied Mechanics and Engineering, 340, 178-201.
+class NDPos_TetrahedronElement : public VectorFiniteElement
+{
+   static const real_t tk[18];
+
+   Array<int> dof2tk;
+   // fields for describing the associated multiindex (a0,a1,a2,a3), vertex indices
+   // of the associated edge (e.g. (v0,v1)) or face (e.g. (v0,v1,v2)), and cell bubble index (ell)
+   // of each H(curl) Bernstein basis function.
+   Array<int> type, a0, a1, a2, a3, v0, v1, v2, ell;
+   DenseMatrixInverse interpolation_inverse;
+   NDPos_TetDofTransformation doftrans;
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector bernstein, curl_bernstein;
+#endif
+
+   void BuildBasisDescriptors();
+
+public:
+   explicit NDPos_TetrahedronElement(int p);
+
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
+   { CalcVShape_ND(Trans, shape); }
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
+
+   const StatelessDofTransformation *GetDofTransformation() const override
+   { return &doftrans; }
+
+   void GetLocalInterpolation(ElementTransformation &,
+                              DenseMatrix &) const override;
+   void GetLocalRestriction(ElementTransformation &,
+                            DenseMatrix &) const override;
+   void GetTransferMatrix(const FiniteElement &, ElementTransformation &,
+                          DenseMatrix &) const override;
+
+   using FiniteElement::Project;
+   void Project(VectorCoefficient &vc, ElementTransformation &Trans,
+                Vector &dofs) const override;
+   void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                         Vector &dofs) const override;
+   void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                 ElementTransformation &Trans,
+                                 Vector &dofs) const override;
+   void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                DenseMatrix &I) const override;
+   void ProjectGrad(const FiniteElement &fe, ElementTransformation &Trans,
+                    DenseMatrix &grad) const override;
+   void ProjectCurl(const FiniteElement &fe, ElementTransformation &Trans,
+                    DenseMatrix &curl) const override;
+};
+
+/// Arbitrary order Nedelec elements on a triangle using Bernstein basis functions.
+class NDPos_TriangleElement : public VectorFiniteElement
+{
+   static const real_t tk[8];
+
+   Array<int> dof2tk;
+   Array<int> type, a0, a1, a2, v0, v1, v2;
+   DenseMatrixInverse interpolation_inverse;
+   NDPos_TriDofTransformation doftrans;
+#ifndef MFEM_THREAD_SAFE
+   mutable Vector bernstein, curl_bernstein;
+#endif
+
+   void BuildBasisDescriptors();
+
+public:
+   explicit NDPos_TriangleElement(int p);
+
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
+   { CalcVShape_ND(Trans, shape); }
+   void CalcCurlShape(const IntegrationPoint &ip,
+                      DenseMatrix &curl_shape) const override;
+   const StatelessDofTransformation *GetDofTransformation() const override
+   { return &doftrans; }
+
+   void GetLocalInterpolation(ElementTransformation &,
+                              DenseMatrix &) const override;
+   void GetLocalRestriction(ElementTransformation &,
+                            DenseMatrix &) const override;
+   void GetTransferMatrix(const FiniteElement &, ElementTransformation &,
+                          DenseMatrix &) const override;
+
+   using FiniteElement::Project;
+   void Project(VectorCoefficient &vc, ElementTransformation &Trans,
+                Vector &dofs) const override;
+   void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                         Vector &dofs) const override;
+   void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                 ElementTransformation &Trans,
+                                 Vector &dofs) const override;
+   void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                DenseMatrix &I) const override;
+   void ProjectGrad(const FiniteElement &fe, ElementTransformation &Trans,
+                    DenseMatrix &grad) const override;
+};
+
+/// Tangential trace of the H(curl) Bernstein basis on a segment.
+class NDPos_SegmentElement : public VectorFiniteElement
+{
+   static const real_t tk[1];
+
+   Array<int> dof2tk;
+   DenseMatrixInverse interpolation_inverse;
+
+public:
+   explicit NDPos_SegmentElement(int p);
+
+   void CalcVShape(const IntegrationPoint &ip,
+                   DenseMatrix &shape) const override;
+   void CalcVShape(ElementTransformation &Trans,
+                   DenseMatrix &shape) const override
+   { CalcVShape_ND(Trans, shape); }
+
+   void GetLocalInterpolation(ElementTransformation &,
+                              DenseMatrix &) const override;
+   void GetLocalRestriction(ElementTransformation &,
+                            DenseMatrix &) const override;
+   void GetTransferMatrix(const FiniteElement &, ElementTransformation &,
+                          DenseMatrix &) const override;
+
+   using FiniteElement::Project;
+   void Project(VectorCoefficient &vc, ElementTransformation &Trans,
+                Vector &dofs) const override;
+   void ProjectFromNodes(Vector &vc, ElementTransformation &Trans,
+                         Vector &dofs) const override;
+   void ProjectMatrixCoefficient(MatrixCoefficient &mc,
+                                 ElementTransformation &Trans,
+                                 Vector &dofs) const override;
+   void Project(const FiniteElement &fe, ElementTransformation &Trans,
+                DenseMatrix &I) const override;
+   void ProjectGrad(const FiniteElement &fe, ElementTransformation &Trans,
+                    DenseMatrix &grad) const override;
+};
 class ND_WedgeElement : public VectorFiniteElement
 {
 private:

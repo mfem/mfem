@@ -847,6 +847,73 @@ public:
    }
 };
 
+class NDPosHCurlBasisCoef : public VectorCoefficient
+{
+private:
+   NDPos_TetrahedronElement tet;
+   VectorTransformation &vtrans;
+
+   Vector dofs;
+   Vector nor;
+   mutable DenseMatrix jac;
+   mutable DenseMatrix jacInv;
+   mutable DenseMatrix shape;
+   mutable DenseMatrix tshape;
+
+   bool restricted;
+
+public:
+   NDPosHCurlBasisCoef(int p, VectorTransformation &vtrans_,
+                       bool restricted_ = false)
+      : VectorCoefficient(3), tet(p), vtrans(vtrans_),
+        nor(3), jacInv(3), restricted(restricted_)
+   {
+      dofs.SetSize(tet.GetDof());
+      dofs = 0.0;
+      shape.SetSize(tet.GetDof(), 3);
+      tshape.SetSize(tet.GetDof(), 3);
+   }
+
+   void SetDoF(int dof) { dofs = 0.0; dofs(dof) = 1.0; }
+   int GetNDoF() const { return tet.GetDof(); }
+
+   using VectorCoefficient::Eval;
+
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip2d)
+   {
+      V.SetSize(3);
+
+      real_t pt3d_data[3];
+      real_t ip3d_data[3];
+      Vector pt3d(pt3d_data, 3);
+      Vector ip3d_vec(ip3d_data, 3);
+      T.Transform(ip2d, pt3d);
+
+      vtrans.PhysToRef(pt3d, ip3d_vec);
+      vtrans.EvalJ(ip3d_vec, jac);
+      CalcInverse(jac, jacInv);
+
+      IntegrationPoint ip3d; ip3d.Set(ip3d_data, 3);
+
+      tet.CalcVShape(ip3d, shape);
+      Mult(shape, jacInv, tshape);
+
+      tshape.MultTranspose(dofs, V);
+
+      if (restricted)
+      {
+         MFEM_ASSERT(T.Jacobian().Width() == 2,
+                     "Expected a triangular face transformation.");
+         CalcOrtho(T.Jacobian(), nor);
+         nor /= nor.Norml2();
+
+         real_t nV = nor * V;
+         V.Add(-nV, nor);
+      }
+   }
+};
+
 class HDivBasisCoef : public VectorCoefficient
 {
 private:
@@ -1238,6 +1305,85 @@ TEST_CASE("FE Compatibility",
             // Should find exactly zero non-zeros in 1D and 2D traces
             REQUIRE(nrmlinf_1d < tol);
             REQUIRE(nrmlinf_2d < tol);
+         }
+      }
+   }
+
+   if (geom == Geometry::TETRAHEDRON)
+   {
+      SECTION("NDPos Trace")
+      {
+         NDPos_FECollection ndpos_fec_2d(p, 2);
+         NDPos_FECollection ndpos_fec_3d(p, 3);
+
+         FiniteElementSpace ndpos_fes_2d(&face_mesh, &ndpos_fec_2d);
+         FiniteElementSpace ndpos_fes_3d(&elem_mesh, &ndpos_fec_3d);
+
+         GridFunction ndpos_gf_2d(&ndpos_fes_2d);
+         GridFunction ndpos_gf_3d(&ndpos_fes_3d);
+
+         NDPosHCurlBasisCoef HCurlFullCoef(p, *vtrans, false);
+         NDPosHCurlBasisCoef HCurlTraceCoef(p, *vtrans, true);
+
+         // Due to the particular construction of the face-supported NDPos basis
+         // functions, they may not exist as a simple permutation on the oriented
+         // faces. Thus, we check the L2 norm of the difference between the
+         // projected trace and the actual trace which requires a quadrature rule
+         // defined in the triangle.
+         const IntegrationRule *irs[Geometry::NumGeom] = { nullptr };
+         irs[Geometry::TRIANGLE] =
+            &IntRules.Get(Geometry::TRIANGLE, 2*p + 3);
+
+         for (int i=0; i<HCurlFullCoef.GetNDoF(); i++)
+         {
+            HCurlFullCoef.SetDoF(i);
+            HCurlTraceCoef.SetDoF(i);
+
+            ndpos_gf_2d.ProjectCoefficient(HCurlTraceCoef);
+            ndpos_gf_3d.ProjectCoefficient(HCurlFullCoef);
+
+            real_t nrmlinf_2d = ndpos_gf_2d.Normlinf();
+            real_t nrmlinf_3d = ndpos_gf_3d.Normlinf();
+
+            real_t nrml1_2d = ndpos_gf_2d.Norml1();
+            real_t nrml1_3d = ndpos_gf_3d.Norml1();
+
+            // Should produce exactly one non-zero in 3D
+            REQUIRE(fabs(nrml1_3d - nrmlinf_3d) < tol * nrmlinf_3d);
+
+            int finfo = 0;
+            Geometry::Type dofType = GetNDDofType(geom, p, i, finfo);
+
+            if (dofType == Geometry::SEGMENT)
+            {
+               const int ntri = finfo % 8;
+               const real_t a_2d = 6.0 * ntri;
+
+               // The number of non-zeros in the 2D trace will depend on the
+               // types of faces meeting at each edge.
+               REQUIRE(fabs(nrml1_2d - a_2d * nrmlinf_2d) < tol * nrmlinf_2d);
+            }
+            else if (dofType == Geometry::TRIANGLE)
+            {
+               // Face-supported NDPos modes generally mix under a change of
+               // face orientation, so compare the represented traces instead
+               // of assuming a signed permutation of the coefficients.
+               const real_t trace_norm =
+                  ComputeLpNorm(2.0, HCurlTraceCoef, face_mesh, irs);
+               const real_t trace_error =
+                  ndpos_gf_2d.ComputeL2Error(HCurlTraceCoef);
+
+               // Face-supported basis functions should have non-zero trace.
+               REQUIRE(trace_norm > 0.0);
+
+               // The trace error should be small relative to the trace norm.
+               REQUIRE(trace_error < tol * trace_norm);
+            }
+            else
+            {
+               // Should find exactly zero non-zeros in 2D trace.
+               REQUIRE(nrmlinf_2d < tol);
+            }
          }
       }
    }
