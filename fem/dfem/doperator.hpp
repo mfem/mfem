@@ -1505,41 +1505,51 @@ public:
    /// requested through the SecondDerivatives of one of the integrators.
    bool HasSecondDerivative(size_t gradient_id, size_t direction_id) const;
 
-   template <typename qfunc_t>
+   /// @name Derivative q-functions
+   /// Get the q-function, or its shadow, of the derivative callback number
+   /// @a integrator that the @a entity_t integrators (Entity::Element or
+   /// Entity::BoundaryElement) registered for @a derivative_id.
+   ///@{
+   template <typename entity_t, typename qfunc_t>
    qfunc_t *GetDerivativeActionQFunction(size_t derivative_id,
                                          size_t integrator = 0)
    {
-      return FindDerivativeCallback(&detail::OperatorCallbacks::derivative_action,
-                                    derivative_id, integrator)
+      return FindDerivativeCallback<entity_t>(
+         &detail::OperatorCallbacks::derivative_action,
+         derivative_id, integrator)
       .template GetQFunction<qfunc_t>();
    }
 
-   template <typename qfunc_t>
+   template <typename entity_t, typename qfunc_t>
    detail::qfunc_shadow_t<qfunc_t> *GetDerivativeActionShadowQFunction(
       size_t derivative_id, size_t integrator = 0)
    {
-      return FindDerivativeCallback(&detail::OperatorCallbacks::derivative_action,
-                                    derivative_id, integrator)
+      return FindDerivativeCallback<entity_t>(
+         &detail::OperatorCallbacks::derivative_action,
+         derivative_id, integrator)
       .template GetShadowQFunction<qfunc_t>();
    }
 
-   template <typename qfunc_t>
+   template <typename entity_t, typename qfunc_t>
    qfunc_t *GetDerivativeSetupQFunction(size_t derivative_id,
                                         size_t integrator = 0)
    {
-      return FindDerivativeCallback(&detail::OperatorCallbacks::derivative_setup,
-                                    derivative_id, integrator)
+      return FindDerivativeCallback<entity_t>(
+         &detail::OperatorCallbacks::derivative_setup,
+         derivative_id, integrator)
       .template GetQFunction<qfunc_t>();
    }
 
-   template <typename qfunc_t>
+   template <typename entity_t, typename qfunc_t>
    detail::qfunc_shadow_t<qfunc_t> *GetDerivativeSetupShadowQFunction(
       size_t derivative_id, size_t integrator = 0)
    {
-      return FindDerivativeCallback(&detail::OperatorCallbacks::derivative_setup,
-                                    derivative_id, integrator)
+      return FindDerivativeCallback<entity_t>(
+         &detail::OperatorCallbacks::derivative_setup,
+         derivative_id, integrator)
       .template GetShadowQFunction<qfunc_t>();
    }
+   ///@}
 
 private:
    bool HasFunctionalIntegrator() const
@@ -1552,6 +1562,22 @@ private:
    AllIntegrators() const
    {
       return {&domain_integrators, &boundary_integrators};
+   }
+
+   /// The integrators associated to the entity type @a entity_t.
+   template <typename entity_t>
+   detail::OperatorIntegrators &Integrators()
+   {
+      if constexpr (std::is_same_v<entity_t, Entity::Element>)
+      {
+         return domain_integrators;
+      }
+      else
+      {
+         static_assert(std::is_same_v<entity_t, Entity::BoundaryElement>,
+                       "entity type not supported");
+         return boundary_integrators;
+      }
    }
 
    /// Whether the integrators of any entity type have callbacks in the list
@@ -1585,30 +1611,18 @@ private:
                                &detail::OperatorCallbacks::actions, outfds, y);
    }
 
-   /// The callback number @a integrator registered for @a derivative_id in
-   /// the derivative map @a map, counting the element integrators first and
-   /// the boundary element integrators after them.
-   template <typename map_t>
+   /// The callback number @a integrator that the @a entity_t integrators
+   /// registered for @a derivative_id in the derivative map @a map.
+   template <typename entity_t, typename map_t>
    typename map_t::mapped_type::value_type &
    FindDerivativeCallback(map_t detail::OperatorCallbacks::*map,
                           size_t derivative_id, size_t integrator)
    {
-      using callback_t = typename map_t::mapped_type::value_type;
-      callback_t *found = nullptr;
-      for (auto *k : {&domain_integrators, &boundary_integrators})
-      {
-         auto &callbacks = k->callbacks.*map;
-         const auto it = callbacks.find(derivative_id);
-         if (it == callbacks.end()) { continue; }
-         if (integrator < it->second.size())
-         {
-            found = &it->second[integrator];
-            break;
-         }
-         integrator -= it->second.size();
-      }
-      MFEM_VERIFY(found != nullptr, "derivative callback not found");
-      return *found;
+      auto &callbacks = Integrators<entity_t>().callbacks.*map;
+      const auto it = callbacks.find(derivative_id);
+      MFEM_VERIFY(it != callbacks.end() && integrator < it->second.size(),
+                  "derivative callback not found");
+      return it->second[integrator];
    }
 
    const ParMesh &mesh;
@@ -1814,19 +1828,7 @@ void DifferentiableOperator::AddIntegrator(
 
    // The callbacks of this integrator act on the E-vectors of its entity type,
    // of which only the fields used by its integrators are touched.
-   auto &integrators = [&]() -> detail::OperatorIntegrators &
-   {
-      if constexpr (std::is_same_v<entity_t, Entity::Element>)
-      {
-         return domain_integrators;
-      }
-      else
-      {
-         static_assert(std::is_same_v<entity_t, Entity::BoundaryElement>,
-                       "entity type not supported in AddIntegrator");
-         return boundary_integrators;
-      }
-   }();
+   auto &integrators = Integrators<entity_t>();
    integrators.ev.MarkUsed(input_to_field, output_to_field);
    auto &entity_callbacks = integrators.callbacks;
 
