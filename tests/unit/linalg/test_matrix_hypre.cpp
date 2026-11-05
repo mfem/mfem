@@ -25,10 +25,11 @@ TEST_CASE("HypreParMatrix host/device row-cache transitions",
    const int ranks = Mpi::WorldSize();
    const int local_rows = 4;
    const bool has_offd = ranks > 1;
-   HYPRE_BigInt partition[2] = {local_rows * rank, local_rows * (rank + 1)};
+   // Let HYPRE allocate and own the balanced partition arrays. Older versions
+   // retain the supplied pointers instead of copying the partition endpoints.
    auto *raw = hypre_ParCSRMatrixCreate(MPI_COMM_WORLD, local_rows * ranks,
-                                        local_rows * ranks, partition,
-                                        partition, has_offd ? 1 : 0,
+                                        local_rows * ranks, nullptr,
+                                        nullptr, has_offd ? 1 : 0,
                                         2, has_offd ? 1 : 0);
    hypre_ParCSRMatrixInitialize_v2(raw, HYPRE_MEMORY_HOST);
    auto *diag = hypre_ParCSRMatrixDiag(raw);
@@ -66,6 +67,9 @@ TEST_CASE("HypreParMatrix host/device row-cache transitions",
       REQUIRE(hypre_CSRMatrixRownnz(diag) != nullptr);
       if (has_offd) { REQUIRE(hypre_CSRMatrixRownnz(offd) != nullptr); }
 
+      // Runtime policy switching is only needed for GPU-enabled HYPRE builds
+      // that support MFEM's runtime host/device selection.
+#if defined(HYPRE_USING_GPU) && MFEM_HYPRE_VERSION >= 23100
       struct HostPolicy
       {
          HYPRE_MemoryLocation memory;
@@ -83,8 +87,11 @@ TEST_CASE("HypreParMatrix host/device row-cache transitions",
             HYPRE_SetExecutionPolicy(execution);
          }
       };
+#endif
       {
+#if defined(HYPRE_USING_GPU) && MFEM_HYPRE_VERSION >= 23100
          HostPolicy host_policy;
+#endif
          if (read_write) { matrix.HostReadWrite(); }
          else { matrix.HostRead(); }
          Vector x(local_rows), y(local_rows);
