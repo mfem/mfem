@@ -71,18 +71,18 @@ namespace mfem
 using namespace std;
 
 #ifdef MFEM_USE_CUDA_OR_HIP
-int SparseMatrix::SparseMatrixCount = 0;
+MFEM_CONSTINIT int SparseMatrix::SparseMatrixCount = 0;
 // doxygen doesn't like the macro-assisted typename so let's skip parsing it:
 /// @cond Suppress_Doxygen_warnings
 MFEM_cu_or_hip(sparseHandle_t) SparseMatrix::handle = nullptr;
 /// @endcond
 #ifndef MFEM_CUDA_1897_WORKAROUND
-size_t SparseMatrix::bufferSize = 0;
+MFEM_CONSTINIT size_t SparseMatrix::bufferSize = 0;
 void * SparseMatrix::dBuffer = nullptr;
 #endif
 #endif // MFEM_USE_CUDA_OR_HIP
 
-bool SparseMatrix::use_gpu_vendor_sparse_if_available = true;
+MFEM_CONSTINIT bool SparseMatrix::use_gpu_vendor_sparse_if_available = true;
 
 void SparseMatrix::InitGPUSparse()
 {

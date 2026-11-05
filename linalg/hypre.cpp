@@ -26,8 +26,8 @@ using namespace std;
 namespace mfem
 {
 
-bool Hypre::configure_runtime_policy_from_mfem = true;
-Hypre::State Hypre::state = Hypre::State::UNINITIALIZED;
+MFEM_CONSTINIT bool Hypre::configure_runtime_policy_from_mfem = true;
+MFEM_CONSTINIT Hypre::State Hypre::state = Hypre::State::UNINITIALIZED;
 
 void Hypre::Init()
 {

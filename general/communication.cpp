@@ -43,9 +43,9 @@ namespace mfem
 
 #if defined(MFEM_USE_STRUMPACK) && \
     (defined(STRUMPACK_USE_PTSCOTCH) || defined(STRUMPACK_USE_SLATE_SCALAPACK))
-int Mpi::default_thread_required = MPI_THREAD_MULTIPLE;
+MFEM_CONSTINIT int Mpi::default_thread_required = MPI_THREAD_MULTIPLE;
 #else
-int Mpi::default_thread_required = MPI_THREAD_SINGLE;
+MFEM_CONSTINIT int Mpi::default_thread_required = MPI_THREAD_SINGLE;
 #endif
 
 
