@@ -20,9 +20,11 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-# CUDA-enabled Tribol dependencies require C++20; MFEM remains C++17.
-ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_TRIBOL),YESYES)
+# Device-enabled Tribol dependencies require C++20; MFEM remains C++17.
+ifeq ($(MFEM_USE_TRIBOL),YES)
+ifneq ($(filter YES,$(MFEM_USE_CUDA) $(MFEM_USE_HIP)),)
    MFEM_FLAGS := $(filter-out -std=c++17,$(MFEM_FLAGS)) -std=c++20
+endif
 endif
 
 ifeq ($(MFEM_USE_TRIBOL)$(MFEM_USE_MPI),YESYES)

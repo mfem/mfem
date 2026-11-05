@@ -165,6 +165,11 @@ void ElasticityOperator::FormLinearSystem()
          {
             OperatorHandle A(Operator::Hypre_ParCSR);
             a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+            if (IsIdentityProlongation(fes->GetProlongationMatrix()))
+            {
+               // FormLinearSystem modifies X, which aliases x in this case.
+               x.SyncMemory(X);
+            }
             if (K) { delete K; }
             K = new HypreParMatrix(*A.As<HypreParMatrix>());
          }
