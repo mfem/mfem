@@ -68,6 +68,9 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
    bool functional_gradient = false)
 {
    const size_t dfidx = FindIdx(DirectionId(key), infds);
+   MFEM_VERIFY(dfidx != SIZE_MAX,
+               "can't differentiate in the direction of field id "
+               << DirectionId(key) << ", it is not an input field");
    const auto &doutfds = FindOrDefault(callbacks.outfds, key, default_outfds);
    return std::make_shared<DerivativeOperator>(
              GetTotalTrueVSize(doutfds),
@@ -177,6 +180,9 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
                "stateless GetDerivative is available only for functionals");
 
    const size_t dfidx = FindIdx(derivative_id, infds);
+   MFEM_VERIFY(dfidx != SIZE_MAX,
+               "can't differentiate with respect to field id "
+               << derivative_id << ", it is not an input field");
    const auto &doutfds =
       FindOrDefault(derivative_outfds, derivative_id, outfds);
 
@@ -244,7 +250,7 @@ bool DifferentiableOperator::HasSecondDerivative(size_t gradient_id,
    const second_derivative_key_t derivative_key{gradient_id, direction_id};
    for (const auto *k : {&domain_integrators, &boundary_integrators})
    {
-      if (detail::FindNonEmpty(k->callbacks.second_derivative_action,
+      if (detail::FindNonEmpty(k->callbacks.second_derivative_kernels,
                                derivative_key))
       {
          return true;

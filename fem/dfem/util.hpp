@@ -797,6 +797,20 @@ constexpr bool NeedsQpCache(DerivativeKernels set)
    return HasAnyKernel(set, qp_cache_kernels);
 }
 
+// The name of the single kernel @a kernel, for error messages.
+constexpr const char *KernelName(DerivativeKernels kernel)
+{
+   switch (kernel)
+   {
+      case DerivativeKernels::Apply: return "Apply";
+      case DerivativeKernels::ApplyTranspose: return "ApplyTranspose";
+      case DerivativeKernels::AssembleMatrix: return "AssembleMatrix";
+      case DerivativeKernels::AssembleDiagonal: return "AssembleDiagonal";
+      case DerivativeKernels::Action: return "Action";
+      default: return "(a combination of kernels)";
+   }
+}
+
 // A single second derivative (Hessian) block of a functional f, obtained by
 // differentiating the gradient grad_G f in the direction of the field D, i.e.
 // DerivativePair<G, D> denotes d/dD (grad_G f). The two ids play different
