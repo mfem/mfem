@@ -6,8 +6,11 @@
 //------------------------------------------------------------------------------
 
 #include "libcoefficients.hpp"
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <dlfcn.h>
-
+#endif
 using namespace std;
 using namespace mfem;
 
@@ -17,7 +20,11 @@ void LibCoefficient::GetLibFunction(string libName,
                                     bool required)
 {
    // Open library
+#ifdef _WIN32
+   libhandle = LoadLibraryA(libName.c_str());
+#else
    libHandle = dlopen (libName.c_str(), RTLD_LAZY);
+#endif
    if (!libHandle)
    {
       cout<<"Library "<<libName<<" not found."<<endl;
@@ -38,7 +45,11 @@ void LibCoefficient::GetLibFunction(string libName,
    TDFunction = nullptr;
    for (std::size_t i = 0; i < funNames.size(); i++)
    {
+#ifdef _WIN32
+      TDFunction = (TDFunPtr)GetProcAddress((HMODULE)libHandle, funNames[i].c_str());
+#else
       TDFunction = (TDFunPtr)dlsym(libHandle, funNames[i].c_str());
+#endif
       if (TDFunction) { break; }
    }
 
@@ -75,7 +86,14 @@ real_t LibCoefficient::Eval(ElementTransformation &T,
 // Destructor
 LibCoefficient::~LibCoefficient()
 {
-   if (libHandle) { dlclose(libHandle); }
+   if (libHandle)
+   {
+#ifdef _WIN32
+      FreeLibrary((HMODULE)libhandle);
+#else
+      dlclose(libHandle);
+#endif
+   }
 }
 
 
@@ -85,7 +103,11 @@ void LibVectorCoefficient::GetLibFunction(string libName,
                                           bool required)
 {
    // Open library
+#ifdef _WIN32
+   libhandle = LoadLibraryA(libName.c_str());
+#else
    libHandle = dlopen (libName.c_str(), RTLD_LAZY);
+#endif
    if (!libHandle)
    {
       cout<<"Library "<<libName<<" not found."<<endl;
@@ -106,7 +128,11 @@ void LibVectorCoefficient::GetLibFunction(string libName,
    TDFunction = nullptr;
    for (std::size_t i = 0; i < funNames.size(); i++)
    {
+#ifdef _WIN32
+      TDFunction = (TDFunPtr)GetProcAddress((HMODULE)libHandle, funNames[i].c_str());
+#else
       TDFunction = (TDFunPtr)dlsym(libHandle, funNames[i].c_str());
+#endif
       if (TDFunction) { break; }
    }
 
@@ -126,7 +152,6 @@ void LibVectorCoefficient::GetLibFunction(string libName,
       }
       cout<<"Function will be set to homogenous."<<endl;
    }
-   // dlclose(libHandle);
 }
 
 // Evaluate coefficient
@@ -150,5 +175,12 @@ void LibVectorCoefficient::Eval(Vector &V,
 //  Destructor
 LibVectorCoefficient::~LibVectorCoefficient()
 {
-   if (libHandle) { dlclose(libHandle); }
+   if (libHandle)
+   {
+#ifdef _WIN32
+      FreeLibrary(l(HMODULE)ibhandle);
+#else
+      dlclose(libHandle);
+#endif
+   }
 }
