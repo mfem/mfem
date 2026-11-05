@@ -437,6 +437,86 @@ TEST_CASE("SubMesh boundary elements order", "[SubMesh]")
    REQUIRE(CheckSubMeshBoundaryElements(submesh) > 0);
 }
 
+TEST_CASE("SubMesh boundary elements order after refinement", "[SubMesh]")
+{
+   auto type = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON,
+                        Element::QUADRILATERAL, Element::TRIANGLE);
+   auto attribute = GENERATE(1, 2);
+   auto nonconforming = GENERATE(false, true);
+   CAPTURE(type, attribute, nonconforming);
+   Mesh mesh = RotatedBoundaryElementsMesh(type, nonconforming);
+   auto submesh = SubMesh::CreateFromDomain(mesh, Array<int> {attribute});
+   // The same refinement of both meshes. Conforming local refinement would
+   // propagate to the other domain of the parent, so that it is not used.
+   if (nonconforming)
+   {
+      const auto &parent_element_ids = submesh.GetParentElementIDMap();
+      Array<int> elements, parent_elements;
+      for (int i = 0; i < submesh.GetNE(); i += 2)
+      {
+         elements.Append(i);
+         parent_elements.Append(parent_element_ids[i]);
+      }
+      submesh.GeneralRefinement(elements);
+      mesh.GeneralRefinement(parent_elements);
+   }
+   else
+   {
+      submesh.UniformRefinement();
+      mesh.UniformRefinement();
+   }
+   // The maps to the parent are not valid after the refinement: the vertices
+   // are compared by their coordinates.
+   const auto same_vertex = [&submesh, &mesh](int sv, int pv)
+   {
+      const real_t *x = submesh.GetVertex(sv), *px = mesh.GetVertex(pv);
+      bool same = true;
+      for (int d = 0; d < mesh.SpaceDimension(); d++)
+      {
+         same = same && (std::abs(x[d] - px[d]) < 1e-12);
+      }
+      return same;
+   };
+   int nmatched = 0, nrotated = 0, nreflected = 0;
+   for (int i = 0; i < submesh.GetNBE(); i++)
+   {
+      Array<int> sv, pv;
+      submesh.GetBdrElementVertices(i, sv);
+      const int n = sv.Size();
+      bool matched = false;
+      for (int p = 0; !matched && p < mesh.GetNBE(); p++)
+      {
+         mesh.GetBdrElementVertices(p, pv);
+         if (pv.Size() != n) { continue; }
+         for (int k = 0; !matched && k < n; k++)
+         {
+            // A segment has no rotation but the identity.
+            bool rotation = n > 2 || k == 0, reflection = true;
+            for (int j = 0; j < n; j++)
+            {
+               rotation = rotation && same_vertex(sv[(k + j) % n], pv[j]);
+               reflection = reflection &&
+                            same_vertex(sv[(k + n - j) % n], pv[j]);
+            }
+            matched = rotation || reflection;
+            // A boundary of the submesh keeps the orientation of its face, so
+            // that only a reflection on a local interior face is a defect.
+            if (rotation) { nrotated += k != 0; }
+            else if (reflection)
+            {
+               int f, o;
+               submesh.GetBdrElementFace(i, &f, &o);
+               nreflected += submesh.GetFaceInformation(f).IsLocal();
+            }
+         }
+      }
+      nmatched += matched;
+   }
+   CHECK(nmatched == submesh.GetNBE());
+   CHECK(nrotated == 0);
+   CHECK(nreflected == 0);
+}
+
 TEST_CASE("SubMesh boundary elements on the same face", "[SubMesh]")
 {
    // Two boundary elements of opposite orders on an interior face: each
