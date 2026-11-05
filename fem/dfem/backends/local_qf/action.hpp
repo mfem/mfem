@@ -213,8 +213,9 @@ public:
       nq(ctx.ir.GetNPoints()),
       q1d(tensor_1d_size(nq, dim))
    {
-      MFEM_ASSERT(ctx.unionfds.size() == nfields,
-                  "LocalQFBackend: unionfds size mismatch");
+      MFEM_ASSERT(nfields <= ctx.unionfds.size(),
+                  "LocalQFBackend: the q-function uses more fields than the "
+                  "operator has");
    }
 
    /// Tile size the kernel must be built at: the shared B/G arrays are square

@@ -129,8 +129,9 @@ public:
    nq(ctx.ir.GetNPoints()),
    q1d(tensor_1d_size(nq, dim))
    {
-      MFEM_ASSERT(ctx.unionfds.size() == nfields,
-                  "LocalQFBackend: unionfds size mismatch");
+      MFEM_ASSERT(nfields <= ctx.unionfds.size(),
+                  "LocalQFBackend: the q-function uses more fields than the "
+                  "operator has");
 
       int direction_field_idx = -1;
       for (size_t uf = 0; uf < nfields; uf++)

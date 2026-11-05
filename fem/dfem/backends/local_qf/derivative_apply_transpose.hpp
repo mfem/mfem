@@ -150,8 +150,9 @@ public:
    q1d(tensor_1d_size(nq, dim)),
    deriv_infd_idx(find_infd_index(ctx, derivative_id)), out_elem_dof_size{}
    {
-      MFEM_ASSERT(ctx.unionfds.size() == nfields,
-                  "LocalQFBackend: unionfds size mismatch");
+      MFEM_ASSERT(nfields <= ctx.unionfds.size(),
+                  "LocalQFBackend: the q-function uses more fields than the "
+                  "operator has");
       MFEM_ASSERT(
          deriv_infd_idx != SIZE_MAX,
          "DerivativeApplyTranspose: derivative field not found in infds");

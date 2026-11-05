@@ -825,8 +825,9 @@ public:
    }()),
    inputs_trial_op_dim(), group_Ae_mem()
    {
-      MFEM_ASSERT(ctx.unionfds.size() == nfields,
-                  "LocalQFBackend: unionfds size mismatch");
+      MFEM_ASSERT(nfields <= ctx.unionfds.size(),
+                  "LocalQFBackend: the q-function uses more fields than the "
+                  "operator has");
       MFEM_ASSERT(trial_field_uf != SIZE_MAX,
                   "DerivativeAssemble: trial field not found in unionfds");
 

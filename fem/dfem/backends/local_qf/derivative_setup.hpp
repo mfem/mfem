@@ -109,8 +109,9 @@ public:
    nq(ctx.ir.GetNPoints()),
    q1d(tensor_1d_size(nq, dim))
    {
-      MFEM_ASSERT(ctx.unionfds.size() == nfields,
-                  "LocalQFBackend: unionfds size mismatch");
+      MFEM_ASSERT(nfields <= ctx.unionfds.size(),
+                  "LocalQFBackend: the q-function uses more fields than the "
+                  "operator has");
 
       qp_cache.SetSize(ne * nq * residual_size_on_qp);
       qp_cache.UseDevice(true);
