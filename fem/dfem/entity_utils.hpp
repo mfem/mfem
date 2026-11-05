@@ -276,7 +276,7 @@ private:
       MFEM_ASSERT(written.size() == fields.size(),
                   "written mask should match the number of fields");
 
-      // No-op after first call. It should be  already set up by 
+      // No-op after first call. It should be  already set up by
       // ZeroOutputs() or ZeroInputResults().
       cache.EnsureSetup(fields, used);
 

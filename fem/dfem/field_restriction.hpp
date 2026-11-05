@@ -489,7 +489,7 @@ void restriction_transpose_add(
    const std::vector<bool> &used)
 {
    cache.EnsureSetup(fields, used);
-   
+
    for (size_t i = 0; i < fields.size(); i++)
    {
       if (!used[i]) { continue; }
