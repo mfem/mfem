@@ -238,8 +238,8 @@ namespace detail
 /// derivative maps by the (gradient, direction) pair of field ids. The
 /// accessors pick the map of a key type, so code can handle both.
 ///
-/// The assembly callbacks are kept by the DifferentiableOperator instead,
-/// since assembly is only implemented for element integrators.
+/// Assembly is only implemented for element integrators so far, so the
+/// assembly maps of the other entity types stay empty.
 struct OperatorCallbacks
 {
    std::vector<action_t> actions;
@@ -254,12 +254,32 @@ struct OperatorCallbacks
    SecondDerivativeActionMap second_derivative_apply;
    SecondDerivativeActionMap second_derivative_transpose;
 
+   SparseAssemblyMap derivative_assemble_sparse;
+   HypreAssemblyMap derivative_assemble_hypre;
+   DiagonalAssemblyMap derivative_assemble_diagonal;
+
+   SecondSparseAssemblyMap second_derivative_assemble_sparse;
+   SecondHypreAssemblyMap second_derivative_assemble_hypre;
+   SecondDiagonalAssemblyMap second_derivative_assemble_diagonal;
+
    const DerivativeSetupMap &Setup(size_t) const { return derivative_setup; }
    const DerivativeActionMap &Action(size_t) const { return derivative_action; }
    const DerivativeActionMap &Apply(size_t) const { return derivative_apply; }
    const DerivativeActionMap &Transpose(size_t) const
    {
       return derivative_transpose;
+   }
+   const SparseAssemblyMap &AssembleSparse(size_t) const
+   {
+      return derivative_assemble_sparse;
+   }
+   const HypreAssemblyMap &AssembleHypre(size_t) const
+   {
+      return derivative_assemble_hypre;
+   }
+   const DiagonalAssemblyMap &AssembleDiagonal(size_t) const
+   {
+      return derivative_assemble_diagonal;
    }
 
    const SecondDerivativeSetupMap &Setup(const second_derivative_key_t &) const
@@ -279,6 +299,21 @@ struct OperatorCallbacks
    {
       return second_derivative_transpose;
    }
+   const SecondSparseAssemblyMap &AssembleSparse(
+      const second_derivative_key_t &) const
+   {
+      return second_derivative_assemble_sparse;
+   }
+   const SecondHypreAssemblyMap &AssembleHypre(
+      const second_derivative_key_t &) const
+   {
+      return second_derivative_assemble_hypre;
+   }
+   const SecondDiagonalAssemblyMap &AssembleDiagonal(
+      const second_derivative_key_t &) const
+   {
+      return second_derivative_assemble_diagonal;
+   }
 };
 
 /// @brief The callbacks of one derivative, registered by the integrators of
@@ -289,6 +324,9 @@ struct DerivativeCallbacks
    std::vector<derivative_action_t> actions;
    std::vector<derivative_action_t> transpose;
    std::vector<derivative_setup_t> setup;
+   std::vector<assemble_derivative_sparsematrix_callback_t> assemble_sparse;
+   std::vector<assemble_derivative_hypreparmatrix_callback_t> assemble_hypre;
+   std::vector<assemble_diagonal_callback_t> assemble_diagonal;
    /// True if the integrators registered the derivative, but not the kind of
    /// action that was requested, so applying it would skip them.
    bool missing_actions = false;
@@ -331,8 +369,10 @@ using DerivativeIntegrators = EntityIntegrators<DerivativeCallbacks>;
 /// integrators of the same entity type are @a parent, with the callbacks of the
 /// derivative kernels @a kernels: the actions of DerivativeKernels::Apply (the
 /// cached apply) or else DerivativeKernels::Action, the transposes of
-/// DerivativeKernels::ApplyTranspose, and the setups if Apply or ApplyTranspose
-/// is requested (they fill the quadrature point cache those read). The
+/// DerivativeKernels::ApplyTranspose, the assemblies of
+/// DerivativeKernels::AssembleMatrix and AssembleDiagonal, and the setups if
+/// any of these but Action is requested (they fill the quadrature point cache
+/// those read). The
 /// E-vectors are built from the parent's, see the EntityEVectors handover
 /// constructor.
 template <typename key_t>
@@ -368,8 +408,16 @@ DerivativeIntegrators MakeDerivativeIntegrators(
    {
       callbacks.transpose = FindOrEmpty(c.Transpose(key), key);
    }
-   if (HasAnyKernel(kernels, DerivativeKernels::Apply |
-                    DerivativeKernels::ApplyTranspose))
+   if (HasAnyKernel(kernels, DerivativeKernels::AssembleMatrix))
+   {
+      callbacks.assemble_sparse = FindOrEmpty(c.AssembleSparse(key), key);
+      callbacks.assemble_hypre = FindOrEmpty(c.AssembleHypre(key), key);
+   }
+   if (HasAnyKernel(kernels, DerivativeKernels::AssembleDiagonal))
+   {
+      callbacks.assemble_diagonal = FindOrEmpty(c.AssembleDiagonal(key), key);
+   }
+   if (NeedsQpCache(kernels))
    {
       callbacks.setup = FindOrEmpty(c.Setup(key), key);
    }
@@ -484,9 +532,7 @@ public:
    /// operator this is the derivative of, with the callbacks of the derivative
    /// kernels @a kernels of the derivative @a key (see
    /// detail::MakeDerivativeIntegrators()). @a copy_used_outputs if the
-   /// derivative has the same output fields as that operator. Assembly is only
-   /// implemented for elements, so the assembly callbacks are element
-   /// callbacks.
+   /// derivative has the same output fields as that operator.
    template <typename key_t, typename vector_t>
    DerivativeOperator(
       const int &height,
@@ -500,12 +546,6 @@ public:
       const vector_t &x,
       const std::vector<FieldDescriptor> &infds,
       const std::vector<FieldDescriptor> &outfds,
-      const std::vector<assemble_derivative_sparsematrix_callback_t>
-      &assemble_sparsematrix_callbacks = {},
-      const std::vector<assemble_derivative_hypreparmatrix_callback_t>
-      &assemble_hypreparmatrix_callbacks = {},
-      const std::vector<assemble_diagonal_callback_t>
-      &assemble_diagonal_callbacks = {},
       const bool lvector_mode = false,
       const bool functional_gradient = false,
       const bool cached_apply = false) :
@@ -519,9 +559,6 @@ public:
                               boundary_parent, key, kernels, outfds.size(),
                               copy_used_outputs)),
       direction(direction),
-      assemble_derivative_sparsematrix_callbacks(assemble_sparsematrix_callbacks),
-      assemble_derivative_hypreparmatrix_callbacks(assemble_hypreparmatrix_callbacks),
-      assemble_diagonal_callbacks(assemble_diagonal_callbacks),
       lvector_mode(lvector_mode),
       functional_gradient(functional_gradient),
       cached_apply(cached_apply)
@@ -830,14 +867,14 @@ public:
    /// contract against -- are left as nullptr. Ownership passes to the caller.
    void Assemble(std::vector<SparseMatrix *> &A)
    {
-      MFEM_VERIFY(!assemble_derivative_sparsematrix_callbacks.empty(),
-                  "derivative can't be assembled into a SparseMatrix");
+      VerifyAssembly(&detail::DerivativeCallbacks::assemble_sparse,
+                     "a SparseMatrix");
       EnsureQpCache();
 
       A.assign(outfds.size(), nullptr);
-      for (const auto &f : assemble_derivative_sparsematrix_callbacks)
+      for (const auto *k : AllIntegrators())
       {
-         f(A);
+         for (const auto &f : k->callbacks.assemble_sparse) { f(A); }
       }
    }
 
@@ -863,14 +900,14 @@ public:
    /// block structure.
    void Assemble(std::vector<HypreParMatrix *> &A)
    {
-      MFEM_VERIFY(!assemble_derivative_hypreparmatrix_callbacks.empty(),
-                  "derivative can't be assembled into a HypreParMatrix");
+      VerifyAssembly(&detail::DerivativeCallbacks::assemble_hypre,
+                     "a HypreParMatrix");
       EnsureQpCache();
 
       A.assign(outfds.size(), nullptr);
-      for (const auto &f : assemble_derivative_hypreparmatrix_callbacks)
+      for (const auto *k : AllIntegrators())
       {
-         f(A);
+         for (const auto &f : k->callbacks.assemble_hypre) { f(A); }
       }
    }
 
@@ -939,8 +976,8 @@ public:
    /// T-dof size.
    void AssembleDiagonal(size_t out_field_id, Vector &diag) const
    {
-      MFEM_VERIFY(!assemble_diagonal_callbacks.empty(),
-                  "derivative can't assemble diagonal");
+      VerifyAssembly(&detail::DerivativeCallbacks::assemble_diagonal,
+                     "a diagonal");
       EnsureQpCache();
 
       const size_t diagonal_idx = FindIdx(out_field_id, outfds);
@@ -962,23 +999,18 @@ public:
                   "so has no diagonal; its test space is not the trial space "
                   "of the differentiated field");
 
-      // Diagonal assembly is only implemented for elements.
-      auto &el = domain_integrators.ev;
-      el.ZeroOutputs(outfds);
-
-      for (const auto &f : assemble_diagonal_callbacks)
+      for (auto *k : AllIntegrators())
       {
-         f(static_cast<int>(out_field_id), *el.out_e[diagonal_idx]);
+         if (k->callbacks.assemble_diagonal.empty()) { continue; }
+         k->ev.ZeroOutputs(outfds);
+         for (const auto &f : k->callbacks.assemble_diagonal)
+         {
+            f(static_cast<int>(out_field_id), *k->ev.out_e[diagonal_idx]);
+         }
       }
-
-      // Not detail::TransposeOutputs(): the diagonal callbacks are not part
-      // of detail::DerivativeCallbacks, there is no member to select the
-      // domain integrators by, and only they write the diagonal. daction_l
-      // is shared with ApplyActions(), so its entries may alias the E-vectors
-      // of any entity type and all of them are forgotten.
-      detail::ForgetEVectorAliases(AllIntegrators(), daction_l);
-      std::vector<bool> written(outfds.size(), false);
-      el.TransposeOutputs(outfds, daction_l, written);
+      detail::TransposeOutputs(AllIntegrators(),
+                               &detail::DerivativeCallbacks::assemble_diagonal,
+                               outfds, daction_l);
       prolongation_transpose(outfds[diagonal_idx],
                              *daction_l[diagonal_idx], diag);
    }
@@ -1037,17 +1069,6 @@ private:
    // Pre-allocated workspace for MultTranspose (avoids per-call heap traffic).
    mutable Vector transpose_direction_l;
    mutable std::vector<Vector *> transpose_result_l;
-
-   /// Callbacks that assemble derivatives into a SparseMatrix.
-   std::vector<assemble_derivative_sparsematrix_callback_t>
-   assemble_derivative_sparsematrix_callbacks;
-
-   /// Callbacks that assemble derivatives into a HypreParMatrix.
-   std::vector<assemble_derivative_hypreparmatrix_callback_t>
-   assemble_derivative_hypreparmatrix_callbacks;
-
-   /// Callbacks that assemble the diagonal of derivatives into an L-vector.
-   std::vector<assemble_diagonal_callback_t> assemble_diagonal_callbacks;
 
    bool lvector_mode = false;
 
@@ -1118,6 +1139,27 @@ private:
          if (!(k->callbacks.*member).empty()) { return true; }
       }
       return false;
+   }
+
+   /// Check that the derivative can be assembled with the callbacks in the
+   /// list @a member into @a what. An entity type whose integrators apply the
+   /// derivative but cannot assemble it would be missing from the assembled
+   /// operator; assembly is only implemented for element integrators so far.
+   template <typename member_t>
+   void VerifyAssembly(member_t detail::DerivativeCallbacks::*member,
+                       const char *what) const
+   {
+      MFEM_VERIFY(HasCallbacks(member),
+                  "derivative can't be assembled into " << what);
+      for (const auto *k : AllIntegrators())
+      {
+         MFEM_VERIFY(k->callbacks.actions.empty() ||
+                     !(k->callbacks.*member).empty(),
+                     "derivative can't be assembled into " << what << ": the "
+                     "integrators of one entity type apply it but can't "
+                     "assemble it, assembly is only implemented for domain "
+                     "integrators");
+      }
    }
 
    /// Apply the derivative actions of every entity type in the direction
@@ -1332,9 +1374,12 @@ public:
    /// integrator.
    /// @param second_derivative_ids Second derivative (Hessian) blocks to be
    /// made available for this integrator, see AddDomainIntegrator().
+   /// @tparam kernels The derivative kernels to build. Assembly is only
+   /// implemented for domain integrators, so the default excludes it.
    template <
       typename backend_t = LocalQFBackend,
-      DerivativeKernels kernels = DerivativeKernels::All,
+      DerivativeKernels kernels =
+      DerivativeKernels::PA | DerivativeKernels::Action,
       typename qfunc_t,
       typename input_t,
       typename output_t,
@@ -1609,15 +1654,9 @@ private:
 
    DerivativeFieldMap derivative_outfds;
    DerivativeFieldMap derivative_unionfds;
-   SparseAssemblyMap assemble_derivative_sparsematrix_callbacks;
-   HypreAssemblyMap assemble_derivative_hypreparmatrix_callbacks;
-   DiagonalAssemblyMap assemble_diagonal_callbacks;
 
    SecondDerivativeFieldMap second_derivative_outfds;
    SecondDerivativeFieldMap second_derivative_unionfds;
-   SecondSparseAssemblyMap assemble_second_derivative_sparsematrix_callbacks;
-   SecondHypreAssemblyMap assemble_second_derivative_hypreparmatrix_callbacks;
-   SecondDiagonalAssemblyMap assemble_second_derivative_diagonal_callbacks;
 
    /// Derivative IDs whose integrator has FunctionalValue outputs. Their first
    /// derivative is a linear form which assembles into a Vector.
@@ -2108,14 +2147,15 @@ void DifferentiableOperator::AddIntegrator(
                set_second_derivative_fds(derivative_key, derivative_outputs_fds,
                                          derivative_all_fds);
 
+            auto &cbs = entity_callbacks;
             create_callbacks(j, derivative_key,
-                             entity_callbacks.second_derivative_setup,
-                             entity_callbacks.second_derivative_apply,
-                             entity_callbacks.second_derivative_transpose,
-                             assemble_second_derivative_sparsematrix_callbacks,
-                             assemble_second_derivative_hypreparmatrix_callbacks,
-                             assemble_second_derivative_diagonal_callbacks,
-                             entity_callbacks.second_derivative_action,
+                             cbs.second_derivative_setup,
+                             cbs.second_derivative_apply,
+                             cbs.second_derivative_transpose,
+                             cbs.second_derivative_assemble_sparse,
+                             cbs.second_derivative_assemble_hypre,
+                             cbs.second_derivative_assemble_diagonal,
+                             cbs.second_derivative_action,
                              second_qp_cache,
                              derivative_ctx, second_dqfunc,
                              first_derivative_outputs);
@@ -2171,9 +2211,9 @@ void DifferentiableOperator::AddIntegrator(
                           entity_callbacks.derivative_setup,
                           entity_callbacks.derivative_apply,
                           entity_callbacks.derivative_transpose,
-                          assemble_derivative_sparsematrix_callbacks,
-                          assemble_derivative_hypreparmatrix_callbacks,
-                          assemble_diagonal_callbacks,
+                          entity_callbacks.derivative_assemble_sparse,
+                          entity_callbacks.derivative_assemble_hypre,
+                          entity_callbacks.derivative_assemble_diagonal,
                           entity_callbacks.derivative_action,
                           qp_cache,
                           ctx, qfunc, outputs);

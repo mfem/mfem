@@ -39,24 +39,14 @@ const typename map_t::mapped_type &FindOrDefault(
    return it == map.end() ? fallback : it->second;
 }
 
-/// The callbacks of every entity type, and the element assembly callbacks and
-/// output fields of the derivatives keyed by @a key_t, see
-/// detail::OperatorCallbacks.
+/// The integrators of every entity type and the output fields of the
+/// derivatives keyed by @a key_t, see detail::OperatorCallbacks.
 template <typename key_t>
 struct DerivativeCallbackSet
 {
    const detail::OperatorIntegrators &domain_integrators;
    const detail::OperatorIntegrators &boundary_integrators;
    const DerivativeMap<key_t, FieldDescriptor> &outfds;
-   // The assembly callbacks are not part of detail::OperatorCallbacks:
-   // SparseMatrix, HypreParMatrix and diagonal assembly are only implemented
-   // for element integrators (the LocalQF assembly classes static_assert on
-   // Entity::Element). Move them there once other entity types support them.
-   const DerivativeMap<key_t, assemble_derivative_sparsematrix_callback_t>
-   &assemble_sparse;
-   const DerivativeMap<key_t, assemble_derivative_hypreparmatrix_callback_t>
-   &assemble_hypre;
-   const DerivativeMap<key_t, assemble_diagonal_callback_t> &assemble_diagonal;
 };
 
 /// The id of the field a derivative is applied to.
@@ -81,7 +71,8 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
    const auto &doutfds = FindOrDefault(callbacks.outfds, key, default_outfds);
    const auto kernels = (use_cached_setup ? DerivativeKernels::Apply :
                          DerivativeKernels::Action) |
-                        DerivativeKernels::ApplyTranspose;
+                        DerivativeKernels::ApplyTranspose |
+                        DerivativeKernels::AllAssembly;
 
    return std::make_shared<DerivativeOperator>(
              GetTotalTrueVSize(doutfds),
@@ -95,9 +86,6 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
              x,
              infds,
              doutfds,
-             detail::FindOrEmpty(callbacks.assemble_sparse, key),
-             detail::FindOrEmpty(callbacks.assemble_hypre, key),
-             detail::FindOrEmpty(callbacks.assemble_diagonal, key),
              lvector_mode,
              functional_gradient,
              use_cached_setup);
@@ -167,10 +155,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
              derivative_id, x, infds, outfds,
              DerivativeCallbackSet<size_t>
    {
-      domain_integrators, boundary_integrators, derivative_outfds,
-      assemble_derivative_sparsematrix_callbacks,
-      assemble_derivative_hypreparmatrix_callbacks,
-      assemble_diagonal_callbacks
+      domain_integrators, boundary_integrators, derivative_outfds
    },
    false,
    mult_level == MultLevel::LVECTOR,
@@ -184,10 +169,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
              derivative_id, x, infds, outfds,
              DerivativeCallbackSet<size_t>
    {
-      domain_integrators, boundary_integrators, derivative_outfds,
-      assemble_derivative_sparsematrix_callbacks,
-      assemble_derivative_hypreparmatrix_callbacks,
-      assemble_diagonal_callbacks
+      domain_integrators, boundary_integrators, derivative_outfds
    },
    use_cached_setup,
    mult_level == MultLevel::LVECTOR,
@@ -233,10 +215,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
              infds, outfds,
              DerivativeCallbackSet<second_derivative_key_t>
    {
-      domain_integrators, boundary_integrators, second_derivative_outfds,
-      assemble_second_derivative_sparsematrix_callbacks,
-      assemble_second_derivative_hypreparmatrix_callbacks,
-      assemble_second_derivative_diagonal_callbacks
+      domain_integrators, boundary_integrators, second_derivative_outfds
    },
    false,
    mult_level == MultLevel::LVECTOR);
@@ -260,10 +239,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
              infds, outfds,
              DerivativeCallbackSet<second_derivative_key_t>
    {
-      domain_integrators, boundary_integrators, second_derivative_outfds,
-      assemble_second_derivative_sparsematrix_callbacks,
-      assemble_second_derivative_hypreparmatrix_callbacks,
-      assemble_second_derivative_diagonal_callbacks
+      domain_integrators, boundary_integrators, second_derivative_outfds
    },
    use_cached_setup,
    mult_level == MultLevel::LVECTOR);
