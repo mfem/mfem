@@ -24,6 +24,11 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
+# CUDA-enabled Tribol dependencies require C++20; MFEM remains C++17.
+ifeq ($(MFEM_USE_CUDA)$(MFEM_USE_TRIBOL),YESYES)
+   MFEM_FLAGS := $(filter-out -std=c++17,$(MFEM_FLAGS)) -std=c++20
+endif
+
 
 ifeq ($(MFEM_USE_TRIBOL)$(MFEM_USE_MPI),YESYES)
    MINIAPPS = contact
@@ -46,8 +51,9 @@ CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
 %: %.cpp
 %.o: %.cpp
 
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONTACT_OBJ) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -x none -o $@ $(CONTACT_OBJ) $(MFEM_LIBS) \
+$(MINIAPPS): %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONTACT_OBJ) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@.o
+	$(MFEM_CXX) $(filter-out -x=cu,$(MFEM_FLAGS)) $@.o -o $@ $(CONTACT_OBJ) $(MFEM_LIBS) \
 		-l$(patsubst lib%,%,$(basename $(notdir $(MFEM_LIB_FILE))))
 
 %.o: $(SRC)%.cpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
@@ -69,7 +75,7 @@ TEST_NAME := Contact miniapp
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f $(CONTACT_OBJ) *~ $(MINIAPPS)
+	rm -f $(CONTACT_OBJ) $(MINIAPPS:=.o) *~ $(MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

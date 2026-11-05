@@ -95,6 +95,8 @@ private:
    /// Compute gap and its Jacobian using Tribol.
    void ComputeGapJacobian();
 
+public:
+   // CUDA lambda helper API (public for NVCC).
    struct FilteredContactMatrix
    {
       SparseMatrix *diag = nullptr;
@@ -115,6 +117,7 @@ private:
       int coupling_scheme_id,
       Vector &gap, Vector &mcslump);
 
+private:
    /// Constraint partition offsets (for distributed data).
    Array<HYPRE_BigInt> constraints_starts;
 

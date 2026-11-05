@@ -361,7 +361,13 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    xref.NewMemoryAndSize(xref_.GetMemory(), xref_.Size(), false);
    xref.UseDevice(true);
 
-   ComputeGapJacobian();
+   {
+      ScopedHypreHostPolicy hypre_host_policy;
+      ComputeGapJacobian();
+   }
+   // Tribol may leave the shared coordinate prolongation on the host.
+   coords->ParFESpace()->Dof_TrueDof_Matrix()->HypreRead();
+   J->HypreRead();
 
    problem->Getxrefbc(xrefbc);
    const Array<int> & ess_tdof_list = problem->GetEssentialDofs();
@@ -694,20 +700,6 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    axom::slic::SimpleLogger logger;
    axom::slic::setIsRoot(mfem::Mpi::Root());
 
-   // Tribol calls true/local dof transfers on the coordinate space. Clear the
-   // device transpose cached by those transfers and make the matrix itself
-   // host-current before changing HYPRE's global runtime policy.
-   HypreParMatrix *coords_prolongation =
-      coords->ParFESpace()->Dof_TrueDof_Matrix();
-   coords_prolongation->ResetTranspose();
-   coords_prolongation->HostRead();
-
-   // Tribol and its MFEM adapter are host-only in this build. Keep both
-   // HYPRE allocation and execution on the host for the complete Tribol
-   // lifetime; switching only the allocation policy leaves HYPRE kernels
-   // operating on host pointers.
-   ScopedHypreHostPolicy hypre_host_policy;
-
    int coupling_scheme_id = 0;
    int mesh1_id = 0; int mesh2_id = 1;
 
@@ -766,8 +758,6 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
 
    A_blk.reset();
    tribol::finalize();
-   hypre_host_policy.Restore();
-   coords_prolongation->HypreRead();
 
    HypreParMatrix *M = new HypreParMatrix(matrix_comm,
                                           filtered.global_num_rows,
