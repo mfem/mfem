@@ -276,14 +276,14 @@ private:
       MFEM_ASSERT(written.size() == fields.size(),
                   "written mask should match the number of fields");
 
-      // No-op after first call. It should be  already set up by
+      // No-op after first call. It should be already set up by
       // ZeroOutputs() or ZeroInputResults().
       cache.EnsureSetup(fields, used);
 
       // Split the used fields: the ones nobody wrote yet are overwritten,
       // the others are added to. Mark them all as written.
-      overwrite.assign(fields.size(), false);
-      add.assign(fields.size(), false);
+      overwrite.resize(fields.size());
+      add.resize(fields.size());
       for (size_t i = 0; i < fields.size(); i++)
       {
          overwrite[i] = used[i] && !written[i];

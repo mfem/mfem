@@ -552,6 +552,9 @@ public:
       // the derivative may be only transposed or assembled.
       if (cached_apply)
       {
+         MFEM_VERIFY(!functional_gradient,
+                     name << " is the gradient of a functional, which has "
+                           "no cached apply; drop use_cached_setup");
          VerifyKernel(DerivativeKernels::Apply,
                       "; either add it to all of them or drop "
                       "use_cached_setup to use the direct action");
@@ -650,9 +653,6 @@ public:
                               boundary_parent, derivative_id, false,
                               outfds.size(), copy_used_outputs))
    {
-      MFEM_ASSERT(HasCallbacks(&detail::DerivativeCallbacks::actions),
-                  "no derivative action has been found for ID "
-                  << derivative_id);
       daction_l.resize(outfds.size());
       infields_l.resize(infds.size());
       for (size_t i = 0; i < infds.size(); i++)
@@ -778,7 +778,7 @@ public:
          }
       }
 
-      for (auto *k : {&domain_integrators, &boundary_integrators})
+      for (auto *k : AllIntegrators())
       {
          if (k->callbacks.transpose.empty()) { continue; }
          if (!cached_transpose) { k->ev.RestrictInputs(infds, infields_l); }
@@ -824,7 +824,8 @@ public:
    /// contract against -- are left as nullptr. Ownership passes to the caller.
    void Assemble(std::vector<SparseMatrix *> &A)
    {
-      VerifyKernel(DerivativeKernels::AssembleMatrix);
+      VerifyKernel(DerivativeKernels::AssembleMatrix,
+                   "; boundary integrators can't be assembled yet");
       EnsureQpCache();
 
       A.assign(outfds.size(), nullptr);
@@ -856,7 +857,8 @@ public:
    /// block structure.
    void Assemble(std::vector<HypreParMatrix *> &A)
    {
-      VerifyKernel(DerivativeKernels::AssembleMatrix);
+      VerifyKernel(DerivativeKernels::AssembleMatrix,
+                   "; boundary integrators can't be assembled yet");
       EnsureQpCache();
 
       A.assign(outfds.size(), nullptr);
@@ -933,7 +935,8 @@ public:
    /// T-dof size.
    void AssembleDiagonal(size_t out_field_id, Vector &diag) const
    {
-      VerifyKernel(DerivativeKernels::AssembleDiagonal);
+      VerifyKernel(DerivativeKernels::AssembleDiagonal,
+                   "; boundary integrators can't be assembled yet");
       EnsureQpCache();
 
       const size_t diagonal_idx = FindIdx(out_field_id, outfds);
@@ -1060,7 +1063,7 @@ private:
          return;
       }
 
-      for (auto *k : {&domain_integrators, &boundary_integrators})
+      for (auto *k : AllIntegrators())
       {
          if (!k->callbacks.setup.empty())
          {
@@ -1071,7 +1074,7 @@ private:
       {
          captured_state[i]->SyncMemory(*infields_l[i]);
       }
-      for (auto *k : {&domain_integrators, &boundary_integrators})
+      for (auto *k : AllIntegrators())
       {
          for (const auto &setup_callback : k->callbacks.setup)
          {
@@ -1132,7 +1135,7 @@ private:
    void ApplyActions(const Vector *dir_l, bool restrict_inputs,
                      lvectors_t &y) const
    {
-      for (auto *k : {&domain_integrators, &boundary_integrators})
+      for (auto *k : AllIntegrators())
       {
          if (k->callbacks.actions.empty()) { continue; }
          if (restrict_inputs) { k->ev.RestrictInputs(infds, infields_l); }
@@ -1245,7 +1248,7 @@ public:
 
       const bool is_lvector = (mult_level == MultLevel::LVECTOR);
       prolongation(infds, x, infields_l, is_lvector);
-      for (auto *k : {&domain_integrators, &boundary_integrators})
+      for (auto *k : AllIntegrators())
       {
          if (k->callbacks.actions.empty()) { continue; }
          k->ev.RestrictInputs(infds, infields_l);
@@ -1397,10 +1400,10 @@ public:
    /// default. When @a use_cached_setup is true it uses the cached
    /// derivative-apply callbacks instead, which requires every integrator that
    /// registered the derivative to have DerivativeKernels::Apply; asking for
-   /// them without it is an error reported here. A missing direct action
-   /// (DerivativeKernels::Action) is only reported by
-   /// DerivativeOperator::Mult(), as the derivative may only be transposed or
-   /// assembled.
+   /// them without it is an error reported here. The gradient of a functional
+   /// has no cached apply. A missing direct action (DerivativeKernels::Action)
+   /// is only reported by DerivativeOperator::Mult(), as the derivative may
+   /// only be transposed or assembled.
    ///
    /// @param derivative_id The derivative ID to be computed.
    /// @param x Current state stored in a MultiVector.
@@ -1598,7 +1601,7 @@ private:
    template <typename lvectors_t>
    void ApplyActions(lvectors_t &y) const
    {
-      for (auto *k : {&domain_integrators, &boundary_integrators})
+      for (auto *k : AllIntegrators())
       {
          if (k->callbacks.actions.empty()) { continue; }
          k->ev.ZeroOutputs(outfds);

@@ -248,7 +248,7 @@ bool DifferentiableOperator::HasSecondDerivative(size_t gradient_id,
                                                  size_t direction_id) const
 {
    const second_derivative_key_t derivative_key{gradient_id, direction_id};
-   for (const auto *k : {&domain_integrators, &boundary_integrators})
+   for (const auto *k : AllIntegrators())
    {
       if (detail::FindNonEmpty(k->callbacks.second_derivative_kernels,
                                derivative_key))
