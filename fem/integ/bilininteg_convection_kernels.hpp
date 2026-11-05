@@ -1224,9 +1224,9 @@ void SmemPAConvectionApplyT3D(const int ne, const Array<real_t> &b,
 
 namespace convection
 {
-constexpr int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
-constexpr int D(int D1D) { return (11 - D1D) / 2; }
-constexpr int NBZ(int D1D)
+MFEM_CONSTEVAL int ipow(int x, int p) { return p == 0 ? 1 : x*ipow(x, p-1); }
+MFEM_CONSTEVAL int D(int D1D) { return (11 - D1D) / 2; }
+MFEM_CONSTEVAL int NBZ(int D1D)
 {
    return ipow(2, D(D1D) >= 0 ? D(D1D) : 0);
 }

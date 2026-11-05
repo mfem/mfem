@@ -36,6 +36,22 @@ namespace mfem
 #define MFEM_HOST_DEVICE
 #endif
 
+// C++20 consteval and constinit. Without C++20 they fall back to constexpr and
+// to nothing. CUDA and HIP builds use the fallback too, to keep consteval out of
+// device code.
+#if defined(__cpp_consteval) && (__cpp_consteval >= 201811L) && \
+    !defined(__CUDACC__) && !defined(__HIP__)
+#define MFEM_CONSTEVAL consteval
+#else
+#define MFEM_CONSTEVAL constexpr
+#endif
+
+#if defined(__cpp_constinit) && (__cpp_constinit >= 201907L)
+#define MFEM_CONSTINIT constinit
+#else
+#define MFEM_CONSTINIT
+#endif
+
 // MFEM precision configuration
 
 #if defined MFEM_USE_SINGLE && defined MFEM_USE_DOUBLE

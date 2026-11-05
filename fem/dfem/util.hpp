@@ -451,7 +451,8 @@ constexpr int GetFieldId()
 }
 
 template <typename Tuple, std::size_t... Is>
-constexpr auto extract_field_ids_impl(Tuple&& t, std::index_sequence<Is...>)
+MFEM_CONSTEVAL auto extract_field_ids_impl(Tuple&& t,
+                                           std::index_sequence<Is...>)
 {
    return std::array<int, sizeof...(Is)>
    {
@@ -464,7 +465,7 @@ constexpr auto extract_field_ids_impl(Tuple&& t, std::index_sequence<Is...>)
 /// @param t the tuple to extract field IDs from.
 /// @returns an array of field IDs.
 template <typename... Ts>
-constexpr auto extract_field_ids(const std::tuple<Ts...>& t)
+MFEM_CONSTEVAL auto extract_field_ids(const std::tuple<Ts...>& t)
 {
    return extract_field_ids_impl(t, std::index_sequence_for<Ts...> {});
 }
@@ -492,7 +493,7 @@ constexpr bool contains(const int* arr, std::size_t size, int value)
 /// @param t the tuple to count unique field IDs from.
 /// @returns the number of unique field IDs.
 template <typename... Ts>
-constexpr std::size_t count_unique_field_ids(const std::tuple<Ts...>& t)
+MFEM_CONSTEVAL std::size_t count_unique_field_ids(const std::tuple<Ts...>& t)
 {
    auto ids = extract_field_ids(t);
    constexpr std::size_t size = sizeof...(Ts);
@@ -538,7 +539,7 @@ auto get_marked_entries(
 /// @param t the tuple to filter fields from.
 /// @returns a tuple containing only the fields with field IDs not equal to -1.
 template <typename... Ts>
-constexpr auto filter_fields(const std::tuple<Ts...>& t)
+MFEM_CONSTEVAL auto filter_fields(const std::tuple<Ts...>& t)
 {
    return std::tuple_cat(
              std::conditional_t<Ts::GetFieldId() != -1, std::tuple<Ts>, std::tuple<>> {}...);

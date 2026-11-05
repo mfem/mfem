@@ -27,7 +27,7 @@ namespace internal
 {
 namespace hcurlmass
 {
-constexpr int NBZ3D(int d1d, int q1d)
+MFEM_CONSTEVAL int NBZ3D(int d1d, int q1d)
 {
    if (d1d <= 1 || q1d <= 0)
    {
