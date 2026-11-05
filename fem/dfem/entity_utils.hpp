@@ -130,6 +130,9 @@ namespace detail
 /// result of a transpose action, which lives in the input fields. Operators
 /// only use the steps below, so that an entity type which needs more than a
 /// restriction to move its data can provide it here.
+///
+/// The E-vector arrays have one slot per field of the operator, but only the
+/// slots of the used fields are filled; the others stay nullptr.
 class EntityEVectors
 {
 public:
@@ -138,47 +141,108 @@ public:
       in_e(num_inputs, nullptr),
       out_e(num_outputs, nullptr),
       in_result_e(num_inputs, nullptr),
+      used_inputs(num_inputs, false),
+      used_outputs(num_outputs, false),
       in_rcache(rest_descriptor),
       out_rcache(rest_descriptor) { }
+
+   /// @brief The E-vectors of a derivative of the operator whose E-vectors of
+   /// the same entity type are @a parent. The derivative has the same inputs,
+   /// so it takes the used inputs and the input restrictions of @a parent. If
+   /// @a copy_outputs, i.e. if both have the same output fields, it takes the
+   /// outputs the same way; otherwise it has its own @a num_outputs outputs
+   /// (the derivatives of a functional), all marked used. The E-vectors are
+   /// its own, allocated on first use.
+   EntityEVectors(const EntityEVectors &parent, size_t num_outputs,
+                  bool copy_outputs) :
+      in_e(parent.in_e.size(), nullptr),
+      out_e(num_outputs, nullptr),
+      in_result_e(parent.in_result_e.size(), nullptr),
+      used_inputs(parent.used_inputs),
+      used_outputs(copy_outputs ? parent.used_outputs :
+                   std::vector<bool>(num_outputs, true)),
+      in_rcache(parent.in_rcache),
+      out_rcache(copy_outputs ? parent.out_rcache :
+                 RestrictionCache(parent.out_rcache.Descriptor()))
+   {
+      MFEM_ASSERT(!copy_outputs || parent.out_e.size() == num_outputs,
+                  "internal error");
+   }
+
+   /// The E-vectors are owned raw pointers, so an EntityEVectors is never
+   /// copied or moved. It is built in place (MakeEntityIntegrators() and
+   /// MakeDerivativeIntegrators() return it as a prvalue); a derivative gets
+   /// its own through the constructor above.
+   /// @note When a deep copy of DifferentiableOperator is implemented, this
+   /// needs a deep copy constructor as well (new E-vectors with copied values).
+   EntityEVectors(const EntityEVectors &) = delete;
+   EntityEVectors &operator=(const EntityEVectors &) = delete;
+   EntityEVectors(EntityEVectors &&) = delete;
+   EntityEVectors &operator=(EntityEVectors &&) = delete;
+
+   /// Mark the fields used by an integrator, given by the maps from its
+   /// inputs and outputs to the fields of the operator, as used. The used
+   /// fields are the union over all integrators of the entity type.
+   template <size_t ni, size_t no>
+   void MarkUsed(const std::array<size_t, ni> &input_to_field,
+                 const std::array<size_t, no> &output_to_field)
+   {
+      for (size_t idx : input_to_field)
+      {
+         if (idx != SIZE_MAX) { used_inputs[idx] = true; }
+      }
+      for (size_t idx : output_to_field)
+      {
+         if (idx != SIZE_MAX) { used_outputs[idx] = true; }
+      }
+   }
 
    /// Restrict the L-vectors @a x_l of the fields @a infds to in_e.
    void RestrictInputs(const std::vector<FieldDescriptor> &infds,
                        const std::vector<Vector *> &x_l)
    {
-      restriction(infds, in_rcache, x_l, in_e);
+      restriction(infds, in_rcache, x_l, in_e, used_inputs);
    }
 
    /// Size out_e for the fields @a outfds and zero it.
    void ZeroOutputs(const std::vector<FieldDescriptor> &outfds)
    {
-      prepare_residual(outfds, out_rcache, out_e);
-      for (auto *v : out_e) { *v = 0.0; }
+      prepare_residual(outfds, out_rcache, out_e, used_outputs);
+      for (size_t i = 0; i < out_e.size(); i++)
+      {
+         if (used_outputs[i]) { *out_e[i] = 0.0; }
+      }
    }
 
    /// Size in_result_e for the fields @a infds and zero it.
    void ZeroInputResults(const std::vector<FieldDescriptor> &infds)
    {
-      prepare_residual(infds, in_rcache, in_result_e);
-      for (auto *v : in_result_e) { *v = 0.0; }
+      prepare_residual(infds, in_rcache, in_result_e, used_inputs);
+      for (size_t i = 0; i < in_result_e.size(); i++)
+      {
+         if (used_inputs[i]) { *in_result_e[i] = 0.0; }
+      }
    }
 
-   /// Apply the transposed restrictions of the fields @a outfds to out_e and
-   /// write the result to @a y if @a overwrite, or add it to @a y otherwise.
+   /// Apply the transposed restrictions of the used fields of @a outfds to
+   /// out_e. A field with !written[i] is overwritten in @a y, otherwise the
+   /// result is added to @a y; written[i] is then set. Fields that are not
+   /// used are left alone, see ZeroUnwritten() for the ones nobody wrote.
    /// @a y is a std::vector<Vector *> or a MultiVector. Writing may alias the
    /// entries of a std::vector to out_e, see restriction_transpose().
    template <typename lvectors_t>
    void TransposeOutputs(const std::vector<FieldDescriptor> &outfds,
-                         lvectors_t &y, bool overwrite)
+                         lvectors_t &y, std::vector<bool> &written)
    {
-      Transpose(outfds, out_rcache, out_e, y, overwrite);
+      Transpose(outfds, out_rcache, out_e, y, used_outputs, written);
    }
 
    /// Like TransposeOutputs(), for in_result_e and the fields @a infds.
    template <typename lvectors_t>
    void TransposeInputResults(const std::vector<FieldDescriptor> &infds,
-                              lvectors_t &y, bool overwrite)
+                              lvectors_t &y, std::vector<bool> &written)
    {
-      Transpose(infds, in_rcache, in_result_e, y, overwrite);
+      Transpose(infds, in_rcache, in_result_e, y, used_inputs, written);
    }
 
    /// Delete the owned E-vectors that are not in @a deleted yet, see
@@ -194,19 +258,51 @@ public:
    std::vector<Vector *> out_e;
    std::vector<Vector *> in_result_e;
 
+   /// The input and output fields of the operator that the integrators of this
+   /// entity type read or write, indexed like infds and outfds. Fields that
+   /// are not used are never resolved, restricted, sized, zeroed or
+   /// transposed. Unrelated to the derivative activity maps of the backends.
+   std::vector<bool> used_inputs;
+   std::vector<bool> used_outputs;
+
 private:
    template <typename lvectors_t>
-   static void Transpose(const std::vector<FieldDescriptor> &fields,
-                         RestrictionCache &cache,
-                         const std::vector<Vector *> &x_e,
-                         lvectors_t &y, bool overwrite)
+   void Transpose(const std::vector<FieldDescriptor> &fields,
+                  RestrictionCache &cache,
+                  const std::vector<Vector *> &x_e,
+                  lvectors_t &y, const std::vector<bool> &used,
+                  std::vector<bool> &written)
    {
-      if (overwrite) { restriction_transpose(fields, cache, x_e, y); }
-      else { restriction_transpose_add(fields, cache, x_e, y); }
+      MFEM_ASSERT(written.size() == fields.size(),
+                  "written mask should match the number of fields");
+
+      // No-op after first call. It should be  already set up by 
+      // ZeroOutputs() or ZeroInputResults().
+      cache.EnsureSetup(fields, used);
+
+      // Split the used fields: the ones nobody wrote yet are overwritten,
+      // the others are added to. Mark them all as written.
+      overwrite.assign(fields.size(), false);
+      add.assign(fields.size(), false);
+      for (size_t i = 0; i < fields.size(); i++)
+      {
+         overwrite[i] = used[i] && !written[i];
+         add[i] = used[i] && written[i];
+         if (used[i]) { written[i] = true; }
+      }
+
+      // Transpose each field with its mode.
+      restriction_transpose(fields, cache, x_e, y, overwrite);
+      restriction_transpose_add(fields, cache, x_e, y, add);
    }
 
    RestrictionCache in_rcache;
    RestrictionCache out_rcache;
+
+   /// The fields Transpose() overwrites and adds to, kept as members so that
+   /// they are not allocated on every call.
+   std::vector<bool> overwrite;
+   std::vector<bool> add;
 };
 
 /// @brief The callbacks and E-vectors of the integrators of one entity type.
@@ -233,6 +329,39 @@ EntityIntegrators<callbacks_t> MakeEntityIntegrators(size_t num_inputs,
    };
 }
 
+/// @brief Size the L-vectors @a y of the @a fields that no entity type wrote
+/// (see EntityEVectors::TransposeOutputs()) and set them to zero.
+///
+/// @a y is a std::vector<Vector *> or a MultiVector.
+template <typename lvectors_t>
+void ZeroUnwritten(const std::vector<FieldDescriptor> &fields,
+                   const std::vector<bool> &written, lvectors_t &y)
+{
+   for (size_t i = 0; i < fields.size(); i++)
+   {
+      if (written[i]) { continue; }
+      const int s = GetVSize(fields[i]);
+      if constexpr (std::is_same_v<lvectors_t, MultiVector>)
+      {
+         y[i].SetSize(s);
+         y[i] = 0.0;
+      }
+      else
+      {
+         if (y[i] == nullptr)
+         {
+            y[i] = new Vector(s);
+            y[i]->UseDevice(true);
+         }
+         else
+         {
+            y[i]->SetSize(s);
+         }
+         *y[i] = 0.0;
+      }
+   }
+}
+
 /// @brief Forget the entries of @a y that alias an E-vector of any of the
 /// EntityIntegrators @a kinds.
 ///
@@ -256,6 +385,63 @@ void ForgetEVectorAliases(const kinds_t &kinds, std::vector<Vector *> &y)
          }
       }
    }
+}
+
+/// @brief Write to @a y the sum of the transposed output E-vectors of the
+/// EntityIntegrators @a kinds that have callbacks in @a member. The first
+/// entity type to use a field overwrites it, the others add to it, and the
+/// fields no entity type uses are set to zero. @a y is a
+/// std::vector<Vector *> or a MultiVector.
+template <typename kinds_t, typename member_t, typename lvectors_t>
+void TransposeOutputs(const kinds_t &kinds, member_t member,
+                      const std::vector<FieldDescriptor> &outfds,
+                      lvectors_t &y)
+{
+   // Drop aliases of E-vectors left over from the previous call, so that
+   // the overwriting transpose below never deletes or writes through them.
+   if constexpr (std::is_same_v<lvectors_t, std::vector<Vector *>>)
+   {
+      ForgetEVectorAliases(kinds, y);
+   }
+
+   // Sum the entity types: the first one to use a field overwrites it,
+   // the others add to it.
+   std::vector<bool> written(outfds.size(), false);
+   for (auto *k : kinds)
+   {
+      if ((k->callbacks.*member).empty()) { continue; }
+      k->ev.TransposeOutputs(outfds, y, written);
+   }
+
+   // Zero the fields no entity type wrote.
+   ZeroUnwritten(outfds, written, y);
+}
+
+/// @brief Like TransposeOutputs(), for the input result E-vectors and the
+/// fields @a infds.
+template <typename kinds_t, typename member_t, typename lvectors_t>
+void TransposeInputResults(const kinds_t &kinds, member_t member,
+                           const std::vector<FieldDescriptor> &infds,
+                           lvectors_t &y)
+{
+   // Drop aliases of E-vectors left over from the previous call, so that
+   // the overwriting transpose below never deletes or writes through them.
+   if constexpr (std::is_same_v<lvectors_t, std::vector<Vector *>>)
+   {
+      ForgetEVectorAliases(kinds, y);
+   }
+
+   // Sum the entity types: the first one to use a field overwrites it,
+   // the others add to it.
+   std::vector<bool> written(infds.size(), false);
+   for (auto *k : kinds)
+   {
+      if ((k->callbacks.*member).empty()) { continue; }
+      k->ev.TransposeInputResults(infds, y, written);
+   }
+
+   // Zero the fields no entity type wrote.
+   ZeroUnwritten(infds, written, y);
 }
 
 /// @brief Delete the owned E-vectors of the EntityIntegrators @a kinds

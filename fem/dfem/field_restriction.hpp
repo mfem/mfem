@@ -155,21 +155,29 @@ public:
    explicit RestrictionCache(const RestrictionDescriptor &rest_descriptor) :
       rest_descriptor(rest_descriptor) { }
 
-   /// @brief Resolve the restrictions for @a fields. A no-op after the first
-   /// call.
+   /// @brief Resolve the restrictions of the @a fields marked in @a used.
+   /// Unused fields are never resolved.
+   /// A no-op after the first call, so all integrators must be added before
+   /// the operator is applied.
    void EnsureSetup(const std::vector<FieldDescriptor> &fields,
+                    const std::vector<bool> &used,
                     ElementDofOrdering o = ElementDofOrdering::LEXICOGRAPHIC)
    {
-      if (ready)
+      if (!entries.empty())
       {
          MFEM_ASSERT(entries.size() == fields.size() && ordering == o,
                      "restriction cache reused with a different field list");
          return;
       }
-      entries.reserve(fields.size());
-      for (const auto &f : fields) { entries.push_back(Resolve(f, o)); }
+      MFEM_ASSERT(used.size() == fields.size(),
+                  "used mask does not match the field list");
+      entries.resize(fields.size());
+      for (size_t i = 0; i < fields.size(); i++)
+      {
+         if (!used[i]) { continue; }
+         entries[i] = Resolve(fields[i], o);
+      }
       ordering = o;
-      ready = true;
    }
 
    /// @brief Resolve the restriction for the single field @a f. A no-op after
@@ -177,7 +185,7 @@ public:
    void EnsureSetup(const FieldDescriptor &f,
                     ElementDofOrdering o = ElementDofOrdering::LEXICOGRAPHIC)
    {
-      if (ready)
+      if (!entries.empty())
       {
          MFEM_ASSERT(entries.size() == 1 && ordering == o,
                      "restriction cache reused with a different field");
@@ -185,8 +193,10 @@ public:
       }
       entries.push_back(Resolve(f, o));
       ordering = o;
-      ready = true;
    }
+
+   /// @brief The descriptor of the restrictions this cache resolves.
+   const RestrictionDescriptor &Descriptor() const { return rest_descriptor; }
 
    /// @brief The restriction operator of field @a i, or nullptr if the field
    /// has none (in which case the identity is assumed).
@@ -258,7 +268,6 @@ private:
    /// holding one are stored in a std::function.
    std::vector<std::shared_ptr<const IdentityOperator>> owned;
    ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   bool ready = false;
 };
 
 namespace detail
@@ -285,18 +294,21 @@ std::array<RestrictionCache, N> MakeRestrictionCaches(
 /// re-resolving them on every call.
 ///
 /// @see RestrictionCache
+/// Only the fields marked in @a used are processed.
 inline
 void restriction(
    const std::vector<FieldDescriptor> &fields,
    RestrictionCache &cache,
    const std::vector<Vector *> &x_l,
-   std::vector<Vector *> &x_e)
+   std::vector<Vector *> &x_e,
+   const std::vector<bool> &used)
 {
    MFEM_ASSERT(x_l.size() == x_e.size(),
                "internal error " << x_l.size() << " vs " << x_e.size());
-   cache.EnsureSetup(fields);
+   cache.EnsureSetup(fields, used);
    for (size_t i = 0; i < fields.size(); i++)
    {
+      if (!used[i]) { continue; }
       // If there is no restriction, assume Identity.
       const int s = (cache.Get(i) == nullptr) ? x_l[i]->Size() : cache.Height(i);
 
@@ -328,15 +340,18 @@ void restriction(
 /// re-resolving the restrictions on every call.
 ///
 /// @see RestrictionCache
+/// Only the fields marked in @a used are processed.
 inline
 void prepare_residual(
    const std::vector<FieldDescriptor> &fields,
    RestrictionCache &cache,
-   std::vector<Vector *> &r_e)
+   std::vector<Vector *> &r_e,
+   const std::vector<bool> &used)
 {
-   cache.EnsureSetup(fields);
+   cache.EnsureSetup(fields, used);
    for (size_t i = 0; i < fields.size(); i++)
    {
+      if (!used[i]) { continue; }
       const int s = cache.Height(i);
       MFEM_ASSERT(s >= 0, "output field has no restriction");
 
@@ -357,16 +372,19 @@ void prepare_residual(
 /// avoid re-resolving them on every call.
 ///
 /// @see RestrictionCache
+/// Only the fields marked in @a used are processed.
 inline
 void restriction_transpose(
    const std::vector<FieldDescriptor> &fields,
    RestrictionCache &cache,
    const std::vector<Vector *> &x_e,
-   std::vector<Vector *> &x_l)
+   std::vector<Vector *> &x_l,
+   const std::vector<bool> &used)
 {
-   cache.EnsureSetup(fields);
+   cache.EnsureSetup(fields, used);
    for (size_t i = 0; i < fields.size(); i++)
    {
+      if (!used[i]) { continue; }
       const Operator *R = cache.Get(i);
 
       // If there is no restriction, assume Identity and alias the E-vector.
@@ -401,16 +419,19 @@ void restriction_transpose(
 /// blocks of @a y, which keep their own memory.
 ///
 /// @see RestrictionCache
+/// Only the fields marked in @a used are processed.
 inline
 void restriction_transpose(
    const std::vector<FieldDescriptor> &fields,
    RestrictionCache &cache,
    const std::vector<Vector *> &x_e,
-   MultiVector &y)
+   MultiVector &y,
+   const std::vector<bool> &used)
 {
-   cache.EnsureSetup(fields);
+   cache.EnsureSetup(fields, used);
    for (size_t i = 0; i < fields.size(); i++)
    {
+      if (!used[i]) { continue; }
       const Operator *R = cache.Get(i);
       if (R == nullptr || cache.IsPassthrough(i))
       {
@@ -430,16 +451,19 @@ void restriction_transpose(
 /// @a x_l must already have the L-vector sizes of @a fields.
 ///
 /// @see RestrictionCache
+/// Only the fields marked in @a used are processed.
 inline
 void restriction_transpose_add(
    const std::vector<FieldDescriptor> &fields,
    RestrictionCache &cache,
    const std::vector<Vector *> &x_e,
-   std::vector<Vector *> &x_l)
+   std::vector<Vector *> &x_l,
+   const std::vector<bool> &used)
 {
-   cache.EnsureSetup(fields);
+   cache.EnsureSetup(fields, used);
    for (size_t i = 0; i < fields.size(); i++)
    {
+      if (!used[i]) { continue; }
       const Operator *R = cache.Get(i);
       if (R == nullptr || cache.IsPassthrough(i))
       {
@@ -455,16 +479,20 @@ void restriction_transpose_add(
 
 /// @brief Add the transposed restrictions of @a fields applied to @a x_e to
 /// the blocks of @a y, see the std::vector overload.
+/// Only the fields marked in @a used are processed.
 inline
 void restriction_transpose_add(
    const std::vector<FieldDescriptor> &fields,
    RestrictionCache &cache,
    const std::vector<Vector *> &x_e,
-   MultiVector &y)
+   MultiVector &y,
+   const std::vector<bool> &used)
 {
-   cache.EnsureSetup(fields);
+   cache.EnsureSetup(fields, used);
+   
    for (size_t i = 0; i < fields.size(); i++)
    {
+      if (!used[i]) { continue; }
       const Operator *R = cache.Get(i);
       if (R == nullptr || cache.IsPassthrough(i))
       {
@@ -496,6 +524,9 @@ void restriction(const FieldDescriptor &u,
                  ElementDofOrdering ordering)
 {
    cache.EnsureSetup(u, ordering);
+
+   // If there is no restriction, assume Identity.
+   if (cache.Get() == nullptr) { field_e = u_l; return; }
    MFEM_ASSERT(cache.Width() == u_l.Size(),
                "restriction not applicable to given data size");
    field_e.SetSize(cache.Height());

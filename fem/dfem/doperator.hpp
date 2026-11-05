@@ -291,6 +291,89 @@ struct DerivativeCallbacks
    std::vector<derivative_setup_t> setup;
 };
 
+template <typename map_t>
+typename map_t::mapped_type FindOrEmpty(
+   const map_t &map, const typename map_t::key_type &id)
+{
+   const auto it = map.find(id);
+   return it == map.end() ? typename map_t::mapped_type{} : it->second;
+}
+
+// Returns the callback list stored under the id, or nullptr empty
+template <typename map_t>
+const typename map_t::mapped_type *FindNonEmpty(
+   const map_t &map, const typename map_t::key_type &id)
+{
+   const auto it = map.find(id);
+   return (it != map.end() && !it->second.empty()) ? &it->second : nullptr;
+}
+
+inline std::string DerivativeName(size_t derivative_id)
+{
+   return "derivative id " + std::to_string(derivative_id);
+}
+
+inline std::string DerivativeName(const second_derivative_key_t &key)
+{
+   return "second derivative block (" + std::to_string(key.first) + ", " +
+          std::to_string(key.second) + ")";
+}
+
+/// The integrators of one entity type of a DifferentiableOperator.
+using OperatorIntegrators = EntityIntegrators<OperatorCallbacks>;
+/// The integrators of one entity type of a DerivativeOperator.
+using DerivativeIntegrators = EntityIntegrators<DerivativeCallbacks>;
+
+/// @brief The integrators of the derivative @a key of the operator whose
+/// integrators of the same entity type are @a parent, with the callbacks of the
+/// derivative kernels @a kernels: the actions of DerivativeKernels::Apply (the
+/// cached apply) or else DerivativeKernels::Action, the transposes of
+/// DerivativeKernels::ApplyTranspose, and the setups if Apply or ApplyTranspose
+/// is requested (they fill the quadrature point cache those read). The
+/// E-vectors are built from the parent's, see the EntityEVectors handover
+/// constructor.
+template <typename key_t>
+DerivativeIntegrators MakeDerivativeIntegrators(
+   const OperatorIntegrators &parent, const key_t &key,
+   DerivativeKernels kernels, size_t num_outputs, bool copy_outputs)
+{
+   const auto &c = parent.callbacks;
+   const bool apply = HasAnyKernel(kernels, DerivativeKernels::Apply);
+   // MF action: exists if the integrator was registered with
+   // DerivativeKernels::Action. A missing one is not an error here, because the
+   // integrator may have DerivativeKernels::Apply, for PA action.
+   // PA action: the cached apply only exists if the integrator was registered
+   // with DerivativeKernels::Apply.
+   MFEM_VERIFY(!apply || FindNonEmpty(c.Apply(key), key) ||
+               !FindNonEmpty(c.Action(key), key),
+               "the cached derivative apply was requested for "
+               << DerivativeName(key) << ", but one of its integrators was "
+               "registered without DerivativeKernels::Apply; either add it "
+               "or drop the use_cached_setup argument to use the direct "
+               "action");
+
+   DerivativeCallbacks callbacks;
+   if (apply)
+   {
+      callbacks.actions = FindOrEmpty(c.Apply(key), key);
+   }
+   else if (HasAnyKernel(kernels, DerivativeKernels::Action))
+   {
+      callbacks.actions = FindOrEmpty(c.Action(key), key);
+   }
+   if (HasAnyKernel(kernels, DerivativeKernels::ApplyTranspose))
+   {
+      callbacks.transpose = FindOrEmpty(c.Transpose(key), key);
+   }
+   if (HasAnyKernel(kernels, DerivativeKernels::Apply |
+                    DerivativeKernels::ApplyTranspose))
+   {
+      callbacks.setup = FindOrEmpty(c.Setup(key), key);
+   }
+   return { EntityEVectors(parent.ev, num_outputs, copy_outputs),
+            std::move(callbacks) };
+}
+
 } // namespace detail
 
 template <typename entity_t>
@@ -393,16 +476,23 @@ public:
    /// calls this constructor when using
    /// DifferentiableOperator::GetDerivative().
    ///
-   /// @a domain_callbacks and @a boundary_callbacks hold the derivative
-   /// callbacks of the domain and the boundary integrators. Assembly
-   /// is only implemented for elements, so the assembly callbacks are element
+   /// The integrators of each entity type are built from @a domain_parent and
+   /// @a boundary_parent, the integrators of the same entity type in the
+   /// operator this is the derivative of, with the callbacks of the derivative
+   /// kernels @a kernels of the derivative @a key (see
+   /// detail::MakeDerivativeIntegrators()). @a copy_used_outputs if the
+   /// derivative has the same output fields as that operator. Assembly is only
+   /// implemented for elements, so the assembly callbacks are element
    /// callbacks.
-   template <typename vector_t>
+   template <typename key_t, typename vector_t>
    DerivativeOperator(
       const int &height,
       const int &width,
-      detail::DerivativeCallbacks domain_callbacks,
-      detail::DerivativeCallbacks boundary_callbacks,
+      const detail::OperatorIntegrators &domain_parent,
+      const detail::OperatorIntegrators &boundary_parent,
+      const key_t &key,
+      DerivativeKernels kernels,
+      bool copy_used_outputs,
       const FieldDescriptor &direction,
       const vector_t &x,
       const std::vector<FieldDescriptor> &infds,
@@ -419,12 +509,12 @@ public:
       Operator(height, width),
       infds(infds),
       outfds(outfds),
-      domain_integrators(
-         detail::MakeEntityIntegrators<Entity::Element>(
-            infds.size(), outfds.size(), std::move(domain_callbacks))),
-      boundary_integrators(
-         detail::MakeEntityIntegrators<Entity::BoundaryElement>(
-            infds.size(), outfds.size(), std::move(boundary_callbacks))),
+      domain_integrators(detail::MakeDerivativeIntegrators(
+                            domain_parent, key, kernels, outfds.size(),
+                            copy_used_outputs)),
+      boundary_integrators(detail::MakeDerivativeIntegrators(
+                              boundary_parent, key, kernels, outfds.size(),
+                              copy_used_outputs)),
       direction(direction),
       assemble_derivative_sparsematrix_callbacks(assemble_sparsematrix_callbacks),
       assemble_derivative_hypreparmatrix_callbacks(assemble_hypreparmatrix_callbacks),
@@ -433,6 +523,15 @@ public:
       functional_gradient(functional_gradient),
       cached_apply(cached_apply)
    {
+      if (cached_apply)
+      {
+         const std::string name = detail::DerivativeName(key);
+         MFEM_VERIFY(HasCallbacks(&detail::DerivativeCallbacks::actions),
+                     "the cached derivative apply was requested for " << name <<
+                     ", but the integrator was registered without "
+                     "DerivativeKernels::Apply; either add it or drop the "
+                     "use_cached_setup argument to use the direct action");
+      }
       daction_l.resize(outfds.size());
       infields_l.resize(infds.size());
       for (size_t i = 0; i < infds.size(); i++)
@@ -510,20 +609,26 @@ public:
    DerivativeOperator(
       const int &height,
       const int &width,
-      detail::DerivativeCallbacks domain_callbacks,
-      detail::DerivativeCallbacks boundary_callbacks,
+      const detail::OperatorIntegrators &domain_parent,
+      const detail::OperatorIntegrators &boundary_parent,
+      size_t derivative_id,
+      DerivativeKernels kernels,
+      bool copy_used_outputs,
       const std::vector<FieldDescriptor> &infds,
       const std::vector<FieldDescriptor> &outfds) :
       Operator(height, width),
       infds(infds),
       outfds(outfds),
-      domain_integrators(
-         detail::MakeEntityIntegrators<Entity::Element>(
-            infds.size(), outfds.size(), std::move(domain_callbacks))),
-      boundary_integrators(
-         detail::MakeEntityIntegrators<Entity::BoundaryElement>(
-            infds.size(), outfds.size(), std::move(boundary_callbacks)))
+      domain_integrators(detail::MakeDerivativeIntegrators(
+                            domain_parent, derivative_id, kernels,
+                            outfds.size(), copy_used_outputs)),
+      boundary_integrators(detail::MakeDerivativeIntegrators(
+                              boundary_parent, derivative_id, kernels,
+                              outfds.size(), copy_used_outputs))
    {
+      MFEM_ASSERT(HasCallbacks(&detail::DerivativeCallbacks::actions),
+                  "no derivative action has been found for ID "
+                  << derivative_id);
       daction_l.resize(outfds.size());
       infields_l.resize(infds.size());
       for (size_t i = 0; i < infds.size(); i++)
@@ -660,9 +765,6 @@ public:
          }
       }
 
-      detail::ForgetEVectorAliases(AllIntegrators(), transpose_result_l);
-      // The first entity type writes the result, the others add to it.
-      bool first = true;
       for (auto *k : {&domain_integrators, &boundary_integrators})
       {
          if (k->callbacks.transpose.empty()) { continue; }
@@ -672,9 +774,10 @@ public:
          {
             f(k->ev.in_e, &transpose_direction_l, k->ev.in_result_e);
          }
-         k->ev.TransposeInputResults(infds, transpose_result_l, first);
-         first = false;
       }
+      detail::TransposeInputResults(AllIntegrators(),
+                     &detail::DerivativeCallbacks::transpose,
+                     infds, transpose_result_l);
 
       const size_t deriv_idx = FindIdx(direction.id, infds);
       if constexpr (std::is_same_v<result_t, MultiVector>)
@@ -849,8 +952,14 @@ public:
          f(static_cast<int>(out_field_id), *el.out_e[diagonal_idx]);
       }
 
+      // Not detail::TransposeOutputs(): the diagonal callbacks are not part
+      // of detail::DerivativeCallbacks, there is no member to select the
+      // domain integrators by, and only they write the diagonal. daction_l
+      // is shared with ApplyActions(), so its entries may alias the E-vectors
+      // of any entity type and all of them are forgotten.
       detail::ForgetEVectorAliases(AllIntegrators(), daction_l);
-      el.TransposeOutputs(outfds, daction_l, true);
+      std::vector<bool> written(outfds.size(), false);
+      el.TransposeOutputs(outfds, daction_l, written);
       prolongation_transpose(outfds[diagonal_idx],
                              *daction_l[diagonal_idx], diag);
    }
@@ -895,10 +1004,8 @@ private:
    /// derivatives in DifferentiableOperator the callbacks represent certain
    /// combinations of actions of derivatives of the forward operator. The
    /// restrictions are resolved on first use.
-   mutable detail::EntityIntegrators<detail::DerivativeCallbacks>
-   domain_integrators;
-   mutable detail::EntityIntegrators<detail::DerivativeCallbacks>
-   boundary_integrators;
+   mutable detail::DerivativeIntegrators domain_integrators;
+   mutable detail::DerivativeIntegrators boundary_integrators;
 
    FieldDescriptor direction;
 
@@ -976,7 +1083,7 @@ private:
    }
 
    /// The integrators of every entity type, the domain integrators first.
-   std::array<detail::EntityIntegrators<detail::DerivativeCallbacks> *, 2>
+   std::array<detail::DerivativeIntegrators *, 2>
    AllIntegrators() const
    {
       return {&domain_integrators, &boundary_integrators};
@@ -987,8 +1094,11 @@ private:
    template <typename member_t>
    bool HasCallbacks(member_t detail::DerivativeCallbacks::*member) const
    {
-      return !(domain_integrators.callbacks.*member).empty() ||
-      !(boundary_integrators.callbacks.*member).empty();
+      for (const auto *k : AllIntegrators())
+      {
+         if (!(k->callbacks.*member).empty()) { return true; }
+      }
+      return false;
    }
 
    /// Apply the derivative actions of every entity type in the direction
@@ -999,12 +1109,6 @@ private:
    void ApplyActions(const Vector *dir_l, bool restrict_inputs,
                      lvectors_t &y) const
    {
-      if constexpr (std::is_same_v<lvectors_t, std::vector<Vector *>>)
-      {
-         detail::ForgetEVectorAliases(AllIntegrators(), y);
-      }
-      // The first entity type writes the result, the others add to it.
-      bool first = true;
       for (auto *k : {&domain_integrators, &boundary_integrators})
       {
          if (k->callbacks.actions.empty()) { continue; }
@@ -1014,9 +1118,10 @@ private:
          {
             f(k->ev.in_e, dir_l, k->ev.out_e);
          }
-         k->ev.TransposeOutputs(outfds, y, first);
-         first = false;
       }
+      detail::TransposeOutputs(AllIntegrators(),
+                               &detail::DerivativeCallbacks::actions,
+                               outfds, y);
    }
 };
 
@@ -1413,7 +1518,7 @@ private:
    }
 
    /// The integrators of every entity type, the domain integrators first.
-   std::array<detail::EntityIntegrators<detail::OperatorCallbacks> *, 2>
+   std::array<detail::OperatorIntegrators *, 2>
    AllIntegrators() const
    {
       return {&domain_integrators, &boundary_integrators};
@@ -1424,8 +1529,11 @@ private:
    template <typename member_t>
    bool HasCallbacks(member_t detail::OperatorCallbacks::*member) const
    {
-      return !(domain_integrators.callbacks.*member).empty() ||
-      !(boundary_integrators.callbacks.*member).empty();
+      for (const auto *k : AllIntegrators())
+      {
+         if (!(k->callbacks.*member).empty()) { return true; }
+      }
+      return false;
    }
 
    /// Apply the action callbacks of every entity type to its input E-vectors
@@ -1434,12 +1542,6 @@ private:
    template <typename lvectors_t>
    void ApplyActions(lvectors_t &y) const
    {
-      if constexpr (std::is_same_v<lvectors_t, std::vector<Vector *>>)
-      {
-         detail::ForgetEVectorAliases(AllIntegrators(), y);
-      }
-      // The first entity type writes the result, the others add to it.
-      bool first = true;
       for (auto *k : {&domain_integrators, &boundary_integrators})
       {
          if (k->callbacks.actions.empty()) { continue; }
@@ -1448,9 +1550,9 @@ private:
          {
             f(k->ev.in_e, k->ev.out_e);
          }
-         k->ev.TransposeOutputs(outfds, y, first);
-         first = false;
       }
+      detail::TransposeOutputs(AllIntegrators(),
+                   &detail::OperatorCallbacks::actions, outfds, y);
    }
 
    /// The callback number @a integrator registered for @a derivative_id in
@@ -1514,10 +1616,8 @@ private:
    /// integrators. The restrictions are resolved on first use. Assembly is
    /// only implemented for elements, so the assembly maps above are domain
    /// maps.
-   mutable detail::EntityIntegrators<detail::OperatorCallbacks>
-   domain_integrators;
-   mutable detail::EntityIntegrators<detail::OperatorCallbacks>
-   boundary_integrators;
+   mutable detail::OperatorIntegrators domain_integrators;
+   mutable detail::OperatorIntegrators boundary_integrators;
 
    // std::function<void(Vector &, Vector &)> prolongation_transpose;
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
@@ -1624,10 +1724,13 @@ void DifferentiableOperator::AddIntegrator(
    static constexpr size_t num_fields =
       count_unique_field_ids(filtered_inout_tuple);
 
-   MFEM_VERIFY(num_fields == unionfds.size(),
+   // An integrator may use a subset of the fields of the operator, see
+   // EntityEVectors::MarkUsed(); create_descriptors_to_fields_map() checks
+   // if the integrator uses fields not present in the operator.
+   MFEM_VERIFY(num_fields <= unionfds.size(),
                "Total number of fields (" +
                std::to_string(num_fields) + ") "
-               "in the Q-function doesn't match "
+               "in the Q-function exceeds "
                "the union of FieldDescriptors (" +
                std::to_string(unionfds.size()) + ")");
 
@@ -1664,9 +1767,9 @@ void DifferentiableOperator::AddIntegrator(
       }
    }
 
-   [[maybe_unused]] auto input_to_field =
+   auto input_to_field =
       create_descriptors_to_fields_map<entity_t>(infds, inputs);
-   [[maybe_unused]] auto output_to_field =
+   auto output_to_field =
       create_descriptors_to_fields_map<entity_t>(outfds, outputs);
 
    // TODO: factor out
@@ -1685,20 +1788,23 @@ void DifferentiableOperator::AddIntegrator(
 
    residual_l.resize(outfds.size());
 
-   // The callbacks of this integrator act on the E-vectors of its entity type.
-   auto &entity_callbacks = [&]() -> detail::OperatorCallbacks &
+   // The callbacks of this integrator act on the E-vectors of its entity type,
+   // of which only the fields used by its integrators are touched.
+   auto &integrators = [&]() -> detail::OperatorIntegrators &
    {
       if constexpr (std::is_same_v<entity_t, Entity::Element>)
       {
-         return domain_integrators.callbacks;
+         return domain_integrators;
       }
       else
       {
          static_assert(std::is_same_v<entity_t, Entity::BoundaryElement>,
                        "entity type not supported in AddIntegrator");
-         return boundary_integrators.callbacks;
+         return boundary_integrators;
       }
    }();
+   integrators.ev.MarkUsed(input_to_field, output_to_field);
+   auto &entity_callbacks = integrators.callbacks;
 
    // TODO: Is this a hack?
    width = GetTrueVSize(infds[0]);

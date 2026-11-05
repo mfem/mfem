@@ -46,17 +46,10 @@ struct DerivativeApplyTranspose
       outputs_t outputs,
       const Vector &qp_cache):
       ctx(ctx), inputs(std::move(inputs)), outputs(std::move(outputs)),
-      qp_cache(qp_cache), dir_out_l(n_outputs), dir_out_e(n_outputs)
+      qp_cache(qp_cache)
    {
       create_fop_to_fd(this->inputs, ctx.infds, input_to_infd);
       create_fop_to_fd(this->outputs, ctx.outfds, output_to_outfd);
-
-      // The field of each output, repeated when outputs share a field, so the
-      // restriction below gives one E-vector per output.
-      for (size_t o = 0; o < n_outputs; o++)
-      {
-         out_fds.push_back(ctx.outfds[output_to_outfd[o]]);
-      }
 
       check_consistency(this->inputs, input_to_infd, ctx.infds);
       check_consistency(this->outputs, output_to_outfd, ctx.outfds);
@@ -219,7 +212,6 @@ private:
 
    std::array<size_t, n_inputs> input_to_infd;
    std::array<size_t, n_outputs> output_to_outfd;
-   std::vector<FieldDescriptor> out_fds;
 
    std::array<FieldBasis, n_inputs> input_bases;
    std::array<FieldBasis, n_outputs> output_bases;
@@ -237,12 +229,8 @@ private:
    // Pre-allocated owning storage for output cotangent temporaries
    mutable std::array<Vector, n_outputs> dir_out_l_owned;
    mutable std::array<Vector, n_outputs> dir_out_e_owned;
-   mutable std::vector<Vector *> dir_out_l;
-   mutable std::vector<Vector *> dir_out_e;
-   mutable RestrictionCache out_rcache
-   {
-      EntityTraits<entity_t>::restriction
-   };
+   mutable std::array<RestrictionCache, n_outputs> out_rcaches =
+      MakeRestrictionCaches<n_outputs>(EntityTraits<entity_t>::restriction);
 
    int residual_size_on_qp = 0;
    int trial_vdim = 0;
@@ -267,18 +255,16 @@ private:
 
          dir_out_l_owned[i] =
             Vector(*const_cast<Vector *>(direction_l), l_offset, l_size);
-         dir_out_e_owned[i].SetSize(0);
          dir_out_e_owned[i].UseDevice(true);
-
-         dir_out_l[i] = &dir_out_l_owned[i];
-         dir_out_e[i] = &dir_out_e_owned[i];
+         // One E-vector per output, also when outputs share a field.
+         restriction(fd, out_rcaches[i], dir_out_l_owned[i],
+                     dir_out_e_owned[i], ElementDofOrdering::LEXICOGRAPHIC);
       });
-
-      restriction(out_fds, out_rcache, dir_out_l, dir_out_e);
 
       constexpr_for<0, n_outputs>([&](auto i)
       {
-         output_bases[i.value].forward(*dir_out_e[i], dir_q.GetBlock(i.value));
+         output_bases[i.value].forward(dir_out_e_owned[i],
+                                       dir_q.GetBlock(i.value));
       });
       dir_q.SyncToBlocks();
    }

@@ -320,6 +320,58 @@ void mass_action(const char *filename, int p)
             check(dop, a);
          }
 
+         SECTION("Domain integrator with a parameter, Boundary Action")
+         {
+            // A field that only the domain integrator uses: the boundary
+            // integrator must not restrict it.
+            QuadratureSpace qs(pmesh, *ir);
+            VectorQuadratureSpace vqs(qs, 1);
+            QuadratureFunction rho(vqs);
+            rho = 1.0;
+            static constexpr int Rho = 2;
+            const auto param_in_fds = std::vector
+            {
+               FieldDescriptor{ U, &pfes },
+               FieldDescriptor{ Coords, mfes },
+               FieldDescriptor{ Rho, &vqs }
+            };
+
+            ParBilinearForm a(&pfes);
+            a.AddDomainIntegrator(new MassIntegrator(one, ir));
+            a.AddBoundaryIntegrator(new MassIntegrator(one, bdr_ir));
+            a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+            a.Assemble();
+            a.Mult(x, y);
+            pfes.GetProlongationMatrix()->MultTranspose(y, Y);
+
+            auto domain_rho_mass_qf =
+               [] MFEM_HOST_DEVICE(const dscalar_t &u,
+                                   const tensor<real_t, DIM, DIM> &J,
+                                   const real_t &w,
+                                   const real_t &rho,
+                                   dscalar_t &v)
+            {
+               v = rho * u * w * det(J);
+            };
+
+            DifferentiableOperator dop(param_in_fds, out_fds, pmesh);
+            dop.AddDomainIntegrator<LocalQFBackend, DerivativeKernels::Action>(
+               domain_rho_mass_qf,
+               Inputs<Value<U>, Gradient<Coords>, Weight, Identity<Rho>> {},
+               OT{}, *ir, all_domain_attr, DT{});
+            dop.AddBoundaryIntegrator<LocalQFBackend, DerivativeKernels::Action>(
+               bdr_mass_qf, IT{}, OT{}, *bdr_ir, all_bdr_attr, DT{});
+
+            MultiVector MX{X, N, rho}, MZ{Z};
+            dop.Mult(MX, MZ);
+            Z -= Y;
+            REQUIRE(ParNormlp(Z, infinity(), pmesh.GetComm()) == MFEM_Approx(0.0));
+
+            dop.GetDerivative(U, MX)->Mult(MX[0], MZ);
+            Z -= Y;
+            REQUIRE(ParNormlp(Z, infinity(), pmesh.GetComm()) == MFEM_Approx(0.0));
+         }
+
          if (pmesh.bdr_attributes.Max() > 1)
          {
             SECTION("Boundary Action on an attribute subset")
