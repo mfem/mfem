@@ -12,6 +12,8 @@
 #ifndef MFEM_ELECTROMAGNETICS_HPP
 #define MFEM_ELECTROMAGNETICS_HPP
 
+#include <cmath>
+
 namespace mfem
 {
 
