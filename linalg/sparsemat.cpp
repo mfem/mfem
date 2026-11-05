@@ -88,12 +88,14 @@ void SparseMatrix::InitGPUSparse()
 {
    // Initialize cuSPARSE/hipSPARSE library
 #ifdef MFEM_USE_CUDA_OR_HIP
+   // Count every matrix, including matrices created before GPU configuration.
+   // Its destruction can occur after the execution backend has changed.
+   SparseMatrixCount++;
    if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK) &&
        use_gpu_vendor_sparse_if_available)
    {
       if (!handle) { MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreate)(&handle)); }
       useGPUSparse=true;
-      SparseMatrixCount++;
    }
    else
    {
@@ -4363,7 +4365,6 @@ SparseMatrix::~SparseMatrix()
 {
    Destroy();
 #ifdef MFEM_USE_CUDA_OR_HIP
-   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
 #ifdef MFEM_CUDA_1897_WORKAROUND
       if (dBuffer)

@@ -17,6 +17,108 @@ namespace mfem
 
 #ifdef MFEM_USE_MPI
 
+#if MFEM_HYPRE_VERSION >= 21800
+TEST_CASE("HypreParMatrix host/device row-cache transitions",
+          "[Parallel], [GPU]")
+{
+   const int rank = Mpi::WorldRank();
+   const int ranks = Mpi::WorldSize();
+   const int local_rows = 4;
+   const bool has_offd = ranks > 1;
+   HYPRE_BigInt partition[2] = {local_rows * rank, local_rows * (rank + 1)};
+   auto *raw = hypre_ParCSRMatrixCreate(MPI_COMM_WORLD, local_rows * ranks,
+                                        local_rows * ranks, partition,
+                                        partition, has_offd ? 1 : 0,
+                                        2, has_offd ? 1 : 0);
+   hypre_ParCSRMatrixInitialize_v2(raw, HYPRE_MEMORY_HOST);
+   auto *diag = hypre_ParCSRMatrixDiag(raw);
+   auto *offd = hypre_ParCSRMatrixOffd(raw);
+   const HYPRE_Int diag_i[] = {0, 1, 1, 2, 2};
+   for (int i = 0; i <= local_rows; i++)
+   {
+      hypre_CSRMatrixI(diag)[i] = diag_i[i];
+      hypre_CSRMatrixI(offd)[i] = has_offd && i == local_rows ? 1 : 0;
+   }
+   hypre_CSRMatrixJ(diag)[0] = 0;
+   hypre_CSRMatrixJ(diag)[1] = 2;
+   hypre_CSRMatrixData(diag)[0] = 2.0;
+   hypre_CSRMatrixData(diag)[1] = 4.0;
+   if (has_offd)
+   {
+      hypre_CSRMatrixJ(offd)[0] = 0;
+      hypre_CSRMatrixData(offd)[0] = 1.0;
+      hypre_ParCSRMatrixColMapOffd(raw)[0] = local_rows * ((rank + 1) % ranks);
+   }
+   hypre_CSRMatrixSetRownnz(diag);
+   hypre_CSRMatrixSetRownnz(offd);
+   hypre_ParCSRMatrixSetNumNonzeros(raw);
+
+   // Wrapping a host matrix can itself migrate the CSR arrays to the GPU.
+   HypreParMatrix matrix(raw, true);
+   matrix.CopyRowStarts();
+   matrix.CopyColStarts();
+   const bool read_write = GENERATE(false, true);
+   for (int cycle = 0; cycle < 2; cycle++)
+   {
+      matrix.HypreRead();
+      hypre_CSRMatrixSetRownnz(diag);
+      hypre_CSRMatrixSetRownnz(offd);
+      REQUIRE(hypre_CSRMatrixRownnz(diag) != nullptr);
+      if (has_offd) { REQUIRE(hypre_CSRMatrixRownnz(offd) != nullptr); }
+
+      struct HostPolicy
+      {
+         HYPRE_MemoryLocation memory;
+         HYPRE_ExecutionPolicy execution;
+         HostPolicy()
+         {
+            HYPRE_GetMemoryLocation(&memory);
+            HYPRE_GetExecutionPolicy(&execution);
+            HYPRE_SetMemoryLocation(HYPRE_MEMORY_HOST);
+            HYPRE_SetExecutionPolicy(HYPRE_EXEC_HOST);
+         }
+         ~HostPolicy()
+         {
+            HYPRE_SetMemoryLocation(memory);
+            HYPRE_SetExecutionPolicy(execution);
+         }
+      };
+      {
+         HostPolicy host_policy;
+         if (read_write) { matrix.HostReadWrite(); }
+         else { matrix.HostRead(); }
+         Vector x(local_rows), y(local_rows);
+         x = 1.0;
+         matrix.Mult(x, y);
+         REQUIRE(y(0) == MFEM_Approx(2.0));
+         REQUIRE(y(1) == MFEM_Approx(0.0));
+         REQUIRE(y(2) == MFEM_Approx(4.0));
+         REQUIRE(y(3) == MFEM_Approx(has_offd ? 1.0 : 0.0));
+         std::unique_ptr<HypreParMatrix> transpose(matrix.Transpose());
+         transpose->Mult(x, y);
+         REQUIRE(y(0) == MFEM_Approx(has_offd ? 3.0 : 2.0));
+         REQUIRE(y(1) == MFEM_Approx(0.0));
+         REQUIRE(y(2) == MFEM_Approx(4.0));
+         REQUIRE(y(3) == MFEM_Approx(0.0));
+         // Exercise the opposite transition with a newly created host cache.
+         hypre_CSRMatrixSetRownnz(diag);
+         hypre_CSRMatrixSetRownnz(offd);
+      }
+      matrix.HypreRead();
+      Vector x(local_rows), y(local_rows);
+      x.UseDevice(true);
+      y.UseDevice(true);
+      x = 1.0;
+      matrix.Mult(x, y);
+      const real_t *values = y.HostRead();
+      REQUIRE(values[0] == MFEM_Approx(2.0));
+      REQUIRE(values[1] == MFEM_Approx(0.0));
+      REQUIRE(values[2] == MFEM_Approx(4.0));
+      REQUIRE(values[3] == MFEM_Approx(has_offd ? 1.0 : 0.0));
+   }
+}
+#endif
+
 TEST_CASE("HypreParMatrixWrapConstructors-SyncChecks", "[Parallel], [GPU]")
 {
    const int dim = 2;

@@ -595,6 +595,22 @@ GetHypreParMatrixMemoryLocation(MemoryClass mc)
 #endif
    return ml;
 }
+
+// HYPRE owns the optional nonempty-row cache, while MFEM manages I/J/data.
+// Invalidate the cache before changing the CSR memory location so HYPRE frees
+// it in the original memory space and can rebuild it at the destination.
+static void SetCSRMemoryLocation(hypre_CSRMatrix *csr,
+                                 HYPRE_MemoryLocation location)
+{
+   if (hypre_CSRMatrixMemoryLocation(csr) != location &&
+       hypre_CSRMatrixRownnz(csr))
+   {
+      hypre_TFree(hypre_CSRMatrixRownnz(csr),
+                  hypre_CSRMatrixMemoryLocation(csr));
+      hypre_CSRMatrixNumRownnz(csr) = hypre_CSRMatrixNumRows(csr);
+   }
+   hypre_CSRMatrixMemoryLocation(csr) = location;
+}
 #endif // MFEM_HYPRE_VERSION >= 21800
 
 void HypreParMatrix::Read(MemoryClass mc) const
@@ -612,8 +628,8 @@ void HypreParMatrix::Read(MemoryClass mc) const
    offd->data = const_cast<real_t*>(mem_offd.data.Read(mc, offd_nnz));
 #if MFEM_HYPRE_VERSION >= 21800
    auto ml = GetHypreParMatrixMemoryLocation(mc);
-   diag->memory_location = ml;
-   offd->memory_location = ml;
+   SetCSRMemoryLocation(diag, ml);
+   SetCSRMemoryLocation(offd, ml);
 #endif
 }
 
@@ -632,8 +648,8 @@ void HypreParMatrix::ReadWrite(MemoryClass mc)
    offd->data = mem_offd.data.ReadWrite(mc, offd_nnz);
 #if MFEM_HYPRE_VERSION >= 21800
    auto ml = GetHypreParMatrixMemoryLocation(mc);
-   diag->memory_location = ml;
-   offd->memory_location = ml;
+   SetCSRMemoryLocation(diag, ml);
+   SetCSRMemoryLocation(offd, ml);
 #endif
 }
 
@@ -655,8 +671,8 @@ void HypreParMatrix::Write(MemoryClass mc, bool set_diag, bool set_offd)
    }
 #if MFEM_HYPRE_VERSION >= 21800
    auto ml = GetHypreParMatrixMemoryLocation(mc);
-   if (set_diag) { diag->memory_location = ml; }
-   if (set_offd) { offd->memory_location = ml; }
+   if (set_diag) { SetCSRMemoryLocation(diag, ml); }
+   if (set_offd) { SetCSRMemoryLocation(offd, ml); }
 #endif
 }
 
@@ -899,7 +915,7 @@ signed char HypreParMatrix::HypreCsrToMem(hypre_CSRMatrix *h_mat,
       h_mat->data = mem.data.ReadWrite(hypre_mc, nnz);
       h_mat->owns_data = 0;
 #if MFEM_HYPRE_VERSION >= 21800
-      h_mat->memory_location = mfem::GetHypreMemoryLocation();
+      SetCSRMemoryLocation(h_mat, mfem::GetHypreMemoryLocation());
 #endif
       return 3;
    }
