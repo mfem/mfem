@@ -77,7 +77,7 @@ private:
    /// Owning pointer to the underlying backend solver.
    std::unique_ptr<Solver> solver;
 
-   /// Helper that constructs the underlying backend solver based on #type.
+   /// Helper that constructs the underlying backend solver based on `type`.
    void InitSolver();
 
 public:
@@ -86,7 +86,7 @@ public:
     *
     * If @p type_ is Type::AUTO, the constructor will select the first
     * available backend according to an internal priority order and store the
-    * resolved type in #type. No factorization is performed here; that happens
+    * resolved type in `type`. No factorization is performed here; that happens
     * when SetOperator() is called.
     */
    ParallelDirectSolver(MPI_Comm comm_, Type type_ = Type::AUTO);
@@ -110,11 +110,11 @@ public:
     *      - Usually expects a HypreParMatrix (assembled parallel sparse matrix).
     *  - SUPERLU :
     *      - A SuperLURowLocMatrix is constructed internally from @p op and
-    *        kept in #superlu_mat. The SuperLUSolver then uses this row-local
+    *        kept in `superlu_mat`. The SuperLUSolver then uses this row-local
     *        representation.
     *  - STRUMPACK :
     *     - A STRUMPACKRowLocMatrix is constructed internally from @p op and
-    *       kept in #strumpack_mat. The STRUMPACKSolver then uses this row-local
+    *       kept in `strumpack_mat`. The STRUMPACKSolver then uses this row-local
     *       representation.
     *
     * @param op The operator representing the system matrix to factor.
