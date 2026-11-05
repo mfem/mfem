@@ -377,6 +377,11 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
          }
          if (add_nnz)
          {
+            if (vd == 1)
+            {
+               AtomicAdd(I[i_L], 1);
+               continue;
+            }
             // Each pair of scalar dofs (i_L, j_L) couples all the vector
             // components: add vd nonzeros to each of the vd rows of i_L.
             for (int ci = 0; ci < vd; ++ci)
@@ -450,6 +455,13 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
          const int j_nbElts = j_next_offset - j_offset;
          if (i_nbElts == 1 || j_nbElts == 1) // no assembly required
          {
+            if (vd == 1)
+            {
+               const int nnz = AtomicAdd(I[i_L], 1);
+               J[nnz] = j_L;
+               Data[nnz] = mat_ea(j, i, e);
+               continue;
+            }
             for (int ci = 0; ci < vd; ++ci)
             {
                const int i_vL = t ? i_L*vd + ci : i_L + ci*all_dofs;
@@ -477,6 +489,28 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
             int min_e = GetMinElt(i_elts, i_nbElts, j_elts, j_nbElts);
             if (e == min_e) // add the nnz only once
             {
+               // Keep scalar accumulation in a local value. The vector path
+               // updates several CSR entries for each shared element.
+               if (vd == 1)
+               {
+                  real_t val = 0.0;
+                  for (int k = 0; k < i_nbElts; k++)
+                  {
+                     const int e_i = i_elts[k];
+                     const int i_Bloc = i_B[k];
+                     for (int l = 0; l < j_nbElts; l++)
+                     {
+                        if (e_i == j_elts[l])
+                        {
+                           val += mat_ea(j_B[l], i_Bloc, e_i);
+                        }
+                     }
+                  }
+                  const int nnz = AtomicAdd(I[i_L], 1);
+                  J[nnz] = j_L;
+                  Data[nnz] = val;
+                  continue;
+               }
                for (int ci = 0; ci < vd; ++ci)
                {
                   const int i_vL = t ? i_L*vd + ci : i_L + ci*all_dofs;
