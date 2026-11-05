@@ -68,10 +68,10 @@ static const char *backend_name[Backend::NUM_BACKENDS] =
 
 // Initialize the unique global Device variable.
 Device Device::device_singleton;
-bool Device::device_env = false;
-bool Device::mem_host_env = false;
-bool Device::mem_device_env = false;
-bool Device::mem_types_set = false;
+MFEM_CONSTINIT bool Device::device_env = false;
+MFEM_CONSTINIT bool Device::mem_host_env = false;
+MFEM_CONSTINIT bool Device::mem_device_env = false;
+MFEM_CONSTINIT bool Device::mem_types_set = false;
 
 Device::Device()
 {

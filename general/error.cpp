@@ -41,9 +41,9 @@ const char* ErrorException::what() const throw()
    return msg.c_str();
 }
 
-static ErrorAction mfem_error_action = MFEM_ERROR_THROW;
+static MFEM_CONSTINIT ErrorAction mfem_error_action = MFEM_ERROR_THROW;
 #else
-static ErrorAction mfem_error_action = MFEM_ERROR_ABORT;
+static MFEM_CONSTINIT ErrorAction mfem_error_action = MFEM_ERROR_ABORT;
 #endif
 
 void set_error_action(ErrorAction action)

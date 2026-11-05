@@ -1130,18 +1130,17 @@ protected:
       int dim;
       real_t coord[3];
 
-      Point() { dim = 0; }
+      // Initialize every coordinate, so that the point matrices below can be
+      // constant initialized.
+      constexpr Point() : dim(0), coord{} { }
 
       Point(const Point &) = default;
 
-      Point(real_t x)
-      { dim = 1; coord[0] = x; }
+      constexpr Point(real_t x) : dim(1), coord{x} { }
 
-      Point(real_t x, real_t y)
-      { dim = 2; coord[0] = x; coord[1] = y; }
+      constexpr Point(real_t x, real_t y) : dim(2), coord{x, y} { }
 
-      Point(real_t x, real_t y, real_t z)
-      { dim = 3; coord[0] = x; coord[1] = y; coord[2] = z; }
+      constexpr Point(real_t x, real_t y, real_t z) : dim(3), coord{x, y, z} { }
 
       Point(const Point& p0, const Point& p1, real_t s = 0.5)
       {
@@ -1163,7 +1162,7 @@ protected:
          }
       }
 
-      Point& operator=(const Point& src)
+      constexpr Point& operator=(const Point& src)
       {
          dim = src.dim;
          for (int i = 0; i < dim; i++) { coord[i] = src.coord[i]; }
@@ -1191,36 +1190,39 @@ protected:
       int np;
       Point points[MaxElemNodes];
 
-      PointMatrix() : np(0) {}
+      constexpr PointMatrix() : np(0) {}
 
-      PointMatrix(const Point& p0, const Point& p1)
-      { np = 2; points[0] = p0; points[1] = p1; }
+      constexpr PointMatrix(const Point& p0, const Point& p1) : np(2)
+      { points[0] = p0; points[1] = p1; }
 
-      PointMatrix(const Point& p0, const Point& p1, const Point& p2)
-      { np = 3; points[0] = p0; points[1] = p1; points[2] = p2; }
+      constexpr PointMatrix(const Point& p0, const Point& p1, const Point& p2)
+         : np(3)
+      { points[0] = p0; points[1] = p1; points[2] = p2; }
 
-      PointMatrix(const Point& p0, const Point& p1, const Point& p2, const Point& p3)
-      { np = 4; points[0] = p0; points[1] = p1; points[2] = p2; points[3] = p3; }
+      constexpr PointMatrix(const Point& p0, const Point& p1, const Point& p2,
+                            const Point& p3)
+         : np(4)
+      { points[0] = p0; points[1] = p1; points[2] = p2; points[3] = p3; }
 
-      PointMatrix(const Point& p0, const Point& p1, const Point& p2,
-                  const Point& p3, const Point& p4)
+      constexpr PointMatrix(const Point& p0, const Point& p1, const Point& p2,
+                            const Point& p3, const Point& p4)
+         : np(5)
       {
-         np = 5;
          points[0] = p0; points[1] = p1; points[2] = p2;
          points[3] = p3; points[4] = p4;
       }
-      PointMatrix(const Point& p0, const Point& p1, const Point& p2,
-                  const Point& p3, const Point& p4, const Point& p5)
+      constexpr PointMatrix(const Point& p0, const Point& p1, const Point& p2,
+                            const Point& p3, const Point& p4, const Point& p5)
+         : np(6)
       {
-         np = 6;
          points[0] = p0; points[1] = p1; points[2] = p2;
          points[3] = p3; points[4] = p4; points[5] = p5;
       }
-      PointMatrix(const Point& p0, const Point& p1, const Point& p2,
-                  const Point& p3, const Point& p4, const Point& p5,
-                  const Point& p6, const Point& p7)
+      constexpr PointMatrix(const Point& p0, const Point& p1, const Point& p2,
+                            const Point& p3, const Point& p4, const Point& p5,
+                            const Point& p6, const Point& p7)
+         : np(8)
       {
-         np = 8;
          points[0] = p0; points[1] = p1; points[2] = p2; points[3] = p3;
          points[4] = p4; points[5] = p5; points[6] = p6; points[7] = p7;
       }
@@ -1398,7 +1400,10 @@ protected:
       int nfv[MaxElemFaces];       // number of face vertices
 
       bool initialized;
-      GeomInfo() : initialized(false) {}
+      // Initialize every member so that the array of these below can be
+      // constant initialized.
+      constexpr GeomInfo()
+         : nv(0), ne(0), nf(0), edges{}, faces{}, nfv{}, initialized(false) { }
       GeomInfo(Geometry::Type geom) : GeomInfo() { InitGeom(geom); }
       void InitGeom(Geometry::Type geom);
    };
