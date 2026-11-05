@@ -289,6 +289,9 @@ struct DerivativeCallbacks
    std::vector<derivative_action_t> actions;
    std::vector<derivative_action_t> transpose;
    std::vector<derivative_setup_t> setup;
+   /// True if the integrators registered the derivative, but not the kind of
+   /// action that was requested, so applying it would skip them.
+   bool missing_actions = false;
 };
 
 template <typename map_t>
@@ -339,11 +342,9 @@ DerivativeIntegrators MakeDerivativeIntegrators(
 {
    const auto &c = parent.callbacks;
    const bool apply = HasAnyKernel(kernels, DerivativeKernels::Apply);
-   // MF action: exists if the integrator was registered with
-   // DerivativeKernels::Action. A missing one is not an error here, because the
-   // integrator may have DerivativeKernels::Apply, for PA action.
-   // PA action: the cached apply only exists if the integrator was registered
-   // with DerivativeKernels::Apply.
+   // The cached apply only exists if the integrator was registered with
+   // DerivativeKernels::Apply. A missing direct action is not checked here:
+   // the derivative may only be transposed or assembled.
    MFEM_VERIFY(!apply || FindNonEmpty(c.Apply(key), key) ||
                !FindNonEmpty(c.Action(key), key),
                "the cached derivative apply was requested for "
@@ -360,6 +361,8 @@ DerivativeIntegrators MakeDerivativeIntegrators(
    else if (HasAnyKernel(kernels, DerivativeKernels::Action))
    {
       callbacks.actions = FindOrEmpty(c.Action(key), key);
+      callbacks.missing_actions = callbacks.actions.empty() &&
+                                  FindNonEmpty(c.Apply(key), key);
    }
    if (HasAnyKernel(kernels, DerivativeKernels::ApplyTranspose))
    {
@@ -528,7 +531,7 @@ public:
          const std::string name = detail::DerivativeName(key);
          MFEM_VERIFY(HasCallbacks(&detail::DerivativeCallbacks::actions),
                      "the cached derivative apply was requested for " << name <<
-                     ", but the integrator was registered without "
+                     ", but no integrator registered it with "
                      "DerivativeKernels::Apply; either add it or drop the "
                      "use_cached_setup argument to use the direct action");
       }
@@ -671,6 +674,15 @@ public:
       MFEM_VERIFY(HasCallbacks(&detail::DerivativeCallbacks::actions),
                   "derivative can't be applied: the integrator was registered "
                   "without DerivativeKernels::Action");
+      // An entity type without the direct action would be skipped silently.
+      for (const auto *k : AllIntegrators())
+      {
+         MFEM_VERIFY(!k->callbacks.missing_actions,
+                     "derivative can't be applied: the integrators of one "
+                     "entity type were registered without "
+                     "DerivativeKernels::Action; either add it or pass the "
+                     "use_cached_setup argument to use the cached apply");
+      }
       if (cached_apply) { EnsureQpCache(); }
       prolongation(direction, x, direction_l, lvector_mode);
       if constexpr (std::is_same_v<vector_t, MultiVector>)
@@ -701,6 +713,13 @@ public:
       MFEM_VERIFY(HasCallbacks(&detail::DerivativeCallbacks::actions),
                   "derivative can't be applied: the integrator was registered "
                   "without DerivativeKernels::Action");
+      for (const auto *k : AllIntegrators())
+      {
+         MFEM_VERIFY(!k->callbacks.missing_actions,
+                     "derivative can't be applied: the integrators of one "
+                     "entity type were registered without "
+                     "DerivativeKernels::Action");
+      }
       prolongation(infds, x, infields_l);
       // The first-derivative (gradient) action ignores the direction.
       ApplyActions(nullptr, true, daction_l);
