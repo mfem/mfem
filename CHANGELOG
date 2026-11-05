@@ -21,6 +21,11 @@ Discretization improvements
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
 
+- Fixed the scaling of the face jump integrals in the KellyErrorEstimator, which
+  changes the computed error estimates. The default face coefficient now uses
+  the polynomial order of the solution instead of the mesh order. Added support
+  for 1D meshes and L2 solution spaces.
+
 Meshing improvements
 --------------------
 - Fixed the essential DOFs on interior boundaries of 2D non-conforming meshes
