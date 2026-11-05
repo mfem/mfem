@@ -50,12 +50,12 @@ endforeach()
 if (MFEM_ENABLE_TESTING)
   # Short runs, one per checkpoint storage layout, plus one run of the reverse
   # sweep without a window.
-  set(EX16_TEST_OPTS -no-vis -tf 0.2 -ci 4 -cw 4)
-  set(EX16P_TEST_OPTS ${EX16_TEST_OPTS} -rs 1)
+  set(EX16_TEST_OPTS -no-vis -tf 0.2 -ci 4)
+  set(EX16P_TEST_OPTS ${EX16_TEST_OPTS} -rs 1 -cw 4)
 
   foreach(STORAGE memory-block file-block memory-snapshots file-snapshots)
     add_test(NAME ${PFX}ex16_${STORAGE}_ser
-      COMMAND ${PFX}ex16 ${EX16_TEST_OPTS} -cs ${STORAGE})
+      COMMAND ${PFX}ex16 ${EX16_TEST_OPTS} -cs ${STORAGE} -cw 4)
   endforeach()
   add_test(NAME ${PFX}ex16_memory-snapshots_no-window_ser
     COMMAND ${PFX}ex16 ${EX16_TEST_OPTS} -cs memory-snapshots -cw 0)

@@ -12,6 +12,11 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#if defined(MFEM_USE_EXCEPTIONS) && defined(MFEM_USE_MPI) && \
+    defined(MFEM_USE_PETSC)
+#include <petscts.h>
+#endif
+
 #include <chrono>
 #include <filesystem>
 #include <memory>
@@ -127,6 +132,34 @@ public:
    { set_error_action(MFEM_ERROR_THROW); }
    ~ThrowOnError() { set_error_action(previous); }
 };
+
+#if defined(MFEM_USE_EXCEPTIONS) && defined(MFEM_USE_MPI) && \
+    defined(MFEM_USE_PETSC)
+class CheckpointPetscSession
+{
+private:
+   bool owned;
+
+public:
+   CheckpointPetscSession()
+   {
+      PetscBool initialized;
+      MFEM_VERIFY(PetscInitialized(&initialized) == 0,
+                  "Cannot query PETSc initialization.");
+      owned = !initialized;
+      if (owned) { MFEMInitializePetsc(); }
+   }
+
+   ~CheckpointPetscSession()
+   {
+      if (!owned) { return; }
+      PetscBool finalized;
+      MFEM_VERIFY(PetscFinalized(&finalized) == 0,
+                  "Cannot query PETSc finalization.");
+      if (!finalized) { MFEMFinalizePetsc(); }
+   }
+};
+#endif
 
 } // namespace
 
@@ -417,4 +450,50 @@ TEST_CASE("ODE checkpointers reject invalid use", "[ODECheckpoint]")
                      ErrorException);
    fs::remove_all(path);
 }
+
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_PETSC)
+TEST_CASE("ODE checkpointers reject PETSc BDF internal history",
+          "[Parallel][PETSc][ODECheckpoint]")
+{
+   static CheckpointPetscSession petsc_session;
+   ThrowOnError guard;
+   ODELive live(0);
+   PetscODESolver solver(MPI_COMM_SELF);
+   solver.Init(live.oper);
+   REQUIRE(TSSetType(solver, TSBDF) == 0);
+   REQUIRE(solver.GetStateSize() == 0);
+   for (const StorageType storage : all_storages)
+   {
+      INFO("storage " << static_cast<int>(storage));
+      REQUIRE_THROWS_AS(MakeODECheckpointer(storage, live.x, solver,
+                                            live.All(), 4), ErrorException);
+   }
+}
+#endif
+
+#ifdef MFEM_USE_SUNDIALS
+TEST_CASE("ODE checkpointers reject SUNDIALS internal state",
+          "[ODECheckpoint]")
+{
+   Sundials::Init();
+   ThrowOnError guard;
+   ODELive live(0);
+   std::unique_ptr<ODESolver> solvers[] =
+   {
+      std::make_unique<CVODESolver>(CV_BDF),
+      std::make_unique<CVODESSolver>(CV_BDF),
+      std::make_unique<ARKStepSolver>()
+   };
+   for (const auto &solver : solvers)
+   {
+      REQUIRE(solver->GetStateSize() == 0);
+      for (const StorageType storage : all_storages)
+      {
+         INFO("storage " << static_cast<int>(storage));
+         REQUIRE_THROWS_AS(MakeODECheckpointer(storage, live.x, *solver,
+                                               live.All(), 4), ErrorException);
+      }
+   }
+}
+#endif
 #endif // MFEM_USE_EXCEPTIONS

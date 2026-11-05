@@ -42,8 +42,10 @@ namespace mfem
     Only solvers without step history are supported: construction requires
     ODESolver::GetStateSize() == 0. Multistep solvers (ODESolverWithStates)
     are rejected, because their ODEStateData cannot be captured exactly through
-    its public interface. The constructors take the solver for this check and
-    so that a future extension can capture solver history; see the
+    its public interface. PETSc and SUNDIALS solvers are also rejected: their
+    internal continuation state is not reported by GetStateSize() and is not
+    captured by these records. The constructors take the solver for these
+    checks and so that a future extension can capture solver history; see the
     ODECheckpointer constructor.
 
     Operator-internal data are not captured; operators whose evaluation
@@ -125,8 +127,10 @@ protected:
        time step would restore without error, but the solver would continue
        with stale history or rebuild it, so replay would not reproduce the
        original trajectory. The check turns this silent mismatch into an error.
-       It only covers the solver passed here; advancing @a x_ with a different
-       solver is not detected.
+       PETSc and SUNDIALS solvers are rejected independently of GetStateSize(),
+       since their internal continuation state is not captured either.
+       These checks only cover the solver passed here; advancing @a x_ with
+       a different solver is not detected.
 
        The solver is currently not retained, and Store() and Restore() do not
        use it. It is part of the interface so that a later extension can

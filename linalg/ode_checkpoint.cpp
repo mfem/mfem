@@ -12,6 +12,13 @@
 #include "ode_checkpoint.hpp"
 #include "../general/error.hpp"
 
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_PETSC)
+#include "petsc.hpp"
+#endif
+#ifdef MFEM_USE_SUNDIALS
+#include "sundials.hpp"
+#endif
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -234,6 +241,16 @@ ODECheckpointer::ODECheckpointer(Vector &x_, ODESolver &solver,
                                  std::optional<std::size_t> limit_)
    : x(x_), fields(fields_), limit(limit_), size(x_.Size())
 {
+#if defined(MFEM_USE_MPI) && defined(MFEM_USE_PETSC)
+   MFEM_VERIFY(!dynamic_cast<PetscODESolver *>(&solver),
+               "ODECheckpointer cannot capture PETSc solver internal state.");
+#endif
+#ifdef MFEM_USE_SUNDIALS
+   MFEM_VERIFY(!dynamic_cast<CVODESolver *>(&solver) &&
+               !dynamic_cast<ARKStepSolver *>(&solver),
+               "ODECheckpointer cannot capture SUNDIALS solver "
+               "internal state.");
+#endif
    MFEM_VERIFY(solver.GetStateSize() == 0,
                "ODECheckpointer supports only solvers without step history; "
                "this solver keeps " << solver.GetStateSize()

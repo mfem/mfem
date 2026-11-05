@@ -348,12 +348,8 @@ int main(int argc, char *argv[])
 
    // Block layouts preallocate their records: count the steps of the loop
    // below and allow one record more than the checkpoints it saves.
-   int num_steps = 0;
-   for (real_t s = t; ; s += dt)
-   {
-      num_steps++;
-      if (s + dt >= t_final - dt/2) { break; }
-   }
+   const int num_steps =
+      max(1, static_cast<int>(ceil((t_final - t) / dt - 0.5)));
    optional<size_t> limit;
    if (storage_type == Checkpointer::StorageType::MemoryBlock ||
        storage_type == Checkpointer::StorageType::FileBlock)
@@ -369,40 +365,75 @@ int main(int argc, char *argv[])
    // <<< Checkpointing -----------------------------------------------------
 
    bool last_step = false;
-   for (int ti = 1; !last_step; ti++)
+   IntervalSchedule schedule(num_steps, checkpoint_interval);
+
+   for (;;)
    {
-      if (t + dt >= t_final - dt/2)
+      const CheckpointCommand command = schedule.Next();
+
+      if (command.action == CheckpointAction::Finished)
       {
-         last_step = true;
+         MFEM_VERIFY(!command.checkpoint &&
+                     command.from_step == num_steps &&
+                     command.to_step == num_steps && step == num_steps,
+                     "Forward schedule finished at the wrong state.");
+         break;
       }
 
-      ode_solver->Step(u, t, dt);
-
-      if (last_step || (ti % vis_steps) == 0)
+      if (command.action == CheckpointAction::Store)
       {
-         cout << "step " << ti << ", t = " << t << endl;
-
-         u_gf.SetFromTrueDofs(u);
-         if (visualization)
-         {
-            sout << "solution\n" << *mesh << u_gf << flush;
-         }
-
-         if (visit)
-         {
-            visit_dc.SetCycle(ti);
-            visit_dc.SetTime(t);
-            visit_dc.Save();
-         }
+         MFEM_VERIFY(command.checkpoint &&
+                     command.from_step == step && command.to_step == step,
+                     "Invalid scheduled checkpoint.");
+         checkpoints->Store(*command.checkpoint);
+         continue;
       }
-      oper.SetParameters(u);
 
-      // >>> Checkpointing: record state ti and save every interval-th step.
-      //     The checkpoint ID is the step number.
-      step = ti;
-      ref_norms.push_back(u.Norml2());
-      if (ti % checkpoint_interval == 0) { checkpoints->Store(ti); }
-      // <<< Checkpointing --------------------------------------------------
+      if (command.action == CheckpointAction::Erase)
+      {
+         MFEM_VERIFY(command.checkpoint &&
+                     command.from_step == command.to_step &&
+                     checkpoints->GetInfo(*command.checkpoint).state ==
+                     command.to_step,
+                     "Invalid scheduled checkpoint erase.");
+         checkpoints->Erase(*command.checkpoint);
+         continue;
+      }
+
+      MFEM_VERIFY(command.action == CheckpointAction::Advance &&
+                  !command.checkpoint && command.from_step == step &&
+                  command.to_step > step && command.to_step <= num_steps,
+                  "Expected a forward advance.");
+
+      for (int ti = static_cast<int>(command.from_step) + 1;
+           ti <= command.to_step; ti++)
+      {
+         last_step = (ti == num_steps);
+
+         ode_solver->Step(u, t, dt);
+
+         if (last_step || (ti % vis_steps) == 0)
+         {
+            cout << "step " << ti << ", t = " << t << endl;
+
+            u_gf.SetFromTrueDofs(u);
+            if (visualization)
+            {
+               sout << "solution\n" << *mesh << u_gf << flush;
+            }
+
+            if (visit)
+            {
+               visit_dc.SetCycle(ti);
+               visit_dc.SetTime(t);
+               visit_dc.Save();
+            }
+         }
+         oper.SetParameters(u);
+
+         step = ti;
+         ref_norms.push_back(u.Norml2());
+      }
    }
 
    // 9. Save the final solution. This output can be viewed later using GLVis:

@@ -48,13 +48,13 @@ include $(MFEM_TEST_MK)
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 SERIAL_NAME := Serial checkpointing example
 PARALLEL_NAME := Parallel checkpointing example
-EX16_ARGS := -tf 0.2 -ci 4 -cw 4
-EX16P_ARGS := $(EX16_ARGS) -rs 1
+EX16_ARGS := -tf 0.2 -ci 4
+EX16P_ARGS := $(EX16_ARGS) -rs 1 -cw 4
 ex16-test-seq: ex16
-	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX16_ARGS) -cs memory-block)
-	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX16_ARGS) -cs file-block)
-	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX16_ARGS) -cs memory-snapshots)
-	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX16_ARGS) -cs file-snapshots)
+	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX16_ARGS) -cs memory-block -cw 4)
+	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX16_ARGS) -cs file-block -cw 4)
+	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX16_ARGS) -cs memory-snapshots -cw 4)
+	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX16_ARGS) -cs file-snapshots -cw 4)
 	@$(call mfem-test,$<,, $(SERIAL_NAME),$(EX16_ARGS) -cs memory-snapshots \
 	   -cw 0)
 ex16p-test-par: ex16p
