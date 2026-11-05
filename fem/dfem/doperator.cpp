@@ -69,18 +69,12 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
 {
    const size_t dfidx = FindIdx(DirectionId(key), infds);
    const auto &doutfds = FindOrDefault(callbacks.outfds, key, default_outfds);
-   const auto kernels = (use_cached_setup ? DerivativeKernels::Apply :
-                         DerivativeKernels::Action) |
-                        DerivativeKernels::ApplyTranspose |
-                        DerivativeKernels::AllAssembly;
-
    return std::make_shared<DerivativeOperator>(
              GetTotalTrueVSize(doutfds),
              GetTrueVSize(infds[dfidx]),
              callbacks.domain_integrators,
              callbacks.boundary_integrators,
              key,
-             kernels,
              doutfds == default_outfds,
              infds[dfidx],
              x,
@@ -192,7 +186,6 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
              domain_integrators,
              boundary_integrators,
              derivative_id,
-             DerivativeKernels::Action,
              doutfds == outfds,
              infds,
              doutfds);

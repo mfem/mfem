@@ -366,27 +366,23 @@ using OperatorIntegrators = EntityIntegrators<OperatorCallbacks>;
 using DerivativeIntegrators = EntityIntegrators<DerivativeCallbacks>;
 
 /// @brief The integrators of the derivative @a key of the operator whose
-/// integrators of the same entity type are @a parent, with the callbacks of the
-/// derivative kernels @a kernels: the actions of DerivativeKernels::Apply (the
-/// cached apply) or else DerivativeKernels::Action, the transposes of
-/// DerivativeKernels::ApplyTranspose, the assemblies of
-/// DerivativeKernels::AssembleMatrix and AssembleDiagonal, and the setups if
-/// any of these but Action is requested (they fill the quadrature point cache
-/// those read). The
-/// E-vectors are built from the parent's, see the EntityEVectors handover
-/// constructor.
+/// integrators of the same entity type are @a parent. Every callback registered
+/// for @a key is taken, except that Mult runs either the cached apply
+/// (DerivativeKernels::Apply) if @a cached_apply, or else the direct action
+/// (DerivativeKernels::Action). The E-vectors are built from the parent's, see
+/// the EntityEVectors handover constructor.
 template <typename key_t>
 DerivativeIntegrators MakeDerivativeIntegrators(
-   const OperatorIntegrators &parent, const key_t &key,
-   DerivativeKernels kernels, size_t num_outputs, bool copy_outputs)
+   const OperatorIntegrators &parent, const key_t &key, bool cached_apply,
+   size_t num_outputs, bool copy_outputs)
 {
    const auto &c = parent.callbacks;
-   const bool apply = HasAnyKernel(kernels, DerivativeKernels::Apply);
+   const bool has_apply = FindNonEmpty(c.Apply(key), key);
+   const bool has_action = FindNonEmpty(c.Action(key), key);
    // The cached apply only exists if the integrator was registered with
    // DerivativeKernels::Apply. A missing direct action is not checked here:
    // the derivative may only be transposed or assembled.
-   MFEM_VERIFY(!apply || FindNonEmpty(c.Apply(key), key) ||
-               !FindNonEmpty(c.Action(key), key),
+   MFEM_VERIFY(!cached_apply || has_apply || !has_action,
                "the cached derivative apply was requested for "
                << DerivativeName(key) << ", but one of its integrators was "
                "registered without DerivativeKernels::Apply; either add it "
@@ -394,33 +390,15 @@ DerivativeIntegrators MakeDerivativeIntegrators(
                "action");
 
    DerivativeCallbacks callbacks;
-   if (apply)
-   {
-      callbacks.actions = FindOrEmpty(c.Apply(key), key);
-   }
-   else if (HasAnyKernel(kernels, DerivativeKernels::Action))
-   {
-      callbacks.actions = FindOrEmpty(c.Action(key), key);
-      callbacks.missing_actions = callbacks.actions.empty() &&
-                                  FindNonEmpty(c.Apply(key), key);
-   }
-   if (HasAnyKernel(kernels, DerivativeKernels::ApplyTranspose))
-   {
-      callbacks.transpose = FindOrEmpty(c.Transpose(key), key);
-   }
-   if (HasAnyKernel(kernels, DerivativeKernels::AssembleMatrix))
-   {
-      callbacks.assemble_sparse = FindOrEmpty(c.AssembleSparse(key), key);
-      callbacks.assemble_hypre = FindOrEmpty(c.AssembleHypre(key), key);
-   }
-   if (HasAnyKernel(kernels, DerivativeKernels::AssembleDiagonal))
-   {
-      callbacks.assemble_diagonal = FindOrEmpty(c.AssembleDiagonal(key), key);
-   }
-   if (NeedsQpCache(kernels))
-   {
-      callbacks.setup = FindOrEmpty(c.Setup(key), key);
-   }
+   callbacks.actions =
+      FindOrEmpty(cached_apply ? c.Apply(key) : c.Action(key), key);
+   callbacks.missing_actions = !cached_apply && !has_action && has_apply;
+   callbacks.transpose = FindOrEmpty(c.Transpose(key), key);
+   callbacks.assemble_sparse = FindOrEmpty(c.AssembleSparse(key), key);
+   callbacks.assemble_hypre = FindOrEmpty(c.AssembleHypre(key), key);
+   callbacks.assemble_diagonal = FindOrEmpty(c.AssembleDiagonal(key), key);
+   // Only run by the kernels that read the quadrature point cache.
+   callbacks.setup = FindOrEmpty(c.Setup(key), key);
    return { EntityEVectors(parent.ev, num_outputs, copy_outputs),
             std::move(callbacks) };
 }
@@ -530,9 +508,8 @@ public:
    /// The integrators of each entity type are built from @a domain_parent and
    /// @a boundary_parent, the integrators of the same entity type in the
    /// operator this is the derivative of, with the callbacks of the derivative
-   /// kernels @a kernels of the derivative @a key (see
-   /// detail::MakeDerivativeIntegrators()). @a copy_used_outputs if the
-   /// derivative has the same output fields as that operator.
+   /// @a key (see detail::MakeDerivativeIntegrators()). @a copy_used_outputs if
+   /// the derivative has the same output fields as that operator.
    template <typename key_t, typename vector_t>
    DerivativeOperator(
       const int &height,
@@ -540,7 +517,6 @@ public:
       const detail::OperatorIntegrators &domain_parent,
       const detail::OperatorIntegrators &boundary_parent,
       const key_t &key,
-      DerivativeKernels kernels,
       bool copy_used_outputs,
       const FieldDescriptor &direction,
       const vector_t &x,
@@ -553,10 +529,10 @@ public:
       infds(infds),
       outfds(outfds),
       domain_integrators(detail::MakeDerivativeIntegrators(
-                            domain_parent, key, kernels, outfds.size(),
+                            domain_parent, key, cached_apply, outfds.size(),
                             copy_used_outputs)),
       boundary_integrators(detail::MakeDerivativeIntegrators(
-                              boundary_parent, key, kernels, outfds.size(),
+                              boundary_parent, key, cached_apply, outfds.size(),
                               copy_used_outputs)),
       direction(direction),
       lvector_mode(lvector_mode),
@@ -652,7 +628,6 @@ public:
       const detail::OperatorIntegrators &domain_parent,
       const detail::OperatorIntegrators &boundary_parent,
       size_t derivative_id,
-      DerivativeKernels kernels,
       bool copy_used_outputs,
       const std::vector<FieldDescriptor> &infds,
       const std::vector<FieldDescriptor> &outfds) :
@@ -660,10 +635,10 @@ public:
       infds(infds),
       outfds(outfds),
       domain_integrators(detail::MakeDerivativeIntegrators(
-                            domain_parent, derivative_id, kernels,
+                            domain_parent, derivative_id, false,
                             outfds.size(), copy_used_outputs)),
       boundary_integrators(detail::MakeDerivativeIntegrators(
-                              boundary_parent, derivative_id, kernels,
+                              boundary_parent, derivative_id, false,
                               outfds.size(), copy_used_outputs))
    {
       MFEM_ASSERT(HasCallbacks(&detail::DerivativeCallbacks::actions),
