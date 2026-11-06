@@ -209,6 +209,14 @@ int FiniteElementSpace::GetElementOrderImpl(int i) const
    return elem_order.Size() ? elem_order[i] : fec->GetOrder();
 }
 
+int FiniteElementSpace::GetBdrElementOrder(int bel) const
+{
+   if (!elem_order.Size()) { return fec->GetOrder(); }
+   int elem, info;
+   mesh->GetBdrElementAdjacentElement(bel, elem, info);
+   return elem_order[elem];
+}
+
 void FiniteElementSpace::GetVDofs(int vd, Array<int>& dofs, int ndofs_) const
 {
    if (ndofs_ < 0) { ndofs_ = this->ndofs; }
@@ -1021,9 +1029,11 @@ int FiniteElementSpace::GetDegenerateFaceDofs(int index, Array<int> &dofs,
 
    Array<int> edof;
    int order = GetEdgeDofs(FlipIndexSign(index), edof, variant);
+   if (order < 0) { dofs.SetSize(0); return order; }
 
-   int nv = fec->DofForGeometry(Geometry::POINT);
-   int ne = fec->DofForGeometry(Geometry::SEGMENT);
+   // the edge's own order (variable-order spaces), not the collection's
+   int nv = fec->GetNumDof(Geometry::POINT, order);
+   int ne = fec->GetNumDof(Geometry::SEGMENT, order);
    int nn = 2*nv + ne;
 
    dofs.SetSize(nn*nn);
@@ -2626,6 +2636,43 @@ void FiniteElementSpace::ConstructDoFTransArray()
    }
 }
 
+const StatelessDofTransformation *
+FiniteElementSpace::GetDoFTransformation(Geometry::Type geom, int order) const
+{
+   StatelessDofTransformation *base = DoFTransArray[geom];
+   if (!base || !IsVariableOrder() || order == fec->GetOrder()) { return base; }
+
+   MFEM_ASSERT(order >= 0 && order <= MaxVarOrder, "invalid order " << order);
+   const int idx = geom*(MaxVarOrder+1) + order;
+   if (var_DoFTransArray.Size() <= idx)
+   {
+      const int old_size = var_DoFTransArray.Size();
+      var_DoFTransArray.SetSize(Geometry::NUM_GEOMETRIES*(MaxVarOrder+1));
+      for (int i = old_size; i < var_DoFTransArray.Size(); i++)
+      {
+         var_DoFTransArray[i] = NULL;
+      }
+   }
+   StatelessDofTransformation *&t = var_DoFTransArray[idx];
+   if (!t)
+   {
+      switch (geom)
+      {
+         case Geometry::TRIANGLE:
+            t = new ND_TriDofTransformation(order); break;
+         case Geometry::TETRAHEDRON:
+            t = new ND_TetDofTransformation(order); break;
+         case Geometry::PRISM:
+            t = new ND_WedgeDofTransformation(order); break;
+         case Geometry::PYRAMID:
+            t = new ND_PyramidDofTransformation(order); break;
+         default:
+            MFEM_ABORT("unsupported geometry " << geom);
+      }
+   }
+   return t;
+}
+
 NURBSExtension *FiniteElementSpace::StealNURBSext()
 {
    if (NURBSext && !own_ext)
@@ -3431,12 +3478,13 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs,
    {
       elem_dof->GetRow(elem, dofs);
 
-      if (DoFTransArray[mesh->GetElementBaseGeometry(elem)])
+      const StatelessDofTransformation *dt = GetDoFTransformation(
+                                                mesh->GetElementBaseGeometry(elem), GetElementOrderImpl(elem));
+      if (dt)
       {
          Array<int> Fo;
          elem_fos -> GetRow (elem, Fo);
-         doftrans.SetDofTransformation(
-            *DoFTransArray[mesh->GetElementBaseGeometry(elem)]);
+         doftrans.SetDofTransformation(*dt);
          doftrans.SetFaceOrientations(Fo);
          doftrans.SetVDim();
       }
@@ -3464,10 +3512,11 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs,
       {
          nfd += fec->GetNumDof(mesh->GetFaceGeometry(F[i]), order);
       }
-      if (DoFTransArray[mesh->GetElementBaseGeometry(elem)])
+      const StatelessDofTransformation *dt =
+         GetDoFTransformation(mesh->GetElementBaseGeometry(elem), order);
+      if (dt)
       {
-         doftrans.SetDofTransformation(
-            *DoFTransArray[mesh->GetElementBaseGeometry(elem)]);
+         doftrans.SetDofTransformation(*dt);
          doftrans.SetFaceOrientations(Fo);
          doftrans.SetVDim();
       }
@@ -3548,12 +3597,13 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
    {
       bdr_elem_dof->GetRow(bel, dofs);
 
-      if (DoFTransArray[mesh->GetBdrElementGeometry(bel)])
+      const StatelessDofTransformation *dt = GetDoFTransformation(
+                                                mesh->GetBdrElementGeometry(bel), GetBdrElementOrder(bel));
+      if (dt)
       {
          Array<int> Fo;
          bdr_elem_fos -> GetRow (bel, Fo);
-         doftrans.SetDofTransformation(
-            *DoFTransArray[mesh->GetBdrElementGeometry(bel)]);
+         doftrans.SetDofTransformation(*dt);
          doftrans.SetFaceOrientations(Fo);
          doftrans.SetVDim();
       }
@@ -3565,14 +3615,7 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
 
    int dim = mesh->Dimension();
    auto geom = mesh->GetBdrElementGeometry(bel);
-   int order = fec->GetOrder();
-
-   if (elem_order.Size()) // determine order from adjacent element
-   {
-      int elem, info;
-      mesh->GetBdrElementAdjacentElement(bel, elem, info);
-      order = elem_order[elem];
-   }
+   const int order = GetBdrElementOrder(bel);
 
    int nv = fec->GetNumDof(Geometry::POINT, order);
    int ne = (dim > 1) ? fec->GetNumDof(Geometry::SEGMENT, order) : 0;
@@ -3584,12 +3627,12 @@ void FiniteElementSpace::GetBdrElementDofs(int bel, Array<int> &dofs,
    {
       mesh->GetBdrElementFace(bel, &F, &oF);
 
-      if (DoFTransArray[mesh->GetBdrElementGeometry(bel)])
+      const StatelessDofTransformation *dt = GetDoFTransformation(geom, order);
+      if (dt)
       {
          mfem::Array<int> Fo(1);
          Fo[0] = oF;
-         doftrans.SetDofTransformation(
-            *DoFTransArray[mesh->GetBdrElementGeometry(bel)]);
+         doftrans.SetDofTransformation(*dt);
          doftrans.SetFaceOrientations(Fo);
          doftrans.SetVDim();
       }
@@ -4070,6 +4113,11 @@ void FiniteElementSpace::DestroyDoFTransArray()
       delete DoFTransArray[i];
    }
    DoFTransArray.SetSize(0);
+   for (int i = 0; i < var_DoFTransArray.Size(); i++)
+   {
+      delete var_DoFTransArray[i];
+   }
+   var_DoFTransArray.SetSize(0);
 }
 
 void FiniteElementSpace::GetTransferOperator(

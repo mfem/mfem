@@ -1134,4 +1134,222 @@ static void TestSolveParVec(ParFiniteElementSpace &fespace)
 
 #endif  // MFEM_USE_MPI
 
+// Variable-order Nedelec spaces on tetrahedra (triangular faces): the DoF
+// transformations depend on the element order, edges inside a master face are
+// constrained by it, and shared triangular faces carry several orders.
+
+namespace var_order_tet_test
+{
+
+// Linear field: exactly representable by ND elements of order 2 and above.
+void LinearField(const Vector &x, Vector &E)
+{
+   E.SetSize(3);
+   E(0) = 1.0 + 2.0*x(1) - x(2);
+   E(1) = x(0) - 3.0*x(2) + 0.5;
+   E(2) = 2.0 + x(1) + x(0);
+}
+
+// Element orders by position, so that serial and parallel runs agree.
+int PositionOrder(const Vector &c, int base, int pattern)
+{
+   if (pattern == 0) { return base; }
+   if (pattern == 1) { return base + (c(0) < 0.5); }
+   const int h = int(std::floor(7*c(0))) + 3*int(std::floor(5*c(1)))
+                 + 5*int(std::floor(3*c(2)));
+   return base + h%2;
+}
+
+Mesh MakeTetMesh(bool refine)
+{
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON);
+   mesh.EnsureNCMesh(true);
+   if (refine)
+   {
+      // nonconforming refinement of the elements next to the plane x = 0.5
+      Array<Refinement> refs;
+      Vector c;
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         mesh.GetElementCenter(i, c);
+         if (c(0) > 0.25 && c(0) < 0.5) { refs.Append(Refinement(i)); }
+      }
+      mesh.GeneralRefinement(refs, 1);
+   }
+   return mesh;
+}
+
+void SetOrders(FiniteElementSpace &fes, int base, int pattern)
+{
+   Mesh &mesh = *fes.GetMesh();
+   Vector c;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      mesh.GetElementCenter(i, c);
+      fes.SetElementOrder(i, PositionOrder(c, base, pattern));
+   }
+   fes.Update(false);
+}
+
+}  // namespace var_order_tet_test
+
+TEST_CASE("Variable Order ND FiniteElementSpace on Tetrahedra",
+          "[FiniteElementCollection]"
+          "[FiniteElementSpace]"
+          "[NCMesh]")
+{
+   using namespace var_order_tet_test;
+
+   const bool refine = GENERATE(false, true);
+   const int order = GENERATE(2, 3);
+   CAPTURE(refine, order);
+
+   Mesh mesh = MakeTetMesh(refine);
+   ND_FECollection fec(order, 3), fec_base(2, 3);
+
+   // One order everywhere in a variable-order space: the same conforming
+   // space as the standard one, also when the base order differs.
+   FiniteElementSpace fes_std(&mesh, &fec), fes_var(&mesh, &fec_base);
+   SetOrders(fes_var, order, 0);
+   REQUIRE(fes_var.IsVariableOrder());
+   REQUIRE(fes_var.GetNConformingDofs() == fes_std.GetNConformingDofs());
+
+   VectorFunctionCoefficient exsol(3, LinearField);
+   for (int pattern : {0, 1, 2})
+   {
+      CAPTURE(pattern);
+      FiniteElementSpace fes(&mesh, &fec_base);
+      SetOrders(fes, order, pattern);
+
+      // Projection of a field in the space is exact.
+      GridFunction x(&fes);
+      x.ProjectCoefficient(exsol);
+      REQUIRE(x.ComputeL2Error(exsol) == MFEM_Approx(0.0));
+
+      // Restriction (from the highest-order variants, as the projection sets
+      // them) and prolongation reproduce it.
+      if (fes.GetProlongationMatrix())
+      {
+         GridFunction y(&fes);
+         Vector X(fes.GetTrueVSize());
+         fes.GetHpRestrictionMatrix()->Mult(x, X);
+         fes.GetProlongationMatrix()->Mult(X, y);
+         REQUIRE(y.ComputeL2Error(exsol) == MFEM_Approx(0.0));
+      }
+
+      // So is the mass-matrix solve with tangential boundary values.
+      Array<int> ess_attr(mesh.bdr_attributes.Max());
+      ess_attr = 1;
+      Array<int> ess_tdof_list;
+      fes.GetEssentialTrueDofs(ess_attr, ess_tdof_list);
+
+      x = 0.0;
+      x.ProjectBdrCoefficientTangent(exsol, ess_attr);
+
+      LinearForm lf(&fes);
+      lf.AddDomainIntegrator(new VectorFEDomainLFIntegrator(exsol));
+      lf.Assemble();
+
+      BilinearForm bf(&fes);
+      bf.AddDomainIntegrator(new VectorFEMassIntegrator());
+      bf.Assemble();
+
+      OperatorPtr A;
+      Vector B, X;
+      bf.FormLinearSystem(ess_tdof_list, x, lf, A, X, B);
+
+      GSSmoother M((SparseMatrix&)(*A));
+      PCG(*A, M, B, X, 0, 1000, 1e-30, 0.0);
+      bf.RecoverFEMSolution(X, lf, x);
+
+      REQUIRE(x.ComputeL2Error(exsol) == MFEM_Approx(0.0));
+   }
+}
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("Parallel Variable Order ND FiniteElementSpace on Tetrahedra",
+          "[FiniteElementCollection]"
+          "[FiniteElementSpace]"
+          "[NCMesh][Parallel]")
+{
+   using namespace var_order_tet_test;
+
+   const bool refine = GENERATE(false, true);
+   const int order = GENERATE(2, 3);
+   const int pattern = GENERATE(0, 1, 2);
+   CAPTURE(refine, order, pattern);
+
+   Mesh mesh = MakeTetMesh(refine);
+   ND_FECollection fec(2, 3);
+
+   FiniteElementSpace fes(&mesh, &fec);
+   SetOrders(fes, order, pattern);
+   const int serial_tdofs = fes.GetTrueVSize();
+
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+   SetOrders(pfes, order, pattern);
+
+   // The same conforming space as in serial.
+   REQUIRE(pfes.GlobalTrueVSize() == serial_tdofs);
+
+   // All communicated DOFs are valid local DOFs.
+   const Table &group_ldof = pfes.GroupComm().GroupLDofTable();
+   for (int j = 0; j < group_ldof.Size_of_connections(); j++)
+   {
+      const int ldof = group_ldof.GetJ()[j];
+      REQUIRE((ldof >= 0 && ldof < pfes.GetVSize()));
+   }
+
+   VectorFunctionCoefficient exsol(3, LinearField);
+
+   ParGridFunction x(&pfes);
+   x.ProjectCoefficient(exsol);
+   REQUIRE(x.ComputeL2Error(exsol) == MFEM_Approx(0.0));
+
+   // Mass-matrix solves, without boundary conditions (the prolongation) and
+   // with tangential boundary values (shared boundary edges and faces go
+   // through the group communicator).
+   for (int ess : {0, 1})
+   {
+      CAPTURE(ess);
+      Array<int> ess_attr(pmesh.bdr_attributes.Max());
+      ess_attr = ess;
+      Array<int> ess_tdof_list;
+      pfes.GetEssentialTrueDofs(ess_attr, ess_tdof_list);
+
+      x = 0.0;
+      x.ProjectBdrCoefficientTangent(exsol, ess_attr);
+
+      ParLinearForm lf(&pfes);
+      lf.AddDomainIntegrator(new VectorFEDomainLFIntegrator(exsol));
+      lf.Assemble();
+
+      ParBilinearForm bf(&pfes);
+      bf.AddDomainIntegrator(new VectorFEMassIntegrator());
+      bf.Assemble();
+
+      OperatorPtr A;
+      Vector B, X;
+      bf.FormLinearSystem(ess_tdof_list, x, lf, A, X, B);
+
+      HypreBoomerAMG prec;
+      prec.SetPrintLevel(0);
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-30);
+      cg.SetAbsTol(0.0);
+      cg.SetMaxIter(1000);
+      cg.SetPrintLevel(0);
+      cg.SetPreconditioner(prec);
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      bf.RecoverFEMSolution(X, lf, x);
+
+      REQUIRE(x.ComputeL2Error(exsol) == MFEM_Approx(0.0));
+   }
+}
+
+#endif  // MFEM_USE_MPI
+
 }
