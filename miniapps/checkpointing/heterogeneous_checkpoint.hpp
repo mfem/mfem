@@ -30,7 +30,7 @@ namespace checkpoint_demo
 /// Complete continuation state, including the next Fibonacci value.
 struct DemoState
 {
-   StateId iteration = 0;
+   StateId iteration{0};
    std::uint64_t fibonacci = 0;
    std::uint64_t next_fibonacci = 1;
    real_t floating_value = 1.0;
@@ -71,7 +71,7 @@ public:
        Capturing leaves the live application state unchanged. */
    void Store(CheckpointId id) override
    {
-      MFEM_VERIFY(CurrentState() >= 0,
+      MFEM_VERIFY(CurrentState() >= StateId{0},
                   "A saved application position must be non-negative.");
       if (!Contains(id))
       {
@@ -141,7 +141,7 @@ public:
        target triggers MFEM_VERIFY. The live state remains unchanged. */
    bool FindAtOrBefore(StateId target, CheckpointInfo &result) const override
    {
-      MFEM_VERIFY(target >= 0, "Replay target must be non-negative.");
+      MFEM_VERIFY(target >= StateId{0}, "Replay target must be non-negative.");
       bool found = false;
       CheckpointInfo nearest;
       for (const auto &entry : saved)
@@ -199,7 +199,7 @@ public:
        the propagator provides no rollback. */
    void Advance(StateId from, StateId to) override
    {
-      MFEM_VERIFY(from >= 0 && state.iteration == from && to >= from,
+      MFEM_VERIFY(from >= StateId{0} && state.iteration == from && to >= from,
                   "Invalid application transition.");
       while (state.iteration < to)
       {
@@ -212,7 +212,7 @@ public:
          state.next_fibonacci = following;
          state.floating_value = 0.5 * state.floating_value + 0.125;
          ++state.iteration;
-         state.text += "|state-" + std::to_string(state.iteration);
+         state.text += "|state-" + std::to_string(state.iteration.value);
       }
    }
 };

@@ -79,7 +79,8 @@ public:
        Construction does not inspect checkpoints or modify application state. */
    explicit ReplaySchedule(StateId terminal_) : terminal(terminal_)
    {
-      MFEM_VERIFY(terminal > 0, "Replay example requires a positive horizon.");
+      MFEM_VERIFY(terminal > StateId{0},
+                  "Replay example requires a positive horizon.");
    }
 
    /// Return the next replay command and advance the command cursor.
@@ -92,13 +93,16 @@ public:
       {
          case 0:
             ++next;
-            return {CheckpointAction::Restore, 0, 0, CheckpointId{1}};
+            return {CheckpointAction::Restore, StateId{0}, StateId{0},
+                    CheckpointId{1}};
          case 1:
             ++next;
-            return {CheckpointAction::Advance, 0, terminal, std::nullopt};
+            return {CheckpointAction::Advance, StateId{0}, terminal,
+                    std::nullopt};
          case 2:
             ++next;
-            return {CheckpointAction::Erase, 0, 0, CheckpointId{1}};
+            return {CheckpointAction::Erase, StateId{0}, StateId{0},
+                    CheckpointId{1}};
          default:
             return {CheckpointAction::Finished, terminal, terminal,
                     std::nullopt};
@@ -138,11 +142,12 @@ public:
 void ExecuteSchedule(CheckpointSchedule &schedule, Checkpointer &checkpoints,
                      StatePropagator &propagator, StateId terminal)
 {
-   MFEM_VERIFY(terminal >= 0, "Terminal state must be non-negative.");
+   MFEM_VERIFY(terminal >= StateId{0}, "Terminal state must be non-negative.");
    for (;;)
    {
       const CheckpointCommand command = schedule.Next();
-      MFEM_VERIFY(command.from_step >= 0 && command.to_step >= 0,
+      MFEM_VERIFY(command.from_step >= StateId{0} &&
+                  command.to_step >= StateId{0},
                   "Schedule contains a negative state position.");
       switch (command.action)
       {
@@ -259,7 +264,7 @@ int main(int argc, char *argv[])
 
    DemoState reference;
    DemoPropagator reference_propagator(reference);
-   reference_propagator.Advance(0, num_states);
+   reference_propagator.Advance(StateId{0}, StateId{num_states});
 
    DemoState state;
    std::optional<std::size_t> limit;
@@ -283,43 +288,50 @@ int main(int argc, char *argv[])
       if (controller)
       {
          CheckpointController service(checkpoints, propagator, window.get());
-         service.Run(schedule, num_states);
+         service.Run(schedule, StateId{num_states});
       }
-      else { ExecuteSchedule(schedule, checkpoints, propagator, num_states); }
+      else
+      {
+         ExecuteSchedule(schedule, checkpoints, propagator,
+                         StateId{num_states});
+      }
    };
    StoreEverythingSchedule forward;
    // The offline trace needs N+1 records even though the store can grow.
-   forward.Configure(num_states, static_cast<std::size_t>(num_states) + 1);
+   forward.Configure(StateId{num_states},
+                     static_cast<std::size_t>(num_states) + 1);
    execute(forward);
    MFEM_VERIFY(SameState(state, reference), "Forward trajectory differs.");
    MFEM_VERIFY(checkpoints.Size() == static_cast<std::size_t>(num_states) + 1,
                "The forward run did not retain every checkpoint.");
 
    // Restore must repair all fields, including otherwise hidden continuation.
-   state = DemoState{-1, 99, 100, -1.0, "discarded"};
-   ReplaySchedule replay(num_states);
+   state = DemoState{StateId{-1}, 99, 100, -1.0, "discarded"};
+   ReplaySchedule replay(StateId{num_states});
    execute(replay);
    MFEM_VERIFY(SameState(state, reference), "Replayed trajectory differs.");
    if (controller)
    {
       CheckpointController service(checkpoints, propagator, window.get());
-      service.RestoreState(num_states / 2 + 1);
-      service.RestoreState(num_states);
+      service.RestoreState(StateId{num_states / 2 + 1});
+      service.RestoreState(StateId{num_states});
       MFEM_VERIFY(SameState(state, reference),
                   "Controller heterogeneous nearest-origin replay differs.");
    }
 
    // Reuse an erased identity, then replace it without increasing count.
    const std::size_t count = checkpoints.Size();
-   checkpoints.Store(1);
-   checkpoints.Store(1);
+   checkpoints.Store(CheckpointId{1});
+   checkpoints.Store(CheckpointId{1});
+   const auto replaced = checkpoints.GetInfo(CheckpointId{1});
    MFEM_VERIFY(checkpoints.Size() == count + 1 &&
-               checkpoints.GetInfo(1).state == num_states,
+               replaced.state == StateId{num_states},
                "Replacement changed the checkpoint count or state.");
 
    CheckpointInfo nearest;
-   MFEM_VERIFY(checkpoints.FindAtOrBefore(num_states, nearest) &&
-               nearest.state == num_states && nearest.checkpoint == 1,
+   MFEM_VERIFY(checkpoints.FindAtOrBefore(StateId{num_states}, nearest) &&
+               nearest.state == StateId{num_states} &&
+               nearest.checkpoint == CheckpointId{1},
                "Nearest checkpoint selection is inconsistent.");
    checkpoints.Close();
    if (window) { window->Clear(); }

@@ -19,6 +19,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <limits>
 #include <memory>
 #include <string>
 
@@ -80,7 +81,7 @@ struct ODELive
    ForcedDecay oper;
    std::unique_ptr<ODESolver> solver;
    Vector x;
-   StateId step = 0;
+   StateId step{0};
    real_t t = 0.0;
    real_t dt = 0.05;
 
@@ -174,15 +175,15 @@ TEST_CASE("ODE checkpointers restore exact single-step continuation",
          ODELive live(kind), mid(kind), ref(kind);
          auto checkpoints = MakeODECheckpointer(storage, live.x, *live.solver,
                                                 live.All(), 4);
-         live.Run(3);
-         checkpoints->Store(7);
-         REQUIRE(checkpoints->GetInfo(7).state == 3);
-         live.Run(8);
-         checkpoints->Restore(7);
-         mid.Run(3);
+         live.Run(StateId{3});
+         checkpoints->Store(CheckpointId{7});
+         REQUIRE(checkpoints->GetInfo(CheckpointId{7}).state == StateId{3});
+         live.Run(StateId{8});
+         checkpoints->Restore(CheckpointId{7});
+         mid.Run(StateId{3});
          REQUIRE(Same(live, mid));
-         live.Run(8);
-         ref.Run(8);
+         live.Run(StateId{8});
+         ref.Run(StateId{8});
          REQUIRE(Same(live, ref));
       }
    }
@@ -200,19 +201,19 @@ TEST_CASE("ODE checkpointers bind optional state parameters and an internal "
                                                 {}, 2);
          REQUIRE(checkpoints->RecordBytes() ==
                  3*sizeof(std::uint64_t) + 5*sizeof(real_t));
-         REQUIRE(checkpoints->CurrentState() == 0);
-         checkpoints->SetCurrentState(2);
-         checkpoints->Store(1);
-         REQUIRE(checkpoints->GetInfo(1).state == 2);
+         REQUIRE(checkpoints->CurrentState() == StateId{0});
+         checkpoints->SetCurrentState(StateId{2});
+         checkpoints->Store(CheckpointId{1});
+         REQUIRE(checkpoints->GetInfo(CheckpointId{1}).state == StateId{2});
          live.x = 9.0;
          live.t = 4.0;
-         checkpoints->SetCurrentState(5);
-         checkpoints->Restore(1);
-         REQUIRE(checkpoints->CurrentState() == 2);
+         checkpoints->SetCurrentState(StateId{5});
+         checkpoints->Restore(CheckpointId{1});
+         REQUIRE(checkpoints->CurrentState() == StateId{2});
          REQUIRE(live.x(0) == 1.0);
          REQUIRE(live.x(2) == 0.25);
          REQUIRE(live.t == 4.0);
-         REQUIRE(live.step == 0);
+         REQUIRE(live.step == StateId{0});
       }
       {
          ODELive live(0);
@@ -220,11 +221,11 @@ TEST_CASE("ODE checkpointers bind optional state parameters and an internal "
             {&live.step, &live.t, nullptr};
          auto checkpoints = MakeODECheckpointer(storage, live.x, *live.solver,
                                                 state_params, 2);
-         checkpoints->Store(1);
-         live.Run(2);
+         checkpoints->Store(CheckpointId{1});
+         live.Run(StateId{2});
          live.dt = 0.3;
-         checkpoints->Restore(1);
-         REQUIRE(live.step == 0);
+         checkpoints->Restore(CheckpointId{1});
+         REQUIRE(live.step == StateId{0});
          REQUIRE(live.t == 0.0);
          REQUIRE(live.dt == 0.3);
       }
@@ -241,48 +242,48 @@ TEST_CASE("ODE checkpointers follow the Checkpointer record contract",
       auto checkpoints = MakeODECheckpointer(storage, live.x, *live.solver,
                                              live.All(), 2);
       REQUIRE(checkpoints->Capacity() == std::optional<std::size_t>(2));
-      checkpoints->Store(5);
-      live.Run(1);
-      checkpoints->Store(5);
+      checkpoints->Store(CheckpointId{5});
+      live.Run(StateId{1});
+      checkpoints->Store(CheckpointId{5});
       REQUIRE(checkpoints->Size() == 1);
-      REQUIRE(checkpoints->GetInfo(5).state == 1);
-      checkpoints->Store(3);
+      REQUIRE(checkpoints->GetInfo(CheckpointId{5}).state == StateId{1});
+      checkpoints->Store(CheckpointId{3});
       REQUIRE(checkpoints->Size() == 2);
 
       CheckpointInfo info;
-      REQUIRE(checkpoints->FindAtOrBefore(4, info));
-      REQUIRE(info.checkpoint == 3);
-      REQUIRE(info.state == 1);
-      REQUIRE_FALSE(checkpoints->FindAtOrBefore(0, info));
-      REQUIRE(info.checkpoint == 3);
+      REQUIRE(checkpoints->FindAtOrBefore(StateId{4}, info));
+      REQUIRE(info.checkpoint == CheckpointId{3});
+      REQUIRE(info.state == StateId{1});
+      REQUIRE_FALSE(checkpoints->FindAtOrBefore(StateId{0}, info));
+      REQUIRE(info.checkpoint == CheckpointId{3});
 
-      checkpoints->Erase(99);
+      checkpoints->Erase(CheckpointId{99});
       REQUIRE(checkpoints->Size() == 2);
-      checkpoints->Erase(5);
-      REQUIRE_FALSE(checkpoints->Contains(5));
+      checkpoints->Erase(CheckpointId{5});
+      REQUIRE_FALSE(checkpoints->Contains(CheckpointId{5}));
       REQUIRE(checkpoints->Size() == 1);
 
       // The erased record is reused at full capacity.
-      live.Run(2);
-      checkpoints->Store(8);
+      live.Run(StateId{2});
+      checkpoints->Store(CheckpointId{8});
       REQUIRE(checkpoints->Size() == 2);
-      checkpoints->Restore(3);
-      REQUIRE(live.step == 1);
-      checkpoints->Restore(8);
-      REQUIRE(live.step == 2);
+      checkpoints->Restore(CheckpointId{3});
+      REQUIRE(live.step == StateId{1});
+      checkpoints->Restore(CheckpointId{8});
+      REQUIRE(live.step == StateId{2});
    }
 
    ODELive live(0);
    ODEMemorySnapshotCheckpointer growing(live.x, *live.solver, live.All());
    REQUIRE_FALSE(growing.Capacity().has_value());
-   for (CheckpointId id = 1; id <= 10; id++)
+   for (std::int64_t position = 1; position <= 10; position++)
    {
-      growing.Store(id);
-      live.Run(static_cast<StateId>(id));
+      growing.Store(CheckpointId{static_cast<std::uint64_t>(position)});
+      live.Run(StateId{position});
    }
    REQUIRE(growing.Size() == 10);
-   growing.Restore(4);
-   REQUIRE(live.step == 3);
+   growing.Restore(CheckpointId{4});
+   REQUIRE(live.step == StateId{3});
 }
 
 TEST_CASE("File ODE checkpointers close and reopen into fresh objects",
@@ -295,21 +296,21 @@ TEST_CASE("File ODE checkpointers close and reopen into fresh objects",
       const std::string path =
          NewStorePath(std::to_string(static_cast<int>(storage)));
       ODELive ref(1);
-      ref.Run(6);
+      ref.Run(StateId{6});
       {
          ODELive live(1);
          auto checkpoints = MakeODECheckpointer(storage, live.x, *live.solver,
                                                 live.All(), 3, path);
-         live.Run(2);
-         checkpoints->Store(1);
-         live.Run(4);
-         checkpoints->Store(2);
-         checkpoints->Erase(1);
-         live.Run(5);
-         checkpoints->Store(3);
+         live.Run(StateId{2});
+         checkpoints->Store(CheckpointId{1});
+         live.Run(StateId{4});
+         checkpoints->Store(CheckpointId{2});
+         checkpoints->Erase(CheckpointId{1});
+         live.Run(StateId{5});
+         checkpoints->Store(CheckpointId{3});
          checkpoints->Close();
          checkpoints->Close();
-         REQUIRE(checkpoints->CurrentState() == 5);
+         REQUIRE(checkpoints->CurrentState() == StateId{5});
          REQUIRE(checkpoints->Capacity() == std::optional<std::size_t>(3));
       }
       REQUIRE(fs::exists(path));
@@ -318,10 +319,10 @@ TEST_CASE("File ODE checkpointers close and reopen into fresh objects",
          auto checkpoints = MakeODECheckpointer(storage, live.x, *live.solver,
                                                 live.All(), 3, path, true);
          REQUIRE(checkpoints->Size() == 2);
-         REQUIRE_FALSE(checkpoints->Contains(1));
-         REQUIRE(checkpoints->GetInfo(2).state == 4);
-         checkpoints->Restore(2);
-         live.Run(6);
+         REQUIRE_FALSE(checkpoints->Contains(CheckpointId{1}));
+         REQUIRE(checkpoints->GetInfo(CheckpointId{2}).state == StateId{4});
+         checkpoints->Restore(CheckpointId{2});
+         live.Run(StateId{6});
          REQUIRE(Same(live, ref));
       }
       fs::remove_all(path);
@@ -333,10 +334,55 @@ TEST_CASE("File ODE checkpointers close and reopen into fresh objects",
       ODEFileSnapshotCheckpointer checkpoints(live.x, *live.solver,
                                               live.All());
       automatic = checkpoints.Path();
-      checkpoints.Store(1);
+      checkpoints.Store(CheckpointId{1});
       REQUIRE(fs::exists(automatic));
    }
    REQUIRE_FALSE(fs::exists(automatic));
+}
+
+TEST_CASE("ODE checkpoint identifiers retain their full integer ranges",
+          "[ODECheckpoint]")
+{
+   const StateId last_state{std::numeric_limits<std::int64_t>::max()};
+   const CheckpointId last_checkpoint{
+      std::numeric_limits<std::uint64_t>::max()};
+   for (const StorageType storage : all_storages)
+   {
+      INFO("storage " << static_cast<int>(storage));
+      const std::string path = IsFile(storage) ? NewStorePath("id-range") : "";
+      {
+         ODELive live(0);
+         auto checkpoints = MakeODECheckpointer(storage, live.x, *live.solver,
+                                                live.All(), 1, path);
+         live.step = last_state;
+         checkpoints->Store(last_checkpoint);
+         live.step = StateId{-1};
+         checkpoints->Restore(last_checkpoint);
+         REQUIRE(live.step == last_state);
+         CheckpointInfo nearest;
+         REQUIRE(checkpoints->FindAtOrBefore(last_state, nearest));
+         REQUIRE(nearest.checkpoint == last_checkpoint);
+         REQUIRE(nearest.state == last_state);
+         checkpoints->Close();
+      }
+      if (IsFile(storage))
+      {
+         {
+            ODELive live(0);
+            auto reopened = MakeODECheckpointer(storage, live.x, *live.solver,
+                                                live.All(), 1, path, true);
+            REQUIRE(reopened->Contains(last_checkpoint));
+            reopened->Restore(last_checkpoint);
+            REQUIRE(live.step == last_state);
+            if (storage == StorageType::FileSnapshots)
+            {
+               REQUIRE(fs::exists(fs::path(path) /
+                                  "record-18446744073709551615.bin"));
+            }
+         }
+         fs::remove_all(path);
+      }
+   }
 }
 
 TEST_CASE("ODE checkpointers drive controller replay",
@@ -349,12 +395,12 @@ TEST_CASE("ODE checkpointers drive controller replay",
                                              3);
       ODEStatePropagator propagator(checkpoints, *live.solver);
       CheckpointController controller(checkpoints, propagator);
-      IntervalSchedule schedule(8, 3);
-      controller.Run(schedule, 8);
-      REQUIRE(live.step == 8);
+      IntervalSchedule schedule(StateId{8}, StateId{3});
+      controller.Run(schedule, StateId{8});
+      REQUIRE(live.step == StateId{8});
       REQUIRE(checkpoints.Size() == 3);
-      controller.RestoreState(5);
-      ref.Run(5);
+      controller.RestoreState(StateId{5});
+      ref.Run(StateId{5});
       REQUIRE(Same(live, ref));
    }
 
@@ -368,12 +414,12 @@ TEST_CASE("ODE checkpointers drive controller replay",
       ODEStatePropagator propagator(checkpoints, *live.solver);
       CheckpointController controller(checkpoints, propagator, &window);
       StoreEverythingSchedule schedule;
-      schedule.Configure(4, 5);
-      controller.Run(schedule, 4);
+      schedule.Configure(StateId{4}, 5);
+      controller.Run(schedule, StateId{4});
       REQUIRE(checkpoints.Size() == 5);
       REQUIRE(window.Size() == 2);
-      controller.RestoreState(2);
-      ref.Run(2);
+      controller.RestoreState(StateId{2});
+      ref.Run(StateId{2});
       REQUIRE(Same(live, ref));
    }
 }
@@ -422,18 +468,19 @@ TEST_CASE("ODE checkpointers reject invalid use", "[ODECheckpoint]")
       INFO("storage " << static_cast<int>(storage));
       auto checkpoints = MakeODECheckpointer(storage, live.x, *live.solver,
                                              live.All(), 1);
-      REQUIRE_THROWS_AS(checkpoints->Restore(1), ErrorException);
-      REQUIRE_THROWS_AS(checkpoints->GetInfo(1), ErrorException);
-      checkpoints->Store(1);
-      REQUIRE_THROWS_AS(checkpoints->Store(2), ErrorException);
-      live.step = -1;
-      REQUIRE_THROWS_AS(checkpoints->Store(1), ErrorException);
-      live.step = 0;
+      REQUIRE_THROWS_AS(checkpoints->Restore(CheckpointId{1}), ErrorException);
+      REQUIRE_THROWS_AS(checkpoints->GetInfo(CheckpointId{1}), ErrorException);
+      checkpoints->Store(CheckpointId{1});
+      REQUIRE_THROWS_AS(checkpoints->Store(CheckpointId{2}), ErrorException);
+      live.step = StateId{-1};
+      REQUIRE_THROWS_AS(checkpoints->Store(CheckpointId{1}), ErrorException);
+      live.step = StateId{0};
       if (IsFile(storage))
       {
          checkpoints->Close();
-         REQUIRE_THROWS_AS(checkpoints->Contains(1), ErrorException);
-         REQUIRE(checkpoints->CurrentState() == 0);
+         REQUIRE_THROWS_AS(checkpoints->Contains(CheckpointId{1}),
+                           ErrorException);
+         REQUIRE(checkpoints->CurrentState() == StateId{0});
       }
    }
 
@@ -441,7 +488,7 @@ TEST_CASE("ODE checkpointers reject invalid use", "[ODECheckpoint]")
    {
       ODEFileSnapshotCheckpointer checkpoints(live.x, *live.solver,
                                               live.All(), {}, path);
-      checkpoints.Store(1);
+      checkpoints.Store(CheckpointId{1});
    }
    REQUIRE_THROWS_AS(ODEFileSnapshotCheckpointer(live.x, *live.solver, {}, {},
                                                  path, true),

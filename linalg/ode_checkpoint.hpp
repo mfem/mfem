@@ -80,7 +80,7 @@ public:
 private:
    Vector &x;                        ///< The caller's solution vector.
    StateParameters state_params;     ///< Pointers to time-loop variables.
-   StateId position = 0;             ///< Used if state_params.step is null.
+   StateId position{0};             ///< Used if state_params.step is null.
    std::optional<std::size_t> limit; ///< Checkpoint-count limit, if any.
    int size;                         ///< Solution size fixed at construction.
    std::size_t record_bytes;         ///< Size of one encoded record in bytes.

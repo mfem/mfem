@@ -32,7 +32,7 @@ namespace checkpoint_demo
 struct MeshState
 {
    std::unique_ptr<Mesh> mesh;
-   StateId cycle = 0;
+   StateId cycle{0};
    std::uint64_t selection_index = 0;
 };
 
@@ -70,7 +70,8 @@ public:
 
    void Advance(StateId from, StateId to) override
    {
-      MFEM_VERIFY(state.mesh && from >= 0 && state.cycle == from && to >= from,
+      MFEM_VERIFY(state.mesh && from >= StateId{0} && state.cycle == from &&
+                  to >= from,
                   "Invalid mesh transition.");
       while (state.cycle < to)
       {
@@ -122,7 +123,7 @@ private:
    { MFEM_VERIFY(!closed, "Mesh checkpoint storage has been closed."); }
 
    fs::path RecordPath(CheckpointId id) const
-   { return directory / ("mesh-" + std::to_string(id) + ".mesh"); }
+   { return directory / ("mesh-" + std::to_string(id.value) + ".mesh"); }
 
    /// Publish the complete growing metadata set with independent checksums.
    void WriteManifest(bool clean)
@@ -142,8 +143,8 @@ private:
       for (const auto &entry : saved)
       {
          const auto &record = entry.second;
-         Metadata metadata{entry.first,
-                           static_cast<std::uint64_t>(record.info.state),
+         Metadata metadata{entry.first.value,
+                           static_cast<std::uint64_t>(record.info.state.value),
                            record.selection, record.length, record.checksum, 0};
          metadata.back() = Checksum(metadata.data(),
                                     sizeof(metadata) - sizeof(metadata[0]));
@@ -183,18 +184,20 @@ private:
          MFEM_VERIFY(metadata.back() == Checksum(metadata.data(),
                         sizeof(metadata) - sizeof(metadata[0])) &&
                      metadata[1] <= static_cast<std::uint64_t>(
-                        std::numeric_limits<StateId>::max()) &&
+                        std::numeric_limits<std::int64_t>::max()) &&
                      metadata[2] < std::numeric_limits<std::uint64_t>::max() &&
                      metadata[3] > 0 && metadata[3] <= buffer.max_size() &&
                      metadata[3] <= static_cast<std::uintmax_t>(
                         std::numeric_limits<std::streamsize>::max()) &&
-                     saved.find(metadata[0]) == saved.end() &&
+                     saved.find(CheckpointId{metadata[0]}) == saved.end() &&
                      saved.size() < saved.max_size(),
                      "Invalid or duplicate mesh checkpoint metadata.");
-         MFEM_VERIFY(FileSize(RecordPath(metadata[0])) == metadata[3],
+         MFEM_VERIFY(FileSize(RecordPath(CheckpointId{metadata[0]})) ==
+                     metadata[3],
                      "Mesh checkpoint extent differs from its metadata.");
          Record record;
-         record.info = {metadata[0], static_cast<StateId>(metadata[1])};
+         record.info = {CheckpointId{metadata[0]},
+                        StateId{static_cast<std::int64_t>(metadata[1])}};
          record.selection = metadata[2];
          record.length = metadata[3];
          record.checksum = metadata[4];
@@ -231,7 +234,7 @@ public:
    void Store(CheckpointId id) override
    {
       RequireOpen();
-      MFEM_VERIFY(state.mesh && state.cycle >= 0 &&
+      MFEM_VERIFY(state.mesh && state.cycle >= StateId{0} &&
                   state.mesh->Nonconforming() && state.mesh->Dimension() == 2 &&
                   state.mesh->SpaceDimension() == 2 &&
                   state.mesh->GetNE() > 0 && state.selection_index <
@@ -341,7 +344,7 @@ public:
    bool FindAtOrBefore(StateId target, CheckpointInfo &result) const override
    {
       RequireOpen();
-      MFEM_VERIFY(target >= 0, "Negative mesh replay target.");
+      MFEM_VERIFY(target >= StateId{0}, "Negative mesh replay target.");
       bool found = false;
       CheckpointInfo nearest;
       for (const auto &entry : saved)

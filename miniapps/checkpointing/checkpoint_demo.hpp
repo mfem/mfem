@@ -185,11 +185,12 @@ inline void ExecuteSchedule(CheckpointSchedule &schedule,
                             Checkpointer &checkpoints,
                             StatePropagator &propagator, StateId terminal)
 {
-   MFEM_VERIFY(terminal >= 0, "Terminal state must be non-negative.");
+   MFEM_VERIFY(terminal >= StateId{0}, "Terminal state must be non-negative.");
    for (;;)
    {
       const auto command = schedule.Next();
-      MFEM_VERIFY(command.from_step >= 0 && command.to_step >= 0,
+      MFEM_VERIFY(command.from_step >= StateId{0} &&
+                  command.to_step >= StateId{0},
                   "Negative schedule position.");
       switch (command.action)
       {
@@ -290,7 +291,7 @@ public:
    ReplayFromSchedule(CheckpointInfo origin_, StateId terminal_)
       : origin(origin_), terminal(terminal_)
    {
-      MFEM_VERIFY(origin.state >= 0 && terminal > origin.state,
+      MFEM_VERIFY(origin.state >= StateId{0} && terminal > origin.state,
                   "Replay requires an earlier saved state.");
    }
 

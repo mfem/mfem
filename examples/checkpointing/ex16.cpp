@@ -338,36 +338,43 @@ int main(int argc, char *argv[])
    ode_solver->SetImplicitVariableType(imp_var);
    real_t t = 0.0;
 
-   // >>> Checkpointing: create the checkpointer and save the initial state.
+   // >>> Checkpointing: create the checkpointer bound to the live state.
    //     The checkpointer keeps a reference to u and pointers to step, t and
    //     dt: Store() reads their current values and Restore() writes the saved
    //     values back. The step counter is passed explicitly, so that the
    //     reverse sweep below can use a second checkpointer on the same state.
-   StateId step = 0;
+   StateId step{0};
    ODECheckpointer::StateParameters state_params{&step, &t, &dt};
 
-   // Block layouts preallocate their records: count the steps of the loop
-   // below and allow one record more than the checkpoints it saves.
+   // Count the time-loop steps; block storage needs one record for state 0
+   // and each interval state strictly before the terminal state.
    const int num_steps =
       max(1, static_cast<int>(ceil((t_final - t) / dt - 0.5)));
+   // Maximum number of saved checkpoints; unset means no configured limit.
    optional<size_t> limit;
    if (storage_type == Checkpointer::StorageType::MemoryBlock ||
        storage_type == Checkpointer::StorageType::FileBlock)
    {
-      limit = num_steps / checkpoint_interval + 2;
+      limit = (num_steps - 1) / checkpoint_interval + 1;
    }
+   // Select memory/file and block/snapshot storage using storage_type.
+   // Bind it to u and the step/time/dt pointers in state_params; construction
+   // checks solver compatibility but does not save a checkpoint.
+   // limit caps records; checkpoint_path names the file-store directory
+   // (empty means a temporary directory for file storage).
    unique_ptr<ODECheckpointer> checkpointer =
       MakeODECheckpointer(storage_type, u, *ode_solver, state_params, limit,
                           checkpoint_path);
 
    vector<real_t> ref_norms(1, u.Norml2()); // norm of each state, for checks
-   checkpointer->Store(0);
    // <<< Checkpointing -----------------------------------------------------
 
    bool last_step = false;
    // >>> Checkpointing: create the forward checkpoint schedule.
+   //     Its first Store command captures state 0 under checkpoint key 1.
    unique_ptr<CheckpointSchedule> schedule =
-      make_unique<IntervalSchedule>(num_steps, checkpoint_interval);
+      make_unique<IntervalSchedule>(StateId{num_steps},
+                                    StateId{checkpoint_interval});
    // <<< Checkpointing -----------------------------------------------------
 
    for (;;)
@@ -397,8 +404,8 @@ int main(int argc, char *argv[])
       // <<< Checkpointing --------------------------------------------------
 
       // Advance the time loop over the interval selected by the schedule.
-      for (int ti = static_cast<int>(command.from_step) + 1;
-           ti <= command.to_step; ti++)
+      for (int ti = static_cast<int>(command.from_step.value) + 1;
+           ti <= command.to_step.value; ti++)
       {
          last_step = (ti == num_steps);
 
@@ -424,7 +431,7 @@ int main(int argc, char *argv[])
          oper.SetParameters(u);
 
          // >>> Checkpointing: record state ti for reverse-sweep validation.
-         step = ti;
+         step = StateId{ti};
          ref_norms.push_back(u.Norml2());
          // <<< Checkpointing -----------------------------------------------
       }
@@ -447,23 +454,34 @@ int main(int argc, char *argv[])
    //     found there without replaying again. Each revisited state is checked
    //     against the norm recorded in the forward loop.
    {
+      // The window is a bounded in-memory cache used only in the reverse sweep.
+      // It keeps intermediate states reconstructed during replay, so subsequent
+      // reverse targets can often be restored without repeating the same steps.
+      // For example, replaying 10 -> 19 with a 10-state window retains states
+      // 10-19; the next target, state 18, can then be restored directly.
+      // Setting checkpoint_window to 0 disables this cache; replay still works.
       ODEMemorySnapshotCheckpointer window_store(u, *ode_solver, state_params);
+      // Start with a null pointer; leave it null when caching is disabled.
       unique_ptr<ExactCheckpointWindow> window;
       if (checkpoint_window > 0)
       {
+         // Allocate a window backed by window_store, retaining at most
+         // checkpoint_window states. reset() takes ownership of the object;
+         // unique_ptr destroys it automatically at scope exit.
          window.reset(new ExactCheckpointWindow(window_store,
                                                 checkpoint_window));
       }
       ConductionPropagator propagator(oper, *ode_solver, *checkpointer);
+      // get() lends a pointer to the controller, or nullptr for no window.
       CheckpointController controller(*checkpointer, propagator, window.get());
 
       const StateId last = step;
       real_t max_diff = 0.0;
-      for (StateId s = last; s >= 0; s--)
+      for (StateId s = last; s >= StateId{0}; s--)
       {
          controller.RestoreState(s);
-         max_diff = max(max_diff, fabs(u.Norml2() - ref_norms[s]) /
-                        ref_norms[s]);
+         max_diff = max(max_diff, fabs(u.Norml2() - ref_norms[s.value]) /
+                        ref_norms[s.value]);
       }
       cout << "Reverse sweep: visited " << last + 1 << " states, saved "
            << checkpointer->Size() << " checkpoints, replayed "
@@ -481,7 +499,7 @@ int main(int argc, char *argv[])
 
 void ConductionPropagator::Advance(StateId from, StateId to)
 {
-   MFEM_VERIFY(from >= 0 && to >= from &&
+   MFEM_VERIFY(from >= StateId{0} && to >= from &&
                checkpoints.CurrentState() == from, "Invalid transition.");
    Vector &u = checkpoints.GetVector();
    const ODECheckpointer::StateParameters &state_params =

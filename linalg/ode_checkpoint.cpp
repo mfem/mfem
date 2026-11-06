@@ -271,7 +271,7 @@ std::uint64_t ODECheckpointer::Layout() const
 
 void ODECheckpointer::Encode(StateId state)
 {
-   const std::int64_t step = state;
+   const std::int64_t step = state.value;
    const std::uint64_t layout = Layout();
    const std::uint64_t values = static_cast<std::uint64_t>(size);
    const real_t time = state_params.time ? *state_params.time : real_t(0);
@@ -311,7 +311,7 @@ void ODECheckpointer::Store(CheckpointId id)
 {
    RequireOpen();
    const StateId state = CurrentState();
-   MFEM_VERIFY(state >= 0, "Cannot store an invalidated ODE state.");
+   MFEM_VERIFY(state >= StateId{0}, "Cannot store an invalidated ODE state.");
    MFEM_VERIFY(x.Size() == size, "The bound ODE solution changed size.");
    MFEM_VERIFY(!state_params.time || std::isfinite(*state_params.time),
                "The bound ODE time is not finite.");
@@ -356,7 +356,7 @@ void ODECheckpointer::Restore(CheckpointId id)
    std::memcpy(&values, in + 16, sizeof(values));
    std::memcpy(&time, in + 24, sizeof(time));
    std::memcpy(&dt, in + 24 + sizeof(real_t), sizeof(dt));
-   MFEM_VERIFY(step == entry.info.state && layout == Layout() &&
+   MFEM_VERIFY(StateId{step} == entry.info.state && layout == Layout() &&
                values == static_cast<std::uint64_t>(size),
                "ODE checkpoint " << id << " does not match the bound state.");
    MFEM_VERIFY(std::isfinite(time) && std::isfinite(dt),
@@ -369,7 +369,7 @@ void ODECheckpointer::Restore(CheckpointId id)
    }
    if (state_params.time) { *state_params.time = time; }
    if (state_params.dt) { *state_params.dt = dt; }
-   SetCurrentState(step);
+   SetCurrentState(StateId{step});
 }
 
 void ODECheckpointer::Erase(CheckpointId id)
@@ -401,7 +401,7 @@ bool ODECheckpointer::FindAtOrBefore(StateId target,
                                      CheckpointInfo &result) const
 {
    RequireOpen();
-   MFEM_VERIFY(target >= 0, "Negative ODE checkpoint target.");
+   MFEM_VERIFY(target >= StateId{0}, "Negative ODE checkpoint target.");
    bool found = false;
    CheckpointInfo nearest;
    // Entries are visited in increasing ID order; ties keep the lowest ID.
@@ -443,8 +443,8 @@ void ODECheckpointer::WriteManifest(const std::string &directory,
    WriteBytes(output, header.data(), sizeof(header));
    for (const auto &entry : saved)
    {
-      ManifestRow row{entry.second.info.checkpoint,
-                      static_cast<std::uint64_t>(entry.second.info.state),
+      ManifestRow row{entry.second.info.checkpoint.value,
+                      static_cast<std::uint64_t>(entry.second.info.state.value),
                       static_cast<std::uint64_t>(entry.second.slot),
                       entry.second.checksum, 0};
       row.back() = ArrayChecksum(row);
@@ -489,11 +489,12 @@ void ODECheckpointer::ReadManifest(const std::string &directory,
       ReadBytes(input, row.data(), sizeof(row));
       MFEM_VERIFY(row.back() == ArrayChecksum(row) &&
                   row[1] <= static_cast<std::uint64_t>(
-                     std::numeric_limits<StateId>::max()) &&
+                     std::numeric_limits<std::int64_t>::max()) &&
                   row[2] <= std::numeric_limits<std::size_t>::max(),
                   "Invalid ODE checkpoint metadata in " << path);
       Entry entry;
-      entry.info = {row[0], static_cast<StateId>(row[1])};
+      entry.info = {CheckpointId{row[0]},
+                    StateId{static_cast<std::int64_t>(row[1])}};
       entry.slot = static_cast<std::size_t>(row[2]);
       entry.checksum = row[3];
       Insert(entry);
@@ -700,8 +701,8 @@ ODEFileSnapshotCheckpointer::~ODEFileSnapshotCheckpointer()
 
 std::string ODEFileSnapshotCheckpointer::RecordPath(CheckpointId id) const
 {
-   return (fs::path(directory) / ("record-" + std::to_string(id) + ".bin"))
-          .string();
+   return (fs::path(directory) /
+           ("record-" + std::to_string(id.value) + ".bin")).string();
 }
 
 void ODEFileSnapshotCheckpointer::RequireOpen() const
@@ -794,7 +795,8 @@ ODEStatePropagator::ODEStatePropagator(ODECheckpointer &checkpoints_,
 
 void ODEStatePropagator::Advance(StateId from, StateId to)
 {
-   MFEM_VERIFY(from >= 0 && to >= from && checkpoints.CurrentState() == from,
+   MFEM_VERIFY(from >= StateId{0} && to >= from &&
+               checkpoints.CurrentState() == from,
                "Invalid ODE transition from " << from << " to " << to);
    const ODECheckpointer::StateParameters &state_params =
       checkpoints.GetStateParameters();

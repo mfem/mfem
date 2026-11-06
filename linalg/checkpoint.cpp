@@ -18,11 +18,23 @@
 namespace mfem
 {
 
+std::ostream &operator<<(std::ostream &output, StateId state)
+{
+   return output << state.value;
+}
+
+std::ostream &operator<<(std::ostream &output, CheckpointId checkpoint)
+{
+   return output << checkpoint.value;
+}
+
 void StoreEverythingSchedule::Configure(StateId num_steps,
                                         std::size_t num_checkpoints)
 {
-   MFEM_VERIFY(num_steps >= 0, "Checkpoint horizon must be non-negative.");
-   const std::uintmax_t required = static_cast<std::uintmax_t>(num_steps) + 1;
+   MFEM_VERIFY(num_steps >= StateId{0},
+               "Checkpoint horizon must be non-negative.");
+   const std::uintmax_t required =
+      static_cast<std::uintmax_t>(num_steps.value) + 1;
    MFEM_VERIFY(required <= std::numeric_limits<std::size_t>::max(),
                "Checkpoint count exceeds platform capacity.");
    MFEM_VERIFY(num_checkpoints >= static_cast<std::size_t>(required),
@@ -41,7 +53,7 @@ CheckpointCommand StoreEverythingSchedule::Next()
    {
       store_pending = false;
       return {CheckpointAction::Store, current, current,
-              static_cast<CheckpointId>(current) + CheckpointId{1}};
+              CheckpointId{static_cast<std::uint64_t>(current.value) + 1}};
    }
    if (current < terminal)
    {
@@ -54,14 +66,14 @@ CheckpointCommand StoreEverythingSchedule::Next()
 
 void StoreEverythingSchedule::Reset()
 {
-   current = 0;
+   current = StateId{0};
    store_pending = true;
 }
 
 IntervalSchedule::IntervalSchedule(StateId terminal_, StateId interval_)
    : terminal(terminal_), interval(interval_)
 {
-   MFEM_VERIFY(terminal > 0 && interval > 0,
+   MFEM_VERIFY(terminal > StateId{0} && interval > StateId{0},
                "Checkpoint horizon and interval must be positive.");
 }
 
@@ -71,12 +83,12 @@ CheckpointCommand IntervalSchedule::Next()
    {
       store_pending = false;
       return {CheckpointAction::Store, current, current,
-              static_cast<CheckpointId>(current) + CheckpointId{1}};
+              CheckpointId{static_cast<std::uint64_t>(current.value) + 1}};
    }
    if (current < terminal)
    {
       const StateId from = current++;
-      store_pending = current < terminal && current % interval == 0;
+      store_pending = current < terminal && current.value % interval.value == 0;
       return {CheckpointAction::Advance, from, current, std::nullopt};
    }
    return {CheckpointAction::Finished, terminal, terminal, std::nullopt};
@@ -84,7 +96,7 @@ CheckpointCommand IntervalSchedule::Next()
 
 void IntervalSchedule::Reset()
 {
-   current = 0;
+   current = StateId{0};
    store_pending = true;
 }
 
@@ -122,7 +134,7 @@ bool ExactCheckpointWindow::FindAtOrBefore(StateId target,
 void ExactCheckpointWindow::Capture(CheckpointId id)
 {
    const StateId position = checkpoints.CurrentState();
-   MFEM_VERIFY(position >= 0, "Cannot capture an invalid live state.");
+   MFEM_VERIFY(position >= StateId{0}, "Cannot capture an invalid live state.");
    const bool replace = Contains(id);
    if (!replace && fifo.size() == capacity) { Erase(fifo.front()); }
    checkpoints.Store(id);
@@ -178,15 +190,15 @@ void CheckpointController::CaptureWindow()
 {
    if (!window) { return; }
    const StateId position = checkpoints.CurrentState();
-   MFEM_VERIFY(position >= 0 &&
+   MFEM_VERIFY(position >= StateId{0} &&
                window->checkpoints.CurrentState() == position,
                "Window and primary live positions disagree.");
-   window->Capture(static_cast<CheckpointId>(position));
+   window->Capture(CheckpointId{static_cast<std::uint64_t>(position.value)});
 }
 
 void CheckpointController::Advance(StateId from, StateId to)
 {
-   MFEM_VERIFY(from >= 0 && to >= from &&
+   MFEM_VERIFY(from >= StateId{0} && to >= from &&
                checkpoints.CurrentState() == from,
                "Invalid controller propagation interval.");
    if (window)
@@ -211,7 +223,7 @@ void CheckpointController::Advance(StateId from, StateId to)
 
 void CheckpointController::Execute(const CheckpointCommand &command)
 {
-   MFEM_VERIFY(command.from_step >= 0 && command.to_step >= 0,
+   MFEM_VERIFY(command.from_step >= StateId{0} && command.to_step >= StateId{0},
                "Negative schedule position.");
    switch (command.action)
    {
@@ -276,7 +288,7 @@ void CheckpointController::Execute(const CheckpointCommand &command)
 
 void CheckpointController::Run(CheckpointSchedule &schedule, StateId terminal)
 {
-   MFEM_VERIFY(terminal >= 0, "Terminal state must be non-negative.");
+   MFEM_VERIFY(terminal >= StateId{0}, "Terminal state must be non-negative.");
    for (;;)
    {
       const auto command = schedule.Next();
@@ -297,15 +309,16 @@ void CheckpointController::Run(CheckpointSchedule &schedule, StateId terminal)
 
 void CheckpointController::RestoreState(StateId target)
 {
-   MFEM_VERIFY(target >= 0, "Replay target must be non-negative.");
+   MFEM_VERIFY(target >= StateId{0}, "Replay target must be non-negative.");
    const StateId live = checkpoints.CurrentState();
-   StateId position = (live >= 0 && live <= target) ? live : StateId{-1};
+   StateId position = (live >= StateId{0} && live <= target) ?
+                      live : StateId{-1};
    Checkpointer *origin = nullptr;
    CheckpointInfo selected;
    CheckpointInfo candidate;
    if (checkpoints.FindAtOrBefore(target, candidate))
    {
-      MFEM_VERIFY(candidate.state >= 0 && candidate.state <= target,
+      MFEM_VERIFY(candidate.state >= StateId{0} && candidate.state <= target,
                   "Invalid nearest primary checkpoint.");
       if (candidate.state >= position)
       {
@@ -316,7 +329,7 @@ void CheckpointController::RestoreState(StateId target)
    }
    if (window && window->FindAtOrBefore(target, candidate))
    {
-      MFEM_VERIFY(candidate.state >= 0 && candidate.state <= target,
+      MFEM_VERIFY(candidate.state >= StateId{0} && candidate.state <= target,
                   "Invalid nearest window checkpoint.");
       if (candidate.state > position ||
           (candidate.state == position && !origin))
@@ -326,7 +339,8 @@ void CheckpointController::RestoreState(StateId target)
          origin = &window->checkpoints;
       }
    }
-   MFEM_VERIFY(position >= 0, "No eligible saved or valid live replay origin.");
+   MFEM_VERIFY(position >= StateId{0},
+               "No eligible saved or valid live replay origin.");
    if (origin)
    {
       const auto info = origin->GetInfo(selected.checkpoint);

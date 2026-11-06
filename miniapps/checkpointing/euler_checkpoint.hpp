@@ -48,7 +48,7 @@ inline EulerStorage ParseEulerStorage(const std::string &name)
 struct EulerState
 {
    Vector solution;
-   StateId step = 0;
+   StateId step{0};
    real_t time = 0.0;
    real_t dt;
 
@@ -120,7 +120,7 @@ public:
 
    void Advance(StateId from, StateId to) override
    {
-      MFEM_VERIFY(from >= 0 && state.step == from && to >= from,
+      MFEM_VERIFY(from >= StateId{0} && state.step == from && to >= from,
                   "Invalid Euler transition.");
       while (state.step < to)
       {
@@ -223,7 +223,7 @@ private:
    { return const_cast<EulerCheckpointer *>(this)->Find(id); }
 
    fs::path RecordPath(CheckpointId id) const
-   { return directory / ("record-" + std::to_string(id) + ".bin"); }
+   { return directory / ("record-" + std::to_string(id.value) + ".bin"); }
 
    /// Check multiplication before calculating a block's physical extent.
    std::size_t BlockBytes() const
@@ -256,9 +256,9 @@ private:
       const auto write = [&](const Entry &entry, std::size_t slot)
       {
          Metadata metadata{entry.active ? 1u : 0u,
-                           entry.active ? entry.info.checkpoint : 0u,
-                           entry.active ?
-                           static_cast<std::uint64_t>(entry.info.state) : 0u,
+                           entry.active ? entry.info.checkpoint.value : 0u,
+                           entry.active ? static_cast<std::uint64_t>(
+                              entry.info.state.value) : 0u,
                            static_cast<std::uint64_t>(slot),
                            entry.active ? sizeof(Record) : 0u,
                            entry.active ? entry.checksum : 0u, 0};
@@ -320,12 +320,14 @@ private:
             continue;
          }
          MFEM_VERIFY(metadata[2] <= static_cast<std::uint64_t>(
-                        std::numeric_limits<StateId>::max()) &&
-                     metadata[4] == sizeof(Record) && !Find(metadata[1]),
+                        std::numeric_limits<std::int64_t>::max()) &&
+                     metadata[4] == sizeof(Record) &&
+                     !Find(CheckpointId{metadata[1]}),
                      "Invalid or duplicate Euler checkpoint.");
          Entry entry;
          entry.active = true;
-         entry.info = {metadata[1], static_cast<StateId>(metadata[2])};
+         entry.info = {CheckpointId{metadata[1]},
+                       StateId{static_cast<std::int64_t>(metadata[2])}};
          entry.checksum = metadata[5];
          if (IsBlock()) { slots[static_cast<std::size_t>(i)] = entry; }
          else
@@ -424,7 +426,8 @@ public:
    void Store(CheckpointId id) override
    {
       RequireOpen();
-      MFEM_VERIFY(state.step >= 0 && state.solution.Size() == oper.Height() &&
+      MFEM_VERIFY(state.step >= StateId{0} &&
+                  state.solution.Size() == oper.Height() &&
                   std::isfinite(state.time) && std::isfinite(state.dt) &&
                   state.dt > 0.0, "Invalid live Euler continuation state.");
       Entry *entry = Find(id);
@@ -437,7 +440,7 @@ public:
                      "Euler checkpoint count overflows.");
       }
       Record record;
-      record.step = static_cast<std::uint64_t>(state.step);
+      record.step = static_cast<std::uint64_t>(state.step.value);
       record.time = state.time;
       record.dt = state.dt;
       record.components = static_cast<std::uint64_t>(state.solution.Size());
@@ -524,7 +527,7 @@ public:
       else { record = entry->record; }
       MFEM_VERIFY(Checksum(&record, sizeof(record)) == entry->checksum &&
                   record.step ==
-                  static_cast<std::uint64_t>(entry->info.state) &&
+                  static_cast<std::uint64_t>(entry->info.state.value) &&
                   record.components ==
                   static_cast<std::uint64_t>(oper.Height()) &&
                   std::isfinite(record.time) && std::isfinite(record.dt) &&
@@ -593,7 +596,7 @@ public:
    bool FindAtOrBefore(StateId target, CheckpointInfo &result) const override
    {
       RequireOpen();
-      MFEM_VERIFY(target >= 0, "Negative Euler replay target.");
+      MFEM_VERIFY(target >= StateId{0}, "Negative Euler replay target.");
       bool found = false;
       CheckpointInfo nearest;
       const auto consider = [&](const Entry &entry)
@@ -729,7 +732,7 @@ inline int RunEulerExample(int argc, char *argv[], bool backward)
    auto reference_solver = MakeEulerSolver(backward);
    reference_solver->Init(reference_operator);
    EulerPropagator reference_propagator(reference, *reference_solver);
-   reference_propagator.Advance(0, steps);
+   reference_propagator.Advance(StateId{0}, StateId{steps});
 
    EulerState state(backward, dt);
    EulerOperator oper(backward);
@@ -749,55 +752,69 @@ inline int RunEulerExample(int argc, char *argv[], bool backward)
    }
    const auto extent = block ? checkpoints.FixedBytes() : 0;
    StoreEverythingSchedule forward;
-   forward.Configure(steps, required);
-   ExecuteExampleSchedule(forward, checkpoints, propagator, steps,
+   forward.Configure(StateId{steps}, required);
+   ExecuteExampleSchedule(forward, checkpoints, propagator, StateId{steps},
                           controller, window.get());
    MFEM_VERIFY(SameEulerState(state, reference) &&
                checkpoints.Size() == required,
                "Euler forward trajectory or checkpoint count differs.");
 
-   const CheckpointId origin_id = static_cast<CheckpointId>(restart) + 1;
    CheckpointInfo origin;
-   MFEM_VERIFY(checkpoints.FindAtOrBefore(restart, origin) &&
-               origin.checkpoint == origin_id && origin.state == restart,
+   MFEM_VERIFY(checkpoints.FindAtOrBefore(StateId{restart}, origin) &&
+               origin.state == StateId{restart},
                "Wrong Euler replay origin.");
+   const CheckpointId origin_id = origin.checkpoint;
    // Replacement at full capacity, erase, and reuse must preserve block extent.
-   checkpoints.Store(static_cast<CheckpointId>(steps) + 1);
+   CheckpointInfo terminal_checkpoint;
+   MFEM_VERIFY(checkpoints.FindAtOrBefore(StateId{steps}, terminal_checkpoint),
+               "Missing Euler terminal checkpoint.");
+   checkpoints.Store(terminal_checkpoint.checkpoint);
    MFEM_VERIFY(checkpoints.Size() == required, "Euler replacement grew count.");
-   for (CheckpointId id = 1; id <= static_cast<CheckpointId>(steps) + 1; id++)
-   { if (id != origin_id) { checkpoints.Erase(id); } }
-   checkpoints.Store(0);
-   checkpoints.Store(0);
+   forward.Reset();
+   for (auto command = forward.Next();
+        command.action != CheckpointAction::Finished; command = forward.Next())
+   {
+      if (command.action == CheckpointAction::Store &&
+          *command.checkpoint != origin_id)
+      {
+         checkpoints.Erase(*command.checkpoint);
+      }
+   }
+   checkpoints.Store(CheckpointId{0});
+   checkpoints.Store(CheckpointId{0});
    MFEM_VERIFY(checkpoints.Size() == 2, "Euler reused record count differs.");
    CheckpointInfo nearest;
-   MFEM_VERIFY(checkpoints.FindAtOrBefore(steps, nearest) &&
-               nearest.checkpoint == 0 && nearest.state == steps,
+   MFEM_VERIFY(checkpoints.FindAtOrBefore(StateId{steps}, nearest) &&
+               nearest.checkpoint == CheckpointId{0} &&
+               nearest.state == StateId{steps},
                "Euler nearest-state lookup missed the reused record.");
-   checkpoints.Erase(0);
-   checkpoints.Erase(0);
+   checkpoints.Erase(CheckpointId{0});
+   checkpoints.Erase(CheckpointId{0});
    MFEM_VERIFY(checkpoints.Size() == 1, "Euler erase count differs.");
-   MFEM_VERIFY(checkpoints.FindAtOrBefore(steps, nearest) &&
-               nearest.checkpoint == origin_id && nearest.state == restart,
+   MFEM_VERIFY(checkpoints.FindAtOrBefore(StateId{steps}, nearest) &&
+               nearest.checkpoint == origin_id &&
+               nearest.state == StateId{restart},
                "Euler nearest-state lookup retained an erased record.");
    if (block)
    {
       MFEM_VERIFY(checkpoints.FixedBytes() == extent, "Block grew.");
    }
 
-   state.step = -1;
+   state.step = StateId{-1};
    state.time = -1.0;
    state.dt = -1.0;
    state.solution = -99.0;
-   ReplayFromSchedule replay(origin, steps);
-   ExecuteExampleSchedule(replay, checkpoints, propagator, steps,
+   ReplayFromSchedule replay(origin, StateId{steps});
+   ExecuteExampleSchedule(replay, checkpoints, propagator, StateId{steps},
                           controller, window.get());
    MFEM_VERIFY(SameEulerState(state, reference), "Euler replay differs.");
    if (controller)
    {
       CheckpointController service(checkpoints, propagator, window.get());
-      service.RestoreState(restart);
-      MFEM_VERIFY(state.step == restart, "Controller missed restart state.");
-      service.RestoreState(steps);
+      service.RestoreState(StateId{restart});
+      MFEM_VERIFY(state.step == StateId{restart},
+                  "Controller missed restart state.");
+      service.RestoreState(StateId{steps});
       MFEM_VERIFY(SameEulerState(state, reference),
                   "Controller Euler nearest-origin replay differs.");
    }
@@ -807,7 +824,7 @@ inline int RunEulerExample(int argc, char *argv[], bool backward)
       checkpoints.Close();
       checkpoints.Close();
       EulerState fresh(backward, dt);
-      fresh.step = -1;
+      fresh.step = StateId{-1};
       fresh.time = -1.0;
       fresh.dt = -1.0;
       fresh.solution = -99.0;
@@ -829,26 +846,27 @@ inline int RunEulerExample(int argc, char *argv[], bool backward)
                            static_cast<std::size_t>(window_size));
       }
       MFEM_VERIFY(reopened.Size() == 1 &&
-                  reopened.GetInfo(origin_id).state == restart,
+                  reopened.GetInfo(origin_id).state == StateId{restart},
                   "Euler reopened metadata differs.");
-      ReplayFromSchedule fresh_replay(origin, steps);
-      ExecuteExampleSchedule(fresh_replay, reopened, fresh_propagator, steps,
+      ReplayFromSchedule fresh_replay(origin, StateId{steps});
+      ExecuteExampleSchedule(fresh_replay, reopened, fresh_propagator,
+                             StateId{steps},
                              controller, fresh_window.get());
       if (controller)
       {
-         fresh.step = -1;
+         fresh.step = StateId{-1};
          fresh.time = -1.0;
          fresh.dt = -1.0;
          fresh.solution = -99.0;
          if (fresh_window) { fresh_window->Clear(); }
          CheckpointController service(reopened, fresh_propagator,
                                       fresh_window.get());
-         service.RestoreState(steps);
+         service.RestoreState(StateId{steps});
       }
       MFEM_VERIFY(SameEulerState(fresh, reference),
                   "Euler reopened replay differs.");
-      reopened.Store(0);
-      reopened.Erase(0);
+      reopened.Store(CheckpointId{0});
+      reopened.Erase(CheckpointId{0});
       if (block)
       {
          MFEM_VERIFY(reopened.FixedBytes() == extent, "Block grew.");

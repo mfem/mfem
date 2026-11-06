@@ -49,7 +49,7 @@ void Invalidate(MeshState &state)
    state.mesh = std::make_unique<Mesh>(Mesh::MakeCartesian2D(
                                          1, 1, Element::TRIANGLE,
                                          true, 2.0, 2.0));
-   state.cycle = -1;
+   state.cycle = StateId{-1};
    state.selection_index = std::numeric_limits<std::uint64_t>::max();
 }
 
@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
 
    auto reference = InitialMeshState();
    MeshPropagator reference_propagator(reference);
-   reference_propagator.Advance(0, steps);
+   reference_propagator.Advance(StateId{0}, StateId{steps});
    auto state = InitialMeshState();
    MeshCheckpointer checkpoints(state, file, limit, path);
    MeshPropagator propagator(state);
@@ -181,8 +181,8 @@ int main(int argc, char *argv[])
       window = std::make_unique<ExactCheckpointWindow>(
                   *window_store, static_cast<std::size_t>(window_size));
    }
-   mfem::IntervalSchedule forward(steps, interval);
-   ExecuteExampleSchedule(forward, checkpoints, propagator, steps,
+   mfem::IntervalSchedule forward(StateId{steps}, StateId{interval});
+   ExecuteExampleSchedule(forward, checkpoints, propagator, StateId{steps},
                           controller, window.get());
    MFEM_VERIFY(SameMeshState(state, reference),
                "Mesh forward trajectory differs.");
@@ -191,27 +191,28 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(checkpoints.Size() == expected_count,
                "Mesh schedule saved an unexpected record count.");
    CheckpointInfo origin;
-   MFEM_VERIFY(checkpoints.FindAtOrBefore(steps, origin) &&
-               origin.state < steps,
+   MFEM_VERIFY(checkpoints.FindAtOrBefore(StateId{steps}, origin) &&
+               origin.state < StateId{steps},
                "Mesh replay must start before the terminal cycle.");
 
    // A temporary ID exercises replacement and reuse, preserving the origin.
    // Erase initial state first when another interval checkpoint can replay.
-   if (origin.checkpoint != 1) { checkpoints.Erase(1); }
+   if (origin.checkpoint != CheckpointId{1})
+   { checkpoints.Erase(CheckpointId{1}); }
    if (!limit || checkpoints.Size() < *limit)
    {
       const auto count = checkpoints.Size();
-      checkpoints.Store(0);
-      checkpoints.Store(0);
+      checkpoints.Store(CheckpointId{0});
+      checkpoints.Store(CheckpointId{0});
       MFEM_VERIFY(checkpoints.Size() == count + 1,
                   "Mesh replacement grew count.");
-      checkpoints.Erase(0);
-      checkpoints.Erase(0);
+      checkpoints.Erase(CheckpointId{0});
+      checkpoints.Erase(CheckpointId{0});
       MFEM_VERIFY(checkpoints.Size() == count, "Mesh erase count differs.");
    }
    Invalidate(state);
-   ReplayFromSchedule replay(origin, steps);
-   ExecuteExampleSchedule(replay, checkpoints, propagator, steps,
+   ReplayFromSchedule replay(origin, StateId{steps});
+   ExecuteExampleSchedule(replay, checkpoints, propagator, StateId{steps},
                           controller, window.get());
    MFEM_VERIFY(SameMeshState(state, reference), "Mesh replay differs.");
    if (controller)
@@ -220,7 +221,7 @@ int main(int argc, char *argv[])
       service.RestoreState(origin.state);
       MFEM_VERIFY(state.cycle == origin.state,
                   "Controller missed the mesh replay origin.");
-      service.RestoreState(steps);
+      service.RestoreState(StateId{steps});
       MFEM_VERIFY(SameMeshState(state, reference),
                   "Controller mesh nearest-origin replay differs.");
    }
@@ -248,8 +249,9 @@ int main(int argc, char *argv[])
       MFEM_VERIFY(reopened.Size() == retained &&
                   reopened.GetInfo(origin.checkpoint).state == origin.state,
                   "Reopened mesh metadata differs.");
-      ReplayFromSchedule fresh_replay(origin, steps);
-      ExecuteExampleSchedule(fresh_replay, reopened, fresh_propagator, steps,
+      ReplayFromSchedule fresh_replay(origin, StateId{steps});
+      ExecuteExampleSchedule(fresh_replay, reopened, fresh_propagator,
+                             StateId{steps},
                              controller, fresh_window.get());
       if (controller)
       {
@@ -257,17 +259,17 @@ int main(int argc, char *argv[])
          if (fresh_window) { fresh_window->Clear(); }
          CheckpointController service(reopened, fresh_propagator,
                                       fresh_window.get());
-         service.RestoreState(steps);
+         service.RestoreState(StateId{steps});
       }
       MFEM_VERIFY(SameMeshState(fresh, reference),
                   "Reopened mesh replay differs.");
       if (!limit || reopened.Size() < *limit)
       {
-         reopened.Store(0);
-         reopened.Store(0);
+         reopened.Store(CheckpointId{0});
+         reopened.Store(CheckpointId{0});
          MFEM_VERIFY(reopened.Size() == retained + 1,
                      "Reopened mesh replacement grew count.");
-         reopened.Erase(0);
+         reopened.Erase(CheckpointId{0});
          MFEM_VERIFY(reopened.Size() == retained,
                      "Reopened mesh erase count differs.");
       }

@@ -5,6 +5,15 @@ A checkpointer binds the application and owns its saved records:
 `Store(id)` captures the live state and `Restore(id)` applies the saved state.
 The application consumes schedule commands directly.
 
+`StateId` and `CheckpointId` are distinct types, not integer aliases. Construct
+them explicitly, for example `StateId{100}` and `CheckpointId{7}`. Calling
+`Store(CheckpointId{7})` at state 100 saves that state under key 7; passing a
+`StateId` to `Store()` is a compile-time error. Both types support comparisons
+within their own type. `StateId` also supports increment, decrement, integer
+offsets, and the distance between two states; `CheckpointId` has no arithmetic.
+Schedules explicitly assign checkpoint keys to states. Use `.value` only at
+integer boundaries, such as serialization, filenames, or array indexing.
+
 `checkpoint-heterogeneous-state` demonstrates complete state containing several
 data types: an iteration counter, two consecutive Fibonacci numbers, a
 floating-point value, and a string recording the iterations visited. Both
@@ -79,8 +88,9 @@ With `--controller`, `-w/--window-size N` enables a separate memory FIFO holding
 at most N exact states. Zero (the default) disables the window; positive sizes
 require controller mode. Euler uses preallocated memory blocks for this store;
 mesh and heterogeneous state use memory records. The controller captures the
-origin and every state reached during propagation, using StateId as the window
-checkpoint ID. Successful scheduled Store and Restore also capture their state
+origin and every state reached during propagation, explicitly assigning a
+window checkpoint key with the same numeric value as its `StateId`.
+Successful scheduled Store and Restore also capture their state
 in the window. A full window erases the oldest ID before capturing a new ID;
 replacement keeps its FIFO position. Primary scheduled records have independent
 IDs and capacity. The window also remains bounded when its backing store has

@@ -14,26 +14,89 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <iosfwd>
 #include <optional>
 #include <vector>
 
 namespace mfem
 {
 
-/// Ordered application-state position; independent of physical time.
-using StateId = std::int64_t;
+/// Ordered application-state position, independent of physical time.
+/** For example, state 100 may represent timestep 100 or iteration 100.
+    A state has a position even when no checkpoint is saved for it. */
+struct StateId
+{
+   std::int64_t value = 0;
+
+   constexpr StateId() = default;
+   explicit constexpr StateId(std::int64_t position) : value(position) { }
+
+   constexpr bool operator==(StateId other) const
+   { return value == other.value; }
+   constexpr bool operator!=(StateId other) const
+   { return value != other.value; }
+   constexpr bool operator<(StateId other) const
+   { return value < other.value; }
+   constexpr bool operator<=(StateId other) const
+   { return value <= other.value; }
+   constexpr bool operator>(StateId other) const
+   { return value > other.value; }
+   constexpr bool operator>=(StateId other) const
+   { return value >= other.value; }
+
+   constexpr StateId &operator++() { ++value; return *this; }
+   constexpr StateId operator++(int)
+   { const StateId previous = *this; ++*this; return previous; }
+   constexpr StateId &operator--() { --value; return *this; }
+   constexpr StateId operator--(int)
+   { const StateId previous = *this; --*this; return previous; }
+   constexpr StateId operator+(std::int64_t offset) const
+   { return StateId{value + offset}; }
+   constexpr StateId operator-(std::int64_t offset) const
+   { return StateId{value - offset}; }
+   constexpr std::int64_t operator-(StateId other) const
+   { return value - other.value; }
+};
+
+std::ostream &operator<<(std::ostream &output, StateId state);
 
 /// Compatibility name for applications whose ordered states are time steps.
 using StepId = StateId;
 
-/// Logical checkpoint identity; independent of physical storage locations.
-using CheckpointId = std::uint64_t;
+/// Caller-assigned checkpoint key, independent of state and storage location.
+/** For example, Store(CheckpointId{7}) at StateId{100} saves that state under
+    checkpoint ID 7; Restore(CheckpointId{7}) then restores state 100. Calling
+    Store(CheckpointId{7}) at StateId{200} replaces the same checkpoint with
+    state 200. The key is neither a timestep index nor a physical storage
+    location, such as a memory slot or file offset. */
+struct CheckpointId
+{
+   std::uint64_t value = 0;
+
+   constexpr CheckpointId() = default;
+   explicit constexpr CheckpointId(std::uint64_t key) : value(key) { }
+
+   constexpr bool operator==(CheckpointId other) const
+   { return value == other.value; }
+   constexpr bool operator!=(CheckpointId other) const
+   { return value != other.value; }
+   constexpr bool operator<(CheckpointId other) const
+   { return value < other.value; }
+   constexpr bool operator<=(CheckpointId other) const
+   { return value <= other.value; }
+   constexpr bool operator>(CheckpointId other) const
+   { return value > other.value; }
+   constexpr bool operator>=(CheckpointId other) const
+   { return value >= other.value; }
+};
+
+std::ostream &operator<<(std::ostream &output, CheckpointId checkpoint);
 
 /// Metadata for one complete saved application state.
 struct CheckpointInfo
 {
-   CheckpointId checkpoint = 0; ///< Logical checkpoint identity.
-   StateId state = 0;           ///< Non-negative saved application position.
+   CheckpointId checkpoint{0}; ///< Logical checkpoint identity.
+   StateId state{0};           ///< Non-negative saved application position.
 };
 
 /// Combined capture, storage, and restore of bound application state.
@@ -144,8 +207,8 @@ enum class CheckpointAction
 struct CheckpointCommand
 {
    CheckpointAction action = CheckpointAction::Finished;
-   StateId from_step = 0; ///< Advance origin or saved position.
-   StateId to_step = 0;   ///< Advance destination or same saved position.
+   StateId from_step{0}; ///< Advance origin or saved position.
+   StateId to_step{0};   ///< Advance destination or same saved position.
    /// Logical checkpoint ID required by Store, Restore, and Erase.
    /** Must be unset for Advance and Finished. This identifies a saved
        checkpoint, independently of its StateId or physical storage location. */
@@ -189,8 +252,8 @@ public:
 class StoreEverythingSchedule : public OfflineCheckpointSchedule
 {
 private:
-   StateId terminal = 0;
-   StateId current = 0;
+   StateId terminal{0};
+   StateId current{0};
    bool configured = false;
    bool store_pending = true;
 
@@ -223,7 +286,7 @@ class IntervalSchedule : public CheckpointSchedule
 private:
    StateId terminal;
    StateId interval;
-   StateId current = 0;
+   StateId current{0};
    bool store_pending = true;
 
 public:
