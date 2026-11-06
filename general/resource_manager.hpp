@@ -125,6 +125,16 @@ private:
       Node &GetNode(size_t curr) { return nodes.Get(curr); }
       const Node &GetNode(size_t curr) const { return nodes.Get(curr); }
 
+      /// A single invalid marker at zero describes an entirely invalid buffer.
+      /// An empty tree describes an entirely valid buffer.
+      bool IsFullyInvalid(size_t root) const
+      {
+         if (!root) { return false; }
+         const auto &node = GetNode(root);
+         return !node.IsValid() && node.offset == 0 &&
+                !node.child[0] && !node.child[1];
+      }
+
       Segment &GetSegment(size_t curr) { return segments.Get(curr); }
       const Segment &GetSegment(size_t curr) const
       {
@@ -321,11 +331,20 @@ private:
 
    static bool RWOnDevice(MemoryClass mc)
    {
-      if (IsHostMemory(mfem::GetMemoryType(mc)) && mc < MemoryClass::DEVICE)
+      // MemoryClass already specifies the requested location, including when
+      // DEVICE is configured to use host or managed memory.
+      switch (mc)
       {
-         return false;
+         case MemoryClass::HOST:
+         case MemoryClass::HOST_32:
+         case MemoryClass::HOST_64:
+            return false;
+         case MemoryClass::DEVICE:
+         case MemoryClass::MANAGED:
+            return true;
       }
-      return true;
+      MFEM_ABORT("invalid MemoryClass");
+      return false;
    }
 
 public:
@@ -1948,13 +1967,13 @@ template <class T> T *Memory<T>::Write(bool on_device, int offset, int size)
    MFEM_MEM_OP_DEBUG_USE(5, h_ptr + offset, h_ptr + offset + size,
                          " Write Request");
    MFEM_MEM_OP_BENCH_SCOPE(2, true);
-   auto &inst = MemoryManager::Instance();
    if (on_device)
    {
       EnsureRegistered();
    }
    if (segment)
    {
+      auto &inst = MemoryManager::Instance();
       return reinterpret_cast<T *>(inst.Write(
                                       segment, (offset + offset_) * sizeof(T), size * sizeof(T), on_device));
    }
@@ -1970,13 +1989,13 @@ template <class T> T *Memory<T>::ReadWrite(bool on_device, int offset, int size)
    MFEM_MEM_OP_DEBUG_USE(6, h_ptr + offset, h_ptr + offset + size,
                          " ReadWrite Request");
    MFEM_MEM_OP_BENCH_SCOPE(0, true);
-   auto &inst = MemoryManager::Instance();
    if (on_device)
    {
       EnsureRegistered();
    }
    if (segment)
    {
+      auto &inst = MemoryManager::Instance();
       return reinterpret_cast<T *>(inst.ReadWrite(
                                       segment, (offset_ + offset) * sizeof(T), size * sizeof(T), on_device));
    }
@@ -1994,13 +2013,13 @@ const T *Memory<T>::Read(bool on_device, int offset, int size) const
    MFEM_MEM_OP_DEBUG_USE(4, h_ptr + offset, h_ptr + offset + size,
                          " Read Request");
    MFEM_MEM_OP_BENCH_SCOPE(1, true);
-   auto &inst = MemoryManager::Instance();
    if (on_device)
    {
       EnsureRegistered();
    }
    if (segment)
    {
+      auto &inst = MemoryManager::Instance();
       return reinterpret_cast<const T *>(inst.Read(
                                             segment, (offset_ + offset) * sizeof(T), size * sizeof(T), on_device));
    }

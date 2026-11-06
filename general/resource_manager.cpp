@@ -1544,9 +1544,15 @@ char *MemoryManager::Write(size_t segment, size_t offset, size_t nbytes,
                                seg.lowers[on_device] + seg.nbytes,
                                "alloc " << (int)seg.mtypes[on_device]);
       }
-      MarkValid(segment, on_device, offset, offset + nbytes, [](auto, auto) {});
-      MarkInvalid(segment, !on_device, offset, offset + nbytes,
-      [](auto, auto) {});
+      // Repeated writes need no tree updates when validity is unchanged.
+      if (seg.roots[on_device] ||
+          !storage.IsFullyInvalid(seg.roots[!on_device]))
+      {
+         MarkValid(segment, on_device, offset, offset + nbytes,
+         [](auto, auto) {});
+         MarkInvalid(segment, !on_device, offset, offset + nbytes,
+         [](auto, auto) {});
+      }
       MFEM_MEM_OP_DEBUG_USE(5, seg.lowers[on_device] + offset,
                             seg.lowers[on_device] + offset + nbytes, " Write");
       Unprotect(seg.lowers[on_device], seg.mtypes[on_device], offset, nbytes);
@@ -1743,12 +1749,25 @@ char *MemoryManager::ReadWrite(size_t segment, size_t offset, size_t nbytes,
 {
    if (segment && nbytes > 0)
    {
+      auto &seg = storage.GetSegment(segment);
+      // Check shared segment validity, not per-Memory flags: aliases can
+      // invalidate part of either buffer between successive accesses.
+      if (seg.lowers[on_device] && !seg.roots[on_device] &&
+          storage.IsFullyInvalid(seg.roots[!on_device]))
+      {
+         MFEM_MEM_OP_DEBUG_USE(6, seg.lowers[on_device] + offset,
+                               seg.lowers[on_device] + offset + nbytes,
+                               " ReadWrite ");
+         Unprotect(seg.lowers[on_device], seg.mtypes[on_device], offset, nbytes);
+         Protect(seg.lowers[!on_device], seg.mtypes[!on_device], offset, nbytes);
+         return seg.lowers[on_device] + offset;
+      }
+
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
           AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
           copy_segs{AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
                        GetTempManagedMemoryType())};
 
-      auto &seg = storage.GetSegment(segment);
       if (!seg.lowers[on_device])
       {
          // need to allocate
@@ -1826,12 +1845,21 @@ const char *MemoryManager::Read(size_t segment, size_t offset, size_t nbytes,
 {
    if (segment && nbytes > 0)
    {
+      auto &seg = storage.GetSegment(segment);
+      // An empty validity tree means no copy or managed-memory sync is needed.
+      if (seg.lowers[on_device] && !seg.roots[on_device])
+      {
+         MFEM_MEM_OP_DEBUG_USE(4, seg.lowers[on_device] + offset,
+                               seg.lowers[on_device] + offset + nbytes, " Read");
+         Unprotect(seg.lowers[on_device], seg.mtypes[on_device], offset, nbytes);
+         return seg.lowers[on_device] + offset;
+      }
+
       std::vector<std::pair<ptrdiff_t, ptrdiff_t>,
           AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>>
           copy_segs{AllocatorAdaptor<std::pair<ptrdiff_t, ptrdiff_t>>(
                        GetTempManagedMemoryType())};
 
-      auto &seg = storage.GetSegment(segment);
       if (!seg.lowers[on_device])
       {
          // need to allocate
@@ -2523,10 +2551,19 @@ void MemoryManager::UpdateDualMemoryType(MemoryType mt, MemoryType dual_mt)
    }
 }
 
+/// Return whether @a loc uses MmuAllocator's protection hooks.
+/// Its temporary memory types use the same allocator and also need protection.
+static bool UsesMemoryProtection(MemoryType loc)
+{
+   const auto temp_loc = GetTemporaryMemorySpace(loc);
+   return temp_loc == MemoryType::TEMP_HOST_DEBUG ||
+          temp_loc == MemoryType::TEMP_DEVICE_DEBUG;
+}
+
 void MemoryManager::Protect(char *ptr, MemoryType loc, size_t offset,
                             size_t nbytes)
 {
-   if (ptr)
+   if (ptr && UsesMemoryProtection(loc))
    {
       allocs[static_cast<int>(loc)]->Protect(ptr + offset, nbytes);
    }
@@ -2535,7 +2572,7 @@ void MemoryManager::Protect(char *ptr, MemoryType loc, size_t offset,
 void MemoryManager::Unprotect(char *ptr, MemoryType loc, size_t offset,
                               size_t nbytes)
 {
-   if (ptr)
+   if (ptr && UsesMemoryProtection(loc))
    {
       allocs[static_cast<int>(loc)]->Unprotect(ptr + offset, nbytes);
    }
