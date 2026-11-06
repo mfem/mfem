@@ -76,11 +76,7 @@ void ElasticityOperator::SetUpOperator()
       }
       a->AddDomainIntegrator(new ElasticityIntegrator(c1_cf,c2_cf));
       a->Assemble();
-      if (!use_fa)
-      {
-         K = new HypreParMatrix();
-         a->FormSystemMatrix(ess_tdof_list,*K);
-      }
+      a->FormSystemMatrix(ess_tdof_list, K);
    }
 }
 
@@ -163,15 +159,17 @@ void ElasticityOperator::FormLinearSystem()
          auto *a = dynamic_cast<ParBilinearForm*>(op);
          if (use_fa)
          {
-            OperatorHandle A(Operator::Hypre_ParCSR);
-            a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+            // Transform only the RHS with the unconstrained operator. The
+            // assembled stiffness matrix K is reused across load steps.
+            Operator *rhs_operator;
+            a->Operator::FormLinearSystem(ess_tdof_list, x, *b,
+                                         rhs_operator, X, B);
+            delete rhs_operator;
             if (IsIdentityProlongation(fes->GetProlongationMatrix()))
             {
                // FormLinearSystem modifies X, which aliases x in this case.
                x.SyncMemory(X);
             }
-            if (K) { delete K; }
-            K = new HypreParMatrix(*A.As<HypreParMatrix>());
          }
          else
          {
@@ -244,19 +242,19 @@ HypreParMatrix * ElasticityOperator::GetHessian(const Vector & u)
    }
    else
    {
-      return K;
+      return K.As<HypreParMatrix>();
    }
 }
 
 ElasticityOperator::~ElasticityOperator()
 {
+   K.Clear();
    delete op;
    delete b;
    for (int i = 0; i < pressure_cf.Size(); i++) { delete pressure_cf[i]; }
    for (int i = 0; i < pressure_bdr_marker.Size(); i++) { delete pressure_bdr_marker[i]; }
    delete fes;
    delete fec;
-   if (K) { delete K; }
    if (material_model) { delete material_model; }
 }
 

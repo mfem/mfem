@@ -71,8 +71,9 @@ private:
    /// Current solution
    ParGridFunction x;
 
-   // System matrix
-   HypreParMatrix *K=nullptr;
+   /// Cached stiffness matrix: owned for full assembly, otherwise borrowed
+   /// from the bilinear form. The mesh, material and essential DOFs stay fixed.
+   OperatorHandle K{Operator::Hypre_ParCSR};
 
    /// Right-hand side (B) and solution vector (X).
    Vector B, X;
