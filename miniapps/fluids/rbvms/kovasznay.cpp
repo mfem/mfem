@@ -12,12 +12,16 @@
 #include <cmath>
 #include "../../../config/config.hpp"
 
+
+
+
+
 namespace mfem
 {
+constexpr real_t pi = 3.14159265358979323846;
 real_t kinvis = 1.0 / 40.0;
 real_t reynolds = 1.0 / kinvis;
-real_t lam = 0.5 * reynolds - sqrt(0.25 * reynolds * reynolds + 4.0 * M_PI *
-                                   M_PI);
+real_t lam = 0.5 * reynolds - sqrt(0.25 * reynolds * reynolds + 4.0 * pi * pi);
 
 extern "C" real_t rho(real_t *coord, int dim, real_t t)
 {
@@ -34,8 +38,8 @@ extern "C" void sol_u(real_t *coord, int dim, real_t t, real_t *u, int vdim)
    real_t xi = coord[0];
    real_t yi = coord[1];
 
-   u[0] = 1.0 - exp(lam * xi) * cos(2.0 * M_PI * yi);
-   u[1] = lam / (2.0 * M_PI) * exp(lam * xi) * sin(2.0 * M_PI * yi);
+   u[0] = 1.0 - exp(lam * xi) * cos(2.0 * pi * yi);
+   u[1] = lam / (2.0 * pi) * exp(lam * xi) * sin(2.0 * pi * yi);
 }
 
 extern "C" void traction(real_t *coord, int dim, real_t t, real_t *traction,
@@ -44,10 +48,10 @@ extern "C" void traction(real_t *coord, int dim, real_t t, real_t *traction,
    real_t xi = coord[0];
    real_t yi = coord[1];
 
-   real_t dudx = - lam* exp(lam * xi) * cos(2.0 * M_PI * yi);
-   real_t dudy =  2.0 * M_PI*exp(lam * xi) * sin(2.0 * M_PI * yi);
+   real_t dudx = - lam* exp(lam * xi) * cos(2.0 * pi * yi);
+   real_t dudy =  2.0 * pi*exp(lam * xi) * sin(2.0 * pi * yi);
 
-   real_t dvdx = lam / (2.0 * M_PI) * lam * exp(lam * xi) * sin(2.0 * M_PI * yi);
+   real_t dvdx = lam / (2.0 * pi) * lam * exp(lam * xi) * sin(2.0 * pi * yi);
 
    traction[0] = 2* kinvis* dudx;
    traction[1] = kinvis*(dudy  + dvdx );
