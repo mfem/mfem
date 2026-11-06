@@ -93,7 +93,7 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   `high-workload` PRs should take longer and include technical meetings initiated
   by the author.
 - During review there should be no force pushes/rewriting history in the branch.
-- A reviewer's super-approval (👍👍) counts as two approvals.
+- A reviewer's stated "strong approval" counts as two approvals.
 - After reviewer approval or an editor's decision to merge without review, the
   editor merges the PR manually into the [`mfem:next` branch](#masternext-workflow).
 - After testing in `mfem:next`, the original PR is merged into `mfem:master`.
