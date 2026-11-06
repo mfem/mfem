@@ -33,6 +33,26 @@ Meshing improvements
 
 Linear and nonlinear solvers
 ----------------------------
+- Added coarse-corrected Krylov solvers CoarseCorrectedCGSolver,
+  CoarseCorrectedGMRESSolver, and CoarseCorrectedFGMRESSolver, with shared
+  solver lifecycle in CoarseCorrectedSolverBase and algebra in the new class
+  DeflationSpaces (linalg/deflation.hpp). Exact null spaces, which control
+  right-hand side compatibility and the solution gauge, and acceleration
+  coarse spaces can be registered, replaced, or cleared independently, with
+  shared or paired left/right bases. Projected deflation and balanced
+  two-level preconditioning (the default) are available; neither explicitly
+  augments the Krylov basis. Convergence is tested on the physical residual,
+  and working and original residual diagnostics are reported. Setup
+  tolerances are precision-aware. The coarse solve uses Cholesky or pivoted
+  LU, or optionally an SVD when MFEM is built with LAPACK. Coarse-space
+  images A U, and optionally A^T V, are cached to avoid operator applications
+  in the projectors. Coarse spaces may also be general operators, such as
+  sparse HypreParMatrix prolongations with distributed coarse DOFs, solved by
+  a user-supplied coarse solver; the new VectorDeflationBasis class supplies
+  explicit vector sets. The solvers support MPI, with collective error
+  handling, and use MFEM's device-aware vector operations; GPU-aware MPI is
+  not required. See doc/deflation.md.
+
 - Fixed HypreParaSails::SetOperator, which read the communicator of the
   previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
   in a NewtonSolver.
