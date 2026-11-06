@@ -256,7 +256,13 @@ void mass_action(const char *filename, int p)
    // 2D meshes are 1D, which the LocalQF kernels do not support yet.
    if constexpr (DIM == 3)
    {
-      if (pmesh.bdr_attributes.Size() > 0)
+      // AddBoundaryIntegrator needs every boundary element to be a boundary
+      // face, which periodic meshes break.
+      int bdr_elements_are_faces =
+         pmesh.GetNFbyType(FaceType::Boundary) == pmesh.GetNBE();
+      MPI_Allreduce(MPI_IN_PLACE, &bdr_elements_are_faces, 1, MPI_INT, MPI_MIN,
+                    pmesh.GetComm());
+      if (pmesh.bdr_attributes.Size() > 0 && bdr_elements_are_faces)
       {
          constexpr int BDIM = DIM - 1;
          const auto *bdr_ir =
@@ -291,6 +297,90 @@ void mass_action(const char *filename, int p)
             Z -= Y;
             REQUIRE(ParNormlp(Z, infinity(), pmesh.GetComm()) == MFEM_Approx(0.0));
          };
+
+         // Checks the assembled derivative of @a dop and its diagonal against
+         // the legacy assembly of @a a
+         const auto check_assembly =
+            [&](DifferentiableOperator &dop, ParBilinearForm &a)
+         {
+            a.Assemble();
+            a.Finalize();
+
+            MultiVector MX{X, N};
+            auto dRdU = dop.GetDerivative(U, MX);
+
+            SparseMatrix *A = nullptr;
+            dRdU->Assemble(A);
+            TestSameMatrices(*A, a.SpMat());
+            TestSameMatrices(a.SpMat(), *A);
+            delete A;
+
+            HypreParMatrix *Amfem = a.ParallelAssemble();
+            HypreParMatrix *Adfem = nullptr;
+            dRdU->Assemble(Adfem);
+            TestSameMatrices(*Adfem, *Amfem);
+            TestSameMatrices(*Amfem, *Adfem);
+
+            Vector dfem_D(tvsize), mfem_D;
+            dRdU->AssembleDiagonal(dfem_D);
+            Amfem->GetDiag(mfem_D);
+            mfem_D -= dfem_D;
+            REQUIRE(ParNormlp(mfem_D, infinity(), pmesh.GetComm()) ==
+                    MFEM_Approx(0.0));
+            delete Amfem;
+            delete Adfem;
+         };
+         
+         constexpr auto assembly_kernels =
+            DerivativeKernels::AssembleMatrix |
+            DerivativeKernels::AssembleDiagonal;
+
+         SECTION("Boundary Assemble")
+         {
+            ParBilinearForm a(&pfes);
+            a.AddBoundaryIntegrator(new MassIntegrator(one, bdr_ir));
+
+            DifferentiableOperator dop(in_fds, out_fds, pmesh);
+            dop.AddBoundaryIntegrator<LocalQFBackend, assembly_kernels>(
+               bdr_mass_qf, IT{}, OT{}, *bdr_ir, all_bdr_attr, DT{});
+            check_assembly(dop, a);
+         }
+
+         SECTION("Domain and Boundary Assemble")
+         {
+            ParBilinearForm a(&pfes);
+            a.AddDomainIntegrator(new MassIntegrator(one, ir));
+            a.AddBoundaryIntegrator(new MassIntegrator(one, bdr_ir));
+
+            DifferentiableOperator dop(in_fds, out_fds, pmesh);
+            local_mf_mass_qf<DIM> domain_mass_qf;
+            dop.AddDomainIntegrator<LocalQFBackend, assembly_kernels>(
+               domain_mass_qf, IT{}, OT{}, *ir, all_domain_attr, DT{});
+            dop.AddBoundaryIntegrator<LocalQFBackend, assembly_kernels>(
+               bdr_mass_qf, IT{}, OT{}, *bdr_ir, all_bdr_attr, DT{});
+            check_assembly(dop, a);
+         }
+
+         SECTION("Two Domain and one Boundary Assemble")
+         {
+            // The domain integrators add up their element matrices before the
+            // fill, see detail::EntityMatrices.
+            ParBilinearForm a(&pfes);
+            a.AddDomainIntegrator(new MassIntegrator(one, ir));
+            a.AddDomainIntegrator(new MassIntegrator(one, ir));
+            a.AddBoundaryIntegrator(new MassIntegrator(one, bdr_ir));
+
+            DifferentiableOperator dop(in_fds, out_fds, pmesh);
+            local_mf_mass_qf<DIM> domain_mass_qf;
+            for (int i = 0; i < 2; i++)
+            {
+               dop.AddDomainIntegrator<LocalQFBackend, assembly_kernels>(
+                  domain_mass_qf, IT{}, OT{}, *ir, all_domain_attr, DT{});
+            }
+            dop.AddBoundaryIntegrator<LocalQFBackend, assembly_kernels>(
+               bdr_mass_qf, IT{}, OT{}, *bdr_ir, all_bdr_attr, DT{});
+            check_assembly(dop, a);
+         }
 
          SECTION("Boundary Action")
          {
@@ -388,6 +478,28 @@ void mass_action(const char *filename, int p)
                   bdr_mass_qf, IT{}, OT{}, *bdr_ir,
                   bdr_attr, DT{});
                check(dop, a);
+            }
+
+            SECTION("Boundary Assemble on two attribute subsets")
+            {
+               // Two boundary integrators on complementary attributes add up
+               // their face matrices before the fill.
+               Array<int> first(pmesh.bdr_attributes.Max()), rest;
+               first = 0;
+               first[0] = 1;
+               rest = first;
+               for (int &r : rest) { r = 1 - r; }
+
+               ParBilinearForm a(&pfes);
+               a.AddBoundaryIntegrator(new MassIntegrator(one, bdr_ir));
+
+               DifferentiableOperator dop(in_fds, out_fds, pmesh);
+               for (const Array<int> *attr : { &first, &rest })
+               {
+                  dop.AddBoundaryIntegrator<LocalQFBackend, assembly_kernels>(
+                     bdr_mass_qf, IT{}, OT{}, *bdr_ir, *attr, DT{});
+               }
+               check_assembly(dop, a);
             }
          }
       }

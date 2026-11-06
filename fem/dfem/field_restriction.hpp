@@ -136,6 +136,20 @@ inline std::shared_ptr<const Operator> get_restriction(const FieldDescriptor &f,
    return get_element_restriction(f, o);
 }
 
+/// @brief The map between the dofs of the entities that @a r describes and the
+/// dofs of @a fes, read from the restriction that get_restriction() returns.
+inline EntityDofMap get_entity_dof_map(const FiniteElementSpace &fes,
+                                       const ElementDofOrdering &o,
+                                       const RestrictionDescriptor &r)
+{
+   if (r.is_face_restriction)
+   {
+      return fes.GetFaceRestriction(o, r.face_type, r.face_values)
+             ->GetEntityDofMap();
+   }
+   return fes.GetElementRestriction(o)->GetEntityDofMap();
+}
+
 /// @brief Restriction operators for a fixed list of fields, resolved once.
 ///
 /// get_restriction() runs a std::visit over the descriptor variant and wraps

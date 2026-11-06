@@ -1092,7 +1092,8 @@ struct OutputFieldGroups
    std::vector<const ParFiniteElementSpace *> fes;
    /// Group index -> vector dimension of the output field.
    std::vector<int> test_vdim;
-   /// Group index -> number of element dofs, or zero for a non-FE field.
+   /// Group index -> number of dofs of one entity (an element, or a boundary
+   /// face for boundary integrators), or zero for a non-FE field.
    std::vector<int> num_test_dof;
 
    template<typename entity_t>
@@ -1132,7 +1133,8 @@ struct OutputFieldGroups
          fes[group] = group_fes ? *group_fes : nullptr;
          if (fes[group] != nullptr)
          {
-            num_test_dof[group] = fes[group]->GetFE(0)->GetDof();
+            num_test_dof[group] =
+               EntityTraits<entity_t>::TypicalFE(*fes[group])->GetDof();
          }
       });
    }

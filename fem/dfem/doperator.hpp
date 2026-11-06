@@ -111,22 +111,14 @@ struct derivative_action_t
    std::function<void *()> qfunc_shadow;
 };
 
-/// @brief Type alias for a function that assembles the SparseMatrix row blocks
-/// of a derivative operator
+/// @brief Type alias for a function that adds the entity matrices of the row
+/// blocks of a derivative operator, see detail::EntityMatrices
 ///
 /// The derivative of a residual with several output (test) fields is a block
-/// column, one row block per output field, so the callback fills a vector
-/// indexed by position in the operator's output FieldDescriptors rather than a
-/// single matrix.
-using assemble_derivative_sparsematrix_callback_t =
-   std::function<void(std::vector<SparseMatrix *> &)>;
-
-/// @brief Type alias for a function that assembles the HypreParMatrix row
-/// blocks of a derivative operator
-///
-/// @see assemble_derivative_sparsematrix_callback_t for the indexing.
-using assemble_derivative_hypreparmatrix_callback_t =
-   std::function<void(std::vector<HypreParMatrix *> &)>;
+/// column, one row block per output field, so the callback adds to a vector
+/// indexed by position in the operator's output FieldDescriptors.
+using assemble_entity_matrices_callback_t =
+   std::function<void(std::vector<detail::EntityMatrices> &)>;
 
 /// @brief Type alias for a function that assembles the diagonal of one row
 /// block of a derivative operator into an E-vector
@@ -158,9 +150,7 @@ using DerivativeActionMap = DerivativeMap<size_t, derivative_action_t>;
 using DerivativeSetupMap = DerivativeMap<size_t, derivative_setup_t>;
 using DerivativeFieldMap = DerivativeMap<size_t, FieldDescriptor>;
 using SparseAssemblyMap =
-   DerivativeMap<size_t, assemble_derivative_sparsematrix_callback_t>;
-using HypreAssemblyMap =
-   DerivativeMap<size_t, assemble_derivative_hypreparmatrix_callback_t>;
+   DerivativeMap<size_t, assemble_entity_matrices_callback_t>;
 using DiagonalAssemblyMap = DerivativeMap<size_t, assemble_diagonal_callback_t>;
 ///@}
 
@@ -174,10 +164,7 @@ using SecondDerivativeFieldMap =
    DerivativeMap<second_derivative_key_t, FieldDescriptor>;
 using SecondSparseAssemblyMap =
    DerivativeMap<second_derivative_key_t,
-   assemble_derivative_sparsematrix_callback_t>;
-using SecondHypreAssemblyMap =
-   DerivativeMap<second_derivative_key_t,
-   assemble_derivative_hypreparmatrix_callback_t>;
+   assemble_entity_matrices_callback_t>;
 using SecondDiagonalAssemblyMap =
    DerivativeMap<second_derivative_key_t, assemble_diagonal_callback_t>;
 ///@}
@@ -237,9 +224,6 @@ namespace detail
 /// The derivative maps are keyed by the differentiated field id, the second
 /// derivative maps by the (gradient, direction) pair of field ids. The
 /// accessors pick the map of a key type, so code can handle both.
-///
-/// Assembly is only implemented for element integrators so far, so the
-/// assembly maps of the other entity types stay empty.
 struct OperatorCallbacks
 {
    std::vector<action_t> actions;
@@ -266,11 +250,9 @@ struct OperatorCallbacks
    SecondDerivativeActionMap second_derivative_transpose;
 
    SparseAssemblyMap derivative_assemble_sparse;
-   HypreAssemblyMap derivative_assemble_hypre;
    DiagonalAssemblyMap derivative_assemble_diagonal;
 
    SecondSparseAssemblyMap second_derivative_assemble_sparse;
-   SecondHypreAssemblyMap second_derivative_assemble_hypre;
    SecondDiagonalAssemblyMap second_derivative_assemble_diagonal;
 
    const DerivativeMap<size_t, DerivativeKernels> &Kernels(size_t) const
@@ -287,10 +269,6 @@ struct OperatorCallbacks
    const SparseAssemblyMap &AssembleSparse(size_t) const
    {
       return derivative_assemble_sparse;
-   }
-   const HypreAssemblyMap &AssembleHypre(size_t) const
-   {
-      return derivative_assemble_hypre;
    }
    const DiagonalAssemblyMap &AssembleDiagonal(size_t) const
    {
@@ -324,11 +302,6 @@ struct OperatorCallbacks
    {
       return second_derivative_assemble_sparse;
    }
-   const SecondHypreAssemblyMap &AssembleHypre(
-      const second_derivative_key_t &) const
-   {
-      return second_derivative_assemble_hypre;
-   }
    const SecondDiagonalAssemblyMap &AssembleDiagonal(
       const second_derivative_key_t &) const
    {
@@ -344,8 +317,10 @@ struct DerivativeCallbacks
    std::vector<derivative_action_t> actions;
    std::vector<derivative_action_t> transpose;
    std::vector<derivative_setup_t> setup;
-   std::vector<assemble_derivative_sparsematrix_callback_t> assemble_sparse;
-   std::vector<assemble_derivative_hypreparmatrix_callback_t> assemble_hypre;
+   std::vector<assemble_entity_matrices_callback_t> assemble_sparse;
+   /// The entity matrices that the assemble_sparse callbacks add to, kept
+   /// between calls of DerivativeOperator::Assemble().
+   std::vector<EntityMatrices> entity_matrices;
    std::vector<assemble_diagonal_callback_t> assemble_diagonal;
    /// The DerivativeKernels of each integrator that registered the derivative.
    std::vector<DerivativeKernels> kernels;
@@ -402,7 +377,6 @@ DerivativeIntegrators MakeDerivativeIntegrators(
    callbacks.kernels = FindOrEmpty(c.Kernels(key), key);
    callbacks.transpose = FindOrEmpty(c.Transpose(key), key);
    callbacks.assemble_sparse = FindOrEmpty(c.AssembleSparse(key), key);
-   callbacks.assemble_hypre = FindOrEmpty(c.AssembleHypre(key), key);
    callbacks.assemble_diagonal = FindOrEmpty(c.AssembleDiagonal(key), key);
    // Only run by the kernels that read the quadrature point cache.
    callbacks.setup = FindOrEmpty(c.Setup(key), key);
@@ -410,84 +384,65 @@ DerivativeIntegrators MakeDerivativeIntegrators(
             std::move(callbacks) };
 }
 
-} // namespace detail
-
-template <typename entity_t>
-inline assemble_derivative_hypreparmatrix_callback_t
-MakeDerivativeHypreParMatrixAssemble(
-   const size_t derivative_idx,
-   std::vector<assemble_derivative_sparsematrix_callback_t> &sparse_callbacks,
-   const IntegratorContext<entity_t> &ctx)
+/// @brief Add the row blocks @a blocks of one entity type to the row blocks
+/// @a sum, both indexed by output field, and take ownership of @a blocks.
+inline void AddBlocks(std::vector<SparseMatrix *> &blocks,
+                      std::vector<SparseMatrix *> &sum)
 {
-   using blocks_t = std::vector<HypreParMatrix *>;
-   return [derivative_idx, &sparse_callbacks, ctx](blocks_t &A)
+   for (size_t i = 0; i < blocks.size(); i++)
    {
-      const size_t trial_field_idx = FindIdx(derivative_idx, ctx.unionfds);
-      MFEM_VERIFY(trial_field_idx != SIZE_MAX,
-                  "derivative field not found for HypreParMatrix assembly");
-
-      const auto *trial_fes_ptr =
-         std::get_if<const ParFiniteElementSpace *>(
-            &ctx.unionfds[trial_field_idx].data);
-      MFEM_VERIFY(trial_fes_ptr && *trial_fes_ptr,
-                  "HypreParMatrix assembly requires a ParFiniteElementSpace "
-                  "derivative field");
-      const ParFiniteElementSpace *trial_fes = *trial_fes_ptr;
-
-      // Every integrator fills the row blocks it contributes to; the local
-      // blocks are then RAP'd one by one, each with its own test space.
-      std::vector<SparseMatrix *> spmat(ctx.outfds.size(), nullptr);
-      for (const auto &f : sparse_callbacks)
+      if (blocks[i] == nullptr) { continue; }
+      if (sum[i] == nullptr)
       {
-         f(spmat);
+         sum[i] = blocks[i];
       }
-
-      bool any = false;
-      for (const auto *m : spmat) { any = any || (m != nullptr); }
-      MFEM_VERIFY(any,
-                  "internal error: sparse derivative assembly returned NULL");
-
-      if (A.size() < ctx.outfds.size())
+      else
       {
-         A.resize(ctx.outfds.size(), nullptr);
+         SparseMatrix *s = mfem::Add(*sum[i], *blocks[i]);
+         delete sum[i];
+         delete blocks[i];
+         sum[i] = s;
       }
-
-      for (size_t i = 0; i < spmat.size(); i++)
-      {
-         if (spmat[i] == nullptr) { continue; }
-         MFEM_VERIFY(spmat[i]->Finalized(),
-                     "local derivative matrix must be finalized");
-
-         const auto *test_fes_ptr =
-            std::get_if<const ParFiniteElementSpace *>(&ctx.outfds[i].data);
-         MFEM_VERIFY(test_fes_ptr && *test_fes_ptr,
-                     "HypreParMatrix assembly requires a ParFiniteElementSpace "
-                     "output field");
-         const ParFiniteElementSpace *test_fes = *test_fes_ptr;
-         MFEM_VERIFY(test_fes->GetComm() == trial_fes->GetComm(),
-                     "test and trial spaces must use the same "
-                     "MPI communicator");
-
-         if (test_fes == trial_fes)
-         {
-            HypreParMatrix dA(test_fes->GetComm(), test_fes->GlobalVSize(),
-                              test_fes->GetDofOffsets(), spmat[i]);
-            A[i] = RAP(&dA, test_fes->Dof_TrueDof_Matrix());
-         }
-         else
-         {
-            HypreParMatrix dA(test_fes->GetComm(), test_fes->GlobalVSize(),
-                              trial_fes->GlobalVSize(),
-                              test_fes->GetDofOffsets(),
-                              trial_fes->GetDofOffsets(), spmat[i]);
-            A[i] = RAP(test_fes->Dof_TrueDof_Matrix(), &dA,
-                       trial_fes->Dof_TrueDof_Matrix());
-         }
-
-         delete spmat[i];
-      }
-   };
+      blocks[i] = nullptr;
+   }
 }
+
+/// @brief The L-dof matrix of the entity matrices @a m.
+inline SparseMatrix *AssembleEntityMatrices(const EntityMatrices &m)
+{
+   constexpr auto o = ElementDofOrdering::LEXICOGRAPHIC;
+   auto *M = new SparseMatrix;
+   M->OverrideSize(m.test_fes->GetVSize(), m.trial_fes->GetVSize());
+   mfem::FillSparseMatrix(m.data,
+                          get_entity_dof_map(*m.test_fes, o, m.restriction),
+                          get_entity_dof_map(*m.trial_fes, o, m.restriction),
+                          *M);
+   return M;
+}
+
+/// @brief The HypreParMatrix of the local row block @a local, which maps the
+/// L-vectors of @a trial_fes to those of @a test_fes.
+inline HypreParMatrix *ParallelAssembleBlock(
+   SparseMatrix &local, const ParFiniteElementSpace &test_fes,
+   const ParFiniteElementSpace &trial_fes)
+{
+   MFEM_VERIFY(local.Finalized(), "local derivative matrix must be finalized");
+   MFEM_VERIFY(test_fes.GetComm() == trial_fes.GetComm(),
+               "test and trial spaces must use the same MPI communicator");
+   if (&test_fes == &trial_fes)
+   {
+      HypreParMatrix dA(test_fes.GetComm(), test_fes.GlobalVSize(),
+                        test_fes.GetDofOffsets(), &local);
+      return RAP(&dA, test_fes.Dof_TrueDof_Matrix());
+   }
+   HypreParMatrix dA(test_fes.GetComm(), test_fes.GlobalVSize(),
+                     trial_fes.GlobalVSize(), test_fes.GetDofOffsets(),
+                     trial_fes.GetDofOffsets(), &local);
+   return RAP(test_fes.Dof_TrueDof_Matrix(), &dA,
+              trial_fes.Dof_TrueDof_Matrix());
+}
+
+} // namespace detail
 
 /// Class representing the derivative (Jacobian) operator of a
 /// DifferentiableOperator.
@@ -817,6 +772,8 @@ public:
    /// all sharing the trial space of the differentiated field. Each row block
    /// is an ordinary test x trial matrix and is assembled separately; the
    /// stacked matrix, if wanted, is one HypreParMatrixFromBlocks call away.
+   /// The contributions of all integrators, of every entity type, to a row
+   /// block are summed.
    ///
    /// @param A Resized to the number of output fields and indexed the same way,
    /// so A[f] is the row block of output field f. Fields whose rows cannot be
@@ -824,14 +781,35 @@ public:
    /// contract against -- are left as nullptr. Ownership passes to the caller.
    void Assemble(std::vector<SparseMatrix *> &A)
    {
-      VerifyKernel(DerivativeKernels::AssembleMatrix,
-                   "; boundary integrators can't be assembled yet");
+      VerifyKernel(DerivativeKernels::AssembleMatrix);
       EnsureQpCache();
 
+      // Sum the entity matrices of all integrators of one entity type, assemble
+      // the sum into one matrix per row block, then add up the matrices of the
+      // entity types.
       A.assign(outfds.size(), nullptr);
-      for (const auto *k : AllIntegrators())
+      std::vector<SparseMatrix *> blocks(outfds.size(), nullptr);
+      for (auto *k : AllIntegrators())
       {
-         for (const auto &f : k->callbacks.assemble_sparse) { f(A); }
+         // Sum the entity matrices of all integrators of this entity type:
+         // A_e = sum_i A_e^i for every entity e, A_e^i that of integrator i.
+         auto &banks = k->callbacks.entity_matrices;
+         for (auto &m : banks) { m.used = false; }
+         for (const auto &f : k->callbacks.assemble_sparse) { f(banks); }
+         MFEM_ASSERT(banks.size() <= blocks.size(), "internal error");
+
+         // Assemble the sum into one matrix per row block f:
+         // e.g. for domain A_d[f] = sum_e T_e^T A_e R_e, T/R restrictions
+         for (size_t i = 0; i < banks.size(); i++)
+         {
+            if (banks[i].used)
+            {
+               blocks[i] = detail::AssembleEntityMatrices(banks[i]);
+            }
+         }
+
+         // Add them to A, so that A[f] = A_d[f] + A_b[f] + ...
+         detail::AddBlocks(blocks, A);
       }
    }
 
@@ -857,14 +835,26 @@ public:
    /// block structure.
    void Assemble(std::vector<HypreParMatrix *> &A)
    {
-      VerifyKernel(DerivativeKernels::AssembleMatrix,
-                   "; boundary integrators can't be assembled yet");
-      EnsureQpCache();
+      std::vector<SparseMatrix *> local;
+      Assemble(local);
 
+      const auto *trial_fes =
+         std::get_if<const ParFiniteElementSpace *>(&direction.data);
+      MFEM_VERIFY(trial_fes && *trial_fes,
+                  "HypreParMatrix assembly requires a ParFiniteElementSpace "
+                  "derivative field");
       A.assign(outfds.size(), nullptr);
-      for (const auto *k : AllIntegrators())
+      for (size_t i = 0; i < local.size(); i++)
       {
-         for (const auto &f : k->callbacks.assemble_hypre) { f(A); }
+         if (local[i] == nullptr) { continue; }
+         const auto *test_fes =
+            std::get_if<const ParFiniteElementSpace *>(&outfds[i].data);
+         MFEM_VERIFY(test_fes && *test_fes,
+                     "HypreParMatrix assembly requires a ParFiniteElementSpace "
+                     "output field");
+         A[i] = detail::ParallelAssembleBlock(*local[i], **test_fes,
+                                              **trial_fes);
+         delete local[i];
       }
    }
 
@@ -935,8 +925,7 @@ public:
    /// T-dof size.
    void AssembleDiagonal(size_t out_field_id, Vector &diag) const
    {
-      VerifyKernel(DerivativeKernels::AssembleDiagonal,
-                   "; boundary integrators can't be assembled yet");
+      VerifyKernel(DerivativeKernels::AssembleDiagonal);
       EnsureQpCache();
 
       const size_t diagonal_idx = FindIdx(out_field_id, outfds);
@@ -1339,12 +1328,9 @@ public:
    /// integrator.
    /// @param second_derivative_ids Second derivative (Hessian) blocks to be
    /// made available for this integrator, see AddDomainIntegrator().
-   /// @tparam kernels The derivative kernels to build. Assembly is only
-   /// implemented for domain integrators, so the default excludes it.
    template <
       typename backend_t = LocalQFBackend,
-      DerivativeKernels kernels =
-      DerivativeKernels::PA | DerivativeKernels::Action,
+      DerivativeKernels kernels = DerivativeKernels::All,
       typename qfunc_t,
       typename input_t,
       typename output_t,
@@ -1654,9 +1640,7 @@ private:
    mutable std::vector<Vector *> residual_l;
 
    /// Callbacks, restrictions and E-vectors of the domain and the boundary
-   /// integrators. The restrictions are resolved on first use. Assembly is
-   /// only implemented for elements, so the assembly maps above are domain
-   /// maps.
+   /// integrators. The restrictions are resolved on first use.
    mutable detail::OperatorIntegrators domain_integrators;
    mutable detail::OperatorIntegrators boundary_integrators;
 
@@ -1952,8 +1936,6 @@ void DifferentiableOperator::AddIntegrator(
                                   [[maybe_unused]] auto &transpose_callbacks,
                                   [[maybe_unused]] auto
                                   &assemble_sparsematrix_callbacks,
-                                  [[maybe_unused]] auto
-                                  &assemble_hypreparmatrix_callbacks,
                                   [[maybe_unused]] auto &assemble_diagonal_cbs,
                                   [[maybe_unused]] auto &action_cbs,
                                   [[maybe_unused]] Vector &callback_qp_cache,
@@ -2022,24 +2004,12 @@ void DifferentiableOperator::AddIntegrator(
                if constexpr (HasAllKernels(kernels,
                                            DerivativeKernels::AssembleMatrix))
                {
-                  // Assemble the derivative into a SparseMatrix
+                  // Add the entity matrices of the derivative
                   assemble_sparsematrix_callbacks[callback_key].push_back(
-                     MakeSharedCallback<assemble_derivative_sparsematrix_callback_t>(
+                     MakeSharedCallback<assemble_entity_matrices_callback_t>(
                         backend_t::template MakeDerivativeAssemble<derivative_idx>(
                            callback_ctx, qf, inputs, outputs, callback_qp_cache,
                            output_groups)));
-
-                  // Assemble the derivative into a HypreParMatrix. This one runs
-                  // every sparse callback registered under the key, so it is
-                  // registered once and not once per integrator.
-                  if (assemble_hypreparmatrix_callbacks[callback_key].empty())
-                  {
-                     assemble_hypreparmatrix_callbacks[callback_key].push_back(
-                        MakeDerivativeHypreParMatrixAssemble(
-                           derivative_idx,
-                           assemble_sparsematrix_callbacks[callback_key],
-                           callback_ctx));
-                  }
                }
 
                if constexpr (HasAllKernels(
@@ -2127,7 +2097,6 @@ void DifferentiableOperator::AddIntegrator(
                              cbs.second_derivative_apply,
                              cbs.second_derivative_transpose,
                              cbs.second_derivative_assemble_sparse,
-                             cbs.second_derivative_assemble_hypre,
                              cbs.second_derivative_assemble_diagonal,
                              cbs.second_derivative_action,
                              second_qp_cache,
@@ -2195,7 +2164,6 @@ void DifferentiableOperator::AddIntegrator(
                           entity_callbacks.derivative_apply,
                           entity_callbacks.derivative_transpose,
                           entity_callbacks.derivative_assemble_sparse,
-                          entity_callbacks.derivative_assemble_hypre,
                           entity_callbacks.derivative_assemble_diagonal,
                           entity_callbacks.derivative_action,
                           qp_cache,

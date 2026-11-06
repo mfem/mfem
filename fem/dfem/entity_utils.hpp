@@ -305,6 +305,18 @@ private:
    std::vector<bool> add;
 };
 
+/// @brief The entity matrices of one row block of a derivative, summed over
+/// the integrators of one entity type
+struct EntityMatrices
+{
+   Vector data;
+   const ParFiniteElementSpace *test_fes = nullptr;
+   const ParFiniteElementSpace *trial_fes = nullptr;
+   RestrictionDescriptor restriction {};
+   /// Whether an integrator wrote the row block in the current assembly.
+   bool used = false;
+};
+
 /// @brief The callbacks and E-vectors of the integrators of one entity type.
 template <typename callbacks_t>
 struct EntityIntegrators

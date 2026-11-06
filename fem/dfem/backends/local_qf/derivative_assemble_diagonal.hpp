@@ -35,14 +35,6 @@ template<int derivative_id,
          typename entity_t>
 class DerivativeAssembleDiagonal
 {
-   // TODO:
-   // So far the element dof maps and restrictions used below are element-only.
-   // Keeping an assertion here to be sure it doesn't slip through.
-   static_assert(std::is_same_v<entity_t, Entity::Element>,
-                 "derivative diagonal assembly is only implemented for domain "
-                 "integrators, exclude it from the DerivativeKernels of "
-                 "boundary integrators");
-
    static constexpr auto inout_tuple =
    merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t{});
    static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
@@ -159,7 +151,7 @@ public:
          if (output_groups->num_test_dof[g] > 0)
          {
             v[g] = tensor_1d_size(output_groups->num_test_dof[g],
-                                  ctx_in.mesh.Dimension());
+                                  GetEntityDimension<entity_t>(ctx_in.mesh));
          }
       }
       return v;
@@ -199,8 +191,9 @@ public:
          inputs, input_is_dependent, input_size_on_qp);
    }()),
    num_trial_dof_1d(
-      trial_fes ? tensor_1d_size(trial_fes->GetFE(0)->GetDof(),
-                                 ctx_in.mesh.Dimension())
+      trial_fes ?
+      tensor_1d_size(EntityTraits<entity_t>::TypicalFE(*trial_fes)->GetDof(),
+                     GetEntityDimension<entity_t>(ctx_in.mesh))
       : 0),
    residual_size_on_qp(output_size_on_qp * trial_vdim * total_trial_op_dim),
    dim(GetEntityDimension<entity_t>(ctx_in.mesh)), ne(ctx_in.nentities),
