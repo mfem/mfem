@@ -1143,9 +1143,9 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
    }
    if (cells_xml == NULL) { MFEM_ABORT(erstr); }
 
-   // Read the element attributes, which are stored as CellData named either
-   // "material" or "attribute". We prioritize "material" over "attribute" for
-   // backwards compatibility.
+   // Read the element attributes, which are stored in a CellData DataArray
+   // named either "material" or "attribute". We prioritize "material" over
+   // "attribute" for backwards compatibility.
    Array<int> cell_attributes;
    const XMLElement *attributes_xml = nullptr;
    for (const XMLElement *cell_data_xml = piece->FirstChildElement("CellData");
