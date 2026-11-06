@@ -969,11 +969,12 @@ void DiffusionIntegrator::AssembleElementMatrix
    elmat.SetSize(nd);
 
    const IntegrationRule *ir = GetIntegrationRule(el, Trans);
+   const RuleShapes shapes(el, *ir);
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      el.CalcDShape(ip, dshape);
+      shapes.CalcDShape(i, dshape);
 
       Trans.SetIntPoint(&ip);
       w = Trans.Weight();
@@ -1050,11 +1051,13 @@ void DiffusionIntegrator::AssembleElementMatrix2(
 
    const IntegrationRule *ir = GetIntegrationRule(trial_fe, test_fe, Trans);
    elmat = 0.0;
+   const RuleShapes trial_shapes(trial_fe, *ir);
+   const RuleShapes test_shapes(test_fe, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      trial_fe.CalcDShape(ip, dshape);
-      test_fe.CalcDShape(ip, te_dshape);
+      trial_shapes.CalcDShape(i, dshape);
+      test_shapes.CalcDShape(i, te_dshape);
 
       Trans.SetIntPoint(&ip);
       CalcAdjugate(Trans.Jacobian(), invdfdx);
@@ -1128,10 +1131,11 @@ void DiffusionIntegrator::AssembleElementVector(
 
    const IntegrationRule *ir = GetIntegrationRule(el, Tr);
    elvect = 0.0;
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
-      el.CalcDShape(ip, dshape);
+      shapes.CalcDShape(i, dshape);
 
       Tr.SetIntPoint(&ip);
       CalcAdjugate(Tr.Jacobian(), invdfdx); // invdfdx = adj(J)
@@ -1402,13 +1406,14 @@ void MassIntegrator::AssembleElementMatrix
 
 
    const IntegrationRule *ir = GetIntegrationRule(el, Trans);
+   const RuleShapes shapes(el, *ir);
    elmat = 0.0;
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       Trans.SetIntPoint (&ip);
 
-      el.CalcPhysShape(Trans, shape);
+      shapes.CalcPhysShape(i, Trans, shape);
 
       w = Trans.Weight() * ip.weight;
       if (Q)
@@ -1437,13 +1442,15 @@ void MassIntegrator::AssembleElementMatrix2(
 
    const IntegrationRule *ir = GetIntegrationRule(trial_fe, test_fe, Trans);
    elmat = 0.0;
+   const RuleShapes trial_shapes(trial_fe, *ir);
+   const RuleShapes test_shapes(test_fe, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
       Trans.SetIntPoint (&ip);
 
-      trial_fe.CalcPhysShape(Trans, shape);
-      test_fe.CalcPhysShape(Trans, te_shape);
+      trial_shapes.CalcPhysShape(i, Trans, shape);
+      test_shapes.CalcPhysShape(i, Trans, te_shape);
 
       w = Trans.Weight() * ip.weight;
       if (Q)
