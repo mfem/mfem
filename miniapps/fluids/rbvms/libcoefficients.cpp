@@ -18,6 +18,19 @@ void LibCoefficient::GetLibFunction(std::string libName,
                                     std::vector<std::string> funNames,
                                     bool required)
 {
+    // Release previously loaded library
+    if (libHandle)
+    {
+#ifdef _WIN32
+        FreeLibrary(libHandle);
+#else
+        dlclose(libHandle);
+#endif
+        libHandle = nullptr;
+    }
+
+    TDFunction = nullptr;
+
    // Open library
 #ifdef _WIN32
    libHandle = LoadLibraryA(libName.c_str());
@@ -45,7 +58,7 @@ void LibCoefficient::GetLibFunction(std::string libName,
    for (std::size_t i = 0; i < funNames.size(); i++)
    {
 #ifdef _WIN32
-      TDFunction = (TDFunPtr)GetProcAddress((HMODULE)libHandle, funNames[i].c_str());
+      TDFunction = (TDFunPtr)GetProcAddress(libHandle, funNames[i].c_str());
 #else
       TDFunction = (TDFunPtr)dlsym(libHandle, funNames[i].c_str());
 #endif
@@ -85,13 +98,15 @@ real_t LibCoefficient::Eval(ElementTransformation &T,
 // Destructor
 LibCoefficient::~LibCoefficient()
 {
+   TDFunction = nullptr;
    if (libHandle)
    {
 #ifdef _WIN32
-      FreeLibrary((HMODULE)libHandle);
+      FreeLibrary(libHandle);
 #else
       dlclose(libHandle);
 #endif
+      libHandle = nullptr;
    }
 }
 
@@ -101,6 +116,19 @@ void LibVectorCoefficient::GetLibFunction(std::string libName,
                                           std::vector<std::string> funNames,
                                           bool required)
 {
+    // Release previously loaded library
+    if (libHandle)
+    {
+#ifdef _WIN32
+        FreeLibrary(libHandle);
+#else
+        dlclose(libHandle);
+#endif
+        libHandle = nullptr;
+    }
+
+    TDFunction = nullptr;
+
    // Open library
 #ifdef _WIN32
    libHandle = LoadLibraryA(libName.c_str());
@@ -128,7 +156,7 @@ void LibVectorCoefficient::GetLibFunction(std::string libName,
    for (std::size_t i = 0; i < funNames.size(); i++)
    {
 #ifdef _WIN32
-      TDFunction = (TDFunPtr)GetProcAddress((HMODULE)libHandle, funNames[i].c_str());
+      TDFunction = (TDFunPtr)GetProcAddress(libHandle, funNames[i].c_str());
 #else
       TDFunction = (TDFunPtr)dlsym(libHandle, funNames[i].c_str());
 #endif
@@ -174,12 +202,14 @@ void LibVectorCoefficient::Eval(Vector &V,
 //  Destructor
 LibVectorCoefficient::~LibVectorCoefficient()
 {
+   TDFunction = nullptr;
    if (libHandle)
    {
 #ifdef _WIN32
-      FreeLibrary((HMODULE)libHandle);
+      FreeLibrary(libHandle);
 #else
       dlclose(libHandle);
 #endif
+      libHandle = nullptr;
    }
 }

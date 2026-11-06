@@ -559,7 +559,6 @@ int main(int argc, char *argv[])
    // 8. Free the used memory.
    for (int i = 0; i < fecs.Size(); ++i)
    {
-      std::cout<<i<<std::endl;
       delete fecs[i];
    }
    for (int i = 0; i < spaces.Size(); ++i)

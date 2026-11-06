@@ -19,8 +19,12 @@ protected:
    typedef real_t (*TDFunPtr)(real_t *, int, real_t);
 
    // typedef double (*TDFunPtr)(double *, int, double);
-   TDFunPtr TDFunction;
-   void *libHandle = nullptr;
+   TDFunPtr TDFunction = nullptr;
+#ifdef _WIN32
+   HMODULE libHandle = nullptr;
+#else
+   void* libHandle = nullptr;
+#endif
    Vector x;
    real_t val;
 
@@ -62,7 +66,12 @@ public:
       GetLibFunction(libName, funNames, required);
    }
 
-   bool Foundfunction() { return TDFunction;}
+   LibCoefficient(const LibCoefficient&) = delete;
+   LibCoefficient& operator=(const LibCoefficient&) = delete;
+   LibCoefficient(LibCoefficient&&) = delete;
+   LibCoefficient& operator=(LibCoefficient&&) = delete;
+
+   bool Foundfunction() { return TDFunction != nullptr; }
 
    /// Evaluate
    using Coefficient::Eval;
@@ -79,8 +88,12 @@ class LibVectorCoefficient : public VectorCoefficient
 {
 protected:
    typedef void (*TDFunPtr)(real_t *, int, real_t, real_t *, int);
-   TDFunPtr TDFunction;
-   void *libHandle = nullptr;
+   TDFunPtr TDFunction = nullptr;
+#ifdef _WIN32
+   HMODULE libHandle = nullptr;
+#else
+   void* libHandle = nullptr;
+#endif
    Vector x;
 
    /** Get a @a funNames C-function from the @a libName library
@@ -107,7 +120,12 @@ public:
       GetLibFunction(libName, std::vector<std::string>({funName}), required);
    }
 
-   bool Foundfunction() { return TDFunction;}
+   LibVectorCoefficient(const LibCoefficient&) = delete;
+   LibVectorCoefficient& operator=(const LibCoefficient&) = delete;
+   LibVectorCoefficient(LibCoefficient&&) = delete;
+   LibVectorCoefficient& operator=(LibCoefficient&&) = delete;
+   
+   bool Foundfunction() { return TDFunction != nullptr; }
 
    /** Get a @a funNames C-function from the @a libName library
         - @a libName path+name of the library to use.
