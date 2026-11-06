@@ -770,6 +770,78 @@ TEST_CASE("TetEdgeFaceCommunication", "[Parallel], [NCMesh]")
    CHECK(pfes.GlobalTrueVSize() == fes.GetTrueVSize());
 }
 
+TEST_CASE("FaceNbrOrientationsMixedTriFaces", "[Parallel], [NCMesh]")
+{
+   // A row of two hexahedra and a cube split into two prisms, one cell per
+   // rank: the face neighbors of rank 0 have only quadrilateral faces, those of
+   // ranks 1 and 2 also have triangular ones. All ranks must take part in the
+   // exchange of the face neighbor orientations, or the face neighbor exchanges
+   // that follow it receive the wrong messages.
+   if (Mpi::WorldSize() < 3) { return; }
+
+   Mesh smesh(3, 16, 4);
+   for (int k = 0; k < 2; k++)
+   {
+      for (int j = 0; j < 2; j++)
+      {
+         for (int i = 0; i < 4; i++)
+         {
+            smesh.AddVertex(i, j, k);
+         }
+      }
+   }
+   auto v = [](int i, int j, int k) { return i + 4 * (j + 2 * k); };
+   for (int i = 0; i < 2; i++)
+   {
+      smesh.AddHex(v(i, 0, 0), v(i + 1, 0, 0), v(i + 1, 1, 0), v(i, 1, 0),
+                   v(i, 0, 1), v(i + 1, 0, 1), v(i + 1, 1, 1), v(i, 1, 1));
+   }
+   // Prisms extruded along y, the first one sharing the face x = 2 with the
+   // second hexahedron.
+   smesh.AddWedge(v(2, 0, 0), v(2, 0, 1), v(3, 0, 1),
+                  v(2, 1, 0), v(2, 1, 1), v(3, 1, 1));
+   smesh.AddWedge(v(2, 0, 0), v(3, 0, 1), v(3, 0, 0),
+                  v(2, 1, 0), v(3, 1, 1), v(3, 1, 0));
+   smesh.FinalizeTopology();
+   smesh.Finalize(true, true);
+   for (int e = 0; e < smesh.GetNE(); e++)
+   {
+      REQUIRE(smesh.GetElementVolume(e) > 0.0);
+   }
+   smesh.EnsureNCMesh(true);
+
+   int partition[4] = {0, 1, 2, 2};
+   ParMesh pmesh(MPI_COMM_WORLD, smesh, partition);
+   pmesh.ExchangeFaceNbrData();
+
+   // The face neighbor data of a grid function are its values on the face
+   // neighbor elements.
+   FunctionCoefficient coeff([](const Vector &x)
+   { return x(0) * x(0) + 2.0 * x(1) - x(0) * x(2); });
+   H1_FECollection fec(2, 3);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+   ParGridFunction gf(&pfes);
+   gf.ProjectCoefficient(coeff);
+   gf.ExchangeFaceNbrData();
+
+   Array<int> vdofs;
+   Vector expected, actual;
+   for (int i = 0; i < pmesh.GetNFaceNeighborElements(); i++)
+   {
+      pfes.GetFaceNbrElementVDofs(i, vdofs);
+      expected.SetSize(vdofs.Size());
+      pfes.GetFaceNbrFE(i)->Project(
+         coeff, *pmesh.GetFaceNbrElementTransformation(i), expected);
+      gf.FaceNbrData().GetSubVector(vdofs, actual);
+      expected -= actual;
+      CHECK(expected.Normlinf() < 1e-12);
+   }
+   int num_nbr_elems = pmesh.GetNFaceNeighborElements();
+   MPI_Allreduce(MPI_IN_PLACE, &num_nbr_elems, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   CHECK(num_nbr_elems > 0);
+}
+
 TEST_CASE("HangingVertexOwnership", "[Parallel], [NCMesh]")
 {
    if (Mpi::WorldSize() < 3) { return; }
