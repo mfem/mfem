@@ -17,6 +17,7 @@
 #include "qspace.hpp"
 #include "fe/face_map_utils.hpp"
 #include "../general/forall.hpp"
+#include "../general/scan.hpp"
 
 #include <climits>
 
@@ -501,17 +502,17 @@ static int FillEntityI(const EntityDofMap &test, const EntityDofMap &trial,
       }
    });
 
-   auto h_I = mat.HostReadWriteI();
+   // The prefix sum turns the counts into the row offsets, and the last entry
+   // of I, which is zero, into the number of entries.
    const int nTdofs = test_vd*test_all_dofs;
-   int sum = 0;
-   for (int i = 0; i < nTdofs; i++)
-   {
-      const int nnz = h_I[i];
-      h_I[i] = sum;
-      sum += nnz;
-   }
-   h_I[nTdofs] = sum;
-   return h_I[nTdofs];
+   ExclusiveScan(true, I, I, nTdofs + 1, 0);
+   // Only the number of entries goes to the host, to size J and data: an alias
+   // of the last entry of I copies it alone. Delete() unregisters the alias.
+   int nnz;
+   Memory<int> last(mat.GetMemoryI(), nTdofs, 1);
+   last.CopyToHost(&nnz, 1);
+   last.Delete();
+   return nnz;
 }
 
 void ElementRestriction::FillJAndData(const Vector &ea_data,
@@ -623,7 +624,7 @@ static void FillEntityJAndData(const Vector &ea_data, const EntityDofMap &test,
    const int trial_elt_dofs = trial.dof;
    const bool test_byvdim = test.byvdim;
    const bool trial_byvdim = trial.byvdim;
-   auto I = mat.ReadWriteI();
+   auto I = mat.ReadI();
    auto J = mat.WriteJ();
    auto Data = mat.WriteData();
    auto test_offsets = test.offsets.Read();
@@ -639,6 +640,12 @@ static void FillEntityJAndData(const Vector &ea_data, const EntityDofMap &test,
    Array<int> trial_el(trial.indices.Size() * 3);
    auto d_test_el = Reshape(test_el.Write(), test.indices.Size(), 3);
    auto d_trial_el = Reshape(trial_el.Write(), trial.indices.Size(), 3);
+
+   // The next free entry of every row, which leaves I untouched
+   const int nTdofs = test_vd*test_all_dofs;
+   Array<int> next(nTdofs);
+   auto d_next = next.Write();
+   mfem::forall(nTdofs, [=] MFEM_HOST_DEVICE (int i) { d_next[i] = I[i]; });
 
    mfem::forall(ne*test_elt_dofs*test_vd, [=] MFEM_HOST_DEVICE (int iE)
    {
@@ -683,7 +690,7 @@ static void FillEntityJAndData(const Vector &ea_data, const EntityDofMap &test,
             const int j_nbElts = j_next_offset - j_offset;
             if (i_nbElts == 1 || j_nbElts == 1)
             {
-               const int nnz = GetAndIncrementNnzIndex(i_L, I);
+               const int nnz = GetAndIncrementNnzIndex(i_L, d_next);
                J[nnz] = j_L;
                Data[nnz] = i_sgn*j_sgn*mat_ea(i, test_c, j, trial_c, e);
             }
@@ -720,7 +727,7 @@ static void FillEntityJAndData(const Vector &ea_data, const EntityDofMap &test,
                         }
                      }
                   }
-                  const int nnz = GetAndIncrementNnzIndex(i_L, I);
+                  const int nnz = GetAndIncrementNnzIndex(i_L, d_next);
                   J[nnz] = j_L;
                   Data[nnz] = val;
                }
@@ -728,14 +735,6 @@ static void FillEntityJAndData(const Vector &ea_data, const EntityDofMap &test,
          }
       }
    });
-
-   auto h_I = mat.HostReadWriteI();
-   const int size = test_vd*test_all_dofs;
-   for (int i = 0; i < size; i++)
-   {
-      h_I[size-i] = h_I[size-(i+1)];
-   }
-   h_I[0] = 0;
 }
 
 void FillSparseMatrix(const Vector &ea_data, const EntityDofMap &test,
