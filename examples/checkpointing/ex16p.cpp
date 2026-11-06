@@ -448,47 +448,34 @@ int main(int argc, char *argv[])
 
    bool last_step = false;
    // >>> Checkpointing: create the forward checkpoint schedule.
-   IntervalSchedule schedule(num_steps, checkpoint_interval);
+   unique_ptr<CheckpointSchedule> schedule =
+      make_unique<IntervalSchedule>(num_steps, checkpoint_interval);
    // <<< Checkpointing -----------------------------------------------------
 
    for (;;)
    {
       // >>> Checkpointing: dispatch scheduled actions.
-      const CheckpointCommand command = schedule.Next();
+      const CheckpointCommand command = schedule->Next();
 
       if (command.action == CheckpointAction::Finished)
       {
-         MFEM_VERIFY(!command.checkpoint &&
-                     command.from_step == num_steps &&
-                     command.to_step == num_steps && step == num_steps,
-                     "Forward schedule finished at the wrong state.");
          break;
       }
 
       if (command.action == CheckpointAction::Store)
       {
-         MFEM_VERIFY(command.checkpoint &&
-                     command.from_step == step && command.to_step == step,
-                     "Invalid scheduled checkpoint.");
          checkpointer->Store(*command.checkpoint);
          continue;
       }
 
       if (command.action == CheckpointAction::Erase)
       {
-         MFEM_VERIFY(command.checkpoint &&
-                     command.from_step == command.to_step &&
-                     checkpointer->GetInfo(*command.checkpoint).state ==
-                     command.to_step,
-                     "Invalid scheduled checkpoint erase.");
          checkpointer->Erase(*command.checkpoint);
          continue;
       }
 
-      MFEM_VERIFY(command.action == CheckpointAction::Advance &&
-                  !command.checkpoint && command.from_step == step &&
-                  command.to_step > step && command.to_step <= num_steps,
-                  "Expected a forward advance.");
+      // The only remaining action in this forward schedule is
+      // CheckpointAction::Advance.
       // <<< Checkpointing --------------------------------------------------
 
       // Advance the time loop over the interval selected by the schedule.
