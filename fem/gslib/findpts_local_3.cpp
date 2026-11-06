@@ -153,6 +153,7 @@ get_face(const double *elx[3], const double *wtend, int fi, double *workspace,
 {
    const int dn = fi >> 1, d1 = plus_1_mod_3(dn), d2 = plus_2_mod_3(dn);
    const int side_n = fi & 1;
+   const double *wt = wtend+side_n*pN*3;
    const int p_Nfr = pN*pN;
    findptsElemFace face;
    const int jj = jidx % pN;
@@ -176,7 +177,7 @@ get_face(const double *elx[3], const double *wtend, int fi, double *workspace,
          double sum_l = 0;
          for (int l = 0; l < pN; ++l)
          {
-            sum_l += wtend[pN+l]*ELX(dd, jj, k, l);
+            sum_l += wt[pN+l]*ELX(dd, jj, k, l);
          }
          face.dxdn[dd][jj+k*pN] = sum_l;
       }
@@ -446,7 +447,7 @@ newton_vol_face :
    {
       const int fi = face_index(flags);
       const int dn = fi >> 1, d1 = plus_1_mod_3(dn), d2 = plus_2_mod_3(dn);
-      double drc[2], facc = 1;
+      double drc[2], clip_factor = 1.0;
       int new_flags = 0;
       double ress[3], y[2], JtJ[3];
       ress[0] = resid[0]-(jac[0]*dr[0]+jac[1]*dr[1]+jac[2]*dr[2]);
@@ -463,28 +464,28 @@ newton_vol_face :
       JtJ[2] = jac[d2]*jac[d2]+jac[3+d2]*jac[3+d2] +
                jac[6+d2]*jac[6+d2];
       lin_solve_sym_2(drc, JtJ, y);
-#define CHECK_CONSTRAINT(drcd, d3)                                             \
+#define CHECK_CONSTRAINT(drcd, d3, clip_factor, hit_flags)                     \
 {                                                                              \
    const double rz = r0[d3]+dr[d3], lb = bnd[2*d3], ub = bnd[2*d3+1];          \
    const double delta = drcd, nr = r0[d3]+(dr[d3]+delta);                      \
    if ((nr-lb)*(ub-nr) < 0) {                                                  \
       if (nr < lb) {                                                           \
          double f = (lb-rz) / delta;                                           \
-         if (f < fac) {                                                        \
-         fac = f; new_flags = 1u << (2*d3);                                    \
+         if (f < clip_factor) {                                                \
+            clip_factor = f; hit_flags = 1u << (2*d3);                         \
          }                                                                     \
       }                                                                        \
       else {                                                                   \
          double f = (ub-rz) / delta;                                           \
-         if (f < fac) {                                                        \
-         fac = f; new_flags = 2u << (2*d3);                                    \
+         if (f < clip_factor) {                                                \
+            clip_factor = f; hit_flags = 2u << (2*d3);                         \
          }                                                                     \
       }                                                                        \
    }                                                                           \
 }
-      CHECK_CONSTRAINT(drc[0], d1);
-      CHECK_CONSTRAINT(drc[1], d2);
-      dr[d1] += facc*drc[0], dr[d2] += facc*drc[1];
+      CHECK_CONSTRAINT(drc[0], d1, clip_factor, new_flags);
+      CHECK_CONSTRAINT(drc[1], d2, clip_factor, new_flags);
+      dr[d1] += clip_factor*drc[0], dr[d2] += clip_factor*drc[1];
       if (new_flags == 0)
       {
          goto newton_vol_fin;
@@ -496,7 +497,7 @@ newton_vol_edge :
    {
       const int ei = edge_index(flags);
       const int de = ei >> 2;
-      double facc = 1;
+      double clip_factor = 1.0;
       int new_flags = 0;
       double ress[3], y, JtJ, drc;
       ress[0] = resid[0]-(jac[0]*dr[0]+jac[1]*dr[1]+jac[2]*dr[2]);
@@ -508,9 +509,9 @@ newton_vol_edge :
       JtJ = jac[de]*jac[de]+jac[3+de]*jac[3+de] +
             jac[6+de]*jac[6+de];
       drc = y / JtJ;
-      CHECK_CONSTRAINT(drc, de);
+      CHECK_CONSTRAINT(drc, de, clip_factor, new_flags);
 #undef CHECK_CONSTRAINT
-      dr[de] += facc*drc;
+      dr[de] += clip_factor*drc;
       flags |= new_flags;
       goto newton_vol_relax;
    }
@@ -946,7 +947,8 @@ static void FindPointsLocal3DKernel(const int npt,
    const int p_NE = D1D*D1D*D1D;
    MFEM_VERIFY(MD1 <= DofQuadLimits::MAX_D1D,
                "Increase Max allowable polynomial order.");
-   MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
+   MFEM_VERIFY(D1D > 0, "Polynomial order not specified.");
+   MFEM_VERIFY(D1D <= MD1, "D1D exceeds the allocated workspace size.");
 #define MAXC(a, b) (((a) > (b)) ? (a) : (b))
    const int nThreads = MAXC(D1D*DIM, 15);
 
@@ -1231,38 +1233,28 @@ static void FindPointsLocal3DKernel(const int npt,
                            const int d = j / D1D;
                            const double *u = face.x[d];
                            const double *du = face.dxdn[d];
-                           double sums_k[4] = {0.0, 0.0, 0.0, 0.0};
+                           double sums_k[3] = {0.0, 0.0, 0.0};
                            for (int k = 0; k < D1D; ++k)
                            {
                               sums_k[0] += u[qp+k*D1D]*J2[k];
                               sums_k[1] += u[qp+k*D1D]*D2[k];
-                              sums_k[2] += u[qp+k*D1D]*DD2[k];
-                              sums_k[3] += du[qp+k*D1D]*J2[k];
+                              sums_k[2] += du[qp+k*D1D]*J2[k];
                            }
 
                            resid_temp[3*qp+d] = sums_k[0]*J1[qp];
                            jac_temp[9*qp+3*d+d1] = sums_k[0]*D1[qp];
                            jac_temp[9*qp+3*d+d2] = sums_k[1]*J1[qp];
-                           jac_temp[9*qp+3*d+dn] = sums_k[3]*J1[qp];
-                           if (d == 0)
-                           {
-                              hes_temp[3*qp] = sums_k[0]*DD1[qp];
-                              hes_temp[3*qp+1] = sums_k[1]*D1[qp];
-                              hes_temp[3*qp+2] = sums_k[2]*J1[qp];
-                           }
+                           jac_temp[9*qp+3*d+dn] = sums_k[2]*J1[qp];
                         }
                         MFEM_SYNC_THREAD;
 
                         MFEM_FOREACH_THREAD(l,x,3)
                         {
                            resid[l] = fpt->x[l];
-                           hes[l] = 0;
                            for (int j = 0; j < D1D; ++j)
                            {
                               resid[l] -= resid_temp[l+j*3];
-                              hes[l] += hes_temp[l+3*j];
                            }
-                           hes[l] *= resid[l];
                         }
 
                         MFEM_FOREACH_THREAD(l,x,9)
@@ -1271,6 +1263,39 @@ static void FindPointsLocal3DKernel(const int npt,
                            for (int j = 0; j < D1D; ++j)
                            {
                               jac[l] += jac_temp[l+j*9];
+                           }
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        // Hessian order: d1d1, d1d2, d2d2.
+                        MFEM_FOREACH_THREAD(j,x,DIM*D1D)
+                        {
+                           const int qp = j % D1D;
+                           const int row = j / D1D;
+                           const double *wt_j = row == 0 ? J2 :
+                                                row == 1 ? D2 : DD2;
+                           const double wt_qp = row == 0 ? DD1[qp] :
+                                                row == 1 ? D1[qp] : J1[qp];
+                           hes_temp[j] = 0.0;
+                           for (int d=0; d<DIM; ++d)
+                           {
+                              const double *u = face.x[d];
+                              double sum = 0.0;
+                              for (int k=0; k<D1D; ++k)
+                              {
+                                 sum += u[qp+k*D1D]*wt_j[k];
+                              }
+                              hes_temp[j] += resid[d]*sum*wt_qp;
+                           }
+                        }
+                        MFEM_SYNC_THREAD;
+
+                        MFEM_FOREACH_THREAD(j,x,DIM)
+                        {
+                           hes[j] = 0.0;
+                           for (int k=0; k<D1D; ++k)
+                           {
+                              hes[j] += hes_temp[j*D1D+k];
                            }
                         }
                         MFEM_SYNC_THREAD;
@@ -1540,7 +1565,8 @@ static void FindPointsLocal3DKernel(const int npt,
                                           resid[2]*hes[12+hi0];
                                        newton_edge(fpt, jac, rh, resid,
                                                    de, dn1, dn2,
-                                                   tmp->flags&(~(3u<<(2*de))),
+                                                   (tmp->flags & FLAG_MASK) &
+                                                   ~(3u << (2*de)),
                                                    tmp, tol);
                                     }
                                  }
@@ -1577,7 +1603,8 @@ static void FindPointsLocal3DKernel(const int npt,
                                           resid[2]*hes[12+hi0];
                                        newton_edge(fpt, jac, rh, resid,
                                                    de, dn1, dn2,
-                                                   tmp->flags&(~(3u<<(2*de))),
+                                                   (tmp->flags & FLAG_MASK) &
+                                                   ~(3u << (2*de)),
                                                    tmp, tol);
                                     }
                                  }
@@ -1592,7 +1619,8 @@ static void FindPointsLocal3DKernel(const int npt,
                                           resid[2]*hes[12+hi0];
                                        newton_edge(fpt, jac, rh, resid,
                                                    de, dn1, dn2,
-                                                   tmp->flags&(~(3u<<(2*de))),
+                                                   (tmp->flags & FLAG_MASK) &
+                                                   ~(3u << (2*de)),
                                                    tmp, tol);
                                     }
                                     else

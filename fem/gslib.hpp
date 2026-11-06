@@ -91,9 +91,10 @@ namespace mfem
  *     element, on element border, or not found in the domain.
  *     For points returned as found on `element border`, the point is either
  *     on an element edge/face or near the domain boundary, and gslib also
- *     returns a distance to the border. Points near (but outside) the domain
- *     boundary must then be marked as not found using the distance returned
- *     by gslib. See \ref FindPoints.
+ *     returns a squared distance between the sought and found points
+ *     in physical space. Points near (but outside) the domain boundary must
+ *     then be marked as not found using the distance returned by gslib.
+ *     See \ref FindPoints.
  *
  *  3. Interpolate - Interpolates any grid function at the points found using 2.
  *     For functions in L2 finite element space, use \ref SetL2AvgType to
@@ -326,7 +327,7 @@ protected:
    void FindPointsEdgeSetup2(DevStruct &devs,
                              const double *const elx[2],
                              const unsigned n,
-                             const unsigned int nel,
+                             const unsigned int nel_split,
                              const unsigned m,
                              const double bbox_rel_size_inc,
                              const unsigned int local_hash_size,
@@ -337,7 +338,7 @@ protected:
    void FindPointsSurfSetup3(DevStruct &devs,
                              const double *const elx[3],
                              const unsigned n,
-                             const unsigned int nel,
+                             const unsigned int nel_split,
                              const unsigned m,
                              const double bbox_rel_size_inc,
                              const unsigned int local_hash_size,
@@ -428,7 +429,9 @@ public:
     *  @details This method computes only axis-aligned bounding boxes and
     *  increases their total length by a user-specified amount in each
     *  physical direction. The absolute AABB expansion is applied
-    *  symmetrically to the lower and upper bounds.
+    *  symmetrically to the lower and upper bounds. For simplical meshes,
+    *  each element is split internally into quads/hexes and the user input
+    *  is mapped to each sub-element.
     *
     *  The size of @a aabb_sz_inc determines how the expansion values are
     *  interpreted:
@@ -478,7 +481,7 @@ public:
                         frame is [-1,1].
        #gsl_mfem_ref    Reference coordinates #gsl_ref mapped to [0,1].
                         Defaults to 0 for points that were not found.
-       #gsl_dist        Distance between the sought and the found point
+       #gsl_dist        Squared distance between the sought and the found point
                         in physical space. */
    void FindPoints(const Vector &point_pos,
                    int point_pos_ordering = Ordering::byNODES);
@@ -610,7 +613,7 @@ public:
    virtual const Array<unsigned int> &GetProc() const { return gsl_proc; }
    /// Return reference coordinates for each point found by FindPoints.
    virtual const Vector &GetReferencePosition() const { return gsl_mfem_ref;  }
-   /// Return distance between the sought and the found point in physical space.
+   /// Return dist^2 between the sought and the found point in physical space.
    virtual const Vector &GetDist()              const { return gsl_dist; }
 
    /** @brief Return element number for each point found by FindPoints
