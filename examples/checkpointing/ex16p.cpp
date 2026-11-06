@@ -435,7 +435,7 @@ int main(int argc, char *argv[])
    const string rank_path = *checkpoint_path ?
                             MakeParFilename(string(checkpoint_path) + ".",
                                             myid) : string();
-   unique_ptr<ODECheckpointer> checkpoints =
+   unique_ptr<ODECheckpointer> checkpointer =
       MakeODECheckpointer(storage_type, u, *ode_solver, state_params, limit,
                           rank_path);
 
@@ -443,7 +443,7 @@ int main(int argc, char *argv[])
    auto global_norm = [](const Vector &v)
    { return sqrt(InnerProduct(MPI_COMM_WORLD, v, v)); };
    vector<real_t> ref_norms(1, global_norm(u));
-   checkpoints->Store(0);
+   checkpointer->Store(0);
    // <<< Checkpointing -----------------------------------------------------
 
    bool last_step = false;
@@ -470,7 +470,7 @@ int main(int argc, char *argv[])
          MFEM_VERIFY(command.checkpoint &&
                      command.from_step == step && command.to_step == step,
                      "Invalid scheduled checkpoint.");
-         checkpoints->Store(*command.checkpoint);
+         checkpointer->Store(*command.checkpoint);
          continue;
       }
 
@@ -478,10 +478,10 @@ int main(int argc, char *argv[])
       {
          MFEM_VERIFY(command.checkpoint &&
                      command.from_step == command.to_step &&
-                     checkpoints->GetInfo(*command.checkpoint).state ==
+                     checkpointer->GetInfo(*command.checkpoint).state ==
                      command.to_step,
                      "Invalid scheduled checkpoint erase.");
-         checkpoints->Erase(*command.checkpoint);
+         checkpointer->Erase(*command.checkpoint);
          continue;
       }
 
@@ -572,8 +572,8 @@ int main(int argc, char *argv[])
          window.reset(new ExactCheckpointWindow(window_store,
                                                 checkpoint_window));
       }
-      ConductionPropagator propagator(oper, *ode_solver, *checkpoints);
-      CheckpointController controller(*checkpoints, propagator, window.get());
+      ConductionPropagator propagator(oper, *ode_solver, *checkpointer);
+      CheckpointController controller(*checkpointer, propagator, window.get());
 
       const StateId last = step;
       real_t max_diff = 0.0;
@@ -586,7 +586,7 @@ int main(int argc, char *argv[])
       if (myid == 0)
       {
          cout << "Reverse sweep: visited " << last + 1 << " states, saved "
-              << checkpoints->Size() << " checkpoints per rank, replayed "
+              << checkpointer->Size() << " checkpoints per rank, replayed "
               << propagator.Steps() << " steps, max relative difference = "
               << max_diff << endl;
       }

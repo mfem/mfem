@@ -356,12 +356,12 @@ int main(int argc, char *argv[])
    {
       limit = num_steps / checkpoint_interval + 2;
    }
-   unique_ptr<ODECheckpointer> checkpoints =
+   unique_ptr<ODECheckpointer> checkpointer =
       MakeODECheckpointer(storage_type, u, *ode_solver, state_params, limit,
                           checkpoint_path);
 
    vector<real_t> ref_norms(1, u.Norml2()); // norm of each state, for checks
-   checkpoints->Store(0);
+   checkpointer->Store(0);
    // <<< Checkpointing -----------------------------------------------------
 
    bool last_step = false;
@@ -388,7 +388,7 @@ int main(int argc, char *argv[])
          MFEM_VERIFY(command.checkpoint &&
                      command.from_step == step && command.to_step == step,
                      "Invalid scheduled checkpoint.");
-         checkpoints->Store(*command.checkpoint);
+         checkpointer->Store(*command.checkpoint);
          continue;
       }
 
@@ -396,10 +396,10 @@ int main(int argc, char *argv[])
       {
          MFEM_VERIFY(command.checkpoint &&
                      command.from_step == command.to_step &&
-                     checkpoints->GetInfo(*command.checkpoint).state ==
+                     checkpointer->GetInfo(*command.checkpoint).state ==
                      command.to_step,
                      "Invalid scheduled checkpoint erase.");
-         checkpoints->Erase(*command.checkpoint);
+         checkpointer->Erase(*command.checkpoint);
          continue;
       }
 
@@ -467,8 +467,8 @@ int main(int argc, char *argv[])
          window.reset(new ExactCheckpointWindow(window_store,
                                                 checkpoint_window));
       }
-      ConductionPropagator propagator(oper, *ode_solver, *checkpoints);
-      CheckpointController controller(*checkpoints, propagator, window.get());
+      ConductionPropagator propagator(oper, *ode_solver, *checkpointer);
+      CheckpointController controller(*checkpointer, propagator, window.get());
 
       const StateId last = step;
       real_t max_diff = 0.0;
@@ -479,7 +479,7 @@ int main(int argc, char *argv[])
                         ref_norms[s]);
       }
       cout << "Reverse sweep: visited " << last + 1 << " states, saved "
-           << checkpoints->Size() << " checkpoints, replayed "
+           << checkpointer->Size() << " checkpoints, replayed "
            << propagator.Steps() << " steps, max relative difference = "
            << max_diff << endl;
       MFEM_VERIFY(max_diff <= 1e-12,
