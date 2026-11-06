@@ -386,6 +386,7 @@ void LinearForm::AssembleDelta()
 
    Array<int> vdofs;
    Vector elemvect;
+   DofTransformation doftrans;
    for (int i = 0; i < domain_delta_integs.Size(); i++)
    {
       int elem_id = domain_delta_integs_elem_id[i];
@@ -397,9 +398,10 @@ void LinearForm::AssembleDelta()
       ElementTransformation &Trans = *fes->GetElementTransformation(elem_id);
       Trans.SetIntPoint(&ip);
 
-      fes->GetElementVDofs(elem_id, vdofs);
+      fes->GetElementVDofs(elem_id, vdofs, doftrans);
       domain_delta_integs[i]->AssembleDeltaElementVect(*fes->GetFE(elem_id),
                                                        Trans, elemvect);
+      doftrans.TransformDual(elemvect);
       AddElementVector(vdofs, elemvect);
    }
 }
