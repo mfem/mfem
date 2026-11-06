@@ -84,13 +84,19 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   follow the [MFEM PR Rules](#mfem-pr-rules).
 - When your contribution is fully working and ready to be reviewed, add
   the `ready-for-review` label.
-- PRs are treated similarly to journal submission, with an "editor" assigning two
-  reviewers to evaluate the changes.
-- The reviewers have 3 weeks to evaluate the PR and work with the author to
-  fix issues and implement improvements.
+- PRs are treated similarly to journal submissions, with "editors" evaluating each
+  PR's priority and workload, and then deciding whether to merge it without review,
+  decline it, start a review, postpone it (`revisit`), or defer it (`deferred`).
+  See [Editorial Evaluation](#editorial-evaluation).
+- For regular reviews, an editor assigns at least two reviewers and allocates
+  time based on the workload. Typical reviews take 2 weeks; reviews of
+  `high-workload` PRs should take longer and include technical meetings initiated
+  by the author.
 - During review there should be no force pushes/rewriting history in the branch.
-- After approval, MFEM developers merge the PR manually in the [mfem:next branch](#masternext-workflow).
-- After a week of testing in `mfem:next`, the original PR is merged in `mfem:master`.
+- A reviewer's stated "strong approval" counts as two approvals.
+- After reviewer approval or an editor's decision to merge without review, the
+  editor merges the PR manually into the [`mfem:next` branch](#masternext-workflow).
+- After testing in `mfem:next`, the original PR is merged into `mfem:master`.
 - We use [milestones](https://github.com/mfem/mfem/milestones) to coordinate the
   work on different PRs toward a release.
 - Don't hesitate to [contact us](#contact-information) if you have any questions.
@@ -414,18 +420,22 @@ Before you can start, you need a GitHub account, here are a few suggestions:
 - When your contribution is fully working and ready to be reviewed, add
   or request the `ready-for-review` label.
 
-- PRs are treated similarly to journal submission, with an "editor" assigning
-  two reviewers to evaluate the changes. The reviewers have 3 weeks to evaluate
-  the PR and work with the author to implement improvements and fix issues.
+- PRs are treated similarly to journal submissions, with "editors" evaluating PRs
+  based on their priority, workload, and other factors to decide how to
+  proceed. For a regular review, an editor assigns at least two reviewers and
+  sets a review window based on the estimated workload. The reviewers work with
+  the author to implement improvements and fix issues. See [Editorial
+  Evaluation](#editorial-evaluation) for all possible decisions.
 
 - Once the `ready-for-review` label has been applied and reviewers have been
   assigned, the PR is considered under review. To help with the review process
   there should be no force pushes/rewriting history in the branch.
 
-- After approval, the PR is [tested](#masternext-workflow) for a week with
-  other approved PRs in the `mfem:next` branch.
+- After reviewer approval or an editor's decision to merge without review, the
+  PR is [tested](#masternext-workflow), normally for a week, with other approved
+  PRs in the `mfem:next` branch.
 
-- Consider manually running the tests in `tests/scripts` before merging in
+- Consider manually running the tests in `tests/scripts` before merging into
   `mfem:next`, see the [README](tests/scripts/README) file in that directory
   for more details.
 
@@ -452,13 +462,46 @@ Before you can start, you need a GitHub account, here are a few suggestions:
 
 The Pull Request (PR) approval process in MFEM is similar to the approval of papers in a peer-reviewed journal. In particular:
 
-1. There is an MFEM board of "editors" that evaluates new PRs and assigns "reviewers" for each PR.
+1. There is an MFEM board of "editors" that evaluates PRs marked `ready-for-review` and decides how to proceed based on their priority, workload, and other factors. Reviewers are assigned to PRs selected for regular review.
 
-2. The assigned reviewers are responsible to carefully review and test the proposed PR.
+2. The assigned reviewers are responsible for carefully reviewing and testing the proposed PR.
 
-3. A PR can be (manually) merged in the *next* branch only if 2 of the assigned reviewers have approved it and it has passed internal testing. This merge can be performed by any of the assigned reviewers or by any of the editors.
+3. An editor can manually merge a PR into the `next` branch after it receives two approvals from assigned reviewers and passes internal testing. A strong approval from one assigned reviewer counts as two approvals, so that reviewer's approval alone is sufficient. Editors may also merge sufficiently simple PRs labeled `low-workload` without review. This exception waives reviewer approval, but the testing requirements still apply.
 
-4. A PR can be merged in the *master* branch only if it has been tested successfully for a week in *next* and an editor has (optionally) taken a final look. This merge can be performed only by one of the editors.
+4. A PR can be merged into the `master` branch after successful testing in `next`, normally for one week. An editor may shorten this period for bugfixes or PRs merged without review. This merge can be performed only by one of the editors, who may optionally take a final look before merging.
+
+#### Editorial Evaluation
+
+For each PR marked `ready-for-review`, editors assign priority and workload
+labels. Priority reflects the PR's importance to MFEM and its applications;
+workload reflects the effort required for review and ongoing maintenance. No
+priority assignment is necessary for a simple `low-workload` PR that an editor
+decides to merge without review.
+
+Based on the priority, workload, available capacity, and other factors, editors
+choose one of the following actions:
+
+1. **Merge without review:** Merge a sufficiently simple PR marked
+   `low-workload` without assigning reviewers. No priority label is required.
+   The testing requirements in [MFEM PR Rules](#mfem-pr-rules) still apply.
+
+2. **Decline:** Decline the PR if its review and ongoing maintenance would
+   require more capacity than can be allocated given MFEM priorities.
+
+3. **Start a regular review:** Assign at least two reviewers, add `in-review`,
+   and allocate review time based on the estimated workload. Typical reviews
+   take 2 weeks, but reviews of `high-workload` PRs should take longer and include
+   technical meetings initiated by the author.
+
+4. **Postpone:** Add `revisit` to indicate that we would like to review the PR
+   after higher-priority work has been completed. No reviewers are assigned.
+   The editor handling the PR is responsible for following up.
+
+5. **Defer:** Add `deferred` to indicate that we are unsure about the PR and may
+   reconsider it in the future.
+
+Anyone may post a review or express support with 👍 on a PR labeled `revisit`
+or `deferred` to help editors prioritize it.
 
 #### Responsibilities of Editors
 
@@ -471,41 +514,51 @@ The current list of MFEM editors is:
 
 **The responsibilities of the editors are:**
 
-1. To assign appropriate milestone and labels for new PRs, e.g. *bugfix*, *minor*, *api-change*, *high-impact*, etc.
+1. To assign an appropriate milestone and labels for new PRs, e.g. `bug`, `minor`, `api-change`, `high-priority`, `low-workload`, etc., and evaluate PRs marked `ready-for-review` as described in [Editorial Evaluation](#editorial-evaluation).
 
-2. To assign at least 2 reviewers for new PRs. An editor can also be a reviewer. The editor, reviewers, and author should be listed as "Assignees" on the GitHub PR page. After assignment, the `in-review` label should be added.
+2. To assign at least two reviewers to PRs selected for regular review and set a review window based on the estimated workload. An editor can also be a reviewer. The editor, reviewers, and author should be listed as "Assignees" on the GitHub PR page. After assignment, the `in-review` label should be added.
 
-3. To complete the initial PR evaluation and assignments in a timely manner: 1 week from submission.
+3. To complete the initial PR evaluation and any reviewer assignments in a timely manner: 1 week from the PR being marked `ready-for-review`.
 
 4. To assist reviewers when they need help with their reviews (but also to stay out of the way when they don't).
 
 5. To remind the reviewers about timely completion of their review.
 
-6. To take a final look and complete the PR merge in *master*. The final look step is optional and shouldn't take more than 3 days.
+6. To take a final look and complete the PR merge into `master`. The final look step is optional and shouldn't take more than 3 days.
 
-7. The assignment of bugfixes should be expedited proportional to their importance, e.g. in some cases the editor can assign a much shorter review window.
+7. The assignment of bugfixes should be expedited in proportion to their importance, e.g. in some cases the editor can assign a much shorter review window.
+
+8. To follow up on PRs they have marked `revisit` after higher-priority work has been completed.
 
 #### Responsibilities of Reviewers
 
 Everyone on the MFEM team can be asked to serve as a reviewer on a PR in their area of expertise.
 
+For PRs in review, an assigned reviewer who strongly supports the PR may give a
+**strong approval** by writing "Strong approval" in their approving review.
+This counts as two approvals and allows the PR to proceed to merging with only
+that reviewer's approval, subject to the testing requirements above.
+
+Anyone may also post a review or express support with 👍 on PRs labeled
+`revisit` or `deferred` to help editors prioritize them.
+
 **The responsibilities of the reviewers are:**
 
 1. To let the editors know if the proposed assignment is not a good match for them.
 
-2. To communicate with the PR author, provide feedback and work with them to resolve issues.
+2. To communicate with the PR author, provide feedback and work with them to resolve issues and implement improvements.
 
 3. To ensure the quality of the PR by making sure that the code adheres to the [Developer Guidelines](#developer-guidelines), e.g. all methods, data members, and functions have documentation, including data ownership and lifetime, new examples/miniapps have a corresponding PR in mfem/web, major features have `CHANGELOG` entries, etc.
 
 4. To seek help from the editors in case of difficulties.
 
-5. To complete the review in a timely manner: 3 weeks from assignment.
+5. To complete the review within the window allocated by the editor based on the estimated workload. Typical reviews take 2 weeks, but reviews of `high-workload` PRs should take longer and include technical meetings initiated by the author.
 
-6. To test the PR thoroughly before merging in *next*. The PR author is also encouraged to perform testing and inform the reviewers about the results.
+6. To test the PR thoroughly before merging into `next`. The PR author is also encouraged to perform testing and inform the reviewers about the results.
 
-7. To monitor the PR impact on the testing in the *next* branch and alert the editors that the PR is ready for merging in *master*.
+7. To monitor the PR impact on the testing in the `next` branch and alert the editors that the PR is ready for merging into `master`.
 
-8. The review of bugfixes should be expedited proportional to their importance. The review window can be much less than three weeks in such cases.
+8. The review of bugfixes should be expedited in proportion to their importance. The editor may allocate a shorter review window in such cases.
 
 #### Responsibilities of Authors
 
@@ -522,6 +575,8 @@ Authors should clearly indicate when a PR is ready for review (before that the P
 4. Authors can use the "Reviewers" section of the GitHub PR page to suggest reviewers, but the "Assignees" section will show who the editor has assigned to do the reviews.
 
 5. To indicate when the PR is ready for review by adding the `ready-for-review` label.
+
+6. To organize technical meetings with the reviewers for `high-workload` PRs, coordinating with the editor as needed.
 
 
 ### Pull Request Checklist
@@ -601,8 +656,10 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   be merged until they have been fully tested. This branch is protected, and
   changes can only be made through pull requests.
 
-- After approval, a pull request is merged manually (by MFEM developers) in the
-  `next` branch for testing and the `in-next` label is added to the PR.
+- After reviewer approval or an editor's decision to merge without review, a
+  pull request is merged manually by an editor into the `next` branch for testing,
+  and the `in-next` label is added to the PR, following the
+  [MFEM PR Rules](#mfem-pr-rules).
   This can be done as follows:
 
   ```
@@ -622,8 +679,8 @@ MFEM uses a `master`/`next`-branch workflow as described below:
   git push
   ```
 
-- After a week of testing in `next` (excluding bugfixes), both on GitHub, as
-  well as [internally](#tests-at-llnl) at LLNL, the original PR is merged into
+- After testing in `next`, both on GitHub and
+  [internally](#tests-at-llnl) at LLNL, the original PR is merged into
   `master` (provided there are no issues).
 
 - After the merge, the feature branch is deleted (unless it is a long-term
