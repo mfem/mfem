@@ -57,17 +57,18 @@ TIMECMD := $(word 1,$(TIMECMD))
 ifneq (,$(filter test%,$(MAKECMDGOALS)))
    MAKEFLAGS += -k
 endif
-# Test runs of the examples/miniapps with parameters - check exit code:
+# Test runs of the examples/miniapps with parameters - check exit code.
+# Optional argument 6 sets the stderr file basename for concurrent runs.
 # 0 means success, 242 means the test was skipped, anything else means error
 mfem-test = \
    printf "   $(3) [$(2) $(1) ... ]: "; \
    $(call $(TIMEFUN),$(TIMECMD),$(2) ./$(1) $(if $(5),,-no-vis )$(4) \
-     > $(1).stderr 2>&1); \
+     > $(or $(6),$(1)).stderr 2>&1); \
    err="$$3"; \
    if [ "$$3" = 0 ]; then $(PRINT_OK); \
    else if [ "$$3" = 242 ]; then $(PRINT_SKIP); err=0; \
-   else $(PRINT_FAILED); cat $(1).stderr; fi; fi; \
-   rm -f $(1).stderr; exit $$err
+   else $(PRINT_FAILED); cat $(or $(6),$(1)).stderr; fi; fi; \
+   rm -f $(or $(6),$(1)).stderr; exit $$err
 
 # Test runs of the examples/miniapps - check exit code and if a file exists
 # See mfem-test for the interpretation of the error code
