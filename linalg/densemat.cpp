@@ -1264,27 +1264,62 @@ int DenseMatrix::Rank(real_t tol) const
 
 real_t DenseMatrix::CalcSingularvalue(const int i) const
 {
-   MFEM_ASSERT(Height() == Width() && Height() > 0 && Height() < 4,
-               "The matrix must be square and sized 1, 2, or 3 to compute the"
-               " singular values."
-               << "  Height() = " << Height()
-               << ", Width() = " << Width());
+   const int m = Height();
+   const int n = Width();
+   const int k = std::min(m, n);
 
-   const int n = Height();
-   const real_t *d = data;
+   MFEM_VERIFY(k > 0 && k < 4,
+               "Only matrices with min(Height(), Width()) = 1, 2, or 3 are"
+               " supported to compute the singular values."
+               << "  Height() = " << m << ", Width() = " << n);
+   MFEM_VERIFY(i >= 0 && i < k,
+               "Invalid singular value index: i = " << i
+               << ", min(Height(), Width()) = " << k);
 
-   if (n == 1)
+   if (m == n)
    {
-      return d[0];
+      const real_t *d = data;
+      if (k == 1)
+      {
+         return d[0];
+      }
+      else if (k == 2)
+      {
+         return kernels::CalcSingularvalue<2>(d, i);
+      }
+      else
+      {
+         return kernels::CalcSingularvalue<3>(d, i);
+      }
    }
-   else if (n == 2)
+
+   // Rectangular matrix: the singular values are the square roots of the
+   // eigenvalues of the k x k Gram matrix J^T J (m > n) or J J^T (m < n).
+   real_t gram_data[9];
+   DenseMatrix gram(gram_data, k, k);
+   if (m > n)
    {
-      return kernels::CalcSingularvalue<2>(d,i);
+      MultAtB(*this, *this, gram);
    }
    else
    {
-      return kernels::CalcSingularvalue<3>(d,i);
+      MultABt(*this, *this, gram);
    }
+
+   real_t sv2;
+   if (k == 1)
+   {
+      sv2 = gram_data[0];
+   }
+   else if (k == 2)
+   {
+      sv2 = kernels::CalcSingularvalue<2>(gram_data, i);
+   }
+   else
+   {
+      sv2 = kernels::CalcSingularvalue<3>(gram_data, i);
+   }
+   return std::sqrt(sv2);
 }
 
 void DenseMatrix::CalcEigenvalues(real_t *lambda, real_t *vec) const
