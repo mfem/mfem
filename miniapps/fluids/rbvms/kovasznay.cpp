@@ -12,10 +12,6 @@
 #include <cmath>
 #include "../../../config/config.hpp"
 
-
-
-
-
 namespace mfem
 {
 constexpr real_t pi = 3.14159265358979323846;
@@ -23,17 +19,20 @@ real_t kinvis = 1.0 / 40.0;
 real_t reynolds = 1.0 / kinvis;
 real_t lam = 0.5 * reynolds - sqrt(0.25 * reynolds * reynolds + 4.0 * pi * pi);
 
-extern "C" real_t rho(real_t *coord, int dim, real_t t)
+extern "C" MFEM_EXPORT
+real_t rho(real_t *coord, int dim, real_t t)
 {
    return 1.0;
 }
 
-extern "C"  real_t mu(real_t *coord, int dim, real_t t)
+extern "C" MFEM_EXPORT
+real_t mu(real_t *coord, int dim, real_t t)
 {
    return kinvis;
 }
 
-extern "C" void sol_u(real_t *coord, int dim, real_t t, real_t *u, int vdim)
+extern "C" MFEM_EXPORT
+void sol_u(real_t *coord, int dim, real_t t, real_t *u, int vdim)
 {
    real_t xi = coord[0];
    real_t yi = coord[1];
@@ -42,8 +41,9 @@ extern "C" void sol_u(real_t *coord, int dim, real_t t, real_t *u, int vdim)
    u[1] = lam / (2.0 * pi) * exp(lam * xi) * sin(2.0 * pi * yi);
 }
 
-extern "C" void traction(real_t *coord, int dim, real_t t, real_t *traction,
-                         int vdim)
+extern "C" MFEM_EXPORT
+void traction(real_t *coord, int dim, real_t t,
+              real_t *traction, int vdim)
 {
    real_t xi = coord[0];
    real_t yi = coord[1];
@@ -57,7 +57,8 @@ extern "C" void traction(real_t *coord, int dim, real_t t, real_t *traction,
    traction[1] = kinvis*(dudy  + dvdx );
 }
 
-extern "C" real_t sol_p(real_t *coord, int dim, real_t t)
+extern "C" MFEM_EXPORT
+real_t sol_p(real_t *coord, int dim, real_t t)
 {
    real_t xi = coord[0];
 

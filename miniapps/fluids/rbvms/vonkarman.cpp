@@ -15,7 +15,8 @@
 namespace mfem
 {
 
-extern "C" void sol_u(real_t *coord, int dim, real_t t, real_t *u, int vdim)
+extern "C" MFEM_EXPORT
+void sol_u(real_t *coord, int dim, real_t t, real_t *u, int vdim)
 {
    real_t x = coord[0];
    real_t y = coord[1];
@@ -44,14 +45,16 @@ extern "C" void sol_u(real_t *coord, int dim, real_t t, real_t *u, int vdim)
    u[1] += 2.0*fmax(0.0, r0 - r);
 }
 
-extern "C" void traction(real_t *coord, int dim, real_t t, real_t *traction,
-                         int vdim)
+extern "C" MFEM_EXPORT
+void traction(real_t *coord, int dim, real_t t,
+              real_t *traction, int vdim)
 {
    traction[0] = 0.0;
    traction[1] = 0.0;
 }
 
-extern "C" real_t sol_p(real_t *coord, int dim, real_t t)
+extern "C" MFEM_EXPORT
+real_t sol_p(real_t *coord, int dim, real_t t)
 {
    return 0;
 }
