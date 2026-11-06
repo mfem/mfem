@@ -714,12 +714,13 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
    // Form the final mesh using the computed displacement.
    if (periodic)
    {
-      Vector dx_loc(nlf->FESpace()->GetVSize());
+      dx_loc.SetSize(nlf->FESpace()->GetVSize(), dx);
       const Operator *Pd = nlf->FESpace()->GetProlongationMatrix();
       if (Pd) { Pd->Mult(dx, dx_loc); }
       else    { dx_loc = dx; }
 
-      GetPeriodicPositions(x_0, dx_loc, *fes_mesh_nodes, *nlf->FESpace(), x);
+      GetPeriodicPositions(x_0, dx_loc, *fes_mesh_nodes,
+                           *nlf->FESpace(), x);
    }
    else { x += dx; }
 
@@ -895,11 +896,12 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
       }
    }
 
-   Vector dx_loc;
+   // dx is a tdof Vector.
    const Operator *P = nlf->GetProlongation();
+   const int local_size = P ? P->Height() : dx.Size();
+   dx_loc.SetSize(local_size, dx.GetMemory().GetMemoryType());
    if (P)
    {
-      dx_loc.SetSize(P->Height());
       P->Mult(dx, dx_loc);
    }
    else { dx_loc = dx; }

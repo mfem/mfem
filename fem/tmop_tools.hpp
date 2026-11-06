@@ -212,6 +212,10 @@ protected:
 
    MemoryType temp_mt = MemoryType::DEFAULT;
 
+   // Storage for the local displacement used by ProcessNewState(). Keeping
+   // this vector avoids reallocating it on every Newton iteration.
+   mutable Vector dx_loc;
+
    const IntegrationRule &GetIntegrationRule(const FiniteElement &el) const
    {
       if (IntegRules)

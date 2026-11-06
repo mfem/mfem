@@ -2009,6 +2009,11 @@ protected:
    // When x_0 != nullptr, the integrator works on the displacements.
    // TODO in MFEM-5.0 make it always work with displacements.
    const GridFunction *x_0;
+
+   // Current node positions, ldof vector.
+   // In the periodic case, this corresponds to an L2 GridFunction.
+   Vector x_loc;
+
    bool periodic = false;
 
    TMOP_QualityMetric *h_metric;
@@ -2046,6 +2051,7 @@ protected:
    Array<GridFunction *> adapt_lim_gf0;   // Owned. Initial fields z_k0(x0).
    Array<GridFunction *> adapt_lim_gf;    // Owned. Remapped fields z_k(x).
    Vector adapt_lim_init_nodes;           // Owned. Initial mesh nodes (ldofs).
+   Vector adapt_lim_field;                // Packed remapping workspace.
    Array<Coefficient *> adapt_lim_coeff;  // Not owned, one per field.
    AdaptivityEvaluator *adapt_lim_eval;   // Not owned. Used for all fields.
    Array<real_t> adapt_lim_delta_max;     // Per-field delta_max_k (>0).
@@ -2204,11 +2210,11 @@ protected:
                           const real_t baseenergy, bool update_stored);
 
    /** @brief Determines the perturbation, h, for FD-based approximation. */
-   void ComputeFDh(const Vector &d, const FiniteElementSpace &fes);
-   void ComputeMinJac(const Vector &x, const FiniteElementSpace &fes);
+   void ComputeFDh(const Vector &xloc, const FiniteElementSpace &fes);
+   void ComputeMinJac(const Vector &xloc, const FiniteElementSpace &fes);
 
-   void UpdateAfterMeshPositionChange(const Vector &d,
-                                      const FiniteElementSpace &d_fes);
+   void UpdateAfterMeshPositionChange(const Vector &dx_loc,
+                                      const FiniteElementSpace &dx_fes);
 
    void DisableLimiting()
    {
@@ -2294,10 +2300,10 @@ protected:
    void ComputeAllElementTargets(const Vector &xe = Vector()) const;
    // Updates the Q-vectors for the metric_coeff and lim_coeff, based on the
    // new physical positions of the quadrature points.
-   void UpdateCoefficientsPA(const Vector &d_loc);
+   void UpdateCoefficientsPA(const Vector &xloc);
 
    // Compute Min(Det(Jpt)) in the mesh, does not reduce over MPI.
-   real_t ComputeMinDetT(const Vector &x, const FiniteElementSpace &fes);
+   real_t ComputeMinDetT(const Vector &xloc, const FiniteElementSpace &fes);
    // Compute Max(mu_hat) for the TMOP_WorstCaseUntangleOptimizer_Metric,
    // does not reduce over MPI.
    real_t ComputeUntanglerMaxMuBarrier(const Vector &x,
@@ -2602,7 +2608,7 @@ public:
    /// Computes quantiles needed for UntangleMetrics. Note that in parallel,
    /// the ParFiniteElementSpace must be passed as argument for consistency
    /// across MPI ranks.
-   void ComputeUntangleMetricQuantiles(const Vector &d,
+   void ComputeUntangleMetricQuantiles(const Vector &dx_loc,
                                        const FiniteElementSpace &fes);
 };
 
