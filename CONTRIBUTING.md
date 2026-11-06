@@ -535,7 +535,7 @@ The current list of MFEM editors is:
 Everyone on the MFEM team can be asked to serve as a reviewer on a PR in their area of expertise.
 
 For PRs in review, an assigned reviewer who strongly supports the PR may give a
-**super-approval** by including 👍👍 in their approval review.
+**strong approval** by writing "Strong approval" in their approving review.
 This counts as two approvals and allows the PR to proceed to merging with only
 that reviewer's approval, subject to the testing requirements above.
 
