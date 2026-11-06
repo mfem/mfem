@@ -549,8 +549,8 @@ void OptContactProblem::g(const Vector & d, Vector & gd)
 void OptContactProblem::c(const BlockVector & x, Vector & y)
 {
    x.SyncToBlocks();
-   const Vector disp  = x.GetBlock(0);
-   const Vector slack = x.GetBlock(1);
+   const Vector &disp  = x.GetBlock(0);
+   const Vector &slack = x.GetBlock(1);
 
    if (bound_constraints_activated)
    {
