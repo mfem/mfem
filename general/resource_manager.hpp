@@ -335,6 +335,7 @@ private:
       // DEVICE is configured to use host or managed memory.
       switch (mc)
       {
+         default:
          case MemoryClass::HOST:
          case MemoryClass::HOST_32:
          case MemoryClass::HOST_64:
@@ -343,8 +344,6 @@ private:
          case MemoryClass::MANAGED:
             return true;
       }
-      MFEM_ABORT("invalid MemoryClass");
-      return false;
    }
 
 public:
