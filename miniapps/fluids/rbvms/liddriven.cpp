@@ -12,11 +12,16 @@
 #include <cmath>
 #include "config/config.hpp"
 
+#ifdef _WIN32
+#define EXPORT extern "C" __declspec(dllexport)
+#else
+#define EXPORT extern "C"
+#endif
+
 namespace mfem
 {
 
-extern "C" MFEM_EXPORT
-void sol_u(real_t *coord, int dim, real_t t, real_t *u, int vdim)
+EXPORT void sol_u(real_t *coord, int dim, real_t t, real_t *u, int vdim)
 {
    real_t x = coord[0];
    real_t y = coord[1];
@@ -38,16 +43,14 @@ void sol_u(real_t *coord, int dim, real_t t, real_t *u, int vdim)
    }
 }
 
-extern "C" MFEM_EXPORT
-void traction(real_t *coord, int dim, real_t t,
-              real_t *traction, int vdim)
+EXPORT void traction(real_t *coord, int dim, real_t t,
+                     real_t *traction, int vdim)
 {
    traction[0] = 0.0;
    traction[0] = 0.0;
 }
 
-extern "C" MFEM_EXPORT
-real_t sol_p(real_t *coord, int dim, real_t t)
+EXPORT real_t sol_p(real_t *coord, int dim, real_t t)
 {
    return 0;
 }
