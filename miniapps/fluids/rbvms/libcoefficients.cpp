@@ -11,12 +11,11 @@
 #else
 #include <dlfcn.h>
 #endif
-using namespace std;
 using namespace mfem;
 
 // Get the function from the library
-void LibCoefficient::GetLibFunction(string libName,
-                                    vector<string> funNames,
+void LibCoefficient::GetLibFunction(std::string libName,
+                                    std::vector<std::string> funNames,
                                     bool required)
 {
    // Open library
@@ -27,17 +26,17 @@ void LibCoefficient::GetLibFunction(string libName,
 #endif
    if (!libHandle)
    {
-      cout<<"Library "<<libName<<" not found."<<endl;
+      mfem::out<<"Library "<<libName<<" not found."<<std::endl;
       if (required)
       {
          mfem_error("Can not obtain required function.\n");
       }
-      cout <<"Functions:";
+      mfem::out <<"Functions:";
       for (std::size_t i = 0; i < funNames.size(); i++)
       {
-         cout<<" "<<funNames[i];
+         mfem::out<<" "<<funNames[i];
       }
-      cout<<" will be set to val = "<<val<< endl;
+      mfem::out<<" will be set to val = "<<val<<std::endl;
       return;
    }
 
@@ -56,18 +55,18 @@ void LibCoefficient::GetLibFunction(string libName,
    // Check if function is found
    if (!TDFunction)
    {
-      cout <<"Functions:";
+      mfem::out <<"Functions:";
       for (std::size_t i = 0; i < funNames.size(); i++)
       {
-         cout<<" "<<funNames[i];
+         mfem::out<<" "<<funNames[i];
       }
-      cout<<" can not be found in "<<libName<<endl;
+      mfem::out<<" can not be found in "<<libName<<std::endl;
 
       if (required)
       {
          mfem_error("Can not obtain required function.\n");
       }
-      cout<<"Function will be set to val = "<<val<< endl;
+      mfem::out<<"Function will be set to val = "<<val<<std::endl;
    }
 }
 
@@ -98,8 +97,8 @@ LibCoefficient::~LibCoefficient()
 
 
 // Get the function from the library
-void LibVectorCoefficient::GetLibFunction(string libName,
-                                          vector<string> funNames,
+void LibVectorCoefficient::GetLibFunction(std::string libName,
+                                          std::vector<std::string> funNames,
                                           bool required)
 {
    // Open library
@@ -110,17 +109,17 @@ void LibVectorCoefficient::GetLibFunction(string libName,
 #endif
    if (!libHandle)
    {
-      cout<<"Library "<<libName<<" not found."<<endl;
+      mfem::out<<"Library "<<libName<<" not found."<<std::endl;
       if (required)
       {
          mfem_error("Can not obtain required function.\n");
       }
-      cout <<"Functions:";
+      mfem::out <<"Functions:";
       for (std::size_t i = 0; i < funNames.size(); i++)
       {
-         cout<<" "<<funNames[i];
+         mfem::out<<" "<<funNames[i];
       }
-      cout<<" will be set to homogenous."<<endl;
+      mfem::out<<" will be set to homogenous."<<std::endl;
       return;
    }
 
@@ -139,18 +138,18 @@ void LibVectorCoefficient::GetLibFunction(string libName,
    // Check if function is found
    if (!TDFunction)
    {
-      cout <<"Functions:";
+      mfem::out <<"Functions:";
       for (std::size_t i = 0; i < funNames.size(); i++)
       {
-         cout<<" "<<funNames[i];
+         mfem::out<<" "<<funNames[i];
       }
-      cout<<" can not be found in "<<libName<<endl;
+      mfem::out<<" can not be found in "<<libName<<std::endl;
 
       if (required)
       {
          mfem_error("Can not obtain required function.\n");
       }
-      cout<<"Function will be set to homogenous."<<endl;
+      mfem::out<<"Function will be set to homogenous."<<std::endl;
    }
 }
 
@@ -178,7 +177,7 @@ LibVectorCoefficient::~LibVectorCoefficient()
    if (libHandle)
    {
 #ifdef _WIN32
-      FreeLibrary((HMODULE)libhandle);
+      FreeLibrary((HMODULE)libHandle);
 #else
       dlclose(libHandle);
 #endif

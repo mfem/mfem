@@ -11,7 +11,6 @@
 #include "mfem.hpp"
 
 using namespace mfem;
-using namespace std;
 
 /// Coefficient class with a function defined in a seperate C-function
 class LibCoefficient : public Coefficient
@@ -32,8 +31,8 @@ protected:
         - @a required specify if the function needs to be defined.
           If true and function is not found, an error will be provided.
           If false the default value @a val is used. */
-   void GetLibFunction(string libName,
-                       vector<string> funNames,
+   void GetLibFunction(std::string libName,
+                       std::vector<std::string> funNames,
                        bool required);
 public:
    /** Get a @a funName C-function from the @a libName library
@@ -43,10 +42,10 @@ public:
           If true and function is not found, an error will be provided.
           If false the default value @a val is used.
         - @a val the value to use if the function is not found.*/
-   LibCoefficient(string libName, string funName,
+   LibCoefficient(std::string libName, std::string funName,
                   bool required = true, real_t val = 0.0): val(val)
    {
-      GetLibFunction(libName, vector<string>({funName}), required);
+      GetLibFunction(libName, std::vector<std::string>({funName}), required);
    }
 
    /** Get a @a funNames C-function from the @a libName library
@@ -57,7 +56,7 @@ public:
           If true and function is not found, an error will be provided.
           If false the default value @a val is used.
         - @a val the value to use if the function is not found.*/
-   LibCoefficient(string libName, vector<string> funNames,
+   LibCoefficient(std::string libName, std::vector<std::string> funNames,
                   bool required = true, real_t val = 0.0): val(val)
    {
       GetLibFunction(libName, funNames, required);
@@ -91,8 +90,8 @@ protected:
         - @a required specify if the function needs to be defined.
           If true and function is not found, an error will be provided.
           If false the default value @a val is used. */
-   void GetLibFunction(string libName,
-                       vector<string> funNames,
+   void GetLibFunction(std::string libName,
+                       std::vector<std::string> funNames,
                        bool required);
 public:
    /** Get a @a funName C-function from the @a libName library
@@ -102,10 +101,10 @@ public:
           If true and function is not found, an error will be provided.
           If false the default value @a val is used.
         - @a val the value to use if the function is not found.*/
-   LibVectorCoefficient(int vdim, string libName, string funName,
+   LibVectorCoefficient(int vdim, std::string libName, std::string funName,
                         bool required = true) : VectorCoefficient(vdim)
    {
-      GetLibFunction(libName, vector<string>({funName}), required);
+      GetLibFunction(libName, std::vector<std::string>({funName}), required);
    }
 
    bool Foundfunction() { return TDFunction;}
@@ -118,7 +117,8 @@ public:
           If true and function is not found, an error will be provided.
           If false the default value @a val is used.
         - @a val the value to use if the function is not found.*/
-   LibVectorCoefficient(int vdim, string libName, vector<string> funNames,
+   LibVectorCoefficient(int vdim, std::string libName,
+                        std::vector<std::string> funNames,
                         bool required = true) : VectorCoefficient(vdim)
    {
       GetLibFunction(libName, funNames, required);
