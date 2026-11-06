@@ -31,13 +31,13 @@ namespace mfem
 
 /// Checkpoint the continuation state of a single-step ODE time loop.
 /** The checkpointer keeps a reference to your solution Vector and, through
-    Fields, optional pointers to your step counter, time, and time step
+    StateParameters, optional pointers to your step counter, time, and time step
     variables. It does not copy them: Store() reads their current values and
     Restore() writes the saved values back into the same variables. Each
     checkpoint is one fixed-size record holding the solution values, the saved
-    state position, and the values of the variables given in Fields. If
-    Fields::step is null, the checkpointer keeps its own position, which the
-    time loop advances with SetCurrentState().
+    state position, and the values of the variables given in StateParameters.
+    If StateParameters::step is null, the checkpointer keeps its own position,
+    which the time loop advances with SetCurrentState().
 
     Only solvers without step history are supported: construction requires
     ODESolver::GetStateSize() == 0. Multistep solvers (ODESolverWithStates)
@@ -62,15 +62,15 @@ namespace mfem
     given, must be finite.
 
     Concrete classes select one Checkpointer::StorageType layout. The solution
-    vector and the variables in Fields must outlive the checkpointer. Copying
-    is disabled. */
+    vector and the variables in StateParameters must outlive the checkpointer.
+    Copying is disabled. */
 class ODECheckpointer : public Checkpointer
 {
 public:
    /// Pointers to the time-loop variables saved along with the solution.
    /** Each pointer is optional: a null pointer means that value is neither
        stored nor restored. The variables must outlive the checkpointer. */
-   struct Fields
+   struct StateParameters
    {
       StateId *step = nullptr; ///< Step counter reported by CurrentState().
       real_t *time = nullptr;  ///< Physical time.
@@ -79,8 +79,8 @@ public:
 
 private:
    Vector &x;                        ///< The caller's solution vector.
-   Fields fields;                    ///< Pointers to time-loop variables.
-   StateId position = 0;             ///< Position used if Fields::step is null.
+   StateParameters state_params;     ///< Pointers to time-loop variables.
+   StateId position = 0;             ///< Used if state_params.step is null.
    std::optional<std::size_t> limit; ///< Checkpoint-count limit, if any.
    int size;                         ///< Solution size fixed at construction.
    std::size_t record_bytes;         ///< Size of one encoded record in bytes.
@@ -102,12 +102,12 @@ private:
    Entries saved;                            ///< Metadata of saved records.
    std::vector<Entries::node_type> reusable; ///< Erased nodes kept for reuse.
 
-   /// Return bit flags naming the non-null pointers in #fields.
+   /// Return bit flags naming the non-null pointers in #state_params.
    /** The flags are stored in every record and file manifest, so that restore
        and reopen reject records saved with a different set of variables. */
    std::uint64_t Layout() const;
 
-   /// Encode the solution, @a state, and the variables in #fields into
+   /// Encode the solution, @a state, and the variables in #state_params into
    /// #record.
    void Encode(StateId state);
 
@@ -116,7 +116,7 @@ private:
    void Insert(const Entry &entry);
 
 protected:
-   /// Keep a reference to @a x_ and the pointers in @a fields_.
+   /// Keep a reference to @a x_ and the pointers in @a state_params_.
    /** The current size of @a x_ becomes the fixed solution size. A value in
        @a limit_ limits the checkpoint count; no value allows growth.
 
@@ -137,7 +137,8 @@ protected:
        support ODESolverWithStates: such an implementation would keep the
        solver, store its ODEStateData with each record, and reinstate that
        history on Restore(), without changing the constructors. */
-   ODECheckpointer(Vector &x_, ODESolver &solver, Fields fields_,
+   ODECheckpointer(Vector &x_, ODESolver &solver,
+                   StateParameters state_params_,
                    std::optional<std::size_t> limit_);
 
    /// Return a slot for the new checkpoint @a id.
@@ -186,17 +187,20 @@ public:
    /// Copy assignment is disabled; saved records are owned by one instance.
    ODECheckpointer &operator=(const ODECheckpointer &) = delete;
 
-   /// Return *Fields::step, or the internal position if Fields::step is null.
+   /// Return *StateParameters::step, or the internal position if null.
    StateId CurrentState() const override
-   { return fields.step ? *fields.step : position; }
+   { return state_params.step ? *state_params.step : position; }
 
-   /// Set *Fields::step, or the internal position if Fields::step is null.
+   /// Set *StateParameters::step, or the internal position if null.
    /** A negative @a state marks the current solution as invalid; Store() then
        fails until a valid position is set or a checkpoint is restored. */
    void SetCurrentState(StateId state)
-   { if (fields.step) { *fields.step = state; } else { position = state; } }
+   {
+      if (state_params.step) { *state_params.step = state; }
+      else { position = state; }
+   }
 
-   /// Save the solution and the variables in Fields under @a id.
+   /// Save the solution and the variables in StateParameters under @a id.
    /** Requires a non-negative CurrentState(), an unchanged solution size, and,
        if given, a finite time and time step. Replacing an existing ID keeps
        Size(); a new ID beyond Capacity() is fatal. Nothing is modified. */
@@ -205,7 +209,7 @@ public:
    /// Write the solution, variables, and position saved under @a id back.
    /** Validates the record checksum, saved position, set of variables, and
        solution size before writing anything. Variables whose pointer in
-       Fields is null are not touched. A missing ID is fatal. */
+       StateParameters is null are not touched. A missing ID is fatal. */
    void Restore(CheckpointId id) final;
 
    /// Erase @a id and make its slot reusable; an absent ID is a no-op.
@@ -235,7 +239,7 @@ public:
    Vector &GetVector() { return x; }
 
    /// Return the pointers to the time-loop variables.
-   const Fields &GetFields() const { return fields; }
+   const StateParameters &GetStateParameters() const { return state_params; }
 };
 
 /// Fixed-capacity records in one preallocated memory buffer.
@@ -253,7 +257,8 @@ protected:
 
 public:
    /// Preallocate @a capacity records; zero capacity is valid.
-   ODEMemoryBlockCheckpointer(Vector &x, ODESolver &solver, Fields fields,
+   ODEMemoryBlockCheckpointer(Vector &x, ODESolver &solver,
+                              StateParameters state_params,
                               std::size_t capacity);
 };
 
@@ -280,7 +285,8 @@ protected:
    void RequireOpen() const override;
 
 public:
-   ODEFileBlockCheckpointer(Vector &x, ODESolver &solver, Fields fields,
+   ODEFileBlockCheckpointer(Vector &x, ODESolver &solver,
+                            StateParameters state_params,
                             std::size_t capacity_,
                             const std::string &path = "",
                             bool reopen = false);
@@ -310,9 +316,10 @@ protected:
    void Release(CheckpointId id, std::size_t slot) override;
 
 public:
-   /// Use @a x and @a fields as in ODECheckpointer; an absent @a limit allows
-   /// growth.
-   ODEMemorySnapshotCheckpointer(Vector &x, ODESolver &solver, Fields fields,
+   /// Use @a x and @a state_params as in ODECheckpointer; an absent @a limit
+   /// allows growth.
+   ODEMemorySnapshotCheckpointer(Vector &x, ODESolver &solver,
+                                 StateParameters state_params,
                                  std::optional<std::size_t> limit = {});
 };
 
@@ -336,7 +343,8 @@ protected:
    void RequireOpen() const override;
 
 public:
-   ODEFileSnapshotCheckpointer(Vector &x, ODESolver &solver, Fields fields,
+   ODEFileSnapshotCheckpointer(Vector &x, ODESolver &solver,
+                               StateParameters state_params,
                                std::optional<std::size_t> limit = {},
                                const std::string &path = "",
                                bool reopen = false);
@@ -356,12 +364,14 @@ public:
     path and cannot be reopened. Invalid combinations are fatal. */
 std::unique_ptr<ODECheckpointer>
 MakeODECheckpointer(Checkpointer::StorageType storage, Vector &x,
-                    ODESolver &solver, ODECheckpointer::Fields fields,
+                    ODESolver &solver,
+                    ODECheckpointer::StateParameters state_params,
                     std::optional<std::size_t> limit,
                     const std::string &path = "", bool reopen = false);
 
 /// Advance the variables of an ODE checkpointer with fixed solver steps.
-/** Requires an ODECheckpointer whose Fields point to the time and time step.
+/** Requires an ODECheckpointer whose StateParameters point to the time and time
+    step.
     Each transition calls ODESolver::Step() on the checkpointer's solution
     vector, time, and time step, and increments CurrentState(). The solver
     must be initialized and outlive the propagator. */

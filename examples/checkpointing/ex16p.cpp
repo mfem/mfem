@@ -419,7 +419,7 @@ int main(int argc, char *argv[])
    //     step counter is passed explicitly, so that the reverse sweep below
    //     can use a second checkpointer on the same state.
    StateId step = 0;
-   ODECheckpointer::Fields fields{&step, &t, &dt};
+   ODECheckpointer::StateParameters state_params{&step, &t, &dt};
 
    // Block layouts preallocate their records: count the steps of the loop
    // below and allow one record more than the checkpoints it saves.
@@ -436,7 +436,7 @@ int main(int argc, char *argv[])
                             MakeParFilename(string(checkpoint_path) + ".",
                                             myid) : string();
    unique_ptr<ODECheckpointer> checkpoints =
-      MakeODECheckpointer(storage_type, u, *ode_solver, fields, limit,
+      MakeODECheckpointer(storage_type, u, *ode_solver, state_params, limit,
                           rank_path);
 
    // Global norm of each state, recorded for the checks in the reverse sweep.
@@ -447,10 +447,13 @@ int main(int argc, char *argv[])
    // <<< Checkpointing -----------------------------------------------------
 
    bool last_step = false;
+   // >>> Checkpointing: create the forward checkpoint schedule.
    IntervalSchedule schedule(num_steps, checkpoint_interval);
+   // <<< Checkpointing -----------------------------------------------------
 
    for (;;)
    {
+      // >>> Checkpointing: dispatch scheduled actions.
       const CheckpointCommand command = schedule.Next();
 
       if (command.action == CheckpointAction::Finished)
@@ -486,7 +489,9 @@ int main(int argc, char *argv[])
                   !command.checkpoint && command.from_step == step &&
                   command.to_step > step && command.to_step <= num_steps,
                   "Expected a forward advance.");
+      // <<< Checkpointing --------------------------------------------------
 
+      // Advance the time loop over the interval selected by the schedule.
       for (int ti = static_cast<int>(command.from_step) + 1;
            ti <= command.to_step; ti++)
       {
@@ -526,8 +531,10 @@ int main(int argc, char *argv[])
          }
          oper.SetParameters(u);
 
+         // >>> Checkpointing: record state ti for reverse-sweep validation.
          step = ti;
          ref_norms.push_back(global_norm(u));
+         // <<< Checkpointing -----------------------------------------------
       }
    }
 
@@ -558,7 +565,7 @@ int main(int argc, char *argv[])
    //     against the global norm recorded in the forward loop. All ranks take
    //     the same decisions, so the collective assembly and norm calls match.
    {
-      ODEMemorySnapshotCheckpointer window_store(u, *ode_solver, fields);
+      ODEMemorySnapshotCheckpointer window_store(u, *ode_solver, state_params);
       unique_ptr<ExactCheckpointWindow> window;
       if (checkpoint_window > 0)
       {
@@ -598,11 +605,12 @@ void ConductionPropagator::Advance(StateId from, StateId to)
    MFEM_VERIFY(from >= 0 && to >= from &&
                checkpoints.CurrentState() == from, "Invalid transition.");
    Vector &u = checkpoints.GetVector();
-   const ODECheckpointer::Fields &fields = checkpoints.GetFields();
+   const ODECheckpointer::StateParameters &state_params =
+      checkpoints.GetStateParameters();
    for (StateId s = from; s < to; s++)
    {
       oper.SetParameters(u);
-      ode_solver.Step(u, *fields.time, *fields.dt);
+      ode_solver.Step(u, *state_params.time, *state_params.dt);
       checkpoints.SetCurrentState(s + 1);
       steps++;
    }

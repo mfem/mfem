@@ -91,17 +91,17 @@ Destruction does not clear or close borrowed storage.
 \section checkpointing_ode Library ODE checkpointers
 
 mfem::ODECheckpointer checkpoints a single-step ODE time loop. It keeps a
-reference to your solution Vector and, through ODECheckpointer::Fields,
+reference to your solution Vector and, through ODECheckpointer::StateParameters,
 pointers to your step counter, time, and time step variables. It does not copy
 them: Store() reads their current values and Restore() writes the saved values
 back into the same variables. Each pointer is optional: a null pointer means
 that value is neither stored nor restored. The vector and the variables must
-outlive the checkpointer. If Fields::step is null, the checkpointer keeps its
-own position, which the loop advances with SetCurrentState(). Each checkpoint
-is one fixed-size record with the solution values, saved position, and the
-values of the variables given in Fields, in native byte order and real_t
-precision. Restore() validates the checksum, length, position, and set of
-variables before writing anything; device solutions use their host copies.
+outlive the checkpointer. If StateParameters::step is null, the checkpointer
+keeps its own position, which the loop advances with SetCurrentState(). Each
+checkpoint is one fixed-size record with the solution values, saved position,
+and the values of the variables given in StateParameters, in native byte order
+and real_t precision. Restore() validates the checksum, length, position, and
+set of variables before writing anything; device solutions use host copies.
 The size of the solution vector must stay constant: it is fixed at construction
 and determines the record size, and Store() and Restore() reject a solution
 vector whose size differs.
@@ -109,6 +109,8 @@ vector whose size differs.
 Construction requires ODESolver::GetStateSize() == 0. Multistep solvers such as
 Adams-Bashforth, Adams-Moulton, and generalized-alpha are rejected because their
 ODEStateData history cannot be captured exactly through its public interface.
+PETSc and SUNDIALS solvers are also rejected, even when GetStateSize() returns
+zero, because their internal continuation state is not captured by the records.
 Without the check, such a solver would restore without error but continue with
 stale or rebuilt history, so replay would not reproduce the original run. The
 solver is currently used only for this check and is not retained. It is part of
@@ -136,8 +138,8 @@ precision. Close() is checked and idempotent, and an open marker rejects
 unclean reopens.
 
 mfem::ODEStatePropagator advances a checkpointer's solution, time, and time step
-with ODESolver::Step() for use with CheckpointController. It requires Fields to
-point to the time and time step.
+with ODESolver::Step() for use with CheckpointController. It requires
+StateParameters to point to the time and time step.
 
 examples/checkpointing contains checkpointed versions of Example 16 (ex16.cpp
 and ex16p.cpp). The forward time loop is unchanged; marked blocks create the

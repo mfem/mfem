@@ -237,9 +237,9 @@ void FreeSlots(const Entries &saved, std::size_t capacity,
 } // namespace
 
 ODECheckpointer::ODECheckpointer(Vector &x_, ODESolver &solver,
-                                 Fields fields_,
+                                 StateParameters state_params_,
                                  std::optional<std::size_t> limit_)
-   : x(x_), fields(fields_), limit(limit_), size(x_.Size())
+   : x(x_), state_params(state_params_), limit(limit_), size(x_.Size())
 {
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_PETSC)
    MFEM_VERIFY(!dynamic_cast<PetscODESolver *>(&solver),
@@ -264,8 +264,9 @@ ODECheckpointer::ODECheckpointer(Vector &x_, ODESolver &solver,
 
 std::uint64_t ODECheckpointer::Layout() const
 {
-   return (fields.step ? layout_step : 0) | (fields.time ? layout_time : 0) |
-          (fields.dt ? layout_dt : 0);
+   return (state_params.step ? layout_step : 0) |
+          (state_params.time ? layout_time : 0) |
+          (state_params.dt ? layout_dt : 0);
 }
 
 void ODECheckpointer::Encode(StateId state)
@@ -273,8 +274,8 @@ void ODECheckpointer::Encode(StateId state)
    const std::int64_t step = state;
    const std::uint64_t layout = Layout();
    const std::uint64_t values = static_cast<std::uint64_t>(size);
-   const real_t time = fields.time ? *fields.time : real_t(0);
-   const real_t dt = fields.dt ? *fields.dt : real_t(0);
+   const real_t time = state_params.time ? *state_params.time : real_t(0);
+   const real_t dt = state_params.dt ? *state_params.dt : real_t(0);
    char *out = record.data();
    std::memcpy(out, &step, sizeof(step));
    std::memcpy(out + 8, &layout, sizeof(layout));
@@ -312,9 +313,9 @@ void ODECheckpointer::Store(CheckpointId id)
    const StateId state = CurrentState();
    MFEM_VERIFY(state >= 0, "Cannot store an invalidated ODE state.");
    MFEM_VERIFY(x.Size() == size, "The bound ODE solution changed size.");
-   MFEM_VERIFY(!fields.time || std::isfinite(*fields.time),
+   MFEM_VERIFY(!state_params.time || std::isfinite(*state_params.time),
                "The bound ODE time is not finite.");
-   MFEM_VERIFY(!fields.dt || std::isfinite(*fields.dt),
+   MFEM_VERIFY(!state_params.dt || std::isfinite(*state_params.dt),
                "The bound ODE time step is not finite.");
    Encode(state);
    const std::uint64_t checksum = Checksum(record.data(), record_bytes);
@@ -366,8 +367,8 @@ void ODECheckpointer::Restore(CheckpointId id)
       std::memcpy(x.HostWrite(), in + header_bytes,
                   static_cast<std::size_t>(size)*sizeof(real_t));
    }
-   if (fields.time) { *fields.time = time; }
-   if (fields.dt) { *fields.dt = dt; }
+   if (state_params.time) { *state_params.time = time; }
+   if (state_params.dt) { *state_params.dt = dt; }
    SetCurrentState(step);
 }
 
@@ -527,8 +528,9 @@ void ODEMemoryBlockCheckpointer::Release(CheckpointId, std::size_t slot)
 }
 
 ODEMemoryBlockCheckpointer::ODEMemoryBlockCheckpointer(
-   Vector &x, ODESolver &solver, Fields fields, std::size_t capacity)
-   : ODECheckpointer(x, solver, fields, capacity)
+   Vector &x, ODESolver &solver, StateParameters state_params,
+   std::size_t capacity)
+   : ODECheckpointer(x, solver, state_params, capacity)
 {
    data.resize(BlockBytes(capacity, RecordBytes()));
    free_slots.reserve(capacity);
@@ -536,9 +538,10 @@ ODEMemoryBlockCheckpointer::ODEMemoryBlockCheckpointer(
 }
 
 ODEFileBlockCheckpointer::ODEFileBlockCheckpointer(
-   Vector &x, ODESolver &solver, Fields fields, std::size_t capacity_,
+   Vector &x, ODESolver &solver, StateParameters state_params,
+   std::size_t capacity_,
    const std::string &path, bool reopen)
-   : ODECheckpointer(x, solver, fields, capacity_), capacity(capacity_)
+   : ODECheckpointer(x, solver, state_params, capacity_), capacity(capacity_)
 {
    const std::size_t bytes = BlockBytes(capacity, RecordBytes());
    SlotOffset(capacity, RecordBytes());
@@ -661,14 +664,14 @@ void ODEMemorySnapshotCheckpointer::Release(CheckpointId, std::size_t slot)
 }
 
 ODEMemorySnapshotCheckpointer::ODEMemorySnapshotCheckpointer(
-   Vector &x, ODESolver &solver, Fields fields,
+   Vector &x, ODESolver &solver, StateParameters state_params,
    std::optional<std::size_t> limit)
-   : ODECheckpointer(x, solver, fields, limit) { }
+   : ODECheckpointer(x, solver, state_params, limit) { }
 
 ODEFileSnapshotCheckpointer::ODEFileSnapshotCheckpointer(
-   Vector &x, ODESolver &solver, Fields fields,
+   Vector &x, ODESolver &solver, StateParameters state_params,
    std::optional<std::size_t> limit, const std::string &path, bool reopen)
-   : ODECheckpointer(x, solver, fields, limit)
+   : ODECheckpointer(x, solver, state_params, limit)
 {
    MFEM_VERIFY(!reopen || !path.empty(),
                "Reopening an ODE checkpoint store requires its path.");
@@ -746,7 +749,8 @@ void ODEFileSnapshotCheckpointer::Close()
 
 std::unique_ptr<ODECheckpointer>
 MakeODECheckpointer(Checkpointer::StorageType storage, Vector &x,
-                    ODESolver &solver, ODECheckpointer::Fields fields,
+                    ODESolver &solver,
+                    ODECheckpointer::StateParameters state_params,
                     std::optional<std::size_t> limit,
                     const std::string &path, bool reopen)
 {
@@ -764,16 +768,16 @@ MakeODECheckpointer(Checkpointer::StorageType storage, Vector &x,
    {
       case StorageType::MemoryBlock:
          return std::make_unique<ODEMemoryBlockCheckpointer>(
-                   x, solver, fields, *limit);
+                   x, solver, state_params, *limit);
       case StorageType::FileBlock:
          return std::make_unique<ODEFileBlockCheckpointer>(
-                   x, solver, fields, *limit, path, reopen);
+                   x, solver, state_params, *limit, path, reopen);
       case StorageType::MemorySnapshots:
          return std::make_unique<ODEMemorySnapshotCheckpointer>(
-                   x, solver, fields, limit);
+                   x, solver, state_params, limit);
       case StorageType::FileSnapshots:
          return std::make_unique<ODEFileSnapshotCheckpointer>(
-                   x, solver, fields, limit, path, reopen);
+                   x, solver, state_params, limit, path, reopen);
    }
    MFEM_ABORT("Unknown ODE checkpoint storage layout.");
    return nullptr;
@@ -783,7 +787,8 @@ ODEStatePropagator::ODEStatePropagator(ODECheckpointer &checkpoints_,
                                        ODESolver &solver_)
    : checkpoints(checkpoints_), solver(solver_)
 {
-   MFEM_VERIFY(checkpoints.GetFields().time && checkpoints.GetFields().dt,
+   MFEM_VERIFY(checkpoints.GetStateParameters().time &&
+               checkpoints.GetStateParameters().dt,
                "ODEStatePropagator requires bound time and time step.");
 }
 
@@ -791,10 +796,12 @@ void ODEStatePropagator::Advance(StateId from, StateId to)
 {
    MFEM_VERIFY(from >= 0 && to >= from && checkpoints.CurrentState() == from,
                "Invalid ODE transition from " << from << " to " << to);
-   const ODECheckpointer::Fields &fields = checkpoints.GetFields();
+   const ODECheckpointer::StateParameters &state_params =
+      checkpoints.GetStateParameters();
    for (StateId state = from; state < to; )
    {
-      solver.Step(checkpoints.GetVector(), *fields.time, *fields.dt);
+      solver.Step(checkpoints.GetVector(), *state_params.time,
+                  *state_params.dt);
       checkpoints.SetCurrentState(++state);
    }
 }

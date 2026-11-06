@@ -90,7 +90,7 @@ struct ODELive
       solver->Init(oper);
    }
 
-   ODECheckpointer::Fields All() { return {&step, &t, &dt}; }
+   ODECheckpointer::StateParameters All() { return {&step, &t, &dt}; }
 
    void Run(StateId to)
    {
@@ -188,8 +188,8 @@ TEST_CASE("ODE checkpointers restore exact single-step continuation",
    }
 }
 
-TEST_CASE("ODE checkpointers bind optional fields and an internal position",
-          "[ODECheckpoint]")
+TEST_CASE("ODE checkpointers bind optional state parameters and an internal "
+          "position", "[ODECheckpoint]")
 {
    for (const StorageType storage : all_storages)
    {
@@ -216,9 +216,10 @@ TEST_CASE("ODE checkpointers bind optional fields and an internal position",
       }
       {
          ODELive live(0);
-         const ODECheckpointer::Fields fields{&live.step, &live.t, nullptr};
+         const ODECheckpointer::StateParameters state_params =
+            {&live.step, &live.t, nullptr};
          auto checkpoints = MakeODECheckpointer(storage, live.x, *live.solver,
-                                                fields, 2);
+                                                state_params, 2);
          checkpoints->Store(1);
          live.Run(2);
          live.dt = 0.3;
