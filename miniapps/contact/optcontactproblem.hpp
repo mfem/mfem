@@ -28,6 +28,11 @@ namespace mfem
  *  Tribol and provides operators for objective evaluation, gradients, Hessians,
  *  and constraints.
  *
+ *  The gap constraints are affine within each contact solve:
+ *  g(u) = J*(u - xref) + gapv. FormContactSystem() rebuilds J through Tribol
+ *  and invalidates the cached constraint operators. Nonlinear elasticity
+ *  does not change this constraint linearization.
+ *
  *  Features include:
  * - Construction of gap constraints and Jacobians through Tribol.
  * - Optional bound constraints.
@@ -92,6 +97,9 @@ private:
    /// Free allocated matrices/vectors.
    void ReleaseMemory();
 
+   /// Clear constraint operators when the contact system or bounds change.
+   void ResetConstraintJacobians();
+
    /// Compute gap and its Jacobian using Tribol.
    void ComputeGapJacobian();
 
@@ -139,6 +147,10 @@ private:
 
    /// Cached constraint Jacobian with bounds.
    HypreParMatrix * dcdu = nullptr;
+
+   /// Cached transpose of the full constraint Jacobian. Jt is reserved for
+   /// constructing the filtered contact subspace.
+   HypreParMatrix * dcduT = nullptr;
 
    /// Lumped volume mass vector.
    Vector Mvlump;
@@ -221,8 +233,15 @@ public:
    /// Hessian of the objective wrt the slack variables
    HypreParMatrix * Dmmf(const BlockVector &) {return nullptr;}
 
-   /// Jacobian of the constraints wrt displacement
+   /// Jacobian of the affine constraints wrt displacement; independent of x
+   /// until FormContactSystem() or ActivateBoundConstraints() is called.
    HypreParMatrix * Duc(const BlockVector &);
+
+   /// Cached transpose of Duc(), owned here and invalidated when the contact
+   /// system is rebuilt or bound constraints are activated. If constraints
+   /// become iterate-dependent, Duc() must call ResetConstraintJacobians()
+   /// before updating its Jacobian for a new linearization.
+   HypreParMatrix * DucTranspose(const BlockVector &);
 
    /// Jacobian of the constraints wrt slack variables
    HypreParMatrix * Dmc(const BlockVector &);

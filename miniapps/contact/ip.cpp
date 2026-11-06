@@ -388,10 +388,9 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    Huu = problem->Duuf(x);
    Hmm = problem->Dmmf(x);
 
-   delete JuT;
-   delete JmT;
-   Ju = problem->Duc(x); JuT = Ju->Transpose();
-   Jm = problem->Dmc(x); JmT = Jm->Transpose();
+   Ju = problem->Duc(x);
+   JuT = problem->DucTranspose(x);
+   Jm = problem->Dmc(x);
 
    Vector DiagLogBar(dimM); DiagLogBar.UseDevice(true); DiagLogBar = 0.0;
    const int dim_u = dimU;
@@ -450,7 +449,8 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    //          [0      D+Dreg  -I ]   [m]  = [bₘ]
    //          [J      -I      0  ]]  [λ]  = [bₗ ]
    Ak.SetBlock(0, 0, Wuu);                         Ak.SetBlock(0, 2, JuT);
-   Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, JmT);
+   // The slack Jacobian is -I, so its transpose is the same operator.
+   Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, Jm);
    Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
 }
 
@@ -473,11 +473,11 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    BlockVector gradphi(block_offsetsx); EnableDevice(gradphi); gradphi = 0.0;
    GetDxphi(x, mu, gradphi);
 
-   for (int i = 0; i < 2; i++)
-   {
-      b.GetBlock(i).Set(1.0, gradphi.GetBlock(i));
-      A.GetBlock(i, 2).AddMult(l, b.GetBlock(i));
-   }
+   b.GetBlock(0).Set(1.0, gradphi.GetBlock(0));
+   JuT->AddMult(l, b.GetBlock(0));
+   b.GetBlock(1).Set(1.0, gradphi.GetBlock(1));
+   // The slack Jacobian is -I: Jm^T l = -l.
+   b.GetBlock(1).Add(-1.0, l);
    problem->c(x, b.GetBlock(2));
    b.SyncFromBlocks();
    b *= -1.0;
@@ -817,8 +817,8 @@ void IPSolver::EvalLagrangianGradient(const BlockVector &x, const Vector &l,
    y.GetBlock(1).Set(-1.0, zl);
    y.GetBlock(1) *= Mlump;
 
-   problem->Duc(x)->MultTranspose(l, y.GetBlock(0));
-   problem->Dmc(x)->AddMultTranspose(l, y.GetBlock(1));
+   problem->DucTranspose(x)->Mult(l, y.GetBlock(0));
+   y.GetBlock(1).Add(-1.0, l);
 
    BlockVector gradxf(block_offsetsx); EnableDevice(gradxf); gradxf = 0.0;
    problem->CalcObjectiveGrad(x, gradxf);
@@ -925,13 +925,8 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
 
 IPSolver::~IPSolver()
 {
-   if (iter > 0)
-   {
-      delete JuT;
-      delete JmT;
-      delete Wuu;
-      delete Wmm;
-   }
+   delete Wuu;
+   delete Wmm;
 }
 
 }

@@ -248,19 +248,21 @@ HypreParMatrix *StackContactJacobians(
 
 }
 
+void OptContactProblem::ResetConstraintJacobians()
+{
+   delete dcduT; dcduT = nullptr;
+   delete dcdu; dcdu = nullptr;
+   delete NegId; NegId = nullptr;
+}
+
 void OptContactProblem::ReleaseMemory()
 {
+   ResetConstraintJacobians();
    delete J; J = nullptr;
    delete Jt; Jt = nullptr;
    delete Pc; Pc = nullptr;
-   delete NegId; NegId = nullptr;
    delete Iu; Iu = nullptr;
    delete negIu; negIu = nullptr;
-   if (dcdu)
-   {
-      delete dcdu;
-      dcdu = nullptr;
-   }
 }
 
 void OptContactProblem::ComputeGapJacobian()
@@ -416,22 +418,30 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    }
 }
 
-HypreParMatrix * OptContactProblem::Duc(const BlockVector & x)
+HypreParMatrix * OptContactProblem::Duc(const BlockVector &)
 {
    if (bound_constraints_activated)
    {
-      Array2D<const HypreParMatrix *> dcduBlockMatrix(3, 1);
-      dcduBlockMatrix(0, 0) = J;
-      dcduBlockMatrix(1, 0) = Iu;
-      dcduBlockMatrix(2, 0) = negIu;
-      if (dcdu) { delete dcdu; }
-      dcdu = HypreParMatrixFromBlocks(dcduBlockMatrix);
+      if (!dcdu)
+      {
+         Array2D<const HypreParMatrix *> dcduBlockMatrix(3, 1);
+         dcduBlockMatrix(0, 0) = J;
+         dcduBlockMatrix(1, 0) = Iu;
+         dcduBlockMatrix(2, 0) = negIu;
+         dcdu = HypreParMatrixFromBlocks(dcduBlockMatrix);
+      }
       return dcdu;
    }
    else
    {
       return J;
    }
+}
+
+HypreParMatrix * OptContactProblem::DucTranspose(const BlockVector &x)
+{
+   if (!dcduT) { dcduT = Duc(x)->Transpose(); }
+   return dcduT;
 }
 
 HypreParMatrix * OptContactProblem::Dmc(const BlockVector &)
@@ -681,6 +691,7 @@ void OptContactProblem::SetDisplacement(const Vector & dx,
 
 void OptContactProblem::ActivateBoundConstraints()
 {
+   ResetConstraintJacobians();
    dl.Set(1.0, xrefbc);
    bound_constraints_activated = true;
    constraints_starts[0] = J->RowPart()[0] + 2 * J->ColPart()[0];

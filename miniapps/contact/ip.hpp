@@ -139,15 +139,18 @@ protected:
    Array<int> constraint_offsets;
    Array<int> block_offsetsumlz, block_offsetsuml, block_offsetsx;
 
-   /// Operators (not owned)
+   /// Objective Hessians (not owned).
    HypreParMatrix * Huu = nullptr;
    HypreParMatrix * Hmm = nullptr;
+
+   /// Regularized Hessian blocks (owned).
    HypreParMatrix * Wuu = nullptr;
    HypreParMatrix * Wmm = nullptr;
+
+   /// Constraint Jacobians and transpose (owned by the problem).
    HypreParMatrix * Ju = nullptr;
    HypreParMatrix * Jm = nullptr;
    HypreParMatrix * JuT = nullptr;
-   HypreParMatrix * JmT = nullptr;
 
    /// Lumped masses
    Vector Mcslump;
