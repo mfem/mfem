@@ -2235,6 +2235,10 @@ protected:
       // TODO the action and energy most likely need less integration points.
       return EnergyIntegrationRule(el);
    }
+   // Return the cached DofToQuad table to read the shape gradients from, or
+   // nullptr when they have to go through CalcDShape.
+   const DofToQuad *ShapeGradTable(const FiniteElement &el,
+                                   const IntegrationRule &ir) const;
 
    //
    // Auxiliary PA methods
