@@ -398,7 +398,8 @@ inline void AddBlocks(std::vector<SparseMatrix *> &blocks,
       }
       else
       {
-         SparseMatrix *s = mfem::Add(*sum[i], *blocks[i]);
+         // Replaced mfem::Add(), with local version supporting device
+         SparseMatrix *s = AddSparseMatrices(*sum[i], *blocks[i]);
          delete sum[i];
          delete blocks[i];
          sum[i] = s;

@@ -34,6 +34,7 @@
 #include "../quadinterpolator.hpp"
 
 #include "../../general/forall.hpp"
+#include "../../general/scan.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../mesh/mesh.hpp"
 
@@ -2037,6 +2038,93 @@ inline static void ExtractQLayouts(
       out[e.type] = e.layout;
    }
 }
+
+namespace detail
+{
+
+/// @brief Device implementation of A + B for two finalized SparseMatrix objects
+inline SparseMatrix *AddSparseMatrices(const SparseMatrix &A,
+                                       const SparseMatrix &B)
+{
+   MFEM_VERIFY(A.Height() == B.Height() && A.Width() == B.Width(),
+               "the matrices differ in size");
+   const int n = A.Height();
+   const int *Ai = A.ReadI(), *Aj = A.ReadJ(), *Bi = B.ReadI(), *Bj = B.ReadJ();
+   const real_t *Ad = A.ReadData(), *Bd = B.ReadData();
+
+   auto *C = new SparseMatrix;
+   C->OverrideSize(n, A.Width());
+   C->GetMemoryI().New(n + 1, C->GetMemoryI().GetMemoryType());
+   int *Ci = C->WriteI();
+
+   // 1. Entries per row: A's, plus B's on columns A lacks. Ci[n] = 0.
+   mfem::forall(n + 1, [=] MFEM_HOST_DEVICE (int r)
+   {
+      int count = 0;
+      if (r < n)
+      {
+         count = Ai[r + 1] - Ai[r];
+         for (int kb = Bi[r]; kb < Bi[r + 1]; kb++)
+         {
+            bool in_A = false;
+            for (int ka = Ai[r]; ka < Ai[r + 1] && !in_A; ka++)
+            {
+               in_A = (Aj[ka] == Bj[kb]);
+            }
+            count += in_A ? 0 : 1;
+         }
+      }
+      Ci[r] = count;
+   });
+
+   // 2. Row offsets; Ci[n] becomes the number of entries.
+   ExclusiveScan(true, Ci, Ci, n + 1, 0);
+
+   // 3. Allocate J and data, copying only Ci[n] to the host.
+   int nnz;
+   Memory<int> last(C->GetMemoryI(), n, 1);
+   last.CopyToHost(&nnz, 1);
+   last.Delete();
+   C->GetMemoryJ().New(nnz, C->GetMemoryJ().GetMemoryType());
+   C->GetMemoryData().New(nnz, C->GetMemoryData().GetMemoryType());
+   int *Cj = C->WriteJ();
+   real_t *Cd = C->WriteData();
+
+   // 4. Write each row: A's entries plus B's on the same columns, then B's on
+   //    columns A lacks.
+   mfem::forall(n, [=] MFEM_HOST_DEVICE (int r)
+   {
+      int k = Ci[r];
+      for (int ka = Ai[r]; ka < Ai[r + 1]; ka++)
+      {
+         real_t v = Ad[ka];
+         for (int kb = Bi[r]; kb < Bi[r + 1]; kb++)
+         {
+            if (Bj[kb] == Aj[ka]) { v += Bd[kb]; }
+         }
+         Cj[k] = Aj[ka];
+         Cd[k] = v;
+         k++;
+      }
+      for (int kb = Bi[r]; kb < Bi[r + 1]; kb++)
+      {
+         bool in_A = false;
+         for (int ka = Ai[r]; ka < Ai[r + 1] && !in_A; ka++)
+         {
+            in_A = (Aj[ka] == Bj[kb]);
+         }
+         if (!in_A)
+         {
+            Cj[k] = Bj[kb];
+            Cd[k] = Bd[kb];
+            k++;
+         }
+      }
+   });
+   return C;
+}
+
+} // namespace detail
 
 } // namespace mfem::future
 
