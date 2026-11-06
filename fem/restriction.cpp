@@ -2459,7 +2459,6 @@ Vector GetLVectorFaceNbrData(
          {
             ParGridFunction gf(pfes, const_cast<Vector&>(x));
             gf.ExchangeFaceNbrData();
-            x.SyncMemory(gf);
             return std::move(gf.FaceNbrData());
          }
       }

@@ -661,7 +661,6 @@ void SuperLUSolver::ArrayMult(const Array<const Vector *> &X,
          MFEM_ASSERT(X[i], "Missing Vector in SuperLUSolver::Mult!");
          Vector s(sol_, i * ldx, ldx);
          s = *X[i];
-         sol_.SyncMemory(s);  // Update flags for sol_ if updated on device
       }
    }
 
@@ -694,11 +693,7 @@ void SuperLUSolver::ArrayMult(const Array<const Vector *> &X,
 
    // Copy solution into output (no need to do anything for single RHS since
    // solution is written directly into output Vector)
-   if (nrhs_ == 1)
-   {
-      sol_.SyncAliasMemory(*Y[0]);
-   }
-   else
+   if (nrhs_ > 1)
    {
       for (int i = 0; i < nrhs_; i++)
       {

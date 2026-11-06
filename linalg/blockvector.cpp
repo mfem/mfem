@@ -199,20 +199,8 @@ void BlockVector::GetBlockView(int i, Vector & blockView)
    blockView.MakeRef(*this, blockOffsets[i], BlockSize(i));
 }
 
-void BlockVector::SyncToBlocks() const
-{
-   for (int i = 0; i < numBlocks; ++i)
-   {
-      blocks[i].SyncMemory(*this);
-   }
-}
+void BlockVector::SyncToBlocks() const {}
 
-void BlockVector::SyncFromBlocks() const
-{
-   for (int i = 0; i < numBlocks; ++i)
-   {
-      blocks[i].SyncAliasMemory(*this);
-   }
-}
+void BlockVector::SyncFromBlocks() const {}
 
-}
+} // namespace mfem

@@ -82,6 +82,12 @@ public:
    inline Array(int asize, MemoryType mt)
       : data(mt), size(asize) { if (asize > 0) { data.New(asize, mt); } }
 
+   /// Creates array of @a asize elements with a given @a h_mt host MemoryType
+   /// and @a d_mt device MemoryType
+   inline Array(int asize, MemoryType h_mt, MemoryType d_mt)
+      : data(asize, h_mt, d_mt), size(asize)
+   {}
+
    /** @brief Creates array using an externally allocated host pointer @a data_
        to @a asize elements. If @a own_data is true, the array takes ownership
        of the pointer.
@@ -116,6 +122,16 @@ public:
 
    /// Destructor
    inline ~Array() { data.Delete(); }
+
+
+   /// Creates and returns a temporary array. The result memory type will be
+   /// @sa GetTemporaryMemorySpace(@a mt).
+   static Array NewTemporary(int size,
+                             MemoryType mt = Device::GetDeviceMemoryType())
+   {
+      Array res(size, GetTemporaryMemorySpace(mt));
+      return res;
+   }
 
    /// Copy assignment operator: deep copy from 'src'.
    Array<T> &operator=(const Array<T> &src) { src.Copy(*this); return *this; }
@@ -223,12 +239,20 @@ public:
    void push_back(const T &el) { Append(el); }
 
    /// Append another array to this array, resize if necessary.
-   inline int Append(const T *els, int nels);
+   /// post condition:
+   /// - if *this was originally valid on host, *this will be valid on host
+   /// - else if *this was originally valid on device, *this will be valid on device
+   /// - else *this will have mixed validity
+   inline int Append(const Array<T> &els);
 
    /// Append another array to this array, resize if necessary.
-   inline int Append(const Array<T> &els) { return Append(els, els.Size()); }
+   inline int Append(const T *els, int nels)
+   {
+      return Append(Array(const_cast<T *>(els), nels));
+   }
 
    /// Prepend an 'el' to the array, resize if necessary.
+   /// post condition: everything valid on host
    inline int Prepend(const T &el);
 
    /// Return the last element in the array.
@@ -395,13 +419,13 @@ public:
    inline T* begin() { return data; }
 
    /// STL-like end.  Returns pointer after the last element of the array.
-   inline T* end() { return data + size; }
+   inline T* end() { return static_cast<T*>(data) + size; }
 
    /// STL-like begin.  Returns const pointer to the first element of the array.
    inline const T* begin() const { return data; }
 
    /// STL-like end.  Returns const pointer after the last element of the array.
-   inline const T* end() const { return data + size; }
+   inline const T* end() const { return static_cast<const T*>(data) + size; }
 
    /// Returns the number of bytes allocated for the array including any reserve.
    std::size_t MemoryUsage() const { return Capacity() * sizeof(T); }
@@ -837,7 +861,7 @@ inline void Array<T>::GrowSize(int minsize)
    p.CopyFrom(data, size);
    p.UseDevice(data.UseDevice());
    data.Delete();
-   data = p;
+   data = std::move(p);
 }
 
 template <typename T>
@@ -848,7 +872,7 @@ inline void Array<T>::ShrinkToFit()
    p.CopyFrom(data, size);
    p.UseDevice(data.UseDevice());
    data.Delete();
-   data = p;
+   data = std::move(p);
 }
 
 template <typename T>
@@ -898,6 +922,8 @@ inline void Array<T>::SetSize(int nsize, const T &initval)
       {
          GrowSize(nsize);
       }
+      // resizing could have a fragmented memory validity
+      data.Write(false, size, nsize - size);
       for (int i = size; i < nsize; i++)
       {
          data[i] = initval;
@@ -923,13 +949,12 @@ inline void Array<T>::SetSize(int nsize, MemoryType mt)
    if (nsize > 0)
    {
       data.New(nsize, mt);
-      size = nsize;
    }
    else
    {
       data.Reset();
-      size = 0;
    }
+   size = nsize;
    data.UseDevice(use_dev);
 }
 
@@ -953,28 +978,50 @@ template <class T>
 inline int Array<T>::Append(const T &el)
 {
    SetSize(size+1);
-   data[size-1] = el;
+   // resizing could have a fragmented memory validity
+   data.Write(false, size - 1, 1)[0] = el;
    return size;
 }
 
 template <class T>
-inline int Array<T>::Append(const T *els, int nels)
+inline int Array<T>::Append(const Array& els)
 {
    const int old_size = size;
+   const int to_append = els.Size();
 
-   SetSize(size + nels);
-   for (int i = 0; i < nels; i++)
+   SetSize(size + to_append);
+   Memory<T> orig;
+   orig.MakeAlias(data, 0, old_size);
+   Memory<T> dst;
+   dst.MakeAlias(data, old_size, to_append);
+   // Match the original memory validity if it was fully valid in a single location.
+   // Prefer being valid on host if orig was fully valid on host and device
+   if (orig.HostIsValid())
    {
-      data[old_size+i] = els[i];
+      // post: [0, size) valid on host
+      dst.HostWrite();
    }
+   else if (orig.DeviceIsValid())
+   {
+      // post: [0, size) valid on device
+      dst.Write();
+   }
+   else
+   {
+      // post: [0, size) have mixed validity
+   }
+   dst.CopyFrom(els.data, to_append);
    return size;
 }
 
 template <class T>
 inline int Array<T>::Prepend(const T &el)
 {
-   SetSize(size+1);
-   for (int i = size-1; i > 0; i--)
+   SetSize(size + 1);
+   // Resizing could have a fragmented memory validity.
+   // Reads one entry more than strictly needed.
+   data.HostReadWrite();
+   for (int i = size - 1; i > 0; i--)
    {
       data[i] = data[i-1];
    }

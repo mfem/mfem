@@ -1813,16 +1813,9 @@ void PAMixedBilinearFormExtension::SetupMultInputs(
          localX *= c;
       }
    }
-   else
+   else if (c != 1.0)
    {
-      if (c == 1.0)
-      {
-         localX.SyncAliasMemory(x);
-      }
-      else
-      {
-         localX.Set(c, x);
-      }
+      localX.Set(c, x);
    }
    if (elem_restrict_y)
    {
@@ -1831,7 +1824,6 @@ void PAMixedBilinearFormExtension::SetupMultInputs(
    else
    {
       y.UseDevice(true);
-      localY.SyncAliasMemory(y);
    }
 }
 

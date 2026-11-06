@@ -148,11 +148,9 @@ int main(int argc, char *argv[])
 
    b_l2.ParallelAssemble(B_block.GetBlock(0));
    b_rt.ParallelAssemble(B_block.GetBlock(1));
-   B_block.SyncFromBlocks();
 
    X_block = 0.0;
    saddle_point_solver.Mult(B_block, X_block);
-   X_block.SyncToBlocks();
 
    if (Mpi::Root())
    {

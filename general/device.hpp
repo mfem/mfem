@@ -151,6 +151,11 @@ private:
    /// Current Device MemoryClass
    MemoryClass device_mem_class = MemoryClass::HOST;
 
+   MemoryType host_pinned_mem_type =
+      MemoryType::DEFAULT;    ///< Current Host-Pinned MemoryType
+   MemoryType managed_mem_type =
+      MemoryType::DEFAULT;    ///< Current Managed MemoryType
+
    // Delete copy constructor and copy assignment.
    Device(const Device &) = delete;
    Device &operator=(const Device &) = delete;
@@ -237,7 +242,9 @@ public:
        This method can only be called before Device construction and
        configuration, and the specified memory types must be compatible with
        the subsequent Device configuration. */
-   static void SetMemoryTypes(MemoryType h_mt, MemoryType d_mt);
+   static void SetMemoryTypes(MemoryType h_mt, MemoryType d_mt,
+                              MemoryType hp_mt = MemoryType::DEFAULT,
+                              MemoryType m_mt = MemoryType::DEFAULT);
 
    /// Print the configuration of the MFEM virtual device object.
    void Print(std::ostream &os = mfem::out);
