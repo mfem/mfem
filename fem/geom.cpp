@@ -2014,3 +2014,9 @@ int GeometryRefiner::GetRefinementLevelFromElems(Geometry::Type geom, int Nels)
 GeometryRefiner GlobGeometryRefiner;
 
 }
+
+// libglvis references this symbol by name. The definition lives in libmfem,
+// next to GeometryRefiner, so general/ does not include fem/geom.hpp.
+#ifdef MFEM_USE_GLVIS
+thread_local mfem::GeometryRefiner GLVisGeometryRefiner;
+#endif
