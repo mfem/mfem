@@ -466,7 +466,7 @@ The Pull Request (PR) approval process in MFEM is similar to the approval of pap
 
 2. The assigned reviewers are responsible for carefully reviewing and testing the proposed PR.
 
-3. An editor can manually merge a PR into the `next` branch after it receives two approvals from assigned reviewers and passes internal testing. A super-approval (👍👍) from one assigned reviewer counts as two approvals, so that reviewer's approval alone is sufficient. Editors may also merge sufficiently simple PRs labeled `low-workload` without review. This exception waives reviewer approval, but the testing requirements still apply.
+3. An editor can manually merge a PR into the `next` branch after it receives two approvals from assigned reviewers and passes internal testing. A strong approval from one assigned reviewer counts as two approvals, so that reviewer's approval alone is sufficient. Editors may also merge sufficiently simple PRs labeled `low-workload` without review. This exception waives reviewer approval, but the testing requirements still apply.
 
 4. A PR can be merged into the `master` branch after successful testing in `next`, normally for one week. An editor may shorten this period for bugfixes or PRs merged without review. This merge can be performed only by one of the editors, who may optionally take a final look before merging.
 
