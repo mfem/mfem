@@ -2205,15 +2205,15 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
       NCMesh::RefineElement(ref_i);
    }
 
-   // receive (ghost layer) refinements from all neighbors
+   // receive (ghost layer) refinements from all neighbors and do them, in the
+   // order of the neighbor ranks: refining creates elements, nodes and faces,
+   // so doing it in the arrival order of the messages would make the numbering
+   // of the mesh depend on message timing
    for (int j = 0; j < neighbors.Size(); j++)
    {
-      int rank, size;
-      NeighborRefinementMessage::Probe(rank, size, MyComm);
-
       NeighborRefinementMessage msg;
       msg.SetNCMesh(this);
-      msg.Recv(rank, size, MyComm);
+      msg.Recv(neighbors[j], MyComm);
 
       // do the ghost refinements
       for (int i = 0; i < msg.Size(); i++)
@@ -2392,15 +2392,13 @@ void ParNCMesh::Derefine(const Array<int> &derefs)
       NCMesh::DerefineElement(parent);
    }
 
-   // receive ghost layer derefinements from all neighbors
+   // receive ghost layer derefinements from all neighbors and do them, in the
+   // order of the neighbor ranks (see Refine)
    for (int j = 0; j < neighbors.Size(); j++)
    {
-      int rank, size;
-      NeighborDerefinementMessage::Probe(rank, size, MyComm);
-
       NeighborDerefinementMessage msg;
       msg.SetNCMesh(this);
-      msg.Recv(rank, size, MyComm);
+      msg.Recv(neighbors[j], MyComm);
 
       // do the ghost derefinements
       for (int i = 0; i < msg.Size(); i++)
@@ -2825,8 +2823,12 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
 
    // *** STEP 3: receive elements from others ***
 
-   RebalanceMessage msg;
-   msg.SetNCMesh(this);
+   /* Decoding a message creates the elements it contains, with their nodes and
+      faces, so the numbering of the new mesh depends on the order in which the
+      messages are decoded. All messages are therefore received first, and then
+      decoded in the order of the source ranks. */
+
+   RebalanceMessage::Map recv_elems;
 
    if (sfc)
    {
@@ -2839,30 +2841,13 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
          int rank, size;
          RebalanceMessage::Probe(rank, size, MyComm);
 
-         // receive message; note: elements are created as the message is decoded
-         msg.Recv(rank, size, MyComm);
+         RebalanceMessage &msg = recv_elems[rank];
+         MFEM_VERIFY(msg.data.empty(), "second message from rank " << rank);
+         msg.RecvData(rank, size, MyComm);
          nrecv++;
 
-         for (int i = 0; i < msg.Size(); i++)
-         {
-            const ElementRankAndAttribute &value = msg.values[i];
-            Element &el = elements[msg.elements[i]];
-            el.rank = value.rank;
-            el.attribute = value.attribute;
-
-            if (value.rank == MyRank) { received_elements++; }
-         }
-
-         // save the ranks we received from, for later use in RecvRebalanceDofs
-         if (record_comm)
-         {
-            recv_rebalance_dofs[rank].SetNCMesh(this);
-         }
+         received_elements += msg.CountElements(MyRank);
       }
-
-      Update();
-
-      RebalanceMessage::WaitAllSent(send_elems);
    }
    else
    {
@@ -2880,23 +2865,10 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
          int rank, size;
          while (RebalanceMessage::IProbe(rank, size, MyComm))
          {
-            // receive message; note: elements are created as the msg is decoded
-            msg.Recv(rank, size, MyComm);
+            RebalanceMessage &msg = recv_elems[rank];
+            MFEM_VERIFY(msg.data.empty(), "second message from rank " << rank);
+            msg.RecvData(rank, size, MyComm);
             nrecv++;
-
-            for (int i = 0; i < msg.Size(); i++)
-            {
-               const ElementRankAndAttribute &value = msg.values[i];
-               Element &el = elements[msg.elements[i]];
-               el.rank = value.rank;
-               el.attribute = value.attribute;
-            }
-
-            // save the ranks we received from, for later use in RecvRebalanceDofs
-            if (record_comm)
-            {
-               recv_rebalance_dofs[rank].SetNCMesh(this);
-            }
          }
 
          if (barrier != MPI_REQUEST_NULL)
@@ -2914,10 +2886,40 @@ void ParNCMesh::RedistributeElements(Array<int> &new_ranks, int target_elements,
             }
          }
       }
-
-      Update();
    }
 
+   // decode in rank order, freeing each message once it is decoded
+   for (auto it = recv_elems.begin(); it != recv_elems.end();
+        it = recv_elems.erase(it))
+   {
+      const int rank = it->first;
+      RebalanceMessage &msg = it->second;
+
+      // decode the message; note: elements are created as the msg is decoded
+      msg.SetNCMesh(this);
+      msg.DecodeData(rank);
+
+      for (int i = 0; i < msg.Size(); i++)
+      {
+         const ElementRankAndAttribute &value = msg.values[i];
+         Element &el = elements[msg.elements[i]];
+         el.rank = value.rank;
+         el.attribute = value.attribute;
+      }
+
+      // save the ranks we received from, for later use in RecvRebalanceDofs
+      if (record_comm)
+      {
+         recv_rebalance_dofs[rank].SetNCMesh(this);
+      }
+
+      // keep our sends progressing, others may still be receiving from us
+      if (sfc) { RebalanceMessage::TestAllSent(send_elems); }
+   }
+
+   Update();
+
+   RebalanceMessage::WaitAllSent(send_elems);
    NeighborElementRankMessage::WaitAllSent(send_ghost_ranks);
 
 #ifdef MFEM_DEBUG
@@ -3513,6 +3515,7 @@ void ParNCMesh::DecodeGroups(std::istream &is, Array<GroupId> &ids)
 template<class ValueType, bool RefTypes, int Tag>
 void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Encode(int)
 {
+   // NOTE: RebalanceMessage::CountElements also reads this format
    std::ostringstream ostream;
 
    Array<int> tmp_elements;
@@ -3570,6 +3573,27 @@ void ParNCMesh::ElementValueMessage<ValueType, RefTypes, Tag>::Decode(int)
 
    // no longer need the raw data
    data.clear();
+}
+
+int ParNCMesh::RebalanceMessage::CountElements(int rank) const
+{
+   // read the values of the message (see ElementValueMessage::Encode) without
+   // decoding the element set, which would create the elements
+   const char *pos = data.data();
+   pos += sizeof(int) + read<int>(pos); // skip the element set
+
+   const int count = read<int>(pos);
+   pos += sizeof(int);
+
+   int num = 0;
+   for (int i = 0; i < count; i++)
+   {
+      pos += sizeof(int); // element number
+      if (read<ElementRankAndAttribute>(pos).rank == rank) { num++; }
+      pos += sizeof(ElementRankAndAttribute);
+   }
+   MFEM_VERIFY(pos == data.data() + data.size(), "invalid message");
+   return num;
 }
 
 void ParNCMesh::RebalanceDofMessage::SetElements(const Array<int> &elems,
