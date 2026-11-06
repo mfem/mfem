@@ -31,6 +31,12 @@ Meshing improvements
   of essential boundaries were not essential, and on serial meshes, those of
   all interior boundaries were.
 
+- Fixed reading Gmsh meshes whose boundary elements have a different order than
+  the volume elements, e.g. linear tetrahedra with second-order triangles, as
+  produced by Gmsh when optimizing a second-order mesh with Netgen. Such meshes
+  were supported before the Gmsh reader rewrite in MFEM 4.10. The mesh order is
+  again the order of the elements of highest dimension.
+
 Linear and nonlinear solvers
 ----------------------------
 - Fixed HypreParaSails::SetOperator, which read the communicator of the
