@@ -276,8 +276,11 @@ void AddBoundaryElements(SubMeshT &mesh,
 
    Array<Element *> boundary;
    Array<int> be_to_face;
+   // Parent boundary element of each new boundary element, -1 if none.
+   Array<int> be_to_parent_be;
    boundary.Reserve(NumOfBdrElements);
    be_to_face.Reserve(NumOfBdrElements);
+   be_to_parent_be.Reserve(NumOfBdrElements);
 
    const auto &parent = *mesh.GetParent();
    const auto &parent_face_ids = mesh.GetParentFaceIDMap();
@@ -304,9 +307,10 @@ void AddBoundaryElements(SubMeshT &mesh,
       {
          auto * be = mesh.GetFace(i)->Duplicate(&mesh);
 
+         int pbeid = -1;
          if (mesh.GetFrom() == SubMesh::From::Domain && mesh.Dimension() >= 2)
          {
-            int pbeid = parent_face_to_be[pfid(i)];
+            pbeid = parent_face_to_be[pfid(i)];
             if (pbeid != -1)
             {
                be->SetAttribute(parent.GetBdrAttribute(pbeid));
@@ -327,12 +331,20 @@ void AddBoundaryElements(SubMeshT &mesh,
             be->SetAttribute(battr);
          }
          be_to_face.Append(i);
+         be_to_parent_be.Append(pbeid);
          boundary.Append(be);
       }
    }
 
    if (mesh.GetFrom() == SubMesh::From::Domain && mesh.Dimension() >= 2)
    {
+      // The interior boundary elements already created from a nonconforming
+      // parent are kept.
+      auto has_bdr_element = [&face_to_be](int f)
+      {
+         return !face_to_be.IsEmpty() && face_to_be[f] != -1;
+      };
+
       // Search for and count interior boundary elements
       int InteriorBdrElems = 0;
       for (int i=0; i<parent.GetNBE(); i++)
@@ -345,6 +357,7 @@ void AddBoundaryElements(SubMeshT &mesh,
 
          if (submeshFaceIdx == -1) { continue; }
          if (mesh.GetFaceInformation(submeshFaceIdx).IsBoundary()) { continue; }
+         if (has_bdr_element(submeshFaceIdx)) { continue; }
          InteriorBdrElems++;
       }
 
@@ -353,6 +366,7 @@ void AddBoundaryElements(SubMeshT &mesh,
          NumOfBdrElements += InteriorBdrElems;
          boundary.Reserve(NumOfBdrElements);
          be_to_face.Reserve(NumOfBdrElements);
+         be_to_parent_be.Reserve(NumOfBdrElements);
 
          // Search for and transfer interior boundary elements
          for (int i = 0; i < parent.GetNBE(); i++)
@@ -366,15 +380,61 @@ void AddBoundaryElements(SubMeshT &mesh,
             if (submeshFaceIdx == -1) { continue; }
             if (mesh.GetFaceInformation(submeshFaceIdx).IsBoundary())
             { continue; }
+            if (has_bdr_element(submeshFaceIdx)) { continue; }
 
             auto * be = mesh.GetFace(submeshFaceIdx)->Duplicate(&mesh);
             be->SetAttribute(parent.GetBdrAttribute(i));
             boundary.Append(be);
             be_to_face.Append(submeshFaceIdx);
+            be_to_parent_be.Append(i);
          }
       }
    }
+   const int nbe_init = mesh.GetNBE();
    mesh.AddBdrElements(boundary, be_to_face);
+
+   if (mesh.GetFrom() == SubMesh::From::Domain && mesh.Dimension() >= 2)
+   {
+      // Give the boundary elements the vertex order of the matching boundary
+      // elements of the parent. On the boundary and on the shared faces, where
+      // Mesh::Finalize fixes the orientation, this is only done when the order
+      // of the parent is a rotation, which a segment does not have. The
+      // integration points of both boundary elements are then the same points.
+      const auto &parent_face_ori = mesh.GetParentFaceOrientations();
+      Array<int> pv;
+      for (int i = 0; i < mesh.GetNBE(); i++)
+      {
+         int f, o;
+         mesh.GetBdrElementFace(i, &f, &o);
+         // The parent of a boundary element created by InitFromNCMesh is found
+         // through its face, as for its attribute in NCSubMesh: a
+         // nonconforming SubMesh has at most one boundary element per face.
+         int pbeid = -1;
+         if (i >= nbe_init) { pbeid = be_to_parent_be[i - nbe_init]; }
+         else
+         {
+            const int pf = mesh.Dimension() == 3 ? parent_face_ids[f] :
+                           parent_edge_ids[f];
+            if (pf >= 0) { pbeid = parent_face_to_be[pf]; }
+         }
+         if (pbeid == -1) { continue; }
+         // Even orientations are rotations and odd ones reflections.
+         bool rotation = false;
+         if (mesh.Dimension() == 3)
+         {
+            int pbe_f, pbe_o;
+            parent.GetBdrElementFace(pbeid, &pbe_f, &pbe_o);
+            rotation = (o + parent_face_ori[f] + pbe_o) % 2 == 0;
+         }
+         if (!rotation && !mesh.GetFaceInformation(f).IsLocal()) { continue; }
+         parent.GetBdrElementVertices(pbeid, pv);
+         int *v = mesh.GetBdrElement(i)->GetVertices();
+         for (int j = 0; j < pv.Size(); j++)
+         {
+            v[j] = mesh.GetSubMeshVertexFromParent(pv[j]);
+         }
+      }
+   }
 }
 
 // Explicit instantiations

@@ -15,7 +15,9 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <functional>
 #include <memory>
 
@@ -143,6 +145,135 @@ void RefineSingleAttachedElement(Mesh &mesh, int vattr, int battr,
  */
 void RefineSingleUnattachedElement(Mesh &mesh, int vattr, int battr,
                                    bool backwards = true);
+
+/**
+ * @brief Create a 4 x 2 x 2 mesh of the unit cube, or a 4 x 2 mesh of the unit
+ * square, with attribute 1 for x < 0.5 and 2 otherwise. Boundary elements are
+ * added on the interior faces x = 0.25 (attribute 7) and x = 0.5 (attribute 8).
+ * All the boundary elements are rotated with respect to their faces, except
+ * the segments which have no rotation, and every other one on the interior
+ * faces is reversed.
+ *
+ * @param type The element type, HEXAHEDRON, TETRAHEDRON, QUADRILATERAL or
+ * TRIANGLE
+ * @param nonconforming Make the mesh nonconforming (simplices included)
+ * @param curved Give the mesh third order nodes and curve it
+ * @return Mesh
+ */
+Mesh RotatedBoundaryElementsMesh(Element::Type type, bool nonconforming = false,
+                                 bool curved = false);
+
+/**
+ * @brief Check the boundary elements of a submesh extracted from a domain.
+ * There shall be at most one boundary element per face. Except on the local
+ * interior faces of the submesh, the boundary elements shall keep the
+ * orientation of their faces. When the vertex order of the matching boundary
+ * element of the parent is a rotation of the one of the submesh, or a
+ * reflection on a local interior face, both orders shall be equal, and both
+ * boundary elements shall map the same reference points to the same physical
+ * points. On meshes without nodes, the boundary values of a cubic function
+ * shall be exact with an order 3 space. The checks do not stop at the first
+ * failure, so that all the ranks reach the collective calls of the caller.
+ *
+ * @tparam SubMeshT SubMesh or ParSubMesh
+ * @param submesh The submesh
+ * @return The number of boundary elements compared to the ones of the parent
+ */
+template <typename SubMeshT>
+int CheckSubMeshBoundaryElements(SubMeshT &submesh)
+{
+   const auto &parent = *submesh.GetParent();
+   const auto parent_face_to_be = parent.GetFaceToBdrElMap();
+   const auto &parent_face_ids = submesh.Dimension() == 3 ?
+                                 submesh.GetParentFaceIDMap() :
+                                 submesh.GetParentEdgeIDMap();
+   const auto &parent_vertex_ids = submesh.GetParentVertexIDMap();
+   const auto face_to_be = submesh.GetFaceToBdrElMap();
+   bool one_per_face = true, orientation_kept = true;
+   bool same_order = true, same_points = true;
+   int ncompared = 0;
+   for (int i = 0; i < submesh.GetNBE(); i++)
+   {
+      int f, o;
+      submesh.GetBdrElementFace(i, &f, &o);
+      one_per_face = one_per_face && (face_to_be[f] == i);
+      const bool keep_orientation = !submesh.GetFaceInformation(f).IsLocal();
+      orientation_kept = orientation_kept && (!keep_orientation || o % 2 == 0);
+      const int pbe = parent_face_to_be[parent_face_ids[f]];
+      if (pbe == -1) { continue; }
+      Array<int> sv, pv;
+      submesh.GetBdrElementVertices(i, sv);
+      parent.GetBdrElementVertices(pbe, pv);
+      CHECK(sv.Size() == pv.Size());
+      if (sv.Size() != pv.Size()) { continue; }
+      const int n = sv.Size();
+      for (int j = 0; j < n; j++) { sv[j] = parent_vertex_ids[sv[j]]; }
+      bool same_cycle = false;
+      for (int k = 0; !same_cycle && k < n; k++)
+      {
+         // A segment has no rotation but the identity.
+         bool rotation = n > 2 || k == 0, reflection = !keep_orientation;
+         for (int j = 0; j < n; j++)
+         {
+            rotation = rotation && (pv[j] == sv[(k + j) % n]);
+            reflection = reflection && (pv[j] == sv[(k + n - j) % n]);
+         }
+         same_cycle = rotation || reflection;
+      }
+      if (!same_cycle) { continue; }
+      for (int j = 0; j < n; j++)
+      {
+         same_order = same_order && (sv[j] == pv[j]);
+      }
+      IsoparametricTransformation T, PT;
+      submesh.GetBdrElementTransformation(i, &T);
+      parent.GetBdrElementTransformation(pbe, &PT);
+      const auto &ir = IntRules.Get(submesh.GetBdrElementGeometry(i), 6);
+      Vector x, px;
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         T.Transform(ir.IntPoint(j), x);
+         PT.Transform(ir.IntPoint(j), px);
+         x -= px;
+         same_points = same_points && (x.Normlinf() < 1e-12);
+      }
+      ncompared++;
+   }
+   CHECK(one_per_face);
+   CHECK(orientation_kept);
+   CHECK(same_order);
+   CHECK(same_points);
+   if (submesh.GetNodes() != nullptr) { return ncompared; }
+   H1_FECollection fec(3, submesh.Dimension());
+   FiniteElementSpace fes(&submesh, &fec);
+   FunctionCoefficient q([](const Vector &x)
+   {
+      const real_t z = x.Size() == 3 ? x(2) : real_t(1);
+      return 1 + x(0) * x(0) * x(0) + 2 * x(0) * x(1) * z + 3 * x(1) * z * z;
+   });
+   GridFunction g(&fes);
+   g.ProjectCoefficient(q);
+   real_t error = 0;
+   for (int i = 0; i < submesh.GetNBE(); i++)
+   {
+      Array<int> dofs;
+      fes.GetBdrElementDofs(i, dofs);
+      Vector values, shape(dofs.Size());
+      g.GetSubVector(dofs, values);
+      const auto &fe = *fes.GetBE(i);
+      auto &T = *submesh.GetBdrElementTransformation(i);
+      const auto &ir = IntRules.Get(fe.GetGeomType(), 6);
+      for (int j = 0; j < ir.GetNPoints(); j++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(j);
+         T.SetIntPoint(&ip);
+         fe.CalcShape(ip, shape);
+         error = std::max(error, std::abs(shape * values - q.Eval(T, ip)));
+      }
+   }
+   CHECK(error < 1e-12);
+   return ncompared;
+}
 
 
 #ifdef MFEM_USE_MPI
