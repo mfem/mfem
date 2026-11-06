@@ -66,7 +66,6 @@ void CoefficientBase::Project(CoefficientVector &vec)
 {
    QuadratureFunction &qf = vec.SetupQuadratureFunction(GetCoefficientSize());
    Project(qf);
-   vec.SyncMemory(qf);
 }
 
 void Coefficient::Project(QuadratureFunction &qf)
@@ -755,7 +754,6 @@ void MatrixCoefficient::Project(CoefficientVector &vec, bool transpose)
 {
    QuadratureFunction &qf = vec.SetupQuadratureFunction(GetCoefficientSize());
    Project(qf, transpose);
-   vec.SyncMemory(qf);
 }
 
 void MatrixCoefficient::Project(CoefficientVector &vec)
@@ -951,13 +949,11 @@ void SymmetricMatrixCoefficient::Project(CoefficientVector &vec, bool transpose)
    {
       QuadratureFunction &qf = vec.SetupQuadratureFunction(height*(height + 1)/2);
       ProjectSymmetric(qf);
-      vec.SyncMemory(qf);
    }
    else
    {
       QuadratureFunction &qf = vec.SetupQuadratureFunction(height*width);
       MatrixCoefficient::Project(qf);
-      vec.SyncMemory(qf);
    }
 }
 
