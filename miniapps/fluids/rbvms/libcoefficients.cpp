@@ -21,7 +21,7 @@ void LibCoefficient::GetLibFunction(string libName,
 {
    // Open library
 #ifdef _WIN32
-   libhandle = LoadLibraryA(libName.c_str());
+   libHandle = LoadLibraryA(libName.c_str());
 #else
    libHandle = dlopen (libName.c_str(), RTLD_LAZY);
 #endif
@@ -89,7 +89,7 @@ LibCoefficient::~LibCoefficient()
    if (libHandle)
    {
 #ifdef _WIN32
-      FreeLibrary((HMODULE)libhandle);
+      FreeLibrary((HMODULE)libHandle);
 #else
       dlclose(libHandle);
 #endif
@@ -104,7 +104,7 @@ void LibVectorCoefficient::GetLibFunction(string libName,
 {
    // Open library
 #ifdef _WIN32
-   libhandle = LoadLibraryA(libName.c_str());
+   libHandle = LoadLibraryA(libName.c_str());
 #else
    libHandle = dlopen (libName.c_str(), RTLD_LAZY);
 #endif
