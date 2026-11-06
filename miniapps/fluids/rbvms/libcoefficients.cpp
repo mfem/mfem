@@ -178,7 +178,7 @@ LibVectorCoefficient::~LibVectorCoefficient()
    if (libHandle)
    {
 #ifdef _WIN32
-      FreeLibrary(l(HMODULE)ibhandle);
+      FreeLibrary((HMODULE)libhandle);
 #else
       dlclose(libHandle);
 #endif
