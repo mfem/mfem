@@ -9,19 +9,22 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-foreach(target liddriven kovasznay vonkarman)
-   add_library(${target} SHARED ${target}.cpp)
-   target_include_directories(${target} PRIVATE
-       ${PROJECT_SOURCE_DIR}
-       ${PROJECT_BINARY_DIR}/config
-   )
-endforeach()
+
 
 add_mfem_miniapp(rbvms
   MAIN rbvms.cpp
   EXTRA_SOURCES integrator.cpp libcoefficients.cpp
   EXTRA_HEADERS integrator.hpp libcoefficients.hpp util.hpp
   LIBRARIES mfem)
+
+foreach(target liddriven kovasznay vonkarman)
+   add_library(${target} SHARED ${target}.cpp)
+   target_include_directories(${target} PRIVATE
+       ${PROJECT_SOURCE_DIR}
+       ${PROJECT_BINARY_DIR}/config
+   )
+   add_dependencies(rbvms ${target})
+endforeach()
 
 LIST(APPEND RBVMS_FILES
         README.md
