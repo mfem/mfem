@@ -34,6 +34,12 @@ TEST_CASE("HypreParMatrix host/device row-cache transitions",
    hypre_ParCSRMatrixInitialize_v2(raw, HYPRE_MEMORY_HOST);
    auto *diag = hypre_ParCSRMatrixDiag(raw);
    auto *offd = hypre_ParCSRMatrixOffd(raw);
+   // Older HYPRE versions overwrite an existing row cache without freeing it.
+   // Rebuild only when a memory-location transition has invalidated the cache.
+   auto ensure_rownnz = [](hypre_CSRMatrix *csr)
+   {
+      if (!hypre_CSRMatrixRownnz(csr)) { hypre_CSRMatrixSetRownnz(csr); }
+   };
    const HYPRE_Int diag_i[] = {0, 1, 1, 2, 2};
    for (int i = 0; i <= local_rows; i++)
    {
@@ -50,8 +56,8 @@ TEST_CASE("HypreParMatrix host/device row-cache transitions",
       hypre_CSRMatrixData(offd)[0] = 1.0;
       hypre_ParCSRMatrixColMapOffd(raw)[0] = local_rows * ((rank + 1) % ranks);
    }
-   hypre_CSRMatrixSetRownnz(diag);
-   hypre_CSRMatrixSetRownnz(offd);
+   ensure_rownnz(diag);
+   ensure_rownnz(offd);
    hypre_ParCSRMatrixSetNumNonzeros(raw);
 
    // Wrapping a host matrix can itself migrate the CSR arrays to the GPU.
@@ -62,8 +68,8 @@ TEST_CASE("HypreParMatrix host/device row-cache transitions",
    for (int cycle = 0; cycle < 2; cycle++)
    {
       matrix.HypreRead();
-      hypre_CSRMatrixSetRownnz(diag);
-      hypre_CSRMatrixSetRownnz(offd);
+      ensure_rownnz(diag);
+      ensure_rownnz(offd);
       REQUIRE(hypre_CSRMatrixRownnz(diag) != nullptr);
       if (has_offd) { REQUIRE(hypre_CSRMatrixRownnz(offd) != nullptr); }
 
@@ -107,9 +113,9 @@ TEST_CASE("HypreParMatrix host/device row-cache transitions",
          REQUIRE(y(1) == MFEM_Approx(0.0));
          REQUIRE(y(2) == MFEM_Approx(4.0));
          REQUIRE(y(3) == MFEM_Approx(0.0));
-         // Exercise the opposite transition with a newly created host cache.
-         hypre_CSRMatrixSetRownnz(diag);
-         hypre_CSRMatrixSetRownnz(offd);
+         // Ensure a host cache exists before exercising the opposite transition.
+         ensure_rownnz(diag);
+         ensure_rownnz(offd);
       }
       matrix.HypreRead();
       Vector x(local_rows), y(local_rows);
