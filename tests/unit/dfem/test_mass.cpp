@@ -321,16 +321,16 @@ void mass_action(const char *filename, int p)
             TestSameMatrices(*Adfem, *Amfem);
             TestSameMatrices(*Amfem, *Adfem);
 
-            Vector dfem_D(tvsize), mfem_D;
+            Vector dfem_D(tvsize), mfem_D(tvsize), mfem_D_l;
             dRdU->AssembleDiagonal(dfem_D);
-            Amfem->GetDiag(mfem_D);
+            a.SpMat().GetDiag(mfem_D_l);
+            pfes.GetProlongationMatrix()->MultTranspose(mfem_D_l, mfem_D);
             mfem_D -= dfem_D;
             REQUIRE(ParNormlp(mfem_D, infinity(), pmesh.GetComm()) ==
                     MFEM_Approx(0.0));
             delete Amfem;
             delete Adfem;
          };
-         
          constexpr auto assembly_kernels =
             DerivativeKernels::AssembleMatrix |
             DerivativeKernels::AssembleDiagonal;
