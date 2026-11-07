@@ -324,7 +324,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
 {
    const int all_dofs = ndofs;
    const int vd = vdim;
-   const bool t = byvdim;
+   const bool by_vdim = byvdim;
    const int elt_dofs = dof;
    auto I = mat.ReadWriteI();
    auto d_offsets = offsets.Read();
@@ -386,7 +386,7 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
             // components: add vd nonzeros to each of the vd rows of i_L.
             for (int ci = 0; ci < vd; ++ci)
             {
-               const int i_vL = t ? i_L*vd + ci : i_L + ci*all_dofs;
+               const int i_vL = by_vdim ? i_L*vd + ci : i_L + ci*all_dofs;
                AtomicAdd(I[i_vL], vd);
             }
          }
@@ -412,7 +412,7 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
 {
    const int all_dofs = ndofs;
    const int vd = vdim;
-   const bool t = byvdim;
+   const bool by_vdim = byvdim;
    const int elt_dofs = dof;
    auto I = mat.ReadWriteI();
    auto J = mat.WriteJ();
@@ -464,13 +464,13 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
             }
             for (int ci = 0; ci < vd; ++ci)
             {
-               const int i_vL = t ? i_L*vd + ci : i_L + ci*all_dofs;
+               const int i_vL = by_vdim ? i_L*vd + ci : i_L + ci*all_dofs;
                // Reserve the vd consecutive nonzeros of the row i_vL coupling
                // to the vector components of j_L.
                const int nnz = AtomicAdd(I[i_vL], vd);
                for (int cj = 0; cj < vd; ++cj)
                {
-                  J[nnz + cj] = t ? j_L*vd + cj : j_L + cj*all_dofs;
+                  J[nnz + cj] = by_vdim ? j_L*vd + cj : j_L + cj*all_dofs;
                   Data[nnz + cj] = mat_ea(j + cj*elt_dofs, i + ci*elt_dofs, e);
                }
             }
@@ -513,13 +513,13 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
                }
                for (int ci = 0; ci < vd; ++ci)
                {
-                  const int i_vL = t ? i_L*vd + ci : i_L + ci*all_dofs;
+                  const int i_vL = by_vdim ? i_L*vd + ci : i_L + ci*all_dofs;
                   // Reserve the vd consecutive nonzeros of the row i_vL
                   // coupling to the vector components of j_L.
                   const int nnz = AtomicAdd(I[i_vL], vd);
                   for (int cj = 0; cj < vd; ++cj)
                   {
-                     J[nnz + cj] = t ? j_L*vd + cj : j_L + cj*all_dofs;
+                     J[nnz + cj] = by_vdim ? j_L*vd + cj : j_L + cj*all_dofs;
                      Data[nnz + cj] = 0.0;
                   }
                   // Element lists are sorted. Retain the first matching column
