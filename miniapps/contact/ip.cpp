@@ -28,10 +28,27 @@ void EnableDevice(BlockVector &v)
    }
 }
 
-Array<real_t> &IPReduceWorkspace()
+void MultiplyWeights(const Vector &weights, const Vector &x, Vector &y)
 {
-   static Array<real_t> workspace;
-   return workspace;
+   const real_t *weights_d = weights.Read();
+   const real_t *x_d = x.Read();
+   real_t *y_d = y.Write();
+   mfem::forall(x.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y_d[i] = weights_d[i] * x_d[i];
+   });
+}
+
+void AddBarrierGradient(const Vector &weights, const Vector &slack,
+                        real_t mu, Vector &y)
+{
+   const real_t *weights_d = weights.Read();
+   const real_t *slack_d = slack.Read();
+   real_t *y_d = y.ReadWrite();
+   mfem::forall(slack.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      y_d[i] -= mu * ((1.0 / slack_d[i]) * weights_d[i]);
+   });
 }
 
 }
@@ -151,6 +168,26 @@ IPSolver::IPSolver(OptContactProblem * problem_)
 
    lk.SetSize(dimC);  lk.UseDevice(true);  lk  = 0.0;
    zlk.SetSize(dimM); zlk.UseDevice(true); zlk = 0.0;
+
+   newton_rhs.Update(block_offsetsuml);
+   EnableDevice(newton_rhs);
+   for (BlockVector *v : {&objective_gradient, &lagrangian_gradient,
+                         &scaled_gradient, &hessian_action})
+   {
+      v->Update(block_offsetsx);
+      EnableDevice(*v);
+   }
+   for (Vector *v : {&regularization_diagonal, &reduced_rhs})
+   {
+      v->SetSize(dimU);
+      v->UseDevice(true);
+   }
+   for (Vector *v : {&barrier_diagonal, &slack_work, &multiplier_sum,
+                    &constraint_residual, &weighted_constraints})
+   {
+      v->SetSize(dimM);
+      v->UseDevice(true);
+   }
 
    MPI_Comm_rank(comm, &myid);
 }
@@ -392,7 +429,7 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    JuT = problem->DucTranspose(x);
    Jm = problem->Dmc(x);
 
-   Vector DiagLogBar(dimM); DiagLogBar.UseDevice(true); DiagLogBar = 0.0;
+   Vector &DiagLogBar = barrier_diagonal;
    const int dim_u = dimU;
    const real_t *Mlump_d = Mlump.Read();
    const real_t *zl_d = zl.Read();
@@ -421,9 +458,8 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
                                        DiagLogBar);
    }
 
-   Vector deltaDiagVec(dimU); deltaDiagVec.UseDevice(true);
-   deltaDiagVec = delta;
-   deltaDiagVec *= Mvlump;
+   Vector &deltaDiagVec = regularization_diagonal;
+   deltaDiagVec.Set(delta, Mvlump);
 
    delete Wuu;
    if (Huu)
@@ -464,13 +500,14 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    iter++;
    // solve A x = b, where A is the IP-Newton matrix
    BlockOperator A(block_offsetsuml, block_offsetsuml);
-   BlockVector b(block_offsetsuml); EnableDevice(b); b = 0.0;
+   BlockVector &b = newton_rhs;
+   b.SyncToBlocks();
    FormIPNewtonMat(x, l, zl, A, delta);
 
    //       [grad_u phi + Ju^T l]
    // b = - [grad_m phi + Jm^T l]
    //       [          c        ]
-   BlockVector gradphi(block_offsetsx); EnableDevice(gradphi); gradphi = 0.0;
+   BlockVector &gradphi = objective_gradient;
    GetDxphi(x, mu, gradphi);
 
    b.GetBlock(0).Set(1.0, gradphi.GetBlock(0));
@@ -491,8 +528,8 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
 
    /* compute the reduced rhs */
    // breduced = bu + Ju^T (bm + Wmm bl)
-   Vector breduced(dimU); breduced.UseDevice(true); breduced = 0.0;
-   Vector tempVec(dimM); tempVec.UseDevice(true); tempVec = 0.0;
+   Vector &breduced = reduced_rhs;
+   Vector &tempVec = slack_work;
    Wmm->Mult(b.GetBlock(2), tempVec);
    tempVec.Add(1.0, b.GetBlock(1));
    JuT->Mult(tempVec, breduced);
@@ -550,7 +587,7 @@ real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xhat,
          alpha = fmin(alpha, -tau * x_d[i] / xhat_d[i]);
       }
    },
-   MinReducer<real_t> {}, use_dev, IPReduceWorkspace());
+   MinReducer<real_t> {}, use_dev, reduce_workspace);
 
    real_t alphaMaxglb;
    MPI_Allreduce(&alphaMaxloc, &alphaMaxglb, 1, MPITypeMap<real_t>::mpi_type,
@@ -745,11 +782,10 @@ void IPSolver::ProjectZ(const Vector &x, Vector &z, real_t mu)
 real_t IPSolver::GetTheta(const BlockVector &x)
 {
    x.SyncToBlocks();
-   Vector cx(dimC); cx.UseDevice(true);
+   Vector &cx = constraint_residual;
    problem->c(x, cx);
-   Vector Mcx(dimC); Mcx.UseDevice(true);
-   Mcx.Set(1.0, cx);
-   Mcx *= Mlump;
+   Vector &Mcx = weighted_constraints;
+   MultiplyWeights(Mlump, cx, Mcx);
    return sqrt(InnerProduct(comm, Mcx, cx));
 }
 
@@ -769,7 +805,7 @@ real_t IPSolver::GetPhi(const BlockVector &x, real_t mu,
    {
       sum += Mlump_d[i] * log(x_d[dim_u + i]);
    },
-   SumReducer<real_t> {}, use_dev, IPReduceWorkspace());
+   SumReducer<real_t> {}, use_dev, reduce_workspace);
    real_t logBarrierGlb;
    MPI_Allreduce(&logBarrierLoc, &logBarrierGlb, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, comm);
@@ -783,10 +819,7 @@ void IPSolver::GetDxphi(const BlockVector &x, real_t mu,
    x.SyncToBlocks();
    y.SyncToBlocks();
    problem->CalcObjectiveGrad(x, y);
-   Vector ytemp(dimM); ytemp.UseDevice(true); ytemp = 1.0;
-   ytemp /= x.GetBlock(1);
-   ytemp *= Mlump;
-   y.GetBlock(1).Add(-mu, ytemp);
+   AddBarrierGradient(Mlump, x.GetBlock(1), mu, y.GetBlock(1));
    y.SyncFromBlocks();
 }
 
@@ -798,10 +831,10 @@ real_t IPSolver::EvalLagrangian(const BlockVector &x, const Vector &l,
    x.SyncToBlocks();
    int eval_err = 0;
    real_t fx = problem->CalcObjective(x, eval_err);
-   Vector cx(dimC); cx.UseDevice(true); problem->c(x, cx);
-   Vector temp(dimM); temp.UseDevice(true); temp = 0.0;
-   temp.Set(1.0, x.GetBlock(1));
-   temp *= Mlump;
+   Vector &cx = constraint_residual;
+   problem->c(x, cx);
+   Vector &temp = slack_work;
+   MultiplyWeights(Mlump, x.GetBlock(1), temp);
    return (fx + InnerProduct(comm, cx, l) - InnerProduct(comm, temp, zl));
 }
 
@@ -820,7 +853,7 @@ void IPSolver::EvalLagrangianGradient(const BlockVector &x, const Vector &l,
    problem->DucTranspose(x)->Mult(l, y.GetBlock(0));
    y.GetBlock(1).Add(-1.0, l);
 
-   BlockVector gradxf(block_offsetsx); EnableDevice(gradxf); gradxf = 0.0;
+   BlockVector &gradxf = objective_gradient;
    problem->CalcObjectiveGrad(x, gradxf);
    y.SyncFromBlocks();
    gradxf.SyncFromBlocks();
@@ -840,7 +873,7 @@ bool IPSolver::CurvatureTest(const BlockOperator & A,
 {
    Xhat.SyncToBlocks();
    b.SyncToBlocks();
-   Vector lplus(l.Size()); lplus.UseDevice(true);
+   Vector &lplus = multiplier_sum;
    lplus.Set(1.0, l);
    lplus.Add(1.0, Xhat.GetBlock(2));
 
@@ -853,7 +886,7 @@ bool IPSolver::CurvatureTest(const BlockOperator & A,
       {
          if (!A.IsZeroBlock(i, j))
          {
-            Vector temp(A.GetBlock(i, j).Height()); temp.UseDevice(true); temp = 0.0;
+            Vector &temp = hessian_action.GetBlock(i);
             A.GetBlock(i, j).Mult(Xhat.GetBlock(j), temp);
             dWd += InnerProduct(comm, Xhat.GetBlock(i), temp);
          }
@@ -877,28 +910,28 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
    real_t optimalityError;
 
    /* gradient of Lagrangian */
-   BlockVector gradL(block_offsetsx); EnableDevice(gradL);
-   gradL = 0.0;
+   BlockVector &gradL = lagrangian_gradient;
    EvalLagrangianGradient(x, l, zl, gradL);
 
    /* constraint function c(u, m) = 0 */
-   Vector cx(dimC); cx.UseDevice(true); cx = 0.0;
+   Vector &cx = constraint_residual;
    problem->c(x, cx);
 
    /* regularized complementarity
     * |z_i * m_i - mu| */
-   Vector comp(dimM); comp.UseDevice(true); comp = 0.0;
+   real_t complementarityLoc = 0.0;
    const int dim_u = dimU;
-   const real_t *x_d = x.Read();
-   const real_t *zl_d = zl.Read();
-   real_t *comp_d = comp.Write();
-   mfem::forall(dimM, [=] MFEM_HOST_DEVICE (int i)
+   const bool use_dev = x.UseDevice() || zl.UseDevice();
+   const real_t *x_d = x.Read(use_dev);
+   const real_t *zl_d = zl.Read(use_dev);
+   reduce(dimM, complementarityLoc,
+          [=] MFEM_HOST_DEVICE (int i, real_t &max_error)
    {
-      comp_d[i] = fabs(x_d[dim_u + i] * zl_d[i] - mu);
-   });
+      max_error = fmax(max_error, fabs(x_d[dim_u + i] * zl_d[i] - mu));
+   },
+   MaxReducer<real_t> {}, use_dev, reduce_workspace);
 
-   BlockVector MxinvgradL(block_offsetsx); EnableDevice(MxinvgradL);
-   MxinvgradL = 0.0;
+   BlockVector &MxinvgradL = scaled_gradient;
    MxinvgradL.Set(1.0, gradL);
    MxinvgradL.SyncToBlocks();
    MxinvgradL.GetBlock(0) /= Mvlump;
@@ -906,7 +939,7 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
    MxinvgradL.SyncFromBlocks();
    stationarityError = sqrt(InnerProduct(comm, gradL, MxinvgradL));
    feasibilityError = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
-   complementarityError = GlobalLpNorm(infinity(), comp.Normlinf(), comm);
+   complementarityError = GlobalLpNorm(infinity(), complementarityLoc, comm);
 
 
    optimalityError = std::max(std::max(stationarityError, feasibilityError),

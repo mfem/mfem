@@ -180,6 +180,15 @@ protected:
    MPI_Comm comm;
 private:
 
+   /// Scratch storage sized once from the problem dimensions. Keep the
+   /// objective and Lagrangian gradients separate: OptimalityError evaluates both.
+   BlockVector newton_rhs, objective_gradient, lagrangian_gradient;
+   BlockVector scaled_gradient, hessian_action;
+   Vector barrier_diagonal, regularization_diagonal;
+   Vector reduced_rhs, slack_work, multiplier_sum;
+   Vector constraint_residual, weighted_constraints;
+   Array<real_t> reduce_workspace;
+
    /// Globalizing line search
    void LineSearch(BlockVector&, BlockVector&, real_t);
 
