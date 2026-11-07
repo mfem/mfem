@@ -708,7 +708,8 @@ TEST_CASE("Elasticity Assembly Levels", "[AssemblyLevel][GPU]")
    a_legacy.SetDiagonalPolicy(Operator::DIAG_ONE);
    a_legacy.AddDomainIntegrator(new_integ());
    a_legacy.Assemble();
-   a_legacy.Finalize();
+   // Keep structural zeros for symmetric sparsity during essential elimination.
+   a_legacy.Finalize(0);
 
    // Element assembly: compare the action and the element matrices
    {
