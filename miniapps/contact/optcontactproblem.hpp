@@ -20,6 +20,16 @@
 namespace mfem
 {
 
+/// Boundary attribute sets for one contact interface.
+struct ContactInterface
+{
+   /// Boundary attributes of the mortar surface.
+   std::set<int> mortar_attrs;
+
+   /// Boundary attributes of the non-mortar surface.
+   std::set<int> nonmortar_attrs;
+};
+
 /** @class OptContactProblem
  *  @brief Contact optimization problem with mortar and non-mortar interfaces.
  *
@@ -71,10 +81,10 @@ private:
    /// Gap vector on contact interface.
    Vector gapv;
 
-   /// (mortar, non-mortar) attribute sets, one pair per contact interface.
+   /// Contact surfaces, one entry per interface.
    /// Each interface is handled by its own Tribol coupling scheme so that
    /// faces of different interfaces are never paired with each other.
-   std::vector<std::pair<std::set<int>, std::set<int>>> contact_pairs;
+   std::vector<ContactInterface> contact_interfaces;
 
    /// Negative identity matrix (used in constraints).
    HypreParMatrix * NegId = nullptr;
@@ -166,11 +176,9 @@ public:
                      real_t tribol_ratio_,
                      bool bound_constraints_);
 
-   /// Construct with several contact interfaces given as (mortar, non-mortar)
-   /// attribute set pairs.
+   /// Construct with several contact interfaces.
    OptContactProblem(ElasticityOperator * problem_,
-                     const std::vector<std::pair<std::set<int>, std::set<int>>> &
-                     contact_pairs_,
+                     const std::vector<ContactInterface> &contact_interfaces_,
                      real_t tribol_ratio_,
                      bool bound_constraints_);
 

@@ -426,17 +426,17 @@ int main(int argc, char *argv[])
       mfem::out << " --------------------------------------" << endl;
    }
 
-   // 7. Set up the contact interfaces for Tribol. Each (mortar, non-mortar)
-   // pair is handled by its own Tribol coupling scheme.
-   std::vector<std::pair<std::set<int>, std::set<int>>> contact_pairs;
+   // 7. Set up the contact interfaces for Tribol. Each interface is handled
+   // by its own coupling scheme.
+   std::vector<ContactInterface> contact_interfaces;
    switch (prob_name)
    {
       case twoblock:
       case  ironing:
-         contact_pairs.push_back({{3}, {4}});
+         contact_interfaces.push_back({{3}, {4}});
          break;
       case beamsphere:
-         contact_pairs.push_back({{6, 9}, {7, 8}});
+         contact_interfaces.push_back({{6, 9}, {7, 8}});
          break;
       case onion:
          // interfaces between consecutive shells: outer surface of shell k
@@ -444,7 +444,7 @@ int main(int argc, char *argv[])
          // attr 2k+1)
          for (int a = 2; a <= 16; a += 2)
          {
-            contact_pairs.push_back({{a}, {a+1}});
+            contact_interfaces.push_back({{a}, {a+1}});
          }
          break;
       default:
@@ -502,7 +502,7 @@ int main(int argc, char *argv[])
    // contact system using Tribol and provides operators for objective evaluation,
    // gradients, Hessians, and constraints. It also provides the filtered subspace
    // transfer operator used by AMGF
-   OptContactProblem contact(&prob, contact_pairs, tribol_ratio,
+   OptContactProblem contact(&prob, contact_interfaces, tribol_ratio,
                              bound_constraints);
 
    int dim = pmesh.Dimension();

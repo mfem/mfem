@@ -290,37 +290,38 @@ void OptContactProblem::ComputeGapJacobian()
    // One Tribol coupling scheme per contact interface. The gap Jacobians are
    // stacked row-wise, and the gaps and lumped masses are concatenated in the
    // same order (StackContactJacobians stacks local rows block by block).
-   const int npairs = contact_pairs.size();
-   Array<HypreParMatrix *> Js(npairs);
-   std::vector<Vector> gaps(npairs), mcslumps(npairs);
+   const int ninterfaces = contact_interfaces.size();
+   Array<HypreParMatrix *> Js(ninterfaces);
+   std::vector<Vector> gaps(ninterfaces), mcslumps(ninterfaces);
    int ngap = 0;
-   for (int i = 0; i < npairs; i++)
+   for (int i = 0; i < ninterfaces; i++)
    {
       gaps[i].UseDevice(true);
       mcslumps[i].UseDevice(true);
+      const ContactInterface &interface = contact_interfaces[i];
       Js[i] = SetupTribol(problem->GetMesh(), coords,
                           problem->GetEssentialDofs(),
-                          contact_pairs[i].first, contact_pairs[i].second,
+                          interface.mortar_attrs, interface.nonmortar_attrs,
                           gaps[i], mcslumps[i], tribol_ratio);
       ngap += gaps[i].Size();
    }
 
    gapv.SetSize(ngap);
    Mcslump.SetSize(ngap);
-   for (int i = 0, offset = 0; i < npairs; offset += gaps[i].Size(), i++)
+   for (int i = 0, offset = 0; i < ninterfaces; offset += gaps[i].Size(), i++)
    {
       gapv.SetVector(gaps[i], offset);
       Mcslump.SetVector(mcslumps[i], offset);
    }
 
-   if (npairs == 1)
+   if (ninterfaces == 1)
    {
       J = Js[0];
    }
    else
    {
       J = StackContactJacobians(Js);
-      for (int i = 0; i < npairs; i++) { delete Js[i]; }
+      for (int i = 0; i < ninterfaces; i++) { delete Js[i]; }
    }
 
    dof_starts.SetSize(2);
@@ -345,16 +346,15 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
                                      const std::set<int> & nonmortar_attrs_,
                                      real_t tribol_ratio_,
                                      bool bound_constraints_)
-   : OptContactProblem(problem_, { {mortar_attrs_, nonmortar_attrs_}},
-tribol_ratio_, bound_constraints_)
+   : OptContactProblem(problem_, {{mortar_attrs_, nonmortar_attrs_}},
+                       tribol_ratio_, bound_constraints_)
 { }
 
 OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
-                                     const std::vector<std::pair<std::set<int>, std::set<int>>> &
-                                     contact_pairs_,
+                                     const std::vector<ContactInterface> &contact_interfaces_,
                                      real_t tribol_ratio_,
                                      bool bound_constraints_)
-   : problem(problem_), contact_pairs(contact_pairs_),
+   : problem(problem_), contact_interfaces(contact_interfaces_),
      tribol_ratio(tribol_ratio_),
      bound_constraints(bound_constraints_)
 {
