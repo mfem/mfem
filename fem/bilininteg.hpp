@@ -98,7 +98,17 @@ public:
 
    /// Method defining element assembly.
    /** The result of the element assembly is added to the @a emat Vector if
-       @a add is true. Otherwise, if @a add is false, we set @a emat. */
+       @a add is true. Otherwise, if @a add is false, we set @a emat.
+
+       @a emat must be preallocated with ne*nd*nd entries, where ne = fes.GetNE()
+       and nd = fes.GetTypicalFE()->GetDof()*fes.GetVDim(). Each element matrix
+       is stored in row-major order: the entry in row r and column s of element
+       e is at emat[s + nd*(r + nd*e)].
+
+       The local dofs follow the E-vector layout using GetEVectorOrdering():
+       lexicographic for tensor bases and native otherwise. For vector spaces,
+       dof i of component c has local index i + c*fes.GetTypicalFE()->GetDof(),
+       independently of the global Ordering::Type. */
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                            const bool add = true);
    /** Used with BilinearFormIntegrators that have different spaces. */
@@ -2751,6 +2761,11 @@ public:
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
+   /** @brief Assemble the element matrices, coupling all the vector
+       components, for tensor product elements.
+       @see BilinearFormIntegrator::AssembleEA() for the buffer size and layout. */
+   void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                   const bool add = true) override;
    void AssembleMF(const FiniteElementSpace &fes) override;
    void AssembleDiagonalPA(Vector &diag) override;
    void AssembleDiagonalMF(Vector &diag) override;
@@ -3440,6 +3455,10 @@ private:
    /// Set up the quadrature space and project lambda and mu coefficients
    void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
 
+   /// @brief Set up the data shared by the PA and EA kernels: quadrature
+   /// space, projected coefficients, DofToQuad maps and geometric factors.
+   void SetUpAssemblyData(const FiniteElementSpace &fes);
+
 public:
    ElasticityIntegrator(Coefficient &l, Coefficient &m)
    { lambda = &l; mu = &m; }
@@ -3460,6 +3479,13 @@ public:
    void AddMultPA(const Vector &x, Vector &y) const override;
 
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
+
+   /** @brief Assemble the element matrices of the vector operator, coupling
+       all dimensional components, on device. Supports both Ordering::byNODES
+       and Ordering::byVDIM.
+       @see BilinearFormIntegrator::AssembleEA() for the buffer size and layout. */
+   void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
+                   const bool add = true) override;
 
    /** Compute the stress corresponding to the local displacement @a $u$ and
        interpolate it at the nodes of the given @a fluxelem. Only the symmetric

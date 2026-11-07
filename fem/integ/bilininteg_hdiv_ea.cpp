@@ -267,6 +267,9 @@ void VectorFEMassIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                         Vector &ea_data,
                                         const bool add)
 {
+   MFEM_VERIFY(fes.GetVDim() == 1,
+               "VectorFEMassIntegrator::AssembleEA does not support "
+               "vector spaces (vdim > 1).");
    AssemblePA(fes);
 
    if (trial_fetype != mfem::FiniteElement::DIV ||
@@ -311,6 +314,9 @@ void DivDivIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                   Vector &ea_data,
                                   const bool add)
 {
+   MFEM_VERIFY(fes.GetVDim() == 1,
+               "DivDivIntegrator::AssembleEA does not support "
+               "vector spaces (vdim > 1).");
    AssemblePA(fes);
 
    const Array<real_t> &Bo = mapsO->B;

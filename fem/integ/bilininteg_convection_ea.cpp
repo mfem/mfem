@@ -229,6 +229,9 @@ void ConvectionIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                       Vector &ea_data,
                                       const bool add)
 {
+   MFEM_VERIFY(fes.GetVDim() == 1,
+               "ConvectionIntegrator::AssembleEA does not support "
+               "vector spaces (vdim > 1).");
    AssemblePA(fes);
    ne = fes.GetMesh()->GetNE();
    const Array<real_t> &B = maps->B;
