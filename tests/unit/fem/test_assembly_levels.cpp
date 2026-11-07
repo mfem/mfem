@@ -1114,6 +1114,47 @@ TEST_CASE("Parallel Elasticity Full Assembly",
    TestSameHypreMatrices(A_fa, A_legacy);
 }
 
+TEST_CASE("Parallel Elasticity Assembly Empty Rank",
+          "[AssemblyLevel][Parallel][GPU]")
+{
+   const int dim = GENERATE(2, 3);
+   const auto assembly = GENERATE(AssemblyLevel::ELEMENT, AssemblyLevel::FULL);
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   CAPTURE(dim, assembly, ordering);
+
+   Mesh serial_mesh = dim == 2
+                      ? Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL)
+                      : Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
+   Array<int> partitioning(serial_mesh.GetNE());
+   partitioning = 0;
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partitioning.GetData());
+   serial_mesh.Clear();
+
+   H1_FECollection fec(1, dim);
+   ParFiniteElementSpace fes(&mesh, &fec, dim, ordering);
+
+   // Start without nodes to exercise collective geometry setup on empty ranks.
+   REQUIRE(mesh.GetNodes() == nullptr);
+   ConstantCoefficient lambda(2.0), mu(1.0);
+   ParBilinearForm a(&fes);
+   a.SetAssemblyLevel(assembly);
+   a.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+   a.Assemble();
+
+   VectorFunctionCoefficient u_coeff(dim, [](const Vector &p, Vector &u)
+   {
+      u = p;
+   });
+   ParGridFunction x(&fes);
+   x.ProjectCoefficient(u_coeff);
+   Vector y(fes.GetVSize());
+   a.Mult(x, y);
+
+   // grad(u) = I, so a(u,u) = lambda*dim^2 + 2*mu*dim on the unit domain.
+   REQUIRE(InnerProduct(MPI_COMM_WORLD, x, y) ==
+           MFEM_Approx(2.0*dim*(dim + 1)));
+}
+
 #endif
 
 } // namespace assembly_levels
