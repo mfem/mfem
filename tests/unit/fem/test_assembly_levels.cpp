@@ -888,6 +888,74 @@ TEST_CASE("Vector Mass Assembly Levels", "[AssemblyLevel][GPU]")
    }
 }
 
+TEST_CASE("Transpose Assembly Levels", "[AssemblyLevel][GPU]")
+{
+   const int dim = GENERATE(2, 3);
+   const int order = GENERATE(1, 2);
+   const bool vector = GENERATE(false, true);
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   const bool add = GENERATE(false, true);
+   const auto assembly = GENERATE(AssemblyLevel::ELEMENT, AssemblyLevel::FULL);
+   CAPTURE(dim, order, vector, ordering, add, assembly);
+
+   Mesh mesh = dim == 2
+               ? Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL)
+               : Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec, vector ? dim : 1, ordering);
+
+   // Both integrators are nonsymmetric, so transposition changes their action.
+   DenseMatrix q(dim);
+   Vector v(dim);
+   for (int i = 0; i < dim; i++)
+   {
+      v(i) = i + 1.0;
+      for (int j = 0; j < dim; j++)
+      {
+         q(i, j) = ((i == j) ? 2.0 : 0.0) + 0.1*(i + 2*j + 1);
+      }
+   }
+   MatrixConstantCoefficient mq(q);
+   VectorConstantCoefficient velocity(v);
+   auto new_integ = [&]() -> BilinearFormIntegrator*
+   {
+      if (vector) { return new VectorMassIntegrator(mq); }
+      return new ConvectionIntegrator(velocity);
+   };
+
+   BilinearForm a(&fes), a_ref(&fes);
+   a.SetAssemblyLevel(assembly);
+   for (BilinearForm *form : {&a_ref, &a})
+   {
+      // The second integrator exercises accumulation into existing matrices.
+      if (add) { form->AddDomainIntegrator(new_integ()); }
+      form->AddDomainIntegrator(new TransposeIntegrator(new_integ()));
+      form->Assemble();
+   }
+   a_ref.Finalize();
+
+   REQUIRE(RelativeMultError(a, a_ref) == MFEM_Approx(0.0));
+   if (assembly == AssemblyLevel::ELEMENT)
+   {
+      const DenseTensor &actual = a.GetElementMatrices();
+      const DenseTensor &expected = a_ref.GetElementMatrices();
+      REQUIRE(actual.TotalSize() == expected.TotalSize());
+      const real_t *da = actual.HostRead(), *de = expected.HostRead();
+      real_t max_diff = 0.0, max_ref = 0.0;
+      for (int i = 0; i < expected.TotalSize(); i++)
+      {
+         max_diff = std::max(max_diff, std::fabs(da[i] - de[i]));
+         max_ref = std::max(max_ref, std::fabs(de[i]));
+      }
+      REQUIRE(max_diff / max_ref == MFEM_Approx(0.0));
+   }
+   else
+   {
+      OperatorHandle A(&a.SpMat(), false), A_ref(&a_ref.SpMat(), false);
+      TestSameSparseMatrices(A, A_ref);
+   }
+}
+
 #ifdef MFEM_USE_MPI
 
 void CompareMatricesNonZeros(HypreParMatrix &A1, const HypreParMatrix &A2)
