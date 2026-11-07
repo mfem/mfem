@@ -19,8 +19,10 @@ void ElasticityIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                       Vector &emat,
                                       const bool add)
 {
-   if (fes.GetNE() == 0) { return; }
+   // Geometry setup can create mesh nodes collectively, so empty ranks must
+   // participate before skipping the element kernels.
    SetUpAssemblyData(fes);
+   if (fes.GetNE() == 0) { return; }
    internal::ElasticityAssembleEAVector(vdim, ndofs, *IntRule, *lambda_quad,
                                         *mu_quad, *geom, *maps, emat, add);
 }

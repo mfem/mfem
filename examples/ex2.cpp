@@ -12,8 +12,8 @@
 //               ex2 -m ../data/beam-hex-nurbs.mesh
 //
 // Device sample runs:
-//               ex2 -fa -d cuda
-//               ex2 -fa -d cuda -m ../data/beam-hex.mesh
+//               ex2 -fa -d gpu
+//               ex2 -fa -d gpu -m ../data/beam-hex.mesh
 //
 // Description:  This example code solves a simple linear elasticity problem
 //               describing a multi-material cantilever beam.

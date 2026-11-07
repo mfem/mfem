@@ -619,6 +619,29 @@ TEST_CASE("Full Assembly Connectivity", "[AssemblyLevel], [GPU]")
    mesh.FinalizeMesh();
 
    TestH1FullAssembly(mesh, order);
+
+   SECTION("Vector")
+   {
+      const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+      CAPTURE(order, ne, ordering);
+      H1_FECollection fec(order, 2);
+      FiniteElementSpace fes(&mesh, &fec, 2, ordering);
+      DenseMatrix q(2);
+      q(0, 0) = 2.0; q(0, 1) = 0.4;
+      q(1, 0) = 0.7; q(1, 1) = 3.0;
+      MatrixConstantCoefficient coeff(q);
+
+      BilinearForm a_fa(&fes), a_ref(&fes);
+      a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+      for (BilinearForm *a : {&a_ref, &a_fa})
+      {
+         a->AddDomainIntegrator(new VectorMassIntegrator(coeff));
+         a->Assemble();
+      }
+      a_ref.Finalize();
+      OperatorHandle A_fa(&a_fa.SpMat(), false), A_ref(&a_ref.SpMat(), false);
+      TestSameSparseMatrices(A_fa, A_ref);
+   }
 }
 
 // Curve and distort the beam meshes so that the Jacobians vary inside the
@@ -685,7 +708,8 @@ TEST_CASE("Elasticity Assembly Levels", "[AssemblyLevel][GPU]")
    a_legacy.SetDiagonalPolicy(Operator::DIAG_ONE);
    a_legacy.AddDomainIntegrator(new_integ());
    a_legacy.Assemble();
-   a_legacy.Finalize();
+   // Keep structural zeros for symmetric sparsity during essential elimination.
+   a_legacy.Finalize(0);
 
    // Element assembly: compare the action and the element matrices
    {
@@ -791,7 +815,8 @@ TEST_CASE("Vector Mass Assembly Levels", "[AssemblyLevel][GPU]")
    const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
    // No coefficient, scalar, vector (diagonal) and matrix coefficients
    const int coeff_type = GENERATE(0, 1, 2, 3);
-   CAPTURE(mesh_fname, order, ordering, coeff_type);
+   const bool add = GENERATE(false, true);
+   CAPTURE(mesh_fname, order, ordering, coeff_type, add);
 
    Mesh mesh(mesh_fname);
    DistortBeamMesh(mesh);
@@ -830,6 +855,7 @@ TEST_CASE("Vector Mass Assembly Levels", "[AssemblyLevel][GPU]")
 
    BilinearForm a_legacy(&fes);
    a_legacy.AddDomainIntegrator(new_integ());
+   if (add) { a_legacy.AddDomainIntegrator(new_integ()); }
    a_legacy.Assemble();
    a_legacy.Finalize();
 
@@ -838,6 +864,7 @@ TEST_CASE("Vector Mass Assembly Levels", "[AssemblyLevel][GPU]")
       BilinearForm a_ea(&fes);
       a_ea.SetAssemblyLevel(AssemblyLevel::ELEMENT);
       a_ea.AddDomainIntegrator(new_integ());
+      if (add) { a_ea.AddDomainIntegrator(new_integ()); }
       a_ea.Assemble();
 
       REQUIRE(RelativeMultError(a_ea, a_legacy) == MFEM_Approx(0.0));
@@ -861,6 +888,7 @@ TEST_CASE("Vector Mass Assembly Levels", "[AssemblyLevel][GPU]")
       BilinearForm a_fa(&fes);
       a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
       a_fa.AddDomainIntegrator(new_integ());
+      if (add) { a_fa.AddDomainIntegrator(new_integ()); }
       a_fa.Assemble();
 
       OperatorHandle A_fa(&a_fa.SpMat(), false);
@@ -869,7 +897,7 @@ TEST_CASE("Vector Mass Assembly Levels", "[AssemblyLevel][GPU]")
    }
 
    // Mass and elasticity in the same form, as in elastodynamics
-   if (coeff_type == 1)
+   if (coeff_type == 1 && !add)
    {
       FunctionCoefficient lambda(ElasticityLambda);
       BilinearForm a_fa(&fes), a_ref(&fes);
@@ -885,6 +913,74 @@ TEST_CASE("Vector Mass Assembly Levels", "[AssemblyLevel][GPU]")
       OperatorHandle A_fa(&a_fa.SpMat(), false);
       OperatorHandle A_ref(&a_ref.SpMat(), false);
       TestSameSparseMatrices(A_fa, A_ref);
+   }
+}
+
+TEST_CASE("Transpose Assembly Levels", "[AssemblyLevel][GPU]")
+{
+   const int dim = GENERATE(2, 3);
+   const int order = GENERATE(1, 2);
+   const bool vector = GENERATE(false, true);
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   const bool add = GENERATE(false, true);
+   const auto assembly = GENERATE(AssemblyLevel::ELEMENT, AssemblyLevel::FULL);
+   CAPTURE(dim, order, vector, ordering, add, assembly);
+
+   Mesh mesh = dim == 2
+               ? Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL)
+               : Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec, vector ? dim : 1, ordering);
+
+   // Both integrators are nonsymmetric, so transposition changes their action.
+   DenseMatrix q(dim);
+   Vector v(dim);
+   for (int i = 0; i < dim; i++)
+   {
+      v(i) = i + 1.0;
+      for (int j = 0; j < dim; j++)
+      {
+         q(i, j) = ((i == j) ? 2.0 : 0.0) + 0.1*(i + 2*j + 1);
+      }
+   }
+   MatrixConstantCoefficient mq(q);
+   VectorConstantCoefficient velocity(v);
+   auto new_integ = [&]() -> BilinearFormIntegrator*
+   {
+      if (vector) { return new VectorMassIntegrator(mq); }
+      return new ConvectionIntegrator(velocity);
+   };
+
+   BilinearForm a(&fes), a_ref(&fes);
+   a.SetAssemblyLevel(assembly);
+   for (BilinearForm *form : {&a_ref, &a})
+   {
+      // The second integrator exercises accumulation into existing matrices.
+      if (add) { form->AddDomainIntegrator(new_integ()); }
+      form->AddDomainIntegrator(new TransposeIntegrator(new_integ()));
+      form->Assemble();
+   }
+   a_ref.Finalize();
+
+   REQUIRE(RelativeMultError(a, a_ref) == MFEM_Approx(0.0));
+   if (assembly == AssemblyLevel::ELEMENT)
+   {
+      const DenseTensor &actual = a.GetElementMatrices();
+      const DenseTensor &expected = a_ref.GetElementMatrices();
+      REQUIRE(actual.TotalSize() == expected.TotalSize());
+      const real_t *da = actual.HostRead(), *de = expected.HostRead();
+      real_t max_diff = 0.0, max_ref = 0.0;
+      for (int i = 0; i < expected.TotalSize(); i++)
+      {
+         max_diff = std::max(max_diff, std::fabs(da[i] - de[i]));
+         max_ref = std::max(max_ref, std::fabs(de[i]));
+      }
+      REQUIRE(max_diff / max_ref == MFEM_Approx(0.0));
+   }
+   else
+   {
+      OperatorHandle A(&a.SpMat(), false), A_ref(&a_ref.SpMat(), false);
+      TestSameSparseMatrices(A, A_ref);
    }
 }
 
@@ -1074,9 +1170,8 @@ TEST_CASE("Parallel Full Assembly Repeated Linear Systems",
 TEST_CASE("Parallel Full Assembly Typed System Matrix",
           "[AssemblyLevel][Parallel][GPU]")
 {
-   // With full assembly, the parallel system matrix is owned by the
-   // OperatorHandle returned by ParallelRAP(). The templated versions of
-   // FormLinearSystem() and FormSystemMatrix() must keep it alive.
+   // Full assembly retains the system matrix so that typed references remain
+   // valid across repeated system-formation calls with the same essential dofs.
    Mesh serial_mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL);
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
    serial_mesh.Clear();
@@ -1088,10 +1183,11 @@ TEST_CASE("Parallel Full Assembly Typed System Matrix",
    fes.GetBoundaryTrueDofs(ess_tdof_list);
 
    ParBilinearForm a_fa(&fes), a_legacy(&fes);
+   ConstantCoefficient diffusion(1.0);
    a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
    a_legacy.SetDiagonalPolicy(Operator::DIAG_ONE);
-   a_fa.AddDomainIntegrator(new DiffusionIntegrator);
-   a_legacy.AddDomainIntegrator(new DiffusionIntegrator);
+   a_fa.AddDomainIntegrator(new DiffusionIntegrator(diffusion));
+   a_legacy.AddDomainIntegrator(new DiffusionIntegrator(diffusion));
    a_fa.Assemble();
    a_legacy.Assemble();
    a_legacy.Finalize();
@@ -1101,21 +1197,62 @@ TEST_CASE("Parallel Full Assembly Typed System Matrix",
 
    SECTION("FormSystemMatrix")
    {
-      HypreParMatrix A_fa;
-      a_fa.FormSystemMatrix(ess_tdof_list, A_fa);
-      OperatorHandle A_fa_h(&A_fa, false);
-      TestSameHypreMatrices(A_fa_h, A_legacy);
+      HypreParMatrix A_fa[2];
+      a_fa.FormSystemMatrix(ess_tdof_list, A_fa[0]);
+      a_fa.FormSystemMatrix(ess_tdof_list, A_fa[1]);
+      for (auto &matrix : A_fa)
+      {
+         OperatorHandle A_fa_h(&matrix, false);
+         TestSameHypreMatrices(A_fa_h, A_legacy);
+      }
    }
 
    SECTION("FormLinearSystem")
    {
-      ParGridFunction x(&fes);
-      ParLinearForm b(&fes);
-      x = 0.0;
-      b = 1.0;
+      ParGridFunction x(&fes), x_ref(&fes);
+      ParLinearForm b(&fes), b_ref(&fes);
+      HypreParMatrix A_fa[2];
+      Vector X, B, X_ref, B_ref;
+      for (int i = 0; i < 2; i++)
+      {
+         x = x_ref = 0.0;
+         b = b_ref = 2.0*i + 1.0;
+         a_fa.FormLinearSystem(ess_tdof_list, x, b, A_fa[i], X, B);
+         a_legacy.FormLinearSystem(ess_tdof_list, x_ref, b_ref, A_legacy,
+                                   X_ref, B_ref);
+         X -= X_ref;
+         B -= B_ref;
+         REQUIRE(GlobalLpNorm(infinity(), X.Normlinf(), MPI_COMM_WORLD) ==
+                 MFEM_Approx(0.0));
+         REQUIRE(GlobalLpNorm(infinity(), B.Normlinf(), MPI_COMM_WORLD) ==
+                 MFEM_Approx(0.0));
+      }
+      for (auto &matrix : A_fa)
+      {
+         OperatorHandle A_fa_h(&matrix, false);
+         TestSameHypreMatrices(A_fa_h, A_legacy);
+      }
+   }
+
+   SECTION("Update")
+   {
+      {
+         HypreParMatrix A_fa;
+         a_fa.FormSystemMatrix(ess_tdof_list, A_fa);
+         OperatorHandle A_fa_h(&A_fa, false);
+         TestSameHypreMatrices(A_fa_h, A_legacy);
+      }
+      // Update permits reassembly with a new material and essential dof list.
+      a_fa.Update();
+      a_legacy.Update();
+      diffusion.constant = 2.0;
+      ess_tdof_list.DeleteAll();
+      a_fa.Assemble();
+      a_legacy.Assemble();
+      a_legacy.Finalize();
       HypreParMatrix A_fa;
-      Vector X, B;
-      a_fa.FormLinearSystem(ess_tdof_list, x, b, A_fa, X, B);
+      a_fa.FormSystemMatrix(ess_tdof_list, A_fa);
+      a_legacy.FormSystemMatrix(ess_tdof_list, A_legacy);
       OperatorHandle A_fa_h(&A_fa, false);
       TestSameHypreMatrices(A_fa_h, A_legacy);
    }
@@ -1165,6 +1302,47 @@ TEST_CASE("Parallel Elasticity Full Assembly",
    a_fa.FormSystemMatrix(ess_tdof_list, A_fa);
    a_legacy.FormSystemMatrix(ess_tdof_list, A_legacy);
    TestSameHypreMatrices(A_fa, A_legacy);
+}
+
+TEST_CASE("Parallel Elasticity Assembly Empty Rank",
+          "[AssemblyLevel][Parallel][GPU]")
+{
+   const int dim = GENERATE(2, 3);
+   const auto assembly = GENERATE(AssemblyLevel::ELEMENT, AssemblyLevel::FULL);
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   CAPTURE(dim, assembly, ordering);
+
+   Mesh serial_mesh = dim == 2
+                      ? Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL)
+                      : Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
+   Array<int> partitioning(serial_mesh.GetNE());
+   partitioning = 0;
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partitioning.GetData());
+   serial_mesh.Clear();
+
+   H1_FECollection fec(1, dim);
+   ParFiniteElementSpace fes(&mesh, &fec, dim, ordering);
+
+   // Start without nodes to exercise collective geometry setup on empty ranks.
+   REQUIRE(mesh.GetNodes() == nullptr);
+   ConstantCoefficient lambda(2.0), mu(1.0);
+   ParBilinearForm a(&fes);
+   a.SetAssemblyLevel(assembly);
+   a.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+   a.Assemble();
+
+   VectorFunctionCoefficient u_coeff(dim, [](const Vector &p, Vector &u)
+   {
+      u = p;
+   });
+   ParGridFunction x(&fes);
+   x.ProjectCoefficient(u_coeff);
+   Vector y(fes.GetVSize());
+   a.Mult(x, y);
+
+   // grad(u) = I, so a(u,u) = lambda*dim^2 + 2*mu*dim on the unit domain.
+   REQUIRE(InnerProduct(MPI_COMM_WORLD, x, y) ==
+           MFEM_Approx(2.0*dim*(dim + 1)));
 }
 
 #endif
