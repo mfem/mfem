@@ -105,10 +105,10 @@ public:
        is stored in row-major order: the entry in row r and column s of element
        e is at emat[s + nd*(r + nd*e)].
 
-       The local dofs follow the E-vector layout with
-       ElementDofOrdering::LEXICOGRAPHIC. For vector spaces, dof i of component
-       c has local index i + c*fes.GetTypicalFE()->GetDof(), independently of
-       the global Ordering::Type. */
+       The local dofs follow the E-vector layout using GetEVectorOrdering():
+       lexicographic for tensor bases and native otherwise. For vector spaces,
+       dof i of component c has local index i + c*fes.GetTypicalFE()->GetDof(),
+       independently of the global Ordering::Type. */
    virtual void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                            const bool add = true);
    /** Used with BilinearFormIntegrators that have different spaces. */

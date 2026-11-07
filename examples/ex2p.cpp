@@ -14,8 +14,8 @@
 //               mpirun -np 4 ex2p -m ../data/beam-hex-nurbs.mesh
 //
 // Device sample runs:
-//               mpirun -np 4 ex2p -fa -d cuda
-//               mpirun -np 4 ex2p -fa -d cuda -m ../data/beam-hex.mesh -elast
+//               mpirun -np 4 ex2p -fa -d gpu
+//               mpirun -np 4 ex2p -fa -d gpu -m ../data/beam-hex.mesh
 //
 // Description:  This example code solves a simple linear elasticity problem
 //               describing a multi-material cantilever beam.

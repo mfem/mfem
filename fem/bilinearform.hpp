@@ -723,7 +723,12 @@ public:
    { return mat->InnerProduct(x, y) + mat_e->InnerProduct(x, y); }
 
    /** @brief Update the @a FiniteElementSpace and delete all data associated
-       with the old one. */
+       with the old one.
+
+       @note With AssemblyLevel::FULL, this method may reuse the internal sparse
+       matrix. If its transpose has been cached (e.g. by MultTranspose() on a
+       GPU), call SpMat().ResetTranspose() after reassembly and before applying
+       the transpose again. See SparseMatrix::MultTranspose(). */
    virtual void Update(FiniteElementSpace *nfes = NULL);
 
    /// (DEPRECATED) Return the FE space associated with the BilinearForm.
