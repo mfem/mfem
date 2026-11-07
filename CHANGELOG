@@ -37,6 +37,10 @@ Linear and nonlinear solvers
   previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
   in a NewtonSolver.
 
+- Added SuperLUSolver::SetRelaxedSupernodeSize and
+  SuperLUSolver::SetMaxSupernodeSize to set the maximum sizes of the relaxed
+  supernodes and of the supernodes in SuperLU_DIST 8.0 or newer.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new example for solving the biharmonic equation (examples/ex42) based
