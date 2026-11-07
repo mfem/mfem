@@ -522,23 +522,24 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
                      J[nnz + cj] = t ? j_L*vd + cj : j_L + cj*all_dofs;
                      Data[nnz + cj] = 0.0;
                   }
-                  // Sum the contributions of the elements sharing i_L and j_L
+                  // Element lists are sorted. Retain the first matching column
+                  // entry so repeated element IDs keep all their contributions.
+                  int l_start = 0;
                   for (int k = 0; k < i_nbElts; k++)
                   {
                      const int e_i = i_elts[k];
                      const int i_Bloc = i_B[k];
-                     for (int l = 0; l < j_nbElts; l++)
+                     while (l_start < j_nbElts && j_elts[l_start] < e_i)
                      {
-                        const int e_j = j_elts[l];
+                        l_start++;
+                     }
+                     for (int l = l_start; l < j_nbElts && j_elts[l] == e_i; l++)
+                     {
                         const int j_Bloc = j_B[l];
-                        if (e_i == e_j)
+                        for (int cj = 0; cj < vd; ++cj)
                         {
-                           for (int cj = 0; cj < vd; ++cj)
-                           {
-                              Data[nnz + cj] += mat_ea(j_Bloc + cj*elt_dofs,
-                                                       i_Bloc + ci*elt_dofs,
-                                                       e_i);
-                           }
+                           Data[nnz + cj] += mat_ea(j_Bloc + cj*elt_dofs,
+                                                    i_Bloc + ci*elt_dofs, e_i);
                         }
                      }
                   }

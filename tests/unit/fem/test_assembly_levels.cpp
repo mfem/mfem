@@ -619,6 +619,29 @@ TEST_CASE("Full Assembly Connectivity", "[AssemblyLevel], [GPU]")
    mesh.FinalizeMesh();
 
    TestH1FullAssembly(mesh, order);
+
+   SECTION("Vector")
+   {
+      const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+      CAPTURE(order, ne, ordering);
+      H1_FECollection fec(order, 2);
+      FiniteElementSpace fes(&mesh, &fec, 2, ordering);
+      DenseMatrix q(2);
+      q(0, 0) = 2.0; q(0, 1) = 0.4;
+      q(1, 0) = 0.7; q(1, 1) = 3.0;
+      MatrixConstantCoefficient coeff(q);
+
+      BilinearForm a_fa(&fes), a_ref(&fes);
+      a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+      for (BilinearForm *a : {&a_ref, &a_fa})
+      {
+         a->AddDomainIntegrator(new VectorMassIntegrator(coeff));
+         a->Assemble();
+      }
+      a_ref.Finalize();
+      OperatorHandle A_fa(&a_fa.SpMat(), false), A_ref(&a_ref.SpMat(), false);
+      TestSameSparseMatrices(A_fa, A_ref);
+   }
 }
 
 // Curve and distort the beam meshes so that the Jacobians vary inside the
