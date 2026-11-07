@@ -745,6 +745,146 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
 
 #ifdef MFEM_USE_MPI
 
+class TestableParallelH1L2Projection :
+   public L2ProjectionGridTransfer::L2ProjectionH1Space
+{
+public:
+   using L2ProjectionH1Space::L2ProjectionH1Space;
+
+   const Operator &ForwardMatrix() const { return *R; }
+
+   void LocalFirstForward(const Vector &x, Vector &y) const
+   {
+      Vector ho_local(pfes_ho_scalar->GetVSize());
+      pfes_ho_scalar->GetProlongationMatrix()->Mult(x, ho_local);
+      Vector mixed_local(M_LH_local_op->Height());
+      M_LH_local_op->Mult(ho_local, mixed_local);
+      Vector scaled_local(mixed_local.Size());
+      ML_inv_vea->Mult(mixed_local, scaled_local);
+      pfes_lor_scalar->GetProlongationMatrix()->MultTranspose(scaled_local, y);
+   }
+
+   void LegacyForward(const Vector &x, Vector &y) const
+   {
+      M_LH->Mult(x, y);
+      Vector true_inverse(pfes_lor_scalar->GetTrueVSize());
+      pfes_lor_scalar->GetRestrictionOperator()->Mult(ML_inv_ea, true_inverse);
+      for (int i = 0; i < y.Size(); ++i) { y(i) *= true_inverse(i); }
+   }
+};
+
+TEST_CASE("Parallel H1 L2 projection EA agrees with standard",
+          "[Transfer][Parallel]")
+{
+   int num_procs;
+   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+   if (num_procs < 2)
+   {
+      SUCCEED("Run with at least two MPI ranks to exercise shared dofs");
+      return;
+   }
+
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL,
+                                     true, 1.0, 1.0);
+   ParMesh coarse_mesh(MPI_COMM_WORLD, mesh);
+   ParMesh fine_mesh(MPI_COMM_WORLD, mesh);
+   fine_mesh.UniformRefinement();
+
+   H1_FECollection coarse_fec(2, 2);
+   H1_FECollection fine_fec(1, 2);
+   ParFiniteElementSpace coarse_fes(&coarse_mesh, &coarse_fec);
+   ParFiniteElementSpace fine_fes(&fine_mesh, &fine_fec);
+
+   L2ProjectionGridTransfer standard_transfer(coarse_fes, fine_fes);
+   L2ProjectionGridTransfer ea_transfer(coarse_fes, fine_fes);
+   ea_transfer.UseEA(true);
+
+   Vector coarse_x(coarse_fes.GetTrueVSize());
+   Vector fine_standard(fine_fes.GetTrueVSize());
+   Vector fine_ea(fine_fes.GetTrueVSize());
+   for (int i = 0; i < coarse_x.Size(); ++i)
+   {
+      coarse_x(i) = 1.0 + 0.01 * (i % 19);
+   }
+
+   standard_transfer.TrueForwardOperator().Mult(coarse_x, fine_standard);
+   ea_transfer.TrueForwardOperator().Mult(coarse_x, fine_ea);
+   fine_ea -= fine_standard;
+   const real_t forward_error =
+      std::sqrt(InnerProduct(MPI_COMM_WORLD, fine_ea, fine_ea));
+   const real_t forward_norm =
+      std::sqrt(InnerProduct(MPI_COMM_WORLD, fine_standard, fine_standard));
+   INFO("forward relative error: " << forward_error / forward_norm);
+   CHECK(forward_error < 1e-12 * std::max(real_t(1.0), forward_norm));
+
+   for (int i = 0; i < fine_standard.Size(); ++i)
+   {
+      fine_standard(i) = 1.0 + 0.02 * (i % 23);
+   }
+   Vector coarse_standard(coarse_fes.GetTrueVSize());
+   Vector coarse_ea(coarse_fes.GetTrueVSize());
+   standard_transfer.TrueBackwardOperator().Mult(fine_standard,
+                                                 coarse_standard);
+   ea_transfer.TrueBackwardOperator().Mult(fine_standard, coarse_ea);
+   coarse_ea -= coarse_standard;
+   const real_t backward_error =
+      std::sqrt(InnerProduct(MPI_COMM_WORLD, coarse_ea, coarse_ea));
+   const real_t backward_norm =
+      std::sqrt(InnerProduct(MPI_COMM_WORLD, coarse_standard, coarse_standard));
+   INFO("backward relative error: " << backward_error / backward_norm);
+   // Both backward operators use PCG with 1e-13 stopping tolerances.
+   CHECK(backward_error < 1e-12 * std::max(real_t(1.0), backward_norm));
+}
+
+TEST_CASE("Parallel H1 EA shared-DOF transfer ordering",
+          "[Transfer][Parallel]")
+{
+   int num_procs;
+   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
+   if (num_procs < 2)
+   {
+      SUCCEED("Run with at least two MPI ranks to exercise shared dofs");
+      return;
+   }
+
+   // Hanging-node constraints expose the difference between local inverse
+   // mass scaling and scaling after summation onto true dofs.
+   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL,
+                                     true, 1.0, 1.0);
+   mesh.EnsureNCMesh();
+   Array<int> refine;
+   refine.Append(0);
+   mesh.GeneralRefinement(refine);
+   ParMesh coarse_mesh(MPI_COMM_WORLD, mesh);
+   ParMesh fine_mesh(MPI_COMM_WORLD, mesh);
+   fine_mesh.UniformRefinement();
+
+   H1_FECollection coarse_fec(2, 2);
+   H1_FECollection fine_fec(1, 2);
+   ParFiniteElementSpace coarse_fes(&coarse_mesh, &coarse_fec);
+   ParFiniteElementSpace fine_fes(&fine_mesh, &fine_fec);
+   TestableParallelH1L2Projection ea(coarse_fes, fine_fes, true);
+
+   Vector x(coarse_fes.GetTrueVSize());
+   for (int i = 0; i < x.Size(); ++i) { x(i) = 1.0 + 0.01*i; }
+   Vector actual(fine_fes.GetTrueVSize());
+   Vector expected(fine_fes.GetTrueVSize());
+   Vector old_order(fine_fes.GetTrueVSize());
+   ea.ForwardMatrix().Mult(x, actual);
+   ea.LocalFirstForward(x, expected);
+   ea.LegacyForward(x, old_order);
+   expected -= actual;
+   old_order -= actual;
+   const real_t expected_error = std::sqrt(InnerProduct(MPI_COMM_WORLD,
+                                                        expected, expected));
+   const real_t error = std::sqrt(InnerProduct(MPI_COMM_WORLD,
+                                               old_order, old_order));
+   INFO("local-first operator error: " << expected_error);
+   INFO("old versus corrected ordering: " << error);
+   CHECK(expected_error < 1e-12);
+   CHECK(error > 1e-6);
+}
+
 TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
 {
    auto simplex = GENERATE(true, false);

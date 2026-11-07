@@ -1450,13 +1450,19 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
       if (P_ho && P_lor)
       {
          Operator *Pt_lor = new TransposeOperator(P_lor);
-         RML_inv.SetSize(pfes_lor_scalar->GetTrueVSize());
-         GetTDofs(*pfes_lor_scalar, ML_inv_ea, RML_inv);
          ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar.get(),
                                                         pfes_lor_scalar.get(),
-                                                        RML_inv));
+                                                        ML_inv_ea));
          M_LH.reset(new TripleProductOperator(Pt_lor, M_LH_local_op, P_ho, true,
                                               true, false));
+
+         // Apply the rank-local inverse lumped mass before summing shared
+         // LOR dofs onto true dofs. Scaling after P_lor^T is not equivalent
+         // at processor interfaces.
+         Operator *R_local = new ProductOperator(ML_inv_vea.get(),
+                                                 M_LH_local_op, false, false);
+         R.reset(new TripleProductOperator(new TransposeOperator(P_lor),
+                                           R_local, P_ho, true, true, false));
 
          Vector RM_H(pfes_ho_scalar->GetTrueVSize());
          GetTDofsTranspose(*pfes_ho_scalar, M_H, RM_H);
@@ -1476,14 +1482,16 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
       else if (P_lor)
       {
          Operator *Pt_lor = new TransposeOperator(P_lor);
-         RML_inv.SetSize(pfes_lor_scalar->GetTrueVSize());
-         GetTDofsTranspose(*pfes_lor_scalar, ML_inv_ea, RML_inv);
          ML_inv_vea.reset(new H1SpaceLumpedMassOperator(pfes_ho_scalar.get(),
                                                         pfes_lor_scalar.get(),
-                                                        RML_inv));
+                                                        ML_inv_ea));
          M_LH.reset(new ProductOperator(Pt_lor, M_LH_local_op, true, true));
-         R.reset(new ProductOperator(ML_inv_vea.get(), M_LH.get(), false,
-                                     false));
+
+         // Weight local mixed-mass rows before restriction to true LOR dofs.
+         Operator *R_local = new ProductOperator(ML_inv_vea.get(),
+                                                 M_LH_local_op, false, false);
+         R.reset(new ProductOperator(new TransposeOperator(P_lor), R_local,
+                                     true, true));
 
          precon.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
       }
@@ -1497,8 +1505,11 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
          precon.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
       }
    }
-   R.reset(new ProductOperator(ML_inv_vea.get(), M_LH.get(), false,
-                               false));
+   if (!R)
+   {
+      R.reset(new ProductOperator(ML_inv_vea.get(), M_LH.get(), false,
+                                  false));
+   }
 
    TransposeOperator* RT = new TransposeOperator(R.get());
    RTxM_LH.reset(new ProductOperator(RT, M_LH.get(), true, false));

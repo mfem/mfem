@@ -530,7 +530,6 @@ public:
 #ifdef MFEM_USE_MPI
       std::unique_ptr<ParFiniteElementSpace> pfes_ho_scalar;
       std::unique_ptr<ParFiniteElementSpace> pfes_lor_scalar;
-      Vector RML_inv;
 #endif
 
       friend class L2ProjectionL2Space;
