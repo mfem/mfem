@@ -48,7 +48,7 @@ static void EAVectorMassAssemble(const int NE, const int coeff_vdim,
    {
       MFEM_FOREACH_THREAD(J, y, ND)
       {
-         MFEM_FOREACH_THREAD(I, x, ND)
+         MFEM_FOREACH_THREAD(I, x, J + 1)
          {
             // Lexicographic indices of the dofs
             const int i1 = I % D1D, i2 = (I / D1D) % D1D, i3 = I / (D1D*D1D);
@@ -74,6 +74,13 @@ static void EAVectorMassAssemble(const int NE, const int coeff_vdim,
                   else { v = val[a*VDIM + b]; }
                   if (add) { M(J + b*ND, I + a*ND, e) += v; }
                   else { M(J + b*ND, I + a*ND, e) = v; }
+                  // Reuse the (J,I) scalar-dof integral with the same Q(a,b),
+                  // preserving nonsymmetric component coefficients.
+                  if (I != J)
+                  {
+                     if (add) { M(I + b*ND, J + a*ND, e) += v; }
+                     else { M(I + b*ND, J + a*ND, e) = v; }
+                  }
                }
             }
          }

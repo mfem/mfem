@@ -791,7 +791,8 @@ TEST_CASE("Vector Mass Assembly Levels", "[AssemblyLevel][GPU]")
    const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
    // No coefficient, scalar, vector (diagonal) and matrix coefficients
    const int coeff_type = GENERATE(0, 1, 2, 3);
-   CAPTURE(mesh_fname, order, ordering, coeff_type);
+   const bool add = GENERATE(false, true);
+   CAPTURE(mesh_fname, order, ordering, coeff_type, add);
 
    Mesh mesh(mesh_fname);
    DistortBeamMesh(mesh);
@@ -830,6 +831,7 @@ TEST_CASE("Vector Mass Assembly Levels", "[AssemblyLevel][GPU]")
 
    BilinearForm a_legacy(&fes);
    a_legacy.AddDomainIntegrator(new_integ());
+   if (add) { a_legacy.AddDomainIntegrator(new_integ()); }
    a_legacy.Assemble();
    a_legacy.Finalize();
 
@@ -838,6 +840,7 @@ TEST_CASE("Vector Mass Assembly Levels", "[AssemblyLevel][GPU]")
       BilinearForm a_ea(&fes);
       a_ea.SetAssemblyLevel(AssemblyLevel::ELEMENT);
       a_ea.AddDomainIntegrator(new_integ());
+      if (add) { a_ea.AddDomainIntegrator(new_integ()); }
       a_ea.Assemble();
 
       REQUIRE(RelativeMultError(a_ea, a_legacy) == MFEM_Approx(0.0));
@@ -861,6 +864,7 @@ TEST_CASE("Vector Mass Assembly Levels", "[AssemblyLevel][GPU]")
       BilinearForm a_fa(&fes);
       a_fa.SetAssemblyLevel(AssemblyLevel::FULL);
       a_fa.AddDomainIntegrator(new_integ());
+      if (add) { a_fa.AddDomainIntegrator(new_integ()); }
       a_fa.Assemble();
 
       OperatorHandle A_fa(&a_fa.SpMat(), false);
@@ -869,7 +873,7 @@ TEST_CASE("Vector Mass Assembly Levels", "[AssemblyLevel][GPU]")
    }
 
    // Mass and elasticity in the same form, as in elastodynamics
-   if (coeff_type == 1)
+   if (coeff_type == 1 && !add)
    {
       FunctionCoefficient lambda(ElasticityLambda);
       BilinearForm a_fa(&fes), a_ref(&fes);
