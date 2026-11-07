@@ -1665,11 +1665,14 @@ void MixedVectorGradientIntegrator::AssemblePA(const FiniteElementSpace
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
    mapsC = &test_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
    mapsO = &test_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+   mapsTrialC = &trial_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = mapsC->ndof;
    quad1D = mapsC->nqpt;
    test_fetype = static_cast<FiniteElement::DerivType>(test_el->GetDerivType());
 
    MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+   MFEM_VERIFY(dofs1D == mapsTrialC->ndof && quad1D == mapsTrialC->nqpt,
+               "Trial/test tensor-product map size mismatch.");
 
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::FULL);
@@ -1747,12 +1750,12 @@ void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       if (dim == 3)
       {
-         PAHcurlH1Apply3D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
+         PAHcurlH1Apply3D(dofs1D, quad1D, ne, mapsTrialC->B, mapsTrialC->G,
                           mapsO->Bt, mapsC->Bt, op_entries, pa_data, x, y);
       }
       else if (dim == 2)
       {
-         PAHcurlH1Apply2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
+         PAHcurlH1Apply2D(dofs1D, quad1D, ne, mapsTrialC->B, mapsTrialC->G,
                           mapsO->Bt, mapsC->Bt, op_entries, pa_data, x, y);
       }
       else
@@ -1764,12 +1767,12 @@ void MixedVectorGradientIntegrator::AddMultPA(const Vector &x, Vector &y) const
    {
       if (dim == 3)
       {
-         PAHdivH1Apply3D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
+         PAHdivH1Apply3D(dofs1D, quad1D, ne, mapsTrialC->B, mapsTrialC->G,
                          mapsO->Bt, mapsC->Bt, op_entries, pa_data, x, y);
       }
       else if (dim == 2)
       {
-         PAHdivH1Apply2D(dofs1D, quad1D, ne, mapsC->B, mapsC->G,
+         PAHdivH1Apply2D(dofs1D, quad1D, ne, mapsTrialC->B, mapsTrialC->G,
                          mapsO->Bt, mapsC->Bt, op_entries, pa_data, x, y);
       }
       else
@@ -1791,12 +1794,14 @@ void MixedVectorGradientIntegrator::AddMultTransposePA(const Vector &x,
       if (dim == 3)
       {
          PAHcurlH1ApplyTranspose3D(dofs1D, quad1D, ne, mapsC->B, mapsO->B,
-                                   mapsC->Bt, mapsC->Gt, op_entries, pa_data, x, y);
+                                   mapsTrialC->Bt, mapsTrialC->Gt,
+                                   op_entries, pa_data, x, y);
       }
       else if (dim == 2)
       {
          PAHcurlH1ApplyTranspose2D(dofs1D, quad1D, ne, mapsC->B, mapsO->B,
-                                   mapsC->Bt, mapsC->Gt, op_entries, pa_data, x, y);
+                                   mapsTrialC->Bt, mapsTrialC->Gt,
+                                   op_entries, pa_data, x, y);
       }
       else
       {
@@ -1808,12 +1813,14 @@ void MixedVectorGradientIntegrator::AddMultTransposePA(const Vector &x,
       if (dim == 3)
       {
          PAHdivH1ApplyTranspose3D(dofs1D, quad1D, ne, mapsC->B, mapsO->B,
-                                  mapsC->Bt, mapsC->Gt, op_entries, pa_data, x, y);
+                                  mapsTrialC->Bt, mapsTrialC->Gt,
+                                  op_entries, pa_data, x, y);
       }
       else if (dim == 2)
       {
          PAHdivH1ApplyTranspose2D(dofs1D, quad1D, ne, mapsC->B, mapsO->B,
-                                  mapsC->Bt, mapsC->Gt, op_entries, pa_data, x, y);
+                                  mapsTrialC->Bt, mapsTrialC->Gt,
+                                  op_entries, pa_data, x, y);
       }
       else
       {
