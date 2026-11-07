@@ -85,7 +85,7 @@ void ComputeMultiplierDirection(const BlockVector &x,
 }
 
 real_t LocalMaxStepSize(const Vector &x, const Vector &direction, real_t tau,
-                       Array<real_t> &workspace)
+                        Array<real_t> &workspace)
 {
    real_t alpha_max = 1.0;
    const bool use_dev = x.UseDevice() || direction.UseDevice();
@@ -134,7 +134,7 @@ real_t LocalWeightedLogSum(const BlockVector &x, const Vector &weights,
 }
 
 real_t LocalComplementarityError(const BlockVector &x, const Vector &z,
-                                real_t mu, Array<real_t> &workspace)
+                                 real_t mu, Array<real_t> &workspace)
 {
    real_t max_error = 0.0;
    const int dim_u = x.GetBlock(0).Size();
@@ -270,10 +270,13 @@ IPSolver::IPSolver(OptContactProblem * problem_)
 
    newton_rhs.Update(block_offsetsuml);
    EnableDevice(newton_rhs);
-   for (BlockVector *v : {&objective_gradient, &lagrangian_gradient,
-                         &scaled_gradient, &hessian_action,
-                         &line_search_point, &line_search_direction,
-                         &line_search_trial, &line_search_gradient})
+   for (BlockVector *v :
+        {
+           &objective_gradient, &lagrangian_gradient,
+           &scaled_gradient, &hessian_action,
+           &line_search_point, &line_search_direction,
+           &line_search_trial, &line_search_gradient
+        })
    {
       v->Update(block_offsetsx);
       EnableDevice(*v);
@@ -283,8 +286,11 @@ IPSolver::IPSolver(OptContactProblem * problem_)
       v->SetSize(dimU);
       v->UseDevice(true);
    }
-   for (Vector *v : {&barrier_diagonal, &slack_work, &multiplier_sum,
-                    &constraint_residual, &weighted_constraints})
+   for (Vector *v :
+        {
+           &barrier_diagonal, &slack_work, &multiplier_sum,
+           &constraint_residual, &weighted_constraints
+        })
    {
       v->SetSize(dimM);
       v->UseDevice(true);

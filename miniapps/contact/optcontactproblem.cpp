@@ -346,8 +346,8 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
                                      const std::set<int> & nonmortar_attrs_,
                                      real_t tribol_ratio_,
                                      bool bound_constraints_)
-   : OptContactProblem(problem_, {{mortar_attrs_, nonmortar_attrs_}},
-                       tribol_ratio_, bound_constraints_)
+   : OptContactProblem(problem_, { {mortar_attrs_, nonmortar_attrs_}},
+tribol_ratio_, bound_constraints_)
 { }
 
 OptContactProblem::OptContactProblem(ElasticityOperator * problem_,

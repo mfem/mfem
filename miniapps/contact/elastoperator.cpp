@@ -163,7 +163,7 @@ void ElasticityOperator::FormLinearSystem()
             // assembled stiffness matrix K is reused across load steps.
             Operator *rhs_operator;
             a->Operator::FormLinearSystem(ess_tdof_list, x, *b,
-                                         rhs_operator, X, B);
+                                          rhs_operator, X, B);
             delete rhs_operator;
             if (IsIdentityProlongation(fes->GetProlongationMatrix()))
             {
