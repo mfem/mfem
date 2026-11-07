@@ -86,7 +86,7 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   the `ready-for-review` label.
 - PRs are treated similarly to journal submissions, with "editors" evaluating each
   PR's priority and workload, and then deciding whether to merge it without review,
-  decline it, start a review, postpone it (`revisit`), or defer it (`deferred`).
+  decline it, start a review, queue it for later review (`revisit`), or defer it (`deferred`).
   See [Editorial Evaluation](#editorial-evaluation).
 - For regular reviews, an editor assigns at least two reviewers and allocates
   time based on the workload. Typical reviews take 2 weeks; reviews of
@@ -493,7 +493,7 @@ choose one of the following actions:
    take 2 weeks, but reviews of `high-workload` PRs should take longer and include
    technical meetings initiated by the author.
 
-4. **Postpone:** Add `revisit` to indicate that we would like to review the PR
+4. **Queue for later review:** Add `revisit` to indicate that we would like to review the PR
    after higher-priority work has been completed. No reviewers are assigned.
    The editor handling the PR is responsible for following up.
 
