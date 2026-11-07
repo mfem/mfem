@@ -1434,6 +1434,15 @@ const SparseMatrix* FiniteElementSpace::GetConformingRestriction() const
    return cR.get();
 }
 
+SparseMatrix *FiniteElementSpace::ConformingAssemble(SparseMatrix *mat) const
+{
+   const SparseMatrix *P = GetConformingProlongation();
+   if (!P) { return mat; } // conforming space
+   SparseMatrix *assembled_mat = RAP(*P, *mat, *P);
+   delete mat;
+   return assembled_mat;
+}
+
 const SparseMatrix* FiniteElementSpace::GetHpConformingRestriction() const
 {
    if (Conforming()) { return NULL; }
