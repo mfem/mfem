@@ -246,6 +246,25 @@ HypreParMatrix *StackContactJacobians(
    return stacked;
 }
 
+struct FilteredContactMatrix
+{
+   SparseMatrix *diag = nullptr;
+   SparseMatrix *offd = nullptr;
+   HYPRE_BigInt *offd_cmap = nullptr;
+   HYPRE_BigInt row_starts[2];
+   HYPRE_BigInt col_starts[2];
+   HYPRE_BigInt global_num_rows = 0;
+   HYPRE_BigInt global_num_cols = 0;
+   HYPRE_Int offd_num_cols = 0;
+};
+
+// Filter inactive rows and compact the associated gap and surface mass.
+FilteredContactMatrix FilterContactMatrixAndGap(
+   HypreParMatrix &contact_matrix,
+   ParFiniteElementSpace &pfes,
+   int coupling_scheme_id, const Vector &surface_mass_full,
+   Vector &gap, Vector &mcslump);
+
 }
 
 void OptContactProblem::ResetConstraintJacobians()
@@ -764,7 +783,8 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
 
    FilteredContactMatrix filtered =
       FilterContactMatrixAndGap(*Mfull, *pressure.ParFESpace(),
-                                coupling_scheme_id, gap, mcslump);
+                                coupling_scheme_id, Mcslumpfull,
+                                gap, mcslump);
    MPI_Comm matrix_comm = Mfull->GetComm();
 
    A_blk.reset();
@@ -788,11 +808,13 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    return M;
 }
 
-OptContactProblem::FilteredContactMatrix
-OptContactProblem::FilterContactMatrixAndGap(
+namespace
+{
+
+FilteredContactMatrix FilterContactMatrixAndGap(
    HypreParMatrix &contact_matrix,
    ParFiniteElementSpace &pfes,
-   int coupling_scheme_id,
+   int coupling_scheme_id, const Vector &surface_mass_full,
    Vector &gap, Vector &mcslump)
 {
    const int h = contact_matrix.Height();
@@ -1039,7 +1061,7 @@ OptContactProblem::FilterContactMatrixAndGap(
    mcslump.UseDevice(true);
 
    const real_t *gap_true_data = gap_true.Read(use_dev);
-   const real_t *Mcslumpfull_data = Mcslumpfull.Read(use_dev);
+   const real_t *Mcslumpfull_data = surface_mass_full.Read(use_dev);
    real_t *gap_data = gap.Write(use_dev);
    real_t *mcslump_data = mcslump.Write(use_dev);
    const int *nonzero_rows_data = nonzero_rows.Read(use_dev);
@@ -1052,6 +1074,8 @@ OptContactProblem::FilterContactMatrixAndGap(
    gap /= mcslump;
 
    return filtered;
+}
+
 }
 
 }
