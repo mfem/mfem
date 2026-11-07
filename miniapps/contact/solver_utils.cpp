@@ -31,6 +31,37 @@
 namespace mfem
 {
 
+HypreParMatrix *MakeDiagonalHypreParMatrix(MPI_Comm comm,
+                                           HYPRE_BigInt global_size,
+                                           HYPRE_BigInt *row_starts,
+                                           const Vector &diag)
+{
+   const int n = diag.Size();
+
+   SparseMatrix diag_spmat;
+   diag_spmat.OverrideSize(n, n);
+   diag_spmat.GetMemoryI().New(n + 1, Device::GetDeviceMemoryType());
+   diag_spmat.GetMemoryJ().New(n, Device::GetDeviceMemoryType());
+   diag_spmat.GetMemoryData().New(n, Device::GetDeviceMemoryType());
+
+   int *I = diag_spmat.WriteI();
+   int *J = diag_spmat.WriteJ();
+   real_t *A = diag_spmat.WriteData();
+   const real_t *D = diag.Read();
+
+   MFEM_FORALL(i, n + 1, { I[i] = i; });
+   MFEM_FORALL(i, n,
+   {
+      J[i] = i;
+      A[i] = D[i];
+   });
+
+   HypreParMatrix *Dmat =
+      new HypreParMatrix(comm, global_size, row_starts, &diag_spmat);
+   HypreStealOwnership(*Dmat, diag_spmat);
+   return Dmat;
+}
+
 static ParallelDirectSolver::Type ParseType(const std::string &name_in)
 {
    std::string name = name_in;

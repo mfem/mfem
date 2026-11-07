@@ -89,6 +89,23 @@ protected:
        Full Assembly (FA). */
    bool sort_sparse_matrix = false;
 
+   /** @brief System matrix returned by reference by the templated versions of
+       FormLinearSystem() and FormSystemMatrix(), when it is not owned by the
+       form (e.g. with Full Assembly). */
+   OperatorHandle typed_system_mat;
+
+   /** @brief If @a A owns its operator, transfer the ownership to
+       #typed_system_mat, so that references to it remain valid. */
+   void KeepSystemMatrix(OperatorHandle &A)
+   {
+      if (A.OwnsOperator())
+      {
+         A.SetOperatorOwner(false);
+         typed_system_mat = A;
+         typed_system_mat.SetOperatorOwner(true);
+      }
+   }
+
    /** @brief Indicates the Mesh::sequence corresponding to the current state of
        the BilinearForm. */
    long sequence;
@@ -536,6 +553,7 @@ public:
       OpType *A_ptr = Ah.Is<OpType>();
       MFEM_VERIFY(A_ptr, "invalid OpType used");
       A.MakeRef(*A_ptr);
+      KeepSystemMatrix(Ah);
    }
 
    /// Form the linear system matrix @a A, see FormLinearSystem() for details.
@@ -556,6 +574,7 @@ public:
       OpType *A_ptr = Ah.Is<OpType>();
       MFEM_VERIFY(A_ptr, "invalid OpType used");
       A.MakeRef(*A_ptr);
+      KeepSystemMatrix(Ah);
    }
 
    /// Recover the solution of a linear system formed with FormLinearSystem().

@@ -20,6 +20,13 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
+# Device-enabled Tribol dependencies require C++20; MFEM remains C++17.
+ifeq ($(MFEM_USE_TRIBOL),YES)
+ifneq ($(filter YES,$(MFEM_USE_CUDA) $(MFEM_USE_HIP)),)
+   MFEM_FLAGS := $(filter-out -std=c++17,$(MFEM_FLAGS)) -std=c++20
+endif
+endif
+
 ifeq ($(MFEM_USE_TRIBOL)$(MFEM_USE_MPI),YESYES)
    MINIAPPS = contact-patch-test
 else
@@ -38,8 +45,9 @@ endif
 #  on the idea that MFEM depends on the other libraries. Here, the setting is
 #  such that Tribol, in fact, depends on MFEM, while MFEM does not depend on
 #  Tribol. Thus, linking MFEM is repeated in the end of the command.
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(MFEM_LIBS) \
+$(MINIAPPS): %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@.o
+	$(MFEM_CXX) $(filter-out -x=cu,$(MFEM_FLAGS)) $@.o -o $@ $(MFEM_LIBS) \
 		-l$(patsubst lib%,%,$(basename $(notdir $(MFEM_LIB_FILE))))
 
 all: $(MINIAPPS)

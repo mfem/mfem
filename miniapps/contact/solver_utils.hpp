@@ -18,6 +18,12 @@
 namespace mfem
 {
 
+/// Build a square HypreParMatrix with the given local diagonal entries.
+HypreParMatrix *MakeDiagonalHypreParMatrix(MPI_Comm comm,
+                                           HYPRE_BigInt global_size,
+                                           HYPRE_BigInt *row_starts,
+                                           const Vector &diag);
+
 /**
  * @class ParallelDirectSolver
  * @brief Wrapper around parallel sparse direct solvers (MUMPS, SuperLU_DIST,

@@ -11,6 +11,10 @@
 //               ex2 -m ../data/beam-quad-nurbs.mesh
 //               ex2 -m ../data/beam-hex-nurbs.mesh
 //
+// Device sample runs:
+//               ex2 -fa -d cuda
+//               ex2 -fa -d cuda -m ../data/beam-hex.mesh
+//
 // Description:  This example code solves a simple linear elasticity problem
 //               describing a multi-material cantilever beam.
 //
@@ -33,7 +37,8 @@
 //               finite element spaces with the linear elasticity bilinear form,
 //               meshes with curved elements, and the definition of piece-wise
 //               constant and vector coefficient objects. Static condensation is
-//               also illustrated.
+//               also illustrated, as well as full assembly of the elasticity
+//               matrix on device.
 //
 //               We recommend viewing Example 1 before viewing this example.
 
@@ -50,6 +55,8 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/beam-tri.mesh";
    int order = 1;
    bool static_cond = false;
+   bool fa = false;
+   const char *device_config = "cpu";
    bool visualization = 1;
 
    OptionsParser args(argc, argv);
@@ -59,6 +66,10 @@ int main(int argc, char *argv[])
                   "Finite element order (polynomial degree).");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
+   args.AddOption(&fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly", "Enable Full Assembly.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -70,7 +81,12 @@ int main(int argc, char *argv[])
    }
    args.PrintOptions(cout);
 
-   // 2. Read the mesh from the given mesh file. We can handle triangular,
+   // 2. Enable hardware devices such as GPUs, and programming models such as
+   //    CUDA, OCCA, RAJA and OpenMP based on command line options.
+   Device device(device_config);
+   device.Print();
+
+   // 3. Read the mesh from the given mesh file. We can handle triangular,
    //    quadrilateral, tetrahedral or hexahedral elements with the same code.
    Mesh *mesh = new Mesh(mesh_file, 1, 1);
    int dim = mesh->Dimension();
@@ -83,14 +99,20 @@ int main(int argc, char *argv[])
       return 3;
    }
 
-   // 3. Select the order of the finite element discretization space. For NURBS
+   if (fa && mesh->NURBSext)
+   {
+      cerr << "\nFull assembly is not supported for NURBS meshes!\n" << endl;
+      return 4;
+   }
+
+   // 4. Select the order of the finite element discretization space. For NURBS
    //    meshes, we increase the order by degree elevation.
    if (mesh->NURBSext)
    {
       mesh->DegreeElevate(order, order);
    }
 
-   // 4. Refine the mesh to increase the resolution. In this example we do
+   // 5. Refine the mesh to increase the resolution. In this example we do
    //    'ref_levels' of uniform refinement. We choose 'ref_levels' to be the
    //    largest number that gives a final mesh with no more than 5,000
    //    elements.
@@ -103,7 +125,7 @@ int main(int argc, char *argv[])
       }
    }
 
-   // 5. Define a finite element space on the mesh. Here we use vector finite
+   // 6. Define a finite element space on the mesh. Here we use vector finite
    //    elements, i.e. dim copies of a scalar finite element space. The vector
    //    dimension is specified by the last argument of the FiniteElementSpace
    //    constructor. For NURBS meshes, we use the (degree elevated) NURBS space
@@ -123,7 +145,7 @@ int main(int argc, char *argv[])
    cout << "Number of finite element unknowns: " << fespace->GetTrueVSize()
         << endl << "Assembling: " << flush;
 
-   // 6. Determine the list of true (i.e. conforming) essential boundary dofs.
+   // 7. Determine the list of true (i.e. conforming) essential boundary dofs.
    //    In this example, the boundary conditions are defined by marking only
    //    boundary attribute 1 from the mesh as essential and converting it to a
    //    list of true dofs.
@@ -132,7 +154,7 @@ int main(int argc, char *argv[])
    ess_bdr[0] = 1;
    fespace->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-   // 7. Set up the linear form b(.) which corresponds to the right-hand side of
+   // 8. Set up the linear form b(.) which corresponds to the right-hand side of
    //    the FEM linear system. In this case, b_i equals the boundary integral
    //    of f*phi_i where f represents a "pull down" force on the Neumann part
    //    of the boundary and phi_i are the basis functions in the finite element
@@ -157,15 +179,17 @@ int main(int argc, char *argv[])
    cout << "r.h.s. ... " << flush;
    b->Assemble();
 
-   // 8. Define the solution vector x as a finite element grid function
+   // 9. Define the solution vector x as a finite element grid function
    //    corresponding to fespace. Initialize x with initial guess of zero,
    //    which satisfies the boundary conditions.
    GridFunction x(fespace);
    x = 0.0;
 
-   // 9. Set up the bilinear form a(.,.) on the finite element space
-   //    corresponding to the linear elasticity integrator with piece-wise
-   //    constants coefficient lambda and mu.
+   // 10. Set up the bilinear form a(.,.) on the finite element space
+   //     corresponding to the linear elasticity integrator with piece-wise
+   //     constants coefficient lambda and mu. With full assembly, the
+   //     element matrices and the global sparse matrix are assembled on the
+   //     device.
    Vector lambda(mesh->attributes.Max());
    lambda = 1.0;
    lambda(0) = lambda(1)*50;
@@ -176,9 +200,17 @@ int main(int argc, char *argv[])
    PWConstCoefficient mu_func(mu);
 
    BilinearForm *a = new BilinearForm(fespace);
+   if (fa)
+   {
+      a->SetAssemblyLevel(AssemblyLevel::FULL);
+      // Sort the matrix column indices when running on GPU or with OpenMP (i.e.
+      // when Device::IsEnabled() returns true). This makes the results
+      // bit-for-bit deterministic at the cost of somewhat longer run time.
+      a->EnableSparseMatrixSorting(Device::IsEnabled());
+   }
    a->AddDomainIntegrator(new ElasticityIntegrator(lambda_func,mu_func));
 
-   // 10. Assemble the bilinear form and the corresponding linear system,
+   // 11. Assemble the bilinear form and the corresponding linear system,
    //     applying any necessary transformations such as: eliminating boundary
    //     conditions, applying conforming constraints for non-conforming AMR,
    //     static condensation, etc.
@@ -194,22 +226,22 @@ int main(int argc, char *argv[])
    cout << "Size of linear system: " << A.Height() << endl;
 
 #ifndef MFEM_USE_SUITESPARSE
-   // 11. Define a simple symmetric Gauss-Seidel preconditioner and use it to
+   // 12. Define a simple symmetric Gauss-Seidel preconditioner and use it to
    //     solve the system Ax=b with PCG.
    GSSmoother M(A);
    PCG(A, M, B, X, 1, 500, 1e-8, 0.0);
 #else
-   // 11. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
+   // 12. If MFEM was compiled with SuiteSparse, use UMFPACK to solve the system.
    UMFPackSolver umf_solver;
    umf_solver.Control[UMFPACK_ORDERING] = UMFPACK_ORDERING_METIS;
    umf_solver.SetOperator(A);
    umf_solver.Mult(B, X);
 #endif
 
-   // 12. Recover the solution as a finite element grid function.
+   // 13. Recover the solution as a finite element grid function.
    a->RecoverFEMSolution(X, *b, x);
 
-   // 13. For non-NURBS meshes, make the mesh curved based on the finite element
+   // 14. For non-NURBS meshes, make the mesh curved based on the finite element
    //     space. This means that we define the mesh elements through a fespace
    //     based transformation of the reference element. This allows us to save
    //     the displaced mesh as a curved mesh when using high-order finite
@@ -221,7 +253,7 @@ int main(int argc, char *argv[])
       mesh->SetNodalFESpace(fespace);
    }
 
-   // 14. Save the displaced mesh and the inverted solution (which gives the
+   // 15. Save the displaced mesh and the inverted solution (which gives the
    //     backward displacements to the original grid). This output can be
    //     viewed later using GLVis: "glvis -m displaced.mesh -g sol.gf".
    {
@@ -236,7 +268,7 @@ int main(int argc, char *argv[])
       x.Save(sol_ofs);
    }
 
-   // 15. Send the above data by socket to a GLVis server. Use the "n" and "b"
+   // 16. Send the above data by socket to a GLVis server. Use the "n" and "b"
    //     keys in GLVis to visualize the displacements.
    if (visualization)
    {
@@ -247,7 +279,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << *mesh << x << flush;
    }
 
-   // 16. Free the used memory.
+   // 17. Free the used memory.
    delete a;
    delete b;
    if (fec)

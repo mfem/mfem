@@ -117,15 +117,18 @@ protected:
    Array<int> constraint_offsets;
    Array<int> block_offsetsumlz, block_offsetsuml, block_offsetsx;
 
-   /// Operators (not owned)
+   /// Objective Hessians (not owned).
    HypreParMatrix * Huu = nullptr;
    HypreParMatrix * Hmm = nullptr;
+
+   /// Regularized Hessian blocks (owned).
    HypreParMatrix * Wuu = nullptr;
    HypreParMatrix * Wmm = nullptr;
+
+   /// Constraint Jacobians and transpose (owned by the problem).
    HypreParMatrix * Ju = nullptr;
    HypreParMatrix * Jm = nullptr;
    HypreParMatrix * JuT = nullptr;
-   HypreParMatrix * JmT = nullptr;
 
    /// Lumped masses
    Vector Mcslump;
@@ -154,6 +157,18 @@ protected:
    int print_level = 0;
    MPI_Comm comm;
 private:
+
+   /// Scratch storage sized once from the problem dimensions. Keep the
+   /// objective and Lagrangian gradients separate: OptimalityError evaluates both.
+   BlockVector newton_rhs, objective_gradient, lagrangian_gradient;
+   BlockVector scaled_gradient, hessian_action;
+   BlockVector line_search_point, line_search_direction;
+   BlockVector line_search_trial, line_search_gradient;
+   Vector barrier_diagonal, regularization_diagonal;
+   Vector reduced_rhs, slack_work, multiplier_sum;
+   Vector constraint_residual, weighted_constraints;
+   Array<real_t> reduce_workspace;
+
    /// Form (regularized) IP-Newton linear system matrix
    void FormIPNewtonMat(BlockVector&, Vector&, Vector&, BlockOperator &,
                         real_t delta = 0.0);
@@ -163,7 +178,7 @@ private:
                       bool &, real_t, real_t delta = 0.0);
 
    /// Max step length that satisfies fraction-to-boundary rule
-   real_t GetMaxStepSize(Vector&, Vector&, real_t);
+   real_t GetMaxStepSize(const Vector&, const Vector&, real_t);
 
    /// Globalizing line search
    void LineSearch(BlockVector&, BlockVector&, real_t);
@@ -197,6 +212,7 @@ private:
    /// Compute the optimality error
    real_t OptimalityError(const BlockVector &, const Vector &, const Vector &,
                           real_t mu = 0.0);
+
    /// Update the barrier parameter
    void UpdateBarrierSubProblem()
    {
