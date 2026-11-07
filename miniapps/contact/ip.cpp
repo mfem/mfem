@@ -51,6 +51,105 @@ void AddBarrierGradient(const Vector &weights, const Vector &slack,
    });
 }
 
+void FillBarrierDiagonal(const BlockVector &x, const Vector &weights,
+                         const Vector &z, real_t delta, Vector &diagonal)
+{
+   const int dim_u = x.GetBlock(0).Size();
+   const real_t *weights_d = weights.Read();
+   const real_t *z_d = z.Read();
+   const real_t *x_d = x.Read();
+   real_t *diagonal_d = diagonal.Write();
+   mfem::forall(diagonal.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      diagonal_d[i] = (weights_d[i] * z_d[i]) / x_d[i + dim_u]
+                      + delta * weights_d[i];
+   });
+}
+
+void ComputeMultiplierDirection(const BlockVector &x,
+                                const BlockVector &direction, const Vector &z,
+                                real_t mu, Vector &z_direction)
+{
+   const int dim_u = x.GetBlock(0).Size();
+   const real_t *z_d = z.Read();
+   const real_t *direction_d = direction.Read();
+   const real_t *x_d = x.Read();
+   real_t *z_direction_d = z_direction.Write();
+   mfem::forall(z.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      z_direction_d[i] = z_d[i]
+                         + (z_d[i] * direction_d[i + dim_u] - mu)
+                         / x_d[i + dim_u];
+   });
+   z_direction *= -1.;
+}
+
+real_t LocalMaxStepSize(const Vector &x, const Vector &direction, real_t tau,
+                       Array<real_t> &workspace)
+{
+   real_t alpha_max = 1.0;
+   const bool use_dev = x.UseDevice() || direction.UseDevice();
+   const real_t *x_d = x.Read(use_dev);
+   const real_t *direction_d = direction.Read(use_dev);
+   reduce(x.Size(), alpha_max,
+          [=] MFEM_HOST_DEVICE (int i, real_t &alpha)
+   {
+      if (direction_d[i] < 0.0)
+      {
+         alpha = fmin(alpha, -tau * x_d[i] / direction_d[i]);
+      }
+   },
+   MinReducer<real_t> {}, use_dev, workspace);
+   return alpha_max;
+}
+
+void ProjectMultipliers(const Vector &x, Vector &z, int dim_u,
+                        real_t mu, real_t k_sig)
+{
+   const real_t *x_d = x.Read();
+   real_t *z_d = z.ReadWrite();
+   mfem::forall(z.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      const real_t zdual_i = z_d[i];
+      const real_t zprimal_i = mu / x_d[i + dim_u];
+      z_d[i] = fmax(fmin(zdual_i, k_sig * zprimal_i), zprimal_i / k_sig);
+   });
+}
+
+real_t LocalWeightedLogSum(const BlockVector &x, const Vector &weights,
+                           Array<real_t> &workspace)
+{
+   real_t log_sum = 0.0;
+   const int dim_u = x.GetBlock(0).Size();
+   const bool use_dev = x.UseDevice() || weights.UseDevice();
+   const real_t *weights_d = weights.Read(use_dev);
+   const real_t *x_d = x.Read(use_dev);
+   reduce(weights.Size(), log_sum,
+          [=] MFEM_HOST_DEVICE (int i, real_t &sum)
+   {
+      sum += weights_d[i] * log(x_d[dim_u + i]);
+   },
+   SumReducer<real_t> {}, use_dev, workspace);
+   return log_sum;
+}
+
+real_t LocalComplementarityError(const BlockVector &x, const Vector &z,
+                                real_t mu, Array<real_t> &workspace)
+{
+   real_t max_error = 0.0;
+   const int dim_u = x.GetBlock(0).Size();
+   const bool use_dev = x.UseDevice() || z.UseDevice();
+   const real_t *x_d = x.Read(use_dev);
+   const real_t *z_d = z.Read(use_dev);
+   reduce(z.Size(), max_error,
+          [=] MFEM_HOST_DEVICE (int i, real_t &error)
+   {
+      error = fmax(error, fabs(x_d[dim_u + i] * z_d[i] - mu));
+   },
+   MaxReducer<real_t> {}, use_dev, workspace);
+   return max_error;
+}
+
 }
 
 IPSolver::IPSolver(OptContactProblem * problem_)
@@ -430,16 +529,7 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    Jm = problem->Dmc(x);
 
    Vector &DiagLogBar = barrier_diagonal;
-   const int dim_u = dimU;
-   const real_t *Mlump_d = Mlump.Read();
-   const real_t *zl_d = zl.Read();
-   const real_t *x_d = x.Read();
-   real_t *DiagLogBar_d = DiagLogBar.Write();
-   mfem::forall(dimM, [=] MFEM_HOST_DEVICE (int i)
-   {
-      DiagLogBar_d[i] = (Mlump_d[i] * zl_d[i]) / x_d[i + dim_u]
-                        + delta * Mlump_d[i];
-   });
+   FillBarrierDiagonal(x, Mlump, zl, delta, DiagLogBar);
 
    delete Wmm;
    if (Hmm)
@@ -559,35 +649,13 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
 
    /* backsolve to determine zlhat */
    x.SyncFromBlocks();
-   const int dim_u = dimU;
-   const real_t *zl_d = zl.Read();
-   const real_t *Xhat_d = Xhat.Read();
-   const real_t *x_d = x.Read();
-   real_t *zlhat_d = zlhat.Write();
-   mfem::forall(dimM, [=] MFEM_HOST_DEVICE (int i)
-   {
-      zlhat_d[i] = zl_d[i]
-                   + (zl_d[i] * Xhat_d[i + dim_u] - mu) / x_d[i + dim_u];
-   });
-   zlhat *= -1.;
+   ComputeMultiplierDirection(x, Xhat, zl, mu, zlhat);
 }
 
 real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xhat,
                                 real_t tau)
 {
-   real_t alphaMaxloc = 1.0;
-   const bool use_dev = x.UseDevice() || xhat.UseDevice();
-   const real_t *x_d = x.Read(use_dev);
-   const real_t *xhat_d = xhat.Read(use_dev);
-   reduce(x.Size(), alphaMaxloc,
-          [=] MFEM_HOST_DEVICE (int i, real_t &alpha)
-   {
-      if (xhat_d[i] < 0.0)
-      {
-         alpha = fmin(alpha, -tau * x_d[i] / xhat_d[i]);
-      }
-   },
-   MinReducer<real_t> {}, use_dev, reduce_workspace);
+   real_t alphaMaxloc = LocalMaxStepSize(x, xhat, tau, reduce_workspace);
 
    real_t alphaMaxglb;
    MPI_Allreduce(&alphaMaxloc, &alphaMaxglb, 1, MPITypeMap<real_t>::mpi_type,
@@ -767,16 +835,7 @@ bool IPSolver::FilterCheck(real_t thetax, real_t phix)
 
 void IPSolver::ProjectZ(const Vector &x, Vector &z, real_t mu)
 {
-   const int dim_u = dimU;
-   const real_t k_sig = kSig;
-   const real_t *x_d = x.Read();
-   real_t *z_d = z.ReadWrite();
-   mfem::forall(dimM, [=] MFEM_HOST_DEVICE (int i)
-   {
-      const real_t zdual_i = z_d[i];
-      const real_t zprimal_i = mu / x_d[i + dim_u];
-      z_d[i] = fmax(fmin(zdual_i, k_sig * zprimal_i), zprimal_i / k_sig);
-   });
+   ProjectMultipliers(x, z, dimU, mu, kSig);
 }
 
 real_t IPSolver::GetTheta(const BlockVector &x)
@@ -795,17 +854,7 @@ real_t IPSolver::GetPhi(const BlockVector &x, real_t mu,
 {
    x.SyncToBlocks();
    real_t fx = problem->CalcObjective(x, eval_err);
-   real_t logBarrierLoc = 0.0;
-   const int dim_u = dimU;
-   const bool use_dev = x.UseDevice() || Mlump.UseDevice();
-   const real_t *Mlump_d = Mlump.Read(use_dev);
-   const real_t *x_d = x.Read(use_dev);
-   reduce(dimM, logBarrierLoc,
-          [=] MFEM_HOST_DEVICE (int i, real_t &sum)
-   {
-      sum += Mlump_d[i] * log(x_d[dim_u + i]);
-   },
-   SumReducer<real_t> {}, use_dev, reduce_workspace);
+   real_t logBarrierLoc = LocalWeightedLogSum(x, Mlump, reduce_workspace);
    real_t logBarrierGlb;
    MPI_Allreduce(&logBarrierLoc, &logBarrierGlb, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, comm);
@@ -919,17 +968,8 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
 
    /* regularized complementarity
     * |z_i * m_i - mu| */
-   real_t complementarityLoc = 0.0;
-   const int dim_u = dimU;
-   const bool use_dev = x.UseDevice() || zl.UseDevice();
-   const real_t *x_d = x.Read(use_dev);
-   const real_t *zl_d = zl.Read(use_dev);
-   reduce(dimM, complementarityLoc,
-          [=] MFEM_HOST_DEVICE (int i, real_t &max_error)
-   {
-      max_error = fmax(max_error, fabs(x_d[dim_u + i] * zl_d[i] - mu));
-   },
-   MaxReducer<real_t> {}, use_dev, reduce_workspace);
+   real_t complementarityLoc =
+      LocalComplementarityError(x, zl, mu, reduce_workspace);
 
    BlockVector &MxinvgradL = scaled_gradient;
    MxinvgradL.Set(1.0, gradL);

@@ -84,28 +84,6 @@ public:
    /// Get solver iteration counts
    Array<int> & GetLinearSolverIterations() {return lin_solver_iterations;};
 
-   // NVCC requires methods containing CUDA extended lambdas to be public.
-   /// Form (regularized) IP-Newton linear system matrix
-   void FormIPNewtonMat(BlockVector&, Vector&, Vector&, BlockOperator &,
-                        real_t delta = 0.0);
-
-   /// Solve the (regularized) IP-Newton linear system
-   void IPNewtonSolve(BlockVector&, Vector&, Vector&, Vector&, BlockVector&,
-                      bool &, real_t, real_t delta = 0.0);
-
-   /// Max step length that satisfies fraction-to-boundary rule
-   real_t GetMaxStepSize(Vector&, Vector&, real_t);
-
-   /// Project inequality constraint multiplier
-   void ProjectZ(const Vector &, Vector &, real_t);
-
-   /// Evaluate log-barrier objective phi
-   real_t GetPhi(const BlockVector &, real_t, int eval_err = 0);
-
-   /// Compute the optimality error
-   real_t OptimalityError(const BlockVector &, const Vector &, const Vector &,
-                          real_t mu = 0.0);
-
    virtual ~IPSolver();
 protected:
    /// OptContactProblem (not owned).
@@ -189,14 +167,31 @@ private:
    Vector constraint_residual, weighted_constraints;
    Array<real_t> reduce_workspace;
 
+   /// Form (regularized) IP-Newton linear system matrix
+   void FormIPNewtonMat(BlockVector&, Vector&, Vector&, BlockOperator &,
+                        real_t delta = 0.0);
+
+   /// Solve the (regularized) IP-Newton linear system
+   void IPNewtonSolve(BlockVector&, Vector&, Vector&, Vector&, BlockVector&,
+                      bool &, real_t, real_t delta = 0.0);
+
+   /// Max step length that satisfies fraction-to-boundary rule
+   real_t GetMaxStepSize(Vector&, Vector&, real_t);
+
    /// Globalizing line search
    void LineSearch(BlockVector&, BlockVector&, real_t);
 
    /// check if a point is acceptable to the filter
    bool FilterCheck(real_t, real_t);
 
+   /// Project inequality constraint multiplier
+   void ProjectZ(const Vector &, Vector &, real_t);
+
    /// Evaluate theta (equality constraint violation measure)
    real_t GetTheta(const BlockVector &);
+
+   /// Evaluate log-barrier objective phi
+   real_t GetPhi(const BlockVector &, real_t, int eval_err = 0);
 
    /// Gradient of log-barrier objective w.r.t. primal variables
    void GetDxphi(const BlockVector &, real_t, BlockVector &);
@@ -211,6 +206,10 @@ private:
    /// curvature test to detect negative-curvature
    bool CurvatureTest(const BlockOperator & A, const BlockVector & Xhat,
                       const Vector &l, const BlockVector & b, const real_t & delta);
+
+   /// Compute the optimality error
+   real_t OptimalityError(const BlockVector &, const Vector &, const Vector &,
+                          real_t mu = 0.0);
 
    /// Update the barrier parameter
    void UpdateBarrierSubProblem()
