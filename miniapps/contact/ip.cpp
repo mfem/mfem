@@ -393,8 +393,8 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
          xk.GetBlock(1).Add(alpha, Xhat.GetBlock(1));
          lk.Add(alpha,   Xhat.GetBlock(2));
          zlk.Add(alphaz, Xhat.GetBlock(3));
-         ProjectZ(xk, zlk, mu_k);
          xk.SyncFromBlocks();
+         ProjectZ(xk, zlk, mu_k);
       }
       else
       {
