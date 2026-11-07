@@ -271,7 +271,9 @@ IPSolver::IPSolver(OptContactProblem * problem_)
    newton_rhs.Update(block_offsetsuml);
    EnableDevice(newton_rhs);
    for (BlockVector *v : {&objective_gradient, &lagrangian_gradient,
-                         &scaled_gradient, &hessian_action})
+                         &scaled_gradient, &hessian_action,
+                         &line_search_point, &line_search_direction,
+                         &line_search_trial, &line_search_gradient})
    {
       v->Update(block_offsetsx);
       EnableDevice(*v);
@@ -681,18 +683,24 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
    real_t alphaMaxz = GetMaxStepSize(z0, zhat, tau);
    alphaz = alphaMaxz;
 
-   BlockVector x0(block_offsetsx); EnableDevice(x0); x0 = 0.0;
+   BlockVector &x0 = line_search_point;
+   x0 = 0.0;
+   x0.SyncToBlocks();
    x0.GetBlock(0).Set(1.0, u0);
    x0.GetBlock(1).Set(1.0, m0);
    x0.SyncFromBlocks();
 
-   BlockVector xhat(block_offsetsx); EnableDevice(xhat); xhat = 0.0;
+   BlockVector &xhat = line_search_direction;
+   xhat = 0.0;
+   xhat.SyncToBlocks();
    xhat.GetBlock(0).Set(1.0, uhat);
    xhat.GetBlock(1).Set(1.0, mhat);
    xhat.SyncFromBlocks();
 
-   BlockVector xtrial(block_offsetsx); EnableDevice(xtrial); xtrial = 0.0;
-   BlockVector Dxphi0(block_offsetsx); EnableDevice(Dxphi0); Dxphi0 = 0.0;
+   BlockVector &xtrial = line_search_trial;
+   xtrial = 0.0;
+   BlockVector &Dxphi0 = line_search_gradient;
+   Dxphi0 = 0.0;
    int maxBacktrack = 20;
    alpha = alphaMax;
 

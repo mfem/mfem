@@ -162,6 +162,8 @@ private:
    /// objective and Lagrangian gradients separate: OptimalityError evaluates both.
    BlockVector newton_rhs, objective_gradient, lagrangian_gradient;
    BlockVector scaled_gradient, hessian_action;
+   BlockVector line_search_point, line_search_direction;
+   BlockVector line_search_trial, line_search_gradient;
    Vector barrier_diagonal, regularization_diagonal;
    Vector reduced_rhs, slack_work, multiplier_sum;
    Vector constraint_residual, weighted_constraints;
