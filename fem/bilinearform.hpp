@@ -94,15 +94,22 @@ protected:
        form (e.g. with Full Assembly). */
    OperatorHandle typed_system_mat;
 
-   /** @brief If @a A owns its operator, transfer the ownership to
-       #typed_system_mat, so that references to it remain valid. */
+   /** @brief Retain the first owned system matrix and reuse it on subsequent
+       calls, so that existing typed references remain valid until Update(). */
    void KeepSystemMatrix(OperatorHandle &A)
    {
       if (A.OwnsOperator())
       {
-         A.SetOperatorOwner(false);
-         typed_system_mat = A;
-         typed_system_mat.SetOperatorOwner(true);
+         if (typed_system_mat.Ptr())
+         {
+            A = typed_system_mat;
+         }
+         else
+         {
+            A.SetOperatorOwner(false);
+            typed_system_mat = A;
+            typed_system_mat.SetOperatorOwner(true);
+         }
       }
    }
 
@@ -550,10 +557,10 @@ public:
    {
       OperatorHandle Ah;
       FormLinearSystem(ess_tdof_list, x, b, Ah, X, B, copy_interior);
+      KeepSystemMatrix(Ah);
       OpType *A_ptr = Ah.Is<OpType>();
       MFEM_VERIFY(A_ptr, "invalid OpType used");
       A.MakeRef(*A_ptr);
-      KeepSystemMatrix(Ah);
    }
 
    /// Form the linear system matrix @a A, see FormLinearSystem() for details.
@@ -571,10 +578,10 @@ public:
    {
       OperatorHandle Ah;
       FormSystemMatrix(ess_tdof_list, Ah);
+      KeepSystemMatrix(Ah);
       OpType *A_ptr = Ah.Is<OpType>();
       MFEM_VERIFY(A_ptr, "invalid OpType used");
       A.MakeRef(*A_ptr);
-      KeepSystemMatrix(Ah);
    }
 
    /// Recover the solution of a linear system formed with FormLinearSystem().
