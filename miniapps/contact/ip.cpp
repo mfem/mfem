@@ -652,7 +652,7 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    ComputeMultiplierDirection(x, Xhat, zl, mu, zlhat);
 }
 
-real_t IPSolver::GetMaxStepSize(Vector &x, Vector &xhat,
+real_t IPSolver::GetMaxStepSize(const Vector &x, const Vector &xhat,
                                 real_t tau)
 {
    real_t alphaMaxloc = LocalMaxStepSize(x, xhat, tau, reduce_workspace);
@@ -671,14 +671,12 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
 {
    int eval_err = 0;
    real_t tau  = std::max(tauMin, 1.0 - mu);
-   Vector u0   = X0.GetBlock(0);
-   Vector m0   = X0.GetBlock(1);
-   Vector l0   = X0.GetBlock(2);
-   Vector z0   = X0.GetBlock(3);
-   Vector uhat = Xhat.GetBlock(0);
-   Vector mhat = Xhat.GetBlock(1);
-   Vector lhat = Xhat.GetBlock(2);
-   Vector zhat = Xhat.GetBlock(3);
+   const Vector &u0   = X0.GetBlock(0);
+   const Vector &m0   = X0.GetBlock(1);
+   const Vector &z0   = X0.GetBlock(3);
+   const Vector &uhat = Xhat.GetBlock(0);
+   const Vector &mhat = Xhat.GetBlock(1);
+   const Vector &zhat = Xhat.GetBlock(3);
    real_t alphaMax  = GetMaxStepSize(m0, mhat, tau);
    real_t alphaMaxz = GetMaxStepSize(z0, zhat, tau);
    alphaz = alphaMaxz;

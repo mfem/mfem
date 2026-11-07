@@ -176,7 +176,7 @@ private:
                       bool &, real_t, real_t delta = 0.0);
 
    /// Max step length that satisfies fraction-to-boundary rule
-   real_t GetMaxStepSize(Vector&, Vector&, real_t);
+   real_t GetMaxStepSize(const Vector&, const Vector&, real_t);
 
    /// Globalizing line search
    void LineSearch(BlockVector&, BlockVector&, real_t);
