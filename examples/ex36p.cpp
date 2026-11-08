@@ -23,13 +23,13 @@
 //              Surowiec [1].
 //
 //              This example highlights the ability of MFEM to deliver high-
-//              order solutions to variation inequality problems and
+//              order solutions to variational inequality problems and
 //              showcases how to set up and solve nonlinear mixed methods
 //              using mfem::NewtonSolver.
 //
-// [1] Keith, B. and Surowiec, T. (2023) Proximal Galerkin: A structure-
-//     preserving finite element method for pointwise bound constraints.
-//     arXiv:2307.12444 [math.NA]
+// [1] Keith, B., Surowiec, T.M. Proximal Galerkin: A Structure-Preserving
+//     Finite Element Method for Pointwise Bound Constraints.
+//     Found Comput Math 26, 385–481 (2026).
 
 #include "mfem.hpp"
 #include <fstream>
@@ -47,7 +47,7 @@ real_t exp_sum(const real_t psi, const real_t phi) { return exp(psi) + phi; }
 
 /**
  * @brief Nonlinear residual/Jacobian operator for one proximal step of the
- *        proximal-Galerkin obstacle problem, for use with mfem::NewtonSolver.
+ *        proximal Galerkin obstacle problem, for use with mfem::NewtonSolver.
  *
  * This uses the equivalent (u, lambda) formulation: instead of solving
  * directly for the latent variable psi, we solve for the pair
@@ -122,7 +122,7 @@ public:
 };
 
 /**
- * @brief Block-lower-triangular preconditioner for the proximal-Galerkin
+ * @brief Block-lower-triangular preconditioner for the proximal Galerkin
  *        Jacobian, rebuilt for the current Jacobian on each NewtonSolver
  *        iteration.
  *
