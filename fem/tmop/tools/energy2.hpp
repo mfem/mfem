@@ -23,6 +23,7 @@ class TMOPEnergyPA2D
    Vector &E, &L;
    const Vector &O;
    const bool use_detA;
+   const bool integ_over_target;
 
    real_t metric_energy, limiting_energy;
 
@@ -45,6 +46,7 @@ public:
       L(l),
       O(ti->PA.O),
       use_detA(detA),
+      integ_over_target(ti->integ_over_target),
       metric_energy{},
       limiting_energy{},
       ndof(ti->PA.maps->ndof),
@@ -70,6 +72,7 @@ public:
       L(l),
       O(ti->PA.O),
       use_detA(detA),
+      integ_over_target(ti->integ_over_target),
       metric_energy{},
       limiting_energy{},
       ndof(ti->PA.maps->ndof),
@@ -104,6 +107,7 @@ public:
       L(l),
       O(o),
       use_detA(detA),
+      integ_over_target(true),
       metric_energy{},
       limiting_energy{},
       ndof(d1d),
@@ -152,6 +156,7 @@ public:
                       : Reshape(mc.Read(), Q1D, Q1D, NE);
 
       const bool use_detA = ker.use_detA;
+      const bool integ_over_target = ker.integ_over_target;
       auto E = Reshape(ker.E.Write(), Q1D, Q1D, NE);
       auto L = Reshape(ker.L.Write(), Q1D, Q1D, NE);
 
@@ -189,7 +194,8 @@ public:
                real_t Jpt[4];
                kernels::Mult(2, 2, 2, Jpr, Jrt, Jpt);
 
-               const real_t det = kernels::Det<2>(use_detA ? Jpr : Jtr);
+               const real_t det = use_detA ? kernels::Det<2>(Jpr) :
+                                  (integ_over_target ? kernels::Det<2>(Jtr) : 1.0);
                const real_t weight = metric_normal * coeff * W(qx,qy) * det;
 
                const real_t EvalW = METRIC{}.EvalW(Jpt, w);
