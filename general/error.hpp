@@ -47,8 +47,8 @@ private:
    std::string msg;
 public:
    explicit ErrorException(const std::string & in_msg) : msg(in_msg) { }
-   virtual ~ErrorException() throw() { }
-   virtual const char* what() const throw();
+   ~ErrorException() noexcept override { }
+   const char* what() const noexcept override;
 };
 #endif
 

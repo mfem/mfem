@@ -350,10 +350,10 @@ GinkgoExecutor::GinkgoExecutor(Device &mfem_device, ExecType host_exec_type)
 GinkgoIterativeSolver::GinkgoIterativeSolver(GinkgoExecutor &exec,
                                              bool use_implicit_res_norm)
    : Solver(),
-#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
-     gko_comm(NULL),
-#endif
      use_implicit_res_norm(use_implicit_res_norm)
+#if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
+   , gko_comm(NULL)
+#endif
 {
    executor = exec.GetExecutor();
    print_level = -1;
@@ -694,7 +694,6 @@ GinkgoIterativeSolver::Mult(const Vector &x, Vector &y) const
 #if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
       if (gko_comm)
       {
-         using par_vec = gko::experimental::distributed::Vector<real_t>;
          auto local_gko_x = new VectorWrapper(executor, x.Size(),
                                               const_cast<Vector *>(&x), false);
          auto local_gko_y = new VectorWrapper(executor, y.Size(), &y,
@@ -1605,7 +1604,6 @@ GinkgoPreconditioner::Mult(const Vector &x, Vector &y) const
 #if defined(MFEM_USE_MPI) && GINKGO_BUILD_MPI
    if (gko_comm)
    {
-      using par_vec = gko::experimental::distributed::Vector<real_t>;
       auto local_gko_x = new VectorWrapper(executor, x.Size(),
                                            const_cast<Vector *>(&x), false);
       auto local_gko_y = new VectorWrapper(executor, y.Size(), &y,

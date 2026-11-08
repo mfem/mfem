@@ -58,7 +58,7 @@ protected:
 
    inline void GrowSize(int minsize);
 
-   static_assert(std::is_trivial<T>::value, "type T must be trivial");
+   static_assert(std::is_trivial_v<T>, "type T must be trivial");
 
    friend class MemoryView<Array<T>>;
    friend class MemoryView<const Array<T>>;
@@ -104,8 +104,8 @@ public:
    explicit inline Array(const CT (&values)[N]);
 
    /// Construct an Array from a braced initializer list of convertible type
-   template <typename CT, typename std::enable_if<
-                std::is_convertible<CT,T>::value,bool>::type = true>
+   template <typename CT, std::enable_if_t<
+                std::is_convertible_v<CT,T>,bool> = true>
    explicit inline Array(std::initializer_list<CT> values);
 
    /// Move constructor ("steals" data from 'src')
@@ -779,6 +779,19 @@ inline void swap(Array<T> &a, Array<T> &b)
    a.Swap(b);
 }
 
+/** @brief Drop the entries that are >= @a N from @a v, then sort and unique
+    what is left, so that @a v holds the distinct local values it started with.
+    Used by the mesh classes to clean up vertex, edge and face lists after a
+    parallel exchange. */
+inline void FilterSortUnique(Array<int> &v, int N)
+{
+   // The O(N) filter runs before the O(N log N) sort.
+   auto last = std::remove_if(v.begin(), v.end(), [N](int i) { return i >= N; });
+   std::sort(v.begin(), last);
+   const int n = static_cast<int>(std::unique(v.begin(), last) - v.begin());
+   v.SetSize(n);
+}
+
 template <class T>
 inline Array<T>::Array(const Array &src)
    : size(src.Size())
@@ -797,8 +810,7 @@ inline Array<T>::Array(const Array<CT> &src)
 }
 
 template <typename T>
-template <typename CT, typename std::enable_if<
-             std::is_convertible<CT,T>::value,bool>::type>
+template <typename CT, std::enable_if_t<std::is_convertible_v<CT,T>,bool>>
 inline Array<T>::Array(std::initializer_list<CT> values) : Array(values.size())
 {
    std::copy(values.begin(), values.end(), begin());

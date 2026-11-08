@@ -14,7 +14,7 @@ on:
   workflow_call:
 jobs:
   build-hypre:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04  # can switch to 'ubuntu-latest' after 2026-11-19
     name: 2.19.0
     steps:
       - uses: actions/checkout@v6
@@ -26,7 +26,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{env.HYPRE_DIR}}
-          key: ${{runner.os}}-ompi-build-${{env.HYPRE_DIR}}-int32-fp64-${{ env.MFEM_ACTIONS_VERSION }}
+          key: ${{env.IMAGE_OS}}-ompi-build-${{env.HYPRE_DIR}}-int32-fp64-${{ env.MFEM_ACTIONS_VERSION }}
       - name: Setup
         if: steps.cache.outputs.cache-hit != 'true'
         uses: ./.github/actions/sanitize/mpi
@@ -34,7 +34,7 @@ jobs:
           NO_FLAGS: true
       - name: Build
         if: steps.cache.outputs.cache-hit != 'true'
-        uses: mfem/github-actions/build-hypre@v2.7
+        uses: mfem/github-actions/build-hypre@v2.9
         with:
           archive: ${{env.HYPRE_TGZ}}
           dir: ${{env.HYPRE_DIR}}
