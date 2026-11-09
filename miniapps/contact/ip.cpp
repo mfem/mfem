@@ -156,10 +156,12 @@ real_t LocalComplementarityError(const BlockVector &x, const Vector &z,
    const bool use_dev = x.UseDevice() || z.UseDevice();
    const real_t *x_d = x.Read(use_dev);
    const real_t *z_d = z.Read(use_dev);
+   const real_t inf = infinity();
    reduce(z.Size(), max_error,
           [=] MFEM_HOST_DEVICE (int i, real_t &error)
    {
-      error = fmax(error, fabs(x_d[dim_u + i] * z_d[i] - mu));
+      const real_t value = fabs(x_d[dim_u + i] * z_d[i] - mu);
+      error = fmax(error, value < inf ? value : inf);
    },
    MaxReducer<real_t> {}, use_dev, workspace);
    return max_error;
@@ -667,9 +669,9 @@ bool IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    Xhat = 0.0;
    Xhat.SyncToBlocks();
 
-   // form A = Huu + Ju^T D Ju, Wmm = D for contact
+   // Include the displacement regularization in the reduced system.
    HypreParMatrix *JuTDJu   = RAP(Wmm, Ju);     // Ju^T D Ju
-   HypreParMatrix *Areduced = ParAdd(Huu, JuTDJu);  // Huu + Ju^T D Ju
+   HypreParMatrix *Areduced = ParAdd(Wuu, JuTDJu);
 
    /* compute the reduced rhs */
    // breduced = bu + Ju^T (bm + Wmm bl)
@@ -789,9 +791,10 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
    }
 
    thx0 = GetTheta(x0);
-   phx0 = GetPhi(x0, mu);
+   phx0 = GetPhi(x0, mu, eval_err);
 
    lineSearchSuccess = false;
+   if (eval_err || !IsFinite(thx0)) { return; }
    for (int i = 0; i < maxBacktrack; i++)
    {
       if (myid == 0 && print_level > 0)
@@ -805,7 +808,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
 
       real_t thxtrial = GetTheta(xtrial);
       real_t phxtrial = GetPhi(xtrial, mu, eval_err);
-      if (eval_err == 1)
+      if (eval_err || !IsFinite(thxtrial))
       {
          if (myid == 0 && print_level > 0)
          {
@@ -923,7 +926,7 @@ real_t IPSolver::GetTheta(const BlockVector &x)
 
 // log-barrier objective
 real_t IPSolver::GetPhi(const BlockVector &x, real_t mu,
-                        int eval_err)
+                        int &eval_err)
 {
    x.SyncToBlocks();
    real_t fx = problem->CalcObjective(x, eval_err);
@@ -931,7 +934,9 @@ real_t IPSolver::GetPhi(const BlockVector &x, real_t mu,
    real_t logBarrierGlb;
    MPI_Allreduce(&logBarrierLoc, &logBarrierGlb, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, comm);
-   return fx - mu * logBarrierGlb;
+   const real_t phi = fx - mu * logBarrierGlb;
+   if (!IsFinite(phi)) { eval_err = 1; }
+   return phi;
 }
 
 // gradient of log-barrier objective with respect to x = (u, m)
@@ -1051,7 +1056,8 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
    MxinvgradL.GetBlock(1) /= Mlump;
    MxinvgradL.SyncFromBlocks();
    stationarityError = sqrt(InnerProduct(comm, gradL, MxinvgradL));
-   feasibilityError = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
+   feasibilityError = GlobalLpNorm(infinity(),
+                                   FiniteNormlinf(cx, reduce_workspace), comm);
    complementarityError = GlobalLpNorm(infinity(), complementarityLoc, comm);
 
    stationarity_error = stationarityError;

@@ -207,7 +207,7 @@ private:
    real_t GetTheta(const BlockVector &);
 
    /// Evaluate log-barrier objective phi
-   real_t GetPhi(const BlockVector &, real_t, int eval_err = 0);
+   real_t GetPhi(const BlockVector &, real_t, int &eval_err);
 
    /// Gradient of log-barrier objective w.r.t. primal variables
    void GetDxphi(const BlockVector &, real_t, BlockVector &);
