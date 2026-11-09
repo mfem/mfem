@@ -19,9 +19,9 @@
 namespace mfem
 {
 
-/// Return the sign to apply to the normals on each face to point from e1 to e2.
-static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
-                     Array<bool> &signs)
+void FaceQuadratureInterpolator::GetSigns(const FiniteElementSpace &fes,
+                                          const FaceType type,
+                                          Array<bool> &signs)
 {
    const Mesh &mesh = *fes.GetMesh();
    const int dim = mesh.SpaceDimension();

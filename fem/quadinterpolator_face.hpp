@@ -68,6 +68,10 @@ public:
    /// FaceQuadratureInterpolator.
    static bool SupportsFESpace(const FiniteElementSpace &fes);
 
+   /// Return the sign to apply to the normals on each face to point from e1 to e2.
+   static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
+                        Array<bool> &signs);
+
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */
    /** Currently, tensor product evaluations are not implemented and this method
