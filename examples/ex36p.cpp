@@ -93,6 +93,9 @@ private:
    mutable HypreParMatrix *A11 = nullptr;
    mutable BlockOperator  *J   = nullptr;
 
+   // Shared quadrature for the nonlinear residual/Jacobian pair
+   const IntegrationRule *ir = nullptr;
+
 public:
    ProximalGalerkinOperator(ParFiniteElementSpace &H1fes_,
                             ParFiniteElementSpace &L2fes_,
@@ -548,6 +551,10 @@ ProximalGalerkinOperator::ProximalGalerkinOperator(
    b0.AddDomainIntegrator(new DomainLFIntegrator(neg_load));
    b0.Assemble();
    b0.ParallelAssemble(neg_load_vec);
+
+   ParMesh *pm = L2fes.GetParMesh();
+   const int p = L2fes.GetMaxElementOrder();
+   ir = &IntRules.Get(pm->GetTypicalElementGeometry(), 2*p + 2);
 }
 
 void ProximalGalerkinOperator::Mult(const Vector &x, Vector &y) const
@@ -573,7 +580,7 @@ void ProximalGalerkinOperator::Mult(const Vector &x, Vector &y) const
    ProductCoefficient neg_exp_psi(-1.0, exp_psi);
 
    ParLinearForm b1(&L2fes);
-   b1.AddDomainIntegrator(new DomainLFIntegrator(neg_exp_psi));
+   b1.AddDomainIntegrator(new DomainLFIntegrator(neg_exp_psi, ir));
    b1.Assemble();
    b1.ParallelAssemble(y1);
    A10->AddMult(x0, y1);
@@ -593,7 +600,7 @@ Operator &ProximalGalerkinOperator::GetGradient(const Vector &x) const
    ProductCoefficient alpha_exp_psi(alpha, exp_psi);
 
    ParBilinearForm a11(&L2fes);
-   a11.AddDomainIntegrator(new MassIntegrator(alpha_exp_psi));
+   a11.AddDomainIntegrator(new MassIntegrator(alpha_exp_psi, ir));
    a11.Assemble();
    a11.Finalize();
    delete A11;
