@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
 
    // 3B. Interpolate the geometry after refinement to control geometry error.
    // NOTE: Minimum second-order interpolation is used to improve the accuracy.
-   int curvature_order = max(order,2);
+   int curvature_order = max(order+1,2);
    mesh.SetCurvature(curvature_order);
 
    // 3C. Rescale the domain to a unit circle (radius = 1).
