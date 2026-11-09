@@ -215,6 +215,9 @@ HypreParMatrix *StackContactJacobians(
          offd_j[offd_offset + i] = old_to_new_data[block_offd_j[i]];
          offd_data[offd_offset + i] = block_offd_data[i];
       });
+      // Restore the source matrix to HYPRE's execution memory, which may be
+      // host memory even when MFEM uses the debug device backend.
+      block.HypreRead();
    }
 
    HYPRE_BigInt local_num_rows = num_rows;
@@ -371,6 +374,8 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
    Mcslump.UseDevice(true);
    dl.UseDevice(true);
    eps.UseDevice(true);
+   displacement_work.UseDevice(true);
+   energy_work.UseDevice(true);
 }
 
 void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
@@ -412,6 +417,14 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    block_offsetsg[2] = dimU;
    block_offsetsg[3] = dimU;
    block_offsetsg.PartialSum();
+   displacement_work.SetSize(dimU);
+   energy_work.SetSize(dimU);
+   constraint_work.Update(block_offsetsg);
+   constraint_work.UseDevice(true);
+   for (int i = 0; i < constraint_work.NumBlocks(); i++)
+   {
+      constraint_work.GetBlock(i).UseDevice(true);
+   }
 
    Vector diagVec(dimU); diagVec.UseDevice(true); diagVec = 0.0;
    diagVec = 1.0;
@@ -443,11 +456,11 @@ HypreParMatrix * OptContactProblem::Duc(const BlockVector &)
    {
       if (!dcdu)
       {
-         Array2D<const HypreParMatrix *> dcduBlockMatrix(3, 1);
-         dcduBlockMatrix(0, 0) = J;
-         dcduBlockMatrix(1, 0) = Iu;
-         dcduBlockMatrix(2, 0) = negIu;
-         dcdu = HypreParMatrixFromBlocks(dcduBlockMatrix);
+         Array<HypreParMatrix *> blocks(3);
+         blocks[0] = J;
+         blocks[1] = Iu;
+         blocks[2] = negIu;
+         dcdu = StackContactJacobians(blocks);
       }
       return dcdu;
    }
@@ -565,7 +578,7 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
 
 void OptContactProblem::g(const Vector & d, Vector & gd)
 {
-   Vector temp(dimU); temp.UseDevice(true); temp = 0.0;
+   Vector &temp = displacement_work;
    temp.Set(1.0, d);
    temp.Add(-1.0, xref);
    J->Mult(temp, gd);
@@ -583,13 +596,9 @@ void OptContactProblem::c(const BlockVector & x, Vector & y)
 
    if (bound_constraints_activated)
    {
-      BlockVector yblock(block_offsetsg);
-      yblock.UseDevice(true);
-      for (int i = 0; i < yblock.NumBlocks(); i++)
-      {
-         yblock.GetBlock(i).UseDevice(true);
-      }
+      BlockVector &yblock = constraint_work;
       yblock = 0.0;
+      yblock.SyncToBlocks();
 
       g(disp, yblock.GetBlock(0));
       yblock.GetBlock(1).Set( 1.0, disp );
@@ -630,8 +639,8 @@ real_t OptContactProblem::E(const Vector & d, int & eval_err)
    {
       // (d - xref)^T [ 1/2 K * (d - xref) + gradEQP] + EQP
       real_t energy = 0.0;
-      Vector dx(dimU); dx.UseDevice(true); dx = 0.0;
-      Vector temp(dimU); temp.UseDevice(true); temp = 0.0;
+      Vector &dx = displacement_work;
+      Vector &temp = energy_work;
       dx.Set(1.0, d);
       dx.Add(-1.0, xrefbc);
       Kref->Mult(dx, temp);
@@ -667,7 +676,7 @@ void OptContactProblem::DdE(const Vector & d, Vector & gradE)
    if (problem->IsNonlinear())
    {
       // KQP * (d - xref) + gradEQP
-      Vector dx(dimU); dx.UseDevice(true); dx = 0.0;
+      Vector &dx = displacement_work;
       dx.Set(1.0, d);
       dx.Add(-1.0, xrefbc);
       Kref->Mult(dx, gradE);

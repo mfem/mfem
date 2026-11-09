@@ -39,6 +39,19 @@ void MultiplyWeights(const Vector &weights, const Vector &x, Vector &y)
    });
 }
 
+void UpdateDiagonal(HypreParMatrix &matrix, const Vector &diagonal)
+{
+   const int n = diagonal.Size();
+   real_t *values = mfem::Write(matrix.GetDiagMemoryData(), n,
+                                Device::IsEnabled());
+   const real_t *diagonal_d = diagonal.Read();
+   mfem::forall(n, [=] MFEM_HOST_DEVICE (int i)
+   {
+      values[i] = diagonal_d[i];
+   });
+   matrix.HypreRead();
+}
+
 real_t FiniteNormlinf(const Vector &x, Array<real_t> &workspace)
 {
    real_t norm = 0.0;
@@ -588,9 +601,9 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    Vector &DiagLogBar = barrier_diagonal;
    FillBarrierDiagonal(x, Mlump, zl, delta, DiagLogBar);
 
-   delete Wmm;
    if (Hmm)
    {
+      delete Wmm;
       HypreParMatrix *D =
          MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumConstraints(),
                                     problem->GetConstraintsStarts(),
@@ -600,9 +613,16 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    }
    else
    {
-      Wmm = MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumConstraints(),
-                                       problem->GetConstraintsStarts(),
-                                       DiagLogBar);
+      if (!Wmm)
+      {
+         Wmm = MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumConstraints(),
+                                          problem->GetConstraintsStarts(),
+                                          DiagLogBar);
+      }
+      else
+      {
+         UpdateDiagonal(*Wmm, DiagLogBar);
+      }
    }
 
    Vector &deltaDiagVec = regularization_diagonal;

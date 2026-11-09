@@ -78,6 +78,10 @@ private:
    /// Reference configuration displacement vector with updated BCs.
    Vector xrefbc;
 
+   /// Reusable displacement difference, matrix action, and constraint buffers.
+   Vector displacement_work, energy_work;
+   BlockVector constraint_work;
+
    /// Gap vector on contact interface.
    Vector gapv;
 

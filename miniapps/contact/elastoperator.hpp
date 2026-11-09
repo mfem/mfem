@@ -78,6 +78,9 @@ private:
    /// Right-hand side (B) and solution vector (X).
    Vector B, X;
 
+   /// Reusable buffers for energy and nonlinear state evaluation.
+   mutable Vector state_work, action_work;
+
    /// Neumann pressure coefficients and boundary markers (for traction BCs),
    /// one per call to SetNeumannPressureData. The linear form keeps pointers
    /// to both, so they are owned here and released with the linear form.
