@@ -600,8 +600,8 @@ int main(int argc, char *argv[])
       if ((dt_gain > 0))
       {
          dt *= pow(cfl_target/cfl, dt_gain);
-         dt = std::min(dt, dt_max);
-         dt = std::max(dt, dt_min);
+         dt = (std::min)(dt, dt_max);
+         dt = (std::max)(dt, dt_min);
       }
 
       // Print cfl and dt to screen
