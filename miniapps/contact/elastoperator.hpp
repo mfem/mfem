@@ -17,6 +17,8 @@
 namespace mfem
 {
 
+class DeviceNeoHookean;
+
 /**
  *  @class ElasticityOperator
  *  @brief Parallel finite element operator for linear and nonlinear elasticity.
@@ -62,8 +64,8 @@ private:
    /// Parallel finite element space for displacement.
    ParFiniteElementSpace * fes = nullptr;
 
-   /// Underlying operator: bilinear form (linear) or nonlinear form (nonlinear).
-   Operator * op = nullptr;
+   /// Bilinear form for linear elasticity.
+   ParBilinearForm * op = nullptr;
 
    /// Linear form for RHS assembly.
    ParLinearForm * b = nullptr;
@@ -93,8 +95,8 @@ private:
    Vector c1, c2;
    PWConstCoefficient c1_cf, c2_cf;
 
-   /// Hyperelastic material model (only for nonlinear case).
-   NeoHookeanModel * material_model = nullptr;
+   /// Portable hyperelastic material evaluation on CPU and device backends.
+   std::unique_ptr<DeviceNeoHookean> material;
 
    /// Reference configuration displacement
    Vector xref;
@@ -155,6 +157,11 @@ public:
 
    /// Get the Hessian (stiffness matrix) at a given displacement vector.
    HypreParMatrix * GetHessian(const Vector & u);
+
+   /// Evaluate reference data together on the selected CPU or device backend.
+   /// The returned Hessian is owned by this object.
+   void GetReferenceData(const Vector &u, real_t &energy, Vector &gradient,
+                         HypreParMatrix *&hessian);
 
    /// Check if the operator is nonlinear.
    bool IsNonlinear() { return nonlinear; }

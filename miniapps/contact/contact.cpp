@@ -342,7 +342,8 @@ int main(int argc, char *argv[])
    if (nonlinear && elasticity_fa && myid == 0)
    {
       cout << "Full assembly is only used by the linear elasticity model; "
-           << "the nonlinear operator will use its existing assembly path."
+           << "nonlinear reference assembly uses "
+           << (Device::IsEnabled() ? "device kernels." : "CPU kernels.")
            << endl;
    }
 
@@ -421,7 +422,9 @@ int main(int argc, char *argv[])
       mfem::out << "\n --------------------------------------" << endl;
       mfem::out << "  Global number of dofs = " << gndofs << endl;
       mfem::out << "  Elasticity assembly   = "
-                << (elasticity_fa && !nonlinear ? "full" : "legacy") << endl;
+                << (nonlinear ? (Device::IsEnabled() ? "nonlinear device" :
+                                 "nonlinear CPU") :
+                    elasticity_fa ? "full" : "legacy") << endl;
       mfem::out << "  RHS assembly          = "
                 << (prob.UsesFastRHSAssembly() ? "fast" : "legacy") << endl;
       mfem::out << " --------------------------------------" << endl;

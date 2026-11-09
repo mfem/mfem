@@ -14,12 +14,14 @@ if (MFEM_USE_TRIBOL AND MFEM_USE_MPI)
   ip.cpp
   optcontactproblem.cpp
   elastoperator.cpp
-  solver_utils.cpp)
+  solver_utils.cpp
+  neo_hookean.cpp)
   list(APPEND CONTACT_HEADERS
   ip.hpp
   optcontactproblem.hpp
   elastoperator.hpp
-  solver_utils.hpp)
+  solver_utils.hpp
+  neo_hookean.hpp)
 
   convert_filenames_to_full_paths(CONTACT_SOURCES)
   convert_filenames_to_full_paths(CONTACT_HEADERS)

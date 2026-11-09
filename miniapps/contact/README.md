@@ -87,8 +87,9 @@ mpirun -np 1 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 2 \
 `-fa` assembles the linear elasticity stiffness matrix on the device. Without
 it, stiffness assembly uses the legacy host path, while the IP vector kernels,
 contact filtering, and GPU HYPRE operations still use the device. Nonlinear
-beam-sphere runs use the existing Neo-Hookean assembly path. `-fa` controls only
-the linear elasticity model.
+beam-sphere runs use the same portable Neo-Hookean implementation to evaluate
+reference energy, gradient, and Hessian on CPU and device backends. `-fa` controls
+only the linear elasticity model.
 
 Pressure RHS assembly, lumped masses, bound Jacobian assembly, and contact
 CSR filtering also have device paths. Tribol's implicit single-mortar residual

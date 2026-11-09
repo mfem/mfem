@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "elastoperator.hpp"
+#include "neo_hookean.hpp"
 
 namespace mfem
 {
@@ -63,16 +64,12 @@ void ElasticityOperator::SetUpOperator()
    ResetLinearForm();
    if (nonlinear)
    {
-      material_model = new NeoHookeanModel(c1_cf, c2_cf);
-      op = new ParNonlinearForm(fes);
-      dynamic_cast<ParNonlinearForm*>(op)->AddDomainIntegrator(
-         new HyperelasticNLFIntegrator(material_model));
-      dynamic_cast<ParNonlinearForm*>(op)->SetEssentialTrueDofs(ess_tdof_list);
+      material = std::make_unique<DeviceNeoHookean>(*fes, c1_cf, c2_cf);
    }
    else
    {
       op = new ParBilinearForm(fes);
-      auto *a = dynamic_cast<ParBilinearForm*>(op);
+      auto *a = op;
       if (use_fa)
       {
          a->SetAssemblyLevel(AssemblyLevel::FULL);
@@ -160,7 +157,7 @@ void ElasticityOperator::FormLinearSystem()
       b->Assemble();
       if (!nonlinear)
       {
-         auto *a = dynamic_cast<ParBilinearForm*>(op);
+         auto *a = op;
          if (use_fa)
          {
             // Transform only the RHS with the unconstrained operator. The
@@ -206,9 +203,7 @@ real_t ElasticityOperator::GetEnergy(const Vector & u) const
    {
       real_t energy = 0.0;
       Vector &tu = state_work; tu = xref; tu += u;
-      ParGridFunction u_gf(fes);
-      u_gf.SetFromTrueDofs(tu);
-      energy += dynamic_cast<ParNonlinearForm*>(op)->GetEnergy(u_gf);
+      material->Evaluate(tu, ess_tdof_list, energy);
       energy -= InnerProduct(comm, B, u);
       return energy;
    }
@@ -225,8 +220,8 @@ void ElasticityOperator::GetGradient(const Vector & u, Vector & gradE) const
    if (nonlinear)
    {
       Vector &tu = state_work; tu = xref; tu += u;
-      gradE.SetSize(op->Height());
-      dynamic_cast<ParNonlinearForm*>(op)->Mult(tu, gradE);
+      real_t energy;
+      material->Evaluate(tu, ess_tdof_list, energy, &gradE);
    }
    else
    {
@@ -241,25 +236,42 @@ HypreParMatrix * ElasticityOperator::GetHessian(const Vector & u)
    if (nonlinear)
    {
       Vector &tu = state_work; tu = xref; tu += u;
-      return dynamic_cast<HypreParMatrix *>(&dynamic_cast<ParNonlinearForm*>
-                                            (op)->GetGradient(tu));
+      real_t energy;
+      material->Evaluate(tu, ess_tdof_list, energy, nullptr, &K);
+   }
+   return K.As<HypreParMatrix>();
+}
+
+void ElasticityOperator::GetReferenceData(const Vector &u, real_t &energy,
+                                          Vector &gradient, HypreParMatrix *&hessian)
+{
+   if (nonlinear)
+   {
+      state_work = xref;
+      state_work += u;
+      material->Evaluate(state_work, ess_tdof_list, energy, &gradient, &K);
+      energy -= InnerProduct(comm, B, u);
+      gradient.Add(-1.0, B);
+      hessian = K.As<HypreParMatrix>();
    }
    else
    {
-      return K.As<HypreParMatrix>();
+      energy = GetEnergy(u);
+      GetGradient(u, gradient);
+      hessian = GetHessian(u);
    }
 }
 
 ElasticityOperator::~ElasticityOperator()
 {
    K.Clear();
+   material.reset();
    delete op;
    delete b;
    for (int i = 0; i < pressure_cf.Size(); i++) { delete pressure_cf[i]; }
    for (int i = 0; i < pressure_bdr_marker.Size(); i++) { delete pressure_bdr_marker[i]; }
    delete fes;
    delete fec;
-   if (material_model) { delete material_model; }
 }
 
 }

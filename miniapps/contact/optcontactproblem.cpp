@@ -408,9 +408,7 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
 
    if (problem->IsNonlinear())
    {
-      energy_ref = problem->GetEnergy(xrefbc);
-      problem->GetGradient(xrefbc,grad_ref);
-      Kref = problem->GetHessian(xrefbc);
+      problem->GetReferenceData(xrefbc, energy_ref, grad_ref, Kref);
    }
    dimU = J->Width();
    dimG = J->Height();
