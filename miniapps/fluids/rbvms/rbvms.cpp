@@ -143,9 +143,9 @@ int main(int argc, char *argv[])
    }
 
    // Boundary conditions
-   if (strong_bdr.Size()>0) {cout<<"Strong  = "; strong_bdr.Print();}
-   if (weak_bdr.Size()>0) {cout<<"Weak    = "; weak_bdr.Print();}
-   if (outflow_bdr.Size()>0) { cout<<"Outflow = "; outflow_bdr.Print() ;}
+   if (strong_bdr.Size()>0) {std::cout<<"Strong  = "; strong_bdr.Print();}
+   if (weak_bdr.Size()>0) {std::cout<<"Weak    = "; weak_bdr.Print();}
+   if (outflow_bdr.Size()>0) { std::cout<<"Outflow = "; outflow_bdr.Print() ;}
 
    Array<bool> bnd_flag(mesh.bdr_attributes.Max());
    bnd_flag = true;
@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
    }
 
    // Select the time integrator
-   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
+   std::unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
    ODESolverWithStates*  ode_solver_ws = dynamic_cast<ODESolverWithStates*>
                                          (ode_solver.get());
    int nstate = ode_solver->GetStateSize();
@@ -198,8 +198,8 @@ int main(int argc, char *argv[])
    // Report the degree of freedoms used
    {
       mfem::out << "Number of finite element unknowns:\n";
-      mfem::out << "\tVelocity = "<< spaces[0]->GetTrueVSize() << endl;
-      mfem::out << "\tPressure = "<< spaces[1]->GetTrueVSize() << endl;
+      mfem::out << "\tVelocity = "<< spaces[0]->GetTrueVSize() << std::endl;
+      mfem::out << "\tPressure = "<< spaces[1]->GetTrueVSize() << std::endl;
    }
 
    // Get vector offsets
@@ -327,7 +327,7 @@ int main(int argc, char *argv[])
       in>>t>>si>>ri>>vi;
       in>>dtr;
       in.close();
-      cout<<"Restarting from step "<<ri-1<<endl;
+      std::cout<<"Restarting from step "<<ri-1<<std::endl;
       if (dt_gain > 0) { dt = dtr; }
 
       // Open data files
@@ -391,7 +391,7 @@ int main(int argc, char *argv[])
    std::ofstream os;
 
    std::ostringstream filename;
-   filename << "output_"<<std::setw(6)<<setfill('0')<<si<< ".dat";
+   filename << "output_"<<std::setw(6)<<std::setfill('0')<<si<< ".dat";
    os.open(filename.str().c_str());
 
    // Header
@@ -414,12 +414,12 @@ int main(int argc, char *argv[])
    {
       // Print header
       line(80);
-      cout<<std::defaultfloat<<std::setprecision(4);
-      cout<<" step = " << si << endl;
-      cout<<"   dt = " << dt << endl;
-      cout<<std::defaultfloat<<std::setprecision(6);;
-      cout<<" time = [" << t << ", " << t+dt <<"]"<< endl;
-      cout<<std::defaultfloat<<std::setprecision(4);
+      std::cout<<std::defaultfloat<<std::setprecision(4);
+      std::cout<<" step = " << si << std::endl;
+      std::cout<<"   dt = " << dt << std::endl;
+      std::cout<<std::defaultfloat<<std::setprecision(6);;
+      std::cout<<" time = [" << t << ", " << t+dt <<"]"<< std::endl;
+      std::cout<<std::defaultfloat<<std::setprecision(4);
       line(80);
 
       // Actual time step
@@ -435,24 +435,24 @@ int main(int argc, char *argv[])
       real_t outflow = 0.0;//form.GetOutflow();
       DenseMatrix bdrForce = evo.bdr_flux;
 
-      cout<<"\n";
+      std::cout<<"\n";
       int vdim = 3;
       line(13+13*vdim);
-      cout<<" | Boundary | ";
+      std::cout<<" | Boundary | ";
       for (int w=0; w<bdrForce.Width(); ++w)
       {
-         cout<<std::setw(10)<<w+1<<" | ";
+         std::cout<<std::setw(10)<<w+1<<" | ";
       }
-      cout<<"\n";
+      std::cout<<"\n";
       line(13+13*vdim);
       for (int b=0; b<bdrForce.Height(); ++b)
       {
-         cout<<" | "<<std::setw(8)<<mesh.bdr_attributes[b]<<" | ";
+         std::cout<<" | "<<std::setw(8)<<mesh.bdr_attributes[b]<<" | ";
          for (int w=0; w<bdrForce.Width(); ++w)
          {
-            cout<<std::setw(10)<<bdrForce(b,w)<<" | ";
+            std::cout<<std::setw(10)<<bdrForce(b,w)<<" | ";
          }
-         cout<<"\n";
+         std::cout<<"\n";
       }
       line(13+13*vdim);
 
@@ -460,12 +460,12 @@ int main(int argc, char *argv[])
       bdrForce.Transpose();
       bdrForce.GetRowSums(sum);
 
-      cout<<" | "<<std::setw(8)<<"Total"<<" | ";
+      std::cout<<" | "<<std::setw(8)<<"Total"<<" | ";
       for (int w=0; w<sum.Size(); ++w)
       {
-         cout<<std::setw(10)<<sum(w)<<" | ";
+         std::cout<<std::setw(10)<<sum(w)<<" | ";
       }
-      cout<<"\n";
+      std::cout<<"\n";
       line(13+13*vdim);
 
       // Print to file
@@ -492,8 +492,8 @@ int main(int argc, char *argv[])
 
          // Report to screen
          line(80);
-         cout << "Visit output: " <<vi << endl;
-         cout << "        Time: " <<t-dt<<" "<<t-fac*dt<<" "<<t<<endl;
+         std::cout << "Visit output: " <<vi << std::endl;
+         std::cout << "        Time: " <<t-dt<<" "<<t-fac*dt<<" "<<t<<std::endl;
          line(80);
 
          // Copy solution in grid functions
@@ -513,15 +513,15 @@ int main(int argc, char *argv[])
       if ((dt_gain > 0))
       {
          dt *= pow(cfl_target/cfl, dt_gain);
-         dt = min(dt, dt_max);
-         dt = max(dt, dt_min);
+         dt = std::min(dt, dt_max);
+         dt = std::max(dt, dt_min);
       }
 
       // Print cfl and dt to screen
       line(80);
-      cout<<" outflow = "<<outflow<<endl;
-      cout<<" cfl = "<<cfl<<endl;
-      cout<<" dt  = "<<dt0<<" --> "<<dt<<endl;
+      std::cout<<" outflow = "<<outflow<<std::endl;
+      std::cout<<" cfl = "<<cfl<<std::endl;
+      std::cout<<" dt  = "<<dt0<<" --> "<<dt<<std::endl;
       line(80);
 
       // Write restart files
@@ -529,7 +529,7 @@ int main(int argc, char *argv[])
       {
          // Report to screen
          line(80);
-         cout << "Restart output:" << ri << endl;
+         std::cout << "Restart output:" << ri << std::endl;
          line(80);
 
          if (nstate == 1)
@@ -545,13 +545,13 @@ int main(int argc, char *argv[])
 
          // print meta file
          std::ofstream step("restart/step.dat", std::ifstream::out);
-         step<<t<<"\t"<<si<<"\t"<<ri<<"\t"<<vi<<endl;
-         step<<dt<<endl;
+         step<<t<<"\t"<<si<<"\t"<<ri<<"\t"<<vi<<std::endl;
+         step<<dt<<std::endl;
          step.close();
       }
 
-      cout<<endl<<endl;
-      cout<<"\n"<<std::flush;
+      std::cout<<std::endl<<std::endl;
+      std::cout<<"\n"<<std::flush;
    }
    os.close();
 

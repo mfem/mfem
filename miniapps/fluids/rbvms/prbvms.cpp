@@ -16,7 +16,6 @@
 #include "integrator.hpp"
 #include "libcoefficients.hpp"
 
-using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
@@ -128,10 +127,10 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      if (Mpi::Root()) { args.PrintUsage(cout); }
+      if (Mpi::Root()) { args.PrintUsage(std::cout); }
       return 1;
    }
-   if (Mpi::Root()) {  args.PrintOptions(cout);}
+   if (Mpi::Root()) {  args.PrintOptions(std::cout);}
 
    // 3. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
@@ -157,9 +156,9 @@ int main(int argc, char *argv[])
    // Boundary conditions
    if (Mpi::Root())
    {
-      if (strong_bdr.Size()>0) {cout<<"Strong  = "; strong_bdr.Print();}
-      if (weak_bdr.Size()>0) {cout<<"Weak    = "; weak_bdr.Print();}
-      if (outflow_bdr.Size()>0) { cout<<"Outflow = "; outflow_bdr.Print() ;}
+      if (strong_bdr.Size()>0) {std::cout<<"Strong  = "; strong_bdr.Print();}
+      if (weak_bdr.Size()>0) {std::cout<<"Weak    = "; weak_bdr.Print();}
+      if (outflow_bdr.Size()>0) { std::cout<<"Outflow = "; outflow_bdr.Print() ;}
    }
 
    Array<bool> bnd_flag(pmesh.bdr_attributes.Max());
@@ -182,7 +181,7 @@ int main(int argc, char *argv[])
    }
 
    // Select the time integrator
-   unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
+   std::unique_ptr<ODESolver> ode_solver = ODESolver::Select(ode_solver_type);
    ODESolverWithStates*  ode_solver_ws = dynamic_cast<ODESolverWithStates*>
                                          (ode_solver.get());
    int nstate = ode_solver->GetStateSize();
@@ -228,8 +227,8 @@ int main(int argc, char *argv[])
       if (Mpi::Root())
       {
          mfem::out << "Number of finite element unknowns:\n";
-         mfem::out << "\tVelocity = "<< udof_t << endl;
-         mfem::out << "\tPressure = "<< pdof_t << endl;
+         mfem::out << "\tVelocity = "<< udof_t << std::endl;
+         mfem::out << "\tPressure = "<< pdof_t << std::endl;
          mfem::out << "Number of finite element unknowns per partition:\n";
          mfem::out <<  "\tVelocity = "; udof.Print(mfem::out, num_procs);
          mfem::out <<  "\tPressure = "; pdof.Print(mfem::out, num_procs);
@@ -379,7 +378,7 @@ int main(int argc, char *argv[])
          in>>t>>si>>ri>>vi;
          in>>dtr;
          in.close();
-         cout<<"Restarting from step "<<ri-1<<endl;
+         std::cout<<"Restarting from step "<<ri-1<<std::endl;
          if (dt_gain > 0) { dt = dtr; }
       }
       // Synchronize
@@ -430,9 +429,9 @@ int main(int argc, char *argv[])
          if (Mpi::Root())
          {
             line(80);
-            cout<<" Solve for initial rate. " << endl;
-            cout<<std::defaultfloat<<std::setprecision(4);
-            cout<<"   dt = " << dt << endl;
+            std::cout<<" Solve for initial rate. " << std::endl;
+            std::cout<<std::defaultfloat<<std::setprecision(4);
+            std::cout<<"   dt = " << dt << std::endl;
             line(80);
          }
          //evo.ImplicitSolve(dt,xp,dxp);
@@ -467,7 +466,7 @@ int main(int argc, char *argv[])
    if (Mpi::Root())
    {
       std::ostringstream filename;
-      filename << "output_"<<std::setw(6)<<setfill('0')<<si<< ".dat";
+      filename << "output_"<<std::setw(6)<<std::setfill('0')<<si<< ".dat";
       os.open(filename.str().c_str());
 
       // Header
@@ -486,7 +485,7 @@ int main(int argc, char *argv[])
             os<<forcename.str()<<"\t";
          }
       }
-      os<<endl;
+      os<<std::endl;
    }
 
    // Loop till final time reached
@@ -496,12 +495,12 @@ int main(int argc, char *argv[])
       if (Mpi::Root())
       {
          line(80);
-         cout<<std::defaultfloat<<std::setprecision(4);
-         cout<<" step = " << si << endl;
-         cout<<"   dt = " << dt << endl;
-         cout<<std::defaultfloat<<std::setprecision(6);;
-         cout<<" time = [" << t << ", " << t+dt <<"]"<< endl;
-         cout<<std::defaultfloat<<std::setprecision(4);
+         std::cout<<std::defaultfloat<<std::setprecision(4);
+         std::cout<<" step = " << si << std::endl;
+         std::cout<<"   dt = " << dt << std::endl;
+         std::cout<<std::defaultfloat<<std::setprecision(6);;
+         std::cout<<" time = [" << t << ", " << t+dt <<"]"<< std::endl;
+         std::cout<<std::defaultfloat<<std::setprecision(4);
          line(80);
       }
       // Actual time step
@@ -532,39 +531,39 @@ int main(int argc, char *argv[])
             // Print line lambda function
             auto pline = [](int len)
             {
-               cout<<" +";
-               for (int b=0; b<len; ++b) { cout<<"-"; }
-               cout<<"+\n";
+               std::cout<<" +";
+               for (int b=0; b<len; ++b) { std::cout<<"-"; }
+               std::cout<<"+\n";
             };
 
             // Print boundary header
             if (nbdr >= 10)
             {
-               cout<<"\n";
+               std::cout<<"\n";
                pline(10+13*nbdr);
-               cout<<" | Boundary | ";
+               std::cout<<" | Boundary | ";
                for (int b=0; b<nbdr; ++b)
                {
-                  cout<<std::setw(10)<<pmesh.bdr_attributes[b]<<" | ";
+                  std::cout<<std::setw(10)<<pmesh.bdr_attributes[b]<<" | ";
                }
-               cout<<"\n";
+               std::cout<<"\n";
                pline(10+13*nbdr);
 
                // Print actual forces
                char dimName[] = "xyz";
                for (int v=0; v<dim; ++v)
                {
-                  cout<<" | Force "<<dimName[v]<<"  | ";
+                  std::cout<<" | Force "<<dimName[v]<<"  | ";
                   for (int b=0; b<nbdr; ++b)
                   {
                      int bnd = pmesh.bdr_attributes[b];
-                     cout<<std::defaultfloat<<std::setprecision(4)<<std::setw(10);
-                     cout<<bdrForce(bnd-1,v)<<" | ";
+                     std::cout<<std::defaultfloat<<std::setprecision(4)<<std::setw(10);
+                     std::cout<<bdrForce(bnd-1,v)<<" | ";
                   }
-                  cout<<"\n";
+                  std::cout<<"\n";
                }
                pline(10+13*nbdr);
-               cout<<"\n"<<std::flush;
+               std::cout<<"\n"<<std::flush;
             }
             }
       */
@@ -579,8 +578,8 @@ int main(int argc, char *argv[])
          if (Mpi::Root())
          {
             line(80);
-            cout << "Visit output: " <<vi << endl;
-            cout << "        Time: " <<t-dt<<" "<<t-fac*dt<<" "<<t<<endl;
+            std::cout << "Visit output: " <<vi << std::endl;
+            std::cout << "        Time: " <<t-dt<<" "<<t-fac*dt<<" "<<t<<std::endl;
             line(80);
          }
          // Copy solution in grid functions
@@ -601,17 +600,17 @@ int main(int argc, char *argv[])
       if ((dt_gain > 0))
       {
          dt *= pow(cfl_target/cfl, dt_gain);
-         dt = min(dt, dt_max);
-         dt = max(dt, dt_min);
+         dt = std::min(dt, dt_max);
+         dt = std::max(dt, dt_min);
       }
 
       // Print cfl and dt to screen
       if (Mpi::Root())
       {
          line(80);
-         cout<<" outflow = "<<outflow<<endl;
-         cout<<" cfl = "<<cfl<<endl;
-         cout<<" dt  = "<<dt0<<" --> "<<dt<<endl;
+         std::cout<<" outflow = "<<outflow<<std::endl;
+         std::cout<<" cfl = "<<cfl<<std::endl;
+         std::cout<<" dt  = "<<dt0<<" --> "<<dt<<std::endl;
          line(80);
       }
 
@@ -622,7 +621,7 @@ int main(int argc, char *argv[])
          if (Mpi::Root())
          {
             line(80);
-            cout << "Restart output:" << ri << endl;
+            std::cout << "Restart output:" << ri << std::endl;
             line(80);
          }
          if (nstate == 1)
@@ -640,16 +639,16 @@ int main(int argc, char *argv[])
          if (Mpi::Root())
          {
             std::ofstream step("restart/step.dat", std::ifstream::out);
-            step<<t<<"\t"<<si<<"\t"<<ri<<"\t"<<vi<<endl;
-            step<<dt<<endl;
+            step<<t<<"\t"<<si<<"\t"<<ri<<"\t"<<vi<<std::endl;
+            step<<dt<<std::endl;
             step.close();
          }
 
       }
       if (Mpi::Root())
       {
-         cout<<endl<<endl;
-         cout<<"\n"<<std::flush;
+         std::cout<<std::endl<<std::endl;
+         std::cout<<"\n"<<std::flush;
       }
    }
    os.close();

@@ -12,13 +12,12 @@
 #include <sys/stat.h>
 #include "mfem.hpp"
 
-using namespace std;
 using namespace mfem;
 
 void line(int len)
 {
-   for (int b=0; b<len; ++b) { cout<<"-"; }
-   cout<<"\n";
+   for (int b=0; b<len; ++b) { std::cout<<"-"; }
+   std::cout<<"\n";
 }
 
 void CheckBoundaries(Array<bool> &bnd_flags,
