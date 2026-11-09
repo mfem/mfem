@@ -79,7 +79,10 @@ private:
    mutable ConstantCoefficient zero;
    mutable GridFunction psi_cur_gf;
    mutable GridFunctionCoefficient psi_cur_cf;
-   mutable GridFunction u_gf, lambda_gf;
+   mutable GridFunction lambda_gf;
+
+   // Constant load contribution b(v) := -(f, v)
+   Vector neg_load_vec;
 
    // Constant Jacobian blocks
    SparseMatrix *A00 = nullptr;
@@ -480,7 +483,7 @@ ProximalGalerkinOperator::ProximalGalerkinOperator(
      H1fes(H1fes_), L2fes(L2fes_), alpha(alpha_), load(load_),
      obstacle(obstacle_), psi_old_gf(psi_old_gf_),
      ess_tdof_list(ess_tdof_list_), block_toffsets(block_toffsets_),
-     zero(0.0), psi_cur_cf(&psi_cur_gf), u_gf(&H1fes_), lambda_gf(&L2fes_)
+     zero(0.0), psi_cur_cf(&psi_cur_gf), lambda_gf(&L2fes_)
 {
    BilinearForm a00(&H1fes);
    a00.AddDomainIntegrator(new DiffusionIntegrator());
@@ -505,44 +508,50 @@ ProximalGalerkinOperator::ProximalGalerkinOperator(
    }
 
    A01 = Transpose(*A10);
+   *A01 *= -1.0;
 
    J = new BlockOperator(block_toffsets);
    J->SetBlock(0, 0, A00);
    J->SetBlock(1, 0, A10);
-   J->SetBlock(0, 1, A01, -1.0);
+   J->SetBlock(0, 1, A01);
 
    psi_cur_gf.SetSpace(&L2fes);
+
+   neg_load_vec.SetSize(H1fes.GetTrueVSize());
+   ProductCoefficient neg_load(-1.0, load);
+   LinearForm b0(&H1fes);
+   b0.AddDomainIntegrator(new DomainLFIntegrator(neg_load));
+   b0.Assemble();
+   neg_load_vec = b0;
 }
 
 void ProximalGalerkinOperator::Mult(const Vector &x, Vector &y) const
 {
    const BlockVector xb(const_cast<Vector&>(x), block_toffsets);
-   u_gf.SetFromTrueDofs(xb.GetBlock(0));
-   lambda_gf.SetFromTrueDofs(xb.GetBlock(1));
-
-   GradientGridFunctionCoefficient grad_u(&u_gf);
-   GridFunctionCoefficient lambda_cf(&lambda_gf);
-   SumCoefficient neg_lambda_load(lambda_cf, load, -1.0, -1.0);
-
-   LinearForm b0(&H1fes);
-   b0.AddDomainIntegrator(new DomainLFGradIntegrator(grad_u));
-   b0.AddDomainIntegrator(new DomainLFIntegrator(neg_lambda_load));
-   b0.Assemble();
-
-   GridFunctionCoefficient u_cf(&u_gf);
-   psi_cur_gf = psi_old_gf;
-   psi_cur_gf.Add(-alpha, lambda_gf);
-   TransformedCoefficient exp_psi(&psi_cur_cf, &obstacle, exp_sum);
-   SumCoefficient u_minus_exp_psi(u_cf, exp_psi, 1.0, -1.0);
-
-   LinearForm b1(&L2fes);
-   b1.AddDomainIntegrator(new DomainLFIntegrator(u_minus_exp_psi));
-   b1.Assemble();
+   const Vector &x0 = xb.GetBlock(0);
+   const Vector &x1 = xb.GetBlock(1);
+   lambda_gf.SetFromTrueDofs(x1);
 
    BlockVector yb(y, block_toffsets);
    Vector &y0 = yb.GetBlock(0);
-   y0 = b0;
-   yb.GetBlock(1) = b1;
+   Vector &y1 = yb.GetBlock(1);
+
+   // Block 0
+   y0 = neg_load_vec;
+   A00->AddMult(x0, y0);
+   A01->AddMult(x1, y0);
+
+   // Block 1
+   psi_cur_gf = psi_old_gf;
+   psi_cur_gf.Add(-alpha, lambda_gf);
+   TransformedCoefficient exp_psi(&psi_cur_cf, &obstacle, exp_sum);
+   ProductCoefficient neg_exp_psi(-1.0, exp_psi);
+
+   LinearForm b1(&L2fes);
+   b1.AddDomainIntegrator(new DomainLFIntegrator(neg_exp_psi));
+   b1.Assemble();
+   y1 = b1;
+   A10->AddMult(x0, y1);
 
    // Hold the essential (H1) dofs fixed: zero residual there.
    y0.SetSubVector(ess_tdof_list, 0.0);
