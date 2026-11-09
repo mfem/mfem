@@ -27,10 +27,7 @@ template<
    size_t noutputs = tuple_size<outputs_t>::value>
 struct DerivativeSetup
 {
-   // TODO:
-   // The interpolation of this backend relies on QuadratureInterpolator, which
-   // only handles elements. Keeping an assertion here to be sure boundary
-   // entities don't slip through.
+
    using qfunc_shadow_t = detail::qfunc_shadow_t<qfunc_t>;
 
    DerivativeSetup(

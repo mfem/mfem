@@ -28,12 +28,6 @@ template<
    typename entity_t>
 struct DerivativeApply
 {
-   // TODO:
-   // The interpolation of this backend relies on QuadratureInterpolator, which
-   // only handles elements. Keeping an assertion here to be sure boundary
-   // entities don't slip through.
-   static_assert(std::is_same_v<entity_t, Entity::Element>,
-                 "GlobalQFBackend only supports domain integrators");
 
    static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;

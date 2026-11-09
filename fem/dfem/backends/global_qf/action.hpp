@@ -30,10 +30,7 @@ template<
    size_t noutputs = tuple_size<outputs_t>::value>
 struct Action
 {
-   // TODO:
-   // The interpolation of this backend relies on QuadratureInterpolator, which
-   // only handles elements. Keeping an assertion here to be sure boundary
-   // entities don't slip through.
+
    Action(
       IntegratorContext<entity_t> ctx,
       const qfunc_t &qfunc,
