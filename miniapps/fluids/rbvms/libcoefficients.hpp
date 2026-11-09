@@ -128,7 +128,7 @@ public:
    LibVectorCoefficient& operator=(const LibCoefficient&) = delete;
    LibVectorCoefficient(LibCoefficient&&) = delete;
    LibVectorCoefficient& operator=(LibCoefficient&&) = delete;
-   
+
    bool Foundfunction() { return TDFunction != nullptr; }
 
    /** Get a @a funNames C-function from the @a libName library

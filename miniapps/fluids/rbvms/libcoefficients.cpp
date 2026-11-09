@@ -18,18 +18,18 @@ void LibCoefficient::GetLibFunction(std::string libName,
                                     std::vector<std::string> funNames,
                                     bool required)
 {
-    // Release previously loaded library
-    if (libHandle)
-    {
+   // Release previously loaded library
+   if (libHandle)
+   {
 #ifdef _WIN32
-        FreeLibrary(libHandle);
+      FreeLibrary(libHandle);
 #else
-        dlclose(libHandle);
+      dlclose(libHandle);
 #endif
-        libHandle = nullptr;
-    }
+      libHandle = nullptr;
+   }
 
-    TDFunction = nullptr;
+   TDFunction = nullptr;
 
    // Open library
 #ifdef _WIN32
@@ -116,18 +116,18 @@ void LibVectorCoefficient::GetLibFunction(std::string libName,
                                           std::vector<std::string> funNames,
                                           bool required)
 {
-    // Release previously loaded library
-    if (libHandle)
-    {
+   // Release previously loaded library
+   if (libHandle)
+   {
 #ifdef _WIN32
-        FreeLibrary(libHandle);
+      FreeLibrary(libHandle);
 #else
-        dlclose(libHandle);
+      dlclose(libHandle);
 #endif
-        libHandle = nullptr;
-    }
+      libHandle = nullptr;
+   }
 
-    TDFunction = nullptr;
+   TDFunction = nullptr;
 
    // Open library
 #ifdef _WIN32
