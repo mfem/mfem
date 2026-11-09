@@ -141,10 +141,10 @@ static PetscErrorCode MakeShellPCWithFactory(PC,
 #endif
 
 #if defined(_USE_DEVICE)
-// Return true if the data in memory of type mt can be used by the device
-// vectors and matrices of PETSc: all the memory types of MemoryClass::DEVICE
+// Return true if memory of type mt is GPU memory, which the device vectors and
+// matrices of PETSc can use: all the memory types of MemoryClass::DEVICE
 // (including the Umpire ones), except DEVICE_DEBUG, which is host memory.
-static bool __mfem_IsPetscDeviceMemory(mfem::MemoryType mt)
+static bool __mfem_IsGPUMemory(mfem::MemoryType mt)
 {
    return mfem::IsDeviceMemory(mt) && mt != mfem::MemoryType::DEVICE_DEBUG;
 }
@@ -406,7 +406,7 @@ void PetscParVector::SetVecType_()
    MFEM_VERIFY(x,"Missing Vec");
    ierr = VecGetType(x,&vectype); PCHKERRQ(x,ierr);
 #if defined(_USE_DEVICE)
-   if (__mfem_IsPetscDeviceMemory(Device::GetDeviceMemoryType()))
+   if (__mfem_IsGPUMemory(Device::GetDeviceMemoryType()))
    {
       ierr = VecSetType(x,PETSC_VECDEVICE); PCHKERRQ(x,ierr);
    }
@@ -1387,7 +1387,7 @@ void PetscParMatrix::MakeWrapper(MPI_Comm comm, const Operator* op, Mat *A)
 #endif
 #if defined(_USE_DEVICE)
    MemoryType mt = GetMemoryType(op->GetMemoryClass());
-   if (__mfem_IsPetscDeviceMemory(mt))
+   if (__mfem_IsGPUMemory(mt))
    {
       ierr = MatShellSetVecType(*A,PETSC_VECDEVICE); PCHKERRQ(A,ierr);
       ierr = MatBindToCPU(*A,PETSC_FALSE); PCHKERRQ(A,ierr);
