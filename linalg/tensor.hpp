@@ -1443,6 +1443,36 @@ decltype(A / norm(A))
 }
 
 /**
+ * @brief Normal of a codimension-one entity from its Jacobian, scaled by the
+ * entity's measure, the counterpart of CalcOrtho
+ */
+template <typename T, int n, int m> MFEM_HOST_DEVICE
+tensor<T, n> ortho(const tensor<T, n, m>& J)
+{
+   static_assert(((n == 2) && (m == 1)) || ((n == 3) && (m == 2)),
+                 "unsupported combination of n and m");
+   if constexpr (n == 2)
+   {
+      return tensor<T, 2> {J[1][0], -J[0][0]};
+   }
+   else
+   {
+      return cross(tensor<T, 3> {J[0][0], J[1][0], J[2][0]},
+                   tensor<T, 3> {J[0][1], J[1][1], J[2][1]});
+   }
+}
+
+/**
+ * @brief Unit normal of a codimension-one entity from its Jacobian, see ortho()
+ * @param[in] J The (n x n-1) Jacobian of the entity
+ */
+template <typename T, int n, int m> MFEM_HOST_DEVICE
+tensor<T, n> normal(const tensor<T, n, m>& J)
+{
+   return normalize(ortho(J));
+}
+
+/**
  * @brief Returns the trace of a square matrix
  * @param[in] A The matrix to compute the trace of
  * @return The sum of the elements on the main diagonal
