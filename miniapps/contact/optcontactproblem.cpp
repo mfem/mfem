@@ -24,7 +24,7 @@ namespace
 class ScopedHypreHostPolicy
 {
 private:
-#if MFEM_HYPRE_VERSION >= 22600
+#if MFEM_HYPRE_VERSION >= 23100
    HYPRE_MemoryLocation old_memory = HYPRE_MEMORY_HOST;
    HYPRE_ExecutionPolicy old_execution = HYPRE_EXEC_HOST;
    bool restore = false;
@@ -33,7 +33,7 @@ private:
 public:
    ScopedHypreHostPolicy()
    {
-#if MFEM_HYPRE_VERSION >= 22600
+#if MFEM_HYPRE_VERSION >= 23100
       if (HYPRE_Initialized())
       {
          HYPRE_GetMemoryLocation(&old_memory);
@@ -43,14 +43,14 @@ public:
          restore = true;
       }
 #elif defined(HYPRE_USING_GPU)
-      MFEM_ABORT("The contact miniapp requires HYPRE 2.26 or newer when "
+      MFEM_ABORT("The contact miniapp requires HYPRE 2.31 or newer when "
                  "HYPRE is GPU-enabled.");
 #endif
    }
 
    void Restore()
    {
-#if MFEM_HYPRE_VERSION >= 22600
+#if MFEM_HYPRE_VERSION >= 23100
       if (restore)
       {
          HYPRE_SetMemoryLocation(old_memory);
@@ -361,6 +361,10 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
      tribol_ratio(tribol_ratio_),
      bound_constraints(bound_constraints_)
 {
+#if defined(HYPRE_USING_GPU) && MFEM_HYPRE_VERSION < 23100
+   MFEM_ABORT("The contact miniapp requires HYPRE 2.31 or newer when "
+              "HYPRE is GPU-enabled.");
+#endif
    comm = problem->GetComm();
    vfes = problem->GetFESpace();
    block_offsetsg.SetSize(4);
