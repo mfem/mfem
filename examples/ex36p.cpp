@@ -324,15 +324,13 @@ int main(int argc, char *argv[])
    gmres.SetMaxIter(1000);
    gmres.SetPreconditioner(prec);
 
-   const int newton_max_it = 10;
-   const real_t newton_rel_tol = 1e-3;
    NewtonSolver newton(MPI_COMM_WORLD);
    newton.SetOperator(pg_op);
    newton.SetSolver(gmres);
    newton.SetPrintLevel(-1);
-   newton.SetRelTol(newton_rel_tol);
+   newton.SetRelTol(1e-3);
    newton.SetAbsTol(0.0);
-   newton.SetMaxIter(newton_max_it);
+   newton.SetMaxIter(10);
    newton.iterative_mode = true;
 
    u_gf.GetTrueDofs(x.GetBlock(0));
@@ -342,7 +340,7 @@ int main(int argc, char *argv[])
    // 11. Outer proximal loop.
    int k;
    int total_iterations = 0;
-   real_t increment_u = 0.1;
+   real_t increment_u;
    for (k = 0; k < max_it; k++)
    {
       if (Mpi::Root())
