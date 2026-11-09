@@ -39,6 +39,21 @@ void MultiplyWeights(const Vector &weights, const Vector &x, Vector &y)
    });
 }
 
+real_t FiniteNormlinf(const Vector &x, Array<real_t> &workspace)
+{
+   real_t norm = 0.0;
+   const bool use_dev = x.UseDevice();
+   const real_t *values = x.Read(use_dev);
+   const real_t inf = infinity();
+   reduce(x.Size(), norm, [=] MFEM_HOST_DEVICE (int i, real_t &value)
+   {
+      // fmax ignores NaNs, so map every nonfinite entry to infinity first.
+      const real_t entry = values[i];
+      value = fmax(value, entry > -inf && entry < inf ? fabs(entry) : inf);
+   }, MaxReducer<real_t> {}, use_dev, workspace);
+   return norm;
+}
+
 void AddBarrierGradient(const Vector &weights, const Vector &slack,
                         real_t mu, Vector &y)
 {
@@ -312,7 +327,11 @@ void IPSolver::Mult(const Vector &x0, Vector &xf)
 
 void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
 {
+   MFEM_VERIFY(solver, "Set a linear solver before calling IPSolver::Mult.");
    converged = false;
+   iter = 0;
+   lin_solver_iterations.SetSize(0);
+   termination_reason = "maximum optimization iterations";
    x0.SyncToBlocks();
    BlockVector xk(block_offsetsx), xhat(block_offsetsx);
    EnableDevice(xk); EnableDevice(xhat); xk = 0; xhat = 0.0;
@@ -371,9 +390,15 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       }
       // Check convergence of optimization problem
       OptErr = OptimalityError(xk, lk, zlk);
+      if (!IsFinite(OptErr))
+      {
+         termination_reason = "nonfinite optimality error";
+         break;
+      }
       if (OptErr < abs_tol)
       {
          converged = true;
+         termination_reason = "converged";
          if (myid == 0 && print_level > 0)
          {
             mfem::out << "solved optimization problem\n";
@@ -405,7 +430,12 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       zlhat = 0.0; Xhatuml = 0.0;
 
       bool passedCurvatureTest = false;
-      IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCurvatureTest, mu_k);
+      if (!IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml,
+                         passedCurvatureTest, mu_k))
+      {
+         termination_reason = "linear solver failed";
+         break;
+      }
       if (!passedCurvatureTest)
       {
          if (myid == 0 && print_level > 0)
@@ -427,11 +457,13 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
 
          // solve regularized IP-Newton linear system
          zlhat = 0.0; Xhatuml = 0.0;
-         IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCurvatureTest, mu_k, deltaReg);
+         bool linear_converged = IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml,
+                                               passedCurvatureTest, mu_k, deltaReg);
 
          for (int numCurvatureTests = 0; numCurvatureTests < maxCurvatureTests;
               numCurvatureTests++)
          {
+            if (!linear_converged) { break; }
             if (myid == 0 && print_level > 0)
             {
                mfem::out << "deltaReg = " << deltaReg << std::endl;
@@ -458,7 +490,14 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
             }
             // solve with regularization
             zlhat = 0.0; Xhatuml = 0.0;
-            IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, passedCurvatureTest, mu_k, deltaReg);
+            linear_converged = IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml,
+                                             passedCurvatureTest, mu_k, deltaReg);
+         }
+         if (!linear_converged || !passedCurvatureTest)
+         {
+            termination_reason = linear_converged ? "curvature test failed"
+                                 : "linear solver failed";
+            break;
          }
       }
 
@@ -510,12 +549,20 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
             mfem::out << "lineSearch not successful\n";
          }
          converged = false;
+         termination_reason = "line search failed";
          break;
       }
       if (j + 1 == max_iter && myid == 0 && print_level > 0)
       {
          mfem::out << "maximum optimization iterations\n";
       }
+   }
+   // Check the accepted final iterate, including the last allowed IP step.
+   OptErr = OptimalityError(xk, lk, zlk);
+   if (IsFinite(OptErr) && OptErr < abs_tol)
+   {
+      converged = true;
+      termination_reason = "converged";
    }
    xf = 0.0;
    xf.SyncToBlocks();
@@ -590,7 +637,7 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
 
 // perturbed KKT system solve
 // determine the search direction
-void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
+bool IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
                              Vector &zl, Vector &zlhat, BlockVector &Xhat, bool & passedCurvatureTest,
                              real_t mu,
                              real_t delta)
@@ -639,6 +686,16 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    auto itsolver = dynamic_cast<IterativeSolver *>(solver);
    int numit = (itsolver) ? itsolver->GetNumIterations() : -1;
    lin_solver_iterations.Append(numit);
+   int local_success = (!itsolver || itsolver->GetConverged()) &&
+                       IsFinite(FiniteNormlinf(Xhat.GetBlock(0), reduce_workspace));
+   int global_success;
+   MPI_Allreduce(&local_success, &global_success, 1, MPI_INT, MPI_MIN, comm);
+   if (!global_success)
+   {
+      delete JuTDJu;
+      delete Areduced;
+      return false;
+   }
 
    // now propagate solved uhat to obtain mhat and lhat
    // xm = Ju xu - bl
@@ -658,6 +715,10 @@ void IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    /* backsolve to determine zlhat */
    x.SyncFromBlocks();
    ComputeMultiplierDirection(x, Xhat, zl, mu, zlhat);
+   local_success = IsFinite(FiniteNormlinf(Xhat, reduce_workspace)) &&
+                   IsFinite(FiniteNormlinf(zlhat, reduce_workspace));
+   MPI_Allreduce(&local_success, &global_success, 1, MPI_INT, MPI_MIN, comm);
+   return global_success;
 }
 
 real_t IPSolver::GetMaxStepSize(const Vector &x, const Vector &xhat,
@@ -993,9 +1054,19 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
    feasibilityError = GlobalLpNorm(infinity(), cx.Normlinf(), comm);
    complementarityError = GlobalLpNorm(infinity(), complementarityLoc, comm);
 
+   stationarity_error = stationarityError;
+   feasibility_error = feasibilityError;
+   complementarity_error = complementarityError;
+
 
    optimalityError = std::max(std::max(stationarityError, feasibilityError),
                               complementarityError);
+   if (!IsFinite(stationarityError) || !IsFinite(feasibilityError) ||
+       !IsFinite(complementarityError))
+   {
+      optimalityError = infinity();
+   }
+   optimality_error = optimalityError;
 
    if (myid == 0 && print_level > 0)
    {

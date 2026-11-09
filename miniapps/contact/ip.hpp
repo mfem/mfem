@@ -78,6 +78,15 @@ public:
    /// Get convergence status of most recent Mult call
    bool GetConverged() const {return converged;}
 
+   /// Reason the most recent solve stopped.
+   const char *GetTerminationReason() const { return termination_reason; }
+
+   /// Final stationarity, equality feasibility, and complementarity errors.
+   real_t GetStationarityError() const { return stationarity_error; }
+   real_t GetFeasibilityError() const { return feasibility_error; }
+   real_t GetComplementarityError() const { return complementarity_error; }
+   real_t GetOptimalityError() const { return optimality_error; }
+
    /// get number of interior-point iterations of most recent Mult call
    int GetNumIterations() {return iter;};
 
@@ -150,6 +159,11 @@ protected:
    Array<int> lin_solver_iterations;
 
    bool converged = false;
+   const char *termination_reason = "not run";
+   real_t stationarity_error = infinity();
+   real_t feasibility_error = infinity();
+   real_t complementarity_error = infinity();
+   real_t optimality_error = infinity();
 
    int myid = -1;
 
@@ -174,7 +188,7 @@ private:
                         real_t delta = 0.0);
 
    /// Solve the (regularized) IP-Newton linear system
-   void IPNewtonSolve(BlockVector&, Vector&, Vector&, Vector&, BlockVector&,
+   bool IPNewtonSolve(BlockVector&, Vector&, Vector&, Vector&, BlockVector&,
                       bool &, real_t, real_t delta = 0.0);
 
    /// Max step length that satisfies fraction-to-boundary rule

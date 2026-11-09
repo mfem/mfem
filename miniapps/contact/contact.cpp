@@ -656,8 +656,31 @@ int main(int argc, char *argv[])
       Vector xf(ndofs); xf.UseDevice(true); xf = 0.0;
       optimizer.Mult(x0, xf);
 
+      if (Mpi::Root())
+      {
+         mfem::out << " Optimizer status                = "
+                   << optimizer.GetTerminationReason() << endl;
+         mfem::out << " Final stationarity error        = "
+                   << optimizer.GetStationarityError() << endl;
+         mfem::out << " Final feasibility error         = "
+                   << optimizer.GetFeasibilityError() << endl;
+         mfem::out << " Final complementarity error     = "
+                   << optimizer.GetComplementarityError() << endl;
+         mfem::out << " Final optimality error          = "
+                   << optimizer.GetOptimalityError() << endl;
+      }
+
       delete prec;
       if (subspacesolver) { delete subspacesolver; }
+      if (!optimizer.GetConverged())
+      {
+         if (Mpi::Root())
+         {
+            mfem::err << "Contact solve failed at load step " << i << "." << endl;
+         }
+         delete paraview_dc;
+         return 2;
+      }
 
       // Update internal state for next step (for bound constraints).
       Vector dx(xf); dx.UseDevice(true); dx -= x0;
