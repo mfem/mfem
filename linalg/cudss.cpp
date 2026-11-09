@@ -78,6 +78,10 @@ CuDSSSolver::CuDSSSolver(MPI_Comm comm_) : mpi_comm(comm_)
 #if CUDSS_VERSION >= 800
    MFEM_CUDSS_CHECK(cudssDataSet(handle, solverData, CUDSS_DATA_COMM_HOST,
                                  &mpi_comm, sizeof(MPI_Comm *)));
+   // The MPI communication layer uses the same communicator for host and
+   // device buffers. Newer cuDSS versions require both to be registered.
+   MFEM_CUDSS_CHECK(cudssDataSet(handle, solverData, CUDSS_DATA_COMM_DEVICE,
+                                 &mpi_comm, sizeof(MPI_Comm *)));
 #else
    MFEM_CUDSS_CHECK(cudssDataSet(handle, solverData, CUDSS_DATA_COMM,
                                  &mpi_comm, sizeof(MPI_Comm *)));

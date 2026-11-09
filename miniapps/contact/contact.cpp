@@ -45,8 +45,9 @@
 //     requested for -prob 0/1/3, the app falls back to the linear model.
 //  2. The meshes for -prob 0,1,3 are generated on the fly. For -prob 2,
 //     the mesh is read from ./meshes/beam-sphere.mesh.
-//  3. AMGF requires a parallel direct solver for the filtered subspace; build
-//     MFEM with MUMPS or MKL CPardiso. If unavailable, requesting -amgf aborts
+//  3. AMGF requires a sparse direct solver for the filtered subspace; build
+//     MFEM with MUMPS, SuperLU_DIST, STRUMPACK, MKL CPardiso, or cuDSS.
+//     If unavailable, requesting -amgf aborts
 //     with an error.
 //  4. This miniapp requires MFEM build with Tribol, an open source contact mechanics library
 //     available at https://github.com/LLNL/Tribol.
@@ -235,7 +236,7 @@ int main(int argc, char *argv[])
    bool amgf = false;
 
    // Direct solver for AMGF filtered subspace
-   // Choices:"auto", "mumps", "cpardiso", "superlu", "strumpack"
+   // Choices:"auto", "mumps", "cpardiso", "superlu", "strumpack", "cudss"
    const char *amgf_fsolver = "auto";
    // BoomerAMG options. Defaults match MFEM/HYPRE's GPU-oriented defaults.
    int amg_coarsen_type = 8;
@@ -273,7 +274,7 @@ int main(int argc, char *argv[])
                   "--no-amgf", "Enable or disable AMG with Filtering solver.");
    args.AddOption(&amgf_fsolver, "-amgf-fsolver", "--amgf-filtered-solver",
                   "Direct solver for AMGF filtered subspace.\n"
-                  "Choices: auto, mumps, cpardiso, superlu, strumpack.");
+                  "Choices: auto, mumps, cpardiso, superlu, strumpack, cudss.");
    args.AddOption(&amg_coarsen_type, "-amg-coarsen-type",
                   "--amg-coarsen-type",
                   "BoomerAMG coarsening type.");

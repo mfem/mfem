@@ -27,7 +27,7 @@ HypreParMatrix *MakeDiagonalHypreParMatrix(MPI_Comm comm,
 /**
  * @class ParallelDirectSolver
  * @brief Wrapper around parallel sparse direct solvers (MUMPS, SuperLU_DIST,
- *        STRUMPACK, CPARDISO).
+ *        STRUMPACK, CPARDISO, cuDSS).
  *
  * ParallelDirectSolver provides a uniform interface to several parallel sparse
  * direct solvers. The solver is selected at
@@ -39,6 +39,7 @@ HypreParMatrix *MakeDiagonalHypreParMatrix(MPI_Comm comm,
  *  - SuperLU    (MFEM_USE_SUPERLU)
  *  - STRUMPACK  (MFEM_USE_STRUMPACK)
  *  - CPARDISO   (MFEM_USE_MKL_CPARDISO)
+ *  - cuDSS      (MFEM_USE_CUDSS, CUDA device)
  *
  * The typical usage pattern is:
  *  - Construct a ParallelDirectSolver with an MPI communicator and a backend.
@@ -61,7 +62,8 @@ public:
       MUMPS,
       SUPERLU,
       CPARDISO,
-      STRUMPACK
+      STRUMPACK,
+      CUDSS
    };
 
 private:
@@ -99,7 +101,7 @@ public:
    /**
     * @brief Construct a ParallelDirectSolver from a string name.
     * Accepted strings:
-    *   "auto", "mumps", "superlu", "cpardiso", "strumpack".
+    *   "auto", "mumps", "superlu", "cpardiso", "strumpack", "cudss".
     * The string is converted to a Type and the other constructor is invoked.
     */
    ParallelDirectSolver(MPI_Comm comm_, const std::string &name);
