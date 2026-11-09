@@ -10,6 +10,10 @@
 
 #include "mfem.hpp"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 using namespace mfem;
 
 /// Coefficient class with a function defined in a seperate C-function

@@ -16,7 +16,6 @@
 #include "integrator.hpp"
 #include "libcoefficients.hpp"
 
-using namespace std;
 using namespace mfem;
 
 int main(int argc, char *argv[])
@@ -120,10 +119,10 @@ int main(int argc, char *argv[])
    args.Parse();
    if (!args.Good())
    {
-      args.PrintUsage(cout);
+      args.PrintUsage(std::cout);
       return 1;
    }
-   args.PrintOptions(cout);
+   args.PrintOptions(std::cout);
 
    // 3. Read the mesh from the given mesh file.
    Mesh mesh(mesh_file, 1, 1);
