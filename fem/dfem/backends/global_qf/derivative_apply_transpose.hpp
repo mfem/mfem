@@ -33,9 +33,6 @@ struct DerivativeApplyTranspose
    // The interpolation of this backend relies on QuadratureInterpolator, which
    // only handles elements. Keeping an assertion here to be sure boundary
    // entities don't slip through.
-   static_assert(std::is_same_v<entity_t, Entity::Element>,
-                 "GlobalQFBackend only supports domain integrators");
-
    static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
 
@@ -54,9 +51,9 @@ struct DerivativeApplyTranspose
       check_consistency(this->inputs, input_to_infd, ctx.infds);
       check_consistency(this->outputs, output_to_outfd, ctx.outfds);
 
-      create_fieldbases(
+      create_fieldbases<entity_t>(
          this->inputs, input_to_infd, ctx.infds, ctx.ir, input_bases);
-      create_fieldbases(
+      create_fieldbases<entity_t>(
          this->outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
 
       const int nqp = ctx.ir.GetNPoints();

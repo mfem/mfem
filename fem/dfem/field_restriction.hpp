@@ -94,6 +94,15 @@ std::shared_ptr<const Operator> get_face_restriction(const FieldDescriptor &f,
       if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
                     std::is_same_v<T, const ParFiniteElementSpace *>)
       {
+         // The L2 face restriction gathers the element dofs on the face, which
+         // only give the trace for a basis with nodes on the element boundary.
+         if (const auto *l2 = dynamic_cast<const L2_FECollection *>(arg->FEColl()))
+         {
+            const int b = l2->GetBasisType();
+            MFEM_VERIFY(b == BasisType::GaussLobatto || b == BasisType::Positive,
+                        "face integrators of L2 spaces need a GaussLobatto or "
+                        "Positive basis, not " << BasisType::Name(b));
+         }
          // Non-owning shared_ptr with no-op deleter
          return std::shared_ptr<const Operator>(arg->GetFaceRestriction(o, ft,
          m), [](const Operator*) {});

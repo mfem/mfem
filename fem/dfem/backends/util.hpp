@@ -11,6 +11,7 @@
 #pragma once
 
 #include "../../quadinterpolator.hpp"
+#include "../../quadinterpolator_face.hpp"
 #include "../../../general/enzyme.hpp"
 #include "../../../linalg/dual.hpp"
 
@@ -91,6 +92,33 @@ inline FieldBasis FromQI(const QuadratureInterpolator *qi,
    };
 }
 
+// The face counterpart of FromQI(), for face E-vectors. The derivatives are
+// the tangential ones, with respect to the reference coordinates of the face.
+inline FieldBasis FromFaceQI(const FaceQuadratureInterpolator *qi,
+                             QuadratureInterpolator::EvalFlags mode)
+{
+   const bool values = (mode == QuadratureInterpolator::VALUES);
+   const auto flag = values ? FaceQuadratureInterpolator::VALUES :
+                     FaceQuadratureInterpolator::DERIVATIVES;
+   return
+   {
+      [qi, values, flag](const Vector &xe, Vector &xq)
+      {
+         Vector empty;
+         qi->SetOutputLayout(QVectorLayout::byVDIM);
+         qi->Mult(xe, flag, values ? xq : empty, values ? empty : xq, empty,
+                  empty);
+      },
+      [qi, values, flag](const Vector &yq, Vector &ye)
+      {
+         Vector empty;
+         qi->SetOutputLayout(QVectorLayout::byVDIM);
+         qi->AddMultTranspose(flag, values ? yq : empty, values ? empty : yq,
+                              ye);
+      }
+   };
+}
+
 // VectorQuadratureSpace identity copy
 inline FieldBasis FromQS()
 {
@@ -135,6 +163,9 @@ inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
    };
 }
 
+/// The basis of the field @a f on the entities of type @a entity_t (see
+/// Entity), at the points of @a ir.
+template <typename entity_t>
 inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
                                       const IntegrationRule &ir,
                                       QuadratureInterpolator::EvalFlags mode)
@@ -143,13 +174,19 @@ inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
    {
       using T = std::decay_t<decltype(arg)>;
 
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         return FromQI(arg->GetQuadratureInterpolator(ir), mode);
-      }
-      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         return FromQI(arg->GetQuadratureInterpolator(ir), mode);
+         constexpr RestrictionDescriptor r = EntityTraits<entity_t>::restriction;
+         if constexpr (r.is_face_restriction)
+         {
+            return FromFaceQI(
+               arg->GetFaceQuadratureInterpolator(ir, r.face_type), mode);
+         }
+         else
+         {
+            return FromQI(arg->GetQuadratureInterpolator(ir), mode);
+         }
       }
       else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
@@ -170,7 +207,9 @@ inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
    }, f.data);
 }
 
-template <typename fops_t, size_t nfops>
+/// The bases of the field operators @a fops on the entities of type
+/// @a entity_t (see Entity), see GetFieldBasis().
+template <typename entity_t, typename fops_t, size_t nfops>
 inline void create_fieldbases(
    fops_t &fops,
    const std::array<size_t, nfops> &fop_to_fd,
@@ -189,7 +228,7 @@ inline void create_fieldbases(
          QuadratureInterpolator::VALUES;
       if constexpr (is_identity_fop<fop_t>::value)
       {
-         bases[i] = GetFieldBasis(fd, ir, dummy_mode);
+         bases[i] = GetFieldBasis<entity_t>(fd, ir, dummy_mode);
       }
       else if constexpr (is_weight_fop<fop_t>::value)
       {
@@ -197,11 +236,13 @@ inline void create_fieldbases(
       }
       else if constexpr (is_value_fop<fop_t>::value)
       {
-         bases[i] = GetFieldBasis(fd, ir, QuadratureInterpolator::VALUES);
+         bases[i] = GetFieldBasis<entity_t>(fd, ir,
+                                            QuadratureInterpolator::VALUES);
       }
       else if constexpr (is_gradient_fop<fop_t>::value)
       {
-         bases[i] = GetFieldBasis(fd, ir, QuadratureInterpolator::DERIVATIVES);
+         bases[i] = GetFieldBasis<entity_t>(
+                       fd, ir, QuadratureInterpolator::DERIVATIVES);
       }
    });
 }

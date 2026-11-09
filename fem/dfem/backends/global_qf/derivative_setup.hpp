@@ -31,9 +31,6 @@ struct DerivativeSetup
    // The interpolation of this backend relies on QuadratureInterpolator, which
    // only handles elements. Keeping an assertion here to be sure boundary
    // entities don't slip through.
-   static_assert(std::is_same_v<entity_t, Entity::Element>,
-                 "GlobalQFBackend only supports domain integrators");
-
    using qfunc_shadow_t = detail::qfunc_shadow_t<qfunc_t>;
 
    DerivativeSetup(
@@ -55,8 +52,10 @@ struct DerivativeSetup
       check_consistency(inputs, input_to_infd, ctx.infds);
       check_consistency(outputs, output_to_outfd, ctx.outfds);
 
-      create_fieldbases(inputs, input_to_infd, ctx.infds, ctx.ir, input_bases);
-      create_fieldbases(outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
+      create_fieldbases<entity_t>(inputs, input_to_infd, ctx.infds, ctx.ir,
+                                  input_bases);
+      create_fieldbases<entity_t>(outputs, output_to_outfd, ctx.outfds, ctx.ir,
+                                  output_bases);
 
       create_qlayouts(inputs, ctx.in_qlayouts, input_qlayouts);
       create_qlayouts(outputs, ctx.out_qlayouts, output_qlayouts);
