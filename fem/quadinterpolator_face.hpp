@@ -100,6 +100,15 @@ public:
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
    void Values(const Vector &e_vec, Vector &q_val) const;
 
+   /// @brief Perform the transpose operation of Mult(), adding the result to
+   /// @a e_vec.
+   /** The @a eval_flags select the Q-vectors to transpose, @a q_val for VALUES
+       and @a q_der for DERIVATIVES, with the layout set by SetOutputLayout().
+       DETERMINANTS and NORMALS are not linear in the E-vector and are not
+       supported. */
+   void AddMultTranspose(unsigned eval_flags, const Vector &q_val,
+                         const Vector &q_der, Vector &e_vec) const;
+
    // Compute kernels follow (cannot be private or protected with nvcc)
 
    /// Template compute kernel for 2D.

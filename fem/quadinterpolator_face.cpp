@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "quadinterpolator_face.hpp"
+#include "quadinterpolator.hpp"
 #include "../general/annotation.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/dtensor.hpp"
@@ -789,6 +790,38 @@ void FaceQuadratureInterpolator::Values(
 {
    Vector q_der, q_det, q_nor;
    Mult(e_vec, VALUES, q_val, q_der, q_det, q_nor);
+}
+
+void FaceQuadratureInterpolator::AddMultTranspose(
+   unsigned eval_flags, const Vector &q_val, const Vector &q_der,
+   Vector &e_vec) const
+{
+   MFEM_VERIFY(!(eval_flags & (DETERMINANTS | NORMALS)),
+               "only VALUES and DERIVATIVES can be transposed");
+   if (nf == 0) { return; }
+   const int vdim = fespace->GetVDim();
+   const FiniteElement *fe = fespace->GetTypicalTraceElement();
+   const DofToQuad &maps = fe->GetDofToQuad(*IntRule, DofToQuad::TENSOR);
+   const int dim = fe->GetDim();
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
+
+   // We can reuse the QuadratureInterpolator transpose kernels for face E-vectors and Q-vectors.
+   // since the face E-vector and Q-vectors follow the same layout as a tensor-product element,
+   using QI = QuadratureInterpolator;
+   if (eval_flags & VALUES)
+   {
+      QI::TensorEvalTransposeKernels::Run(dim, q_layout, vdim, nd, nq, nf,
+                                          maps.B.Read(), q_val.Read(),
+                                          e_vec.ReadWrite(), vdim, nd, nq);
+   }
+   if (eval_flags & DERIVATIVES)
+   {
+      QI::GradTransposeKernels::Run(dim, q_layout, false, vdim, nd, nq, nf,
+                                    maps.B.Read(), maps.G.Read(), nullptr,
+                                    q_der.Read(), e_vec.ReadWrite(), dim, vdim,
+                                    nd, nq);
+   }
 }
 
 } // namespace mfem
