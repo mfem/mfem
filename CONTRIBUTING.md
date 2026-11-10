@@ -86,7 +86,7 @@ Origin](#developers-certificate-of-origin-11) at the end of this file.*
   the `ready-for-review` label.
 - PRs are treated similarly to journal submissions, with "editors" evaluating each
   PR's priority and workload, and then deciding whether to merge it without review,
-  decline it, start a review, queue it for later review (`revisit`), or defer it (`deferred`).
+  start a review, mark it as `revisit` or `deferred`, or decline it.
   See [Editorial Evaluation](#editorial-evaluation).
 - For regular reviews, an editor assigns at least two reviewers and allocates
   time based on the workload. Typical reviews take 2 weeks; reviews of
@@ -485,20 +485,20 @@ choose one of the following actions:
    `low-workload` without assigning reviewers. No priority label is required.
    The testing requirements in [MFEM PR Rules](#mfem-pr-rules) still apply.
 
-2. **Decline:** Decline the PR if its review and ongoing maintenance would
-   require more capacity than can be allocated given MFEM priorities.
-
-3. **Start a regular review:** Assign at least two reviewers, add `in-review`,
+2. **Start a regular review:** Assign at least two reviewers, add `in-review`,
    and allocate review time based on the estimated workload. Typical reviews
    take 2 weeks, but reviews of `high-workload` PRs should take longer and include
    technical meetings initiated by the author.
 
-4. **Queue for later review:** Add `revisit` to indicate that we would like to review the PR
+3. **Revisit:** Add `revisit` to indicate that we would like to review the PR
    after higher-priority work has been completed. No reviewers are assigned.
    The editor handling the PR is responsible for following up.
 
-5. **Defer:** Add `deferred` to indicate that we are unsure about the PR and may
+4. **Defer:** Add `deferred` to indicate that we are unsure about the PR and may
    reconsider it in the future.
+
+5. **Decline:** Decline the PR if its review and ongoing maintenance would
+   require more capacity than can be allocated given MFEM priorities.
 
 Anyone may post a review or express support with 👍 on a PR labeled `revisit`
 or `deferred` to help editors prioritize it.
