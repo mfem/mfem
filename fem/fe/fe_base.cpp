@@ -1145,6 +1145,7 @@ void VectorFiniteElement::SetDerivMembers()
                deriv_type = NONE;
                deriv_range_type = UNKNOWN_RANGE_TYPE;
                deriv_map_type = UNKNOWN_MAP_TYPE;
+               break;
             default:
                MFEM_ABORT("Invalid dimension, Dim = " << dim);
          }
