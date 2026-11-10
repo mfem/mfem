@@ -13,6 +13,7 @@
 #define MFEM_IPSOLVER
 
 #include "optcontactproblem.hpp"
+#include <memory>
 
 namespace mfem
 {
@@ -93,7 +94,7 @@ public:
    /// Get solver iteration counts
    Array<int> & GetLinearSolverIterations() {return lin_solver_iterations;};
 
-   virtual ~IPSolver();
+   virtual ~IPSolver() = default;
 protected:
    /// OptContactProblem (not owned).
    OptContactProblem* problem = nullptr;
@@ -131,8 +132,8 @@ protected:
    HypreParMatrix * Hmm = nullptr;
 
    /// Regularized Hessian blocks (owned).
-   HypreParMatrix * Wuu = nullptr;
-   HypreParMatrix * Wmm = nullptr;
+   std::unique_ptr<HypreParMatrix> Wuu;
+   std::unique_ptr<HypreParMatrix> Wmm;
 
    /// Constraint Jacobians and transpose (owned by the problem).
    HypreParMatrix * Ju = nullptr;

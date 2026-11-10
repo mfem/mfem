@@ -603,21 +603,20 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
 
    if (Hmm)
    {
-      delete Wmm;
-      HypreParMatrix *D =
+      Wmm.reset();
+      std::unique_ptr<HypreParMatrix> D(
          MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumConstraints(),
                                     problem->GetConstraintsStarts(),
-                                    DiagLogBar);
-      Wmm = ParAdd(Hmm,D);
-      delete D;
+                                    DiagLogBar));
+      Wmm.reset(ParAdd(Hmm, D.get()));
    }
    else
    {
       if (!Wmm)
       {
-         Wmm = MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumConstraints(),
-                                          problem->GetConstraintsStarts(),
-                                          DiagLogBar);
+         Wmm.reset(MakeDiagonalHypreParMatrix(
+                      comm, problem->GetGlobalNumConstraints(),
+                      problem->GetConstraintsStarts(), DiagLogBar));
       }
       else
       {
@@ -628,19 +627,18 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    Vector &deltaDiagVec = regularization_diagonal;
    deltaDiagVec.Set(delta, Mvlump);
 
-   delete Wuu;
+   Wuu.reset();
    if (Huu)
    {
-      HypreParMatrix *Duu =
+      std::unique_ptr<HypreParMatrix> Duu(
          MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumDofs(),
-                                    problem->GetDofStarts(), deltaDiagVec);
-      Wuu = ParAdd(Huu, Duu);
-      delete Duu;
+                                    problem->GetDofStarts(), deltaDiagVec));
+      Wuu.reset(ParAdd(Huu, Duu.get()));
    }
    else
    {
-      Wuu = MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumDofs(),
-                                       problem->GetDofStarts(), deltaDiagVec);
+      Wuu.reset(MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumDofs(),
+                                          problem->GetDofStarts(), deltaDiagVec));
    }
 
    //         IP-Newton system matrix
@@ -651,9 +649,9 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    //    Ak = [[K+Dreg  0      Jᵀ ]   [u]    [bᵤ]
    //          [0      D+Dreg  -I ]   [m]  = [bₘ]
    //          [J      -I      0  ]]  [λ]  = [bₗ ]
-   Ak.SetBlock(0, 0, Wuu);                         Ak.SetBlock(0, 2, JuT);
+   Ak.SetBlock(0, 0, Wuu.get());                    Ak.SetBlock(0, 2, JuT);
    // The slack Jacobian is -I, so its transpose is the same operator.
-   Ak.SetBlock(1, 1, Wmm); Ak.SetBlock(1, 2, Jm);
+   Ak.SetBlock(1, 1, Wmm.get()); Ak.SetBlock(1, 2, Jm);
    Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
 }
 
@@ -690,8 +688,8 @@ bool IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    Xhat.SyncToBlocks();
 
    // Include the displacement regularization in the reduced system.
-   HypreParMatrix *JuTDJu   = RAP(Wmm, Ju);     // Ju^T D Ju
-   HypreParMatrix *Areduced = ParAdd(Wuu, JuTDJu);
+   std::unique_ptr<HypreParMatrix> JuTDJu(RAP(Wmm.get(), Ju)); // Ju^T D Ju
+   std::unique_ptr<HypreParMatrix> Areduced(ParAdd(Wuu.get(), JuTDJu.get()));
 
    /* compute the reduced rhs */
    // breduced = bu + Ju^T (bm + Wmm bl)
@@ -714,8 +712,6 @@ bool IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    MPI_Allreduce(&local_success, &global_success, 1, MPI_INT, MPI_MIN, comm);
    if (!global_success)
    {
-      delete JuTDJu;
-      delete Areduced;
       return false;
    }
 
@@ -729,8 +725,8 @@ bool IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
    Xhat.SyncFromBlocks();
 
-   delete JuTDJu;
-   delete Areduced;
+   JuTDJu.reset();
+   Areduced.reset();
 
    passedCurvatureTest = CurvatureTest(A, Xhat, l, b, delta);
 
@@ -1103,12 +1099,6 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
       mfem::out << "optimality error = " << optimalityError << std::endl;
    }
    return optimalityError;
-}
-
-IPSolver::~IPSolver()
-{
-   delete Wuu;
-   delete Wmm;
 }
 
 }

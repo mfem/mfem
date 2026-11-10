@@ -58,6 +58,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -195,6 +196,17 @@ void PrintAMGOptions(const HypreBoomerAMG &amg,
                       HYPRE_BoomerAMGGetJacobiTruncThreshold);
 
    cout << right;
+}
+
+void ConfigureAMG(HypreBoomerAMG &amg, int coarsen_type, int agg_levels,
+                  int interp_type, int relax_type)
+{
+   amg.SetSystemsOptions(3);
+   amg.SetCoarsening(coarsen_type);
+   amg.SetAggressiveCoarsening(agg_levels);
+   amg.SetInterpolation(interp_type);
+   amg.SetPrintLevel(0);
+   amg.SetRelaxType(relax_type);
 }
 
 int main(int argc, char *argv[])
@@ -353,7 +365,7 @@ int main(int argc, char *argv[])
 
 
    // 2. Get the problem mesh.
-   Mesh * mesh = GetProblemMesh(prob_name);
+   std::unique_ptr<Mesh> mesh(GetProblemMesh(prob_name));
 
    // 3. Refine the mesh serially.
    for (int i = 0; i<sref; i++)
@@ -363,7 +375,7 @@ int main(int argc, char *argv[])
 
    // 4. Convert to ParMesh and refine in parallel.
    ParMesh pmesh(MPI_COMM_WORLD,*mesh);
-   delete mesh;
+   mesh.reset();
    for (int i = 0; i<pref; i++)
    {
       pmesh.UniformRefinement();
@@ -463,7 +475,7 @@ int main(int argc, char *argv[])
    ParGridFunction xcopy_gf(&fes_copy); xcopy_gf = x_gf;
 
    // Optional ParaView data collection
-   ParaViewDataCollection * paraview_dc = nullptr;
+   std::unique_ptr<ParaViewDataCollection> paraview_dc;
    if (paraview)
    {
       std::ostringstream paraview_file_name;
@@ -471,7 +483,8 @@ int main(int argc, char *argv[])
                          << "_par_ref_" << pref
                          << "_ser_ref_" << sref
                          << "_nonlinear_" << nonlinear;
-      paraview_dc = new ParaViewDataCollection(paraview_file_name.str(), &pmesh_copy);
+      paraview_dc = std::make_unique<ParaViewDataCollection>(
+         paraview_file_name.str(), &pmesh_copy);
       paraview_dc->SetPrefixPath("ParaView");
       paraview_dc->SetLevelsOfDetail(2);
       paraview_dc->SetDataFormat(VTKFormat::BINARY);
@@ -597,43 +610,37 @@ int main(int argc, char *argv[])
       }
 
       // 9(e). Choose preconditioner: AMGF (with direct solver for subspace) or AMG.
-      Solver * prec = nullptr;
-      ParallelDirectSolver * subspacesolver = nullptr;
+      // The preconditioner borrows the filtered solver, so it must die first.
+      std::unique_ptr<ParallelDirectSolver> subspacesolver;
+      std::unique_ptr<Solver> prec;
       if (amgf)
       {
-         auto *amgfprec = new AMGFSolver();
-         prec = amgfprec;
-         amgfprec->GetAMG().SetSystemsOptions(3);
-         amgfprec->GetAMG().SetCoarsening(amg_coarsen_type);
-         amgfprec->GetAMG().SetAggressiveCoarsening(amg_agg_levels);
-         amgfprec->GetAMG().SetInterpolation(amg_interp_type);
-         amgfprec->GetAMG().SetPrintLevel(0);
-         amgfprec->GetAMG().SetRelaxType(amg_relax_type);
+         auto amgfprec = std::make_unique<AMGFSolver>();
+         ConfigureAMG(amgfprec->GetAMG(), amg_coarsen_type, amg_agg_levels,
+                      amg_interp_type, amg_relax_type);
          if (amg_print_options && myid == 0)
          {
             PrintAMGOptions(amgfprec->GetAMG(), "AMGF", amg_agg_levels,
                             amgf_fsolver);
          }
-         subspacesolver = new ParallelDirectSolver(MPI_COMM_WORLD, amgf_fsolver);
+         subspacesolver = std::make_unique<ParallelDirectSolver>(
+            MPI_COMM_WORLD, amgf_fsolver);
          subspacesolver->SetPrintLevel(0);
          amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
          amgfprec->SetFilteredSubspaceTransferOperator(
             *contact.GetContactSubspaceTransferOperator());
+         prec = std::move(amgfprec);
       }
       else
       {
-         auto *amgprec = new HypreBoomerAMG();
-         prec = amgprec;
-         amgprec->SetSystemsOptions(3);
-         amgprec->SetCoarsening(amg_coarsen_type);
-         amgprec->SetAggressiveCoarsening(amg_agg_levels);
-         amgprec->SetInterpolation(amg_interp_type);
-         amgprec->SetPrintLevel(0);
-         amgprec->SetRelaxType(amg_relax_type);
+         auto amgprec = std::make_unique<HypreBoomerAMG>();
+         ConfigureAMG(*amgprec, amg_coarsen_type, amg_agg_levels,
+                      amg_interp_type, amg_relax_type);
          if (amg_print_options && myid == 0)
          {
             PrintAMGOptions(*amgprec, "AMG", amg_agg_levels);
          }
+         prec = std::move(amgprec);
       }
 
       // 9(f). Linear solver used inside the IP optimizer.
@@ -674,15 +681,12 @@ int main(int argc, char *argv[])
                    << optimizer.GetOptimalityError() << endl;
       }
 
-      delete prec;
-      if (subspacesolver) { delete subspacesolver; }
       if (!optimizer.GetConverged())
       {
          if (Mpi::Root())
          {
             mfem::err << "Contact solve failed at load step " << i << "." << endl;
          }
-         delete paraview_dc;
          return 2;
       }
 
@@ -748,8 +752,6 @@ int main(int argc, char *argv[])
       prob.UpdateRHS();
    }
 
-   // 10. Cleanup.
-   if (paraview_dc) { delete paraview_dc; }
    return 0;
 }
 

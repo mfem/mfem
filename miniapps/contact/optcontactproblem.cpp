@@ -272,29 +272,30 @@ FilteredContactMatrix FilterContactMatrixAndGap(
 
 void OptContactProblem::ResetConstraintJacobians()
 {
-   delete dcduT; dcduT = nullptr;
-   delete dcdu; dcdu = nullptr;
-   delete NegId; NegId = nullptr;
+   dcduT.reset();
+   dcdu.reset();
+   NegId.reset();
 }
 
 void OptContactProblem::ReleaseMemory()
 {
    ResetConstraintJacobians();
-   delete J; J = nullptr;
-   delete Jt; Jt = nullptr;
-   delete Pc; Pc = nullptr;
-   delete Iu; Iu = nullptr;
-   delete negIu; negIu = nullptr;
+   J.reset();
+   Jt.reset();
+   Pc.reset();
+   Iu.reset();
+   negIu.reset();
 }
 
 void OptContactProblem::ComputeGapJacobian()
 {
-   if (J) { delete J; }
+   J.reset();
    // One Tribol coupling scheme per contact interface. The gap Jacobians are
    // stacked row-wise, and the gaps and lumped masses are concatenated in the
    // same order (StackContactJacobians stacks local rows block by block).
    const int ninterfaces = contact_interfaces.size();
    Array<HypreParMatrix *> Js(ninterfaces);
+   std::vector<std::unique_ptr<HypreParMatrix>> interface_jacobians(ninterfaces);
    std::vector<Vector> gaps(ninterfaces), mcslumps(ninterfaces);
    int ngap = 0;
    for (int i = 0; i < ninterfaces; i++)
@@ -302,10 +303,13 @@ void OptContactProblem::ComputeGapJacobian()
       gaps[i].UseDevice(true);
       mcslumps[i].UseDevice(true);
       const ContactInterface &interface = contact_interfaces[i];
-      Js[i] = SetupTribol(problem->GetMesh(), coords,
-                          problem->GetEssentialDofs(),
-                          interface.mortar_attrs, interface.nonmortar_attrs,
-                          gaps[i], mcslumps[i], tribol_ratio);
+      interface_jacobians[i].reset(SetupTribol(
+                                     problem->GetMesh(), coords,
+                                     problem->GetEssentialDofs(),
+                                     interface.mortar_attrs,
+                                     interface.nonmortar_attrs,
+                                     gaps[i], mcslumps[i], tribol_ratio));
+      Js[i] = interface_jacobians[i].get();
       ngap += gaps[i].Size();
    }
 
@@ -319,12 +323,11 @@ void OptContactProblem::ComputeGapJacobian()
 
    if (ninterfaces == 1)
    {
-      J = Js[0];
+      J = std::move(interface_jacobians[0]);
    }
    else
    {
-      J = StackContactJacobians(Js);
-      for (int i = 0; i < ninterfaces; i++) { delete Js[i]; }
+      J.reset(StackContactJacobians(Js));
    }
 
    dof_starts.SetSize(2);
@@ -430,12 +433,12 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
 
    Vector diagVec(dimU); diagVec.UseDevice(true); diagVec = 0.0;
    diagVec = 1.0;
-   Iu = MakeDiagonalHypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
-                                   diagVec);
+   Iu.reset(MakeDiagonalHypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
+                                     diagVec));
 
    diagVec = -1.0;
-   negIu = MakeDiagonalHypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
-                                      diagVec);
+   negIu.reset(MakeDiagonalHypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
+                                        diagVec));
 
    dimM = dimG;
    dimC = dimM;
@@ -459,23 +462,23 @@ HypreParMatrix * OptContactProblem::Duc(const BlockVector &)
       if (!dcdu)
       {
          Array<HypreParMatrix *> blocks(3);
-         blocks[0] = J;
-         blocks[1] = Iu;
-         blocks[2] = negIu;
-         dcdu = StackContactJacobians(blocks);
+         blocks[0] = J.get();
+         blocks[1] = Iu.get();
+         blocks[2] = negIu.get();
+         dcdu.reset(StackContactJacobians(blocks));
       }
-      return dcdu;
+      return dcdu.get();
    }
    else
    {
-      return J;
+      return J.get();
    }
 }
 
 HypreParMatrix * OptContactProblem::DucTranspose(const BlockVector &x)
 {
-   if (!dcduT) { dcduT = Duc(x)->Transpose(); }
-   return dcduT;
+   if (!dcduT) { dcduT.reset(Duc(x)->Transpose()); }
+   return dcduT.get();
 }
 
 HypreParMatrix * OptContactProblem::Dmc(const BlockVector &)
@@ -483,10 +486,10 @@ HypreParMatrix * OptContactProblem::Dmc(const BlockVector &)
    if (!NegId)
    {
       Vector negone(dimM); negone.UseDevice(true); negone = -1.0;
-      NegId = MakeDiagonalHypreParMatrix(comm, GetGlobalNumConstraints(),
-                                         GetConstraintsStarts(), negone);
+      NegId.reset(MakeDiagonalHypreParMatrix(comm, GetGlobalNumConstraints(),
+                                           GetConstraintsStarts(), negone));
    }
-   return NegId;
+   return NegId.get();
 }
 
 HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
@@ -495,7 +498,7 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
    {
       if (!Jt)
       {
-         Jt = J->Transpose();
+         Jt.reset(J->Transpose());
          Jt->EliminateRows(problem->GetEssentialDofs());
       }
       int hJt = Jt->Height();
@@ -564,18 +567,15 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
                     MPITypeMap<HYPRE_BigInt>::mpi_type,
                     MPI_SUM,comm);
 
-      HypreParMatrix *P_ct = new HypreParMatrix(comm, glob_nrows_c,
-                                                glob_ncols_c, rows_c,
-                                                vfes->GetTrueDofOffsets(),
-                                                &Pct);
+      auto P_ct = std::make_unique<HypreParMatrix>(
+         comm, glob_nrows_c, glob_ncols_c, rows_c, vfes->GetTrueDofOffsets(), &Pct);
       HypreStealOwnership(*P_ct, Pct);
       // Rectangular construction leaves HYPRE's CSR memory location unset.
       // Transpose must see the location matching the assembled CSR pointers.
       P_ct->HypreRead();
-      Pc = P_ct->Transpose();
-      delete P_ct;
+      Pc.reset(P_ct->Transpose());
    }
-   return Pc;
+   return Pc.get();
 }
 
 void OptContactProblem::g(const Vector & d, Vector & gd)

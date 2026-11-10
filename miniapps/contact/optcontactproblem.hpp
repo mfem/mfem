@@ -16,6 +16,7 @@
 #include "axom/slic.hpp"
 #include "tribol/interface/tribol.hpp"
 #include "tribol/interface/mfem_tribol.hpp"
+#include <memory>
 
 namespace mfem
 {
@@ -54,7 +55,7 @@ private:
    /// MPI communicator for the problem.
    MPI_Comm comm;
 
-   /// Underlying elasticity problem.
+   /// Underlying elasticity problem (not owned).
    ElasticityOperator * problem = nullptr;
 
    /// Finite element space for displacements
@@ -90,20 +91,8 @@ private:
    /// faces of different interfaces are never paired with each other.
    std::vector<ContactInterface> contact_interfaces;
 
-   /// Negative identity matrix (used in constraints).
-   HypreParMatrix * NegId = nullptr;
-
-   /// Reference stiffness (Hessian) matrix.
+   /// Reference stiffness (Hessian) matrix, owned by the elasticity problem.
    HypreParMatrix * Kref=nullptr;
-
-   /// Jacobian of the gap function.
-   HypreParMatrix * J = nullptr;
-
-   /// Transpose of gap Jacobian.
-   HypreParMatrix * Jt = nullptr;
-
-   /// Transfer operator from contact space to displacement space.
-   HypreParMatrix * Pc = nullptr;
 
    /// Coordinates of mesh nodes (grid function).
    ParGridFunction * coords = nullptr;
@@ -131,17 +120,6 @@ private:
    //         [ J ]
    // J_new = [ I ]
    //         [-I ]
-
-   /// Identity matrices for bound constraints.
-   HypreParMatrix * Iu = nullptr;
-   HypreParMatrix * negIu = nullptr;
-
-   /// Cached constraint Jacobian with bounds.
-   HypreParMatrix * dcdu = nullptr;
-
-   /// Cached transpose of the full constraint Jacobian. Jt is reserved for
-   /// constructing the filtered contact subspace.
-   HypreParMatrix * dcduT = nullptr;
 
    /// Lumped volume mass vector.
    Vector Mvlump;
@@ -172,6 +150,25 @@ private:
 
    /// Flag: whether bound constraints have been activated.
    bool bound_constraints_activated = false;
+
+   // Owned operators follow the partition storage they may reference, so they
+   // are destroyed before that storage.
+   /// Negative identity matrix (used in constraints).
+   std::unique_ptr<HypreParMatrix> NegId;
+   /// Jacobian of the gap function.
+   std::unique_ptr<HypreParMatrix> J;
+   /// Transpose of gap Jacobian.
+   std::unique_ptr<HypreParMatrix> Jt;
+   /// Transfer operator from contact space to displacement space.
+   std::unique_ptr<HypreParMatrix> Pc;
+   /// Identity matrices for bound constraints.
+   std::unique_ptr<HypreParMatrix> Iu;
+   std::unique_ptr<HypreParMatrix> negIu;
+   /// Cached constraint Jacobian with bounds.
+   std::unique_ptr<HypreParMatrix> dcdu;
+   /// Cached transpose of the full constraint Jacobian. Jt is reserved for
+   /// constructing the filtered contact subspace.
+   std::unique_ptr<HypreParMatrix> dcduT;
 
 public:
    OptContactProblem(ElasticityOperator * problem_,
@@ -282,7 +279,7 @@ public:
       Mvlump_.SetSize(Mvlump.Size()); Mvlump_ = 0.0;
       Mvlump_.Set(1.0, Mvlump);
    };
-   ~OptContactProblem() { ReleaseMemory(); }
+   ~OptContactProblem() = default;
 };
 
 }
