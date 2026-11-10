@@ -188,9 +188,8 @@ protected:
 
    /// Problem dimensions, partitions and fixed lumped mass weights.
    int dimU, dimM, dimC;
-   Array<int> constraint_offsets;
    Array<int> block_offsetsumlz, block_offsetsuml, block_offsetsx;
-   Vector Mcslump, Mvlump, Mlump;
+   Vector Mvlump, Mlump;
 
    int myid = -1;
    MPI_Comm comm;
@@ -305,6 +304,9 @@ private:
 
    /// Evaluate log-barrier objective phi
    real_t GetPhi(const BlockVector &, real_t, int &eval_err);
+
+   /// Pack the displacement objective gradient and zero slack gradient.
+   void GetObjectiveGradient(const BlockVector &, BlockVector &);
 
    /// Gradient of log-barrier objective w.r.t. primal variables
    void GetDxphi(const BlockVector &, real_t, BlockVector &);

@@ -333,17 +333,7 @@ void OptContactProblem::ComputeGapJacobian()
    dof_starts[0] = J->ColPart()[0];
    dof_starts[1] = J->ColPart()[1];
 
-   constraints_starts.SetSize(2);
-   if (bound_constraints_activated)
-   {
-      constraints_starts[0] = J->RowPart()[0] + 2 * J->ColPart()[0];
-      constraints_starts[1] = J->RowPart()[1] + 2 * J->ColPart()[1];
-   }
-   else
-   {
-      constraints_starts[0] = J->RowPart()[0];
-      constraints_starts[1] = J->RowPart()[1];
-   }
+
 }
 
 OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
@@ -369,7 +359,6 @@ OptContactProblem::OptContactProblem(ElasticityOperator * problem_,
 #endif
    comm = problem->GetComm();
    vfes = problem->GetFESpace();
-   block_offsetsg.SetSize(4);
 
    grad_ref.UseDevice(true);
    xref.UseDevice(true);
@@ -414,21 +403,9 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    }
    dimU = J->Width();
    dimG = J->Height();
-   num_constraints = J->GetGlobalNumRows();
 
-   block_offsetsg[0] = 0;
-   block_offsetsg[1] = dimG;
-   block_offsetsg[2] = dimU;
-   block_offsetsg[3] = dimU;
-   block_offsetsg.PartialSum();
    displacement_work.SetSize(dimU);
    energy_work.SetSize(dimU);
-   constraint_work.Update(block_offsetsg);
-   constraint_work.UseDevice(true);
-   for (int i = 0; i < constraint_work.NumBlocks(); i++)
-   {
-      constraint_work.GetBlock(i).UseDevice(true);
-   }
 
    Vector diagVec(dimU); diagVec.UseDevice(true); diagVec = 0.0;
    diagVec = 1.0;
@@ -439,10 +416,8 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    negIu.reset(MakeDiagonalHypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
                                           diagVec));
 
-   dimM = dimG;
-   dimC = dimM;
-
    AssembleVectorLumpedMass(*vfes, Mvlump);
+   UpdateConstraintLayout();
 
    if (!dl.Size())
    {
@@ -454,7 +429,54 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    }
 }
 
-HypreParMatrix * OptContactProblem::Duc(const BlockVector &)
+void OptContactProblem::UpdateConstraintLayout()
+{
+   const bool bounds = bound_constraints_activated;
+   auto &offsets = constraint_layout.block_offsets;
+   offsets.SetSize(bounds ? 4 : 2);
+   offsets[0] = 0;
+   offsets[1] = dimG;
+   if (bounds)
+   {
+      offsets[2] = dimU;
+      offsets[3] = dimU;
+   }
+   offsets.PartialSum();
+
+   constraints_starts.SetSize(2);
+   for (int i = 0; i < 2; i++)
+   {
+      constraints_starts[i] = J->RowPart()[i] +
+                              (bounds ? 2 * J->ColPart()[i] : 0);
+   }
+   num_constraints = J->GetGlobalNumRows() +
+                     (bounds ? 2 * J->GetGlobalNumCols() : 0);
+
+   constraint_work.Update(offsets);
+   constraint_work.UseDevice(true);
+   BlockVector weights(offsets);
+   weights.UseDevice(true);
+   for (int i = 0; i < weights.NumBlocks(); i++)
+   {
+      constraint_work.GetBlock(i).UseDevice(true);
+      weights.GetBlock(i).UseDevice(true);
+   }
+   weights = 0.0;
+   weights.GetBlock(ConstraintLayout::Gap).Set(1.0, Mcslump);
+   if (bounds)
+   {
+      weights.GetBlock(ConstraintLayout::LowerBound).Set(1.0, Mvlump);
+      weights.GetBlock(ConstraintLayout::UpperBound).Set(1.0, Mvlump);
+   }
+   weights.SyncFromBlocks();
+   Vector &lump = constraint_layout.lumped_weights;
+   lump.SetSize(offsets.Last());
+   lump.UseDevice(true);
+   lump = 0.0;
+   lump.Set(1.0, weights);
+}
+
+HypreParMatrix * OptContactProblem::GetConstraintJacobian()
 {
    if (bound_constraints_activated)
    {
@@ -474,9 +496,9 @@ HypreParMatrix * OptContactProblem::Duc(const BlockVector &)
    }
 }
 
-HypreParMatrix * OptContactProblem::DucTranspose(const BlockVector &x)
+HypreParMatrix * OptContactProblem::GetConstraintJacobianTranspose()
 {
-   if (!dcduT) { dcduT.reset(Duc(x)->Transpose()); }
+   if (!dcduT) { dcduT.reset(GetConstraintJacobian()->Transpose()); }
    return dcduT.get();
 }
 
@@ -566,7 +588,7 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
    return Pc.get();
 }
 
-void OptContactProblem::g(const Vector & d, Vector & gd)
+void OptContactProblem::EvaluateGap(const Vector & d, Vector & gd)
 {
    Vector &temp = displacement_work;
    temp.Set(1.0, d);
@@ -578,7 +600,7 @@ void OptContactProblem::g(const Vector & d, Vector & gd)
 //           [     g1(d)      ]
 // c(d, s) = [ eps + (d - dl) ] - s
 //           [ eps - (d - dl) ]
-void OptContactProblem::c(const BlockVector & x, Vector & y)
+void OptContactProblem::EvaluateConstraints(const BlockVector & x, Vector & y)
 {
    x.SyncToBlocks();
    const Vector &disp  = x.GetBlock(0);
@@ -590,7 +612,7 @@ void OptContactProblem::c(const BlockVector & x, Vector & y)
       yblock = 0.0;
       yblock.SyncToBlocks();
 
-      g(disp, yblock.GetBlock(0));
+      EvaluateGap(disp, yblock.GetBlock(0));
       yblock.GetBlock(1).Set( 1.0, disp );
       yblock.GetBlock(1).Add(-1.0, dl);
       yblock.GetBlock(2).Set(-1.0, yblock.GetBlock(1));
@@ -602,28 +624,12 @@ void OptContactProblem::c(const BlockVector & x, Vector & y)
    }
    else
    {
-      g(disp, y);
+      EvaluateGap(disp, y);
       y.Add(-1., slack);
    }
 }
 
-real_t OptContactProblem::CalcObjective(const BlockVector & x, int & eval_err)
-{
-   x.SyncToBlocks();
-   return E(x.GetBlock(0), eval_err);
-}
-
-void OptContactProblem::CalcObjectiveGrad(const BlockVector & x,
-                                          BlockVector & y)
-{
-   x.SyncToBlocks();
-   y.SyncToBlocks();
-   DdE(x.GetBlock(0), y.GetBlock(0));
-   y.GetBlock(1) = 0.0;
-   y.SyncFromBlocks();
-}
-
-real_t OptContactProblem::E(const Vector & d, int & eval_err)
+real_t OptContactProblem::GetEnergy(const Vector & d, int & eval_err)
 {
    if (problem->IsNonlinear())
    {
@@ -661,7 +667,7 @@ real_t OptContactProblem::E(const Vector & d, int & eval_err)
    }
 }
 
-void OptContactProblem::DdE(const Vector & d, Vector & gradE)
+void OptContactProblem::GetEnergyGradient(const Vector & d, Vector & gradE)
 {
    if (problem->IsNonlinear())
    {
@@ -678,7 +684,7 @@ void OptContactProblem::DdE(const Vector & d, Vector & gradE)
    }
 }
 
-HypreParMatrix * OptContactProblem::DddE(const Vector & d)
+HypreParMatrix * OptContactProblem::GetEnergyHessian(const Vector & d)
 {
    return (problem->IsNonlinear()) ? Kref : problem->GetHessian(d);
 }
@@ -712,11 +718,7 @@ void OptContactProblem::ActivateBoundConstraints()
    ResetConstraintJacobians();
    dl.Set(1.0, xrefbc);
    bound_constraints_activated = true;
-   constraints_starts[0] = J->RowPart()[0] + 2 * J->ColPart()[0];
-   constraints_starts[1] = J->RowPart()[1] + 2 * J->ColPart()[1];
-   num_constraints = J->GetGlobalNumRows() + 2 * J->GetGlobalNumCols();
-   dimM = dimG + 2 * dimU;
-   dimC = dimM;
+   UpdateConstraintLayout();
 }
 
 HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,

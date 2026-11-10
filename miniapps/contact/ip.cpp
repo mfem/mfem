@@ -189,16 +189,19 @@ IPSolver::IPSolver(OptContactProblem * problem_)
 {
    // Options use the existing filter/barrier defaults from Wachter and Biegler,
    // and inertia-free regularization defaults from Chiang and Zavala.
+   const auto &layout = problem->GetConstraintLayout();
    dimU = problem->GetDimU();
-   dimM = problem->GetDimM();
-   dimC = problem->GetDimC();
-   MFEM_VERIFY(dimM == dimC,
-               "Expecting equal numbers of equality and inequality constraints");
+   dimM = layout.Size();
+   dimC = dimM; // One slack variable per equality constraint.
+   MFEM_VERIFY(layout.lumped_weights.Size() == dimM,
+               "Constraint weights must match the explicit constraint layout.");
 
    comm = problem->GetComm();
-   Mcslump.UseDevice(true);
+   const Vector &volume_weights = problem->GetDisplacementWeights();
+   Mvlump.SetSize(volume_weights.Size());
    Mvlump.UseDevice(true);
-   problem->GetLumpedMassWeights(Mcslump, Mvlump);
+   Mvlump = 0.0;
+   Mvlump.Set(1.0, volume_weights);
 
    block_offsetsumlz.SetSize(5);
    block_offsetsuml.SetSize(4);
@@ -212,32 +215,7 @@ IPSolver::IPSolver(OptContactProblem * problem_)
    block_offsetsumlz.PartialSum();
 
    Mlump.SetSize(dimM); Mlump.UseDevice(true); Mlump = 0.0;
-   int dimG = 0; // number of gap constraints
-   if (dimM < dimU)
-   {
-      dimG = dimM;
-      constraint_offsets.SetSize(2);
-      constraint_offsets[0] = 0;
-      constraint_offsets[1] = dimM;
-      Mlump.Set(1.0, Mcslump);
-   }
-   else
-   {
-      dimG = dimM - 2 * dimU;
-      constraint_offsets.SetSize(4);
-      constraint_offsets[0] = 0;
-      constraint_offsets[1] = dimG;
-      constraint_offsets[2] = dimU;
-      constraint_offsets[3] = dimU;
-      constraint_offsets.PartialSum();
-      BlockVector Mlumpblock(constraint_offsets); EnableDevice(Mlumpblock);
-      Mlumpblock = 0.0;
-      Mlumpblock.GetBlock(0).Set(1.0, Mcslump);
-      Mlumpblock.GetBlock(1).Set(1.0, Mvlump);
-      Mlumpblock.GetBlock(2).Set(1.0, Mvlump);
-      Mlumpblock.SyncFromBlocks();
-      Mlump.Set(1.0, Mlumpblock);
-   }
+   Mlump.Set(1.0, layout.lumped_weights);
 
    for (int i = 0; i < block_offsetsuml.Size(); i++)
    {
@@ -601,10 +579,10 @@ void IPSolver::FormNewtonBlocks(BlockVector &x, const Vector &zl,
                                 real_t delta)
 {
    x.SyncFromBlocks();
-   workspace.Huu = problem->Duuf(x);
+   workspace.Huu = problem->GetEnergyHessian(x.GetBlock(0));
 
-   workspace.Ju = problem->Duc(x);
-   workspace.JuT = problem->DucTranspose(x);
+   workspace.Ju = problem->GetConstraintJacobian();
+   workspace.JuT = problem->GetConstraintJacobianTranspose();
 
    Vector &DiagLogBar = workspace.barrier_diagonal;
    FillBarrierDiagonal(x, Mlump, zl, delta, DiagLogBar);
@@ -675,7 +653,7 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    b.GetBlock(1).Set(1.0, gradphi.GetBlock(1));
    // The slack Jacobian is -I: Jm^T l = -l.
    b.GetBlock(1).Add(-1.0, l);
-   problem->c(x, b.GetBlock(2));
+   problem->EvaluateConstraints(x, b.GetBlock(2));
    b.SyncFromBlocks();
    b *= -1.0;
    b.SyncToBlocks();
@@ -967,7 +945,7 @@ real_t IPSolver::GetTheta(const BlockVector &x)
 {
    x.SyncToBlocks();
    Vector &cx = workspace.constraint_residual;
-   problem->c(x, cx);
+   problem->EvaluateConstraints(x, cx);
    Vector &Mcx = workspace.weighted_constraints;
    MultiplyWeights(Mlump, cx, Mcx);
    return sqrt(InnerProduct(comm, Mcx, cx));
@@ -978,7 +956,7 @@ real_t IPSolver::GetPhi(const BlockVector &x, real_t mu,
                         int &eval_err)
 {
    x.SyncToBlocks();
-   real_t fx = problem->CalcObjective(x, eval_err);
+   real_t fx = problem->GetEnergy(x.GetBlock(0), eval_err);
    real_t logBarrierLoc = LocalWeightedLogSum(x, Mlump, workspace.reduction);
    real_t logBarrierGlb;
    MPI_Allreduce(&logBarrierLoc, &logBarrierGlb, 1, MPITypeMap<real_t>::mpi_type,
@@ -988,13 +966,22 @@ real_t IPSolver::GetPhi(const BlockVector &x, real_t mu,
    return phi;
 }
 
+void IPSolver::GetObjectiveGradient(const BlockVector &x, BlockVector &y)
+{
+   x.SyncToBlocks();
+   y.SyncToBlocks();
+   problem->GetEnergyGradient(x.GetBlock(0), y.GetBlock(0));
+   y.GetBlock(1) = 0.0;
+   y.SyncFromBlocks();
+}
+
 // gradient of log-barrier objective with respect to x = (u, m)
 void IPSolver::GetDxphi(const BlockVector &x, real_t mu,
                         BlockVector &y)
 {
    x.SyncToBlocks();
    y.SyncToBlocks();
-   problem->CalcObjectiveGrad(x, y);
+   GetObjectiveGradient(x, y);
    AddBarrierGradient(Mlump, x.GetBlock(1), mu, y.GetBlock(1));
    y.SyncFromBlocks();
 }
@@ -1006,9 +993,9 @@ real_t IPSolver::EvalLagrangian(const BlockVector &x, const Vector &l,
 {
    x.SyncToBlocks();
    int eval_err = 0;
-   real_t fx = problem->CalcObjective(x, eval_err);
+   real_t fx = problem->GetEnergy(x.GetBlock(0), eval_err);
    Vector &cx = workspace.constraint_residual;
-   problem->c(x, cx);
+   problem->EvaluateConstraints(x, cx);
    Vector &temp = workspace.slack_work;
    MultiplyWeights(Mlump, x.GetBlock(1), temp);
    return (fx + InnerProduct(comm, cx, l) - InnerProduct(comm, temp, zl));
@@ -1026,11 +1013,11 @@ void IPSolver::EvalLagrangianGradient(const BlockVector &x, const Vector &l,
    y.GetBlock(1).Set(-1.0, zl);
    y.GetBlock(1) *= Mlump;
 
-   problem->DucTranspose(x)->Mult(l, y.GetBlock(0));
+   problem->GetConstraintJacobianTranspose()->Mult(l, y.GetBlock(0));
    y.GetBlock(1).Add(-1.0, l);
 
    BlockVector &gradxf = workspace.objective_gradient;
-   problem->CalcObjectiveGrad(x, gradxf);
+   GetObjectiveGradient(x, gradxf);
    y.SyncFromBlocks();
    gradxf.SyncFromBlocks();
    y.Add(1.0, gradxf);
@@ -1087,7 +1074,7 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
 
    /* constraint function c(u, m) = 0 */
    Vector &cx = workspace.constraint_residual;
-   problem->c(x, cx);
+   problem->EvaluateConstraints(x, cx);
 
    /* regularized complementarity
     * |z_i * m_i - mu| */

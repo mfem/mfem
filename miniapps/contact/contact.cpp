@@ -700,8 +700,8 @@ int main(int argc, char *argv[])
 
       // 9(h). Report objective values, dofs and IP iteration counts.
       int eval_err;
-      real_t Einitial = contact.E(x0, eval_err);
-      real_t Efinal = contact.E(xf, eval_err);
+      real_t Einitial = contact.GetEnergy(x0, eval_err);
+      real_t Efinal = contact.GetEnergy(xf, eval_err);
 
       if (Mpi::Root())
       {

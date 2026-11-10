@@ -51,6 +51,18 @@ struct ContactInterface
  */
 class OptContactProblem
 {
+public:
+   /// Local constraint blocks and their lumped integration weights. There is
+   /// one slack per constraint; blocks are gap, then optional lower/upper bounds.
+   struct ConstraintLayout
+   {
+      enum Block { Gap = 0, LowerBound = 1, UpperBound = 2 };
+      Array<int> block_offsets;
+      Vector lumped_weights;
+
+      int Size() const { return block_offsets.Last(); }
+   };
+
 private:
    /// MPI communicator for the problem.
    MPI_Comm comm;
@@ -61,8 +73,11 @@ private:
    /// Finite element space for displacements
    ParFiniteElementSpace * vfes = nullptr;
 
-   /// Dimensions: displacement, slack, constraint and gap variables.
-   int dimU, dimM, dimC, dimG;
+   /// Local displacement and gap dimensions.
+   int dimU, dimG;
+
+   /// Owned layout/weights precede work vectors that reference its offsets.
+   ConstraintLayout constraint_layout;
 
    /// Global number of constraints.
    int num_constraints;
@@ -103,6 +118,9 @@ private:
    /// Clear constraint operators when the contact system or bounds change.
    void ResetConstraintJacobians();
 
+   /// Rebuild partitions, local constraint blocks and weights from active bounds.
+   void UpdateConstraintLayout();
+
    /// Compute gap and its Jacobian using Tribol.
    void ComputeGapJacobian();
 
@@ -138,9 +156,6 @@ private:
 
    /// Minimum epsilon value (>0).
    real_t eps_min = 1.e-4;
-
-   /// Offsets for block vector partitioning of constraints.
-   Array<int> block_offsetsg;
 
    /// Proximity ratio for Tribol binning.
    real_t tribol_ratio;
@@ -185,13 +200,20 @@ public:
    void FormContactSystem(ParGridFunction * coords_, const Vector & xref);
 
    /// Return displacement space dimension.
-   int GetDimU() {return dimU;}
+   int GetDimU() const {return dimU;}
 
-   /// Return slack variable dimension.
-   int GetDimM() {return dimM;}
+   /// Layout and weights are owned here and rebuilt by FormContactSystem() and
+   /// ActivateBoundConstraints(). Construct IPSolver after choosing the layout
+   /// for the load step. Existing vector views must not outlive a layout rebuild.
+   const ConstraintLayout &GetConstraintLayout() const
+   {
+      MFEM_VERIFY(constraint_layout.block_offsets.Size() >= 2,
+                  "Build the contact system before requesting its layout.");
+      return constraint_layout;
+   }
 
-   /// Return constraint space dimension.
-   int GetDimC() {return dimC;}
+   /// Fixed displacement-space weights, updated by FormContactSystem().
+   const Vector &GetDisplacementWeights() const { return Mvlump; }
 
    /// Get MPI communicator.
    MPI_Comm GetComm() {return comm ;}
@@ -211,42 +233,35 @@ public:
    /// Return underlying elasticity operator.
    ElasticityOperator * GetElasticityOperator() {return problem;}
 
-   /// Hessian of the objective wrt displacement
-   HypreParMatrix * Duuf(const BlockVector &x) {return DddE(x.GetBlock(0));}
+   /// Borrowed Jacobian of the affine gap-minus-slack constraints with respect
+   /// to displacement. It is independent of the iterate and cached until
+   /// FormContactSystem() or ActivateBoundConstraints() invalidates it.
+   HypreParMatrix *GetConstraintJacobian();
 
-   /// Jacobian of the affine constraints wrt displacement; independent of x
-   /// until FormContactSystem() or ActivateBoundConstraints() is called.
-   HypreParMatrix * Duc(const BlockVector &);
-
-   /// Cached transpose of Duc(), owned here and invalidated when the contact
-   /// system is rebuilt or bound constraints are activated. If constraints
-   /// become iterate-dependent, Duc() must call ResetConstraintJacobians()
-   /// before updating its Jacobian for a new linearization.
-   HypreParMatrix * DucTranspose(const BlockVector &);
+   /// Borrowed cached transpose, invalidated along with GetConstraintJacobian().
+   /// An iterate-dependent constraint model would require a new linearization
+   /// and invalidation of both operators before use by the optimizer.
+   HypreParMatrix *GetConstraintJacobianTranspose();
 
    /// Return transfer operator from contact to displacement subspace.
    HypreParMatrix * GetContactSubspaceTransferOperator();
 
-   /// Evaluate gap function
-   void g(const Vector &, Vector &);
+   /// Evaluate the affine gap function at the displacement.
+   void EvaluateGap(const Vector &, Vector &);
 
-   /// Evaluate contact constraints
-   void c(const BlockVector &, Vector &);
+   /// Evaluate gap and optional bounds minus slack, in GetConstraintLayout order.
+   void EvaluateConstraints(const BlockVector &, Vector &);
 
-   /// Compute objective functional value.
-   real_t CalcObjective(const BlockVector &, int &);
+   /// Potential energy including applied loads. For nonlinear elasticity this
+   /// is the fixed quadratic approximation refreshed by FormContactSystem().
+   real_t GetEnergy(const Vector &displacement, int &eval_err);
 
-   /// Compute gradient of objective functional.
-   void CalcObjectiveGrad(const BlockVector &, BlockVector &);
+   /// Displacement gradient of GetEnergy; the objective is independent of slack.
+   void GetEnergyGradient(const Vector &displacement, Vector &gradient);
 
-   /// Evaluate elastic energy functional.
-   real_t E(const Vector & d, int & eval_err);
-
-   /// Evaluate gradient of energy functional.
-   void DdE(const Vector & d, Vector & gradE);
-
-   /// Return Hessian of energy functional.
-   HypreParMatrix * DddE(const Vector & d);
+   /// Borrowed displacement Hessian of GetEnergy. The elasticity problem owns
+   /// it; FormContactSystem() refreshes the nonlinear reference approximation.
+   HypreParMatrix *GetEnergyHessian(const Vector &displacement);
 
    /// Update displacement and eps for bound constraints.
    void SetDisplacement(const Vector & dx, bool active_constraints);
@@ -263,14 +278,6 @@ public:
                                  Vector &gap, Vector &mcslump,
                                  real_t tribol_ratio);
 
-   /// Get lumped mass weights for contact and volume spaces.
-   void GetLumpedMassWeights(Vector & Mcslump_, Vector & Mvlump_)
-   {
-      Mcslump_.SetSize(Mcslump.Size()); Mcslump_ = 0.0;
-      Mcslump_.Set(1.0, Mcslump);
-      Mvlump_.SetSize(Mvlump.Size()); Mvlump_ = 0.0;
-      Mvlump_.Set(1.0, Mvlump);
-   };
    ~OptContactProblem() = default;
 };
 
