@@ -64,6 +64,7 @@
 #include <vector>
 #include "ip.hpp"
 #include "solver_utils.hpp"
+#include "contact_output.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -207,6 +208,94 @@ void ConfigureAMG(HypreBoomerAMG &amg, int coarsen_type, int agg_levels,
    amg.SetInterpolation(interp_type);
    amg.SetPrintLevel(0);
    amg.SetRelaxType(relax_type);
+}
+
+namespace
+{
+
+struct IPSolveSummary
+{
+   int load_step;
+   bool converged;
+   int ip_steps;
+   int newton_solves;
+   long long cg_iterations = 0;
+   real_t optimality_error;
+   bool has_energy = false;
+   real_t initial_energy = 0.0;
+   real_t final_energy = 0.0;
+};
+
+template <typename T>
+void PrintResultField(std::ostream &out, const char *label, const T &value)
+{
+   out << "  " << std::left << std::setw(32) << label << " = " << value << '\n';
+}
+
+void PrintIPSolveResult(const IPSolver &optimizer, const IPSolveSummary &result)
+{
+   using namespace contact_output;
+   std::ostringstream out;
+   PrintLine(out);
+   out << "  " << Center("IP SOLVE RESULT - LOAD STEP " +
+                         std::to_string(result.load_step), report_width) << '\n';
+   PrintLine(out);
+   PrintResultField(out, "Optimizer status", optimizer.GetTerminationReason());
+   PrintResultField(out, "Accepted IP steps", result.ip_steps);
+   PrintResultField(out, "Newton solves", result.newton_solves);
+   PrintResultField(out, "CG iterations", result.cg_iterations);
+   PrintResultField(out, "Final stationarity error",
+                    optimizer.GetStationarityError());
+   PrintResultField(out, "Final feasibility error", optimizer.GetFeasibilityError());
+   PrintResultField(out, "Final complementarity error",
+                    optimizer.GetComplementarityError());
+   PrintResultField(out, "Final optimality error", result.optimality_error);
+   if (result.has_energy)
+   {
+      PrintResultField(out, "Initial Energy objective", result.initial_energy);
+      PrintResultField(out, "Final Energy objective", result.final_energy);
+   }
+   PrintLine(out, '=');
+   mfem::out << out.str() << std::flush;
+}
+
+void PrintIPSummary(const std::vector<IPSolveSummary> &results, int total_steps)
+{
+   using namespace contact_output;
+   const std::array<int, 7> widths = {4, 9, 8, 13, 8, 13, 13};
+   std::ostringstream out;
+   PrintBanner(out, "FINAL IP SUMMARY");
+   PrintTableRow(out, widths,
+                 {"Step", "Status", "IP steps", "Newton solves", "CG iters",
+                  "Optimality", "Final energy"});
+   PrintTableSeparator(out, widths);
+   long long ip_steps = 0, newton_solves = 0, cg_iterations = 0;
+   int converged_steps = 0;
+   for (const auto &result : results)
+   {
+      PrintTableRow(out, widths,
+                    {std::to_string(result.load_step),
+                     result.converged ? "converged" : "failed",
+                     std::to_string(result.ip_steps),
+                     std::to_string(result.newton_solves),
+                     std::to_string(result.cg_iterations),
+                     Scientific(result.optimality_error),
+                     result.has_energy ? Scientific(result.final_energy) : "n/a"});
+      ip_steps += result.ip_steps;
+      newton_solves += result.newton_solves;
+      cg_iterations += result.cg_iterations;
+      converged_steps += result.converged;
+   }
+   PrintTableSeparator(out, widths);
+   PrintResultField(out, "Converged load steps",
+                    std::to_string(converged_steps) + " / " + std::to_string(total_steps));
+   PrintResultField(out, "Total accepted IP steps", ip_steps);
+   PrintResultField(out, "Total Newton solves", newton_solves);
+   PrintResultField(out, "Total CG iterations", cg_iterations);
+   PrintLine(out, '=');
+   mfem::out << out.str() << std::flush;
+}
+
 }
 
 int main(int argc, char *argv[])
@@ -532,14 +621,14 @@ int main(int argc, char *argv[])
 
    // 9. Time/load stepping loop.
    int total_steps = nsteps + msteps;
+   std::vector<IPSolveSummary> solve_results;
    for (int i = 0; i<total_steps; i++)
    {
       if (Mpi::Root())
       {
-         std::ostringstream oss;
-         oss << "\n Solving optimization problem for time step: " << i;
-         mfem::out << oss.str() << endl;
-         mfem::out << " " <<std::string(oss.str().size()-2, '-') << endl;
+         contact_output::PrintBanner(mfem::out,
+                                     "Solving optimization problem for time step: " +
+                                     std::to_string(i));
       }
       ess_values = 0.0;
       // 9(a). Apply problem-specific boundary conditions / loads for this step.
@@ -668,25 +757,25 @@ int main(int argc, char *argv[])
       Vector xf(ndofs); xf.UseDevice(true); xf = 0.0;
       optimizer.Mult(x0, xf);
 
-      if (Mpi::Root())
+      IPSolveSummary result;
+      result.load_step = i;
+      result.converged = optimizer.GetConverged();
+      result.ip_steps = optimizer.GetNumIPSteps();
+      result.newton_solves = optimizer.GetNumIterations();
+      result.optimality_error = optimizer.GetOptimalityError();
+      for (int iterations : optimizer.GetLinearSolverIterations())
       {
-         mfem::out << " Optimizer status                = "
-                   << optimizer.GetTerminationReason() << endl;
-         mfem::out << " Final stationarity error        = "
-                   << optimizer.GetStationarityError() << endl;
-         mfem::out << " Final feasibility error         = "
-                   << optimizer.GetFeasibilityError() << endl;
-         mfem::out << " Final complementarity error     = "
-                   << optimizer.GetComplementarityError() << endl;
-         mfem::out << " Final optimality error          = "
-                   << optimizer.GetOptimalityError() << endl;
+         result.cg_iterations += iterations;
       }
 
       if (!optimizer.GetConverged())
       {
          if (Mpi::Root())
          {
+            PrintIPSolveResult(optimizer, result);
+            solve_results.push_back(result);
             mfem::err << "Contact solve failed at load step " << i << "." << endl;
+            PrintIPSummary(solve_results, total_steps);
          }
          return 2;
       }
@@ -705,10 +794,11 @@ int main(int argc, char *argv[])
 
       if (Mpi::Root())
       {
-         mfem::out << " Initial Energy objective        = " << Einitial << endl;
-         mfem::out << " Final Energy objective          = " << Efinal << endl;
-         mfem::out << " Optimizer number of iterations  = " <<
-                   optimizer.GetNumIterations() << endl;
+         result.has_energy = true;
+         result.initial_energy = Einitial;
+         result.final_energy = Efinal;
+         PrintIPSolveResult(optimizer, result);
+         solve_results.push_back(result);
       }
 
       // 9(i). Visualization outputs.
@@ -746,6 +836,7 @@ int main(int argc, char *argv[])
       prob.UpdateRHS();
    }
 
+   if (Mpi::Root()) { PrintIPSummary(solve_results, total_steps); }
    return 0;
 }
 

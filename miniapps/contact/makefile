@@ -64,6 +64,8 @@ $(MINIAPPS): %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONTACT_OBJ) $(CONFIG_MK)
 
 all: $(MINIAPPS)
 
+ip.o contact: $(SRC)contact_output.hpp
+
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 

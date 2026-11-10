@@ -12,8 +12,7 @@
 #include "ip.hpp"
 #include "general/reducers.hpp"
 #include "solver_utils.hpp"
-#include <iomanip>
-#include <sstream>
+#include "contact_output.hpp"
 
 namespace mfem
 {
@@ -449,6 +448,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
 {
    MFEM_VERIFY(solver, "Set a linear solver before calling IPSolver::Mult.");
    state.converged = false;
+   state.accepted_steps = 0;
    state.newton_solves = 0;
    state.linear_iterations.SetSize(0);
    state.termination_status = TerminationStatus::MaximumIterations;
@@ -545,6 +545,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
             mfem::out << "lineSearch successful\n";
          }
          AcceptStep(iterate, direction, search);
+         state.accepted_steps++;
       }
       else
       {
@@ -722,22 +723,22 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
 void IPSolver::PrintLinearSolverStatistics(
    int ip_step, const IterativeSolver &linear_solver) const
 {
+   using namespace contact_output;
+   const std::array<int, 5> widths = {8, 13, 21, 19, 13};
    std::ostringstream table;
    if (state.linear_iterations.Size() == 1)
    {
-      table << std::right << std::setw(8) << " IP step" << " | "
-            << std::left << std::setw(13) << "Status" << " | "
-            << std::right << std::setw(21) << "Initial residual norm" << " | "
-            << std::setw(19) << "Final residual norm" << " | "
-            << std::setw(10) << "Iterations" << '\n';
+      PrintTableRow(table, widths,
+                    {"IP step", "Status", "Initial residual norm",
+                     "Final residual norm", "Iterations"});
+      PrintTableSeparator(table, widths);
    }
-   table << std::right << std::setw(8) << ip_step << " | "
-         << std::left << std::setw(13)
-         << (linear_solver.GetConverged() ? "Converged" : "Not converged")
-         << " | " << std::right << std::scientific << std::setprecision(6)
-         << std::setw(21) << linear_solver.GetInitialNorm() << " | "
-         << std::setw(19) << linear_solver.GetFinalNorm() << " | "
-         << std::setw(10) << linear_solver.GetNumIterations() << '\n';
+   PrintTableRow(table, widths,
+                 {std::to_string(ip_step),
+                  linear_solver.GetConverged() ? "Converged" : "Not converged",
+                  Scientific(linear_solver.GetInitialNorm()),
+                  Scientific(linear_solver.GetFinalNorm()),
+                  std::to_string(linear_solver.GetNumIterations())});
    mfem::out << table.str() << std::flush;
 }
 

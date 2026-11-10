@@ -17,6 +17,7 @@ if (MFEM_USE_TRIBOL AND MFEM_USE_MPI)
   solver_utils.cpp
   neo_hookean.cpp)
   list(APPEND CONTACT_HEADERS
+  contact_output.hpp
   ip.hpp
   optcontactproblem.hpp
   elastoperator.hpp

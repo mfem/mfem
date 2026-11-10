@@ -111,7 +111,10 @@ public:
    real_t GetComplementarityError() const { return state.complementarity_error; }
    real_t GetOptimalityError() const { return state.optimality_error; }
 
-   /// get number of interior-point iterations of most recent Mult call
+   /// Number of accepted interior-point steps in the most recent Mult call.
+   int GetNumIPSteps() const { return state.accepted_steps; }
+
+   /// Number of Newton solves, including regularization retries.
    int GetNumIterations() {return state.newton_solves;};
 
    /// Get solver iteration counts
@@ -170,6 +173,7 @@ protected:
    /// their existing lifetime across Mult calls; per-call results reset in Mult.
    struct SolveState
    {
+      int accepted_steps = 0;
       int newton_solves = 0;
       real_t barrier_parameter = 1.0;
       real_t filter_min_violation = 1.e-4;
