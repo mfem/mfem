@@ -194,6 +194,8 @@ void LibVectorCoefficient::Eval(Vector &V,
       return;
    }
 
+
+   Vector x;
    // Evaluate library function
    T.Transform(ip, x);
    (*TDFunction)(x.GetData(), x.Size(), GetTime(), V.GetData(), V.Size());
