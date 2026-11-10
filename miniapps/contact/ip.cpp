@@ -396,6 +396,118 @@ const char *IPSolver::GetTerminationReason() const
    return "not run";
 }
 
+void IPSolver::UpdateBarrierForIterate(PrimalDualVector &iterate,
+                                       int max_updates)
+{
+   BlockVector &xk = iterate.Primal();
+   Vector &lk = iterate.EqualityMultiplier();
+   Vector &zlk = iterate.InequalityMultiplier();
+   real_t OptErrSubproblem;
+   for (int i = 0; i < max_updates; i++)
+   {
+      // Check convergence of the barrier subproblem
+      OptErrSubproblem = OptimalityError(xk, lk, zlk, mu_k);
+      if (OptErrSubproblem < kEps * mu_k)
+      {
+         if (myid == 0 && print_level > 0)
+         {
+            mfem::out << "solved mu = " << mu_k << " barrier subproblem\n";
+         }
+         UpdateBarrierSubProblem();
+      }
+      else
+      {
+         break;
+      }
+   }
+}
+
+IPSolver::NewtonResult IPSolver::ComputeSearchDirection(
+   PrimalDualVector &iterate, PrimalDualVector &direction, int ip_step)
+{
+   NewtonResult newton = IPNewtonSolve(iterate, direction, ip_step, mu_k);
+   if (!newton.converged) { return newton; }
+   if (!newton.passed_curvature_test)
+   {
+      if (myid == 0 && print_level > 0)
+      {
+         mfem::out << "curvature test failed\n";
+      }
+      real_t deltaReg = 0.0;
+      int maxCurvatureTests = 30;
+
+      // inertia regularization initialization
+      if (deltaRegLast < deltaRegMin)
+      {
+         deltaReg = deltaReg0;
+      }
+      else
+      {
+         deltaReg = fmax(deltaRegMin, kRegMinus * deltaRegLast);
+      }
+
+      // solve regularized IP-Newton linear system
+      newton = IPNewtonSolve(iterate, direction, ip_step, mu_k, deltaReg);
+
+      for (int numCurvatureTests = 0; numCurvatureTests < maxCurvatureTests;
+           numCurvatureTests++)
+      {
+         if (!newton.converged) { break; }
+         if (myid == 0 && print_level > 0)
+         {
+            mfem::out << "deltaReg = " << deltaReg << std::endl;
+         }
+         if (newton.passed_curvature_test)
+         {
+            deltaRegLast = deltaReg;
+            break;
+         }
+         else
+         {
+            if (deltaRegLast < deltaRegMin)
+            {
+               if (myid == 0 && print_level > 0)
+               {
+                  mfem::out << "delta *= " << kRegBarPlus << "\n";
+               }
+               deltaReg *= kRegBarPlus;
+            }
+            else
+            {
+               deltaReg *= kRegPlus;
+            }
+         }
+         // solve with regularization
+         // Retain the solve after the final failed check in this loop.
+         newton = IPNewtonSolve(iterate, direction, ip_step, mu_k, deltaReg);
+      }
+   }
+   return newton;
+}
+
+void IPSolver::AcceptStep(PrimalDualVector &iterate,
+                          const PrimalDualVector &direction,
+                          const LineSearchResult &search)
+{
+   BlockVector &xk = iterate.Primal();
+   Vector &lk = iterate.EqualityMultiplier();
+   Vector &zlk = iterate.InequalityMultiplier();
+   if (search.update_filter)
+   {
+      F1.Append(search.filter_theta);
+      F2.Append(search.filter_phi);
+   }
+   // Accept the trial point
+   iterate.Displacement().Add(search.primal_step,
+                               direction.Displacement());
+   iterate.Slack().Add(search.primal_step, direction.Slack());
+   lk.Add(search.primal_step, direction.EqualityMultiplier());
+   zlk.Add(search.multiplier_step, direction.InequalityMultiplier());
+   iterate.SyncFromBlocks();
+   ProjectZ(xk, zlk, mu_k);
+   iterate.SyncFromBlocks();
+}
+
 void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
 {
    MFEM_VERIFY(solver, "Set a linear solver before calling IPSolver::Mult.");
@@ -441,9 +553,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
    thetaMin = 1.e-4 * std::max(1.0, theta0);
    thetaMax = 1.e8  * thetaMin;
 
-   real_t OptErrSubproblem, OptErr;
-
-   int maxBarrierSolves = 10;
+   real_t OptErr;
    for (int j = 0; j < max_iter; j++)
    {
       if (myid == 0 && print_level > 0)
@@ -469,93 +579,17 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
          break;
       }
 
-      if (j > 0) { maxBarrierSolves = 1; }
-      for (int i = 0; i < maxBarrierSolves; i++)
-      {
-         // Check convergence of the barrier subproblem
-         OptErrSubproblem = OptimalityError(xk, lk, zlk, mu_k);
-         if (OptErrSubproblem < kEps * mu_k)
-         {
-            if (myid == 0 && print_level > 0)
-            {
-               mfem::out << "solved mu = " << mu_k << " barrier subproblem\n";
-            }
-            UpdateBarrierSubProblem();
-         }
-         else
-         {
-            break;
-         }
-      }
+      UpdateBarrierForIterate(iterate, j == 0 ? 10 : 1);
 
       // Compute the search direction
       // solve for (uhat, mhat, lhat)
-      NewtonResult newton = IPNewtonSolve(iterate, direction, j, mu_k);
-      if (!newton.converged)
+      const NewtonResult newton = ComputeSearchDirection(iterate, direction, j);
+      if (!newton.converged || !newton.passed_curvature_test)
       {
-         termination_status = TerminationStatus::LinearSolverFailed;
+         termination_status = newton.converged
+                              ? TerminationStatus::CurvatureTestFailed
+                              : TerminationStatus::LinearSolverFailed;
          break;
-      }
-      if (!newton.passed_curvature_test)
-      {
-         if (myid == 0 && print_level > 0)
-         {
-            mfem::out << "curvature test failed\n";
-         }
-         real_t deltaReg = 0.0;
-         int maxCurvatureTests = 30;
-
-         // inertia regularization initialization
-         if (deltaRegLast < deltaRegMin)
-         {
-            deltaReg = deltaReg0;
-         }
-         else
-         {
-            deltaReg = fmax(deltaRegMin, kRegMinus * deltaRegLast);
-         }
-
-         // solve regularized IP-Newton linear system
-         newton = IPNewtonSolve(iterate, direction, j, mu_k, deltaReg);
-
-         for (int numCurvatureTests = 0; numCurvatureTests < maxCurvatureTests;
-              numCurvatureTests++)
-         {
-            if (!newton.converged) { break; }
-            if (myid == 0 && print_level > 0)
-            {
-               mfem::out << "deltaReg = " << deltaReg << std::endl;
-            }
-            if (newton.passed_curvature_test)
-            {
-               deltaRegLast = deltaReg;
-               break;
-            }
-            else
-            {
-               if (deltaRegLast < deltaRegMin)
-               {
-                  if (myid == 0 && print_level > 0)
-                  {
-                     mfem::out << "delta *= " << kRegBarPlus << "\n";
-                  }
-                  deltaReg *= kRegBarPlus;
-               }
-               else
-               {
-                  deltaReg *= kRegPlus;
-               }
-            }
-            // solve with regularization
-            newton = IPNewtonSolve(iterate, direction, j, mu_k, deltaReg);
-         }
-         if (!newton.converged || !newton.passed_curvature_test)
-         {
-            termination_status = newton.converged
-                                 ? TerminationStatus::CurvatureTestFailed
-                                 : TerminationStatus::LinearSolverFailed;
-            break;
-         }
       }
 
       if (myid == 0 && print_level > 0)
@@ -572,20 +606,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
          {
             mfem::out << "lineSearch successful\n";
          }
-         if (search.update_filter)
-         {
-            F1.Append(search.filter_theta);
-            F2.Append(search.filter_phi);
-         }
-         // Accept the trial point
-         iterate.Displacement().Add(search.primal_step,
-                                     direction.Displacement());
-         iterate.Slack().Add(search.primal_step, direction.Slack());
-         lk.Add(search.primal_step, direction.EqualityMultiplier());
-         zlk.Add(search.multiplier_step, direction.InequalityMultiplier());
-         iterate.SyncFromBlocks();
-         ProjectZ(xk, zlk, mu_k);
-         iterate.SyncFromBlocks();
+         AcceptStep(iterate, direction, search);
       }
       else
       {

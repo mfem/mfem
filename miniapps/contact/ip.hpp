@@ -248,6 +248,17 @@ private:
    Vector constraint_residual, weighted_constraints;
    Array<real_t> reduce_workspace;
 
+   /// Update the barrier until the subproblem needs another Newton step.
+   void UpdateBarrierForIterate(PrimalDualVector&, int max_updates);
+
+   /// Compute a direction, including the existing regularization retries.
+   NewtonResult ComputeSearchDirection(PrimalDualVector&, PrimalDualVector&,
+                                       int ip_step);
+
+   /// Apply an accepted step and its filter update, then project multipliers.
+   void AcceptStep(PrimalDualVector&, const PrimalDualVector&,
+                   const LineSearchResult&);
+
    /// Form (regularized) IP-Newton linear system matrix
    void FormIPNewtonMat(BlockVector&, Vector&, Vector&, BlockOperator &,
                         real_t delta = 0.0);
