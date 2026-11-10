@@ -187,57 +187,8 @@ real_t LocalComplementarityError(const BlockVector &x, const Vector &z,
 IPSolver::IPSolver(OptContactProblem * problem_)
    : problem(problem_)
 {
-   abs_tol  = 1.e-2; // Tolerance of the optimizer
-   max_iter = 20;   // Maximum iterations
-   mu_k     = 1.0;  // Log-barrier penalty parameter
-
-   /* The following constants follow that of
-    * Wächter, Andreas, and Lorenz T. Biegler.
-    * "On the implementation of an interior-point filter line-search algorithm for large-scale nonlinear programming."
-    * Mathematical programming 106.1 (2006): 25-57.
-    */
-
-   /* line search constants */
-   tauMin   =
-      0.99;  // constant that controls the rate iterates approach boundary > 0, < 1
-   eta      =
-      1.e-4; // Armijo backtracking sufficient-decrease condition constant > 0, < 1
-   thetaMin = 1.e-4; // allowed equality constraint violation
-   delta    = 1.0;   // sufficient barrier objective progress constant > 0
-   sTheta   = 1.1;   // sufficient barrier objective progress constant > 0
-   sPhi     = 2.3;   // sufficient barrier objective progress constant >= 0
-   gTheta = 1.e-5;   // sufficient constraint violation decrease constant > 0, < 1
-   gPhi   = 1.e-5;   // sufficient barrier objective decrease constant > 0, < 1
-   thetaMax = 1.e6; // maximum constraint violation (defines initial filter)
-
-   /* interior-point continuation constants
-    * \mu_new = max{abs_tol / 10, \min{ kMu * \mu_old, (\mu_old)^thetaMu}}
-    * */
-   kMu     = 0.2;
-   thetaMu = 1.5;
-   kEps   = 1.e1; // constant that determines when the log-barrier parameter is decreased
-
-   kSig     = 1.e10; // primal-dual Hessian deviation constant
-
-   /* The following constants follow that of
-    * Chiang, Nai-Yuan, and Victor M. Zavala.
-    * "An inertia-free filter line-search algorithm for large-scale nonlinear programming."
-    * Computational Optimization and Applications 64.2 (2016): 327-354.
-    * See Inertia-Free Regularizaton Algorithm (IFR).
-    * We use the second variant (see Section 4.1 "Alternative Inertia-Free Tests")
-    * which does not require solving for normal and tangential components.
-    */
-
-   /* inertia-regularization constants */
-   alphaCurvatureTest = 1.e-11;
-   deltaRegLast = 0.0;
-   deltaRegMin = 1.e-20;
-   deltaRegMax = 1.e40;
-   deltaReg0 = 1.e-4;
-   kRegMinus = 1. / 3.;
-   kRegBarPlus = 1.e2;
-   kRegPlus = 8.;
-
+   // Options use the existing filter/barrier defaults from Wachter and Biegler,
+   // and inertia-free regularization defaults from Chiang and Zavala.
    dimU = problem->GetDimU();
    dimM = problem->GetDimM();
    dimC = problem->GetDimC();
@@ -297,27 +248,27 @@ IPSolver::IPSolver(OptContactProblem * problem_)
       block_offsetsx[i] = block_offsetsuml[i] ;
    }
 
-   newton_rhs.Update(block_offsetsuml);
-   EnableDevice(newton_rhs);
+   workspace.newton_rhs.Update(block_offsetsuml);
+   EnableDevice(workspace.newton_rhs);
    for (BlockVector *v :
         {
-           &objective_gradient, &lagrangian_gradient,
-           &scaled_gradient, &hessian_action,
-           &line_search_trial, &line_search_gradient
+           &workspace.objective_gradient, &workspace.lagrangian_gradient,
+           &workspace.scaled_gradient, &workspace.hessian_action,
+           &workspace.line_search_trial, &workspace.line_search_gradient
         })
    {
       v->Update(block_offsetsx);
       EnableDevice(*v);
    }
-   for (Vector *v : {&regularization_diagonal, &reduced_rhs})
+   for (Vector *v : {&workspace.regularization_diagonal, &workspace.reduced_rhs})
    {
       v->SetSize(dimU);
       v->UseDevice(true);
    }
    for (Vector *v :
         {
-           &barrier_diagonal, &slack_work, &multiplier_sum,
-           &constraint_residual, &weighted_constraints
+           &workspace.barrier_diagonal, &workspace.slack_work, &workspace.multiplier_sum,
+           &workspace.constraint_residual, &workspace.weighted_constraints
         })
    {
       v->SetSize(dimM);
@@ -381,7 +332,7 @@ void IPSolver::Mult(const Vector &x0, Vector &xf)
 
 const char *IPSolver::GetTerminationReason() const
 {
-   switch (termination_status)
+   switch (state.termination_status)
    {
       case TerminationStatus::NotRun: return "not run";
       case TerminationStatus::Converged: return "converged";
@@ -406,12 +357,14 @@ void IPSolver::UpdateBarrierForIterate(PrimalDualVector &iterate,
    for (int i = 0; i < max_updates; i++)
    {
       // Check convergence of the barrier subproblem
-      OptErrSubproblem = OptimalityError(xk, lk, zlk, mu_k);
-      if (OptErrSubproblem < kEps * mu_k)
+      OptErrSubproblem = OptimalityError(xk, lk, zlk, state.barrier_parameter);
+      if (OptErrSubproblem < options.barrier.subproblem_tolerance_factor *
+          state.barrier_parameter)
       {
-         if (myid == 0 && print_level > 0)
+         if (myid == 0 && options.print_level > 0)
          {
-            mfem::out << "solved mu = " << mu_k << " barrier subproblem\n";
+            mfem::out << "solved mu = " << state.barrier_parameter <<
+                      " barrier subproblem\n";
          }
          UpdateBarrierSubProblem();
       }
@@ -425,61 +378,67 @@ void IPSolver::UpdateBarrierForIterate(PrimalDualVector &iterate,
 IPSolver::NewtonResult IPSolver::ComputeSearchDirection(
    PrimalDualVector &iterate, PrimalDualVector &direction, int ip_step)
 {
-   NewtonResult newton = IPNewtonSolve(iterate, direction, ip_step, mu_k);
+   const auto &regularization = options.regularization;
+   NewtonResult newton = IPNewtonSolve(iterate, direction, ip_step,
+                                       state.barrier_parameter);
    if (!newton.converged) { return newton; }
    if (!newton.passed_curvature_test)
    {
-      if (myid == 0 && print_level > 0)
+      if (myid == 0 && options.print_level > 0)
       {
          mfem::out << "curvature test failed\n";
       }
       real_t deltaReg = 0.0;
-      int maxCurvatureTests = 30;
+      const int maxCurvatureTests = regularization.max_curvature_tests;
 
       // inertia regularization initialization
-      if (deltaRegLast < deltaRegMin)
+      if (state.last_regularization < regularization.minimum)
       {
-         deltaReg = deltaReg0;
+         deltaReg = regularization.initial;
       }
       else
       {
-         deltaReg = fmax(deltaRegMin, kRegMinus * deltaRegLast);
+         deltaReg = fmax(regularization.minimum,
+                         regularization.decrease_factor * state.last_regularization);
       }
 
       // solve regularized IP-Newton linear system
-      newton = IPNewtonSolve(iterate, direction, ip_step, mu_k, deltaReg);
+      newton = IPNewtonSolve(iterate, direction, ip_step, state.barrier_parameter,
+                             deltaReg);
 
       for (int numCurvatureTests = 0; numCurvatureTests < maxCurvatureTests;
            numCurvatureTests++)
       {
          if (!newton.converged) { break; }
-         if (myid == 0 && print_level > 0)
+         if (myid == 0 && options.print_level > 0)
          {
             mfem::out << "deltaReg = " << deltaReg << std::endl;
          }
          if (newton.passed_curvature_test)
          {
-            deltaRegLast = deltaReg;
+            state.last_regularization = deltaReg;
             break;
          }
          else
          {
-            if (deltaRegLast < deltaRegMin)
+            if (state.last_regularization < regularization.minimum)
             {
-               if (myid == 0 && print_level > 0)
+               if (myid == 0 && options.print_level > 0)
                {
-                  mfem::out << "delta *= " << kRegBarPlus << "\n";
+                  mfem::out << "delta *= " << regularization.initial_increase_factor <<
+                            "\n";
                }
-               deltaReg *= kRegBarPlus;
+               deltaReg *= regularization.initial_increase_factor;
             }
             else
             {
-               deltaReg *= kRegPlus;
+               deltaReg *= regularization.increase_factor;
             }
          }
          // solve with regularization
          // Retain the solve after the final failed check in this loop.
-         newton = IPNewtonSolve(iterate, direction, ip_step, mu_k, deltaReg);
+         newton = IPNewtonSolve(iterate, direction, ip_step, state.barrier_parameter,
+                                deltaReg);
       }
    }
    return newton;
@@ -494,8 +453,8 @@ void IPSolver::AcceptStep(PrimalDualVector &iterate,
    Vector &zlk = iterate.InequalityMultiplier();
    if (search.update_filter)
    {
-      F1.Append(search.filter_theta);
-      F2.Append(search.filter_phi);
+      state.filter_theta.Append(search.filter_theta);
+      state.filter_phi.Append(search.filter_phi);
    }
    // Accept the trial point
    iterate.Displacement().Add(search.primal_step,
@@ -504,17 +463,17 @@ void IPSolver::AcceptStep(PrimalDualVector &iterate,
    lk.Add(search.primal_step, direction.EqualityMultiplier());
    zlk.Add(search.multiplier_step, direction.InequalityMultiplier());
    iterate.SyncFromBlocks();
-   ProjectZ(xk, zlk, mu_k);
+   ProjectZ(xk, zlk, state.barrier_parameter);
    iterate.SyncFromBlocks();
 }
 
 void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
 {
    MFEM_VERIFY(solver, "Set a linear solver before calling IPSolver::Mult.");
-   converged = false;
-   iter = 0;
-   lin_solver_iterations.SetSize(0);
-   termination_status = TerminationStatus::MaximumIterations;
+   state.converged = false;
+   state.newton_solves = 0;
+   state.linear_iterations.SetSize(0);
+   state.termination_status = TerminationStatus::MaximumIterations;
    x0.SyncToBlocks();
    PrimalDualVector iterate(block_offsetsumlz, block_offsetsx, block_offsetsuml);
    PrimalDualVector direction(block_offsetsumlz, block_offsetsx,
@@ -527,7 +486,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
    iterate.Slack().Set(1.0, x0.GetBlock(1));
    iterate.SyncFromBlocks();
    const int dim_u = dimU;
-   const real_t mu = mu_k;
+   const real_t mu = state.barrier_parameter;
    const real_t *xk_d = xk.Read();
    real_t *zlk_d = zlk.Write();
    mfem::forall(dimM, [=] MFEM_HOST_DEVICE (int i)
@@ -550,13 +509,13 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
     * is larger than that of thetaMax
     */
    real_t theta0 = GetTheta(xk);
-   thetaMin = 1.e-4 * std::max(1.0, theta0);
-   thetaMax = 1.e8  * thetaMin;
+   state.filter_min_violation = 1.e-4 * std::max(1.0, theta0);
+   state.filter_max_violation = 1.e8  * state.filter_min_violation;
 
    real_t OptErr;
-   for (int j = 0; j < max_iter; j++)
+   for (int j = 0; j < options.max_iterations; j++)
    {
-      if (myid == 0 && print_level > 0)
+      if (myid == 0 && options.print_level > 0)
       {
          mfem::out << "\n" << std::string(50,'-') << std::endl;
          mfem::out << "interior-point solve step # " << j << std::endl;
@@ -565,14 +524,14 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       OptErr = OptimalityError(xk, lk, zlk);
       if (!IsFinite(OptErr))
       {
-         termination_status = TerminationStatus::NonfiniteOptimalityError;
+         state.termination_status = TerminationStatus::NonfiniteOptimalityError;
          break;
       }
-      if (OptErr < abs_tol)
+      if (OptErr < options.abs_tol)
       {
-         converged = true;
-         termination_status = TerminationStatus::Converged;
-         if (myid == 0 && print_level > 0)
+         state.converged = true;
+         state.termination_status = TerminationStatus::Converged;
+         if (myid == 0 && options.print_level > 0)
          {
             mfem::out << "solved optimization problem\n";
          }
@@ -586,23 +545,24 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       const NewtonResult newton = ComputeSearchDirection(iterate, direction, j);
       if (!newton.converged || !newton.passed_curvature_test)
       {
-         termination_status = newton.converged
-                              ? TerminationStatus::CurvatureTestFailed
-                              : TerminationStatus::LinearSolverFailed;
+         state.termination_status = newton.converged
+                                    ? TerminationStatus::CurvatureTestFailed
+                                    : TerminationStatus::LinearSolverFailed;
          break;
       }
 
-      if (myid == 0 && print_level > 0)
+      if (myid == 0 && options.print_level > 0)
       {
-         mfem::out << "mu = " << mu_k << std::endl;
+         mfem::out << "mu = " << state.barrier_parameter << std::endl;
       }
       const LineSearchResult search = LineSearch(
-                                         iterate, direction, mu_k, last_armijo_sufficient_decrease);
-      last_armijo_sufficient_decrease = search.armijo_sufficient_decrease;
+                                         iterate, direction, state.barrier_parameter,
+                                         state.last_armijo_sufficient_decrease);
+      state.last_armijo_sufficient_decrease = search.armijo_sufficient_decrease;
 
       if (search.accepted)
       {
-         if (myid == 0 && print_level > 0)
+         if (myid == 0 && options.print_level > 0)
          {
             mfem::out << "lineSearch successful\n";
          }
@@ -610,25 +570,25 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       }
       else
       {
-         if (myid == 0 && print_level > 0)
+         if (myid == 0 && options.print_level > 0)
          {
             mfem::out << "lineSearch not successful\n";
          }
-         converged = false;
-         termination_status = TerminationStatus::LineSearchFailed;
+         state.converged = false;
+         state.termination_status = TerminationStatus::LineSearchFailed;
          break;
       }
-      if (j + 1 == max_iter && myid == 0 && print_level > 0)
+      if (j + 1 == options.max_iterations && myid == 0 && options.print_level > 0)
       {
          mfem::out << "maximum optimization iterations\n";
       }
    }
    // Check the accepted final iterate, including the last allowed IP step.
    OptErr = OptimalityError(xk, lk, zlk);
-   if (IsFinite(OptErr) && OptErr < abs_tol)
+   if (IsFinite(OptErr) && OptErr < options.abs_tol)
    {
-      converged = true;
-      termination_status = TerminationStatus::Converged;
+      state.converged = true;
+      state.termination_status = TerminationStatus::Converged;
    }
    xf = 0.0;
    xf.SyncToBlocks();
@@ -642,54 +602,55 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
                                BlockOperator &Ak, real_t delta)
 {
    x.SyncFromBlocks();
-   Huu = problem->Duuf(x);
-   Hmm = problem->Dmmf(x);
+   workspace.Huu = problem->Duuf(x);
+   workspace.Hmm = problem->Dmmf(x);
 
-   Ju = problem->Duc(x);
-   JuT = problem->DucTranspose(x);
-   Jm = problem->Dmc(x);
+   workspace.Ju = problem->Duc(x);
+   workspace.JuT = problem->DucTranspose(x);
+   workspace.Jm = problem->Dmc(x);
 
-   Vector &DiagLogBar = barrier_diagonal;
+   Vector &DiagLogBar = workspace.barrier_diagonal;
    FillBarrierDiagonal(x, Mlump, zl, delta, DiagLogBar);
 
-   if (Hmm)
+   if (workspace.Hmm)
    {
-      Wmm.reset();
+      workspace.Wmm.reset();
       std::unique_ptr<HypreParMatrix> D(
          MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumConstraints(),
                                     problem->GetConstraintsStarts(),
                                     DiagLogBar));
-      Wmm.reset(ParAdd(Hmm, D.get()));
+      workspace.Wmm.reset(ParAdd(workspace.Hmm, D.get()));
    }
    else
    {
-      if (!Wmm)
+      if (!workspace.Wmm)
       {
-         Wmm.reset(MakeDiagonalHypreParMatrix(
-                      comm, problem->GetGlobalNumConstraints(),
-                      problem->GetConstraintsStarts(), DiagLogBar));
+         workspace.Wmm.reset(MakeDiagonalHypreParMatrix(
+                                comm, problem->GetGlobalNumConstraints(),
+                                problem->GetConstraintsStarts(), DiagLogBar));
       }
       else
       {
-         UpdateDiagonal(*Wmm, DiagLogBar);
+         UpdateDiagonal(*workspace.Wmm, DiagLogBar);
       }
    }
 
-   Vector &deltaDiagVec = regularization_diagonal;
+   Vector &deltaDiagVec = workspace.regularization_diagonal;
    deltaDiagVec.Set(delta, Mvlump);
 
-   Wuu.reset();
-   if (Huu)
+   workspace.Wuu.reset();
+   if (workspace.Huu)
    {
       std::unique_ptr<HypreParMatrix> Duu(
          MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumDofs(),
                                     problem->GetDofStarts(), deltaDiagVec));
-      Wuu.reset(ParAdd(Huu, Duu.get()));
+      workspace.Wuu.reset(ParAdd(workspace.Huu, Duu.get()));
    }
    else
    {
-      Wuu.reset(MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumDofs(),
-                                           problem->GetDofStarts(), deltaDiagVec));
+      workspace.Wuu.reset(MakeDiagonalHypreParMatrix(comm,
+                                                     problem->GetGlobalNumDofs(),
+                                                     problem->GetDofStarts(), deltaDiagVec));
    }
 
    //         IP-Newton system matrix
@@ -700,10 +661,11 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    //    Ak = [[K+Dreg  0      Jᵀ ]   [u]    [bᵤ]
    //          [0      D+Dreg  -I ]   [m]  = [bₘ]
    //          [J      -I      0  ]]  [λ]  = [bₗ ]
-   Ak.SetBlock(0, 0, Wuu.get());                    Ak.SetBlock(0, 2, JuT);
+   Ak.SetBlock(0, 0, workspace.Wuu.get());
+   Ak.SetBlock(0, 2, workspace.JuT);
    // The slack Jacobian is -I, so its transpose is the same operator.
-   Ak.SetBlock(1, 1, Wmm.get()); Ak.SetBlock(1, 2, Jm);
-   Ak.SetBlock(2, 0,  Ju); Ak.SetBlock(2, 1,  Jm);
+   Ak.SetBlock(1, 1, workspace.Wmm.get()); Ak.SetBlock(1, 2, workspace.Jm);
+   Ak.SetBlock(2, 0,  workspace.Ju); Ak.SetBlock(2, 1,  workspace.Jm);
 }
 
 // perturbed KKT system solve
@@ -712,7 +674,7 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    PrimalDualVector &iterate, PrimalDualVector &direction, int ip_step,
    real_t mu, real_t delta)
 {
-   iter++;
+   state.newton_solves++;
    iterate.SyncToViews();
    direction.Reset();
    BlockVector &x = iterate.Primal();
@@ -722,18 +684,18 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    BlockVector &Xhat = direction.Newton();
    // solve A x = b, where A is the IP-Newton matrix
    BlockOperator A(block_offsetsuml, block_offsetsuml);
-   BlockVector &b = newton_rhs;
+   BlockVector &b = workspace.newton_rhs;
    b.SyncToBlocks();
    FormIPNewtonMat(x, l, zl, A, delta);
 
    //       [grad_u phi + Ju^T l]
    // b = - [grad_m phi + Jm^T l]
    //       [          c        ]
-   BlockVector &gradphi = objective_gradient;
+   BlockVector &gradphi = workspace.objective_gradient;
    GetDxphi(x, mu, gradphi);
 
    b.GetBlock(0).Set(1.0, gradphi.GetBlock(0));
-   JuT->AddMult(l, b.GetBlock(0));
+   workspace.JuT->AddMult(l, b.GetBlock(0));
    b.GetBlock(1).Set(1.0, gradphi.GetBlock(1));
    // The slack Jacobian is -I: Jm^T l = -l.
    b.GetBlock(1).Add(-1.0, l);
@@ -743,16 +705,18 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    b.SyncToBlocks();
 
    // Include the displacement regularization in the reduced system.
-   std::unique_ptr<HypreParMatrix> JuTDJu(RAP(Wmm.get(), Ju)); // Ju^T D Ju
-   std::unique_ptr<HypreParMatrix> Areduced(ParAdd(Wuu.get(), JuTDJu.get()));
+   std::unique_ptr<HypreParMatrix> JuTDJu(RAP(workspace.Wmm.get(),
+                                              workspace.Ju)); // Ju^T D Ju
+   std::unique_ptr<HypreParMatrix> Areduced(ParAdd(workspace.Wuu.get(),
+                                                   JuTDJu.get()));
 
    /* compute the reduced rhs */
    // breduced = bu + Ju^T (bm + Wmm bl)
-   Vector &breduced = reduced_rhs;
-   Vector &tempVec = slack_work;
-   Wmm->Mult(b.GetBlock(2), tempVec);
+   Vector &breduced = workspace.reduced_rhs;
+   Vector &tempVec = workspace.slack_work;
+   workspace.Wmm->Mult(b.GetBlock(2), tempVec);
    tempVec.Add(1.0, b.GetBlock(1));
-   JuT->Mult(tempVec, breduced);
+   workspace.JuT->Mult(tempVec, breduced);
    breduced.Add(1.0, b.GetBlock(0));
 
    // Solve the system with the given solver
@@ -760,13 +724,13 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    solver->Mult(breduced, Xhat.GetBlock(0));
    auto itsolver = dynamic_cast<IterativeSolver *>(solver);
    int numit = (itsolver) ? itsolver->GetNumIterations() : -1;
-   lin_solver_iterations.Append(numit);
-   if (print_linear_solver_statistics && itsolver && myid == 0)
+   state.linear_iterations.Append(numit);
+   if (options.print_linear_solver_statistics && itsolver && myid == 0)
    {
       PrintLinearSolverStatistics(ip_step, *itsolver);
    }
    int local_success = (!itsolver || itsolver->GetConverged()) &&
-                       IsFinite(FiniteNormlinf(Xhat.GetBlock(0), reduce_workspace));
+                       IsFinite(FiniteNormlinf(Xhat.GetBlock(0), workspace.reduction));
    int global_success;
    MPI_Allreduce(&local_success, &global_success, 1, MPI_INT, MPI_MIN, comm);
    if (!global_success)
@@ -777,11 +741,11 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
 
    // now propagate solved uhat to obtain mhat and lhat
    // xm = Ju xu - bl
-   Ju->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
+   workspace.Ju->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
    Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
 
    // xl = Wmm xm - bm
-   Wmm->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
+   workspace.Wmm->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
    Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
    direction.SyncFromNewton();
 
@@ -794,8 +758,8 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    x.SyncFromBlocks();
    ComputeMultiplierDirection(x, Xhat, zl, mu, zlhat);
    direction.SyncFromBlocks();
-   local_success = IsFinite(FiniteNormlinf(Xhat, reduce_workspace)) &&
-                   IsFinite(FiniteNormlinf(zlhat, reduce_workspace));
+   local_success = IsFinite(FiniteNormlinf(Xhat, workspace.reduction)) &&
+                   IsFinite(FiniteNormlinf(zlhat, workspace.reduction));
    MPI_Allreduce(&local_success, &global_success, 1, MPI_INT, MPI_MIN, comm);
    return {global_success != 0, passed_curvature_test};
 }
@@ -804,7 +768,7 @@ void IPSolver::PrintLinearSolverStatistics(
    int ip_step, const IterativeSolver &linear_solver) const
 {
    std::ostringstream table;
-   if (lin_solver_iterations.Size() == 1)
+   if (state.linear_iterations.Size() == 1)
    {
       table << std::right << std::setw(8) << " IP step" << " | "
             << std::left << std::setw(13) << "Status" << " | "
@@ -825,7 +789,7 @@ void IPSolver::PrintLinearSolverStatistics(
 real_t IPSolver::GetMaxStepSize(const Vector &x, const Vector &xhat,
                                 real_t tau)
 {
-   real_t alphaMaxloc = LocalMaxStepSize(x, xhat, tau, reduce_workspace);
+   real_t alphaMaxloc = LocalMaxStepSize(x, xhat, tau, workspace.reduction);
 
    real_t alphaMaxglb;
    MPI_Allreduce(&alphaMaxloc, &alphaMaxglb, 1, MPITypeMap<real_t>::mpi_type,
@@ -840,13 +804,14 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
    const PrimalDualVector &X0, const PrimalDualVector &Xhat, real_t mu,
    bool previous_armijo_sufficient_decrease)
 {
+   const auto &line_search = options.line_search;
    LineSearchResult result;
    result.armijo_sufficient_decrease = previous_armijo_sufficient_decrease;
    real_t &alpha = result.primal_step;
    bool &sufficientDecrease = result.armijo_sufficient_decrease;
    bool switchCondition = false;
    int eval_err = 0;
-   real_t tau  = std::max(tauMin, 1.0 - mu);
+   real_t tau  = std::max(line_search.fraction_to_boundary, 1.0 - mu);
    X0.SyncToViews();
    Xhat.SyncToViews();
    const Vector &m0   = X0.Slack();
@@ -860,11 +825,11 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
    const BlockVector &x0 = X0.Primal();
    const BlockVector &xhat = Xhat.Primal();
 
-   BlockVector &xtrial = line_search_trial;
+   BlockVector &xtrial = workspace.line_search_trial;
    xtrial = 0.0;
-   BlockVector &Dxphi0 = line_search_gradient;
+   BlockVector &Dxphi0 = workspace.line_search_gradient;
    Dxphi0 = 0.0;
-   int maxBacktrack = 20;
+   const int maxBacktrack = line_search.max_backtracks;
    alpha = alphaMax;
 
    GetDxphi(x0, mu, Dxphi0);
@@ -874,7 +839,7 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
    bool descentDirection = (Dxphi0_xhat < 0.);
 
 
-   if (myid == 0 && print_level > 0)
+   if (myid == 0 && options.print_level > 0)
    {
       mfem::out << "is";
       if (!descentDirection)
@@ -890,7 +855,7 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
    if (eval_err || !IsFinite(thx0)) { return result; }
    for (int i = 0; i < maxBacktrack; i++)
    {
-      if (myid == 0 && print_level > 0)
+      if (myid == 0 && options.print_level > 0)
       {
          mfem::out << "\n--------- alpha = " << alpha << " ---------\n";
       }
@@ -903,7 +868,7 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
       real_t phxtrial = GetPhi(xtrial, mu, eval_err);
       if (eval_err || !IsFinite(thxtrial))
       {
-         if (myid == 0 && print_level > 0)
+         if (myid == 0 && options.print_level > 0)
          {
             mfem::out << "bad log-barrier objective eval, reducing step length\n";
          }
@@ -914,7 +879,7 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
       auto inFilterRegion = FilterCheck(thxtrial, phxtrial);
       if (!inFilterRegion)
       {
-         if (myid == 0 && print_level > 0)
+         if (myid == 0 && options.print_level > 0)
          {
             mfem::out << "not in filter region\n";
          }
@@ -924,28 +889,31 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
          }
          else
          {
-            switchCondition = (alpha * pow(abs(Dxphi0_xhat), sPhi) > delta * pow(thx0,
-                                                                                 sTheta));
+            switchCondition = (alpha * pow(abs(Dxphi0_xhat),
+                                           line_search.objective_power) >
+                               line_search.sufficient_progress_factor * pow(thx0,
+                                                                            line_search.violation_power));
          }
-         if (myid == 0 && print_level > 0)
+         if (myid == 0 && options.print_level > 0)
          {
             mfem::out << "theta(x0) = "     << thx0     << ", thetaMin = "
                       <<
-                      thetaMin             << std::endl;
+                      state.filter_min_violation             << std::endl;
             mfem::out << "theta(xtrial) = " << thxtrial << ", (1-gTheta) *theta(x0) = "
                       <<
-                      (1. - gTheta) * thx0 << std::endl;
+                      (1. - line_search.violation_decrease) * thx0 << std::endl;
             mfem::out << "phi(xtrial) = "   << phxtrial << ", phi(x0) - gPhi *theta(x0) = "
                       <<
-                      phx0 - gPhi * thx0   << std::endl;
+                      phx0 - line_search.objective_decrease * thx0   << std::endl;
          }
-         if (thx0 <= thetaMin && switchCondition)
+         if (thx0 <= state.filter_min_violation && switchCondition)
          {
             // sufficient decrease of the log-barrier objective
-            sufficientDecrease = (phxtrial <= phx0 + eta * alpha * Dxphi0_xhat);
+            sufficientDecrease = (phxtrial <= phx0 + line_search.armijo_factor *
+                                  alpha * Dxphi0_xhat);
             if (sufficientDecrease)
             {
-               if (myid == 0 && print_level > 0)
+               if (myid == 0 && options.print_level > 0)
                {
                   mfem::out <<
                             "Line search successful: sufficient decrease in log-barrier objective.\n";
@@ -957,9 +925,10 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
          }
          else
          {
-            if (thxtrial <= (1. - gTheta) * thx0 || phxtrial <= phx0 - gPhi * thx0)
+            if (thxtrial <= (1. - line_search.violation_decrease) * thx0 ||
+                phxtrial <= phx0 - line_search.objective_decrease * thx0)
             {
-               if (myid == 0 && print_level > 0)
+               if (myid == 0 && options.print_level > 0)
                {
                   mfem::out <<
                             "Line search successful: infeasibility or log-barrier objective decreased.\n";
@@ -972,7 +941,7 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
       }
       else
       {
-         if (myid == 0 && print_level > 0)
+         if (myid == 0 && options.print_level > 0)
          {
             mfem::out << "in filter region\n";
          }
@@ -984,8 +953,8 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
       result.update_filter = !switchCondition || !sufficientDecrease;
       if (result.update_filter)
       {
-         result.filter_theta = (1. - gTheta) * thx0;
-         result.filter_phi = phx0 - gPhi * thx0;
+         result.filter_theta = (1. - line_search.violation_decrease) * thx0;
+         result.filter_phi = phx0 - line_search.objective_decrease * thx0;
       }
    }
    return result;
@@ -994,15 +963,15 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
 bool IPSolver::FilterCheck(real_t thetax, real_t phix)
 {
    bool inFilterRegion = false;
-   if (thetax > thetaMax)
+   if (thetax > state.filter_max_violation)
    {
       inFilterRegion = true;
    }
    else
    {
-      for (int i = 0; i < F1.Size(); i++)
+      for (int i = 0; i < state.filter_theta.Size(); i++)
       {
-         if (thetax >= F1[i] && phix >= F2[i])
+         if (thetax >= state.filter_theta[i] && phix >= state.filter_phi[i])
          {
             inFilterRegion = true;
             break;
@@ -1014,15 +983,15 @@ bool IPSolver::FilterCheck(real_t thetax, real_t phix)
 
 void IPSolver::ProjectZ(const Vector &x, Vector &z, real_t mu)
 {
-   ProjectMultipliers(x, z, dimU, mu, kSig);
+   ProjectMultipliers(x, z, dimU, mu, options.barrier.multiplier_deviation);
 }
 
 real_t IPSolver::GetTheta(const BlockVector &x)
 {
    x.SyncToBlocks();
-   Vector &cx = constraint_residual;
+   Vector &cx = workspace.constraint_residual;
    problem->c(x, cx);
-   Vector &Mcx = weighted_constraints;
+   Vector &Mcx = workspace.weighted_constraints;
    MultiplyWeights(Mlump, cx, Mcx);
    return sqrt(InnerProduct(comm, Mcx, cx));
 }
@@ -1033,7 +1002,7 @@ real_t IPSolver::GetPhi(const BlockVector &x, real_t mu,
 {
    x.SyncToBlocks();
    real_t fx = problem->CalcObjective(x, eval_err);
-   real_t logBarrierLoc = LocalWeightedLogSum(x, Mlump, reduce_workspace);
+   real_t logBarrierLoc = LocalWeightedLogSum(x, Mlump, workspace.reduction);
    real_t logBarrierGlb;
    MPI_Allreduce(&logBarrierLoc, &logBarrierGlb, 1, MPITypeMap<real_t>::mpi_type,
                  MPI_SUM, comm);
@@ -1061,9 +1030,9 @@ real_t IPSolver::EvalLagrangian(const BlockVector &x, const Vector &l,
    x.SyncToBlocks();
    int eval_err = 0;
    real_t fx = problem->CalcObjective(x, eval_err);
-   Vector &cx = constraint_residual;
+   Vector &cx = workspace.constraint_residual;
    problem->c(x, cx);
-   Vector &temp = slack_work;
+   Vector &temp = workspace.slack_work;
    MultiplyWeights(Mlump, x.GetBlock(1), temp);
    return (fx + InnerProduct(comm, cx, l) - InnerProduct(comm, temp, zl));
 }
@@ -1083,7 +1052,7 @@ void IPSolver::EvalLagrangianGradient(const BlockVector &x, const Vector &l,
    problem->DucTranspose(x)->Mult(l, y.GetBlock(0));
    y.GetBlock(1).Add(-1.0, l);
 
-   BlockVector &gradxf = objective_gradient;
+   BlockVector &gradxf = workspace.objective_gradient;
    problem->CalcObjectiveGrad(x, gradxf);
    y.SyncFromBlocks();
    gradxf.SyncFromBlocks();
@@ -1103,7 +1072,7 @@ bool IPSolver::CurvatureTest(const BlockOperator & A,
 {
    Xhat.SyncToBlocks();
    b.SyncToBlocks();
-   Vector &lplus = multiplier_sum;
+   Vector &lplus = workspace.multiplier_sum;
    lplus.Set(1.0, l);
    lplus.Add(1.0, Xhat.GetBlock(2));
 
@@ -1116,7 +1085,7 @@ bool IPSolver::CurvatureTest(const BlockOperator & A,
       {
          if (!A.IsZeroBlock(i, j))
          {
-            Vector &temp = hessian_action.GetBlock(i);
+            Vector &temp = workspace.hessian_action.GetBlock(i);
             A.GetBlock(i, j).Mult(Xhat.GetBlock(j), temp);
             dWd += InnerProduct(comm, Xhat.GetBlock(i), temp);
          }
@@ -1126,7 +1095,7 @@ bool IPSolver::CurvatureTest(const BlockOperator & A,
    real_t lplusTck = -1.0 * InnerProduct(comm, lplus, b.GetBlock(2));
 
    bool passed = (dWd + fmax(-lplusTck,
-                             0.0) >= alphaCurvatureTest * dd);
+                             0.0) >= options.regularization.curvature_tolerance * dd);
    return passed;
 }
 
@@ -1140,19 +1109,19 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
    real_t optimalityError;
 
    /* gradient of Lagrangian */
-   BlockVector &gradL = lagrangian_gradient;
+   BlockVector &gradL = workspace.lagrangian_gradient;
    EvalLagrangianGradient(x, l, zl, gradL);
 
    /* constraint function c(u, m) = 0 */
-   Vector &cx = constraint_residual;
+   Vector &cx = workspace.constraint_residual;
    problem->c(x, cx);
 
    /* regularized complementarity
     * |z_i * m_i - mu| */
    real_t complementarityLoc =
-      LocalComplementarityError(x, zl, mu, reduce_workspace);
+      LocalComplementarityError(x, zl, mu, workspace.reduction);
 
-   BlockVector &MxinvgradL = scaled_gradient;
+   BlockVector &MxinvgradL = workspace.scaled_gradient;
    MxinvgradL.Set(1.0, gradL);
    MxinvgradL.SyncToBlocks();
    MxinvgradL.GetBlock(0) /= Mvlump;
@@ -1160,12 +1129,12 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
    MxinvgradL.SyncFromBlocks();
    stationarityError = sqrt(InnerProduct(comm, gradL, MxinvgradL));
    feasibilityError = GlobalLpNorm(infinity(),
-                                   FiniteNormlinf(cx, reduce_workspace), comm);
+                                   FiniteNormlinf(cx, workspace.reduction), comm);
    complementarityError = GlobalLpNorm(infinity(), complementarityLoc, comm);
 
-   stationarity_error = stationarityError;
-   feasibility_error = feasibilityError;
-   complementarity_error = complementarityError;
+   state.stationarity_error = stationarityError;
+   state.feasibility_error = feasibilityError;
+   state.complementarity_error = complementarityError;
 
 
    optimalityError = std::max(std::max(stationarityError, feasibilityError),
@@ -1175,9 +1144,9 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
    {
       optimalityError = infinity();
    }
-   optimality_error = optimalityError;
+   state.optimality_error = optimalityError;
 
-   if (myid == 0 && print_level > 0)
+   if (myid == 0 && options.print_level > 0)
    {
       mfem::out << "evaluating optimality error for mu = " << mu << std::endl;
       mfem::out << "stationarity error = " << stationarityError << std::endl;

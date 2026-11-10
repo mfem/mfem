@@ -77,41 +77,41 @@ public:
    void Mult(const BlockVector&, BlockVector&);
 
    /// Set absolute tolerance
-   void SetTol(real_t tol) {abs_tol = tol;}
+   void SetTol(real_t tol) {options.abs_tol = tol;}
 
    /// Set maximum number of interior-point steps
-   void SetMaxIter(int max_it) {max_iter = max_it;}
+   void SetMaxIter(int max_it) {options.max_iterations = max_it;}
 
    /// Set linear solver
    void SetLinearSolver(Solver * solver_) { solver = solver_; };
 
    /// Set print level
-   void SetPrintLevel(int print_level_) { print_level = print_level_; };
+   void SetPrintLevel(int print_level_) { options.print_level = print_level_; };
 
    /// Print one table row for each completed iterative linear solve.
    void SetPrintLinearSolverStatistics(bool print)
-   { print_linear_solver_statistics = print; }
+   { options.print_linear_solver_statistics = print; }
 
    /// Get convergence status of most recent Mult call
-   bool GetConverged() const {return converged;}
+   bool GetConverged() const {return state.converged;}
 
    /// Reason the most recent solve stopped.
    const char *GetTerminationReason() const;
 
    /// Typed status of the most recent solve.
-   TerminationStatus GetTerminationStatus() const { return termination_status; }
+   TerminationStatus GetTerminationStatus() const { return state.termination_status; }
 
    /// Final stationarity, equality feasibility, and complementarity errors.
-   real_t GetStationarityError() const { return stationarity_error; }
-   real_t GetFeasibilityError() const { return feasibility_error; }
-   real_t GetComplementarityError() const { return complementarity_error; }
-   real_t GetOptimalityError() const { return optimality_error; }
+   real_t GetStationarityError() const { return state.stationarity_error; }
+   real_t GetFeasibilityError() const { return state.feasibility_error; }
+   real_t GetComplementarityError() const { return state.complementarity_error; }
+   real_t GetOptimalityError() const { return state.optimality_error; }
 
    /// get number of interior-point iterations of most recent Mult call
-   int GetNumIterations() {return iter;};
+   int GetNumIterations() {return state.newton_solves;};
 
    /// Get solver iteration counts
-   Array<int> & GetLinearSolverIterations() {return lin_solver_iterations;};
+   Array<int> & GetLinearSolverIterations() {return state.linear_iterations;};
 
    virtual ~IPSolver() = default;
 protected:
@@ -121,70 +121,74 @@ protected:
    /// Linear solver (not owned)
    Solver * solver = nullptr;
 
-   real_t abs_tol;
-   int  max_iter;
-   int  iter=0;
-   real_t mu_k;
+   /// Configuration remains fixed during a solve, except through setters.
+   struct Options
+   {
+      real_t abs_tol = 1.e-2;
+      int max_iterations = 20;
+      int print_level = 0;
+      bool print_linear_solver_statistics = false;
 
-   /// interior-point algorithm parameters
-   real_t kSig, tauMin, eta, thetaMin, delta, sTheta, sPhi, kMu, thetaMu;
-   real_t thetaMax, gTheta, gPhi, kEps;
+      struct LineSearch
+      {
+         real_t fraction_to_boundary = 0.99;
+         real_t armijo_factor = 1.e-4;
+         real_t sufficient_progress_factor = 1.0;
+         real_t violation_power = 1.1;
+         real_t objective_power = 2.3;
+         real_t violation_decrease = 1.e-5;
+         real_t objective_decrease = 1.e-5;
+         int max_backtracks = 20;
+      } line_search;
 
-   // filter
-   Array<real_t> F1, F2;
+      struct Barrier
+      {
+         real_t reduction_factor = 0.2;
+         real_t reduction_power = 1.5;
+         real_t subproblem_tolerance_factor = 1.e1;
+         real_t multiplier_deviation = 1.e10;
+      } barrier;
 
-   // The filter policy retains the last evaluated Armijo test, including
-   // across Mult calls. Trials using the feasibility criterion do not change it.
-   bool last_armijo_sufficient_decrease = false;
+      struct Regularization
+      {
+         real_t curvature_tolerance = 1.e-11;
+         real_t minimum = 1.e-20;
+         real_t maximum = 1.e40;
+         real_t initial = 1.e-4;
+         real_t decrease_factor = 1. / 3.;
+         real_t initial_increase_factor = 1.e2;
+         real_t increase_factor = 8.;
+         int max_curvature_tests = 30;
+      } regularization;
+   } options;
 
+   /// Evolving state. Barrier, filter, regularization and Armijo history retain
+   /// their existing lifetime across Mult calls; per-call results reset in Mult.
+   struct SolveState
+   {
+      int newton_solves = 0;
+      real_t barrier_parameter = 1.0;
+      real_t filter_min_violation = 1.e-4;
+      real_t filter_max_violation = 1.e6;
+      real_t last_regularization = 0.0;
+      Array<real_t> filter_theta, filter_phi;
+      bool last_armijo_sufficient_decrease = false;
+      Array<int> linear_iterations;
+      bool converged = false;
+      TerminationStatus termination_status = TerminationStatus::NotRun;
+      real_t stationarity_error = infinity();
+      real_t feasibility_error = infinity();
+      real_t complementarity_error = infinity();
+      real_t optimality_error = infinity();
+   } state;
+
+   /// Problem dimensions, partitions and fixed lumped mass weights.
    int dimU, dimM, dimC;
    Array<int> constraint_offsets;
    Array<int> block_offsetsumlz, block_offsetsuml, block_offsetsx;
-
-   /// Objective Hessians (not owned).
-   HypreParMatrix * Huu = nullptr;
-   HypreParMatrix * Hmm = nullptr;
-
-   /// Regularized Hessian blocks (owned).
-   std::unique_ptr<HypreParMatrix> Wuu;
-   std::unique_ptr<HypreParMatrix> Wmm;
-
-   /// Constraint Jacobians and transpose (owned by the problem).
-   HypreParMatrix * Ju = nullptr;
-   HypreParMatrix * Jm = nullptr;
-   HypreParMatrix * JuT = nullptr;
-
-   /// Lumped masses
-   Vector Mcslump;
-   Vector Mvlump;
-   Vector Mlump;
-
-   /// inertia-regularization parameters
-   real_t alphaCurvatureTest;
-   real_t deltaRegLast;
-   real_t deltaRegMin;
-   real_t deltaRegMax;
-   real_t deltaReg0;
-
-   /// inertia-regularization rate parameters
-   real_t kRegMinus;
-   real_t kRegBarPlus;
-   real_t kRegPlus;
-
-   Array<int> lin_solver_iterations;
-
-   bool converged = false;
-   TerminationStatus termination_status = TerminationStatus::NotRun;
-   real_t stationarity_error = infinity();
-   real_t feasibility_error = infinity();
-   real_t complementarity_error = infinity();
-   real_t optimality_error = infinity();
+   Vector Mcslump, Mvlump, Mlump;
 
    int myid = -1;
-
-   /// print level, 0: no printing, > 0 various solver progress output is shown
-   int print_level = 0;
-   bool print_linear_solver_statistics = false;
    MPI_Comm comm;
 private:
    /// One owning vector for displacement, slack and both multipliers. The
@@ -238,15 +242,26 @@ private:
       bool armijo_sufficient_decrease = false;
    };
 
-   /// Scratch storage sized once from the problem dimensions. Keep the
-   /// objective and Lagrangian gradients separate: OptimalityError evaluates both.
-   BlockVector newton_rhs, objective_gradient, lagrangian_gradient;
-   BlockVector scaled_gradient, hessian_action;
-   BlockVector line_search_trial, line_search_gradient;
-   Vector barrier_diagonal, regularization_diagonal;
-   Vector reduced_rhs, slack_work, multiplier_sum;
-   Vector constraint_residual, weighted_constraints;
-   Array<real_t> reduce_workspace;
+   /// Reusable storage sized from the problem. Owned matrices are distinct
+   /// from borrowed objective Hessians and constraint operators.
+   struct Workspace
+   {
+      HypreParMatrix *Huu = nullptr;
+      HypreParMatrix *Hmm = nullptr;
+      HypreParMatrix *Ju = nullptr;
+      HypreParMatrix *Jm = nullptr;
+      HypreParMatrix *JuT = nullptr;
+      std::unique_ptr<HypreParMatrix> Wuu, Wmm;
+
+      // OptimalityError evaluates both gradients; keep separate buffers.
+      BlockVector newton_rhs, objective_gradient, lagrangian_gradient;
+      BlockVector scaled_gradient, hessian_action;
+      BlockVector line_search_trial, line_search_gradient;
+      Vector barrier_diagonal, regularization_diagonal;
+      Vector reduced_rhs, slack_work, multiplier_sum;
+      Vector constraint_residual, weighted_constraints;
+      Array<real_t> reduction;
+   } workspace;
 
    /// Update the barrier until the subproblem needs another Newton step.
    void UpdateBarrierForIterate(PrimalDualVector&, int max_updates);
@@ -311,11 +326,15 @@ private:
    /// Update the barrier parameter
    void UpdateBarrierSubProblem()
    {
+      const auto &barrier = options.barrier;
+      const real_t mu = state.barrier_parameter;
       // reduced barrier parameter
-      mu_k = std::max(abs_tol / 10., std::min(kMu * mu_k, pow(mu_k, thetaMu)));
+      state.barrier_parameter = std::max(options.abs_tol / 10.,
+                                         std::min(barrier.reduction_factor * mu,
+                                                  pow(mu, barrier.reduction_power)));
       // clear subproblem filter
-      F1.DeleteAll();
-      F2.DeleteAll();
+      state.filter_theta.DeleteAll();
+      state.filter_phi.DeleteAll();
    }
 };
 
