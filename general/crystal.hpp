@@ -475,143 +475,6 @@ public:
 
 
 
-/** @brief Field Class for mfem::ParticleVector  */
-class ParticleVectorField : public Field
-{
-   mfem::ParticleVector *pv;
-   /// keeps a reference to local host_buf alive, if using device
-   std::shared_ptr<mfem::ParticleVector> own;
-
-public:
-   /** @brief mfem::PV -> CR::PVField constructor
-
-       @param[in,out] pv_  ParticleVector to wrap */
-   ParticleVectorField(mfem::ParticleVector &pv_) : pv(&pv_) { }
-
-   /// @copydoc Field::GetNumParticles
-   int              GetNumParticles() const override           { return pv->GetNumParticles(); }
-   /// @copydoc Field::GetParticleBytes
-   std::size_t      GetParticleBytes() const override       { return (std::size_t)pv->GetVDim() * sizeof(real_t); }
-
-   /// @copydoc Field::ToHost
-   std::unique_ptr<Field> ToHost(const mfem::Array<int> &leaving_idx) override {
-      const bool use_dev = Device::IsEnabled() && pv->UseDevice();
-      const int n_particles = GetNumParticles();
-      const int n_leaving = leaving_idx.Size();
-      const int vd = pv->GetVDim();
-      const Ordering::Type col_ordering = pv->GetOrdering();
-
-      auto host_buf = std::make_shared<mfem::ParticleVector>(vd, col_ordering, n_leaving);
-      host_buf->UseDevice(use_dev);
-      if (n_leaving > 0) {
-         const real_t *old_data = pv->Read(use_dev);
-         const int *leaving_idx_data = leaving_idx.Read(use_dev);
-         real_t *host_buf_data = host_buf->Write(use_dev);
-
-         mfem::forall_switch(use_dev, n_leaving, [=] MFEM_HOST_DEVICE (int k) {
-            const int particle = leaving_idx_data[k];
-            for (int comp = 0; comp < vd; comp++) {
-               const int to = internal::ElemIndex(k, comp, n_leaving, vd, col_ordering);
-               const int from = internal::ElemIndex(particle, comp, n_particles, vd, col_ordering);
-               host_buf_data[to] = old_data[from];
-            }
-         });
-      }
-
-      host_buf->HostReadWrite();
-      host_buf->UseDevice(false);
-
-      // return new field, shared own pointer to local host buffer to keep it "alive"
-      auto host_field = std::make_unique<ParticleVectorField>(*host_buf);
-      host_field->own = host_buf;
-      return host_field;
-   }
-
-
-   /** @copydoc Field::ToDevice
-
-       @note n_particles is the *old* count of particles pre routing,
-             required for indexing
-       @note new_n_particles is the new count of particles including those
-             that arrived from router and didnt get moved */
-   void ToDevice(const mfem::Array<int> &staying_idx, Field &arrivals) override {
-      const mfem::ParticleVector &arrival_pv = *static_cast<ParticleVectorField&>(arrivals).pv;
-      const bool use_dev = Device::IsEnabled() && pv->UseDevice();
-      const int n_particles = GetNumParticles();
-      const int n_staying = staying_idx.Size();
-      const int n_arrivals = arrival_pv.GetNumParticles();
-      const int new_n_particles = n_staying + n_arrivals;
-
-      const int vd = pv->GetVDim();
-      const Ordering::Type col_ordering = pv->GetOrdering();
-
-      mfem::Vector new_col;
-      // keep the old capacity, only the size shrinks
-      new_col.SetSize(std::max(pv->Capacity(), new_n_particles*vd),
-                      pv->GetMemory().GetMemoryType());
-      new_col.SetSize(new_n_particles*vd);
-      new_col.UseDevice(pv->UseDevice());
-
-      // if nothing stays -> local buffer + indices should be empty
-      // if nothing arrived -> arriving appending buffer should be empty
-      if (new_n_particles > 0) {
-         const real_t *old_data = n_staying > 0 ? pv->Read(use_dev) : nullptr;
-         const int *staying_idx_data = n_staying > 0 ? staying_idx.Read(use_dev) : nullptr;
-         const real_t *arrival_data = n_arrivals > 0 ? arrival_pv.Read(use_dev) : nullptr;
-         real_t *new_data = new_col.Write(use_dev);
-         // staying -> kept in original order
-         // arrivals -> appended to the end
-         mfem::forall_switch(use_dev, new_n_particles,
-                             [=] MFEM_HOST_DEVICE (int slot) {
-            for (int comp = 0; comp < vd; comp++) {
-               const int to = internal::ElemIndex(slot, comp, new_n_particles, vd, col_ordering);
-               if (slot < n_staying) {
-                  const int from = internal::ElemIndex(staying_idx_data[slot], comp, n_particles, vd, col_ordering);
-                  new_data[to] = old_data[from];
-               }
-               else {
-                  const int from = internal::ElemIndex(slot - n_staying, comp, n_arrivals, vd, col_ordering);
-                  new_data[to] = arrival_data[from];
-               }
-            }
-         });
-      }
-      // swaps data + size only; vdim/ordering stay on pv
-      pv->Swap(new_col);
-   }
-
-   /// @copydoc Field::Pack
-   void Pack(int i, char *dst) const override {
-      const int vd = pv->GetVDim();
-      for (int c = 0; c < vd; c++) {
-         const real_t v = (*pv)(i, c);
-         std::memcpy(dst + (std::size_t)c*sizeof(real_t), &v, sizeof(real_t));
-      }
-   }
-   /// @copydoc Field::Unpack
-   void Unpack(int i, const char *src) override {
-      const int vd = pv->GetVDim();
-      for (int c = 0; c < vd; c++) {
-         real_t v;
-         std::memcpy(&v, src + (std::size_t)c*sizeof(real_t), sizeof(real_t));
-         (*pv)(i, c) = v;
-      }
-   }
-   /// @copydoc Field::Copy
-   void Copy(int src, int dst) override {
-      const int vd = pv->GetVDim();
-      for (int c = 0; c < vd; c++) { (*pv)(dst, c) = (*pv)(src, c); }
-   }
-   /// @copydoc Field::SetNumParticles
-   void SetNumParticles(int n) override { pv->SetNumParticles(n, true); }
-};
-
-
-
-
-
-
-
 /** @brief One or more Fields grouped together as a single argument to
     CrystalRouter::Route()
 */
@@ -641,14 +504,16 @@ inline internal::FieldGroup Vector(mfem::Vector &v, int vdim = 1,
 }
 
 inline internal::FieldGroup ParticleVector(mfem::ParticleVector &pv) {
-   return {{std::make_shared<internal::ParticleVectorField>(pv)}};
+   return {{std::make_shared<internal::VectorField>(pv, pv.GetVDim(),
+                                                    pv.GetOrdering())}};
 }
 
 inline internal::FieldGroup ParticleVector(
    const std::vector<std::unique_ptr<mfem::ParticleVector>> &pvs) {
    internal::FieldGroup g;
    for (const auto &p : pvs) {
-      g.cols.push_back(std::make_shared<internal::ParticleVectorField>(*p));
+      g.cols.push_back(std::make_shared<internal::VectorField>(
+         *p, p->GetVDim(), p->GetOrdering()));
    }
    return g;
 }
