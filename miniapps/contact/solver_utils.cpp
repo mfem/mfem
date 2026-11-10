@@ -85,9 +85,10 @@ static ParallelDirectSolver::Type ParseType(const std::string &name_in)
    return ParallelDirectSolver::Type::AUTO; // unreachable
 }
 
-#ifdef MFEM_USE_CUDSS
-static bool CanUseCuDSS(MPI_Comm comm)
+bool ParallelDirectSolver::CanUseCuDSS(MPI_Comm comm)
 {
+   (void) comm;
+#ifdef MFEM_USE_CUDSS
    if (!Device::Allows(Backend::CUDA_MASK)) { return false; }
 #if defined(OMPI_HAVE_MPI_EXT_CUDA) && OMPI_HAVE_MPI_EXT_CUDA
    int ranks;
@@ -95,8 +96,10 @@ static bool CanUseCuDSS(MPI_Comm comm)
    if (ranks > 1 && !MPIX_Query_cuda_support()) { return false; }
 #endif
    return true;
-}
+#else
+   return false;
 #endif
+}
 
 ParallelDirectSolver::ParallelDirectSolver(MPI_Comm comm_, Type type_)
    : type(type_), comm(comm_)

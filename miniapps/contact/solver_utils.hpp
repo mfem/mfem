@@ -66,6 +66,9 @@ public:
       CUDSS
    };
 
+   /// Whether cuDSS is built and supported by the active device and MPI setup.
+   static bool CanUseCuDSS(MPI_Comm comm);
+
 private:
    /// Selected solver type
    Type type;

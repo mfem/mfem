@@ -56,6 +56,7 @@
 
 #include "mfem.hpp"
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -392,7 +393,8 @@ int main(int argc, char *argv[])
                   "--no-amgf", "Enable or disable AMG with Filtering solver.");
    args.AddOption(&amgf_fsolver, "-amgf-fsolver", "--amgf-filtered-solver",
                   "Direct solver for AMGF filtered subspace.\n"
-                  "Choices: auto, mumps, cpardiso, superlu, strumpack, cudss.");
+                  "Choices: auto, mumps, cpardiso, superlu, strumpack, cudss "
+                  "(CUDA only; use auto on CPU or HIP).");
    args.AddOption(&amg_coarsen_type, "-amg-coarsen-type",
                   "--amg-coarsen-type",
                   "BoomerAMG coarsening type.");
@@ -445,12 +447,32 @@ int main(int argc, char *argv[])
       mfem::out.Disable();
       mfem::err.Disable();
    }
+   Device device(device_config);
+   if (amgf)
+   {
+      std::string solver_name(amgf_fsolver);
+      for (char &c : solver_name)
+      {
+         c = std::tolower(static_cast<unsigned char>(c));
+      }
+      if (solver_name == "cudss" &&
+          !ParallelDirectSolver::CanUseCuDSS(MPI_COMM_WORLD))
+      {
+         if (myid == 0)
+         {
+            mfem::err.Enable();
+            mfem::err << "cuDSS requires MFEM_USE_CUDSS, an active CUDA device "
+                      << "(-d cuda), and CUDA-aware MPI for multiple ranks.\n"
+                      << "Use -amgf-fsolver auto to select an available solver "
+                      << "on CPU or HIP.\n";
+         }
+         return 1;
+      }
+   }
    if (myid == 0 && print_level >= 2)
    {
       args.PrintOptions(cout);
    }
-
-   Device device(device_config);
    if (myid == 0 && print_level >= 2) { device.Print(); }
 
    // Validate selection and convert to enum.
