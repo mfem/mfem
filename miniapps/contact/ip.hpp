@@ -121,7 +121,6 @@ protected:
    int  max_iter;
    int  iter=0;
    real_t mu_k;
-   Vector lk, zlk;
 
    /// interior-point algorithm parameters
    real_t kSig, tauMin, eta, thetaMin, delta, sTheta, sPhi, kMu, thetaMu;
@@ -183,6 +182,37 @@ protected:
    int print_level = 0;
    MPI_Comm comm;
 private:
+   /// One owning vector for displacement, slack and both multipliers. The
+   /// primal and Newton vectors are views of its first two and three blocks.
+   class PrimalDualVector
+   {
+      BlockVector values, primal, newton;
+
+   public:
+      PrimalDualVector(const Array<int> &state_offsets,
+                       const Array<int> &primal_offsets,
+                       const Array<int> &newton_offsets);
+      PrimalDualVector(const PrimalDualVector&) = delete;
+      PrimalDualVector &operator=(const PrimalDualVector&) = delete;
+
+      Vector &Displacement() { return values.GetBlock(0); }
+      Vector &Slack() { return values.GetBlock(1); }
+      Vector &EqualityMultiplier() { return values.GetBlock(2); }
+      Vector &InequalityMultiplier() { return values.GetBlock(3); }
+      const Vector &Displacement() const { return values.GetBlock(0); }
+      const Vector &Slack() const { return values.GetBlock(1); }
+      const Vector &EqualityMultiplier() const { return values.GetBlock(2); }
+      const Vector &InequalityMultiplier() const { return values.GetBlock(3); }
+      BlockVector &Primal() { return primal; }
+      const BlockVector &Primal() const { return primal; }
+      BlockVector &Newton() { return newton; }
+
+      void Reset();
+      void SyncToViews() const;
+      void SyncFromBlocks() const;
+      void SyncFromNewton() const;
+   };
+
    /// Outcome of the reduced solve and its curvature test.
    struct NewtonResult
    {
@@ -207,7 +237,6 @@ private:
    /// objective and Lagrangian gradients separate: OptimalityError evaluates both.
    BlockVector newton_rhs, objective_gradient, lagrangian_gradient;
    BlockVector scaled_gradient, hessian_action;
-   BlockVector line_search_point, line_search_direction;
    BlockVector line_search_trial, line_search_gradient;
    Vector barrier_diagonal, regularization_diagonal;
    Vector reduced_rhs, slack_work, multiplier_sum;
@@ -219,14 +248,15 @@ private:
                         real_t delta = 0.0);
 
    /// Solve the (regularized) IP-Newton linear system
-   NewtonResult IPNewtonSolve(BlockVector&, Vector&, Vector&, Vector&,
-                              BlockVector&, real_t, real_t delta = 0.0);
+   NewtonResult IPNewtonSolve(PrimalDualVector&, PrimalDualVector&,
+                              real_t, real_t delta = 0.0);
 
    /// Max step length that satisfies fraction-to-boundary rule
    real_t GetMaxStepSize(const Vector&, const Vector&, real_t);
 
    /// Globalizing line search
-   LineSearchResult LineSearch(BlockVector&, BlockVector&, real_t,
+   LineSearchResult LineSearch(const PrimalDualVector&, const PrimalDualVector&,
+                               real_t,
                                bool previous_armijo_sufficient_decrease);
 
    /// check if a point is acceptable to the filter

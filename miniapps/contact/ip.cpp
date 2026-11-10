@@ -295,16 +295,12 @@ IPSolver::IPSolver(OptContactProblem * problem_)
       block_offsetsx[i] = block_offsetsuml[i] ;
    }
 
-   lk.SetSize(dimC);  lk.UseDevice(true);  lk  = 0.0;
-   zlk.SetSize(dimM); zlk.UseDevice(true); zlk = 0.0;
-
    newton_rhs.Update(block_offsetsuml);
    EnableDevice(newton_rhs);
    for (BlockVector *v :
         {
            &objective_gradient, &lagrangian_gradient,
            &scaled_gradient, &hessian_action,
-           &line_search_point, &line_search_direction,
            &line_search_trial, &line_search_gradient
         })
    {
@@ -327,6 +323,47 @@ IPSolver::IPSolver(OptContactProblem * problem_)
    }
 
    MPI_Comm_rank(comm, &myid);
+}
+
+IPSolver::PrimalDualVector::PrimalDualVector(
+   const Array<int> &state_offsets, const Array<int> &primal_offsets,
+   const Array<int> &newton_offsets)
+   : values(state_offsets), primal(values, primal_offsets),
+     newton(values, newton_offsets)
+{
+   EnableDevice(values);
+   EnableDevice(primal);
+   EnableDevice(newton);
+   Reset();
+}
+
+void IPSolver::PrimalDualVector::Reset()
+{
+   values = 0.0;
+   SyncToViews();
+}
+
+void IPSolver::PrimalDualVector::SyncToViews() const
+{
+   values.SyncToBlocks();
+   primal.SyncMemory(values);
+   primal.SyncToBlocks();
+   newton.SyncMemory(values);
+   newton.SyncToBlocks();
+}
+
+void IPSolver::PrimalDualVector::SyncFromBlocks() const
+{
+   values.SyncFromBlocks();
+   SyncToViews();
+}
+
+void IPSolver::PrimalDualVector::SyncFromNewton() const
+{
+   // Propagate writes through the Newton view before refreshing other aliases.
+   newton.SyncFromBlocks();
+   newton.SyncAliasMemory(values);
+   SyncToViews();
 }
 
 void IPSolver::Mult(const Vector &x0, Vector &xf)
@@ -365,21 +402,16 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
    lin_solver_iterations.SetSize(0);
    termination_status = TerminationStatus::MaximumIterations;
    x0.SyncToBlocks();
-   BlockVector xk(block_offsetsx), xhat(block_offsetsx);
-   EnableDevice(xk); EnableDevice(xhat); xk = 0; xhat = 0.0;
-   BlockVector Xk(block_offsetsumlz), Xhat(block_offsetsumlz);
-   EnableDevice(Xk); EnableDevice(Xhat); Xk = 0.0;
-   Xhat = 0.0;
-   BlockVector Xhatuml(block_offsetsuml); EnableDevice(Xhatuml); Xhatuml = 0.0;
-   Vector zlhat(dimM); zlhat.UseDevice(true); zlhat = 0.0;
+   PrimalDualVector iterate(block_offsetsumlz, block_offsetsx, block_offsetsuml);
+   PrimalDualVector direction(block_offsetsumlz, block_offsetsx,
+                              block_offsetsuml);
+   BlockVector &xk = iterate.Primal();
+   Vector &lk = iterate.EqualityMultiplier();
+   Vector &zlk = iterate.InequalityMultiplier();
 
-   xk.GetBlock(0).Set(1.0, x0.GetBlock(0));
-   xk.GetBlock(1).Set(1.0, x0.GetBlock(1));
-   // running estimate of the final values of the Lagrange multipliers
-   lk  = 0.0;
-   zlk = 0.0;
-
-   xk.SyncFromBlocks();
+   iterate.Displacement().Set(1.0, x0.GetBlock(0));
+   iterate.Slack().Set(1.0, x0.GetBlock(1));
+   iterate.SyncFromBlocks();
    const int dim_u = dimU;
    const real_t mu = mu_k;
    const real_t *xk_d = xk.Read();
@@ -389,10 +421,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       zlk_d[i] = 1.e1 * mu / xk_d[i + dim_u];
    });
 
-   Xk.GetBlock(0).Set(1.0, xk.GetBlock(0));
-   Xk.GetBlock(1).Set(1.0, xk.GetBlock(1));
-   Xk.GetBlock(2).Set(1.0, lk);
-   Xk.GetBlock(3).Set(1.0, zlk);
+   iterate.SyncFromBlocks();
 
    /* set theta0 = theta(x0)
     *     thetaMin
@@ -459,9 +488,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
 
       // Compute the search direction
       // solve for (uhat, mhat, lhat)
-      zlhat = 0.0; Xhatuml = 0.0;
-
-      NewtonResult newton = IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k);
+      NewtonResult newton = IPNewtonSolve(iterate, direction, mu_k);
       if (!newton.converged)
       {
          termination_status = TerminationStatus::LinearSolverFailed;
@@ -487,8 +514,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
          }
 
          // solve regularized IP-Newton linear system
-         zlhat = 0.0; Xhatuml = 0.0;
-         newton = IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, deltaReg);
+         newton = IPNewtonSolve(iterate, direction, mu_k, deltaReg);
 
          for (int numCurvatureTests = 0; numCurvatureTests < maxCurvatureTests;
               numCurvatureTests++)
@@ -519,8 +545,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
                }
             }
             // solve with regularization
-            zlhat = 0.0; Xhatuml = 0.0;
-            newton = IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, deltaReg);
+            newton = IPNewtonSolve(iterate, direction, mu_k, deltaReg);
          }
          if (!newton.converged || !newton.passed_curvature_test)
          {
@@ -531,28 +556,12 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
          }
       }
 
-      Xk = 0.0;
-      Xk.GetBlock(0).Set(1.0, xk.GetBlock(0));
-      Xk.GetBlock(1).Set(1.0, xk.GetBlock(1));
-      Xk.GetBlock(2).Set(1.0, lk);
-      Xk.GetBlock(3).Set(1.0, zlk);
-      Xk.SyncFromBlocks();
-
-      Xhat = 0.0;
-      Xhat.SyncToBlocks();
-      for (int i = 0; i < 3; i++)
-      {
-         Xhat.GetBlock(i).Set(1.0, Xhatuml.GetBlock(i));
-      }
-      Xhat.GetBlock(3).Set(1.0, zlhat);
-      Xhat.SyncFromBlocks();
-
       if (myid == 0 && print_level > 0)
       {
          mfem::out << "mu = " << mu_k << std::endl;
       }
       const LineSearchResult search = LineSearch(
-         Xk, Xhat, mu_k, last_armijo_sufficient_decrease);
+         iterate, direction, mu_k, last_armijo_sufficient_decrease);
       last_armijo_sufficient_decrease = search.armijo_sufficient_decrease;
 
       if (search.accepted)
@@ -567,12 +576,14 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
             F2.Append(search.filter_phi);
          }
          // Accept the trial point
-         xk.GetBlock(0).Add(search.primal_step, Xhat.GetBlock(0));
-         xk.GetBlock(1).Add(search.primal_step, Xhat.GetBlock(1));
-         lk.Add(search.primal_step, Xhat.GetBlock(2));
-         zlk.Add(search.multiplier_step, Xhat.GetBlock(3));
-         xk.SyncFromBlocks();
+         iterate.Displacement().Add(search.primal_step,
+                                     direction.Displacement());
+         iterate.Slack().Add(search.primal_step, direction.Slack());
+         lk.Add(search.primal_step, direction.EqualityMultiplier());
+         zlk.Add(search.multiplier_step, direction.InequalityMultiplier());
+         iterate.SyncFromBlocks();
          ProjectZ(xk, zlk, mu_k);
+         iterate.SyncFromBlocks();
       }
       else
       {
@@ -675,10 +686,16 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
 // perturbed KKT system solve
 // determine the search direction
 IPSolver::NewtonResult IPSolver::IPNewtonSolve(
-   BlockVector &x, Vector &l, Vector &zl, Vector &zlhat, BlockVector &Xhat,
-   real_t mu, real_t delta)
+   PrimalDualVector &iterate, PrimalDualVector &direction, real_t mu, real_t delta)
 {
    iter++;
+   iterate.SyncToViews();
+   direction.Reset();
+   BlockVector &x = iterate.Primal();
+   Vector &l = iterate.EqualityMultiplier();
+   Vector &zl = iterate.InequalityMultiplier();
+   Vector &zlhat = direction.InequalityMultiplier();
+   BlockVector &Xhat = direction.Newton();
    // solve A x = b, where A is the IP-Newton matrix
    BlockOperator A(block_offsetsuml, block_offsetsuml);
    BlockVector &b = newton_rhs;
@@ -700,8 +717,6 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    b.SyncFromBlocks();
    b *= -1.0;
    b.SyncToBlocks();
-   Xhat = 0.0;
-   Xhat.SyncToBlocks();
 
    // Include the displacement regularization in the reduced system.
    std::unique_ptr<HypreParMatrix> JuTDJu(RAP(Wmm.get(), Ju)); // Ju^T D Ju
@@ -728,6 +743,7 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    MPI_Allreduce(&local_success, &global_success, 1, MPI_INT, MPI_MIN, comm);
    if (!global_success)
    {
+      direction.SyncFromNewton();
       return {};
    }
 
@@ -739,7 +755,7 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    // xl = Wmm xm - bm
    Wmm->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
    Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
-   Xhat.SyncFromBlocks();
+   direction.SyncFromNewton();
 
    JuTDJu.reset();
    Areduced.reset();
@@ -749,6 +765,7 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    /* backsolve to determine zlhat */
    x.SyncFromBlocks();
    ComputeMultiplierDirection(x, Xhat, zl, mu, zlhat);
+   direction.SyncFromBlocks();
    local_success = IsFinite(FiniteNormlinf(Xhat, reduce_workspace)) &&
                    IsFinite(FiniteNormlinf(zlhat, reduce_workspace));
    MPI_Allreduce(&local_success, &global_success, 1, MPI_INT, MPI_MIN, comm);
@@ -770,7 +787,7 @@ real_t IPSolver::GetMaxStepSize(const Vector &x, const Vector &xhat,
  * subproblem with barrier parameter \mu
  */
 IPSolver::LineSearchResult IPSolver::LineSearch(
-   BlockVector &X0, BlockVector &Xhat, real_t mu,
+   const PrimalDualVector &X0, const PrimalDualVector &Xhat, real_t mu,
    bool previous_armijo_sufficient_decrease)
 {
    LineSearchResult result;
@@ -780,29 +797,18 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
    bool switchCondition = false;
    int eval_err = 0;
    real_t tau  = std::max(tauMin, 1.0 - mu);
-   const Vector &u0   = X0.GetBlock(0);
-   const Vector &m0   = X0.GetBlock(1);
-   const Vector &z0   = X0.GetBlock(3);
-   const Vector &uhat = Xhat.GetBlock(0);
-   const Vector &mhat = Xhat.GetBlock(1);
-   const Vector &zhat = Xhat.GetBlock(3);
+   X0.SyncToViews();
+   Xhat.SyncToViews();
+   const Vector &m0   = X0.Slack();
+   const Vector &z0   = X0.InequalityMultiplier();
+   const Vector &mhat = Xhat.Slack();
+   const Vector &zhat = Xhat.InequalityMultiplier();
    real_t alphaMax  = GetMaxStepSize(m0, mhat, tau);
    real_t alphaMaxz = GetMaxStepSize(z0, zhat, tau);
    result.multiplier_step = alphaMaxz;
 
-   BlockVector &x0 = line_search_point;
-   x0 = 0.0;
-   x0.SyncToBlocks();
-   x0.GetBlock(0).Set(1.0, u0);
-   x0.GetBlock(1).Set(1.0, m0);
-   x0.SyncFromBlocks();
-
-   BlockVector &xhat = line_search_direction;
-   xhat = 0.0;
-   xhat.SyncToBlocks();
-   xhat.GetBlock(0).Set(1.0, uhat);
-   xhat.GetBlock(1).Set(1.0, mhat);
-   xhat.SyncFromBlocks();
+   const BlockVector &x0 = X0.Primal();
+   const BlockVector &xhat = Xhat.Primal();
 
    BlockVector &xtrial = line_search_trial;
    xtrial = 0.0;
