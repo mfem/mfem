@@ -530,6 +530,8 @@ The current list of MFEM editors is:
 
 8. To follow up on PRs they have marked `revisit` after higher-priority work has been completed.
 
+Note: The review process may lead to a new evaluation of a PR, consequently, editors may exercise limited discretion to adjust deadlines, the number of reviewers, labels, etc..
+
 #### Responsibilities of Reviewers
 
 Everyone on the MFEM team can be asked to serve as a reviewer on a PR in their area of expertise.
