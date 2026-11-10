@@ -132,7 +132,9 @@ struct EntityTraits<Entity::BoundaryElement>
       {
          for (int q = 0; q < nq; q++) { s(q, f) = h_signs[f]; }
       }
-      return {VectorQuadratureSpace(*qs, 1), std::move(orientations)};
+
+      VectorQuadratureSpace space(*qs, 1);
+      return {space, std::move(orientations)};
    }
 };
 
