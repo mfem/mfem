@@ -55,6 +55,18 @@ namespace mfem
 class IPSolver
 {
 public:
+   /// Status of the most recent Mult call.
+   enum class TerminationStatus
+   {
+      NotRun,
+      Converged,
+      MaximumIterations,
+      NonfiniteOptimalityError,
+      LinearSolverFailed,
+      CurvatureTestFailed,
+      LineSearchFailed
+   };
+
    /// Construct interior-point solver
    IPSolver(OptContactProblem*);
 
@@ -80,7 +92,10 @@ public:
    bool GetConverged() const {return converged;}
 
    /// Reason the most recent solve stopped.
-   const char *GetTerminationReason() const { return termination_reason; }
+   const char *GetTerminationReason() const;
+
+   /// Typed status of the most recent solve.
+   TerminationStatus GetTerminationStatus() const { return termination_status; }
 
    /// Final stationarity, equality feasibility, and complementarity errors.
    real_t GetStationarityError() const { return stationarity_error; }
@@ -115,13 +130,9 @@ protected:
    // filter
    Array<real_t> F1, F2;
 
-   // quantities computed in lineSearch
-   real_t alpha, alphaz;
-   real_t thx0;
-   real_t phx0;
-   bool switchCondition = false;
-   bool sufficientDecrease = false;
-   bool lineSearchSuccess = false;
+   // The filter policy retains the last evaluated Armijo test, including
+   // across Mult calls. Trials using the feasibility criterion do not change it.
+   bool last_armijo_sufficient_decrease = false;
 
    int dimU, dimM, dimC;
    Array<int> constraint_offsets;
@@ -160,7 +171,7 @@ protected:
    Array<int> lin_solver_iterations;
 
    bool converged = false;
-   const char *termination_reason = "not run";
+   TerminationStatus termination_status = TerminationStatus::NotRun;
    real_t stationarity_error = infinity();
    real_t feasibility_error = infinity();
    real_t complementarity_error = infinity();
@@ -172,6 +183,25 @@ protected:
    int print_level = 0;
    MPI_Comm comm;
 private:
+   /// Outcome of the reduced solve and its curvature test.
+   struct NewtonResult
+   {
+      bool converged = false;
+      bool passed_curvature_test = false;
+   };
+
+   /// The returned filter entry is valid when update_filter is true.
+   struct LineSearchResult
+   {
+      bool accepted = false;
+      real_t primal_step = 0.0;
+      real_t multiplier_step = 0.0;
+      bool update_filter = false;
+      real_t filter_theta = 0.0;
+      real_t filter_phi = 0.0;
+      // Retain the last evaluated Armijo test through non-Armijo trials.
+      bool armijo_sufficient_decrease = false;
+   };
 
    /// Scratch storage sized once from the problem dimensions. Keep the
    /// objective and Lagrangian gradients separate: OptimalityError evaluates both.
@@ -189,14 +219,15 @@ private:
                         real_t delta = 0.0);
 
    /// Solve the (regularized) IP-Newton linear system
-   bool IPNewtonSolve(BlockVector&, Vector&, Vector&, Vector&, BlockVector&,
-                      bool &, real_t, real_t delta = 0.0);
+   NewtonResult IPNewtonSolve(BlockVector&, Vector&, Vector&, Vector&,
+                              BlockVector&, real_t, real_t delta = 0.0);
 
    /// Max step length that satisfies fraction-to-boundary rule
    real_t GetMaxStepSize(const Vector&, const Vector&, real_t);
 
    /// Globalizing line search
-   void LineSearch(BlockVector&, BlockVector&, real_t);
+   LineSearchResult LineSearch(BlockVector&, BlockVector&, real_t,
+                               bool previous_armijo_sufficient_decrease);
 
    /// check if a point is acceptable to the filter
    bool FilterCheck(real_t, real_t);

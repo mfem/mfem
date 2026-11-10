@@ -340,13 +340,30 @@ void IPSolver::Mult(const Vector &x0, Vector &xf)
    xf.Set(1.0, xfblock.GetBlock(0));
 }
 
+const char *IPSolver::GetTerminationReason() const
+{
+   switch (termination_status)
+   {
+      case TerminationStatus::NotRun: return "not run";
+      case TerminationStatus::Converged: return "converged";
+      case TerminationStatus::MaximumIterations:
+         return "maximum optimization iterations";
+      case TerminationStatus::NonfiniteOptimalityError:
+         return "nonfinite optimality error";
+      case TerminationStatus::LinearSolverFailed: return "linear solver failed";
+      case TerminationStatus::CurvatureTestFailed: return "curvature test failed";
+      case TerminationStatus::LineSearchFailed: return "line search failed";
+   }
+   return "not run";
+}
+
 void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
 {
    MFEM_VERIFY(solver, "Set a linear solver before calling IPSolver::Mult.");
    converged = false;
    iter = 0;
    lin_solver_iterations.SetSize(0);
-   termination_reason = "maximum optimization iterations";
+   termination_status = TerminationStatus::MaximumIterations;
    x0.SyncToBlocks();
    BlockVector xk(block_offsetsx), xhat(block_offsetsx);
    EnableDevice(xk); EnableDevice(xhat); xk = 0; xhat = 0.0;
@@ -407,13 +424,13 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       OptErr = OptimalityError(xk, lk, zlk);
       if (!IsFinite(OptErr))
       {
-         termination_reason = "nonfinite optimality error";
+         termination_status = TerminationStatus::NonfiniteOptimalityError;
          break;
       }
       if (OptErr < abs_tol)
       {
          converged = true;
-         termination_reason = "converged";
+         termination_status = TerminationStatus::Converged;
          if (myid == 0 && print_level > 0)
          {
             mfem::out << "solved optimization problem\n";
@@ -444,14 +461,13 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       // solve for (uhat, mhat, lhat)
       zlhat = 0.0; Xhatuml = 0.0;
 
-      bool passedCurvatureTest = false;
-      if (!IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml,
-                         passedCurvatureTest, mu_k))
+      NewtonResult newton = IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k);
+      if (!newton.converged)
       {
-         termination_reason = "linear solver failed";
+         termination_status = TerminationStatus::LinearSolverFailed;
          break;
       }
-      if (!passedCurvatureTest)
+      if (!newton.passed_curvature_test)
       {
          if (myid == 0 && print_level > 0)
          {
@@ -472,18 +488,17 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
 
          // solve regularized IP-Newton linear system
          zlhat = 0.0; Xhatuml = 0.0;
-         bool linear_converged = IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml,
-                                               passedCurvatureTest, mu_k, deltaReg);
+         newton = IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, deltaReg);
 
          for (int numCurvatureTests = 0; numCurvatureTests < maxCurvatureTests;
               numCurvatureTests++)
          {
-            if (!linear_converged) { break; }
+            if (!newton.converged) { break; }
             if (myid == 0 && print_level > 0)
             {
                mfem::out << "deltaReg = " << deltaReg << std::endl;
             }
-            if (passedCurvatureTest)
+            if (newton.passed_curvature_test)
             {
                deltaRegLast = deltaReg;
                break;
@@ -505,13 +520,13 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
             }
             // solve with regularization
             zlhat = 0.0; Xhatuml = 0.0;
-            linear_converged = IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml,
-                                             passedCurvatureTest, mu_k, deltaReg);
+            newton = IPNewtonSolve(xk, lk, zlk, zlhat, Xhatuml, mu_k, deltaReg);
          }
-         if (!linear_converged || !passedCurvatureTest)
+         if (!newton.converged || !newton.passed_curvature_test)
          {
-            termination_reason = linear_converged ? "curvature test failed"
-                                 : "linear solver failed";
+            termination_status = newton.converged
+                                 ? TerminationStatus::CurvatureTestFailed
+                                 : TerminationStatus::LinearSolverFailed;
             break;
          }
       }
@@ -536,24 +551,26 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       {
          mfem::out << "mu = " << mu_k << std::endl;
       }
-      LineSearch(Xk, Xhat, mu_k);
+      const LineSearchResult search = LineSearch(
+         Xk, Xhat, mu_k, last_armijo_sufficient_decrease);
+      last_armijo_sufficient_decrease = search.armijo_sufficient_decrease;
 
-      if (lineSearchSuccess)
+      if (search.accepted)
       {
          if (myid == 0 && print_level > 0)
          {
             mfem::out << "lineSearch successful\n";
          }
-         if (!switchCondition || !sufficientDecrease)
+         if (search.update_filter)
          {
-            F1.Append( (1. - gTheta) * thx0);
-            F2.Append( phx0 - gPhi * thx0);
+            F1.Append(search.filter_theta);
+            F2.Append(search.filter_phi);
          }
          // Accept the trial point
-         xk.GetBlock(0).Add(alpha, Xhat.GetBlock(0));
-         xk.GetBlock(1).Add(alpha, Xhat.GetBlock(1));
-         lk.Add(alpha,   Xhat.GetBlock(2));
-         zlk.Add(alphaz, Xhat.GetBlock(3));
+         xk.GetBlock(0).Add(search.primal_step, Xhat.GetBlock(0));
+         xk.GetBlock(1).Add(search.primal_step, Xhat.GetBlock(1));
+         lk.Add(search.primal_step, Xhat.GetBlock(2));
+         zlk.Add(search.multiplier_step, Xhat.GetBlock(3));
          xk.SyncFromBlocks();
          ProjectZ(xk, zlk, mu_k);
       }
@@ -564,7 +581,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
             mfem::out << "lineSearch not successful\n";
          }
          converged = false;
-         termination_reason = "line search failed";
+         termination_status = TerminationStatus::LineSearchFailed;
          break;
       }
       if (j + 1 == max_iter && myid == 0 && print_level > 0)
@@ -577,7 +594,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
    if (IsFinite(OptErr) && OptErr < abs_tol)
    {
       converged = true;
-      termination_reason = "converged";
+      termination_status = TerminationStatus::Converged;
    }
    xf = 0.0;
    xf.SyncToBlocks();
@@ -657,10 +674,9 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
 
 // perturbed KKT system solve
 // determine the search direction
-bool IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
-                             Vector &zl, Vector &zlhat, BlockVector &Xhat, bool & passedCurvatureTest,
-                             real_t mu,
-                             real_t delta)
+IPSolver::NewtonResult IPSolver::IPNewtonSolve(
+   BlockVector &x, Vector &l, Vector &zl, Vector &zlhat, BlockVector &Xhat,
+   real_t mu, real_t delta)
 {
    iter++;
    // solve A x = b, where A is the IP-Newton matrix
@@ -712,7 +728,7 @@ bool IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    MPI_Allreduce(&local_success, &global_success, 1, MPI_INT, MPI_MIN, comm);
    if (!global_success)
    {
-      return false;
+      return {};
    }
 
    // now propagate solved uhat to obtain mhat and lhat
@@ -728,7 +744,7 @@ bool IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    JuTDJu.reset();
    Areduced.reset();
 
-   passedCurvatureTest = CurvatureTest(A, Xhat, l, b, delta);
+   const bool passed_curvature_test = CurvatureTest(A, Xhat, l, b, delta);
 
    /* backsolve to determine zlhat */
    x.SyncFromBlocks();
@@ -736,7 +752,7 @@ bool IPSolver::IPNewtonSolve(BlockVector &x, Vector &l,
    local_success = IsFinite(FiniteNormlinf(Xhat, reduce_workspace)) &&
                    IsFinite(FiniteNormlinf(zlhat, reduce_workspace));
    MPI_Allreduce(&local_success, &global_success, 1, MPI_INT, MPI_MIN, comm);
-   return global_success;
+   return {global_success != 0, passed_curvature_test};
 }
 
 real_t IPSolver::GetMaxStepSize(const Vector &x, const Vector &xhat,
@@ -753,9 +769,15 @@ real_t IPSolver::GetMaxStepSize(const Vector &x, const Vector &xhat,
 /* line-search from X0 along direction Xhat for the log-barrier
  * subproblem with barrier parameter \mu
  */
-void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
-                          real_t mu)
+IPSolver::LineSearchResult IPSolver::LineSearch(
+   BlockVector &X0, BlockVector &Xhat, real_t mu,
+   bool previous_armijo_sufficient_decrease)
 {
+   LineSearchResult result;
+   result.armijo_sufficient_decrease = previous_armijo_sufficient_decrease;
+   real_t &alpha = result.primal_step;
+   bool &sufficientDecrease = result.armijo_sufficient_decrease;
+   bool switchCondition = false;
    int eval_err = 0;
    real_t tau  = std::max(tauMin, 1.0 - mu);
    const Vector &u0   = X0.GetBlock(0);
@@ -766,7 +788,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
    const Vector &zhat = Xhat.GetBlock(3);
    real_t alphaMax  = GetMaxStepSize(m0, mhat, tau);
    real_t alphaMaxz = GetMaxStepSize(z0, zhat, tau);
-   alphaz = alphaMaxz;
+   result.multiplier_step = alphaMaxz;
 
    BlockVector &x0 = line_search_point;
    x0 = 0.0;
@@ -806,11 +828,10 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
       mfem::out << " a descent direction for the log-barrier objective\n";
    }
 
-   thx0 = GetTheta(x0);
-   phx0 = GetPhi(x0, mu, eval_err);
+   const real_t thx0 = GetTheta(x0);
+   const real_t phx0 = GetPhi(x0, mu, eval_err);
 
-   lineSearchSuccess = false;
-   if (eval_err || !IsFinite(thx0)) { return; }
+   if (eval_err || !IsFinite(thx0)) { return result; }
    for (int i = 0; i < maxBacktrack; i++)
    {
       if (myid == 0 && print_level > 0)
@@ -874,7 +895,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
                             "Line search successful: sufficient decrease in log-barrier objective.\n";
                }
                // accept the trial step
-               lineSearchSuccess = true;
+               result.accepted = true;
                break;
             }
          }
@@ -888,7 +909,7 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
                             "Line search successful: infeasibility or log-barrier objective decreased.\n";
                }
                // accept the trial step
-               lineSearchSuccess = true;
+               result.accepted = true;
                break;
             }
          }
@@ -902,6 +923,16 @@ void IPSolver::LineSearch(BlockVector& X0, BlockVector& Xhat,
       }
       alpha *= 0.5;
    }
+   if (result.accepted)
+   {
+      result.update_filter = !switchCondition || !sufficientDecrease;
+      if (result.update_filter)
+      {
+         result.filter_theta = (1. - gTheta) * thx0;
+         result.filter_phi = phx0 - gPhi * thx0;
+      }
+   }
+   return result;
 }
 
 bool IPSolver::FilterCheck(real_t thetax, real_t phix)
