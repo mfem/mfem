@@ -1143,31 +1143,33 @@ void Mesh::ReadXML_VTKMesh(std::istream &input, int &curved, int &read_gf,
    }
    if (cells_xml == NULL) { MFEM_ABORT(erstr); }
 
-   // Read the element attributes, which are stored as CellData named either
-   // "material" or "attribute". We prioritize "material" over "attribute" for
-   // backwards compatibility.
+   // Read the element attributes, which are stored in a CellData DataArray
+   // named either "material" or "attribute". We prioritize "material" over
+   // "attribute" for backwards compatibility.
    Array<int> cell_attributes;
-   bool found_attributes = false;
-   for (const XMLElement *cell_data_xml = piece->FirstChildElement();
-        cell_data_xml != NULL;
-        cell_data_xml = cell_data_xml->NextSiblingElement())
+   const XMLElement *attributes_xml = nullptr;
+   for (const XMLElement *cell_data_xml = piece->FirstChildElement("CellData");
+        cell_data_xml != nullptr;
+        cell_data_xml = cell_data_xml->NextSiblingElement("CellData"))
    {
-      const bool is_cell_data =
-         StringCompare(cell_data_xml->Name(), "CellData");
-      const bool is_material =
-         StringCompare(cell_data_xml->Attribute("Scalars"), "material");
-      const bool is_attribute =
-         StringCompare(cell_data_xml->Attribute("Scalars"), "attribute");
-      if (is_cell_data && (is_material || (is_attribute && !found_attributes)))
+      for (const XMLElement *data_xml =
+              cell_data_xml->FirstChildElement("DataArray");
+           data_xml != nullptr;
+           data_xml = data_xml->NextSiblingElement("DataArray"))
       {
-         found_attributes = true;
-         const XMLElement *data_xml = cell_data_xml->FirstChildElement();
-         if (data_xml != NULL && StringCompare(data_xml->Name(), "DataArray"))
+         const char *data_name = data_xml->Attribute("Name");
+         const bool is_material = StringCompare(data_name, "material");
+         const bool is_attribute = StringCompare(data_name, "attribute");
+         if (is_material || (is_attribute && attributes_xml == nullptr))
          {
-            cell_attributes.SetSize(ncells);
-            data_reader.Read(data_xml, cell_attributes.GetData(), ncells);
+            attributes_xml = data_xml;
          }
       }
+   }
+   if (attributes_xml != nullptr)
+   {
+      cell_attributes.SetSize(ncells);
+      data_reader.Read(attributes_xml, cell_attributes.GetData(), ncells);
    }
 
    CreateVTKMesh(points, cell_data, cell_offsets, cell_types, cell_attributes,
