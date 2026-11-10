@@ -85,17 +85,7 @@ struct Action
       if (buffers_ready) { return; }
       InitBlockVector(xq, xq_offsets);
       InitBlockVector(yq, yq_offsets);
-
-      constexpr_for<0, ninputs>([&](auto i)
-      {
-         using input_t = std::decay_t<decltype(get<i>(inputs))>;
-         if constexpr (is_weight_fop<input_t>::value ||
-                       is_orientation_fop<input_t>::value)
-         {
-            Vector empty;
-            input_bases[i].forward(empty, xq.GetBlock(i));
-         }
-      });
+      fill_constant_inputs<inputs_t>(input_bases, xq);
       buffers_ready = true;
    }
 
@@ -107,18 +97,7 @@ struct Action
       InitBuffers();
 
       // E -> Q
-      constexpr auto interpolate_input = []
-      {
-         std::array<bool, ninputs> result {};
-         constexpr_for<0, ninputs>([&](auto i)
-         {
-            using input_t = std::decay_t<decltype(get<i>(inputs_t {}))>;
-            result[i] = !is_weight_fop<input_t>::value &&
-                        !is_orientation_fop<input_t>::value;
-         });
-         return result;
-      }();
-      interpolate(input_to_infd, input_bases, xe, xq, interpolate_input);
+      interpolate(input_to_infd, input_bases, xe, xq, interpolated_inputs);
 
       // Q -> Q
       static_assert(
@@ -137,6 +116,8 @@ struct Action
    IntegratorContext<entity_t> ctx;
    qfunc_t qfunc;
    inputs_t inputs;
+   /// The inputs interpolated on every call, the others are constant.
+   static constexpr auto interpolated_inputs = varying_inputs<inputs_t>();
    outputs_t outputs;
 
    std::array<size_t, ninputs> input_to_infd;

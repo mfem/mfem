@@ -94,12 +94,8 @@ struct DerivativeAction
       InitBlockVector(xq, xq_offsets);
       InitBlockVector(yq, yq_offsets);
       InitBlockVector(shadow_xq, shadow_xq_offsets);
-
-      constexpr_for<0, noutputs>([&](auto i)
-      {
-         primal_output_storage[i].UseDevice(true);
-         primal_output_storage[i].SetSize(yq.GetBlock(i).Size());
-      });
+      fill_constant_inputs<inputs_t>(input_bases, xq);
+      InitFromBlocks(primal_output_storage, yq);
       buffers_ready = true;
    }
 
@@ -112,7 +108,7 @@ struct DerivativeAction
       InitBuffers();
 
       // E -> Q
-      interpolate(input_to_infd, input_bases, xe, xq);
+      interpolate(input_to_infd, input_bases, xe, xq, interpolated_inputs);
 
       constexpr auto input_active =
          detail::make_activity_map<derivative_id>(inputs_t{});
@@ -172,6 +168,8 @@ struct DerivativeAction
    qfunc_t qfunc;
    qfunc_shadow_t qfunc_shadow;
    inputs_t inputs;
+   /// The inputs interpolated on every call, the others are constant.
+   static constexpr auto interpolated_inputs = varying_inputs<inputs_t>();
    outputs_t outputs;
 
    std::array<size_t, ninputs> input_to_infd;

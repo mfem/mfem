@@ -50,6 +50,17 @@ inline void InitBlockVector(BlockVector &v, const Array<int> &offsets)
    v.SyncToBlocks();
 }
 
+/// Size each device Vector of @a v like the matching block of @a blocks.
+template <size_t n>
+inline void InitFromBlocks(std::array<Vector, n> &v, const BlockVector &blocks)
+{
+   for (size_t i = 0; i < n; i++)
+   {
+      v[i].UseDevice(true);
+      v[i].SetSize(blocks.GetBlock(i).Size());
+   }
+}
+
 struct FieldBasis
 {
    // E-vector -> Q-vector
@@ -332,6 +343,42 @@ inline void interpolate(
       if (!conditional.empty() && !conditional[i]) { return; }
 
       input_bases[i].forward(*xe[input_to_infd[i]], xq.GetBlock(i));
+   });
+}
+
+/// Whether the input @a fop_t has the same quadrature point data on every
+/// call, so that its block is filled once, see fill_constant_inputs().
+template <typename fop_t>
+constexpr bool is_constant_input_v =
+   is_weight_fop<fop_t>::value || is_orientation_fop<fop_t>::value;
+
+/// The inputs that interpolate() has to evaluate on every call.
+/// Constant ones are skipped during interpolation.
+template <typename inputs_t, size_t ninputs = tuple_size<inputs_t>::value>
+constexpr std::array<bool, ninputs> varying_inputs()
+{
+   std::array<bool, ninputs> result {};
+   constexpr_for<0, ninputs>([&](auto i)
+   {
+      using input_t = std::decay_t<decltype(get<i>(inputs_t {}))>;
+      result[i] = !is_constant_input_v<input_t>;
+   });
+   return result;
+}
+
+/// Fill the blocks of @a xq of the constant inputs, see varying_inputs().
+template <typename inputs_t, size_t ninputs>
+inline void fill_constant_inputs(const std::array<FieldBasis, ninputs> &bases,
+                                 BlockVector &xq)
+{
+   constexpr_for<0, ninputs>([&](auto i)
+   {
+      using input_t = std::decay_t<decltype(get<i>(inputs_t {}))>;
+      if constexpr (is_constant_input_v<input_t>)
+      {
+         Vector empty;
+         bases[i].forward(empty, xq.GetBlock(i));
+      }
    });
 }
 
