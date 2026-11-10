@@ -88,6 +88,10 @@ public:
    /// Set print level
    void SetPrintLevel(int print_level_) { print_level = print_level_; };
 
+   /// Print one table row for each completed iterative linear solve.
+   void SetPrintLinearSolverStatistics(bool print)
+   { print_linear_solver_statistics = print; }
+
    /// Get convergence status of most recent Mult call
    bool GetConverged() const {return converged;}
 
@@ -180,6 +184,7 @@ protected:
 
    /// print level, 0: no printing, > 0 various solver progress output is shown
    int print_level = 0;
+   bool print_linear_solver_statistics = false;
    MPI_Comm comm;
 private:
    /// One owning vector for displacement, slack and both multipliers. The
@@ -249,7 +254,10 @@ private:
 
    /// Solve the (regularized) IP-Newton linear system
    NewtonResult IPNewtonSolve(PrimalDualVector&, PrimalDualVector&,
-                              real_t, real_t delta = 0.0);
+                              int ip_step, real_t, real_t delta = 0.0);
+
+   /// Report the last linear solve without changing the output stream format.
+   void PrintLinearSolverStatistics(int ip_step, const IterativeSolver&) const;
 
    /// Max step length that satisfies fraction-to-boundary rule
    real_t GetMaxStepSize(const Vector&, const Vector&, real_t);

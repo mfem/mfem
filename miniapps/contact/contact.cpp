@@ -645,7 +645,7 @@ int main(int argc, char *argv[])
 
       // 9(f). Linear solver used inside the IP optimizer.
       CGSolver cgsolver(MPI_COMM_WORLD);
-      cgsolver.SetPrintLevel(3);
+      cgsolver.SetPrintLevel(0);
       cgsolver.SetRelTol(1e-10);
       cgsolver.SetMaxIter(10000);
       cgsolver.SetPreconditioner(*prec);
@@ -656,6 +656,7 @@ int main(int argc, char *argv[])
       optimizer.SetMaxIter(opt_maxit);
       optimizer.SetLinearSolver(&cgsolver);
       optimizer.SetPrintLevel(0);
+      optimizer.SetPrintLinearSolverStatistics(true);
 
       // Initial guess = previous reference configuration.
       x_gf.SetTrueVector();
@@ -697,11 +698,10 @@ int main(int argc, char *argv[])
          contact.SetDisplacement(dx, (i>=activation_step));
       }
 
-      // 9(h). Report objective values, dofs, IP and CG iteration counts.
+      // 9(h). Report objective values, dofs and IP iteration counts.
       int eval_err;
       real_t Einitial = contact.E(x0, eval_err);
       real_t Efinal = contact.E(xf, eval_err);
-      Array<int> & PCGiterations = optimizer.GetLinearSolverIterations();
 
       if (Mpi::Root())
       {
@@ -709,12 +709,6 @@ int main(int argc, char *argv[])
          mfem::out << " Final Energy objective          = " << Efinal << endl;
          mfem::out << " Optimizer number of iterations  = " <<
                    optimizer.GetNumIterations() << endl;
-         mfem::out << " PCG number of iterations        = " ;
-         for (int i = 0; i < PCGiterations.Size(); ++i)
-         {
-            std::cout << PCGiterations[i] << " ";
-         }
-         mfem::out << "\n";
       }
 
       // 9(i). Visualization outputs.

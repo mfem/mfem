@@ -12,6 +12,8 @@
 #include "ip.hpp"
 #include "general/reducers.hpp"
 #include "solver_utils.hpp"
+#include <iomanip>
+#include <sstream>
 
 namespace mfem
 {
@@ -488,7 +490,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
 
       // Compute the search direction
       // solve for (uhat, mhat, lhat)
-      NewtonResult newton = IPNewtonSolve(iterate, direction, mu_k);
+      NewtonResult newton = IPNewtonSolve(iterate, direction, j, mu_k);
       if (!newton.converged)
       {
          termination_status = TerminationStatus::LinearSolverFailed;
@@ -514,7 +516,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
          }
 
          // solve regularized IP-Newton linear system
-         newton = IPNewtonSolve(iterate, direction, mu_k, deltaReg);
+         newton = IPNewtonSolve(iterate, direction, j, mu_k, deltaReg);
 
          for (int numCurvatureTests = 0; numCurvatureTests < maxCurvatureTests;
               numCurvatureTests++)
@@ -545,7 +547,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
                }
             }
             // solve with regularization
-            newton = IPNewtonSolve(iterate, direction, mu_k, deltaReg);
+            newton = IPNewtonSolve(iterate, direction, j, mu_k, deltaReg);
          }
          if (!newton.converged || !newton.passed_curvature_test)
          {
@@ -686,7 +688,8 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
 // perturbed KKT system solve
 // determine the search direction
 IPSolver::NewtonResult IPSolver::IPNewtonSolve(
-   PrimalDualVector &iterate, PrimalDualVector &direction, real_t mu, real_t delta)
+   PrimalDualVector &iterate, PrimalDualVector &direction, int ip_step,
+   real_t mu, real_t delta)
 {
    iter++;
    iterate.SyncToViews();
@@ -737,6 +740,10 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    auto itsolver = dynamic_cast<IterativeSolver *>(solver);
    int numit = (itsolver) ? itsolver->GetNumIterations() : -1;
    lin_solver_iterations.Append(numit);
+   if (print_linear_solver_statistics && itsolver && myid == 0)
+   {
+      PrintLinearSolverStatistics(ip_step, *itsolver);
+   }
    int local_success = (!itsolver || itsolver->GetConverged()) &&
                        IsFinite(FiniteNormlinf(Xhat.GetBlock(0), reduce_workspace));
    int global_success;
@@ -770,6 +777,28 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
                    IsFinite(FiniteNormlinf(zlhat, reduce_workspace));
    MPI_Allreduce(&local_success, &global_success, 1, MPI_INT, MPI_MIN, comm);
    return {global_success != 0, passed_curvature_test};
+}
+
+void IPSolver::PrintLinearSolverStatistics(
+   int ip_step, const IterativeSolver &linear_solver) const
+{
+   std::ostringstream table;
+   if (lin_solver_iterations.Size() == 1)
+   {
+      table << std::right << std::setw(8) << " IP step" << " | "
+            << std::left << std::setw(13) << "Status" << " | "
+            << std::right << std::setw(21) << "Initial residual norm" << " | "
+            << std::setw(19) << "Final residual norm" << " | "
+            << std::setw(10) << "Iterations" << '\n';
+   }
+   table << std::right << std::setw(8) << ip_step << " | "
+         << std::left << std::setw(13)
+         << (linear_solver.GetConverged() ? "Converged" : "Not converged")
+         << " | " << std::right << std::scientific << std::setprecision(6)
+         << std::setw(21) << linear_solver.GetInitialNorm() << " | "
+         << std::setw(19) << linear_solver.GetFinalNorm() << " | "
+         << std::setw(10) << linear_solver.GetNumIterations() << '\n';
+   mfem::out << table.str() << std::flush;
 }
 
 real_t IPSolver::GetMaxStepSize(const Vector &x, const Vector &xhat,
