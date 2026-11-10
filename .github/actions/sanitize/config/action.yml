@@ -26,14 +26,15 @@ inputs:
     description: Branch to checkout
     default: ubsan
 
+  # Installed if the runner image doesn't ship it, see 'Clang' below
   CLANG_VER:
     description: CLANG version to use
-    default: 18
+    default: 20
 
   # https://github.com/llvm/llvm-project/releases
   LLVM_VER:
-    description: LLVM version to use
-    default: 19.1.7
+    description: LLVM version to use (libc++/libc++abi, built with CLANG_VER)
+    default: 20.1.8
 
   # https://github.com/hypre-space/hypre/releases
   HYPRE_VER:
@@ -102,7 +103,7 @@ inputs:
   # - all "uses:" fields that refer to mfem/github-actions.
   MFEM_ACTIONS_VERSION:
     description: Version (branch or tag) of the mfem/github-actions to use.
-    default: v2.7
+    default: v2.9
 
 runs:
   using: 'composite'
@@ -133,6 +134,7 @@ runs:
 
     - name: Env (dir)
       run: |
+        echo IMAGE_OS=${ImageOS:-$RUNNER_OS} >> $GITHUB_ENV
         echo LLVM_DIR=${{github.workspace}}/llvm >> $GITHUB_ENV
         echo HYPRE_DIR=hypre-${{inputs.HYPRE_VER}} >> $GITHUB_ENV
         echo METIS_DIR=metis-${{inputs.METIS_VER}} >> $GITHUB_ENV
@@ -150,10 +152,19 @@ runs:
         echo "LSAN_OPTIONS=suppressions=$LSAN_SUPPRESSIONS" >> $GITHUB_ENV
       shell: bash
 
+    - name: Clang
+      run: |
+        if ! command -v clang++-${{inputs.CLANG_VER}} > /dev/null; then
+          sudo apt-get update
+          sudo apt-get install -y clang-${{inputs.CLANG_VER}}
+        fi
+        clang++-${{inputs.CLANG_VER}} --version
+      shell: bash
+
     - name: Env (ter)
       if: ${{ inputs.NO_FLAGS != 'true' }}
       run: |
-        echo LLVM_CXXFLAGS=-stdlib=libc++ -I${{env.LLVM_INC}} -Isystem${{env.LLVM_INC}} >> $GITHUB_ENV
+        echo LLVM_CXXFLAGS=-stdlib=libc++ -isystem ${{env.LLVM_INC}} >> $GITHUB_ENV
         echo LLVM_LDFLAGS=-L${{env.LLVM_LIB}} -lc++abi -Wl,-rpath,${{env.LLVM_LIB}} >> $GITHUB_ENV
       shell: bash
 
