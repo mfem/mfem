@@ -20,15 +20,18 @@ using namespace mfem;
 class LibCoefficient : public Coefficient
 {
 protected:
-   typedef real_t (*TDFunPtr)(real_t *, int, real_t);
 
-   // typedef double (*TDFunPtr)(double *, int, double);
-   TDFunPtr TDFunction = nullptr;
 #ifdef _WIN32
    HMODULE libHandle = nullptr;
+   typedef real_t (__cdecl *TDFunPtr)(real_t *, int, real_t);
 #else
    void* libHandle = nullptr;
+   typedef real_t (*TDFunPtr)(real_t *, int, real_t);
 #endif
+
+   TDFunPtr TDFunction = nullptr;
+
+
    Vector x;
    real_t val;
 
@@ -91,13 +94,16 @@ public:
 class LibVectorCoefficient : public VectorCoefficient
 {
 protected:
-   typedef void (*TDFunPtr)(real_t *, int, real_t, real_t *, int);
-   TDFunPtr TDFunction = nullptr;
 #ifdef _WIN32
    HMODULE libHandle = nullptr;
+   typedef void (__cdecl *TDFunPtr)(real_t *, int, real_t, real_t *, int);
 #else
    void* libHandle = nullptr;
+   typedef void (*TDFunPtr)(real_t *, int, real_t, real_t *, int);
 #endif
+
+   TDFunPtr TDFunction = nullptr;
+
    Vector x;
 
    /** Get a @a funNames C-function from the @a libName library
@@ -124,10 +130,10 @@ public:
       GetLibFunction(libName, std::vector<std::string>({funName}), required);
    }
 
-   LibVectorCoefficient(const LibCoefficient&) = delete;
-   LibVectorCoefficient& operator=(const LibCoefficient&) = delete;
-   LibVectorCoefficient(LibCoefficient&&) = delete;
-   LibVectorCoefficient& operator=(LibCoefficient&&) = delete;
+   LibVectorCoefficient(const LibVectorCoefficient&) = delete;
+   LibVectorCoefficient& operator=(const LibVectorCoefficient&) = delete;
+   LibVectorCoefficient(LibVectorCoefficient&&) = delete;
+   LibVectorCoefficient& operator=(LibVectorCoefficient&&) = delete;
 
    bool Foundfunction() { return TDFunction != nullptr; }
 

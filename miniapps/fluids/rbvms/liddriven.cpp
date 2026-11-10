@@ -13,7 +13,7 @@
 #include "config/config.hpp"
 
 #ifdef _WIN32
-#define EXPORT extern "C" __declspec(dllexport)
+#define EXPORT extern "C" __declspec(dllexport) __cdecl
 #else
 #define EXPORT extern "C"
 #endif
