@@ -153,8 +153,6 @@ private:
 
    // Owned operators follow the partition storage they may reference, so they
    // are destroyed before that storage.
-   /// Negative identity matrix (used in constraints).
-   std::unique_ptr<HypreParMatrix> NegId;
    /// Jacobian of the gap function.
    std::unique_ptr<HypreParMatrix> J;
    /// Transpose of gap Jacobian.
@@ -216,9 +214,6 @@ public:
    /// Hessian of the objective wrt displacement
    HypreParMatrix * Duuf(const BlockVector &x) {return DddE(x.GetBlock(0));}
 
-   /// Hessian of the objective wrt the slack variables
-   HypreParMatrix * Dmmf(const BlockVector &) {return nullptr;}
-
    /// Jacobian of the affine constraints wrt displacement; independent of x
    /// until FormContactSystem() or ActivateBoundConstraints() is called.
    HypreParMatrix * Duc(const BlockVector &);
@@ -228,9 +223,6 @@ public:
    /// become iterate-dependent, Duc() must call ResetConstraintJacobians()
    /// before updating its Jacobian for a new linearization.
    HypreParMatrix * DucTranspose(const BlockVector &);
-
-   /// Jacobian of the constraints wrt slack variables
-   HypreParMatrix * Dmc(const BlockVector &);
 
    /// Return transfer operator from contact to displacement subspace.
    HypreParMatrix * GetContactSubspaceTransferOperator();

@@ -274,7 +274,6 @@ void OptContactProblem::ResetConstraintJacobians()
 {
    dcduT.reset();
    dcdu.reset();
-   NegId.reset();
 }
 
 void OptContactProblem::ReleaseMemory()
@@ -479,17 +478,6 @@ HypreParMatrix * OptContactProblem::DucTranspose(const BlockVector &x)
 {
    if (!dcduT) { dcduT.reset(Duc(x)->Transpose()); }
    return dcduT.get();
-}
-
-HypreParMatrix * OptContactProblem::Dmc(const BlockVector &)
-{
-   if (!NegId)
-   {
-      Vector negone(dimM); negone.UseDevice(true); negone = -1.0;
-      NegId.reset(MakeDiagonalHypreParMatrix(comm, GetGlobalNumConstraints(),
-                                             GetConstraintsStarts(), negone));
-   }
-   return NegId.get();
 }
 
 HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()

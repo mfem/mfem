@@ -47,6 +47,10 @@ namespace mfem
  *
  * $$ \min_{d, s} E(d, s) \qquad \text{s.t.} \quad g(d) - s = 0, \; s \geq 0 $$
  *
+ * The implementation is specialized to a displacement-only objective and
+ * affine gap-minus-slack constraints. The reduced Newton solve and curvature
+ * test rely on this contact structure.
+ *
  * ## Typical usage
  * 1. Initialize IPSolver object.
  * 2. Set solver options e.g.,  SetTol, SetMaxIter, SetLinearSolver
@@ -247,9 +251,7 @@ private:
    struct Workspace
    {
       HypreParMatrix *Huu = nullptr;
-      HypreParMatrix *Hmm = nullptr;
       HypreParMatrix *Ju = nullptr;
-      HypreParMatrix *Jm = nullptr;
       HypreParMatrix *JuT = nullptr;
       std::unique_ptr<HypreParMatrix> Wuu, Wmm;
 
@@ -274,9 +276,8 @@ private:
    void AcceptStep(PrimalDualVector&, const PrimalDualVector&,
                    const LineSearchResult&);
 
-   /// Form (regularized) IP-Newton linear system matrix
-   void FormIPNewtonMat(BlockVector&, Vector&, Vector&, BlockOperator &,
-                        real_t delta = 0.0);
+   /// Form the displacement and diagonal slack Hessians for the reduced solve.
+   void FormNewtonBlocks(BlockVector&, const Vector&, real_t delta = 0.0);
 
    /// Solve the (regularized) IP-Newton linear system
    NewtonResult IPNewtonSolve(PrimalDualVector&, PrimalDualVector&,
@@ -316,8 +317,9 @@ private:
                                BlockVector &);
 
    /// curvature test to detect negative-curvature
-   bool CurvatureTest(const BlockOperator & A, const BlockVector & Xhat,
-                      const Vector &l, const BlockVector & b, const real_t & delta);
+   bool CurvatureTest(const Operator &displacement_hessian,
+                      const Operator &slack_hessian, const BlockVector &Xhat,
+                      const Vector &l, const BlockVector &b);
 
    /// Compute the optimality error
    real_t OptimalityError(const BlockVector &, const Vector &, const Vector &,

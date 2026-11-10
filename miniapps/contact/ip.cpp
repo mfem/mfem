@@ -597,42 +597,29 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
    xf.SyncFromBlocks();
 }
 
-void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
-                               Vector &zl,
-                               BlockOperator &Ak, real_t delta)
+void IPSolver::FormNewtonBlocks(BlockVector &x, const Vector &zl,
+                                real_t delta)
 {
    x.SyncFromBlocks();
    workspace.Huu = problem->Duuf(x);
-   workspace.Hmm = problem->Dmmf(x);
 
    workspace.Ju = problem->Duc(x);
    workspace.JuT = problem->DucTranspose(x);
-   workspace.Jm = problem->Dmc(x);
 
    Vector &DiagLogBar = workspace.barrier_diagonal;
    FillBarrierDiagonal(x, Mlump, zl, delta, DiagLogBar);
 
-   if (workspace.Hmm)
+   // The contact objective has no slack Hessian. Only the barrier and
+   // slack regularization contribute to this diagonal block.
+   if (!workspace.Wmm)
    {
-      workspace.Wmm.reset();
-      std::unique_ptr<HypreParMatrix> D(
-         MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumConstraints(),
-                                    problem->GetConstraintsStarts(),
-                                    DiagLogBar));
-      workspace.Wmm.reset(ParAdd(workspace.Hmm, D.get()));
+      workspace.Wmm.reset(MakeDiagonalHypreParMatrix(
+                             comm, problem->GetGlobalNumConstraints(),
+                             problem->GetConstraintsStarts(), DiagLogBar));
    }
    else
    {
-      if (!workspace.Wmm)
-      {
-         workspace.Wmm.reset(MakeDiagonalHypreParMatrix(
-                                comm, problem->GetGlobalNumConstraints(),
-                                problem->GetConstraintsStarts(), DiagLogBar));
-      }
-      else
-      {
-         UpdateDiagonal(*workspace.Wmm, DiagLogBar);
-      }
+      UpdateDiagonal(*workspace.Wmm, DiagLogBar);
    }
 
    Vector &deltaDiagVec = workspace.regularization_diagonal;
@@ -653,19 +640,9 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
                                                      problem->GetDofStarts(), deltaDiagVec));
    }
 
-   //         IP-Newton system matrix
-   //    Ak = [[W_(u,u)  H_(u,m)   J_u^T]
-   //          [H_(m,u)  W_(m,m)   J_m^T]
-   //          [ J_u      J_m       0  ]]
-
-   //    Ak = [[K+Dreg  0      Jᵀ ]   [u]    [bᵤ]
-   //          [0      D+Dreg  -I ]   [m]  = [bₘ]
-   //          [J      -I      0  ]]  [λ]  = [bₗ ]
-   Ak.SetBlock(0, 0, workspace.Wuu.get());
-   Ak.SetBlock(0, 2, workspace.JuT);
-   // The slack Jacobian is -I, so its transpose is the same operator.
-   Ak.SetBlock(1, 1, workspace.Wmm.get()); Ak.SetBlock(1, 2, workspace.Jm);
-   Ak.SetBlock(2, 0,  workspace.Ju); Ak.SetBlock(2, 1,  workspace.Jm);
+   // The contact KKT equations have blocks [Wuu, 0, Ju^T],
+   // [0, Wmm, -I], [Ju, -I, 0]. IPNewtonSolve eliminates slack and
+   // equality multipliers directly; no full KKT operator is needed.
 }
 
 // perturbed KKT system solve
@@ -682,11 +659,10 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    Vector &zl = iterate.InequalityMultiplier();
    Vector &zlhat = direction.InequalityMultiplier();
    BlockVector &Xhat = direction.Newton();
-   // solve A x = b, where A is the IP-Newton matrix
-   BlockOperator A(block_offsetsuml, block_offsetsuml);
+   // Form the Hessian blocks and right-hand side for the reduced solve.
    BlockVector &b = workspace.newton_rhs;
    b.SyncToBlocks();
-   FormIPNewtonMat(x, l, zl, A, delta);
+   FormNewtonBlocks(x, zl, delta);
 
    //       [grad_u phi + Ju^T l]
    // b = - [grad_m phi + Jm^T l]
@@ -752,7 +728,8 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    JuTDJu.reset();
    Areduced.reset();
 
-   const bool passed_curvature_test = CurvatureTest(A, Xhat, l, b, delta);
+   const bool passed_curvature_test = CurvatureTest(*workspace.Wuu, *workspace.Wmm,
+                                                    Xhat, l, b);
 
    /* backsolve to determine zlhat */
    x.SyncFromBlocks();
@@ -1066,9 +1043,10 @@ void IPSolver::EvalLagrangianGradient(const BlockVector &x, const Vector &l,
 // see "An Inertia-Free Filter Line-search Algorithm for
 // Large-scale Nonlinear Programming" by Nai-Yuan Chiang and
 // Victor M Zavala, Computational Optimization and Applications (2016)
-bool IPSolver::CurvatureTest(const BlockOperator & A,
-                             const BlockVector & Xhat, const Vector & l, const BlockVector & b,
-                             const real_t & delta)
+bool IPSolver::CurvatureTest(const Operator &displacement_hessian,
+                             const Operator &slack_hessian,
+                             const BlockVector &Xhat, const Vector &l,
+                             const BlockVector &b)
 {
    Xhat.SyncToBlocks();
    b.SyncToBlocks();
@@ -1079,17 +1057,12 @@ bool IPSolver::CurvatureTest(const BlockOperator & A,
 
    real_t dWd = 0.0;
    real_t dd = 0.0;
+   const Operator *hessians[] = {&displacement_hessian, &slack_hessian};
    for (int i = 0; i < 2; i++)
    {
-      for (int j = 0; j < 2; j++)
-      {
-         if (!A.IsZeroBlock(i, j))
-         {
-            Vector &temp = workspace.hessian_action.GetBlock(i);
-            A.GetBlock(i, j).Mult(Xhat.GetBlock(j), temp);
-            dWd += InnerProduct(comm, Xhat.GetBlock(i), temp);
-         }
-      }
+      Vector &temp = workspace.hessian_action.GetBlock(i);
+      hessians[i]->Mult(Xhat.GetBlock(i), temp);
+      dWd += InnerProduct(comm, Xhat.GetBlock(i), temp);
       dd += InnerProduct(comm, Xhat.GetBlock(i), Xhat.GetBlock(i));
    }
    real_t lplusTck = -1.0 * InnerProduct(comm, lplus, b.GetBlock(2));
