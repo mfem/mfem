@@ -53,6 +53,20 @@ inline void PrintBanner(std::ostream &out, const std::string &title)
    PrintLine(out);
 }
 
+inline void PrintDebugSection(std::ostream &out, const std::string &title)
+{
+   out << "\n    " << title << "\n    "
+       << std::string(report_width - 2, '-') << '\n';
+}
+
+inline void PrintDebugField(std::ostream &out, const char *label,
+                            const std::string &value)
+{
+   std::ostringstream line;
+   line << "    " << std::left << std::setw(28) << label << " : " << value << '\n';
+   out << line.str();
+}
+
 template <std::size_t N>
 void PrintTableRow(std::ostream &out, const std::array<int, N> &widths,
                    const std::array<std::string, N> &cells)

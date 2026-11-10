@@ -338,12 +338,15 @@ void IPSolver::UpdateBarrierForIterate(PrimalDualVector &iterate,
       if (OptErrSubproblem < options.barrier.subproblem_tolerance_factor *
           state.barrier_parameter)
       {
+         const real_t old_mu = state.barrier_parameter;
+         UpdateBarrierSubProblem();
          if (myid == 0 && options.print_level > 0)
          {
-            mfem::out << "solved mu = " << state.barrier_parameter <<
-                      " barrier subproblem\n";
+            contact_output::PrintDebugField(mfem::out, "Barrier update",
+                                            contact_output::Scientific(old_mu) + " -> " +
+                                            contact_output::Scientific(
+                                               state.barrier_parameter));
          }
-         UpdateBarrierSubProblem();
       }
       else
       {
@@ -363,7 +366,9 @@ IPSolver::NewtonResult IPSolver::ComputeSearchDirection(
    {
       if (myid == 0 && options.print_level > 0)
       {
-         mfem::out << "curvature test failed\n";
+         contact_output::PrintDebugSection(mfem::out, "REGULARIZATION");
+         contact_output::PrintDebugField(mfem::out, "Curvature test",
+                                         "failed; retrying with regularization");
       }
       real_t deltaReg = 0.0;
       const int maxCurvatureTests = regularization.max_curvature_tests;
@@ -389,7 +394,10 @@ IPSolver::NewtonResult IPSolver::ComputeSearchDirection(
          if (!newton.converged) { break; }
          if (myid == 0 && options.print_level > 0)
          {
-            mfem::out << "deltaReg = " << deltaReg << std::endl;
+            contact_output::PrintDebugField(mfem::out, "Regularization shift",
+                                            contact_output::Scientific(deltaReg));
+            contact_output::PrintDebugField(mfem::out, "Curvature test",
+                                            newton.passed_curvature_test ? "passed" : "failed");
          }
          if (newton.passed_curvature_test)
          {
@@ -402,13 +410,20 @@ IPSolver::NewtonResult IPSolver::ComputeSearchDirection(
             {
                if (myid == 0 && options.print_level > 0)
                {
-                  mfem::out << "delta *= " << regularization.initial_increase_factor <<
-                            "\n";
+                  contact_output::PrintDebugField(mfem::out, "Shift growth factor",
+                                                  contact_output::Scientific(
+                                                     regularization.initial_increase_factor));
                }
                deltaReg *= regularization.initial_increase_factor;
             }
             else
             {
+               if (myid == 0 && options.print_level > 0)
+               {
+                  contact_output::PrintDebugField(mfem::out, "Shift growth factor",
+                                                  contact_output::Scientific(
+                                                     regularization.increase_factor));
+               }
                deltaReg *= regularization.increase_factor;
             }
          }
@@ -495,8 +510,8 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
    {
       if (myid == 0 && options.print_level > 0)
       {
-         mfem::out << "\n" << std::string(50,'-') << std::endl;
-         mfem::out << "interior-point solve step # " << j << std::endl;
+         contact_output::PrintDebugSection(mfem::out,
+                                           "IP DEBUG - STEP " + std::to_string(j));
       }
       // Check convergence of optimization problem
       OptErr = OptimalityError(xk, lk, zlk);
@@ -511,7 +526,8 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
          state.termination_status = TerminationStatus::Converged;
          if (myid == 0 && options.print_level > 0)
          {
-            mfem::out << "solved optimization problem\n";
+            contact_output::PrintDebugField(mfem::out, "Optimization status",
+                                            "converged");
          }
          break;
       }
@@ -529,10 +545,6 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
          break;
       }
 
-      if (myid == 0 && options.print_level > 0)
-      {
-         mfem::out << "mu = " << state.barrier_parameter << std::endl;
-      }
       const LineSearchResult search = LineSearch(
                                          iterate, direction, state.barrier_parameter,
                                          state.last_armijo_sufficient_decrease);
@@ -542,7 +554,11 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       {
          if (myid == 0 && options.print_level > 0)
          {
-            mfem::out << "lineSearch successful\n";
+            contact_output::PrintDebugField(mfem::out, "Step accepted", "yes");
+            contact_output::PrintDebugField(mfem::out, "Primal step",
+                                            contact_output::Scientific(search.primal_step));
+            contact_output::PrintDebugField(mfem::out, "Multiplier step",
+                                            contact_output::Scientific(search.multiplier_step));
          }
          AcceptStep(iterate, direction, search);
          state.accepted_steps++;
@@ -551,7 +567,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       {
          if (myid == 0 && options.print_level > 0)
          {
-            mfem::out << "lineSearch not successful\n";
+            contact_output::PrintDebugField(mfem::out, "Step accepted", "no");
          }
          state.converged = false;
          state.termination_status = TerminationStatus::LineSearchFailed;
@@ -559,7 +575,8 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
       }
       if (j + 1 == options.max_iterations && myid == 0 && options.print_level > 0)
       {
-         mfem::out << "maximum optimization iterations\n";
+         contact_output::PrintDebugField(mfem::out, "Optimization status",
+                                         "maximum optimization iterations");
       }
    }
    // Check the accepted final iterate, including the last allowed IP step.
@@ -726,7 +743,8 @@ void IPSolver::PrintLinearSolverStatistics(
    using namespace contact_output;
    const std::array<int, 5> widths = {8, 13, 21, 19, 13};
    std::ostringstream table;
-   if (state.linear_iterations.Size() == 1)
+   // Debug diagnostics separate CG rows, so repeat the header for each solve.
+   if (state.linear_iterations.Size() == 1 || options.print_level > 0)
    {
       PrintTableRow(table, widths,
                     {"IP step", "Status", "Initial residual norm",
@@ -760,7 +778,10 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
    const PrimalDualVector &X0, const PrimalDualVector &Xhat, real_t mu,
    bool previous_armijo_sufficient_decrease)
 {
+   using namespace contact_output;
    const auto &line_search = options.line_search;
+   const bool debug = myid == 0 && options.print_level > 0;
+   const std::array<int, 6> trial_widths = {6, 12, 13, 13, 10, 17};
    LineSearchResult result;
    result.armijo_sufficient_decrease = previous_armijo_sufficient_decrease;
    real_t &alpha = result.primal_step;
@@ -795,26 +816,54 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
    bool descentDirection = (Dxphi0_xhat < 0.);
 
 
-   if (myid == 0 && options.print_level > 0)
-   {
-      mfem::out << "is";
-      if (!descentDirection)
-      {
-         mfem::out << " not";
-      }
-      mfem::out << " a descent direction for the log-barrier objective\n";
-   }
-
    const real_t thx0 = GetTheta(x0);
    const real_t phx0 = GetPhi(x0, mu, eval_err);
 
-   if (eval_err || !IsFinite(thx0)) { return result; }
+   const auto print_trial = [&](int trial, real_t violation, real_t barrier_value,
+                                const char *filter, const char *decision)
+   {
+      if (!debug) { return; }
+      std::ostringstream row;
+      PrintTableRow(row, trial_widths,
+                    {std::to_string(trial), Scientific(alpha), Scientific(violation),
+                     Scientific(barrier_value), filter, decision});
+      mfem::out << row.str() << std::flush;
+   };
+   if (debug)
+   {
+      std::ostringstream out;
+      PrintDebugSection(out, "LINE SEARCH");
+      PrintDebugField(out, "Barrier parameter", Scientific(mu));
+      PrintDebugField(out, "Descent direction", descentDirection ? "yes" : "no");
+      PrintDebugField(out, "Directional derivative", Scientific(Dxphi0_xhat));
+      PrintDebugField(out, "Armijo factor", Scientific(line_search.armijo_factor));
+      PrintDebugField(out, "Initial violation", Scientific(thx0));
+      PrintDebugField(out, "Switching threshold",
+                      Scientific(state.filter_min_violation));
+      PrintDebugField(out, "Violation target",
+                      Scientific((1. - line_search.violation_decrease) * thx0));
+      PrintDebugField(out, "Initial barrier value", Scientific(phx0));
+      PrintDebugField(out, "Barrier progress target",
+                      Scientific(phx0 - line_search.objective_decrease * thx0));
+      PrintDebugField(out, "Primal step limit", Scientific(alphaMax));
+      PrintDebugField(out, "Multiplier step limit", Scientific(alphaMaxz));
+      out << '\n';
+      PrintTableRow(out, trial_widths,
+                    {"Trial", "Step length", "Violation", "Barrier value",
+                     "Filter", "Decision"});
+      PrintTableSeparator(out, trial_widths);
+      mfem::out << out.str() << std::flush;
+   }
+   if (eval_err || !IsFinite(thx0))
+   {
+      if (debug)
+      {
+         PrintDebugField(mfem::out, "Line-search status", "invalid initial point");
+      }
+      return result;
+   }
    for (int i = 0; i < maxBacktrack; i++)
    {
-      if (myid == 0 && options.print_level > 0)
-      {
-         mfem::out << "\n--------- alpha = " << alpha << " ---------\n";
-      }
       // ----- Compute trial point: xtrial = x0 + alpha * xhat
       xtrial.Set(1.0, x0);
       xtrial.Add(alpha, xhat);
@@ -824,10 +873,7 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
       real_t phxtrial = GetPhi(xtrial, mu, eval_err);
       if (eval_err || !IsFinite(thxtrial))
       {
-         if (myid == 0 && options.print_level > 0)
-         {
-            mfem::out << "bad log-barrier objective eval, reducing step length\n";
-         }
+         print_trial(i, thxtrial, phxtrial, "n/a", "invalid value");
          alpha *= 0.5;
          continue;
       }
@@ -835,10 +881,6 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
       auto inFilterRegion = FilterCheck(thxtrial, phxtrial);
       if (!inFilterRegion)
       {
-         if (myid == 0 && options.print_level > 0)
-         {
-            mfem::out << "not in filter region\n";
-         }
          if (!descentDirection)
          {
             switchCondition = false;
@@ -850,18 +892,6 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
                                line_search.sufficient_progress_factor * pow(thx0,
                                                                             line_search.violation_power));
          }
-         if (myid == 0 && options.print_level > 0)
-         {
-            mfem::out << "theta(x0) = "     << thx0     << ", thetaMin = "
-                      <<
-                      state.filter_min_violation             << std::endl;
-            mfem::out << "theta(xtrial) = " << thxtrial << ", (1-gTheta) *theta(x0) = "
-                      <<
-                      (1. - line_search.violation_decrease) * thx0 << std::endl;
-            mfem::out << "phi(xtrial) = "   << phxtrial << ", phi(x0) - gPhi *theta(x0) = "
-                      <<
-                      phx0 - line_search.objective_decrease * thx0   << std::endl;
-         }
          if (thx0 <= state.filter_min_violation && switchCondition)
          {
             // sufficient decrease of the log-barrier objective
@@ -869,11 +899,7 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
                                   alpha * Dxphi0_xhat);
             if (sufficientDecrease)
             {
-               if (myid == 0 && options.print_level > 0)
-               {
-                  mfem::out <<
-                            "Line search successful: sufficient decrease in log-barrier objective.\n";
-               }
+               print_trial(i, thxtrial, phxtrial, "allowed", "Armijo accepted");
                // accept the trial step
                result.accepted = true;
                break;
@@ -884,24 +910,15 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
             if (thxtrial <= (1. - line_search.violation_decrease) * thx0 ||
                 phxtrial <= phx0 - line_search.objective_decrease * thx0)
             {
-               if (myid == 0 && options.print_level > 0)
-               {
-                  mfem::out <<
-                            "Line search successful: infeasibility or log-barrier objective decreased.\n";
-               }
+               print_trial(i, thxtrial, phxtrial, "allowed", "Progress accepted");
                // accept the trial step
                result.accepted = true;
                break;
             }
          }
       }
-      else
-      {
-         if (myid == 0 && options.print_level > 0)
-         {
-            mfem::out << "in filter region\n";
-         }
-      }
+      print_trial(i, thxtrial, phxtrial,
+                  inFilterRegion ? "blocked" : "allowed", "backtrack");
       alpha *= 0.5;
    }
    if (result.accepted)
@@ -1109,11 +1126,19 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
 
    if (myid == 0 && options.print_level > 0)
    {
-      mfem::out << "evaluating optimality error for mu = " << mu << std::endl;
-      mfem::out << "stationarity error = " << stationarityError << std::endl;
-      mfem::out << "feasibility error  = "    << feasibilityError << std::endl;
-      mfem::out << "complimentarity error = " << complementarityError << std::endl;
-      mfem::out << "optimality error = " << optimalityError << std::endl;
+      using namespace contact_output;
+      const std::array<int, 5> widths = {12, 16, 14, 17, 15};
+      std::ostringstream table;
+      table << '\n';
+      PrintTableRow(table, widths,
+                    {"Barrier mu", "Stationarity", "Feasibility",
+                     "Complementarity", "Optimality"});
+      PrintTableSeparator(table, widths);
+      PrintTableRow(table, widths,
+                    {Scientific(mu), Scientific(stationarityError),
+                     Scientific(feasibilityError), Scientific(complementarityError),
+                     Scientific(optimalityError)});
+      mfem::out << table.str() << std::flush;
    }
    return optimalityError;
 }

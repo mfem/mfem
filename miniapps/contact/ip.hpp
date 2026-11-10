@@ -89,7 +89,8 @@ public:
    /// Set linear solver
    void SetLinearSolver(Solver * solver_) { solver = solver_; };
 
-   /// Set print level
+   /// Enable IP debug diagnostics when positive. Linear-solver tables have a
+   /// separate switch; the driver enables these diagnostics only at level 3.
    void SetPrintLevel(int print_level_) { options.print_level = print_level_; };
 
    /// Print one table row for each completed iterative linear solve.

@@ -31,6 +31,8 @@
 // Problem 3: onion, 9 nested spherical shells (linear elasticity)
 // mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 2 -nsteps 1 -msteps 0 -amgf -amgf-fsolver auto
 // mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 2 -nsteps 1 -msteps 0 -no-amgf
+// Output: -pl 0 for silence, -pl 1 for the final IP summary,
+//         -pl 2 for solver tables/results (default), -pl 3 for debug diagnostics.
 
 // Description:
 // This miniapp solves benchmark frictionless contact problems using a
@@ -217,6 +219,7 @@ struct IPSolveSummary
 {
    int load_step;
    bool converged;
+   const char *termination_reason = "not run";
    int ip_steps;
    int newton_solves;
    long long cg_iterations = 0;
@@ -289,11 +292,20 @@ void PrintIPSummary(const std::vector<IPSolveSummary> &results, int total_steps)
    PrintTableSeparator(out, widths);
    PrintResultField(out, "Converged load steps",
                     std::to_string(converged_steps) + " / " + std::to_string(total_steps));
+   if (!results.empty() && !results.back().converged)
+   {
+      PrintResultField(out, "Termination reason", results.back().termination_reason);
+   }
    PrintResultField(out, "Total accepted IP steps", ip_steps);
    PrintResultField(out, "Total Newton solves", newton_solves);
    PrintResultField(out, "Total CG iterations", cg_iterations);
    PrintLine(out, '=');
+   // Summary-only mode suppresses library output during the solve. Enable this
+   // stream just for the summary, then restore its previous state.
+   const bool output_enabled = mfem::out.IsEnabled();
+   mfem::out.Enable();
    mfem::out << out.str() << std::flush;
+   if (!output_enabled) { mfem::out.Disable(); }
 }
 
 }
@@ -329,6 +341,8 @@ int main(int argc, char *argv[])
    int msteps = 0;
    // Maximum number of iterations for the optimizer
    int opt_maxit = 100;
+   // Driver output: silent, final summary, solver tables/results, or debug.
+   int print_level = 2;
    // Use non-linear elasticity (only for problem 2)
    bool nonlinear = false;
    // Tribol search proximity ratio
@@ -365,6 +379,9 @@ int main(int argc, char *argv[])
                   "Number of uniform refinements.");
    args.AddOption(&opt_maxit, "-opt-maxit", "--optimizer-max-iterations",
                   "Maximum number of iterations for the optimizer.");
+   args.AddOption(&print_level, "-pl", "--print-level",
+                  "Output level: 0 = silent, 1 = final IP summary only, "
+                  "2 = solver tables/results (default), 3 = debug diagnostics.");
    args.AddOption(&nsteps, "-nsteps", "--nsteps",
                   "Number of steps.");
    args.AddOption(&msteps, "-msteps", "--msteps",
@@ -415,13 +432,26 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
-   if (myid == 0)
+   if (print_level < 0 || print_level > 3)
+   {
+      if (myid == 0)
+      {
+         mfem::err << "Print level must be 0, 1, 2, or 3." << endl;
+      }
+      return 1;
+   }
+   if (print_level < 2)
+   {
+      mfem::out.Disable();
+      mfem::err.Disable();
+   }
+   if (myid == 0 && print_level >= 2)
    {
       args.PrintOptions(cout);
    }
 
    Device device(device_config);
-   if (myid == 0) { device.Print(); }
+   if (myid == 0 && print_level >= 2) { device.Print(); }
 
    // Validate selection and convert to enum.
    MFEM_VERIFY(prob_no >= 0 &&
@@ -432,7 +462,7 @@ int main(int argc, char *argv[])
    // Only the beam–sphere supports non-linear elasticity; fall back if needed.
    if (nonlinear && prob_name!=problem_name::beamsphere)
    {
-      if (myid == 0)
+      if (myid == 0 && print_level >= 2)
       {
          cout << "Non-linear elasticity is only supported for the beam-sphere problem"
               << endl;
@@ -440,7 +470,7 @@ int main(int argc, char *argv[])
       }
       nonlinear = false;
    }
-   if (nonlinear && elasticity_fa && myid == 0)
+   if (nonlinear && elasticity_fa && myid == 0 && print_level >= 2)
    {
       cout << "Full assembly is only used by the linear elasticity model; "
            << "nonlinear reference assembly uses "
@@ -518,7 +548,7 @@ int main(int argc, char *argv[])
 
    ParFiniteElementSpace * fes = prob.GetFESpace();
    HYPRE_BigInt gndofs = fes->GlobalTrueVSize();
-   if (myid == 0)
+   if (myid == 0 && print_level >= 2)
    {
       mfem::out << "\n --------------------------------------" << endl;
       mfem::out << "  Global number of dofs = " << gndofs << endl;
@@ -624,7 +654,7 @@ int main(int argc, char *argv[])
    std::vector<IPSolveSummary> solve_results;
    for (int i = 0; i<total_steps; i++)
    {
-      if (Mpi::Root())
+      if (Mpi::Root() && print_level >= 2)
       {
          contact_output::PrintBanner(mfem::out,
                                      "Solving optimization problem for time step: " +
@@ -707,7 +737,7 @@ int main(int argc, char *argv[])
          auto amgfprec = std::make_unique<AMGFSolver>();
          ConfigureAMG(amgfprec->GetAMG(), amg_coarsen_type, amg_agg_levels,
                       amg_interp_type, amg_relax_type);
-         if (amg_print_options && myid == 0)
+         if (amg_print_options && myid == 0 && print_level >= 2)
          {
             PrintAMGOptions(amgfprec->GetAMG(), "AMGF", amg_agg_levels,
                             amgf_fsolver);
@@ -725,7 +755,7 @@ int main(int argc, char *argv[])
          auto amgprec = std::make_unique<HypreBoomerAMG>();
          ConfigureAMG(*amgprec, amg_coarsen_type, amg_agg_levels,
                       amg_interp_type, amg_relax_type);
-         if (amg_print_options && myid == 0)
+         if (amg_print_options && myid == 0 && print_level >= 2)
          {
             PrintAMGOptions(*amgprec, "AMG", amg_agg_levels);
          }
@@ -744,8 +774,8 @@ int main(int argc, char *argv[])
       optimizer.SetTol(1e-6);
       optimizer.SetMaxIter(opt_maxit);
       optimizer.SetLinearSolver(&cgsolver);
-      optimizer.SetPrintLevel(0);
-      optimizer.SetPrintLinearSolverStatistics(true);
+      optimizer.SetPrintLevel(print_level == 3 ? 1 : 0);
+      optimizer.SetPrintLinearSolverStatistics(print_level >= 2);
 
       // Initial guess = previous reference configuration.
       x_gf.SetTrueVector();
@@ -760,6 +790,7 @@ int main(int argc, char *argv[])
       IPSolveSummary result;
       result.load_step = i;
       result.converged = optimizer.GetConverged();
+      result.termination_reason = optimizer.GetTerminationReason();
       result.ip_steps = optimizer.GetNumIPSteps();
       result.newton_solves = optimizer.GetNumIterations();
       result.optimality_error = optimizer.GetOptimalityError();
@@ -770,11 +801,14 @@ int main(int argc, char *argv[])
 
       if (!optimizer.GetConverged())
       {
-         if (Mpi::Root())
+         if (Mpi::Root() && print_level > 0)
          {
-            PrintIPSolveResult(optimizer, result);
+            if (print_level >= 2)
+            {
+               PrintIPSolveResult(optimizer, result);
+               mfem::err << "Contact solve failed at load step " << i << "." << endl;
+            }
             solve_results.push_back(result);
-            mfem::err << "Contact solve failed at load step " << i << "." << endl;
             PrintIPSummary(solve_results, total_steps);
          }
          return 2;
@@ -792,12 +826,12 @@ int main(int argc, char *argv[])
       real_t Einitial = contact.GetEnergy(x0, eval_err);
       real_t Efinal = contact.GetEnergy(xf, eval_err);
 
-      if (Mpi::Root())
+      if (Mpi::Root() && print_level > 0)
       {
          result.has_energy = true;
          result.initial_energy = Einitial;
          result.final_energy = Efinal;
-         PrintIPSolveResult(optimizer, result);
+         if (print_level >= 2) { PrintIPSolveResult(optimizer, result); }
          solve_results.push_back(result);
       }
 
@@ -836,7 +870,10 @@ int main(int argc, char *argv[])
       prob.UpdateRHS();
    }
 
-   if (Mpi::Root()) { PrintIPSummary(solve_results, total_steps); }
+   if (Mpi::Root() && print_level > 0)
+   {
+      PrintIPSummary(solve_results, total_steps);
+   }
    return 0;
 }
 
