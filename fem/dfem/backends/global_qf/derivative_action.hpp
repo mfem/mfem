@@ -46,7 +46,7 @@ struct DerivativeAction
       check_consistency(outputs, output_to_outfd, ctx.outfds);
 
       create_fieldbases<entity_t>(inputs, input_to_infd, ctx.infds, ctx.ir,
-                                  input_bases);
+                                  input_bases, ctx.orientation);
       create_fieldbases<entity_t>(
          outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
 

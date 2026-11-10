@@ -726,6 +726,14 @@ using Inputs = tuple<Ops...>;
 template <typename... Ops>
 using Outputs = tuple<Ops...>;
 
+/// Whether one of the field operators in @a fops_t satisfies @a trait.
+template <template <typename> class trait, typename fops_t>
+struct tuple_has_fop;
+
+template <template <typename> class trait, typename... fops>
+struct tuple_has_fop<trait, tuple<fops...>>
+   : std::bool_constant<(trait<std::decay_t<fops>>::value || ...)> {};
+
 // Convenience wrapper to encode Derivatives as integer sequence
 template <size_t... FieldIds>
 using Derivatives = std::integer_sequence<size_t, FieldIds...>;
@@ -1758,7 +1766,8 @@ create_descriptors_to_fields_map(
 
    auto f = [&](auto &fop, auto &map)
    {
-      if constexpr (is_weight_fop<std::decay_t<decltype(fop)>>::value)
+      if constexpr (is_weight_fop<std::decay_t<decltype(fop)>>::value ||
+                    is_orientation_fop<std::decay_t<decltype(fop)>>::value)
       {
          // TODO-bug: stealing dimension from the first field
          fop.dim = GetDimension<entity_t>(fields[0]);
@@ -1922,7 +1931,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
             static_cast<int>(idx)
          };
       }
-      else if constexpr (std::is_same_v<decltype(fop), Weight>)
+      else if constexpr (std::is_same_v<decltype(fop), Weight> ||
+                         std::is_same_v<decltype(fop), Orientation>)
       {
          return DofToQuadMap
          {

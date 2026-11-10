@@ -48,7 +48,7 @@ struct Action
       check_consistency(outputs, output_to_outfd, ctx.outfds);
 
       create_fieldbases<entity_t>(inputs, input_to_infd, ctx.infds, ctx.ir,
-                                  input_bases);
+                                  input_bases, ctx.orientation);
       create_fieldbases<entity_t>(outputs, output_to_outfd, ctx.outfds, ctx.ir,
                                   output_bases);
 
@@ -89,7 +89,8 @@ struct Action
       constexpr_for<0, ninputs>([&](auto i)
       {
          using input_t = std::decay_t<decltype(get<i>(inputs))>;
-         if constexpr (is_weight_fop<input_t>::value)
+         if constexpr (is_weight_fop<input_t>::value ||
+                       is_orientation_fop<input_t>::value)
          {
             Vector empty;
             input_bases[i].forward(empty, xq.GetBlock(i));
@@ -112,7 +113,8 @@ struct Action
          constexpr_for<0, ninputs>([&](auto i)
          {
             using input_t = std::decay_t<decltype(get<i>(inputs_t {}))>;
-            result[i] = !is_weight_fop<input_t>::value;
+            result[i] = !is_weight_fop<input_t>::value &&
+                        !is_orientation_fop<input_t>::value;
          });
          return result;
       }();

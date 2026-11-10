@@ -100,25 +100,37 @@ struct EntityTraits<Entity::BoundaryElement>
       return fes.GetTypicalTraceElement();
    }
 
-   /// Orientation signs at the points of @a ir, ordered as the faces of the
-   /// restriction, see DifferentiableOperator::GetBoundaryOrientation().
-   static std::pair<VectorQuadratureSpace, std::unique_ptr<QuadratureFunction>>
-   Orientation(Mesh &mesh, const IntegrationRule &ir)
+   /// Orientation sign of each boundary face, +1 or -1, that makes
+   /// normal(J, s) point outward, ordered as the faces of the restriction.
+   static void Orientations(const Mesh &mesh, Vector &signs)
    {
-      constexpr FaceType face_type = restriction.face_type;
-      auto owned_qs = std::make_unique<FaceQuadratureSpace>(mesh, ir, face_type);
+      const int nf = Count(mesh);
+      Array<bool> flip(nf);
+      FaceQuadratureInterpolator::GetSigns(mesh, restriction.face_type, flip);
+      signs.SetSize(nf);
+      auto s = signs.HostWrite();
+      for (int f = 0; f < nf; f++) { s[f] = flip[f] ? -1.0 : 1.0; }
+   }
+
+   /// The signs of Orientations() at the points of @a ir, see
+   /// DifferentiableOperator::GetBoundaryOrientation().
+   static std::pair<VectorQuadratureSpace, std::unique_ptr<QuadratureFunction>>
+   Orientations(Mesh &mesh, const IntegrationRule &ir)
+   {
+      auto owned_qs = std::make_unique<FaceQuadratureSpace>(
+                         mesh, ir, restriction.face_type);
       auto orientations = std::make_unique<QuadratureFunction>(owned_qs.get());
       auto *qs = owned_qs.release();
       orientations->SetOwnsSpace(true);
 
-      const int nf = qs->GetNumFaces(), nq = ir.GetNPoints();
-      Array<bool> flip(nf);
-      FaceQuadratureInterpolator::GetSigns(mesh, face_type, flip);
-
+      Vector signs;
+      Orientations(mesh, signs);
+      const int nf = signs.Size(), nq = ir.GetNPoints();
+      const auto h_signs = signs.HostRead();
       auto s = Reshape(orientations->HostWrite(), nq, nf);
       for (int f = 0; f < nf; f++)
       {
-         for (int q = 0; q < nq; q++) { s(q, f) = flip[f] ? -1.0 : 1.0; }
+         for (int q = 0; q < nq; q++) { s(q, f) = h_signs[f]; }
       }
       return {VectorQuadratureSpace(*qs, 1), std::move(orientations)};
    }
@@ -351,6 +363,7 @@ struct EntityIntegrators
 {
    EntityEVectors ev;
    callbacks_t callbacks;
+   Vector orientation;     // see EntityTraits::Orientations()
 };
 
 /// @brief The EntityIntegrators of the entity type @a entity_t, with

@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "../../general/array.hpp"
+#include "../../linalg/vector.hpp"
 #include "fielddescriptor.hpp"
 
 namespace mfem::future
@@ -38,6 +39,8 @@ struct IntegratorContext
    const IntegrationRule &ir;
    std::unordered_map<std::type_index, std::vector<int>> &in_qlayouts;
    std::unordered_map<std::type_index, std::vector<int>> &out_qlayouts;
+   /// Orientation sign of each entity, set when an input requests Orientation.
+   const Vector *orientation = nullptr;
 };
 
 }

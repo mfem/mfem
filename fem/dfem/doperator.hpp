@@ -1354,13 +1354,15 @@ public:
    /// expected outward orientation on the boundary faces.
    /// Therefore we return the space to put in an input FieldDescriptor and the
    /// signs, +1 or -1 at each point of @a ir, to pass in the input MultiVector.
+   /// The Orientation field operator provides the same signs without a field;
+   /// this explicit path also allows passing modified signs as Identity<> data.
    ///
    /// @note Both returned objects clean up automatically. Declare them before
    /// the operator so that they outlive it, as for any other input field.
    static std::pair<VectorQuadratureSpace, std::unique_ptr<QuadratureFunction>>
    GetBoundaryOrientation(Mesh &mesh, const IntegrationRule &ir)
    {
-      return EntityTraits<Entity::BoundaryElement>::Orientation(mesh, ir);
+      return EntityTraits<Entity::BoundaryElement>::Orientations(mesh, ir);
    }
 
    /// @brief Disable the use of tensor product structure.
@@ -1760,6 +1762,17 @@ void DifferentiableOperator::AddIntegrator(
    static_assert(std::is_same_v<qf_output_t, void>,
                  "quadrature function must return void");
 
+   // Make sure orientation fop is only used as an input, and not for elements
+   static constexpr bool has_orientation_input =
+      tuple_has_fop<is_orientation_fop, input_t>::value;
+   static constexpr bool has_orientation_output =
+      tuple_has_fop<is_orientation_fop, output_t>::value;
+   static_assert(!has_orientation_output,
+                 "Orientation can only be an input");
+   static_assert(!has_orientation_input ||
+                 !std::is_same_v<entity_t, Entity::Element>,
+                 "Orientation is not defined for domain elements");
+
    constexpr auto inout_tuple =
       merge_mfem_tuples_as_empty_std_tuple(input_t{}, output_t{});
    constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
@@ -1840,11 +1853,22 @@ void DifferentiableOperator::AddIntegrator(
    // TODO: Is this a hack?
    width = GetTrueVSize(infds[0]);
 
+   // Computed once per entity type, then shared by its integrators.
+   const Vector *orientation = nullptr;
+   if constexpr (has_orientation_input)
+   {
+      if (integrators.orientation.Size() != num_entities)
+      {
+         EntityTraits<entity_t>::Orientations(mesh, integrators.orientation);
+      }
+      orientation = &integrators.orientation;
+   }
+
    IntegratorContext<entity_t> ctx
    {
       mesh, elem_attributes, attributes, num_entities,
       infds, outfds, unionfds, integration_rule,
-      in_qlayouts, out_qlayouts
+      in_qlayouts, out_qlayouts, orientation
    };
 
    entity_callbacks.actions.push_back(
@@ -1905,7 +1929,7 @@ void DifferentiableOperator::AddIntegrator(
       {
          mesh, elem_attributes, attributes, num_entities,
          infds, stored_out, stored_union, integration_rule,
-         in_qlayouts, out_qlayouts
+         in_qlayouts, out_qlayouts, orientation
       };
    };
 
@@ -1941,7 +1965,7 @@ void DifferentiableOperator::AddIntegrator(
       {
          mesh, elem_attributes, attributes, num_entities,
          infds, stored_out, stored_union, integration_rule,
-         in_qlayouts, out_qlayouts
+         in_qlayouts, out_qlayouts, orientation
       };
    };
 

@@ -308,7 +308,10 @@ public:
          {
             in_XE_dir[i] = Reshape(d_direction, v, q, q, B2D ? 1 : q, ne);
          }
-         else if constexpr (is_weight_fop_v<FOP>) { /* never a direction */ }
+         else if constexpr (is_weight_fop_v<FOP> || is_orientation_fop_v<FOP>)
+         {
+            // never a direction
+         }
          else
          {
             static_assert(false, "Unsupported");
@@ -390,7 +393,8 @@ public:
                                                 FieldParamT>(
                                                    smem, e, d, q, Q1D, B, G, XE, sarg);
             }
-            else if constexpr (is_identity_fop_v<FOP> || is_weight_fop_v<FOP>)
+            else if constexpr (is_identity_fop_v<FOP> || is_weight_fop_v<FOP> ||
+                               is_orientation_fop_v<FOP>)
             {
                // identity read at qp; weight is never a trial direction
             }

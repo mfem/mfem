@@ -578,7 +578,7 @@ void bdr_mass_spaces(const char *filename, int p)
 
 // ────────────────────────────────────────────────────────────────────────────
 // Boundary flux of a vector field against each test function, using
-// normal(J, s) with the signs of GetBoundaryOrientation(), checked through the
+// normal(J, s) with the sign of the Orientation input, checked through the
 // divergence theorem:
 //    ∫_∂Ω (F·n) v ds = ∫_Ω div(F) v + F·∇v dx.
 
@@ -655,22 +655,18 @@ void bdr_normal_flux(const char *filename, int p)
    std::unique_ptr<HypreParVector> B(b.ParallelAssemble());
 
    ///<--- dFEM setup
-   static constexpr int U = 0, Coords = 1, Orientation = 2;
-   // normal(J) alone points into the domain on some faces, the orientation
-   // signs, read with Identity<>, make normal(J, s) outward.
-   auto [ospace, orientation] =
-       DifferentiableOperator::GetBoundaryOrientation(pmesh, *bdr_ir);
-   const std::vector<FieldDescriptor>
-       in_fds{{Coords, mfes}, {Orientation, &ospace}};
+   static constexpr int U = 0, Coords = 1;
+   // normal(J) alone points into the domain on some faces, the Orientation
+   // input provides the sign that makes normal(J, s) outward.
+   const std::vector<FieldDescriptor> in_fds{{Coords, mfes}};
    const std::vector<FieldDescriptor> out_fds{{U, &pfes}};
-   using IT = Inputs<Value<Coords>, Gradient<Coords>, Weight,
-                     Identity<Orientation>>;
+   using IT = Inputs<Value<Coords>, Gradient<Coords>, Weight, Orientation>;
    using OT = Outputs<Value<U>>;
 
    ///<--- Check that dFEM satisfies the divergence theorem for each test function
    ///   ∫_∂Ω (F·n) φ_i ds = ∫_Ω div(F) φ_i + F·∇φ_i dx.
    Vector Z(pfes.GetTrueVSize());
-   MultiVector MX{N, *orientation}, MZ{Z};
+   MultiVector MX{N}, MZ{Z};
    auto check = [&](DifferentiableOperator &dop)
    {
       dop.Mult(MX, MZ);

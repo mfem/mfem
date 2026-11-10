@@ -352,7 +352,8 @@ public:
                                              FieldParamT>(
                                                 smem, e, d, q, Q1D, B, G, XE, rarg);
          }
-         else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>)
+         else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP> ||
+                            is_orientation_fop_v<FOP>)
          {
             // qp values are read directly from in_XE / IR
          }
@@ -444,6 +445,10 @@ public:
                   {
                      parg = XE(qx, qy, qz, 0, 0);
                   }
+                  else if constexpr (is_orientation_fop_v<FOP>)
+                  {
+                     parg = XE(0, 0, 0, 0, e);
+                  }
                   else if constexpr (is_value_fop_v<FOP> ||
                                      is_gradient_fop_v<FOP>)
                   {
@@ -528,6 +533,10 @@ public:
                   else if constexpr (is_weight_fop_v<FOP>)
                   {
                      qarg = XE(qx, qy, qz, 0, 0);
+                  }
+                  else if constexpr (is_orientation_fop_v<FOP>)
+                  {
+                     qarg = XE(0, 0, 0, 0, e);
                   }
                   else if constexpr (is_value_fop_v<FOP> ||
                                      is_gradient_fop_v<FOP>)
@@ -709,6 +718,12 @@ public:
             in_XE[i] = Reshape(
                           ctx.ir.GetWeights().Read(), q1d, q1d, B2D ? 1 : q1d, 1, 1);
          }
+         else if constexpr (is_orientation_fop_v<FOP>)
+         {
+            MFEM_VERIFY(ctx.orientation && ctx.orientation->Size() == ne,
+                        "Size mismatch");
+            in_XE[i] = Reshape(ctx.orientation->Read(), 1, 1, 1, 1, ne);
+         }
          else
          {
             static_assert(false, "Unsupported");
@@ -750,7 +765,10 @@ public:
                in_XE_dir[i] = in_XE[i];
             }
          }
-         else if constexpr (is_weight_fop_v<FOP>) { in_XE_dir[i] = in_XE[i]; }
+         else if constexpr (is_weight_fop_v<FOP> || is_orientation_fop_v<FOP>)
+         {
+            in_XE_dir[i] = in_XE[i];
+         }
          else
          {
             static_assert(false, "Unsupported");

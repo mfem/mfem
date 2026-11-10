@@ -296,6 +296,12 @@ public:
             in_XE[i] = Reshape(
                           ctx.ir.GetWeights().Read(), q1d, q1d, B2D ? 1 : q1d, 1, 1);
          }
+         else if constexpr (is_orientation_fop_v<FOP>)
+         {
+            MFEM_VERIFY(ctx.orientation && ctx.orientation->Size() == ne,
+                        "Size mismatch");
+            in_XE[i] = Reshape(ctx.orientation->Read(), 1, 1, 1, 1, ne);
+         }
          else
          {
             static_assert(false, "Unsupported");
@@ -343,7 +349,8 @@ public:
                backend_t::template LoadGradient<RNK, rarg_t, XE_t, FieldParamT>(
                   smem, e, d, q, q1d, B, G, XE, rarg);
             }
-            else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>)
+            else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP> ||
+                               is_orientation_fop_v<FOP>)
             {
                // qp values are read directly from in_XE / IR
             }
@@ -388,6 +395,10 @@ public:
                      else if constexpr (is_weight_fop_v<FOP>)
                      {
                         parg = XE(qx, qy, qz, 0, 0);
+                     }
+                     else if constexpr (is_orientation_fop_v<FOP>)
+                     {
+                        parg = XE(0, 0, 0, 0, e);
                      }
                      else if constexpr (is_value_fop_v<FOP> ||
                                         is_gradient_fop_v<FOP>)
@@ -461,6 +472,10 @@ public:
                      else if constexpr (is_weight_fop_v<FOP>)
                      {
                         qarg = XE(qx, qy, qz, 0, 0);
+                     }
+                     else if constexpr (is_orientation_fop_v<FOP>)
+                     {
+                        qarg = XE(0, 0, 0, 0, e);
                      }
                      else if constexpr (is_value_fop_v<FOP> ||
                                         is_gradient_fop_v<FOP>)

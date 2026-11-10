@@ -163,6 +163,30 @@ inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
    };
 }
 
+/// Broadcasts the orientation sign of each entity to its quadrature points,
+/// to be consistent with tensor_arrays
+inline FieldBasis FieldBasisFromOrientation(const IntegrationRule &ir,
+                                            const Vector &orientation)
+{
+   return
+   {
+      [&ir, &orientation](const Vector &, Vector &xq)
+      {
+         const int nqp = ir.GetNPoints(), ne = orientation.Size();
+         MFEM_ASSERT(xq.Size() == nqp * ne,
+                     "orientation block has unexpected size");
+         const auto s = orientation.Read();
+         auto xq_s = Reshape(xq.Write(), nqp, ne);
+         mfem::forall(ne * nqp, [=] MFEM_HOST_DEVICE(int eq)
+         {
+            const int q = eq % nqp, e = eq / nqp;
+            xq_s(q, e) = s[e];
+         });
+      },
+      [](const Vector &, Vector &) {}
+   };
+}
+
 /// The basis of the field @a f on the entities of type @a entity_t (see
 /// Entity), at the points of @a ir.
 template <typename entity_t>
@@ -215,7 +239,8 @@ inline void create_fieldbases(
    const std::array<size_t, nfops> &fop_to_fd,
    const std::vector<FieldDescriptor> &fds,
    const IntegrationRule &ir,
-   std::array<FieldBasis, nfops> &bases)
+   std::array<FieldBasis, nfops> &bases,
+   const Vector *orientation = nullptr)
 {
    constexpr_for<0, nfops>([&](auto i)
    {
@@ -233,6 +258,11 @@ inline void create_fieldbases(
       else if constexpr (is_weight_fop<fop_t>::value)
       {
          bases[i] = FieldBasisFromWeight(ir);
+      }
+      else if constexpr (is_orientation_fop<fop_t>::value)
+      {
+         MFEM_ASSERT(orientation, "orientation signs are missing");
+         bases[i] = FieldBasisFromOrientation(ir, *orientation);
       }
       else if constexpr (is_value_fop<fop_t>::value)
       {
@@ -266,7 +296,8 @@ inline void check_consistency(
                      "Identity FieldOperator requested on non "
                      "VectorQuadratureSpace");
       }
-      else if constexpr (is_weight_fop<input_t>::value)
+      else if constexpr (is_weight_fop<input_t>::value ||
+                         is_orientation_fop<input_t>::value)
       {
          MFEM_CONTRACT_VAR(fd);
       }
@@ -1069,7 +1100,8 @@ void create_fop_to_fd(const fops_t &fops,
       // Handle Weight type. There is no FieldDescriptor for the weight.
       // TODO: Create weight descriptor for the weight for internal use?
       // TODO: this is a hack...
-      if (is_weight_fop<std::remove_cv_t<decltype(fop)>>::value)
+      if (is_weight_fop<std::remove_cv_t<decltype(fop)>>::value ||
+          is_orientation_fop<std::remove_cv_t<decltype(fop)>>::value)
       {
          fop_to_fd[i] = 0;
       }

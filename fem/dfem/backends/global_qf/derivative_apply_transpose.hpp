@@ -49,7 +49,8 @@ struct DerivativeApplyTranspose
       check_consistency(this->outputs, output_to_outfd, ctx.outfds);
 
       create_fieldbases<entity_t>(
-         this->inputs, input_to_infd, ctx.infds, ctx.ir, input_bases);
+         this->inputs, input_to_infd, ctx.infds, ctx.ir, input_bases,
+         ctx.orientation);
       create_fieldbases<entity_t>(
          this->outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
 
