@@ -69,8 +69,14 @@ public:
    static bool SupportsFESpace(const FiniteElementSpace &fes);
 
    /// Return the sign to apply to the normals on each face to point from e1 to e2.
-   static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
+   static void GetSigns(const Mesh &mesh, const FaceType type,
                         Array<bool> &signs);
+
+   /// Same as GetSigns(const Mesh &, const FaceType, Array<bool> &) for the
+   /// mesh of @a fes.
+   static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
+                        Array<bool> &signs)
+   { GetSigns(*fes.GetMesh(), type, signs); }
 
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */

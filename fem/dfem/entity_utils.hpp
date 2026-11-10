@@ -14,8 +14,13 @@
 
 #ifdef MFEM_USE_MPI
 
+#include "../qfunction.hpp"
+#include "../quadinterpolator_face.hpp"
 #include "util.hpp"
 #include "field_restriction.hpp"
+
+#include <memory>
+#include <utility>
 
 namespace mfem::future
 {
@@ -93,6 +98,29 @@ struct EntityTraits<Entity::BoundaryElement>
    static const FiniteElement *TypicalFE(const FiniteElementSpace &fes)
    {
       return fes.GetTypicalTraceElement();
+   }
+
+   /// Orientation signs at the points of @a ir, ordered as the faces of the
+   /// restriction, see DifferentiableOperator::GetBoundaryOrientation().
+   static std::pair<VectorQuadratureSpace, std::unique_ptr<QuadratureFunction>>
+   Orientation(Mesh &mesh, const IntegrationRule &ir)
+   {
+      constexpr FaceType face_type = restriction.face_type;
+      auto owned_qs = std::make_unique<FaceQuadratureSpace>(mesh, ir, face_type);
+      auto orientations = std::make_unique<QuadratureFunction>(owned_qs.get());
+      auto *qs = owned_qs.release();
+      orientations->SetOwnsSpace(true);
+
+      const int nf = qs->GetNumFaces(), nq = ir.GetNPoints();
+      Array<bool> flip(nf);
+      FaceQuadratureInterpolator::GetSigns(mesh, face_type, flip);
+
+      auto s = Reshape(orientations->HostWrite(), nq, nf);
+      for (int f = 0; f < nf; f++)
+      {
+         for (int q = 0; q < nq; q++) { s(q, f) = flip[f] ? -1.0 : 1.0; }
+      }
+      return {VectorQuadratureSpace(*qs, 1), std::move(orientations)};
    }
 };
 

@@ -1346,6 +1346,23 @@ public:
       derivative_ids_t derivative_ids = std::make_index_sequence<0> {},
       second_derivative_ids_t second_derivative_ids = {});
 
+   /// @brief Orientation signs that make normal(J, s) point outward on the
+   /// boundary faces of @a mesh.
+   ///
+   /// Required because to keep normals differentiable we cannot precompute them.
+   /// The normal computed directly from the Gradient<Coords> doesn't give the
+   /// expected outward orientation on the boundary faces.
+   /// Therefore we return the space to put in an input FieldDescriptor and the
+   /// signs, +1 or -1 at each point of @a ir, to pass in the input MultiVector.
+   ///
+   /// @note Both returned objects clean up automatically. Declare them before
+   /// the operator so that they outlive it, as for any other input field.
+   static std::pair<VectorQuadratureSpace, std::unique_ptr<QuadratureFunction>>
+   GetBoundaryOrientation(Mesh &mesh, const IntegrationRule &ir)
+   {
+      return EntityTraits<Entity::BoundaryElement>::Orientation(mesh, ir);
+   }
+
    /// @brief Disable the use of tensor product structure.
    ///
    /// This function disables the use of tensor product structure for the

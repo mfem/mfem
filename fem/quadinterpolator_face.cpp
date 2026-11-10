@@ -19,11 +19,10 @@
 namespace mfem
 {
 
-void FaceQuadratureInterpolator::GetSigns(const FiniteElementSpace &fes,
+void FaceQuadratureInterpolator::GetSigns(const Mesh &mesh,
                                           const FaceType type,
                                           Array<bool> &signs)
 {
-   const Mesh &mesh = *fes.GetMesh();
    const int dim = mesh.SpaceDimension();
    int face_id;
    int f_ind = 0;

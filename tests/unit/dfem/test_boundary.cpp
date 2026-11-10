@@ -577,6 +577,143 @@ void bdr_mass_spaces(const char *filename, int p)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Boundary flux of a vector field against each test function, using
+// normal(J, s) with the signs of GetBoundaryOrientation(), checked through the
+// divergence theorem:
+//    ∫_∂Ω (F·n) v ds = ∫_Ω div(F) v + F·∇v dx.
+
+// Field: F(x) = [xy + 1, y - z^2, x + 2z], div(F) = y + 3
+// used for the MFEM coefficient and by the dFEM qfunctions
+MFEM_HOST_DEVICE inline tensor<real_t, 3> FluxField(const tensor<real_t, 3> &x)
+{
+   return {x[0]*x[1] + 1.0, x[1] - x[2]*x[2], x[0] + 2.0*x[2]};
+}
+
+struct global_bdr_flux_qf
+{
+   void operator()(tensor_array<const real_t, 3> &x,
+                   tensor_array<const real_t, 3, 2> &J,
+                   tensor_array<const real_t> &w,
+                   tensor_array<const real_t> &s,
+                   tensor_array<real_t> &v) const
+   {
+      mfem::forall<UseEnzyme>(w.size(), [=] MFEM_HOST_DEVICE (int q)
+      {
+         const real_t s_q = s(q);
+         v(q) = dot(FluxField(x(q)), normal(J(q), s_q)) * weight(J(q)) * w(q);
+      });
+   }
+};
+
+void bdr_normal_flux(const char *filename, int p)
+{
+   CAPTURE(filename, p);
+
+   Mesh smesh(filename);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+   MFEM_VERIFY(pmesh.Dimension() == 3, "Mesh dimension mismatch");
+   smesh.Clear();
+
+   int bdr_elements_are_faces =
+      pmesh.GetNFbyType(FaceType::Boundary) == pmesh.GetNBE();
+   MPI_Allreduce(MPI_IN_PLACE, &bdr_elements_are_faces, 1, MPI_INT, MPI_MIN,
+                 pmesh.GetComm());
+   if (pmesh.bdr_attributes.Size() == 0 || !bdr_elements_are_faces) { return; }
+
+   ///<--- Preamble
+   pmesh.EnsureNodes();
+   auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
+   ParFiniteElementSpace *mfes = nodes->ParFESpace();
+   Vector N;
+   nodes->GetTrueDofs(N);
+
+   H1_FECollection fec(p, 3);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+
+   // F is quadratic, so both sides are integrated exactly on affine meshes.
+   const int order = p + 2 * mfes->GetMaxElementOrder() + 2;
+   const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), order);
+   const auto *bdr_ir = &IntRules.Get(pmesh.GetTypicalFaceGeometry(), order);
+   Array<int> all_bdr_attr(pmesh.bdr_attributes.Max());
+   all_bdr_attr = 1;
+
+   ///<--- MFEM setup
+   // Right-hand side of the divergence theorem, with F from FluxField()
+   auto f_coef = [](const Vector &x, Vector &f)
+   {
+      const auto fx = FluxField({x(0), x(1), x(2)});
+      for (int i = 0; i < 3; i++) { f(i) = fx[i]; }
+   };
+   VectorFunctionCoefficient F_coeff(3, f_coef);
+   FunctionCoefficient divF_coeff([](const Vector &x) { return x(1) + 3.0; });
+
+   ParLinearForm b(&pfes);
+   b.AddDomainIntegrator(new DomainLFIntegrator(divF_coeff, ir));
+   b.AddDomainIntegrator(new DomainLFGradIntegrator(F_coeff));
+   b.GetDLFI()->Last()->SetIntRule(ir);
+   b.Assemble();
+   std::unique_ptr<HypreParVector> B(b.ParallelAssemble());
+
+   ///<--- dFEM setup
+   static constexpr int U = 0, Coords = 1, Orientation = 2;
+   // normal(J) alone points into the domain on some faces, the orientation
+   // signs, read with Identity<>, make normal(J, s) outward.
+   auto [ospace, orientation] =
+       DifferentiableOperator::GetBoundaryOrientation(pmesh, *bdr_ir);
+   const std::vector<FieldDescriptor>
+       in_fds{{Coords, mfes}, {Orientation, &ospace}};
+   const std::vector<FieldDescriptor> out_fds{{U, &pfes}};
+   using IT = Inputs<Value<Coords>, Gradient<Coords>, Weight,
+                     Identity<Orientation>>;
+   using OT = Outputs<Value<U>>;
+
+   ///<--- Check that dFEM satisfies the divergence theorem for each test function
+   ///   ∫_∂Ω (F·n) φ_i ds = ∫_Ω div(F) φ_i + F·∇φ_i dx.
+   Vector Z(pfes.GetTrueVSize());
+   MultiVector MX{N, *orientation}, MZ{Z};
+   auto check = [&](DifferentiableOperator &dop)
+   {
+      dop.Mult(MX, MZ);
+      Z -= *B;
+      REQUIRE(ParNormlp(Z, infinity(), pmesh.GetComm()) == MFEM_Approx(0.0));
+   };
+
+   SECTION("LocalQF")
+   {
+      auto qf = [] MFEM_HOST_DEVICE(const tensor<real_t, 3> &x,
+                                    const tensor<real_t, 3, 2> &J,
+                                    const real_t &w,
+                                    const real_t &orient,
+                                    real_t &v)
+      {
+         v = dot(FluxField(x), normal(J, orient)) * weight(J) * w;
+      };
+      DifferentiableOperator dop(in_fds, out_fds, pmesh);
+      dop.AddBoundaryIntegrator<LocalQFBackend>(
+         qf, IT{}, OT{}, *bdr_ir, all_bdr_attr);
+      check(dop);
+   }
+
+   SECTION("GlobalQF")
+   {
+      global_bdr_flux_qf qf;
+      DifferentiableOperator dop(in_fds, out_fds, pmesh);
+      dop.AddBoundaryIntegrator<GlobalQFBackend>(
+         qf, IT{}, OT{}, *bdr_ir, all_bdr_attr);
+      check(dop);
+   }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+TEST_CASE("dFEM Boundary Normal 3D", "[Parallel][dFEM][GPU]")
+{
+   const auto p = GenAll({1}, {2, 3});
+   const auto meshs = { "../../data/inline-hex.mesh" };
+   const auto extra = { "../../data/fichera.mesh" };
+   bdr_normal_flux(GenAll(meshs, extra), p);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Boundary Mass 3D", "[Parallel][dFEM][GPU]")
 {
    const auto p = GenAll({1}, {2, 3});

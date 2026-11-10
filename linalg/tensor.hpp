@@ -1445,31 +1445,52 @@ decltype(A / norm(A))
 /**
  * @brief Normal of a codimension-one entity from its Jacobian, scaled by the
  * entity's measure, the counterpart of CalcOrtho
+ * @param[in] J The (n x n-1) Jacobian of the entity
+ * @param[in] s The orientation sign, +1 or -1, that makes the normal point in
+ * the intended direction, e.g. from
+ * DifferentiableOperator::GetBoundaryOrientation()
  */
 template <typename T, int n, int m> MFEM_HOST_DEVICE
-tensor<T, n> ortho(const tensor<T, n, m>& J)
+tensor<T, n> ortho(const tensor<T, n, m>& J, const real_t s)
 {
    static_assert(((n == 2) && (m == 1)) || ((n == 3) && (m == 2)),
                  "unsupported combination of n and m");
    if constexpr (n == 2)
    {
-      return tensor<T, 2> {J[1][0], -J[0][0]};
+      return s * tensor<T, 2> {J[1][0], -J[0][0]};
    }
    else
    {
-      return cross(tensor<T, 3> {J[0][0], J[1][0], J[2][0]},
-                   tensor<T, 3> {J[0][1], J[1][1], J[2][1]});
+      return s * cross(tensor<T, 3> {J[0][0], J[1][0], J[2][0]},
+                       tensor<T, 3> {J[0][1], J[1][1], J[2][1]});
    }
 }
 
 /**
- * @brief Unit normal of a codimension-one entity from its Jacobian, see ortho()
- * @param[in] J The (n x n-1) Jacobian of the entity
+ * @brief Unit normal of a codimension-one entity from its Jacobian and
+ * orientation sign, see ortho()
  */
 template <typename T, int n, int m> MFEM_HOST_DEVICE
-tensor<T, n> normal(const tensor<T, n, m>& J)
+tensor<T, n> normal(const tensor<T, n, m>& J, const real_t s)
 {
-   return normalize(ortho(J));
+   return normalize(ortho(J, s));
+}
+
+/// The direction of the normal depends on the entity's parametrization, so
+/// ortho() and normal() require an explicit orientation sign.
+template <typename T, int n, int m>
+void ortho(const tensor<T, n, m>&)
+{
+   static_assert(sizeof(T) == 0,
+                 "ortho(J) needs the orientation sign, use ortho(J, s)");
+}
+
+/// @copydoc ortho(const tensor<T, n, m>&)
+template <typename T, int n, int m>
+void normal(const tensor<T, n, m>&)
+{
+   static_assert(sizeof(T) == 0,
+                 "normal(J) needs the orientation sign, use normal(J, s)");
 }
 
 /**

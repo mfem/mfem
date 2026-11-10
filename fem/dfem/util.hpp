@@ -1551,7 +1551,7 @@ int GetDimension(const FieldDescriptor &f)
       }
       else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
-         return arg->GetSpace()->GetMesh()->Dimension();
+         return EntityTraits<entity_t>::Dimension(*arg->GetSpace()->GetMesh());
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
@@ -1942,7 +1942,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          if (std::holds_alternative<const VectorQuadratureSpace *>(fd.data))
          {
             const auto *vqs = std::get<const VectorQuadratureSpace *>(fd.data);
-            mesh_dimension = vqs->GetSpace()->GetMesh()->Dimension();
+            mesh_dimension =
+               EntityTraits<entity_t>::Dimension(*vqs->GetSpace()->GetMesh());
          }
          else
          {
