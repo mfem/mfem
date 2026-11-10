@@ -747,16 +747,20 @@ void IPSolver::PrintLinearSolverStatistics(
    if (state.linear_iterations.Size() == 1 || options.print_level > 0)
    {
       PrintTableRow(table, widths,
-                    {"IP step", "Status", "Initial residual norm",
-                     "Final residual norm", "Iterations"});
+      {
+         "IP step", "Status", "Initial residual norm",
+         "Final residual norm", "Iterations"
+      });
       PrintTableSeparator(table, widths);
    }
    PrintTableRow(table, widths,
-                 {std::to_string(ip_step),
-                  linear_solver.GetConverged() ? "Converged" : "Not converged",
-                  Scientific(linear_solver.GetInitialNorm()),
-                  Scientific(linear_solver.GetFinalNorm()),
-                  std::to_string(linear_solver.GetNumIterations())});
+   {
+      std::to_string(ip_step),
+      linear_solver.GetConverged() ? "Converged" : "Not converged",
+      Scientific(linear_solver.GetInitialNorm()),
+      Scientific(linear_solver.GetFinalNorm()),
+      std::to_string(linear_solver.GetNumIterations())
+   });
    mfem::out << table.str() << std::flush;
 }
 
@@ -825,8 +829,10 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
       if (!debug) { return; }
       std::ostringstream row;
       PrintTableRow(row, trial_widths,
-                    {std::to_string(trial), Scientific(alpha), Scientific(violation),
-                     Scientific(barrier_value), filter, decision});
+      {
+         std::to_string(trial), Scientific(alpha), Scientific(violation),
+         Scientific(barrier_value), filter, decision
+      });
       mfem::out << row.str() << std::flush;
    };
    if (debug)
@@ -849,8 +855,10 @@ IPSolver::LineSearchResult IPSolver::LineSearch(
       PrintDebugField(out, "Multiplier step limit", Scientific(alphaMaxz));
       out << '\n';
       PrintTableRow(out, trial_widths,
-                    {"Trial", "Step length", "Violation", "Barrier value",
-                     "Filter", "Decision"});
+      {
+         "Trial", "Step length", "Violation", "Barrier value",
+         "Filter", "Decision"
+      });
       PrintTableSeparator(out, trial_widths);
       mfem::out << out.str() << std::flush;
    }
@@ -1131,13 +1139,17 @@ real_t IPSolver::OptimalityError(const BlockVector &x, const Vector &l,
       std::ostringstream table;
       table << '\n';
       PrintTableRow(table, widths,
-                    {"Barrier mu", "Stationarity", "Feasibility",
-                     "Complementarity", "Optimality"});
+      {
+         "Barrier mu", "Stationarity", "Feasibility",
+         "Complementarity", "Optimality"
+      });
       PrintTableSeparator(table, widths);
       PrintTableRow(table, widths,
-                    {Scientific(mu), Scientific(stationarityError),
-                     Scientific(feasibilityError), Scientific(complementarityError),
-                     Scientific(optimalityError)});
+      {
+         Scientific(mu), Scientific(stationarityError),
+         Scientific(feasibilityError), Scientific(complementarityError),
+         Scientific(optimalityError)
+      });
       mfem::out << table.str() << std::flush;
    }
    return optimalityError;

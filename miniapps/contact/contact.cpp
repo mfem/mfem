@@ -250,7 +250,8 @@ void PrintIPSolveResult(const IPSolver &optimizer, const IPSolveSummary &result)
    PrintResultField(out, "CG iterations", result.cg_iterations);
    PrintResultField(out, "Final stationarity error",
                     optimizer.GetStationarityError());
-   PrintResultField(out, "Final feasibility error", optimizer.GetFeasibilityError());
+   PrintResultField(out, "Final feasibility error",
+                    optimizer.GetFeasibilityError());
    PrintResultField(out, "Final complementarity error",
                     optimizer.GetComplementarityError());
    PrintResultField(out, "Final optimality error", result.optimality_error);
@@ -270,21 +271,25 @@ void PrintIPSummary(const std::vector<IPSolveSummary> &results, int total_steps)
    std::ostringstream out;
    PrintBanner(out, "FINAL IP SUMMARY");
    PrintTableRow(out, widths,
-                 {"Step", "Status", "IP steps", "Newton solves", "CG iters",
-                  "Optimality", "Final energy"});
+   {
+      "Step", "Status", "IP steps", "Newton solves", "CG iters",
+      "Optimality", "Final energy"
+   });
    PrintTableSeparator(out, widths);
    long long ip_steps = 0, newton_solves = 0, cg_iterations = 0;
    int converged_steps = 0;
    for (const auto &result : results)
    {
       PrintTableRow(out, widths,
-                    {std::to_string(result.load_step),
-                     result.converged ? "converged" : "failed",
-                     std::to_string(result.ip_steps),
-                     std::to_string(result.newton_solves),
-                     std::to_string(result.cg_iterations),
-                     Scientific(result.optimality_error),
-                     result.has_energy ? Scientific(result.final_energy) : "n/a"});
+      {
+         std::to_string(result.load_step),
+         result.converged ? "converged" : "failed",
+         std::to_string(result.ip_steps),
+         std::to_string(result.newton_solves),
+         std::to_string(result.cg_iterations),
+         Scientific(result.optimality_error),
+         result.has_energy ? Scientific(result.final_energy) : "n/a"
+      });
       ip_steps += result.ip_steps;
       newton_solves += result.newton_solves;
       cg_iterations += result.cg_iterations;
