@@ -948,7 +948,7 @@ void EABilinearFormExtension::Assemble()
    SetupRestrictionOperators(L2FaceValues::SingleValued);
 
    ne = trial_fes->GetMesh()->GetNE();
-   elemDofs = trial_fes->GetTypicalFE()->GetDof();
+   elemDofs = trial_fes->GetTypicalFE()->GetDof() * trial_fes->GetVDim();
 
    {
       ea_data.SetSize(ne*elemDofs*elemDofs);

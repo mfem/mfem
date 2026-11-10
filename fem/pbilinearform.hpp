@@ -90,9 +90,6 @@ public:
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
 
-   /// Assemble the diagonal when the trial and test spaces are identical.
-   void AssembleDiagonal(Vector &diag) const override;
-
    /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
        @a diag is a true-dof Vector.
 
@@ -359,6 +356,19 @@ public:
 
    /// Assemble the local matrix
    void Assemble(int skip_zeros = 1);
+
+      /** @brief Assemble the diagonal of the bilinear form into @a diag. Note that
+       @a diag is a true-dof Vector.
+
+       This function can only be invoked if the trial space is the same as the test space.
+
+       When the AssemblyLevel is not LEGACY, and the mesh is nonconforming,
+       this method returns |P^T| d_l, where d_l is the local diagonal of the
+       form before applying parallel/conforming assembly, P^T is the transpose
+       of the parallel/conforming prolongation, and |.| denotes the entry-wise
+       absolute value. In general, this is just an approximation of the exact
+       diagonal for this case. */
+   void AssembleDiagonal(Vector &diag) const override;
 
    /// Returns the matrix assembled on the true dofs, i.e. P_test^t A P_trial.
    /** The returned matrix is the internal one, owned by the form. It is not
