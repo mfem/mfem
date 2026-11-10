@@ -484,7 +484,7 @@ int main(int argc, char *argv[])
                          << "_ser_ref_" << sref
                          << "_nonlinear_" << nonlinear;
       paraview_dc = std::make_unique<ParaViewDataCollection>(
-         paraview_file_name.str(), &pmesh_copy);
+                       paraview_file_name.str(), &pmesh_copy);
       paraview_dc->SetPrefixPath("ParaView");
       paraview_dc->SetLevelsOfDetail(2);
       paraview_dc->SetDataFormat(VTKFormat::BINARY);
@@ -624,7 +624,7 @@ int main(int argc, char *argv[])
                             amgf_fsolver);
          }
          subspacesolver = std::make_unique<ParallelDirectSolver>(
-            MPI_COMM_WORLD, amgf_fsolver);
+                             MPI_COMM_WORLD, amgf_fsolver);
          subspacesolver->SetPrintLevel(0);
          amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
          amgfprec->SetFilteredSubspaceTransferOperator(

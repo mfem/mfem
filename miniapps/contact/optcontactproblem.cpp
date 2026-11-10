@@ -304,11 +304,11 @@ void OptContactProblem::ComputeGapJacobian()
       mcslumps[i].UseDevice(true);
       const ContactInterface &interface = contact_interfaces[i];
       interface_jacobians[i].reset(SetupTribol(
-                                     problem->GetMesh(), coords,
-                                     problem->GetEssentialDofs(),
-                                     interface.mortar_attrs,
-                                     interface.nonmortar_attrs,
-                                     gaps[i], mcslumps[i], tribol_ratio));
+                                      problem->GetMesh(), coords,
+                                      problem->GetEssentialDofs(),
+                                      interface.mortar_attrs,
+                                      interface.nonmortar_attrs,
+                                      gaps[i], mcslumps[i], tribol_ratio));
       Js[i] = interface_jacobians[i].get();
       ngap += gaps[i].Size();
    }
@@ -434,11 +434,11 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    Vector diagVec(dimU); diagVec.UseDevice(true); diagVec = 0.0;
    diagVec = 1.0;
    Iu.reset(MakeDiagonalHypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
-                                     diagVec));
+                                       diagVec));
 
    diagVec = -1.0;
    negIu.reset(MakeDiagonalHypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
-                                        diagVec));
+                                          diagVec));
 
    dimM = dimG;
    dimC = dimM;
@@ -487,7 +487,7 @@ HypreParMatrix * OptContactProblem::Dmc(const BlockVector &)
    {
       Vector negone(dimM); negone.UseDevice(true); negone = -1.0;
       NegId.reset(MakeDiagonalHypreParMatrix(comm, GetGlobalNumConstraints(),
-                                           GetConstraintsStarts(), negone));
+                                             GetConstraintsStarts(), negone));
    }
    return NegId.get();
 }
@@ -568,7 +568,7 @@ HypreParMatrix * OptContactProblem::GetContactSubspaceTransferOperator()
                     MPI_SUM,comm);
 
       auto P_ct = std::make_unique<HypreParMatrix>(
-         comm, glob_nrows_c, glob_ncols_c, rows_c, vfes->GetTrueDofOffsets(), &Pct);
+                     comm, glob_nrows_c, glob_ncols_c, rows_c, vfes->GetTrueDofOffsets(), &Pct);
       HypreStealOwnership(*P_ct, Pct);
       // Rectangular construction leaves HYPRE's CSR memory location unset.
       // Transpose must see the location matching the assembled CSR pointers.

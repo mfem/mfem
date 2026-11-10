@@ -499,7 +499,7 @@ void IPSolver::AcceptStep(PrimalDualVector &iterate,
    }
    // Accept the trial point
    iterate.Displacement().Add(search.primal_step,
-                               direction.Displacement());
+                              direction.Displacement());
    iterate.Slack().Add(search.primal_step, direction.Slack());
    lk.Add(search.primal_step, direction.EqualityMultiplier());
    zlk.Add(search.multiplier_step, direction.InequalityMultiplier());
@@ -597,7 +597,7 @@ void IPSolver::Mult(const BlockVector &x0, BlockVector &xf)
          mfem::out << "mu = " << mu_k << std::endl;
       }
       const LineSearchResult search = LineSearch(
-         iterate, direction, mu_k, last_armijo_sufficient_decrease);
+                                         iterate, direction, mu_k, last_armijo_sufficient_decrease);
       last_armijo_sufficient_decrease = search.armijo_sufficient_decrease;
 
       if (search.accepted)
@@ -689,7 +689,7 @@ void IPSolver::FormIPNewtonMat(BlockVector & x, Vector & l,
    else
    {
       Wuu.reset(MakeDiagonalHypreParMatrix(comm, problem->GetGlobalNumDofs(),
-                                          problem->GetDofStarts(), deltaDiagVec));
+                                           problem->GetDofStarts(), deltaDiagVec));
    }
 
    //         IP-Newton system matrix
