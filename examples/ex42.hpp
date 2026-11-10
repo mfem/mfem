@@ -2,47 +2,41 @@
 
 using namespace mfem;
 
-void InitialGuess(const Vector &x, Vector &u);
-real_t GapFunction(const Vector &x);
-
-/// @brief Coefficient that evaluates -ln(ϕ₁ - u · ñ) with a clipping bound.
-/// Used to initialize the latent variable ψ.
-class LogarithmGridFunctionCoefficient : public Coefficient
+/// @brief Return -ln(ϕ - u · ñ).
+real_t LogarithmicFunction(real_t c1, real_t c2)
 {
-private:
-   GridFunction *u;
-   Coefficient *gap;
-   Vector *n_tilde;
-   real_t max_val;
+   const real_t min_val = exp(-36);
+   real_t diff = std::max(c1 - c2, min_val);
 
-public:
-   LogarithmGridFunctionCoefficient(GridFunction &u_, Coefficient &gap_,
-                                    Vector &n_tilde_, real_t max_val_=36)
-      : u(&u_), gap(&gap_), n_tilde(&n_tilde_), max_val(max_val_) { }
+   return -log(diff);
+}
 
-   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
-};
-
-/// @brief Coefficient that evaluates exp(-ψ) with clipping bounds.
-/// Used for computing the nonlinear terms of the system.
-class ExponentialGridFunctionCoefficient : public Coefficient
+/// @brief Return exp(-ψ).
+real_t ExponentialFunction(real_t c1)
 {
-private:
-   GridFunction *psi;
-   real_t min_val;
-   real_t max_val;
+   const real_t min_val = 0.0, max_val = 1e6;
 
-public:
-   ExponentialGridFunctionCoefficient(GridFunction &psi_, real_t min_val_=0.0,
-                                      real_t max_val_=1e6)
-      : psi(&psi_), min_val(min_val_), max_val(max_val_)
-   {
-      MFEM_VERIFY(min_val <= max_val,
-                  "ExponentialGridFunctionCoefficient: min_val must not exceed max_val");
-   }
+   return std::max(min_val, std::min(max_val, exp(-c1)));
+}
 
-   real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
-};
+/// @brief Evaluate the gap function.
+real_t GapFunction(const Vector &x)
+{
+   const real_t plane_g = -0.1;
+
+   const int dim = x.Size();
+   return x(dim-1) - plane_g;
+}
+
+/// @brief Set the initial displacement to -0.1 in z direction.
+void InitialGuess(const Vector &x, Vector &u)
+{
+   const int dim = x.Size();
+   const real_t disp = -0.1;
+
+   u = 0.0;
+   u(dim-1) = disp;
+}
 
 /// Mixed bilinear form between a parent mesh trial space and a submesh test space.
 /// Represents the coupling term <A u_trace, v> on the coupling boundary, where

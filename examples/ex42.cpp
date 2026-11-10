@@ -161,6 +161,7 @@ int main(int argc, char *argv[])
    GridFunction u_old_gf(&H1fes);
    GridFunction psi_old_gf(&L2fes);
    GridFunction psi_gf(&L2fes);
+
    u_old_gf = 0.0;
    psi_old_gf = 0.0;
 
@@ -176,8 +177,12 @@ int main(int argc, char *argv[])
    GridFunction u_trace_gf(trace_fes);
    contact_mesh.Transfer(u_gf, u_trace_gf);
 
+   GridFunctionCoefficient psi_cf(&psi_gf);
+   VectorGridFunctionCoefficient u_trace_cf(&u_trace_gf);
+
    FunctionCoefficient gap_cf(GapFunction);
-   LogarithmGridFunctionCoefficient psi_init_cf(u_trace_gf, gap_cf, n_tilde);
+   InnerProductCoefficient udotn(u_trace_cf, n_tilde_c);
+   TransformedCoefficient psi_init_cf(&gap_cf, &udotn, LogarithmicFunction);
    psi_gf.ProjectCoefficient(psi_init_cf);
    psi_old_gf = psi_gf;
 
@@ -213,14 +218,19 @@ int main(int argc, char *argv[])
    // 11. Set up GLVis visualization.
    char vishost[] = "localhost";
    int  visport   = 19916;
+
    socketstream sol_sock;
+
+   // Visualize the initial solution.
    if (visualization)
    {
       sol_sock.open(vishost, visport);
       sol_sock.precision(8);
 
-      // Visualize the initial solution.
-      sol_sock << "solution\n" << mesh << u_gf << std::flush;
+      sol_sock << "solution\n" << mesh << u_gf
+               << "window_title 'Displacement u'\n"
+               << "window_size 600 600\n"
+               << "keys acb\n" << std::flush;
    }
 
    //  12. Iterate
@@ -249,7 +259,7 @@ int main(int argc, char *argv[])
       for (int j = 0; j < newton_iterations; j++)
       {
          // Define coefficients
-         ExponentialGridFunctionCoefficient exp_psi(psi_gf);
+         TransformedCoefficient exp_psi(&psi_cf, ExponentialFunction);
          SumCoefficient gap_minus_exp_psi(gap_cf, exp_psi, 1.0, -1.0);
 
          LinearForm b0,b1;
@@ -354,45 +364,4 @@ int main(int argc, char *argv[])
    delete A01;
 
    return 0;
-}
-
-real_t LogarithmGridFunctionCoefficient::Eval(ElementTransformation &T,
-                                              const IntegrationPoint &ip)
-{
-   MFEM_ASSERT(u != NULL, "grid function is not set");
-   const int dim = T.GetSpaceDim();
-
-   Vector u_val(dim);
-   u->GetVectorValue(T, ip, u_val);
-
-   // Return -ln(ϕ₁ - u · ñ)
-   // clamping the argument away from zero
-   real_t arg = max(gap->Eval(T, ip) - u_val * *n_tilde, exp(-max_val));
-   return -log(arg);
-}
-
-real_t ExponentialGridFunctionCoefficient::Eval(ElementTransformation &T,
-                                                const IntegrationPoint &ip)
-{
-   MFEM_ASSERT(psi != NULL, "grid function is not set");
-
-   // Return exp(-ψ)
-   return min(max_val, max(min_val, exp(-psi->GetValue(T, ip))));
-}
-
-void InitialGuess(const Vector &x, Vector &u)
-{
-   const int dim = x.Size();
-   const real_t disp = -0.1;
-
-   u = 0.0;
-   u(dim-1) = disp;
-}
-
-real_t GapFunction(const Vector &x)
-{
-   const real_t plane_g = -0.1;
-
-   const int dim = x.Size();
-   return x(dim-1) - plane_g;
 }
