@@ -143,8 +143,9 @@ void prolongation(
       const auto alias_lvector_block = [&]
       {
          const Vector &xi = x.GetBlock(i);
+         xi.Read(); // make the input valid on the device, see MultiVector version
          x_l[i]->NewMemoryAndSize(xi.GetMemory(), xi.Size(), false);
-         x_l[i]->UseDevice(xi.UseDevice());
+         x_l[i]->UseDevice(true);
          x_l[i]->SyncMemory(xi);
       };
 
@@ -197,8 +198,9 @@ void prolongation(
    {
       if (is_lvector)
       {
+         x[i].Read(); // make the input valid on the device, see alias below
          x_l[i]->NewMemoryAndSize(x[i].GetMemory(), x[i].Size(), false);
-         x_l[i]->UseDevice(x[i].UseDevice());
+         x_l[i]->UseDevice(true);
          x_l[i]->SyncMemory(x[i]);
          continue;
       }
@@ -219,8 +221,12 @@ void prolongation(
          }
          else
          {
+            // An alias starts from the validity flags of its base, so the
+            // base is made valid on the device first; otherwise every call
+            // copies the input from the host again.
+            x[i].Read();
             x_l[i]->NewMemoryAndSize(x[i].GetMemory(), x[i].Size(), false);
-            x_l[i]->UseDevice(x[i].UseDevice());
+            x_l[i]->UseDevice(true);
             x_l[i]->SyncMemory(x[i]);
          }
       }
