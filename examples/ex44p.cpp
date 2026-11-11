@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
    int max_iterations = 20;
    real_t alpha = 1;
    real_t tol = 1e-6;
-   bool visualization = true;
+   bool visualization = false;
 
    const real_t lambda = 1.0;
    const real_t mu = 1.0;
@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
 
    // 6. Define finite elements spaces for the solutions.
    H1_FECollection H1fec(order+1, dim);
-   ParFiniteElementSpace H1fes(&pmesh, &H1fec, dim);
+   ParFiniteElementSpace H1fes(&pmesh, &H1fec, dim, Ordering::byVDIM);
 
    L2_FECollection L2fec(order-1, sub_dim);
    ParFiniteElementSpace L2fes(&contact_mesh, &L2fec, 1);
@@ -151,8 +151,7 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr_x(pmesh.bdr_attributes.Max());
    Array<int> ess_bdr_y(pmesh.bdr_attributes.Max());
 
-   ess_bdr_x = 0; ess_bdr_x[1] = 1; ess_bdr_x[2] = 1;
-   ess_bdr_y = 0; ess_bdr_y[1] = 1; ess_bdr_y[2] = 1;
+   ess_bdr_x = 1; ess_bdr_y = 1;
 
    Array<int> ess_tdof_list, tmp;
    H1fes.GetEssentialTrueDofs(ess_bdr_x, tmp, 0); ess_tdof_list.Append(tmp);
@@ -191,7 +190,8 @@ int main(int argc, char *argv[])
    // Create temporary trace grid function for computing initial psi
    H1_FECollection *trace_fec; ParFiniteElementSpace *trace_fes;
    trace_fec = new H1_FECollection(order+1, sub_dim);
-   trace_fes = new ParFiniteElementSpace(&contact_mesh, trace_fec, dim);
+   trace_fes = new ParFiniteElementSpace(&contact_mesh, trace_fec, dim,
+                                         H1fes.GetOrdering());
 
    ParGridFunction u_trace_gf(trace_fes);
    contact_mesh.Transfer(u_gf, u_trace_gf);
@@ -251,7 +251,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << pmesh << u_gf
                << "window_title 'Displacement u'\n"
                << "window_size 600 600\n"
-               << "keys acb\n" << flush;
+               << "keys aacb\n" << flush;
    }
 
    //  12. Iterate
@@ -318,9 +318,10 @@ int main(int argc, char *argv[])
          A.SetBlock(1,1,A11);
          A.SetBlockCoef(1,1,-1.0);
 
-         // Construct the Schur complement preconditioner.
-         // P =   [ diag(K)                  0          ]
-         //       [  0          -H - M diag(K)^(-1) M^T ]
+         // Construct a block lower-triangular preconditioner, with
+         // K = alpha*A00, M = A10, and H = A11:
+         // P =   [ K                       0           ]
+         //       [ M           -H - M diag(K)^(-1) M^T ]
          HypreParVector A00_diag(A00_diag_base);
          A00_diag *= alpha;
          HypreParMatrix KinvMt(*A01);
@@ -328,14 +329,18 @@ int main(int argc, char *argv[])
          HypreParMatrix *MKinvMt = ParMult(A10, &KinvMt);
          HypreParMatrix *S = Add(-1.0, *A11, -1.0, *MKinvMt);
 
-         HypreDiagScale P00(*A00);
+         HypreBoomerAMG P00(*A00);
+         P00.SetElasticityOptions(&H1fes);
+         P00.SetPrintLevel(0);
          ScaledOperator P00_scaled(&P00, 1.0 / alpha);
+
          HypreBoomerAMG P11(*S);
          P11.SetPrintLevel(0);
 
-         BlockDiagonalPreconditioner prec(toffsets);
+         BlockLowerTriangularPreconditioner prec(toffsets);
          prec.SetDiagonalBlock(0,&P00_scaled);
          prec.SetDiagonalBlock(1,&P11);
+         prec.SetBlock(1, 0, A10);
 
          gmres.SetPreconditioner(prec);
          gmres.SetOperator(A);

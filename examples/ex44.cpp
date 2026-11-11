@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
    int max_iterations = 20;
    real_t alpha = 1;
    real_t tol = 1e-6;
-   bool visualization = true;
+   bool visualization = false;
 
    const real_t lambda = 1.0;
    const real_t mu = 1.0;
@@ -125,8 +125,7 @@ int main(int argc, char *argv[])
    Array<int> ess_bdr_x(mesh.bdr_attributes.Max());
    Array<int> ess_bdr_y(mesh.bdr_attributes.Max());
 
-   ess_bdr_x = 0; ess_bdr_x[1] = 1; ess_bdr_x[2] = 1;
-   ess_bdr_y = 0; ess_bdr_y[1] = 1; ess_bdr_y[2] = 1;
+   ess_bdr_x = 1; ess_bdr_y = 1;
 
    Array<int> ess_tdof_list, tmp;
    H1fes.GetEssentialTrueDofs(ess_bdr_x, tmp, 0); ess_tdof_list.Append(tmp);
@@ -230,7 +229,7 @@ int main(int argc, char *argv[])
       sol_sock << "solution\n" << mesh << u_gf
                << "window_title 'Displacement u'\n"
                << "window_size 600 600\n"
-               << "keys acb\n" << std::flush;
+               << "keys aacb\n" << std::flush;
    }
 
    //  12. Iterate
@@ -286,9 +285,10 @@ int main(int argc, char *argv[])
          A.SetBlock(1,1,&A11);
          A.SetBlockCoef(1,1,-1.0);
 
-         // Construct the Schur complement preconditioner.
-         // P =   [ diag(K)                  0          ]
-         //       [  0          -H - M diag(K)^(-1) M^T ]
+         // Construct a block lower-triangular preconditioner, with
+         // K = alpha*A00, M = A10, and H = A11:
+         // P =   [ K                       0           ]
+         //       [ M           -H - M diag(K)^(-1) M^T ]
          Vector A00_diag(A00_diag_base);
          A00_diag *= alpha;
          SparseMatrix KinvMt(*A01);
@@ -299,15 +299,16 @@ int main(int argc, char *argv[])
          SparseMatrix *MKinvMt = Mult(A10, KinvMt);
          SparseMatrix *S = Add(-1.0, A11, -1.0, *MKinvMt);
 
-         DSmoother P00(A00);
+         GSSmoother P00(A00);
          ScaledOperator P00_scaled(&P00, 1.0 / alpha);
          GSSmoother P11(*S);
          P00.iterative_mode = false;
          P11.iterative_mode = false;
 
-         BlockDiagonalPreconditioner prec(offsets);
+         BlockLowerTriangularPreconditioner prec(offsets);
          prec.SetDiagonalBlock(0, &P00_scaled);
          prec.SetDiagonalBlock(1, &P11);
+         prec.SetBlock(1, 0, &A10);
 
          gmres.SetPreconditioner(prec);
          gmres.SetOperator(A);

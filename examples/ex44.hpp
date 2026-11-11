@@ -132,7 +132,8 @@ public:
       {
          parent_trace_fes = std::make_unique<ParFiniteElementSpace>(
                                sub_pmesh, parent_trace_fec.get(),
-                               trial_parent_fes->GetVDim());
+                               trial_parent_fes->GetVDim(),
+                               trial_parent_fes->GetOrdering());
 
          SubMeshUtils::BuildVdofToVdofMap(*parent_trace_fes, *trial_parent_fes_,
                                           sub_pmesh->GetFrom(),
@@ -149,7 +150,8 @@ public:
       {
          parent_trace_fes = std::make_unique<FiniteElementSpace>(
                                sub_mesh, parent_trace_fec.get(),
-                               trial_parent_fes->GetVDim());
+                               trial_parent_fes->GetVDim(),
+                               trial_parent_fes->GetOrdering());
 
          SubMeshUtils::BuildVdofToVdofMap(*parent_trace_fes, *trial_parent_fes_,
                                           sub_mesh->GetFrom(),
