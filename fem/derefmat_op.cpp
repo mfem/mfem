@@ -82,6 +82,78 @@ void GetMixedNodalRestriction(const FiniteElement &coarse_fe,
    restriction.Threshold(1e-12);
 }
 
+void GetMixedL2Restriction(const FiniteElement &coarse_fe,
+                           const FiniteElement &fine_fe,
+                           Geometry::Type fine_geom,
+                           const DenseMatrix &point_matrix,
+                           ElementTransformation &coarse_trans,
+                           DenseMatrix &restriction)
+{
+   MFEM_VERIFY(coarse_fe.GetMapType() == FiniteElement::VALUE &&
+               fine_fe.GetMapType() == FiniteElement::VALUE,
+               "mixed-child L2 derefinement requires value-mapped elements.");
+
+   IsoparametricTransformation embedding;
+   embedding.SetIdentityTransformation(fine_geom);
+   embedding.SetPointMat(point_matrix);
+
+   const int coarse_dof = coarse_fe.GetDof();
+   const int fine_dof = fine_fe.GetDof();
+   // Pyramid shape functions are rational, so use a higher quadrature order
+   // than the polynomial degree alone would require.
+   const int order = std::max(24,
+                              2*std::max(coarse_fe.GetOrder(),
+                                         fine_fe.GetOrder()) +
+                              coarse_trans.OrderW() + embedding.OrderW() + 4);
+   DenseMatrix mass(coarse_dof), coupling(coarse_dof, fine_dof);
+   mass = 0.0;
+   coupling = 0.0;
+   Vector coarse_shape(coarse_dof), fine_shape(fine_dof);
+
+   const IntegrationRule &coarse_ir =
+      IntRules.Get(coarse_fe.GetGeomType(), order);
+   for (int q = 0; q < coarse_ir.GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = coarse_ir.IntPoint(q);
+      coarse_trans.SetIntPoint(&ip);
+      coarse_fe.CalcShape(ip, coarse_shape);
+      const real_t weight = ip.weight * coarse_trans.Weight();
+      for (int j = 0; j < coarse_dof; j++)
+      {
+         for (int i = 0; i < coarse_dof; i++)
+         {
+            mass(i, j) += weight * coarse_shape(i) * coarse_shape(j);
+         }
+      }
+   }
+
+   const IntegrationRule &fine_ir = IntRules.Get(fine_geom, order);
+   for (int q = 0; q < fine_ir.GetNPoints(); q++)
+   {
+      const IntegrationPoint &fine_ip = fine_ir.IntPoint(q);
+      Vector coarse_point(coarse_fe.GetDim());
+      embedding.Transform(fine_ip, coarse_point);
+      IntegrationPoint coarse_ip;
+      coarse_ip.Set(coarse_point.GetData(), coarse_point.Size());
+      embedding.SetIntPoint(&fine_ip);
+      coarse_trans.SetIntPoint(&coarse_ip);
+      coarse_fe.CalcShape(coarse_ip, coarse_shape);
+      fine_fe.CalcShape(fine_ip, fine_shape);
+      const real_t weight = fine_ip.weight * embedding.Weight() *
+                            coarse_trans.Weight();
+      for (int j = 0; j < fine_dof; j++)
+      {
+         for (int i = 0; i < coarse_dof; i++)
+         {
+            coupling(i, j) += weight * coarse_shape(i) * fine_shape(j);
+         }
+      }
+   }
+
+   DenseMatrixInverse mass_inv(mass, true);
+   mass_inv.Mult(coupling, restriction);
+}
+
 } // namespace
 
 namespace internal
@@ -147,8 +219,20 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
          fespace->FEColl()->FiniteElementForGeometry(parent_geom);
       const FiniteElement *child_fe =
          fespace->FEColl()->FiniteElementForGeometry(child_geom);
-      GetMixedNodalRestriction(*parent_fe, *child_fe, child_geom,
-                               pmats(emb.matrix), restriction);
+      if (is_dg)
+      {
+         MFEM_VERIFY(dynamic_cast<const L2_FECollection *>(fespace->FEColl()),
+                     "mixed-child discontinuous derefinement requires L2 elements.");
+         GetMixedL2Restriction(*parent_fe, *child_fe, child_geom,
+                               pmats(emb.matrix),
+                               *fespace->GetElementTransformation(emb.parent),
+                               restriction);
+      }
+      else
+      {
+         GetMixedNodalRestriction(*parent_fe, *child_fe, child_geom,
+                                  pmats(emb.matrix), restriction);
+      }
    };
    bool mixed_children = false;
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
@@ -167,18 +251,25 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
    {
       MFEM_VERIFY(!fespace->IsVariableOrder(),
                   "mixed-child derefinement does not support variable order.");
-      MFEM_VERIFY(!is_dg,
-                  "mixed-child derefinement of discontinuous fields requires "
-                  "a conservative restriction.");
       int total_size = 0;
-      DenseMatrix restriction;
       for (int k = 0; k < dtrans.embeddings.Size(); ++k)
       {
-         get_mixed_restriction(k, restriction);
+         const Embedding &emb = dtrans.embeddings[k];
+         const Geometry::Type parent_geom =
+            fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
+         const DenseMatrixStack &pmats = dtrans.point_matrices[parent_geom];
+         const Geometry::Type child_geom =
+            PointMatrixGeometry(pmats, emb.matrix);
+         const FiniteElement *parent_fe =
+            fespace->FEColl()->FiniteElementForGeometry(parent_geom);
+         const FiniteElement *child_fe =
+            fespace->FEColl()->FiniteElementForGeometry(child_geom);
+         const int parent_dof = parent_fe->GetDof();
+         const int child_dof = child_fe->GetDof();
          block_offsets[k] = total_size;
-         total_rows += restriction.Height();
-         total_cols += restriction.Width();
-         total_size += restriction.Height() * restriction.Width();
+         total_rows += parent_dof;
+         total_cols += child_dof;
+         total_size += parent_dof * child_dof;
       }
       block_storage.SetSize(total_size);
    }

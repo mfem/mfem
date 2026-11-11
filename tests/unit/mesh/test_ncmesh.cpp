@@ -42,6 +42,25 @@ RefinedElementSummary SummarizeRefinedElements(Mesh &mesh)
    return summary;
 }
 
+real_t IntegrateGridFunction(Mesh &mesh, const GridFunction &field)
+{
+   real_t integral = 0.0;
+   for (int elem = 0; elem < mesh.GetNE(); elem++)
+   {
+      ElementTransformation &trans = *mesh.GetElementTransformation(elem);
+      const IntegrationRule &ir =
+         IntRules.Get(mesh.GetElementBaseGeometry(elem), 16);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         const real_t value = field.GetValue(elem, ip);
+         trans.SetIntPoint(&ip);
+         integral += ip.weight * trans.Weight() * value;
+      }
+   }
+   return integral;
+}
+
 // The 2D mesh of DividingPlaneMesh with its interior boundary at x = 0.5,
 // refined twice, after which the elements on one side of the interior boundary
 // are refined once more. The interior boundary edges on the coarse side are
@@ -516,6 +535,61 @@ TEST_CASE("NCMesh mixed pyramid parent field derefinement", "[NCMesh]")
    exact_coarse.ProjectCoefficient(affine);
    exact_coarse -= field;
    REQUIRE(exact_coarse.Normlinf() == MFEM_Approx(0.0, EPS));
+}
+
+TEST_CASE("NCMesh mixed pyramid L2 derefinement", "[NCMesh]")
+{
+   const char *mesh_name = GENERATE("../../data/ref-pyramid.mesh",
+                                    "../../data/l-mixed.mesh");
+   const int order = GENERATE(0, 1, 2);
+   const int pyr_type = GENERATE(0, 1);
+   const bool arbitrary_fine = GENERATE(false, true);
+   CAPTURE(mesh_name, order, pyr_type, arbitrary_fine);
+
+   Mesh mesh(mesh_name, 1, 1);
+   L2_FECollection fec(order, 3, BasisType::GaussLegendre,
+                       FiniteElement::VALUE, pyr_type);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   ConstantCoefficient constant(1.5);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + x[0] - 2.0*x[1] + 3.0*x[2];
+   });
+   field.ProjectCoefficient(order == 0 ?
+                            static_cast<Coefficient&>(constant) :
+                            static_cast<Coefficient&>(affine));
+   const Vector original_values(field);
+   const int coarse_ne = mesh.GetNE();
+
+   mesh.EnsureNCMesh(true);
+   Array<Refinement> refs(1);
+   refs[0].Set(coarse_ne - 1, Refinement::XYZ);
+   mesh.GeneralRefinement(refs, 1);
+   fes.Update();
+   field.Update();
+   if (arbitrary_fine)
+   {
+      for (int i = 0; i < field.Size(); i++)
+      {
+         field(i) = (i % 13 - 6) / 9.0;
+      }
+   }
+   const real_t fine_integral = IntegrateGridFunction(mesh, field);
+
+   Array<real_t> error(mesh.GetNE());
+   error = 0.0;
+   REQUIRE(mesh.DerefineByError(error, 1.0));
+   fes.Update();
+   field.Update();
+   REQUIRE(mesh.GetNE() == coarse_ne);
+   REQUIRE(IntegrateGridFunction(mesh, field) ==
+           MFEM_Approx(fine_integral, 1e-10));
+   if (!arbitrary_fine)
+   {
+      field -= original_values;
+      REQUIRE(field.Normlinf() == MFEM_Approx(0.0, 1e-10));
+   }
 }
 
 
