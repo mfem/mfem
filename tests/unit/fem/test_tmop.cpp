@@ -120,7 +120,7 @@ TEST_CASE("TMOP element energy with a user-set integration rule", "[TMOP]")
    const int rule_order = 7; // 2*2 + 3, the order TMOP asks for on order 2
    IntegrationRule rule(IntRules.Get(geom, rule_order));
    IntegrationRules rules;
-   rules.SetOwnRules(0);
+   rules.SetOwnRules(0); // the rule is on the stack, so do not delete it
    rules.Set(geom, rule_order, rule);
 
    TMOP_Metric_321 metric;

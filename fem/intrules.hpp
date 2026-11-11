@@ -449,7 +449,7 @@ private:
 
    /// (geometry, order) pairs whose rule was supplied by the user through
    /// Set(). Those rules are not generated here and may change later.
-   std::set<std::pair<int, int> > user_set_rules;
+   std::set<std::pair<int, int>> user_set_rules;
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    mutable Array<omp_lock_t> IntRuleLocks;

@@ -2216,7 +2216,7 @@ protected:
       delete lim_func; lim_func = NULL;
    }
 
-   int DefaultRuleOrder(const FiniteElement &el) const
+   static int DefaultRuleOrder(const FiniteElement &el)
    {
       return 2*el.GetOrder() + 3;
    }

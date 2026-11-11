@@ -1262,7 +1262,7 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
 
    (*ir_array)[Order] = &IntRule;
 
-   user_set_rules.insert(std::make_pair(GeomType, Order));
+   user_set_rules.emplace(GeomType, Order);
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    omp_unset_lock(&IntRuleLocks[GeomType]);
@@ -1271,30 +1271,20 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
 
 bool IntegrationRules::IsUserSet(int GeomType, int Order) const
 {
-   switch (GeomType)
+   if (GeomType < Geometry::POINT || GeomType >= Geometry::NUM_GEOMETRIES)
    {
-      case Geometry::POINT:       Order = 0; break;
-      case Geometry::SEGMENT:
-      case Geometry::TRIANGLE:
-      case Geometry::SQUARE:
-      case Geometry::TETRAHEDRON:
-      case Geometry::CUBE:
-      case Geometry::PRISM:
-      case Geometry::PYRAMID:     break;
-      case Geometry::INVALID:
-      case Geometry::NUM_GEOMETRIES:
-         MFEM_ABORT("Unknown type of reference element!");
+      MFEM_ABORT("Unknown type of reference element!");
    }
 
-   if (Order < 0) { Order = 0; }
+   // Match the order normalization in Get().
+   const int order = (GeomType == Geometry::POINT || Order < 0) ? 0 : Order;
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    omp_set_lock(&IntRuleLocks[GeomType]);
 #endif
 
    const bool is_user_set =
-      user_set_rules.find(std::make_pair(GeomType, Order)) !=
-      user_set_rules.end();
+      user_set_rules.find({GeomType, order}) != user_set_rules.end();
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    omp_unset_lock(&IntRuleLocks[GeomType]);
