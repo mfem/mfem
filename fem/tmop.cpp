@@ -4303,11 +4303,11 @@ void TMOP_Integrator::ParUpdateAfterMeshTopologyChange()
 // On non-tensor-product elements CalcDShape ends in a dense solve whose result
 // depends only on the point, so the cached DofToQuad table gives the same
 // values. Tensor-product elements gain nothing, NURBS ones depend on the
-// element, and a rule supplied by the caller can change after it is cached.
+// element, and a rule registered by the user can change after it is cached.
 const DofToQuad *TMOP_Integrator::ShapeGradTable(
    const FiniteElement &el, const IntegrationRule &ir) const
 {
-   if (IntRule || IntegRules ||
+   if (!UsesGeneratedRule(el) ||
        Geometry::IsTensorProduct(el.GetGeomType()) ||
        el.GetDerivType() != FiniteElement::GRAD) { return nullptr; }
    return &el.GetDofToQuad(ir, DofToQuad::FULL);
