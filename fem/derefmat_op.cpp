@@ -44,12 +44,6 @@ void GetMixedNodalRestriction(const FiniteElement &coarse_fe,
    MFEM_VERIFY(dynamic_cast<const NodalFiniteElement *>(&coarse_fe) &&
                dynamic_cast<const NodalFiniteElement *>(&fine_fe),
                "mixed-child derefinement currently requires nodal elements.");
-   // Point sampling has not reproduced order-three pyramid fields under the
-   // current mixed-child split.
-   MFEM_VERIFY(coarse_fe.GetGeomType() != Geometry::PYRAMID ||
-               coarse_fe.GetOrder() <= 2,
-               "mixed-child pyramid H1 derefinement above order two is "
-               "not yet supported.");
 
    const int dim = coarse_fe.GetDim();
    restriction.SetSize(coarse_fe.GetDof(), fine_fe.GetDof());

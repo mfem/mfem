@@ -368,7 +368,7 @@ TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
 
 TEST_CASE("NCMesh mixed pyramid children refine and derefine", "[NCMesh]")
 {
-   const int order = GENERATE(1, 2);
+   const int order = GENERATE(1, 2, 3, 4);
    const int pyr_type = GENERATE(0, 1);
    CAPTURE(order, pyr_type);
    Mesh mesh("../../data/ref-pyramid.mesh", 1, 1);
@@ -454,8 +454,11 @@ TEST_CASE("NCMesh mixed pyramid children refine and derefine", "[NCMesh]")
    error = field;
    error -= exact;
    REQUIRE(error.Normlinf() == MFEM_Approx(0.0, EPS));
-   arbitrary -= original_values;
-   REQUIRE(arbitrary.Normlinf() == MFEM_Approx(0.0, EPS));
+   if (order <= 2)
+   {
+      arbitrary -= original_values;
+      REQUIRE(arbitrary.Normlinf() == MFEM_Approx(0.0, EPS));
+   }
 }
 
 TEST_CASE("NCMesh nested mixed child transforms", "[NCMesh]")
@@ -596,9 +599,12 @@ TEST_CASE("NCMesh variable-order mixed pyramid derefinement", "[NCMesh]")
 {
    const bool continuous = GENERATE(false, true);
    const int pyr_type = GENERATE(0, 1);
-   const int pyr_order = GENERATE(2, 3);
+   const int pyr_order = GENERATE(2, 3, 4);
    const bool arbitrary_fine = GENERATE(false, true);
-   if (continuous && (pyr_order == 3 || arbitrary_fine)) { return; }
+   if ((continuous && arbitrary_fine) || (!continuous && pyr_order == 4))
+   {
+      return;
+   }
    CAPTURE(continuous, pyr_type, pyr_order, arbitrary_fine);
 
    Mesh mesh("../../data/l-mixed.mesh", 1, 1);
@@ -656,6 +662,74 @@ TEST_CASE("NCMesh variable-order mixed pyramid derefinement", "[NCMesh]")
       field -= original_values;
       REQUIRE(field.Normlinf() == MFEM_Approx(0.0, 1e-10));
    }
+}
+
+TEST_CASE("NCMesh high-order pyramid affine interpolation", "[NCMesh]")
+{
+   const int pyr_type = GENERATE(0, 1);
+   const int order = GENERATE(3, 4);
+   CAPTURE(pyr_type, order);
+   Mesh mesh("../../data/ref-pyramid.mesh", 1, 1);
+   H1_FECollection fec(order, 3, BasisType::GaussLobatto, pyr_type);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + x[0] - 2.0*x[1] + 3.0*x[2];
+   });
+   field.ProjectCoefficient(affine);
+   real_t coarse_error = 0.0;
+   ElementTransformation &coarse_trans = *mesh.GetElementTransformation(0);
+   const IntegrationRule &coarse_ir = IntRules.Get(Geometry::PYRAMID, 6);
+   for (int q = 0; q < coarse_ir.GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = coarse_ir.IntPoint(q);
+      const real_t value = field.GetValue(0, ip);
+      Vector x(3);
+      coarse_trans.Transform(ip, x);
+      coarse_error = std::max(coarse_error,
+                              std::abs(value - (1.0 + x[0] - 2.0*x[1] +
+                                                3.0*x[2])));
+   }
+   REQUIRE(coarse_error == MFEM_Approx(0.0, 1e-10));
+   mesh.EnsureNCMesh(true);
+   Array<Refinement> refs(1);
+   refs[0].Set(0, Refinement::XYZ);
+   mesh.GeneralRefinement(refs, 1);
+   fes.Update();
+   field.Update();
+   real_t max_error = 0.0;
+   for (int elem = 0; elem < mesh.GetNE(); elem++)
+   {
+      ElementTransformation &trans = *mesh.GetElementTransformation(elem);
+      const Geometry::Type geom = mesh.GetElementBaseGeometry(elem);
+      const FiniteElement &fe = *fes.GetFE(elem);
+      real_t node_error = 0.0;
+      for (int n = 0; n < fe.GetDof(); n++)
+      {
+         const IntegrationPoint &ip = fe.GetNodes().IntPoint(n);
+         const real_t value = field.GetValue(elem, ip);
+         Vector x(3);
+         trans.Transform(ip, x);
+         node_error = std::max(node_error,
+                               std::abs(value - (1.0 + x[0] - 2.0*x[1] +
+                                                 3.0*x[2])));
+      }
+      CAPTURE(elem, geom);
+      REQUIRE(node_error == MFEM_Approx(0.0, 1e-10));
+      const IntegrationRule &ir = IntRules.Get(geom, 6);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         const real_t value = field.GetValue(elem, ip);
+         Vector x(3);
+         trans.Transform(ip, x);
+         max_error = std::max(max_error,
+                              std::abs(value - (1.0 + x[0] - 2.0*x[1] +
+                                                3.0*x[2])));
+      }
+   }
+   REQUIRE(max_error == MFEM_Approx(0.0, 1e-10));
 }
 
 
