@@ -289,7 +289,7 @@ public:
    {
       const int g = FindGroup(out_field_id);
       if (g < 0 || !group_has_diagonal[g]) { return; }
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
 
       if (!(use_sum_factorization && (dim == 2 || dim == 3)))
       {
@@ -348,14 +348,12 @@ public:
    {
       MFEM_VERIFY(dim == GetEntityDimension<entity_t>(ctx.mesh),
                   "Dimension mismatch");
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
 
       static constexpr bool B2D = backend_t::DIM == 2;
       static constexpr int MTPB = backend_t::MAX_THREADS_PER_BLOCK();
 
-      const auto d_attr = ctx.attr.Read();
-      const bool has_attr = ctx.attr.Size() > 0;
-      const auto d_elem_attr = ctx.elem_attr->Read();
+      const int *d_entities = ctx.marked_entities.Read();
 
       auto cache_tensor = DeviceTensor<3, const real_t>(
                              qp_cache.Read(), nq, residual_size_on_qp, ne);
@@ -363,9 +361,9 @@ public:
       auto Ye = Reshape(Ye_mem.ReadWrite(), num_dofs_per_elem, ne);
 
       dfem::forall<MTPB>(
-         [=] MFEM_HOST_DEVICE(const int e, void *) MFEM_FORCE_INLINE
+         [=] MFEM_HOST_DEVICE(const int ek, void *) MFEM_FORCE_INLINE
       {
-         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+         const int e = d_entities[ek];
 
          // The cache is written with the quadrature index fastest, then the
          // trial vdim, then the trial op index (see derivative_cache_col),
@@ -487,7 +485,7 @@ public:
             });
          }
       },
-      ne,
+      ctx.marked_entities.Size(),
       backend_t::thread_blocks(std::max(q1d, num_test_dof_1d)),
       0,
       nullptr);

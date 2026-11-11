@@ -126,7 +126,7 @@ struct DerivativeSetup
 
    void operator()(const std::vector<Vector *> &xe)
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
       InitBuffers();
 
       interpolate(input_to_infd, input_bases, xe, xq, interpolated_inputs);

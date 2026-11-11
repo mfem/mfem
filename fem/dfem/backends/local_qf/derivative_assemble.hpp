@@ -788,7 +788,7 @@ public:
    /// does not touch at all -- are left alone.
    void operator()(std::vector<future::detail::EntityMatrices> &banks) const
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
 
       const bool any_assemblable =
          std::find(group_assemblable.begin(), group_assemblable.end(), true) !=
@@ -920,11 +920,9 @@ public:
          MFEM_VERIFY(out_op_dim[o] <= DIM,
                      "DerivativeAssemble: test_op_dim exceeds spatial DIM");
       });
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
 
-      const auto d_attr = ctx.attr.Read();
-      const bool has_attr = ctx.attr.Size() > 0;
-      const auto d_elem_attr = ctx.elem_attr->Read();
+      const int *d_entities = ctx.marked_entities.Read();
 
       const auto qpdc = Reshape(qp_cache.Read(),
                                 nq,
@@ -942,9 +940,9 @@ public:
                         ne);
 
       dfem::forall(
-         [=] MFEM_HOST_DEVICE(const int e, void *) MFEM_FORCE_INLINE
+         [=] MFEM_HOST_DEVICE(const int ek, void *) MFEM_FORCE_INLINE
       {
-         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+         const int e = d_entities[ek];
 
          static constexpr int DIM = backend_t::DIM;
          static constexpr int MQ1 = max_q1d_v<backend_t, T_Q1D>;
@@ -1001,7 +999,7 @@ public:
             }
          });
       },
-      ne,
+      ctx.marked_entities.Size(),
       backend_t::thread_blocks(q1d),
       0,
       nullptr);

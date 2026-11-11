@@ -1837,8 +1837,6 @@ void DifferentiableOperator::AddIntegrator(
       inputs_vdim[i] = get<i>(inputs).vdim;
    });
 
-   const Array<int> *elem_attributes = &EntityTraits<entity_t>::Attributes(mesh);
-
    const auto output_fop = get<0>(outputs);
    test_space_field_idx = FindIdx(output_fop.GetFieldId(), outfds);
 
@@ -1855,6 +1853,13 @@ void DifferentiableOperator::AddIntegrator(
    // TODO: Is this a hack?
    width = GetTrueVSize(infds[0]);
 
+   // Convert the attribute marker to the list of entities this integrator is
+   // applied to. The list is stored with the integrators of the type, since
+   // the contexts below only refer to it.
+   Array<int> &entities = *integrators.marked_entities.emplace_back(
+       std::make_unique<Array<int>>());
+   AttrToElementList<entity_t>(mesh, attributes, entities);
+
    // Computed once per entity type, then shared by its integrators.
    const Vector *orientation = nullptr;
    if constexpr (has_orientation_input)
@@ -1868,7 +1873,7 @@ void DifferentiableOperator::AddIntegrator(
 
    IntegratorContext<entity_t> ctx
    {
-      mesh, elem_attributes, attributes, num_entities,
+      mesh, num_entities, entities,
       infds, outfds, unionfds, integration_rule,
       in_qlayouts, out_qlayouts, orientation
    };
@@ -1929,7 +1934,7 @@ void DifferentiableOperator::AddIntegrator(
 
       return IntegratorContext<entity_t>
       {
-         mesh, elem_attributes, attributes, num_entities,
+         mesh, num_entities, entities,
          infds, stored_out, stored_union, integration_rule,
          in_qlayouts, out_qlayouts, orientation
       };
@@ -1965,7 +1970,7 @@ void DifferentiableOperator::AddIntegrator(
 
       return IntegratorContext<entity_t>
       {
-         mesh, elem_attributes, attributes, num_entities,
+         mesh, num_entities, entities,
          infds, stored_out, stored_union, integration_rule,
          in_qlayouts, out_qlayouts, orientation
       };

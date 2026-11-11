@@ -241,7 +241,7 @@ public:
                    const Vector *direction_l,
                    std::vector<Vector *> &ye)
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
 
       MFEM_ASSERT(direction_l != nullptr,
                   "LocalQF DerivativeAction: direction vector is null");
@@ -282,16 +282,14 @@ public:
       std::array<int, n_outputs> out_d1d;
       std::array<int, n_outputs> out_q1d;
       std::array<bool, n_inputs> input_dep;
-      const int *d_attr;
-      bool has_attr;
-      const int *d_elem_attr;
+      const int *d_entities;
       int q1d;
    };
 
    template<typename backend_t, int T_Q1D>
    MFEM_FORCE_INLINE MFEM_HOST_DEVICE static void
    derivative_action_kernel_body(
-      const DerivativeActionKernelData<backend_t, T_Q1D> &data, const int e)
+      const DerivativeActionKernelData<backend_t, T_Q1D> &data, const int ek)
    {
       static constexpr auto B2D = backend_t::DIM == 2;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
@@ -309,11 +307,8 @@ public:
       const auto &out_q1d = data.out_q1d;
       const auto &input_dep = data.input_dep;
       MFEM_CONTRACT_VAR(input_dep);
-      const auto d_attr = data.d_attr;
-      const bool has_attr = data.has_attr;
-      const auto d_elem_attr = data.d_elem_attr;
       const int q1d = data.q1d;
-      if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+      const int e = data.d_entities[ek];
 
       // -----------------------------------------------
       // Inputs and outputs argument registers
@@ -683,7 +678,7 @@ public:
       // runtime array is only carried for the non-Enzyme dual-number path.
       MFEM_CONTRACT_VAR(input_dep);
 
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
 
       static constexpr auto B2D = backend_t::DIM == 2;
 
@@ -801,10 +796,6 @@ public:
          }
       });
 
-      const auto d_attr = ctx.attr.Read();
-      const bool has_attr = ctx.attr.Size() > 0;
-      const auto d_elem_attr = ctx.elem_attr->Read();
-
       DerivativeActionKernelData<backend_t, T_Q1D> data
       {
          qfunc,
@@ -820,9 +811,7 @@ public:
          out_d1d,
          out_q1d,
          input_dep,
-         d_attr,
-         has_attr,
-         d_elem_attr,
+         ctx.marked_entities.Read(),
          q1d
       };
 
@@ -834,13 +823,13 @@ public:
       {
          dfem::forall_data<backend_t::MAX_THREADS_PER_BLOCK(),
               DerivativeActionKernelBody<backend_t, T_Q1D>>(
-                 data, ne, blocks);
+                 data, ctx.marked_entities.Size(), blocks);
       }
       else if (Device::Allows(Backend::CPU_MASK))
       {
-         for (int e = 0; e < ne; e++)
+         for (int ek = 0; ek < ctx.marked_entities.Size(); ek++)
          {
-            derivative_action_kernel_body<backend_t, T_Q1D>(data, e);
+            derivative_action_kernel_body<backend_t, T_Q1D>(data, ek);
          }
       }
       else

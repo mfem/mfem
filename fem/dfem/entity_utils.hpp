@@ -161,6 +161,24 @@ int GetNumEntities(const mfem::Mesh &mesh)
    return EntityTraits<entity_t>::Count(mesh);
 }
 
+/// @brief Convert an attribute marker, where marker[i] marks attribute i + 1,
+///        to the list of indices of the entities of type @a entity_t whose
+///        attribute is marked, in increasing order.
+template <typename entity_t>
+void AttrToElementList(const mfem::Mesh &mesh, const Array<int> &marker,
+                       Array<int> &entities)
+{
+   const Array<int> &attr = EntityTraits<entity_t>::Attributes(mesh);
+   Array<int> entity_marker(attr.Size());
+   for (int e = 0; e < attr.Size(); e++)
+   {
+      MFEM_ASSERT(attr[e] >= 1 && attr[e] <= marker.Size(),
+                  "attribute " << attr[e] << " is not in the marker");
+      entity_marker[e] = marker[attr[e] - 1];
+   }
+   FiniteElementSpace::MarkerToList(entity_marker, entities);
+}
+
 namespace detail
 {
 
@@ -366,6 +384,10 @@ struct EntityIntegrators
    EntityEVectors ev;
    callbacks_t callbacks;
    Vector orientation;     // see EntityTraits::Orientations()
+
+   /// The entities each integrator is applied to for a specific entity type.
+   /// Each integrator keeps its own ref in IntegratorContext::marked_entities
+   std::vector<std::unique_ptr<Array<int>>> marked_entities;
 };
 
 /// @brief The EntityIntegrators of the entity type @a entity_t, with

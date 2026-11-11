@@ -120,7 +120,7 @@ public:
    //////////////////////////////////////////////////////////////////
    void operator()(const std::vector<Vector *> &xe)
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
 
       // Quadrature index is fastest-varying so that adjacent threads (one per
       // quadrature point) touch adjacent addresses.
@@ -250,7 +250,7 @@ public:
    {
       MFEM_VERIFY(dim == GetEntityDimension<entity_t>(ctx.mesh),
                   "Dimension mismatch");
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
 
       MFEM_CONTRACT_VAR(in_size_on_qp);
       MFEM_CONTRACT_VAR(input_dep);
@@ -308,14 +308,12 @@ public:
          }
       });
 
-      const auto d_attr = ctx.attr.Read();
-      const bool has_attr = ctx.attr.Size() > 0;
-      const auto d_elem_attr = ctx.elem_attr->Read();
+      const int *d_entities = ctx.marked_entities.Read();
 
       dfem::forall<MTPB>(
-         [=] MFEM_HOST_DEVICE(const int e, void *) MFEM_FORCE_INLINE
+         [=] MFEM_HOST_DEVICE(const int ek, void *) MFEM_FORCE_INLINE
       {
-         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+         const int e = d_entities[ek];
 
          // -----------------------------------------------
          // Inputs argument registers + shared memory
@@ -528,7 +526,7 @@ public:
             }
          }
       },
-      ne,
+      ctx.marked_entities.Size(),
       backend_t::thread_blocks(
          compute_kernel_thread_1d<inputs_t>(q1d, in_d1d)),
       0,

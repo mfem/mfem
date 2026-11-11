@@ -112,7 +112,7 @@ struct DerivativeApplyTranspose
       const Vector *direction_l,
       std::vector<Vector *> &ye) const
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
 
       MFEM_ASSERT(direction_l != nullptr,
                   "Global DerivativeApplyTranspose: direction vector is null");

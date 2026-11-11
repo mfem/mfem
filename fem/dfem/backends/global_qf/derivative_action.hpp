@@ -104,7 +104,7 @@ struct DerivativeAction
       const Vector *de,
       std::vector<Vector *> &ye)
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
       InitBuffers();
 
       // E -> Q

@@ -93,7 +93,7 @@ struct Action
       const std::vector<Vector *> &xe,
       std::vector<Vector *> &ye) const
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
       InitBuffers();
 
       // E -> Q
