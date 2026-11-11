@@ -13,7 +13,8 @@ Version 4.10.1 (development)
 
 GPU computing
 -------------
-- Avoided reading device-resident hypre row caches in host matrix products.
+- Fixed possible crashes in HypreParMatrix::AbsMult() and BooleanMult()
+  when using GPU-enabled hypre.
 
 - Fixed RAJA CUDA/HIP element coverage when using a smaller fixed launch grid.
 

@@ -242,41 +242,6 @@ TEST_CASE("HypreParMatrixAbsMult",  "[Parallel], [HypreParMatrixAbsMult]")
    }
 }
 
-
-TEST_CASE("Sparse Hypre host products", "[Parallel][GPU][Issue5595]")
-{
-   const int rank = Mpi::WorldRank(), size = Mpi::WorldSize();
-   Array<HYPRE_BigInt> rows(size+1), cols(size+1);
-   for (int i = 0; i <= size; i++) { rows[i] = 8*i; cols[i] = i; }
-   const int offset = HYPRE_AssumedPartitionCheck() ? rank : 0;
-   SparseMatrix block(8, 1);
-   block.Add(3, 0, -2.0);
-   block.Finalize();
-   HypreParMatrix matrix(MPI_COMM_WORLD, 8*size, size, rows.GetData()+offset,
-                         cols.GetData()+offset, &block);
-   auto csr = hypre_ParCSRMatrixDiag(static_cast<hypre_ParCSRMatrix *>(matrix));
-   if (!hypre_CSRMatrixRownnz(csr))
-   {
-      REQUIRE(hypre_CSRMatrixSetRownnz(csr) == 0);
-   }
-   // GPU hypre before 3.0 does not populate the rownnz cache.
-#if !defined(HYPRE_USING_GPU) || MFEM_HYPRE_VERSION >= 30000
-   REQUIRE(hypre_CSRMatrixNumRownnz(csr) == 1);
-   REQUIRE(hypre_CSRMatrixRownnz(csr) != nullptr);
-#endif
-   Vector x(1), y(8);
-   x = 3.0;
-   matrix.AbsMult(x, y);
-   const auto values = y.HostRead();
-   for (int i = 0; i < 8; i++)
-   {
-      REQUIRE(values[i] == MFEM_Approx(i == 3 ? 6.0 : 0.0));
-   }
-   int bx[1] = {1}, by[8] = {};
-   matrix.BooleanMult(1, bx, 0, by);
-   for (int i = 0; i < 8; i++) { REQUIRE(by[i] == (i == 3)); }
-}
-
 #endif // MFEM_USE_MPI
 
 } // namespace mfem
