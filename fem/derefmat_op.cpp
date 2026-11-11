@@ -16,7 +16,7 @@
 namespace mfem
 {
 
-namespace
+namespace internal
 {
 
 Geometry::Type PointMatrixGeometry(const DenseMatrixStack &pmats, int matrix)
@@ -154,10 +154,6 @@ void GetMixedL2Restriction(const FiniteElement &coarse_fe,
    mass_inv.Mult(coupling, restriction);
 }
 
-} // namespace
-
-namespace internal
-{
 template <Ordering::Type Order, bool Atomic>
 static void DerefMultKernelImpl(const DerefineMatrixOp &op, const Vector &x,
                                 Vector &y)
@@ -214,7 +210,8 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
       const Geometry::Type parent_geom =
          fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
       const DenseMatrixStack &pmats = dtrans.point_matrices[parent_geom];
-      const Geometry::Type child_geom = PointMatrixGeometry(pmats, emb.matrix);
+      const Geometry::Type child_geom =
+         internal::PointMatrixGeometry(pmats, emb.matrix);
       const int order = fespace->GetElementOrder(emb.parent);
       const FiniteElement *parent_fe = fespace->GetFE(emb.parent);
       const FiniteElement *child_fe =
@@ -235,15 +232,14 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
       {
          MFEM_VERIFY(dynamic_cast<const L2_FECollection *>(fespace->FEColl()),
                      "mixed-child discontinuous derefinement requires L2 elements.");
-         GetMixedL2Restriction(*parent_fe, *child_fe, child_geom,
-                               pmats(emb.matrix),
-                               *fespace->GetElementTransformation(emb.parent),
-                               restriction);
+         internal::GetMixedL2Restriction(
+            *parent_fe, *child_fe, child_geom, pmats(emb.matrix),
+            *fespace->GetElementTransformation(emb.parent), restriction);
       }
       else
       {
-         GetMixedNodalRestriction(*parent_fe, *child_fe, child_geom,
-                                  pmats(emb.matrix), restriction);
+         internal::GetMixedNodalRestriction(*parent_fe, *child_fe, child_geom,
+                                            pmats(emb.matrix), restriction);
       }
    };
    bool mixed_children = false;
@@ -253,7 +249,8 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
       const Geometry::Type parent_geom =
          fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
       const DenseMatrixStack &pmats = dtrans.point_matrices[parent_geom];
-      mixed_children |= PointMatrixGeometry(pmats, emb.matrix) != parent_geom;
+      mixed_children |= internal::PointMatrixGeometry(pmats, emb.matrix) !=
+                        parent_geom;
    }
    int total_rows = 0;
    int total_cols = 0;
@@ -269,7 +266,7 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
             fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
          const DenseMatrixStack &pmats = dtrans.point_matrices[parent_geom];
          const Geometry::Type child_geom =
-            PointMatrixGeometry(pmats, emb.matrix);
+            internal::PointMatrixGeometry(pmats, emb.matrix);
          const int order = fespace->GetElementOrder(emb.parent);
          const FiniteElement *parent_fe = fespace->GetFE(emb.parent);
          const FiniteElement *child_fe =

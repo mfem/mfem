@@ -756,6 +756,58 @@ TEST_CASE("ParNCMesh geometry-specific refinement patterns",
    REQUIRE(pmesh.GetGlobalNE() == 3);
 }
 
+TEST_CASE("ParNCMesh mixed pyramid derefinement", "[Parallel][NCMesh]")
+{
+   if (Mpi::WorldSize() != 2) { return; }
+   const bool continuous = GENERATE(false, true);
+   const int order = GENERATE(1, 2);
+   CAPTURE(continuous, order);
+
+   Mesh serial_mesh("../../data/l-mixed.mesh", 1, 1);
+   serial_mesh.EnsureNCMesh(true);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   H1_FECollection h1_fec(order, 3);
+   L2_FECollection l2_fec(order, 3, BasisType::GaussLegendre,
+                          FiniteElement::VALUE);
+   ParFiniteElementSpace fes(&mesh, continuous ?
+                             static_cast<FiniteElementCollection*>(&h1_fec) :
+                             static_cast<FiniteElementCollection*>(&l2_fec));
+   ParGridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + x[0] - 2.0*x[1] + 3.0*x[2];
+   });
+   field.ProjectCoefficient(affine);
+   const int coarse_global_ne = mesh.GetGlobalNE();
+
+   Array<Refinement> refs;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == 9)
+      {
+         refs.Append(Refinement(i, Refinement::XYZ));
+      }
+   }
+   mesh.GeneralRefinement(refs);
+   fes.Update();
+   field.Update();
+   ParGridFunction fine_exact(&fes);
+   fine_exact.ProjectCoefficient(affine);
+   fine_exact -= field;
+   REQUIRE(fine_exact.Normlinf() == MFEM_Approx(0.0, EPS));
+
+   Vector error(mesh.GetNE());
+   error = 0.0;
+   REQUIRE(mesh.DerefineByError(error, 1.0));
+   fes.Update();
+   field.Update();
+   REQUIRE(mesh.GetGlobalNE() == coarse_global_ne);
+   ParGridFunction coarse_exact(&fes);
+   coarse_exact.ProjectCoefficient(affine);
+   coarse_exact -= field;
+   REQUIRE(coarse_exact.Normlinf() == MFEM_Approx(0.0, 1e-10));
+}
+
 // Test case: Verify that a conforming mesh yields the same norm for the
 //            assembled diagonal with PA when using the standard (conforming)
 //            Mesh vs. the corresponding (non-conforming) NCMesh. (note:

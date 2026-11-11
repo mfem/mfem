@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "pderefmat_op.hpp"
+#include "derefmat_op.hpp"
 
 #ifdef MFEM_USE_MPI
 
@@ -199,27 +200,46 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
 
    const bool is_dg = fespace->FEColl()->GetContType()
                       == FiniteElementCollection::DISCONTINUOUS;
-   DenseMatrix localRVO; // for variable-order only
+   DenseMatrix localRVO; // for variable-order and mixed-child blocks
 
    DenseTensor localR[Geometry::NumGeom];
    int diag_rows = 0;
    int off_diag_rows = 0;
    int diag_cols = 0;
 
-   auto get_ldofs = [&](int k) -> int
+   bool mixed_children = false;
+   for (int geom = 0; geom < Geometry::NumGeom; ++geom)
+   {
+      const DenseMatrixStack &pmats = dtrans.point_matrices[geom];
+      for (int matrix = 0; matrix < pmats.SizeK(); ++matrix)
+      {
+         mixed_children |= internal::PointMatrixGeometry(pmats, matrix) != geom;
+      }
+   }
+   auto get_dofs = [&](int k) -> std::pair<int, int>
    {
       const Embedding &emb = dtrans.embeddings[k];
+      if (mixed_children)
+      {
+         const Geometry::Type parent_geom =
+            fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
+         const DenseMatrixStack &pmats = dtrans.point_matrices[parent_geom];
+         const Geometry::Type child_geom =
+            internal::PointMatrixGeometry(pmats, emb.matrix);
+         const int order = fespace->GetElementOrder(emb.parent);
+         return {fespace->GetFE(emb.parent)->GetDof(),
+                 fespace->FEColl()->GetFE(child_geom, order)->GetDof()};
+      }
       if (fespace->IsVariableOrder())
       {
-         const FiniteElement *fe = fespace->GetFE(emb.parent);
-         return fe->GetDof();
+         const int ldof = fespace->GetFE(emb.parent)->GetDof();
+         return {ldof, ldof};
       }
-      else
-      {
-         Geometry::Type geom =
+      Geometry::Type geom =
          fespace->GetParMesh()->GetElementBaseGeometry(emb.parent);
-         return fespace->FEColl()->FiniteElementForGeometry(geom)->GetDof();
-      }
+      const int ldof =
+         fespace->FEColl()->FiniteElementForGeometry(geom)->GetDof();
+      return {ldof, ldof};
    };
    Array<int> dofs, old_dofs;
    max_rows = 1;
@@ -240,8 +260,7 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
    std::map<int, int> od_seg_lens;
    int send_len = 0;
    int recv_len = 0;
-   // size of block_storage, if fespace->IsVariableOrder()
-   // otherwise unused
+   // size of block_storage for variable-order or mixed-child blocks
    int total_size = 0;
    int num_diagonal_blocks = 0;
    int num_offdiagonal_blocks = 0;
@@ -266,15 +285,15 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
       {
          // this rank needs to receive data in x from fine_rank
          MFEM_ASSERT(emb.parent >= 0, "");
-         auto ldofs = get_ldofs(k);
-         off_diag_rows += ldofs;
-         recv_len += ldofs;
+         const auto [parent_dofs, child_dofs] = get_dofs(k);
+         off_diag_rows += parent_dofs;
+         recv_len += child_dofs;
          od_ks[fine_rank].emplace_back(k);
-         od_seg_lens[fine_rank] += ldofs;
+         od_seg_lens[fine_rank] += child_dofs;
          ++num_offdiagonal_blocks;
-         if (fespace->IsVariableOrder())
+         if (fespace->IsVariableOrder() || mixed_children)
          {
-            total_size += ldofs * ldofs;
+            total_size += parent_dofs * child_dofs;
          }
       }
       else if (coarse_rank == MyRank && fine_rank == MyRank)
@@ -282,12 +301,12 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
          MFEM_ASSERT(emb.parent >= 0, "");
          // diagonal
          ++num_diagonal_blocks;
-         auto ldofs = get_ldofs(k);
-         diag_rows += ldofs;
-         diag_cols += ldofs;
-         if (fespace->IsVariableOrder())
+         const auto [parent_dofs, child_dofs] = get_dofs(k);
+         diag_rows += parent_dofs;
+         diag_cols += child_dofs;
+         if (fespace->IsVariableOrder() || mixed_children)
          {
-            total_size += ldofs * ldofs;
+            total_size += parent_dofs * child_dofs;
          }
       }
    }
@@ -305,7 +324,7 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
          ++idx;
       }
    }
-   recv_segment_idcs.SetSize(off_diag_rows);
+   recv_segment_idcs.SetSize(num_offdiagonal_blocks);
    recv_segment_idcs.HostWrite();
    recv_segments.SetSize(od_ks.size() + 1);
    recv_segments.HostWrite();
@@ -352,7 +371,7 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
    int geom_offsets[Geometry::NumGeom];
    real_t *bs_ptr;
 
-   if (fespace->IsVariableOrder())
+   if (fespace->IsVariableOrder() || mixed_children)
    {
       block_storage.SetSize(total_size);
       bs_ptr = block_storage.HostWrite();
@@ -421,20 +440,25 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
       }
    }
    // key: index into dtrans.embeddings
-   // value: off-diagonal block offset, od_ridx, seg id
-   std::unordered_map<int, std::array<int, 3>> ks_map;
+   // value: off-diagonal block index, row offset, column offset, segment id
+   std::unordered_map<int, std::array<int, 4>> ks_map;
    {
       int od_ridx = 0;
       int seg_id = 0;
       for (auto &v1 : od_ks)
       {
+         int od_cidx = 0;
          for (auto k : v1.second)
          {
             auto &tmp = ks_map[k];
             tmp[0] = ks_map.size() - 1;
             tmp[1] = od_ridx;
-            tmp[2] = seg_id;
-            od_ridx += get_ldofs(k);
+            tmp[2] = od_cidx;
+            tmp[3] = seg_id;
+            const auto [parent_dofs, child_dofs] = get_dofs(k);
+            od_ridx += parent_dofs;
+            od_cidx += child_dofs;
+            block_off_diag_row_idcs_offsets[tmp[0] + 1] = od_ridx;
          }
          ++seg_id;
       }
@@ -460,7 +484,41 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
          // either diagonal or off-diagonal
          Geometry::Type geom =
             fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
-         if (fespace->IsVariableOrder())
+         if (mixed_children)
+         {
+            const DenseMatrixStack &pmats = dtrans.point_matrices[geom];
+            const Geometry::Type child_geom =
+               internal::PointMatrixGeometry(pmats, emb.matrix);
+            const int order = fespace->GetElementOrder(emb.parent);
+            const FiniteElement *parent_fe = fespace->GetFE(emb.parent);
+            const FiniteElement *child_fe =
+               fespace->FEColl()->GetFE(child_geom, order);
+            if (emb.matrix == 0)
+            {
+               MFEM_VERIFY(parent_fe->GetDof() == child_fe->GetDof(),
+                           "identity embedding has incompatible finite elements.");
+               localRVO.SetSize(parent_fe->GetDof(), child_fe->GetDof());
+               localRVO = 0.0;
+               for (int i = 0; i < parent_fe->GetDof(); ++i)
+               {
+                  localRVO(i, i) = 1.0;
+               }
+            }
+            else if (is_dg)
+            {
+               MFEM_VERIFY(dynamic_cast<const L2_FECollection *>(fespace->FEColl()),
+                           "mixed-child discontinuous derefinement requires L2 elements.");
+               internal::GetMixedL2Restriction(
+                  *parent_fe, *child_fe, child_geom, pmats(emb.matrix),
+                  *fespace->GetElementTransformation(emb.parent), localRVO);
+            }
+            else
+            {
+               internal::GetMixedNodalRestriction(
+                  *parent_fe, *child_fe, child_geom, pmats(emb.matrix), localRVO);
+            }
+         }
+         else if (fespace->IsVariableOrder())
          {
             const FiniteElement *fe = fespace->GetFE(emb.parent);
             const DenseMatrixStack &pmats = dtrans.point_matrices[geom];
@@ -474,28 +532,33 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
             // Local restriction is size ldofxldof assuming that the parent
             // and child are of same polynomial order.
             fe->GetLocalRestriction(isotr, localRVO);
-            // copy block
-            auto s = localRVO.Height() * localRVO.Width();
-            std::copy(localRVO.Data(), localRVO.Data() + s, bs_ptr);
-            bs_ptr += s;
          }
          DenseMatrix &lR =
-            fespace->IsVariableOrder() ? localRVO : localR[geom](emb.matrix);
+            (fespace->IsVariableOrder() || mixed_children) ?
+            localRVO : localR[geom](emb.matrix);
          max_rows = std::max(lR.Height(), max_rows);
          auto size = lR.Height() * lR.Width();
+         if (fespace->IsVariableOrder() || mixed_children)
+         {
+            std::copy(lR.Data(), lR.Data() + size, bs_ptr);
+            bs_ptr += size;
+         }
          fespace->elem_dof->GetRow(emb.parent, dofs);
+         MFEM_VERIFY(dofs.Size() == lR.Height(),
+                     "Derefinement block rows do not match parent dofs.");
          if (fine_rank == MyRank)
          {
             // diagonal
             old_elem_dof->GetRow(k, old_dofs);
-            MFEM_VERIFY(old_dofs.Size() == dofs.Size(),
-                        "Parent and child must have same #dofs.");
+            MFEM_VERIFY(old_dofs.Size() == lR.Width() &&
+                        dofs.Size() == lR.Height(),
+                        "Derefinement block dimensions do not match element dofs.");
             block_row_idcs_offsets[diag_idx + 1] =
                block_row_idcs_offsets[diag_idx] + lR.Height();
             block_col_idcs_offsets[diag_idx + 1] =
                block_col_idcs_offsets[diag_idx] + lR.Width();
 
-            if (fespace->IsVariableOrder())
+            if (fespace->IsVariableOrder() || mixed_children)
             {
                block_offsets[diag_idx] = var_offset;
                var_offset += size;
@@ -535,13 +598,14 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
             auto &tmp = ks_map.at(k);
             auto od_idx = tmp[0];
             auto od_ridx = tmp[1];
-            block_off_diag_row_idcs_offsets[od_idx + 1] =
-               block_off_diag_row_idcs_offsets[od_idx] + lR.Height();
-            block_off_diag_col_offsets[od_idx] = od_ridx;
+            MFEM_VERIFY(block_off_diag_row_idcs_offsets[od_idx + 1] -
+                        block_off_diag_row_idcs_offsets[od_idx] == lR.Height(),
+                        "Derefinement block rows do not match parent dofs.");
+            block_off_diag_col_offsets[od_idx] = tmp[2];
             block_off_diag_widths[od_idx] = lR.Width();
-            recv_segment_idcs[od_idx] = tmp[2];
+            recv_segment_idcs[od_idx] = tmp[3];
 
-            if (fespace->IsVariableOrder())
+            if (fespace->IsVariableOrder() || mixed_children)
             {
                off_diag_block_offsets[od_idx] = var_offset;
                var_offset += size;
