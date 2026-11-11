@@ -6,6 +6,7 @@
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
 #include <algorithm>
+#include <climits>
 #include <cstring>
 #include <cstddef>
 #include <initializer_list>
@@ -43,6 +44,40 @@ public:
    virtual ~Field() = default;
    virtual int GetNumParticles() const = 0;
    virtual std::size_t GetParticleBytes() const = 0;
+
+   /// @brief Return the alignment in bytes of one component
+   virtual std::size_t GetAlign() const = 0;
+
+   /// @brief Return true if the data of this field lives on the device
+   virtual bool OnDevice() const = 0;
+
+   /** @brief Copy the particles @a leaving_idx into the rows of a buffer
+
+       Particle leaving_idx[k] goes to buf + k*stride + off. @a buf must be on
+       the same side (host or device) as OnDevice().
+
+       @param[in]  leaving_idx  Indices of the particles to copy
+       @param[out] buf          Row buffer
+       @param[in]  stride       Size in bytes of one row
+       @param[in]  off          Offset in bytes of this field in a row */
+   virtual void Pack(const mfem::Array<int> &leaving_idx, char *buf,
+                     std::size_t stride, std::size_t off) const = 0;
+
+   /** @brief Rebuild this field with @a n_new particles from a row buffer
+
+       Fill k writes to particle dst[k]: from row k of @a buf if k < @a n_arrivals,
+       else from the old particle tail[k - n_arrivals]. The capacity never shrinks.
+
+       @param[in] dst         Particles to write
+       @param[in] tail        Old particles to move, dst.Size() = n_arrivals + tail.Size()
+       @param[in] buf         Row buffer, same side as OnDevice(), read only for k < n_arrivals
+       @param[in] n_arrivals  Number of rows in @a buf to read
+       @param[in] n_new       New number of particles
+       @param[in] stride      Size in bytes of one row
+       @param[in] off         Offset in bytes of this field in a row */
+   virtual void Unpack(const mfem::Array<int> &dst, const mfem::Array<int> &tail,
+                       const char *buf, int n_arrivals, int n_new,
+                       std::size_t stride, std::size_t off) = 0;
 
    /** @brief Copy the data of particle @a i into a byte buffer
 
@@ -165,6 +200,97 @@ public:
    int              GetNumParticles() const override  { return arr->Size() / vdim; }
    /// @copydoc Field::GetParticleBytes
    std::size_t      GetParticleBytes() const override { return (std::size_t)vdim * sizeof(T); }
+
+   /// @copydoc Field::GetAlign
+   std::size_t GetAlign() const override { return alignof(T); }
+   /// @copydoc Field::OnDevice
+   bool OnDevice() const override { return Device::IsEnabled() && arr->UseDevice(); }
+
+   /// @copydoc Field::Pack
+   void Pack(const mfem::Array<int> &leaving_idx, char *buf, std::size_t stride, std::size_t off) const override {
+      const int n_leaving = leaving_idx.Size();
+      if (n_leaving == 0) { return; }
+      const bool use_dev = OnDevice();
+      const int n_particles = GetNumParticles();
+      const int vd = vdim;
+      const Ordering::Type col_ordering = ordering;
+      const T *old_data = arr->Read(use_dev);
+      const int *leaving_idx_data = leaving_idx.Read(use_dev);
+      mfem::forall_switch(use_dev, n_leaving, [=] MFEM_HOST_DEVICE (int k) {
+         T *row = reinterpret_cast<T*>(buf + (std::size_t)k*stride + off);
+         const int particle = leaving_idx_data[k];
+         for (int comp = 0; comp < vd; comp++) {
+            row[comp] = old_data[internal::ElemIndex(particle, comp, n_particles, vd, col_ordering)];
+         }
+      });
+   }
+
+   /// @copydoc Field::Unpack
+   void Unpack(const mfem::Array<int> &dst, const mfem::Array<int> &tail,
+               const char *buf, int n_arrivals, int n_new,
+               std::size_t stride, std::size_t off) override {
+      const bool use_dev = OnDevice();
+      const int n = GetNumParticles();
+      const int vd = vdim;
+      const Ordering::Type col_ordering = ordering;
+      const std::size_t need = (std::size_t)n_new*vd;
+      MFEM_VERIFY(need <= (std::size_t)INT_MAX, "CrystalRouter: column too large");
+      const std::size_t old_cap = (std::size_t)arr->Capacity();
+      const bool in_place = (ordering == Ordering::byVDIM || vd == 1 || n_new == n)
+                            && need <= old_cap;
+
+      T *out = nullptr;
+      const T *src = nullptr;
+
+      mfem::Array<T> new_col;
+      if (in_place) {
+         const int max_n = std::max(n, n_new);
+         arr->SetSize(max_n*vd);
+         if (max_n*vd > 0) { out = arr->ReadWrite(use_dev); src = out; }
+      }
+      else {
+         // capacity never shrinks
+         std::size_t cap = old_cap;
+         if (need > old_cap) {
+            cap = std::min(std::max(need, 2*old_cap), (std::size_t)INT_MAX);
+         }
+         new_col.SetSize((int)cap, arr->GetMemory().GetMemoryType());
+         new_col.SetSize(n_new*vd);
+         new_col.GetMemory().UseDevice(arr->UseDevice());
+         if (n > 0) { src = arr->Read(use_dev); }
+         if (n_new > 0) { out = new_col.Write(use_dev); }
+         const int n_keep = std::min(n, n_new);
+         if (n_keep > 0) {
+            mfem::forall_switch(use_dev, n_keep, [=] MFEM_HOST_DEVICE (int i) {
+               for (int comp = 0; comp < vd; comp++) {
+                  out[internal::ElemIndex(i, comp, n_new, vd, col_ordering)] =
+                     src[internal::ElemIndex(i, comp, n, vd, col_ordering)];
+               }
+            });
+         }
+      }
+
+      const int n_fill = dst.Size();
+      if (n_fill > 0) {
+         const int *dst_data = dst.Read(use_dev);
+         const int *tail_data = tail.Size() > 0 ? tail.Read(use_dev) : nullptr;
+         mfem::forall_switch(use_dev, n_fill, [=] MFEM_HOST_DEVICE (int m) {
+            for (int comp = 0; comp < vd; comp++) {
+               T v;
+               if (m < n_arrivals) {
+                  v = reinterpret_cast<const T*>(buf + (std::size_t)m*stride + off)[comp];
+               }
+               else {
+                  v = src[internal::ElemIndex(tail_data[m - n_arrivals], comp, n, vd, col_ordering)];
+               }
+               out[internal::ElemIndex(dst_data[m], comp, n_new, vd, col_ordering)] = v;
+            }
+         });
+      }
+
+      if (in_place) { arr->SetSize((int)need); }
+      else { arr->Swap(new_col); }
+   }
 
    /// @copydoc Field::ToHost
    std::unique_ptr<Field> ToHost(const mfem::Array<int> &leaving_idx) override {
@@ -325,6 +451,98 @@ public:
    int              GetNumParticles() const override           { return vec->Size() / vdim; }
    /// @copydoc Field::GetParticleBytes
    std::size_t      GetParticleBytes() const override       { return (std::size_t)vdim * sizeof(real_t); }
+
+   /// @copydoc Field::GetAlign
+   std::size_t GetAlign() const override { return alignof(real_t); }
+   /// @copydoc Field::OnDevice
+   bool OnDevice() const override { return Device::IsEnabled() && vec->UseDevice(); }
+
+   /// @copydoc Field::Pack
+   void Pack(const mfem::Array<int> &leaving_idx, char *buf,
+             std::size_t stride, std::size_t off) const override {
+      const int n_leaving = leaving_idx.Size();
+      if (n_leaving == 0) { return; }
+      const bool use_dev = OnDevice();
+      const int n_particles = GetNumParticles();
+      const int vd = vdim;
+      const Ordering::Type col_ordering = ordering;
+      const real_t *old_data = vec->Read(use_dev);
+      const int *leaving_idx_data = leaving_idx.Read(use_dev);
+      mfem::forall_switch(use_dev, n_leaving, [=] MFEM_HOST_DEVICE (int k) {
+         real_t *row = reinterpret_cast<real_t*>(buf + (std::size_t)k*stride + off);
+         const int particle = leaving_idx_data[k];
+         for (int comp = 0; comp < vd; comp++) {
+            row[comp] = old_data[internal::ElemIndex(particle, comp, n_particles, vd, col_ordering)];
+         }
+      });
+   }
+
+   /// @copydoc Field::Unpack
+   void Unpack(const mfem::Array<int> &dst, const mfem::Array<int> &tail,
+               const char *buf, int n_arrivals, int n_new,
+               std::size_t stride, std::size_t off) override {
+      const bool use_dev = OnDevice();
+      const int n = GetNumParticles();
+      const int vd = vdim;
+      const Ordering::Type col_ordering = ordering;
+      const std::size_t need = (std::size_t)n_new*vd;
+      MFEM_VERIFY(need <= (std::size_t)INT_MAX, "CrystalRouter: column too large");
+      const std::size_t old_cap = (std::size_t)vec->Capacity();
+      const bool in_place = (ordering == Ordering::byVDIM || vd == 1 || n_new == n)
+                            && need <= old_cap;
+
+      real_t *out = nullptr;
+      const real_t *src = nullptr;
+
+      mfem::Vector new_col;
+      if (in_place) {
+         const int max_n = std::max(n, n_new);
+         vec->SetSize(max_n*vd);
+         if (max_n*vd > 0) { out = vec->ReadWrite(use_dev); src = out; }
+      }
+      else {
+         // capacity never shrinks
+         std::size_t cap = old_cap;
+         if (need > old_cap) {
+            cap = std::min(std::max(need, 2*old_cap), (std::size_t)INT_MAX);
+         }
+         new_col.SetSize((int)cap, vec->GetMemory().GetMemoryType());
+         new_col.SetSize(n_new*vd);
+         new_col.UseDevice(vec->UseDevice());
+         if (n > 0) { src = vec->Read(use_dev); }
+         if (n_new > 0) { out = new_col.Write(use_dev); }
+         const int n_keep = std::min(n, n_new);
+         if (n_keep > 0) {
+            mfem::forall_switch(use_dev, n_keep, [=] MFEM_HOST_DEVICE (int i) {
+               for (int comp = 0; comp < vd; comp++) {
+                  out[internal::ElemIndex(i, comp, n_new, vd, col_ordering)] =
+                     src[internal::ElemIndex(i, comp, n, vd, col_ordering)];
+               }
+            });
+         }
+      }
+
+      const int n_fill = dst.Size();
+      if (n_fill > 0) {
+         const int *dst_data = dst.Read(use_dev);
+         const int *tail_data = tail.Size() > 0 ? tail.Read(use_dev) : nullptr;
+         mfem::forall_switch(use_dev, n_fill, [=] MFEM_HOST_DEVICE (int m) {
+            for (int comp = 0; comp < vd; comp++) {
+               real_t v;
+               if (m < n_arrivals) {
+                  v = reinterpret_cast<const real_t*>(buf + (std::size_t)m*stride + off)[comp];
+               }
+               else {
+                  v = src[internal::ElemIndex(tail_data[m - n_arrivals], comp, n, vd, col_ordering)];
+               }
+               out[internal::ElemIndex(dst_data[m], comp, n_new, vd, col_ordering)] = v;
+            }
+         });
+      }
+
+      if (in_place) { vec->SetSize((int)need); }
+      else { vec->Swap(new_col); }
+   }
 
    /// @copydoc Field::ToHost
    std::unique_ptr<Field> ToHost(const mfem::Array<int> &leaving_idx) override {
