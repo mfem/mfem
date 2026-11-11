@@ -198,6 +198,7 @@ static void CrRunColumnCases(int vdim, Ordering::Type ord)
 
       REQUIRE(col.Size() == n_new*vdim);
       REQUIRE(col.Capacity() >= cap_before);
+      if (n_new*vdim > cap_before) { REQUIRE(col.Capacity() >= 2*cap_before); }
       const T *h = col.HostRead();
       for (int p = 0; p < n_new; p++)
       {
@@ -259,10 +260,19 @@ static int CountWrong(const Array<unsigned long long> &keys,
    return wrong;
 }
 
-// MoveToDevice, skipped for a column with 0 entries
+// MoveToDevice. A column with 0 entries only gets the device flag: it is never
+// read or written, but the router still takes the device path for it.
 template <typename T>
-static void CrDev(Array<T> &a, T poison) { if (a.Size() > 0) { MoveToDevice(a, poison); } }
-static void CrDev(Vector &v) { if (v.Size() > 0) { MoveToDevice(v); } }
+static void CrDev(Array<T> &a, T poison)
+{
+   if (a.Size() > 0) { MoveToDevice(a, poison); }
+   else { a.GetMemory().UseDevice(true); }
+}
+static void CrDev(Vector &v)
+{
+   if (v.Size() > 0) { MoveToDevice(v); }
+   else { v.UseDevice(true); }
+}
 
 // HostRead, skipped for a column with 0 entries
 template <typename T>
@@ -464,6 +474,52 @@ TEST_CASE("CrystalRouter host and device columns",
    CHECK(!v_dev);
    CHECK(wrong == 0);
    CHECK(global == total);
+}
+
+TEST_CASE("CrystalRouter reuse one router",
+          "[CrystalRouter][Parallel][GPU]")
+{
+   const int size = Mpi::WorldSize();
+   const int rank = Mpi::WorldRank();
+   const int n = 30 + rank;
+   int total = 0;
+   for (int r = 0; r < size; r++) { total += 30 + r; }
+
+   Array<unsigned long long> keys;
+   Array<int> ai;
+   Vector v;
+   MakeColumns(n, keys, ai, v);
+   CrDev(keys, ~0ull); CrDev(ai, -1); CrDev(v);
+
+   CrystalRouter router(MPI_COMM_WORLD);
+
+   // Call 1: equal swap
+   Array<unsigned int> rank_list(n);
+   for (int i = 0; i < n; i++) { rank_list[i] = i % 3 == 0 ? (rank + 1) % size : rank; }
+   router.Route(rank_list,
+   {
+      CR::Array(keys), CR::Array(ai, 3, Ordering::byNODES),
+      CR::Vector(v, 2, Ordering::byVDIM)
+   });
+   CrHost(keys); CrHost(ai); CrHost(v);
+   const int w1 = CrSum(CountWrong(keys, ai, v));
+
+   // Call 2: everything to the last rank, more rows than call 1
+   Array<unsigned int> rank_list2(keys.Size());
+   rank_list2 = static_cast<unsigned int>(size - 1);
+   router.Route(rank_list2,
+   {
+      CR::Array(keys), CR::Array(ai, 3, Ordering::byNODES),
+      CR::Vector(v, 2, Ordering::byVDIM)
+   });
+   CrHost(keys); CrHost(ai); CrHost(v);
+   const int w2 = CrSum(CountWrong(keys, ai, v));
+   const int global = CrSum(keys.Size());
+
+   CHECK(w1 == 0);
+   CHECK(w2 == 0);
+   CHECK(global == total);
+   CHECK(keys.Size() == (rank == size - 1 ? total : 0));
 }
 
 #endif // MFEM_USE_MPI
