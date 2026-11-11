@@ -13,18 +13,9 @@
 
 add_mfem_miniapp(rbvms
   MAIN rbvms.cpp
-  EXTRA_SOURCES integrator.cpp libcoefficients.cpp
-  EXTRA_HEADERS integrator.hpp libcoefficients.hpp util.hpp
+  EXTRA_SOURCES integrator.cpp
+  EXTRA_HEADERS integrator.hpp util.hpp
   LIBRARIES mfem)
-
-foreach(target liddriven kovasznay vonkarman)
-   add_library(${target} SHARED ${target}.cpp)
-   target_include_directories(${target} PRIVATE
-       ${PROJECT_SOURCE_DIR}
-       ${PROJECT_BINARY_DIR}/config
-   )
-   add_dependencies(rbvms ${target})
-endforeach()
 
 LIST(APPEND RBVMS_FILES
         README.md
@@ -41,21 +32,21 @@ if (MFEM_ENABLE_TESTING)
    add_test(NAME rbvms-ldc
          COMMAND  $<TARGET_FILE:rbvms> 
                   --mesh ../../../data/square-nurbs.mesh --strong-bdr 1
-                  --lib $<TARGET_FILE:liddriven> -rho 1 -mu 0.001
+                  --problem 2
                   -r 1 -o 2 -s 21 -dt 0.01 -tf 0.1)
    add_test(NAME rbvms-vkvs
          COMMAND  $<TARGET_FILE:rbvms>
                   --mesh von-karman-nurbs.mesh
                   --strong-bdr "1 2" --outflow-bdr 4 --weak-bdr 3
-                  --lib $<TARGET_FILE:vonkarman> -rho 1 -mu 0.01
+                  --problem 3
                   -r 1 -o 2 -s 45 -dt 0.1 -tf 1)
 endif()
 
 if (MFEM_USE_MPI)
   add_mfem_miniapp(prbvms
     MAIN prbvms.cpp
-    EXTRA_SOURCES integrator.cpp libcoefficients.cpp
-    EXTRA_HEADERS integrator.hpp libcoefficients.hpp util.hpp
+    EXTRA_SOURCES integrator.cpp
+    EXTRA_HEADERS integrator.hpp util.hpp
     LIBRARIES mfem)
 
   # Add the corresponding tests to the "test" target
@@ -65,7 +56,7 @@ if (MFEM_USE_MPI)
       ${MPIEXEC_PREFLAGS}
       $<TARGET_FILE:prbvms>
                --mesh ../../../data/square-nurbs.mesh --strong-bdr 1
-               --lib $<TARGET_FILE:liddriven>  -rho 1 -mu 0.001
+               --problem 2
                -o 2 -r 3 -s 21 -dt 0.01 -tf 0.1
       ${MPIEXEC_POSTFLAGS})
 
@@ -75,7 +66,7 @@ if (MFEM_USE_MPI)
       $<TARGET_FILE:prbvms>
                   --mesh von-karman-nurbs.mesh
                   --strong-bdr "1 2" --outflow-bdr 4 --weak-bdr 3 
-                  --lib $<TARGET_FILE:vonkarman> -rho 1 -mu 0.01
+                  --problem 3
                   -r 1 -o 2 -s 45 -dt 0.1  -tf 1
       ${MPIEXEC_POSTFLAGS})
   endif()

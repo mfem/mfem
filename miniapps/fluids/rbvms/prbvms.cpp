@@ -14,7 +14,10 @@
 #include "util.hpp"
 
 #include "integrator.hpp"
-#include "libcoefficients.hpp"
+
+#include "kovasznay.hpp"
+#include "liddriven.hpp"
+#include "vonkarman.hpp"
 
 using namespace mfem;
 
@@ -45,15 +48,12 @@ int main(int argc, char *argv[])
                   "Finite element order isoparametric space.");
 
    // Problem parameters
-   const char *lib_file = "libfun.so";
-   real_t rho_param = 1.204;
-   real_t mu_param = 1.825e-5;
-   args.AddOption(&mu_param, "-mu", "--dyn-visc",
-                  "Sets the dynamic diffusion parameters, should be positive.");
-   args.AddOption(&rho_param, "-rho", "--density",
-                  "Sets the density parameters, should be positive.");
-   args.AddOption(&lib_file, "-l", "--lib",
-                  "Library file for case specific function definitions.");
+   int problem = 1;
+   args.AddOption(&problem, "-p", "--problem",
+                  " Problems are:\n"
+                  "\t 1: Kovasznay flow\n"
+                  "\t 2: Lid driven cavity flow\n"
+                  "\t 3: Von Karman flow");
 
    // Boundary parameters
    Array<int> strong_bdr;
@@ -300,15 +300,27 @@ int main(int argc, char *argv[])
    newton_solver.SetSolver(j_gmres);
 
    // Define the physical parameters
-   Vector force_param(dim);
-   force_param = 0.0;
-   VectorConstantCoefficient force(force_param);
+   CoefficientFactory *factory;
+   switch (problem)
+   {
+      case 1: factory = new KovasznayFlow(dim);
+         break;
+      case 2: factory = new LidDrivenCavity(dim);
+         break;
+      case 3: factory = new VonKarmanFlow(dim);
+         break;
+      default: mfem_error("Incorrect problem:\n"
+                             " 1: Kovasznay flow\n"
+                             " 2: Lid driven cavity flow\n"
+                             " 3: Von Karman flow\n");
+   }
 
-   LibCoefficient rho(lib_file, "rho", false, rho_param);
-   LibCoefficient mu(lib_file, "mu", false, mu_param);
-   LibVectorCoefficient sol_u(dim, lib_file, "sol_u");
-   LibCoefficient sol_p(lib_file, "sol_p");
-   LibVectorCoefficient traction(dim, lib_file, "traction");
+   Coefficient &rho = factory->DensityCoefficient;
+   Coefficient &mu = factory->ViscosityCoefficient;
+   VectorCoefficient &sol_u = factory->VelocityCoefficient;
+   Coefficient &sol_p = factory->PressureCoefficient;
+   VectorCoefficient &traction = factory->TractionCoefficient;
+   VectorCoefficient &force = factory->ForceCoefficient;
 
    // Define weak form and evolution
    ParBlockTimeDepNonlinearForm form(spaces);
@@ -667,6 +679,7 @@ int main(int argc, char *argv[])
       delete dx_u[i];
       delete  dx_p[i];
    }
+   delete factory;
    return 0;
 }
 
