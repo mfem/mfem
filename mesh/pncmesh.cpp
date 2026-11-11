@@ -340,7 +340,7 @@ void ParNCMesh::FindEdgesOfGhostFace(int face, Array<int> & edges)
 
    int V[4], E[4], Eo[4];
    const int nfv = GetFaceVerticesEdges(*midt.id, V, E, Eo);
-   MFEM_ASSERT(nfv == 4, "");
+   MFEM_ASSERT(nfv == 3 || nfv == 4, "invalid ghost face");
 
    edges.SetSize(nfv);
    for (int i=0; i<nfv; ++i)
@@ -351,6 +351,7 @@ void ParNCMesh::FindEdgesOfGhostFace(int face, Array<int> & edges)
 
 void ParNCMesh::FindEdgesOfGhostElement(int elem, Array<int> & edges)
 {
+   GetEdgeList();
    NCMesh::Element &el = elements[elem]; // ghost element
    MFEM_ASSERT(el.rank != MyRank, "");
 
@@ -3032,6 +3033,63 @@ void ParNCMesh::RecvRebalanceDofs(Array<int> &elements, Array<long> &dofs)
    RebalanceDofMessage::WaitAllSent(send_rebalance_dofs);
 }
 
+void ParNCMesh::ExchangeRebalanceElementOrders(
+   const Array<char> &old_orders, Array<char> &new_orders)
+{
+   MFEM_VERIFY(old_index_or_rank.Size() == NElements,
+               "Missing rebalance element indices.");
+   new_orders.SetSize(NElements);
+   new_orders = -1;
+   for (int i = 0; i < NElements; i++)
+   {
+      const int old_index = old_index_or_rank[i];
+      if (old_index >= 0)
+      {
+         MFEM_VERIFY(old_index < old_orders.Size(),
+                     "Invalid old element order index.");
+         new_orders[i] = old_orders[old_index];
+      }
+   }
+
+   // Reuse the element sets recorded by Rebalance. The data payload contains
+   // one order per element; the DOF payload is populated later if requested.
+   for (auto &entry : send_rebalance_dofs)
+   {
+      RebalanceDofMessage &msg = entry.second;
+      msg.dofs.clear();
+      for (int old_index : msg.elem_ids)
+      {
+         MFEM_VERIFY(old_index >= 0 && old_index < old_orders.Size(),
+                     "Invalid old element order index.");
+         msg.dofs.push_back(old_orders[old_index]);
+      }
+      msg.dof_offset = 0;
+   }
+   RebalanceDofMessage::IsendAll(send_rebalance_dofs, MyComm);
+   RebalanceDofMessage::RecvAll(recv_rebalance_dofs, MyComm);
+
+   for (auto &entry : recv_rebalance_dofs)
+   {
+      const RebalanceDofMessage &msg = entry.second;
+      MFEM_VERIFY(msg.elem_ids.size() == msg.dofs.size(),
+                  "Rebalanced element orders have inconsistent sizes.");
+      for (size_t i = 0; i < msg.elem_ids.size(); i++)
+      {
+         const int elem = msg.elem_ids[i];
+         MFEM_VERIFY(elem >= 0 && elem < new_orders.Size(),
+                     "Invalid new element order index.");
+         new_orders[elem] = static_cast<char>(msg.dofs[i]);
+      }
+   }
+   RebalanceDofMessage::WaitAllSent(send_rebalance_dofs);
+
+   for (int i = 0; i < new_orders.Size(); i++)
+   {
+      MFEM_VERIFY(new_orders[i] >= 0,
+                  "Missing order for rebalanced element " << i);
+   }
+}
+
 
 //// ElementSet ////////////////////////////////////////////////////////////////
 
@@ -3818,7 +3876,6 @@ void ParNCMesh::GetGhostElements(Array<int> & gelem)
    }
 }
 
-// Note that this function is modeled after ParNCMesh::Refine().
 void ParNCMesh::CommunicateGhostData(
    const Array<VarOrderElemInfo> & sendData, Array<VarOrderElemInfo> & recvData)
 {
@@ -3826,57 +3883,78 @@ void ParNCMesh::CommunicateGhostData(
 
    if (NRanks == 1) { return; }
 
-   NeighborPRefinementMessage::Map send_ref;
-
-   // create refinement messages to all neighbors (NOTE: some may be empty)
-   Array<int> neighbors;
-   NeighborProcessors(neighbors);
-   for (int i = 0; i < neighbors.Size(); i++)
-   {
-      send_ref[neighbors[i]].SetNCMesh(this);
-   }
-
-   // populate messages: all refinements that occur next to the processor
-   // boundary need to be sent to the adjoining neighbors so they can keep
-   // their ghost layer up to date
-   Array<int> ranks;
-   ranks.Reserve(64);
+   Array<int> local_orders(NElements);
+   local_orders = -1;
    for (int i = 0; i < sendData.Size(); i++)
    {
-      MFEM_ASSERT(sendData[i].element < (unsigned int) NElements, "");
-      const int elem = leaf_elements[sendData[i].element];
-      ElementNeighborProcessors(elem, ranks);
-      for (int j = 0; j < ranks.Size(); j++)
-      {
-         send_ref[ranks[j]].AddRefinement(elem, sendData[i].order);
-      }
+      const unsigned int index = sendData[i].element;
+      MFEM_VERIFY(index < static_cast<unsigned int>(NElements),
+                  "Invalid local element order index.");
+      local_orders[index] = sendData[i].order;
    }
 
-   // send the messages (overlap with local refinements)
-   NeighborPRefinementMessage::IsendAll(send_ref, MyComm);
-
-   // receive (ghost layer) refinements from all neighbors
-   for (int j = 0; j < neighbors.Size(); j++)
+   GhostOrderRequestMessage::Map requests;
+   Array<int> send_flags(NRanks), recv_flags(NRanks);
+   send_flags = 0;
+   for (int i = NElements; i < leaf_elements.Size(); i++)
    {
-      int rank, size;
-      NeighborPRefinementMessage::Probe(rank, size, MyComm);
+      const int elem = leaf_elements[i];
+      const int owner = elements[elem].rank;
+      MFEM_VERIFY(owner >= 0 && owner < NRanks && owner != MyRank,
+                  "Invalid owner of ghost element " << elem);
+      requests[owner].SetNCMesh(this);
+      requests[owner].AddRequest(elem);
+      send_flags[owner] = 1;
+   }
 
-      NeighborPRefinementMessage msg;
-      msg.SetNCMesh(this);
-      msg.Recv(rank, size, MyComm);
+   // The request flags tell each owner how many messages to receive.
+   MPI_Alltoall(send_flags.GetData(), 1, MPI_INT,
+                recv_flags.GetData(), 1, MPI_INT, MyComm);
+   GhostOrderRequestMessage::IsendAll(requests, MyComm);
 
-      // Get the ghost refinement data
-      const int os = recvData.Size();
-      recvData.SetSize(os + msg.Size());
+   GhostOrderRequestMessage::Map incoming;
+   for (int rank = 0; rank < NRanks; rank++)
+   {
+      if (recv_flags[rank]) { incoming[rank].SetNCMesh(this); }
+   }
+   GhostOrderRequestMessage::RecvAll(incoming, MyComm);
+   GhostOrderRequestMessage::WaitAllSent(requests);
+
+   NeighborPRefinementMessage::Map replies;
+   for (auto &entry : incoming)
+   {
+      NeighborPRefinementMessage &reply = replies[entry.first];
+      reply.SetNCMesh(this);
+      for (int elem : entry.second.elements)
+      {
+         const Element &el = elements[elem];
+         MFEM_VERIFY(el.rank == MyRank && el.index >= 0 &&
+                     el.index < local_orders.Size() && local_orders[el.index] >= 0,
+                     "Missing local order for requested element " << elem);
+         reply.AddRefinement(elem, local_orders[el.index]);
+      }
+   }
+   NeighborPRefinementMessage::IsendAll(replies, MyComm);
+
+   NeighborPRefinementMessage::Map received;
+   for (const auto &entry : requests)
+   {
+      received[entry.first].SetNCMesh(this);
+   }
+   NeighborPRefinementMessage::RecvAll(received, MyComm);
+   for (const auto &entry : received)
+   {
+      const NeighborPRefinementMessage &msg = entry.second;
       for (int i = 0; i < msg.Size(); i++)
       {
-         recvData[os + i].element = msg.elements[i];
-         recvData[os + i].order = msg.values[i];
+         const int elem = msg.elements[i];
+         MFEM_VERIFY(elements[elem].rank == entry.first,
+                     "Received ghost order from the wrong owner.");
+         recvData.Append(VarOrderElemInfo{static_cast<unsigned int>(elem),
+                                          static_cast<char>(msg.values[i])});
       }
    }
-
-   // make sure we can delete the send buffers
-   NeighborPRefinementMessage::WaitAllSent(send_ref);
+   NeighborPRefinementMessage::WaitAllSent(replies);
 }
 
 } // namespace mfem

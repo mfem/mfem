@@ -234,6 +234,10 @@ public:
    /// Receive element DOFs sent by SendRebalanceDofs().
    void RecvRebalanceDofs(Array<int> &elements, Array<long> &dofs);
 
+   /// Transfer element orders using the communication pattern from Rebalance().
+   void ExchangeRebalanceElementOrders(const Array<char> &old_orders,
+                                       Array<char> &new_orders);
+
    /** Get previous indices (pre-Rebalance) of current elements. Index of -1
        indicates that an element didn't exist in the mesh before. */
    const Array<int>& GetRebalanceOldIndex() const { return old_index_or_rank; }
@@ -602,6 +606,15 @@ protected: // implementation
    public:
       void AddRefinement(int elem, int order) { Add(elem, order); }
       typedef std::map<int, NeighborPRefinementMessage> Map;
+   };
+
+   /** Requests orders for current ghost leaves from their owning ranks. */
+   class GhostOrderRequestMessage : public ElementValueMessage<int, false,
+      VarMessageTag::GHOST_ORDER_REQUEST_VM>
+   {
+   public:
+      void AddRequest(int elem) { Add(elem, 0); }
+      typedef std::map<int, GhostOrderRequestMessage> Map;
    };
 
    /** Assign new Element::rank to leaf elements and send them to their new

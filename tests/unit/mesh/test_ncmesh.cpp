@@ -758,11 +758,13 @@ TEST_CASE("ParNCMesh geometry-specific refinement patterns",
 
 TEST_CASE("ParNCMesh mixed pyramid derefinement", "[Parallel][NCMesh]")
 {
-   if (Mpi::WorldSize() != 2) { return; }
+   const int nranks = Mpi::WorldSize();
+   if (nranks != 2 && nranks != 3) { return; }
    const bool continuous = GENERATE(false, true);
+   const bool variable_order = GENERATE(false, true);
    const int redistribution = GENERATE(0, 1, 2);
    const int order = GENERATE(1, 2);
-   CAPTURE(continuous, redistribution, order);
+   CAPTURE(continuous, variable_order, redistribution, order);
 
    Mesh serial_mesh("../../data/l-mixed.mesh", 1, 1);
    serial_mesh.EnsureNCMesh(true);
@@ -773,6 +775,17 @@ TEST_CASE("ParNCMesh mixed pyramid derefinement", "[Parallel][NCMesh]")
    ParFiniteElementSpace fes(&mesh, continuous ?
                              static_cast<FiniteElementCollection*>(&h1_fec) :
                              static_cast<FiniteElementCollection*>(&l2_fec));
+   if (variable_order)
+   {
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         if (mesh.GetAttribute(i) == 9)
+         {
+            fes.SetElementOrder(i, order + 1);
+         }
+      }
+      fes.Update(false);
+   }
    ParGridFunction field(&fes);
    FunctionCoefficient affine([](const Vector &x)
    {
@@ -792,6 +805,13 @@ TEST_CASE("ParNCMesh mixed pyramid derefinement", "[Parallel][NCMesh]")
    mesh.GeneralRefinement(refs);
    fes.Update();
    field.Update();
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == 9)
+      {
+         REQUIRE(fes.GetElementOrder(i) == order + int(variable_order));
+      }
+   }
    ParGridFunction fine_exact(&fes);
    fine_exact.ProjectCoefficient(affine);
    fine_exact -= field;
@@ -809,10 +829,15 @@ TEST_CASE("ParNCMesh mixed pyramid derefinement", "[Parallel][NCMesh]")
          if (mesh.GetAttribute(i) == 9)
          {
             const int child = pyramid_child++;
-            // The second partition moves children 8 and 9 together.
-            if (redistribution == 1 ? child % 2 == 0 : child >= 5)
+            // The first partition spreads children over all ranks; the
+            // second moves children 8 and 9 together.
+            if (redistribution == 1)
             {
-               partition[i] = 1 - rank;
+               partition[i] = child % nranks;
+            }
+            else if (child >= 5)
+            {
+               partition[i] = (rank + 1) % nranks;
             }
          }
          moved_local += partition[i] != rank;
@@ -824,6 +849,13 @@ TEST_CASE("ParNCMesh mixed pyramid derefinement", "[Parallel][NCMesh]")
       mesh.Rebalance(partition);
       fes.Update();
       field.Update();
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         if (mesh.GetAttribute(i) == 9)
+         {
+            REQUIRE(fes.GetElementOrder(i) == order + int(variable_order));
+         }
+      }
       ParGridFunction balanced_exact(&fes);
       balanced_exact.ProjectCoefficient(affine);
       balanced_exact -= field;
@@ -836,6 +868,13 @@ TEST_CASE("ParNCMesh mixed pyramid derefinement", "[Parallel][NCMesh]")
    fes.Update();
    field.Update();
    REQUIRE(mesh.GetGlobalNE() == coarse_global_ne);
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == 9)
+      {
+         REQUIRE(fes.GetElementOrder(i) == order + int(variable_order));
+      }
+   }
    ParGridFunction coarse_exact(&fes);
    coarse_exact.ProjectCoefficient(affine);
    coarse_exact -= field;
