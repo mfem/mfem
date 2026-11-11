@@ -457,39 +457,38 @@ void BRASPreconditioner::SetupTensor(Vector &w)
    Array<Coefficient*> coeffs(integs.Size());
    for (int k = 0; k < integs.Size(); k++)
    {
-      const Coefficient *Q = nullptr;
+      CoefficientBase *coeff = nullptr;
       bool valid = false;
       if (vector_fe)
       {
          auto integ = dynamic_cast<VectorFEMassIntegrator*>(integs[k]);
-         valid = integ && !integ->GetVectorCoefficient() &&
-                 !integ->GetMatrixCoefficient();
-         if (valid) { Q = integ->GetCoefficient(); }
+         valid = integ != nullptr;
+         if (valid) { coeff = integ->GetCoefficientBase(); }
       }
       else if (vdim == 1)
       {
          auto integ = dynamic_cast<MassIntegrator*>(integs[k]);
          valid = integ != nullptr;
-         if (valid) { Q = integ->GetCoefficient(); }
+         if (valid) { coeff = integ->GetCoefficientBase(); }
       }
       else
       {
          // Without a matrix or vector coefficient, VectorMassIntegrator takes
          // the number of components from the space dimension, unless set.
          auto integ = dynamic_cast<VectorMassIntegrator*>(integs[k]);
-         valid = integ && !integ->GetVectorCoefficient() &&
-                 !integ->GetMatrixCoefficient() &&
+         valid = integ &&
                  (integ->GetVDim() == vdim ||
                   (integ->GetVDim() == -1 && mesh.SpaceDimension() == vdim));
-         if (valid) { Q = integ->GetCoefficient(); }
+         if (valid) { coeff = integ->GetCoefficientBase(); }
       }
-      MFEM_VERIFY(valid, prefix << "the domain integrators must be mass "
-                  "integrators matching the space, with a scalar coefficient "
-                  "or none");
+      auto Q = dynamic_cast<Coefficient*>(coeff);
+      MFEM_VERIFY(valid && (!coeff || Q),
+                  prefix << "the domain integrators must be mass integrators "
+                  "matching the space, with a scalar coefficient or none");
       MFEM_VERIFY(markers[k] == nullptr && integs[k]->GetIntRule() == nullptr,
                   prefix << "attribute markers and custom integration rules "
                   "are not supported");
-      coeffs[k] = const_cast<Coefficient*>(Q);
+      coeffs[k] = Q;
    }
 
    // The 1D mass matrices. The closed basis of L2 elements and the open basis
