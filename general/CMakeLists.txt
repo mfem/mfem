@@ -70,10 +70,10 @@ list(APPEND HDRS
   )
 
 if (MFEM_USE_MPI)
-  list(APPEND SRCS communication.cpp)
+  list(APPEND SRCS communication.cpp crystal.cpp)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # header added all the time.
-  list(APPEND HDRS communication.hpp)
+  list(APPEND HDRS communication.hpp crystal.hpp)
 endif()
 
 if (MFEM_USE_ADIOS2)

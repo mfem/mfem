@@ -1,3 +1,14 @@
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
 #include "crystal.hpp"
 #include "communication.hpp"
 
@@ -11,24 +22,29 @@ namespace mfem
 {
 
 /// @details Duplicates @a comm and caches the rank and size of the duplicate
-CrystalRouter::CrystalRouter(MPI_Comm comm) {
+CrystalRouter::CrystalRouter(MPI_Comm comm)
+{
    MPI_Comm_dup(comm, &this->comm);
    MPI_Comm_rank(this->comm, &rank);
    MPI_Comm_size(this->comm, &nprocs);
 }
 
-CrystalRouter::~CrystalRouter() {
+CrystalRouter::~CrystalRouter()
+{
    if (!Mpi::IsFinalized()) { MPI_Comm_free(&comm); }
 }
 
-void CrystalRouter::Route(const Array<unsigned int> &rank_list,
-                          std::initializer_list<CR::internal::FieldGroup> field_groups)
+void CrystalRouter::Route(
+   const Array<unsigned int> &rank_list,
+   std::initializer_list<CR::internal::FieldGroup> field_groups)
 {
    std::vector<CR::internal::Field*> fields;
-   for (const auto &g : field_groups) {
+   for (const auto &g : field_groups)
+   {
       for (const auto &f : g.cols) { fields.push_back(f.get()); }
    }
-   for (std::size_t i = 0; i < fields.size(); i++) {
+   for (std::size_t i = 0; i < fields.size(); i++)
+   {
       MFEM_VERIFY(fields[i]->GetNumParticles() == rank_list.Size(),
                   "CrystalRouter: field " << i << " has size "
                   << fields[i]->GetNumParticles() << " but rank_list has size "
@@ -36,11 +52,13 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
    }
 
    // row layout: columns (aligned), destination rank, padding
-   auto align_up = [](std::size_t x, std::size_t a) { return (x + a - 1) / a * a; };
+   auto align_up = [](std::size_t x, std::size_t a)
+   { return (x + a - 1) / a * a; };
    std::vector<std::size_t> off(fields.size());
    // starts at 8: a row must be a whole number of the 8-byte words of buf
    std::size_t pos = 0, max_align = sizeof(std::uint64_t);
-   for (std::size_t k = 0; k < fields.size(); k++) {
+   for (std::size_t k = 0; k < fields.size(); k++)
+   {
       const std::size_t a = fields[k]->GetAlign();
       pos = align_up(pos, a);
       off[k] = pos;
@@ -58,7 +76,8 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
    const int n = rank_list.Size();
    const unsigned int *h_ranks = n > 0 ? rank_list.HostRead() : nullptr;
    Array<int> leaving_idx;
-   for (int i = 0; i < n; i++) {
+   for (int i = 0; i < n; i++)
+   {
       if (h_ranks[i] != (unsigned int)rank) { leaving_idx.Append(i); }
    }
    const int n_leave = leaving_idx.Size();
@@ -68,26 +87,38 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
 
    // pack the leaving rows
    buf.SetSize(0);
-   const std::size_t words = (std::size_t)n_leave * stride / sizeof(std::uint64_t);
+   const std::size_t words =
+      (std::size_t)n_leave * stride / sizeof(std::uint64_t);
    MFEM_VERIFY(words <= (std::size_t)INT_MAX / 2,
                "CrystalRouter send buffer exceeds Array size limit");
    buf.SetSize((int)words);
 
-   if (n_leave > 0) {
-      if (any_dev) {
+   if (n_leave > 0)
+   {
+      if (any_dev)
+      {
          char *d = reinterpret_cast<char*>(buf.Write(true));
-         for (std::size_t k = 0; k < fields.size(); k++) {
-            if (fields[k]->OnDevice()) { fields[k]->Pack(leaving_idx, d, stride, off[k]); }
+         for (std::size_t k = 0; k < fields.size(); k++)
+         {
+            if (fields[k]->OnDevice())
+            {
+               fields[k]->Pack(leaving_idx, d, stride, off[k]);
+            }
          }
       }
       // the only device to host copy of buf, after the device packs
       char *h = reinterpret_cast<char*>(buf.HostReadWrite());
-      for (std::size_t k = 0; k < fields.size(); k++) {
-         if (!fields[k]->OnDevice()) { fields[k]->Pack(leaving_idx, h, stride, off[k]); }
+      for (std::size_t k = 0; k < fields.size(); k++)
+      {
+         if (!fields[k]->OnDevice())
+         {
+            fields[k]->Pack(leaving_idx, h, stride, off[k]);
+         }
       }
-      for (int k = 0; k < n_leave; k++) {
-         std::memcpy(h + (std::size_t)k * stride + hdr, &h_ranks[leaving_idx[k]],
-                     sizeof(unsigned int));
+      for (int k = 0; k < n_leave; k++)
+      {
+         std::memcpy(h + (std::size_t)k * stride + hdr,
+                     &h_ranks[leaving_idx[k]], sizeof(unsigned int));
       }
    }
 
@@ -102,25 +133,41 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
    const int n_new = n - n_leave + n_arr;
    Array<int> dst, tail;
    int k = 0;
-   for (; k < n_leave && leaving_idx[k] < n_new; k++) { dst.Append(leaving_idx[k]); } // holes
-   for (int p = n; p < n_new; p++) { dst.Append(p); }                                  // new slots
-   for (int p = n_new; p < n; p++) {                                                   // stayers past the end
-      if (k < n_leave && leaving_idx[k] == p) { k++; } else { tail.Append(p); }
+   // holes
+   for (; k < n_leave && leaving_idx[k] < n_new; k++)
+   {
+      dst.Append(leaving_idx[k]);
    }
-   MFEM_ASSERT(dst.Size() == n_arr + tail.Size(), "CrystalRouter: bad fill list");
+   // new slots
+   for (int p = n; p < n_new; p++) { dst.Append(p); }
+   // stayers past the end
+   for (int p = n_new; p < n; p++)
+   {
+      if (k < n_leave && leaving_idx[k] == p) { k++; }
+      else { tail.Append(p); }
+   }
+   MFEM_ASSERT(dst.Size() == n_arr + tail.Size(),
+               "CrystalRouter: bad fill list");
 
    // unpack: host columns first, then device columns
-   const char *h = n_arr > 0 ? reinterpret_cast<const char*>(buf.HostRead()) : nullptr;
-   for (std::size_t j = 0; j < fields.size(); j++) {
-      if (!fields[j]->OnDevice()) {
+   const char *h =
+      n_arr > 0 ? reinterpret_cast<const char*>(buf.HostRead()) : nullptr;
+   for (std::size_t j = 0; j < fields.size(); j++)
+   {
+      if (!fields[j]->OnDevice())
+      {
          fields[j]->Unpack(dst, tail, h, n_arr, n_new, stride, off[j]);
       }
    }
-   if (any_dev) {
+   if (any_dev)
+   {
       // the only host to device copy of buf
-      const char *d = n_arr > 0 ? reinterpret_cast<const char*>(buf.Read(true)) : nullptr;
-      for (std::size_t j = 0; j < fields.size(); j++) {
-         if (fields[j]->OnDevice()) {
+      const char *d =
+         n_arr > 0 ? reinterpret_cast<const char*>(buf.Read(true)) : nullptr;
+      for (std::size_t j = 0; j < fields.size(); j++)
+      {
+         if (fields[j]->OnDevice())
+         {
             fields[j]->Unpack(dst, tail, d, n_arr, n_new, stride, off[j]);
          }
       }
@@ -128,6 +175,10 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
 }
 
 // PRIVATE METHODS
+
+// RouteInternal(), Move() and Exchange() are based on crystal_router(),
+// crystal_move() and crystal_exchange() in src/crystal.c of gslib
+// (https://github.com/Nek5000/gslib).
 
 /** @details Recursive halving over the ranks. In each round:
     -# The group is split at @c bh = @c bl + ceil(n/2). Ranks below @c bh are
@@ -140,8 +191,8 @@ void CrystalRouter::Route(const Array<unsigned int> &rank_list,
 
     @c n here is the number of ranks in the group. The number of rows is
     @a nrows. */
-int CrystalRouter::RouteInternal(int nrows, std::size_t stride, std::size_t hdr,
-                                 MPI_Datatype row_t)
+int CrystalRouter::RouteInternal(int nrows, std::size_t stride,
+                                 std::size_t hdr, MPI_Datatype row_t)
 {
    uint32_t bl = 0, bh, nl;
    uint32_t id = rank, n = nprocs;
@@ -149,27 +200,33 @@ int CrystalRouter::RouteInternal(int nrows, std::size_t stride, std::size_t hdr,
    bool send_hi;
    int recvn;
 
-   while (n > 1) {
+   while (n > 1)
+   {
       nl = (n+1)/2;
       bh = bl + nl;
       send_hi = (id < bh);
       const int nkeep = Move(nrows, stride, hdr, bh, send_hi);
 
       recvn = 1, targ = n-1-(id-bl)+bl;
-      if (id == targ) {
+      if (id == targ)
+      {
          targ = bh;
          recvn = 0;
       }
-      if (n&1 && id==bh) {
+      if (n&1 && id==bh)
+      {
          recvn = 2;
       }
 
-      nrows = Exchange(nkeep, nrows - nkeep, stride, row_t, targ, recvn, msg_tag);
+      nrows = Exchange(nkeep, nrows - nkeep, stride, row_t, targ, recvn,
+                       msg_tag);
 
-      if (id < bh) {
+      if (id < bh)
+      {
          n = nl;
       }
-      else {
+      else
+      {
          n -= nl;
          bl = bh;
       }
@@ -187,17 +244,20 @@ int CrystalRouter::Move(int nrows, std::size_t stride, std::size_t hdr,
 {
    if (nrows == 0) { return 0; }
    char *b = reinterpret_cast<char*>(buf.HostReadWrite());
-   auto sends = [&](int i) {
+   auto sends = [&](int i)
+   {
       unsigned int r;
       std::memcpy(&r, b + (std::size_t)i * stride + hdr, sizeof r);
       return send_hi ? r >= cutoff : r < cutoff;
    };
    int lo = 0, hi = nrows;   // [0,lo) keep, [hi,nrows) send
-   while (true) {
+   while (true)
+   {
       while (lo < hi && !sends(lo)) { lo++; }
       while (lo < hi && sends(hi-1)) { hi--; }
       if (lo >= hi) { break; }
-      std::swap_ranges(b + (std::size_t)lo * stride, b + (std::size_t)(lo+1) * stride,
+      std::swap_ranges(b + (std::size_t)lo * stride,
+                       b + (std::size_t)(lo+1) * stride,
                        b + (std::size_t)(hi-1) * stride);
       lo++; hi--;
    }
@@ -221,10 +281,12 @@ int CrystalRouter::Exchange(int nkeep, int nsend, std::size_t stride,
    int count[2] = {0, 0};
    int send_n = nsend;
 
-   if (recvn >= 1) {
+   if (recvn >= 1)
+   {
       MPI_Irecv(&count[0], 1, MPI_INT, target, msg_tag, comm, &reqs[1]);
    }
-   if (recvn == 2) {
+   if (recvn == 2)
+   {
       MPI_Irecv(&count[1], 1, MPI_INT, rank - 1, msg_tag, comm, &reqs[2]);
    }
    MPI_Isend(&send_n, 1, MPI_INT, target, msg_tag, comm, &reqs[0]);
@@ -238,29 +300,35 @@ int CrystalRouter::Exchange(int nkeep, int nsend, std::size_t stride,
                "CrystalRouter buffer exceeds Array size limit");
    buf.SetSize((int)words);
    // after SetSize, which can reallocate
-   char *b = words > 0 ? reinterpret_cast<char*>(buf.HostReadWrite()) : nullptr;
+   char *b =
+      words > 0 ? reinterpret_cast<char*>(buf.HostReadWrite()) : nullptr;
    char *send = b ? b + (std::size_t)nkeep * stride : nullptr;
    char *recv = b ? send + (std::size_t)nsend * stride : nullptr;
 
    // exchange rows (counts are in rows of type row_t)
-   if (recvn >= 1) {
+   if (recvn >= 1)
+   {
       MPI_Irecv(recv, count[0], row_t, target, msg_tag+1, comm, &reqs[1]);
    }
-   if (recvn == 2) {
-      MPI_Irecv(recv ? recv + (std::size_t)count[0] * stride : nullptr, count[1],
-                row_t, rank - 1, msg_tag+1, comm, &reqs[2]);
+   if (recvn == 2)
+   {
+      MPI_Irecv(recv ? recv + (std::size_t)count[0] * stride : nullptr,
+                count[1], row_t, rank - 1, msg_tag+1, comm, &reqs[2]);
    }
    MPI_Isend(send, nsend, row_t, target, msg_tag+1, comm, &reqs[0]);
    MPI_Waitall(recvn+1, reqs, MPI_STATUSES_IGNORE);
 
    // move received rows over the sent rows
    const int m = std::min(nsend, nrecv);
-   if (m > 0) {
+   if (m > 0)
+   {
       std::memcpy(send, b + ((std::size_t)nkeep + nsend + nrecv - m) * stride,
                   (std::size_t)m * stride);
    }
 
-   buf.SetSize((int)(((std::size_t)nkeep + nrecv) * stride / sizeof(std::uint64_t)));
+   const std::size_t new_words =
+      ((std::size_t)nkeep + nrecv) * stride / sizeof(std::uint64_t);
+   buf.SetSize((int)new_words);
    return nkeep + nrecv;
 }
 

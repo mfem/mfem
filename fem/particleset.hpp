@@ -16,12 +16,6 @@
 #include "../linalg/linalg.hpp"
 #include "../general/crystal.hpp"
 
-// gslib no longer needed by ParticleSet::Redistribute (native CrystalRouter
-// replaces it); kept commented out to avoid the gslib build dependency.
-//#include "gslib.hpp"
-#include "kernel_dispatch.hpp"
-
-
 namespace mfem
 {
 
@@ -338,7 +332,7 @@ protected:
 
 #ifdef MFEM_USE_MPI
    MPI_Comm comm;
-   CrystalRouter* crystal_router = nullptr; // backs Redistribute (flat-buffer router)
+   CrystalRouter *crystal_router = nullptr; // used by Redistribute()
 #endif // MFEM_USE_MPI
 
    /** @brief  Update global ID of a particle.
@@ -642,9 +636,7 @@ public:
    void PrintCSV(const char *fname, const Array<int> &field_idxs,
                  const Array<int> &tag_idxs, int precision=16);
 
-
-//#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
-#if defined(MFEM_USE_MPI)
+#ifdef MFEM_USE_MPI
 
    /** @brief Redistribute particle data to \p rank_list
 

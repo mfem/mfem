@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -103,9 +103,15 @@ TEST_CASE("CrystalRouter device-resident fields",
    {
       const unsigned long long gid = keys[i];
       bool ok = TargetRank(gid, size) == rank;
-      for (int c = 0; c < 2; c++) { ok = ok && ai[2*i + c] == static_cast<int>(2*gid + c); }
+      for (int c = 0; c < 2; c++)
+      {
+         ok = ok && ai[2*i + c] == static_cast<int>(2*gid + c);
+      }
       for (int c = 0; c < 3; c++) { ok = ok && v[c*m + i] == gid + 0.25*c; }
-      for (int c = 0; c < 2; c++) { ok = ok && pv(i, c) == -static_cast<real_t>(gid) - c; }
+      for (int c = 0; c < 2; c++)
+      {
+         ok = ok && pv(i, c) == -static_cast<real_t>(gid) - c;
+      }
       if (!ok) { wrong++; }
    }
    MPI_Allreduce(MPI_IN_PLACE, &wrong, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
@@ -119,7 +125,8 @@ TEST_CASE("CrystalRouter device-resident fields",
 // expect[p] >= 0: old particle id; expect[p] = -k-1: arrival row k
 struct CrFillCase { std::vector<int> leaving, dst, tail, expect; int n_arr; };
 
-static CR::internal::ArrayField<int> CrWrap(Array<int> &a, int vd, Ordering::Type o)
+static CR::internal::ArrayField<int> CrWrap(Array<int> &a, int vd,
+                                            Ordering::Type o)
 { return CR::internal::ArrayField<int>(a, vd, o); }
 static CR::internal::VectorField CrWrap(Vector &v, int vd, Ordering::Type o)
 { return CR::internal::VectorField(v, vd, o); }
@@ -130,12 +137,18 @@ static void CrMove(Vector &v) { MoveToDevice(v); }
 template <typename C, typename T>
 static void CrRunColumnCases(int vdim, Ordering::Type ord)
 {
-   static const std::vector<CrFillCase> fill_cases = {
-      {{1, 3}, {1, 3},    {5}, {0, -1, 2, 5, 4},             1}, // shrink, tail fills a hole
-      {{4, 5}, {},        {},  {0, 1, 2, 3},                 0}, // shrink, leavers at the end
-      {{0, 5}, {0},       {4}, {4, 1, 2, 3},                 0}, // shrink, no arrivals
-      {{2},    {2},       {},  {0, 1, -1, 3, 4, 5},          1}, // same count: in place
-      {{2},    {2, 6, 7}, {},  {0, 1, -1, 3, 4, 5, -2, -3},  3}, // grow past capacity
+   static const std::vector<CrFillCase> fill_cases =
+   {
+      // shrink, tail fills a hole
+      {{1, 3}, {1, 3},    {5}, {0, -1, 2, 5, 4},             1},
+      // shrink, leavers at the end
+      {{4, 5}, {},        {},  {0, 1, 2, 3},                 0},
+      // shrink, no arrivals
+      {{0, 5}, {0},       {4}, {4, 1, 2, 3},                 0},
+      // same count: in place
+      {{2},    {2},       {},  {0, 1, -1, 3, 4, 5},          1},
+      // grow past capacity
+      {{2},    {2, 6, 7}, {},  {0, 1, -1, 3, 4, 5, -2, -3},  3},
    };
    const int n = 6, off = 8;
    const std::size_t stride = (off + vdim*sizeof(T) + 7) / 8 * 8;
@@ -147,7 +160,8 @@ static void CrRunColumnCases(int vdim, Ordering::Type ord)
       {
          for (int c = 0; c < vdim; c++)
          {
-            col.HostWrite()[CR::internal::ElemIndex(i, c, n, vdim, ord)] = T(10*i + c);
+            const int j = CR::internal::ElemIndex(i, c, n, vdim, ord);
+            col.HostWrite()[j] = T(10*i + c);
          }
       }
       CrMove(col);
@@ -157,8 +171,10 @@ static void CrRunColumnCases(int vdim, Ordering::Type ord)
       for (int k = 0; k < leaving.Size(); k++) { leaving[k] = fc.leaving[k]; }
 
       // Pack
-      Array<std::uint64_t> rows(static_cast<int>(leaving.Size()*stride / sizeof(std::uint64_t)));
-      char *wr = reinterpret_cast<char*>(f.OnDevice() ? rows.Write(true) : rows.HostWrite());
+      Array<std::uint64_t> rows(static_cast<int>(leaving.Size()*stride / sizeof(
+                                                    std::uint64_t)));
+      char *wr = reinterpret_cast<char*>(f.OnDevice() ? rows.Write(
+                                            true) : rows.HostWrite());
       f.Pack(leaving, wr, stride, off);
       const char *rd = reinterpret_cast<const char*>(rows.HostRead());
       for (int k = 0; k < leaving.Size(); k++)
@@ -171,10 +187,12 @@ static void CrRunColumnCases(int vdim, Ordering::Type ord)
       }
 
       // Fill
-      Array<int> dst(static_cast<int>(fc.dst.size())), tail(static_cast<int>(fc.tail.size()));
+      Array<int> dst(static_cast<int>(fc.dst.size())),
+            tail(static_cast<int>(fc.tail.size()));
       for (int k = 0; k < dst.Size(); k++) { dst[k] = fc.dst[k]; }
       for (int k = 0; k < tail.Size(); k++) { tail[k] = fc.tail[k]; }
-      Array<std::uint64_t> arr(static_cast<int>(fc.n_arr*stride / sizeof(std::uint64_t)));
+      Array<std::uint64_t> arr(static_cast<int>(fc.n_arr*stride / sizeof(
+                                                   std::uint64_t)));
       if (fc.n_arr > 0)
       {
          char *aw = reinterpret_cast<char*>(arr.HostWrite());
@@ -189,7 +207,8 @@ static void CrRunColumnCases(int vdim, Ordering::Type ord)
       const char *ab = nullptr;
       if (fc.n_arr > 0)
       {
-         ab = reinterpret_cast<const char*>(f.OnDevice() ? arr.Read(true) : arr.HostRead());
+         ab = reinterpret_cast<const char*>(f.OnDevice() ? arr.Read(
+                                               true) : arr.HostRead());
       }
       const int n_new = static_cast<int>(fc.expect.size());
       const int cap_before = col.Capacity();
@@ -253,7 +272,10 @@ static int CountWrong(const Array<unsigned long long> &keys,
    {
       const unsigned long long gid = keys[i];
       bool ok = true;
-      for (int c = 0; c < 3; c++) { ok = ok && ai[c*m + i] == static_cast<int>(3*gid + c); }
+      for (int c = 0; c < 3; c++)
+      {
+         ok = ok && ai[c*m + i] == static_cast<int>(3*gid + c);
+      }
       for (int c = 0; c < 2; c++) { ok = ok && v[2*i + c] == gid + 0.5*c; }
       if (!ok) { wrong++; }
    }
@@ -327,7 +349,10 @@ TEST_CASE("CrystalRouter equal swap keeps columns in place",
    Vector v;
    MakeColumns(n, keys, ai, v);
    Array<unsigned int> rank_list(n);
-   for (int i = 0; i < n; i++) { rank_list[i] = i % 3 == 0 ? (rank + 1) % size : rank; }
+   for (int i = 0; i < n; i++)
+   {
+      rank_list[i] = i % 3 == 0 ? (rank + 1) % size : rank;
+   }
    CrDev(keys, ~0ull); CrDev(ai, -1); CrDev(v);
    const auto *pk = keys.GetData();
    const auto *pa = ai.GetData();
@@ -354,7 +379,11 @@ TEST_CASE("CrystalRouter equal swap keeps columns in place",
       for (int i = 0; i < n; i++)
       {
          if (i % 3 != 0) { CHECK(keys[i] == 1000ull*rank + i); }
-         else { CHECK(keys[i] / 1000 == static_cast<unsigned long long>((rank + size - 1) % size)); }
+         else
+         {
+            const int src = (rank + size - 1) % size;
+            CHECK(keys[i] / 1000 == static_cast<unsigned long long>(src));
+         }
       }
    }
 }
@@ -431,7 +460,10 @@ TEST_CASE("CrystalRouter mixed element sizes",
    int bad_tag = tag.Size() == keys.Size() ? 0 : std::max(keys.Size(), 1);
    if (bad_tag == 0)
    {
-      for (int i = 0; i < keys.Size(); i++) { if (tag[i] != static_cast<int>(keys[i] % 7)) { bad_tag++; } }
+      for (int i = 0; i < keys.Size(); i++)
+      {
+         if (tag[i] != static_cast<int>(keys[i] % 7)) { bad_tag++; }
+      }
    }
    bad_tag = CrSum(bad_tag);
    const int global = CrSum(keys.Size());
@@ -454,7 +486,10 @@ TEST_CASE("CrystalRouter host and device columns",
    Vector v;
    MakeColumns(n, keys, ai, v);
    Array<unsigned int> rank_list(n);
-   for (int i = 0; i < n; i++) { rank_list[i] = TargetRank(1000ull*rank + i, size); }
+   for (int i = 0; i < n; i++)
+   {
+      rank_list[i] = TargetRank(1000ull*rank + i, size);
+   }
    CrDev(keys, ~0ull); CrDev(ai, -1);   // v stays host-only
 
    CrystalRouter router(MPI_COMM_WORLD);
@@ -495,7 +530,10 @@ TEST_CASE("CrystalRouter reuse one router",
 
    // Call 1: equal swap
    Array<unsigned int> rank_list(n);
-   for (int i = 0; i < n; i++) { rank_list[i] = i % 3 == 0 ? (rank + 1) % size : rank; }
+   for (int i = 0; i < n; i++)
+   {
+      rank_list[i] = i % 3 == 0 ? (rank + 1) % size : rank;
+   }
    router.Route(rank_list,
    {
       CR::Array(keys), CR::Array(ai, 3, Ordering::byNODES),

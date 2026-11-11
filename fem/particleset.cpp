@@ -13,31 +13,6 @@
 
 #include <fstream>
 
-// gslib no longer needed — Redistribute uses the native CrystalRouter.
-//#if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)
-#if 0
-
-// Ignore warnings from the gslib header (GCC version)
-#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-function"
-#endif
-
-namespace gslib
-{
-extern "C"
-{
-#include <gslib.h>
-} // extern C
-} // namespace gslib
-
-#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
-#pragma GCC diagnostic pop
-#endif
-
-#endif // MFEM_USE_MPI && MFEM_USE_GSLIB
-
-
 namespace mfem
 {
 
@@ -472,16 +447,6 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                  tag_names_)
 {
    comm = comm_;
-
-// more gslib stuff
-//#ifdef MFEM_USE_GSLIB
-#if 0
-   gsl_comm = new gslib::comm;
-   cr       = new gslib::crystal;
-   comm_init(gsl_comm, comm);
-   crystal_init(cr, gsl_comm);
-#endif // MFEM_USE_GSLIB
-
    crystal_router = new CrystalRouter(comm);
 }
 #endif // MFEM_USE_MPI
