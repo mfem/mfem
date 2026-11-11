@@ -16,6 +16,74 @@
 namespace mfem
 {
 
+namespace
+{
+
+Geometry::Type PointMatrixGeometry(const DenseMatrixStack &pmats, int matrix)
+{
+   const int dim = pmats.SizeI(matrix);
+   const int nverts = pmats.SizeJ(matrix);
+   for (int geom = Geometry::DimStart[dim];
+        geom < Geometry::DimStart[dim + 1]; geom++)
+   {
+      if (Geometry::NumVerts[geom] == nverts)
+      {
+         return Geometry::Type(geom);
+      }
+   }
+   MFEM_ABORT("invalid point matrix dimensions");
+   return Geometry::INVALID;
+}
+
+void GetMixedNodalRestriction(const FiniteElement &coarse_fe,
+                              const FiniteElement &fine_fe,
+                              Geometry::Type fine_geom,
+                              const DenseMatrix &point_matrix,
+                              DenseMatrix &restriction)
+{
+   MFEM_VERIFY(dynamic_cast<const NodalFiniteElement *>(&coarse_fe) &&
+               dynamic_cast<const NodalFiniteElement *>(&fine_fe),
+               "mixed-child derefinement currently requires nodal elements.");
+
+   const int dim = coarse_fe.GetDim();
+   restriction.SetSize(coarse_fe.GetDof(), fine_fe.GetDof());
+   IsoparametricTransformation trans;
+   trans.SetIdentityTransformation(fine_geom);
+   trans.SetPointMat(point_matrix);
+   trans.SetIntPoint(&Geometries.GetCenter(fine_geom));
+
+   IntegrationPoint origin;
+   origin.Set3(0.0, 0.0, 0.0);
+   Vector parent_origin(dim);
+   trans.Transform(origin, parent_origin);
+
+   Vector fine_shape(fine_fe.GetDof());
+   const IntegrationRule &coarse_nodes = coarse_fe.GetNodes();
+   for (int i = 0; i < coarse_fe.GetDof(); i++)
+   {
+      real_t parent_coords[3], fine_coords[3];
+      coarse_nodes.IntPoint(i).Get(parent_coords, dim);
+      Vector offset(parent_coords, dim), fine_point(fine_coords, dim);
+      offset -= parent_origin;
+      trans.InverseJacobian().Mult(offset, fine_point);
+      IntegrationPoint ip;
+      ip.Set(fine_coords, dim);
+      constexpr real_t eps = MFEM_PRECISION_SWITCH(1e-14, 1e-6f);
+      if (Geometries.CheckPoint(fine_geom, ip, eps))
+      {
+         fine_fe.CalcShape(ip, fine_shape);
+         restriction.SetRow(i, fine_shape);
+      }
+      else
+      {
+         restriction.SetRow(i, infinity());
+      }
+   }
+   restriction.Threshold(1e-12);
+}
+
+} // namespace
+
 namespace internal
 {
 template <Ordering::Type Order, bool Atomic>
@@ -68,11 +136,53 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
    DenseMatrix localRVO; // for variable-order only
 
    DenseTensor localR[Geometry::NumGeom];
+   const auto get_mixed_restriction = [&](int k, DenseMatrix &restriction)
+   {
+      const Embedding &emb = dtrans.embeddings[k];
+      const Geometry::Type parent_geom =
+         fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
+      const DenseMatrixStack &pmats = dtrans.point_matrices[parent_geom];
+      const Geometry::Type child_geom = PointMatrixGeometry(pmats, emb.matrix);
+      const FiniteElement *parent_fe =
+         fespace->FEColl()->FiniteElementForGeometry(parent_geom);
+      const FiniteElement *child_fe =
+         fespace->FEColl()->FiniteElementForGeometry(child_geom);
+      GetMixedNodalRestriction(*parent_fe, *child_fe, child_geom,
+                               pmats(emb.matrix), restriction);
+   };
+   bool mixed_children = false;
+   for (int k = 0; k < dtrans.embeddings.Size(); k++)
+   {
+      const Embedding &emb = dtrans.embeddings[k];
+      const Geometry::Type parent_geom =
+         fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
+      const DenseMatrixStack &pmats = dtrans.point_matrices[parent_geom];
+      mixed_children |= PointMatrixGeometry(pmats, emb.matrix) != parent_geom;
+   }
    int total_rows = 0;
    int total_cols = 0;
    block_offsets.SetSize(dtrans.embeddings.Size());
    block_offsets.HostWrite();
-   if (fespace->IsVariableOrder())
+   if (mixed_children)
+   {
+      MFEM_VERIFY(!fespace->IsVariableOrder(),
+                  "mixed-child derefinement does not support variable order.");
+      MFEM_VERIFY(!is_dg,
+                  "mixed-child derefinement of discontinuous fields requires "
+                  "a conservative restriction.");
+      int total_size = 0;
+      DenseMatrix restriction;
+      for (int k = 0; k < dtrans.embeddings.Size(); ++k)
+      {
+         get_mixed_restriction(k, restriction);
+         block_offsets[k] = total_size;
+         total_rows += restriction.Height();
+         total_cols += restriction.Width();
+         total_size += restriction.Height() * restriction.Width();
+      }
+      block_storage.SetSize(total_size);
+   }
+   else if (fespace->IsVariableOrder())
    {
       // TODO: any potential for some compression here?
       // determine storage size and offsets
@@ -163,7 +273,15 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
          Geometry::Type geom =
             fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
 
-         if (fespace->IsVariableOrder())
+         DenseMatrix mixed_restriction;
+         if (mixed_children)
+         {
+            get_mixed_restriction(k, mixed_restriction);
+            std::copy(mixed_restriction.Data(),
+                      mixed_restriction.Data() + mixed_restriction.Height()
+                      * mixed_restriction.Width(), bs_ptr + block_offsets[k]);
+         }
+         else if (fespace->IsVariableOrder())
          {
             const FiniteElement *fe = fespace->GetFE(emb.parent);
             const DenseMatrixStack &pmats = dtrans.point_matrices[geom];
@@ -182,8 +300,9 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
             std::copy(localRVO.Data(), localRVO.Data() + size, bs_ptr);
             bs_ptr += size;
          }
-         DenseMatrix &lR =
-            fespace->IsVariableOrder() ? localRVO : localR[geom](emb.matrix);
+         DenseMatrix &lR = mixed_children ? mixed_restriction :
+                            (fespace->IsVariableOrder() ? localRVO :
+                             localR[geom](emb.matrix));
          block_row_idcs_offsets[k + 1] =
             block_row_idcs_offsets[k] + lR.Height();
          block_col_idcs_offsets[k + 1] = block_col_idcs_offsets[k] + lR.Width();
@@ -191,8 +310,9 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
          // index information
          fespace->elem_dof->GetRow(emb.parent, dofs);
          old_elem_dof->GetRow(k, old_dofs);
-         MFEM_VERIFY(old_dofs.Size() == dofs.Size(),
-                     "Parent and child must have same #dofs.");
+         MFEM_VERIFY(old_dofs.Size() == lR.Width() &&
+                     dofs.Size() == lR.Height(),
+                     "incompatible parent and child DoFs.");
          for (int i = 0; i < lR.Height(); ++i, ++ridx)
          {
             if (!std::isfinite(lR(i, 0)))

@@ -1332,6 +1332,9 @@ protected:
 
    static const PointMatrix& GetGeomIdentity(Geometry::Type geom);
 
+   int GetPointMatrixNumPoints(Geometry::Type geom,
+                               const char* ref_path) const;
+
    void GetPointMatrix(Geometry::Type geom, const char* ref_path,
                        DenseMatrix& matrix) const;
 
