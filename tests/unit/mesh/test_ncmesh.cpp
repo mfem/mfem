@@ -592,6 +592,72 @@ TEST_CASE("NCMesh mixed pyramid L2 derefinement", "[NCMesh]")
    }
 }
 
+TEST_CASE("NCMesh variable-order mixed pyramid derefinement", "[NCMesh]")
+{
+   const bool continuous = GENERATE(false, true);
+   const int pyr_type = GENERATE(0, 1);
+   const int pyr_order = GENERATE(2, 3);
+   const bool arbitrary_fine = GENERATE(false, true);
+   if (continuous && (pyr_order == 3 || arbitrary_fine)) { return; }
+   CAPTURE(continuous, pyr_type, pyr_order, arbitrary_fine);
+
+   Mesh mesh("../../data/l-mixed.mesh", 1, 1);
+   mesh.EnsureNCMesh(true);
+   H1_FECollection h1_fec(1, 3, BasisType::GaussLobatto, pyr_type);
+   L2_FECollection l2_fec(1, 3, BasisType::GaussLegendre,
+                          FiniteElement::VALUE, pyr_type);
+   FiniteElementSpace fes(&mesh, continuous ?
+                          static_cast<FiniteElementCollection*>(&h1_fec) :
+                          static_cast<FiniteElementCollection*>(&l2_fec));
+   const int coarse_ne = mesh.GetNE();
+   fes.SetElementOrder(coarse_ne - 1, pyr_order);
+   fes.Update(false);
+   GridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + x[0] - 2.0*x[1] + 3.0*x[2];
+   });
+   field.ProjectCoefficient(affine);
+   const Vector original_values(field);
+
+   Array<Refinement> refs(1);
+   refs[0].Set(coarse_ne - 1, Refinement::XYZ);
+   mesh.GeneralRefinement(refs, 1);
+   fes.Update();
+   field.Update();
+   GridFunction fine_exact(&fes);
+   fine_exact.ProjectCoefficient(affine);
+   fine_exact -= field;
+   REQUIRE(fine_exact.Normlinf() == MFEM_Approx(0.0, 1e-10));
+   if (arbitrary_fine)
+   {
+      for (int i = 0; i < field.Size(); i++)
+      {
+         field(i) = (i % 13 - 6) / 9.0;
+      }
+   }
+   const real_t fine_integral = continuous ? 0.0 :
+                                IntegrateGridFunction(mesh, field);
+
+   Array<real_t> error(mesh.GetNE());
+   error = 0.0;
+   REQUIRE(mesh.DerefineByError(error, 1.0));
+   fes.Update();
+   field.Update();
+   REQUIRE(mesh.GetNE() == coarse_ne);
+   REQUIRE(fes.GetElementOrder(coarse_ne - 1) == pyr_order);
+   if (arbitrary_fine)
+   {
+      REQUIRE(IntegrateGridFunction(mesh, field) ==
+              MFEM_Approx(fine_integral, 1e-10));
+   }
+   else
+   {
+      field -= original_values;
+      REQUIRE(field.Normlinf() == MFEM_Approx(0.0, 1e-10));
+   }
+}
+
 
 #ifdef MFEM_USE_MPI
 

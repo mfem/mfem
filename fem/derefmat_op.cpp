@@ -44,6 +44,12 @@ void GetMixedNodalRestriction(const FiniteElement &coarse_fe,
    MFEM_VERIFY(dynamic_cast<const NodalFiniteElement *>(&coarse_fe) &&
                dynamic_cast<const NodalFiniteElement *>(&fine_fe),
                "mixed-child derefinement currently requires nodal elements.");
+   // Point sampling has not reproduced order-three pyramid fields under the
+   // current mixed-child split.
+   MFEM_VERIFY(coarse_fe.GetGeomType() != Geometry::PYRAMID ||
+               coarse_fe.GetOrder() <= 2,
+               "mixed-child pyramid H1 derefinement above order two is "
+               "not yet supported.");
 
    const int dim = coarse_fe.GetDim();
    restriction.SetSize(coarse_fe.GetDof(), fine_fe.GetDof());
@@ -215,10 +221,22 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
          fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
       const DenseMatrixStack &pmats = dtrans.point_matrices[parent_geom];
       const Geometry::Type child_geom = PointMatrixGeometry(pmats, emb.matrix);
-      const FiniteElement *parent_fe =
-         fespace->FEColl()->FiniteElementForGeometry(parent_geom);
+      const int order = fespace->GetElementOrder(emb.parent);
+      const FiniteElement *parent_fe = fespace->GetFE(emb.parent);
       const FiniteElement *child_fe =
-         fespace->FEColl()->FiniteElementForGeometry(child_geom);
+         fespace->FEColl()->GetFE(child_geom, order);
+      if (emb.matrix == 0)
+      {
+         MFEM_VERIFY(parent_fe->GetDof() == child_fe->GetDof(),
+                     "identity embedding has incompatible finite elements.");
+         restriction.SetSize(parent_fe->GetDof(), child_fe->GetDof());
+         restriction = 0.0;
+         for (int i = 0; i < parent_fe->GetDof(); i++)
+         {
+            restriction(i, i) = 1.0;
+         }
+         return;
+      }
       if (is_dg)
       {
          MFEM_VERIFY(dynamic_cast<const L2_FECollection *>(fespace->FEColl()),
@@ -249,8 +267,6 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
    block_offsets.HostWrite();
    if (mixed_children)
    {
-      MFEM_VERIFY(!fespace->IsVariableOrder(),
-                  "mixed-child derefinement does not support variable order.");
       int total_size = 0;
       for (int k = 0; k < dtrans.embeddings.Size(); ++k)
       {
@@ -260,10 +276,10 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
          const DenseMatrixStack &pmats = dtrans.point_matrices[parent_geom];
          const Geometry::Type child_geom =
             PointMatrixGeometry(pmats, emb.matrix);
-         const FiniteElement *parent_fe =
-            fespace->FEColl()->FiniteElementForGeometry(parent_geom);
+         const int order = fespace->GetElementOrder(emb.parent);
+         const FiniteElement *parent_fe = fespace->GetFE(emb.parent);
          const FiniteElement *child_fe =
-            fespace->FEColl()->FiniteElementForGeometry(child_geom);
+            fespace->FEColl()->GetFE(child_geom, order);
          const int parent_dof = parent_fe->GetDof();
          const int child_dof = child_fe->GetDof();
          block_offsets[k] = total_size;
