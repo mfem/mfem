@@ -914,7 +914,7 @@ bool ParNCMesh::CheckElementType(int elem, int type)
    }
    else
    {
-      for (int i = 0; i < 8 && el.child[i] >= 0; i++)
+      for (int i = 0; i < MaxElemChildren && el.child[i] >= 0; i++)
       {
          if (!CheckElementType(el.child[i], type)) { return false; }
       }
@@ -1587,11 +1587,11 @@ bool ParNCMesh::PruneTree(int elem)
    Element &el = elements[elem];
    if (el.ref_type)
    {
-      bool remove[8];
+      bool remove[MaxElemChildren];
       bool removeAll = true;
 
       // determine which subtrees can be removed (and whether it's all of them)
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < MaxElemChildren; i++)
       {
          remove[i] = false;
          if (el.child[i] >= 0)
@@ -1605,7 +1605,7 @@ bool ParNCMesh::PruneTree(int elem)
       if (removeAll) { return true; }
 
       // not all children can be removed, but remove those that can be
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < MaxElemChildren; i++)
       {
          if (remove[i]) { DerefineElement(el.child[i]); }
       }
@@ -3076,17 +3076,18 @@ void ParNCMesh::ElementSet::FlagElements(const Array<int> &elements, char flag)
 
 void ParNCMesh::ElementSet::EncodeTree(int elem)
 {
+   constexpr int mask_bytes = (NCMesh::MaxElemChildren + 7) / 8;
    Element &el = ncmesh->elements[elem];
    if (!el.ref_type)
    {
-      // we reached a leaf, mark this as zero child mask
-      data.Append(0);
+      // We reached a leaf; write a zero child mask.
+      for (int i = 0; i < mask_bytes; i++) { data.Append(0); }
    }
    else
    {
       // check which subtrees contain marked elements
       int mask = 0;
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < NCMesh::MaxElemChildren; i++)
       {
          if (el.child[i] >= 0 && ncmesh->elements[el.child[i]].flag)
          {
@@ -3094,14 +3095,17 @@ void ParNCMesh::ElementSet::EncodeTree(int elem)
          }
       }
 
-      // write the bit mask and visit the subtrees
-      data.Append(mask);
+      // Ten-child pyramids require more than one byte for the child mask.
+      for (int i = 0; i < mask_bytes; i++)
+      {
+         data.Append((mask >> (8*i)) & 0xff);
+      }
       if (include_ref_types)
       {
          data.Append(el.ref_type);
       }
 
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < NCMesh::MaxElemChildren; i++)
       {
          if (mask & (1 << i))
          {
@@ -3156,7 +3160,12 @@ void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
 #ifdef MFEM_DEBUG
    ref_path.Append(elem);
 #endif
-   int mask = data[pos++];
+   constexpr int mask_bytes = (NCMesh::MaxElemChildren + 7) / 8;
+   int mask = 0;
+   for (int i = 0; i < mask_bytes; i++)
+   {
+      mask |= static_cast<int>(data[pos++]) << (8*i);
+   }
    if (!mask)
    {
       elements.Append(elem);
@@ -3179,7 +3188,7 @@ void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
                      << RefPath() << "     mask = " << mask);
       }
 
-      for (int i = 0; i < 8; i++)
+      for (int i = 0; i < NCMesh::MaxElemChildren; i++)
       {
          if (mask & (1 << i))
          {

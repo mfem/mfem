@@ -760,8 +760,9 @@ TEST_CASE("ParNCMesh mixed pyramid derefinement", "[Parallel][NCMesh]")
 {
    if (Mpi::WorldSize() != 2) { return; }
    const bool continuous = GENERATE(false, true);
+   const int redistribution = GENERATE(0, 1, 2);
    const int order = GENERATE(1, 2);
-   CAPTURE(continuous, order);
+   CAPTURE(continuous, redistribution, order);
 
    Mesh serial_mesh("../../data/l-mixed.mesh", 1, 1);
    serial_mesh.EnsureNCMesh(true);
@@ -795,6 +796,39 @@ TEST_CASE("ParNCMesh mixed pyramid derefinement", "[Parallel][NCMesh]")
    fine_exact.ProjectCoefficient(affine);
    fine_exact -= field;
    REQUIRE(fine_exact.Normlinf() == MFEM_Approx(0.0, EPS));
+
+   if (redistribution)
+   {
+      Array<int> partition(mesh.GetNE());
+      const int rank = Mpi::WorldRank();
+      int pyramid_child = 0;
+      int moved_local = 0;
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         partition[i] = rank;
+         if (mesh.GetAttribute(i) == 9)
+         {
+            const int child = pyramid_child++;
+            // The second partition moves children 8 and 9 together.
+            if (redistribution == 1 ? child % 2 == 0 : child >= 5)
+            {
+               partition[i] = 1 - rank;
+            }
+         }
+         moved_local += partition[i] != rank;
+      }
+      int moved_global = 0;
+      MPI_Allreduce(&moved_local, &moved_global, 1, MPI_INT, MPI_SUM,
+                    MPI_COMM_WORLD);
+      REQUIRE(moved_global > 0);
+      mesh.Rebalance(partition);
+      fes.Update();
+      field.Update();
+      ParGridFunction balanced_exact(&fes);
+      balanced_exact.ProjectCoefficient(affine);
+      balanced_exact -= field;
+      REQUIRE(balanced_exact.Normlinf() == MFEM_Approx(0.0, 1e-10));
+   }
 
    Vector error(mesh.GetNE());
    error = 0.0;
