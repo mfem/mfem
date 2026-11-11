@@ -40,10 +40,11 @@ ElementTransformation *RefinedToCoarse(
    // Transform the integration point from fine element coordinates to coarse
    // element coordinates.
    Geometry::Type geom = T.GetGeometryType();
+   const Embedding &embedding = cf.embeddings[fine_element];
    IntegrationPointTransformation fine_to_coarse;
    IsoparametricTransformation &emb_tr = fine_to_coarse.Transf;
    emb_tr.SetIdentityTransformation(geom);
-   emb_tr.SetPointMat(cf.point_matrices[geom](cf.embeddings[fine_element].matrix));
+   emb_tr.SetPointMat(cf.point_matrices[embedding.geom](embedding.matrix));
    fine_to_coarse.Transform(ip, coarse_ip);
    coarse_T->SetIntPoint(&coarse_ip);
    return coarse_T;
