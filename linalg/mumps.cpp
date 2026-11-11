@@ -783,6 +783,10 @@ void ComplexMUMPSSolver::SetOperator(const Operator &op)
    if (parcsr_op_r) { csr_op_r = hypre_MergeDiagAndOffd(parcsr_op_r); }
    if (parcsr_op_i) { csr_op_i = hypre_MergeDiagAndOffd(parcsr_op_i); }
 
+   // Restore the input matrices to HYPRE's memory space after the host merge.
+   if (Ar) { Ar->HypreRead(); }
+   if (Ai) { Ai->HypreRead(); }
+
 #if MFEM_HYPRE_VERSION >= 21600
    if (csr_op_r) { hypre_CSRMatrixBigJtoJ(csr_op_r); }
    if (csr_op_i) { hypre_CSRMatrixBigJtoJ(csr_op_i); }

@@ -55,7 +55,7 @@ mfem_find_package(MUMPS MUMPS MUMPS_DIR
 if (MUMPS_FOUND AND MFEM_USE_MUMPS AND MFEM_USE_COMPLEX_MUMPS)
   # Find the "other" solver library and append it.
   find_library(_mfem_other_mumps_solver
-    NAMES ${_cmumps_lib}   
+    NAMES ${_cmumps_lib}
     HINTS ${MUMPS_DIR}
     PATH_SUFFIXES lib lib64
     NO_DEFAULT_PATH)
@@ -77,12 +77,20 @@ if (MUMPS_FOUND AND MFEM_USE_MUMPS AND MFEM_USE_COMPLEX_MUMPS)
   list(INSERT MUMPS_LIBRARIES 0 ${_mfem_other_mumps_solver})
 endif()
 
-# Version detection 
+# Version detection
 if (MUMPS_FOUND AND (NOT MUMPS_VERSION))
+  set(_mumps_version_definitions)
+  if (MFEM_USE_SINGLE)
+    list(APPEND _mumps_version_definitions -DMFEM_USE_SINGLE)
+  endif()
+  if (MFEM_USE_COMPLEX_MUMPS)
+    list(APPEND _mumps_version_definitions -DMFEM_USE_COMPLEX_MUMPS)
+  endif()
   try_run(MUMPS_VERSION_RUN_RESULT MUMPS_VERSION_COMPILE_RESULT
           ${CMAKE_CURRENT_BINARY_DIR}/config
           ${CMAKE_CURRENT_SOURCE_DIR}/config/get_mumps_version.cpp
-          CMAKE_FLAGS -DINCLUDE_DIRECTORIES:STRING=${MUMPS_INCLUDE_DIRS}
+          CMAKE_FLAGS "-DINCLUDE_DIRECTORIES:STRING=${MUMPS_INCLUDE_DIRS}"
+          COMPILE_DEFINITIONS ${_mumps_version_definitions}
           RUN_OUTPUT_VARIABLE MUMPS_VERSION_OUTPUT)
   if ((MUMPS_VERSION_RUN_RESULT EQUAL 0) AND MUMPS_VERSION_OUTPUT)
     string(STRIP "${MUMPS_VERSION_OUTPUT}" MUMPS_VERSION)

@@ -45,7 +45,10 @@ SMX_FILE = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(SMX_PATH))
 MUMPS = $(if $(filter YES,$(MFEM_USE_MUMPS) $(MFEM_USE_COMPLEX_MUMPS)),YES,)
 GMV_CXX ?= $(MFEM_CXX)
 GMV = get_mumps_version
-GMV_FLAGS = $(MFEM_CXXFLAGS) $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(MUMPS_OPT))
+GMV_FLAGS = $(MFEM_CXXFLAGS) \
+ $(if $(filter YES,$(MFEM_USE_SINGLE)),-DMFEM_USE_SINGLE) \
+ $(if $(filter YES,$(MFEM_USE_COMPLEX_MUMPS)),-DMFEM_USE_COMPLEX_MUMPS) \
+ $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(if $(filter YES,$(MFEM_USE_COMPLEX_MUMPS)),$(COMPLEX_MUMPS_OPT),$(MUMPS_OPT)))
 
 $(GHV): $(SRC)$(GHV).cpp
 	$(call mfem-info, Determining HYPRE version ...)
