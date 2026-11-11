@@ -20,7 +20,7 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-RBVMS_COMMON_SRC = integrator.cpp libcoefficients.cpp
+RBVMS_COMMON_SRC = integrator.cpp
 RBVMS_COMMON_OBJ = $(RBVMS_COMMON_SRC:.cpp=.o)
 
 COMMON_LIB = -L$(MFEM_BUILD_DIR)/miniapps/common -lmfem-common
