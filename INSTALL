@@ -458,13 +458,6 @@ MFEM_USE_MPFR = YES/NO
    quadrature rules. When enabled, this option uses the MPFR_* library options,
    see below.
 
-MFEM_USE_SIDRE = YES/NO
-   Sidre is a component of LLNL's axom project, https://github.com/LLNL/axom,
-   that provides an HDF5-based file format for visualization or restart
-   capability following the Conduit (https://github.com/LLNL/conduit) mesh
-   blueprint specification. When enabled, this option requires installation of
-   HDF5 (see also MFEM_USE_NETCDF), Conduit and LLNL's axom project.
-
 MFEM_USE_SIMD = YES/NO
    Enables the high performance templated classes to use architecture dependent
    SIMD intrinsics instead of the generic implementation of class AutoSIMD in
@@ -793,14 +786,6 @@ The specific libraries and their options are:
   Options: SLEPC_OPT, SLEPC_LIB.
   Versions: SLEPc >= 3.8.0.
 
-- Sidre (optional), part of LLNL's axom project, used when MFEM_USE_SIDRE = YES.
-  Starting with MFEM v4.1, Axom version 0.3.1 or later is required.
-  URL: https://github.com/LLNL/axom
-       https://github.com/LLNL/conduit (Conduit)
-       https://support.hdfgroup.org/HDF5 (HDF5)
-  Options: SIDRE_OPT, SIDRE_LIB.
-  Versions: Axom >= 0.3.1.
-
 - Conduit (optional), used when MFEM_USE_CONDUIT = YES. Conduit Mesh Blueprint
   support requires Conduit >= v0.3.1 and VisIt >= v2.13.1 to read the output.
   URL: https://github.com/LLNL/conduit (Conduit)
@@ -876,7 +861,7 @@ The specific libraries and their options are:
   URL: https://github.com/CEED/libCEED
        https://ceed.exascaleproject.org/libceed
   Options: CEED_DIR, CEED_OPT, CEED_LIB.
-  Versions: libCEED >= 0.12.0.
+  Versions: libCEED >= 1.0.1.
 
 - RAJA (optional), used when MFEM_USE_RAJA = YES.
   Beginning with MFEM v4.5.1, only RAJA v2022.10.3+ is supported.
@@ -904,6 +889,8 @@ The specific libraries and their options are:
   URL: https://github.com/google/benchmark
   Options: BENCHMARK_DIR, BENCHMARK_LIB.
   Versions: Benchmark >= 1.5.6.
+  With MFEM_USE_CODSPEED = YES, CodSpeed's fork of Google Benchmark is
+  downloaded and built instead: https://github.com/CodSpeedHQ/codspeed-cpp
 
 - MPFR (optional), used when MFEM_USE_MPFR = YES.
   URL: http://mpfr.org, it depends on the GMP library: https://gmplib.org
@@ -1084,7 +1071,6 @@ MFEM_USE_OCCA
 MFEM_USE_CEED
 MFEM_USE_RAJA
 MFEM_USE_UMPIRE
-MFEM_USE_SIDRE
 MFEM_USE_MOONOLITH
 MFEM_USE_CALIPER
 MFEM_USE_FMS
@@ -1095,6 +1081,12 @@ MFEM_USE_ENZYME
 
 The following options are CMake specific:
 
+MFEM_USE_CODSPEED    - Build the benchmarks against CodSpeed's fork of Google
+                       Benchmark (https://codspeed.io) for continuous
+                       benchmarking in CI. Measurements require the CodSpeed
+                       runner; for local timing use MFEM_USE_BENCHMARK alone.
+                       No GNU make equivalent. Requires MFEM_USE_BENCHMARK =
+                       YES and CMake >= 3.28.
 MFEM_ENABLE_TESTING  - Enable the ctest framework for testing.
 MFEM_ENABLE_EXAMPLES - Build all of the examples by default.
 MFEM_ENABLE_MINIAPPS - Build all of the miniapps by default.
@@ -1148,7 +1140,6 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - OCCA
  - RAJA
  - UMPIRE
- - AXOM - Used when MFEM_USE_SIDRE is enabled
  - MOONOLITH
  - CALIPER
  - FMS
