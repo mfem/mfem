@@ -223,4 +223,247 @@ TEST_CASE("CrystalRouter column pack and fill",
    }
 }
 
+// gid = 1000*rank + i. keys = gid; ai (int, vdim 3, byNODES) = 3*gid + c;
+// v (real_t, vdim 2, byVDIM) = gid + 0.5*c
+static void MakeColumns(int n, Array<unsigned long long> &keys, Array<int> &ai,
+                        Vector &v)
+{
+   const int rank = Mpi::WorldRank();
+   keys.SetSize(n);
+   ai.SetSize(3*n);
+   v.SetSize(2*n);
+   for (int i = 0; i < n; i++)
+   {
+      const unsigned long long gid = 1000ull*rank + i;
+      keys[i] = gid;
+      for (int c = 0; c < 3; c++) { ai[c*n + i] = static_cast<int>(3*gid + c); }
+      for (int c = 0; c < 2; c++) { v[2*i + c] = gid + 0.5*c; }
+   }
+}
+
+// particles on this rank whose ai or v values do not match their key
+static int CountWrong(const Array<unsigned long long> &keys,
+                      const Array<int> &ai, const Vector &v)
+{
+   const int m = keys.Size();
+   if (ai.Size() != 3*m || v.Size() != 2*m) { return std::max(m, 1); }
+   int wrong = 0;
+   for (int i = 0; i < m; i++)
+   {
+      const unsigned long long gid = keys[i];
+      bool ok = true;
+      for (int c = 0; c < 3; c++) { ok = ok && ai[c*m + i] == static_cast<int>(3*gid + c); }
+      for (int c = 0; c < 2; c++) { ok = ok && v[2*i + c] == gid + 0.5*c; }
+      if (!ok) { wrong++; }
+   }
+   return wrong;
+}
+
+// MoveToDevice, skipped for a column with 0 entries
+template <typename T>
+static void CrDev(Array<T> &a, T poison) { if (a.Size() > 0) { MoveToDevice(a, poison); } }
+static void CrDev(Vector &v) { if (v.Size() > 0) { MoveToDevice(v); } }
+
+// HostRead, skipped for a column with 0 entries
+template <typename T>
+static void CrHost(const Array<T> &a) { if (a.Size() > 0) { a.HostRead(); } }
+static void CrHost(const Vector &v) { if (v.Size() > 0) { v.HostRead(); } }
+
+static int CrSum(int x)
+{
+   MPI_Allreduce(MPI_IN_PLACE, &x, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   return x;
+}
+
+TEST_CASE("CrystalRouter empty ranks and one receiver",
+          "[CrystalRouter][Parallel][GPU]")
+{
+   const int size = Mpi::WorldSize();
+   const int rank = Mpi::WorldRank();
+   const int n = rank % 2 ? 0 : 30 + rank;
+   int global = 0;
+   for (int r = 0; r < size; r += 2) { global += 30 + r; }
+
+   Array<unsigned long long> keys;
+   Array<int> ai;
+   Vector v;
+   MakeColumns(n, keys, ai, v);
+   Array<unsigned int> rank_list(n);
+   rank_list = static_cast<unsigned int>(size - 1);
+   CrDev(keys, ~0ull); CrDev(ai, -1); CrDev(v);
+
+   CrystalRouter router(MPI_COMM_WORLD);
+   router.Route(rank_list,
+   {
+      CR::Array(keys), CR::Array(ai, 3, Ordering::byNODES),
+      CR::Vector(v, 2, Ordering::byVDIM)
+   });
+
+   CrHost(keys); CrHost(ai); CrHost(v);
+   const int wrong = CrSum(CountWrong(keys, ai, v));
+   CHECK(wrong == 0);
+   CHECK(keys.Size() == (rank == size - 1 ? global : 0));
+}
+
+TEST_CASE("CrystalRouter equal swap keeps columns in place",
+          "[CrystalRouter][Parallel][GPU]")
+{
+   const int size = Mpi::WorldSize();
+   const int rank = Mpi::WorldRank();
+   const int n = 30;
+
+   Array<unsigned long long> keys;
+   Array<int> ai;
+   Vector v;
+   MakeColumns(n, keys, ai, v);
+   Array<unsigned int> rank_list(n);
+   for (int i = 0; i < n; i++) { rank_list[i] = i % 3 == 0 ? (rank + 1) % size : rank; }
+   CrDev(keys, ~0ull); CrDev(ai, -1); CrDev(v);
+   const auto *pk = keys.GetData();
+   const auto *pa = ai.GetData();
+   const auto *pv = v.GetData();
+
+   CrystalRouter router(MPI_COMM_WORLD);
+   router.Route(rank_list,
+   {
+      CR::Array(keys), CR::Array(ai, 3, Ordering::byNODES),
+      CR::Vector(v, 2, Ordering::byVDIM)
+   });
+
+   CrHost(keys); CrHost(ai); CrHost(v);
+   const int wrong = CrSum(CountWrong(keys, ai, v));
+   CHECK(wrong == 0);
+   CHECK(keys.Size() == n);
+   CHECK(ai.Size() == 3*n);
+   CHECK(v.Size() == 2*n);
+   CHECK(keys.GetData() == pk);
+   CHECK(ai.GetData() == pa);
+   CHECK(v.GetData() == pv);
+   if (keys.Size() == n)
+   {
+      for (int i = 0; i < n; i++)
+      {
+         if (i % 3 != 0) { CHECK(keys[i] == 1000ull*rank + i); }
+         else { CHECK(keys[i] / 1000 == static_cast<unsigned long long>((rank + size - 1) % size)); }
+      }
+   }
+}
+
+TEST_CASE("CrystalRouter all particles stay",
+          "[CrystalRouter][Parallel][GPU]")
+{
+   const int rank = Mpi::WorldRank();
+   const int n = 25 + rank;
+
+   Array<unsigned long long> keys;
+   Array<int> ai;
+   Vector v;
+   MakeColumns(n, keys, ai, v);
+   Array<unsigned int> rank_list(n);
+   rank_list = static_cast<unsigned int>(rank);
+   CrDev(keys, ~0ull); CrDev(ai, -1); CrDev(v);
+   const auto *pk = keys.GetData();
+   const auto *pa = ai.GetData();
+   const auto *pv = v.GetData();
+
+   CrystalRouter router(MPI_COMM_WORLD);
+   router.Route(rank_list,
+   {
+      CR::Array(keys), CR::Array(ai, 3, Ordering::byNODES),
+      CR::Vector(v, 2, Ordering::byVDIM)
+   });
+
+   CrHost(keys); CrHost(ai); CrHost(v);
+   const int wrong = CrSum(CountWrong(keys, ai, v));
+   CHECK(wrong == 0);
+   CHECK(keys.Size() == n);
+   CHECK(keys.GetData() == pk);
+   CHECK(ai.GetData() == pa);
+   CHECK(v.GetData() == pv);
+   if (keys.Size() == n)
+   {
+      for (int i = 0; i < n; i++) { CHECK(keys[i] == 1000ull*rank + i); }
+   }
+}
+
+TEST_CASE("CrystalRouter mixed element sizes",
+          "[CrystalRouter][Parallel][GPU]")
+{
+   const int size = Mpi::WorldSize();
+   const int rank = Mpi::WorldRank();
+   const int n = 40 + 3*rank;
+   int total = 0;
+   for (int r = 0; r < size; r++) { total += 40 + 3*r; }
+
+   Array<unsigned long long> keys;
+   Array<int> ai;
+   Vector v;
+   MakeColumns(n, keys, ai, v);
+   Array<int> tag(n);
+   Array<unsigned int> rank_list(n);
+   for (int i = 0; i < n; i++)
+   {
+      const unsigned long long gid = 1000ull*rank + i;
+      tag[i] = static_cast<int>(gid % 7);
+      rank_list[i] = TargetRank(gid, size);
+   }
+   CrDev(keys, ~0ull); CrDev(ai, -1); CrDev(v); CrDev(tag, -1);
+
+   CrystalRouter router(MPI_COMM_WORLD);
+   router.Route(rank_list,
+   {
+      CR::Array(tag), CR::Array(keys), CR::Array(ai, 3, Ordering::byNODES),
+      CR::Vector(v, 2, Ordering::byVDIM)
+   });
+
+   CrHost(keys); CrHost(ai); CrHost(v); CrHost(tag);
+   const int wrong = CrSum(CountWrong(keys, ai, v));
+   int bad_tag = tag.Size() == keys.Size() ? 0 : std::max(keys.Size(), 1);
+   if (bad_tag == 0)
+   {
+      for (int i = 0; i < keys.Size(); i++) { if (tag[i] != static_cast<int>(keys[i] % 7)) { bad_tag++; } }
+   }
+   bad_tag = CrSum(bad_tag);
+   const int global = CrSum(keys.Size());
+   CHECK(wrong == 0);
+   CHECK(bad_tag == 0);
+   CHECK(global == total);
+}
+
+TEST_CASE("CrystalRouter host and device columns",
+          "[CrystalRouter][Parallel][GPU]")
+{
+   const int size = Mpi::WorldSize();
+   const int rank = Mpi::WorldRank();
+   const int n = 40 + 7*rank;
+   int total = 0;
+   for (int r = 0; r < size; r++) { total += 40 + 7*r; }
+
+   Array<unsigned long long> keys;
+   Array<int> ai;
+   Vector v;
+   MakeColumns(n, keys, ai, v);
+   Array<unsigned int> rank_list(n);
+   for (int i = 0; i < n; i++) { rank_list[i] = TargetRank(1000ull*rank + i, size); }
+   CrDev(keys, ~0ull); CrDev(ai, -1);   // v stays host-only
+
+   CrystalRouter router(MPI_COMM_WORLD);
+   router.Route(rank_list,
+   {
+      CR::Array(keys), CR::Array(ai, 3, Ordering::byNODES),
+      CR::Vector(v, 2, Ordering::byVDIM)
+   });
+
+   // before any HostRead of v: the router must not have moved it
+   const bool v_host = v.GetMemory().HostIsValid();
+   const bool v_dev = v.GetMemory().DeviceIsValid();
+   CrHost(keys); CrHost(ai); CrHost(v);
+   const int wrong = CrSum(CountWrong(keys, ai, v));
+   const int global = CrSum(keys.Size());
+   CHECK(v_host);
+   CHECK(!v_dev);
+   CHECK(wrong == 0);
+   CHECK(global == total);
+}
+
 #endif // MFEM_USE_MPI

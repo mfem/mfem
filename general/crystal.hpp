@@ -9,6 +9,7 @@
 #include <climits>
 #include <cstring>
 #include <cstddef>
+#include <cstdint>
 #include <initializer_list>
 #include <memory>
 #include <vector>
@@ -794,53 +795,53 @@ private:
    int rank;
    int nprocs;
 
-   Array<char> send_buf;
-   Array<char> recv_buf;
+   /** Packed rows, one row per particle: the packed columns, then the
+       destination rank (unsigned int). Its size is in 8-byte words. */
+   Array<std::uint64_t> buf;
 
-   /** @brief Run the crystal router rounds on host data
+   /** @brief Run the crystal router rounds on the rows in #buf
 
-       @param[in,out] ranks   Destination rank of each particle. Updated to
-                              match the fields after routing.
-       @param[in,out] fields  Fields to route, all of size ranks.Size() */
-   void RouteInternal(Array<unsigned int> &ranks,
-                      const std::vector<CR::internal::Field*> &fields);
+       @param[in] nrows   Number of rows in #buf
+       @param[in] stride  Size of one row in bytes, a multiple of 8
+       @param[in] hdr     Byte offset of the destination rank in a row
+       @param[in] row_t   MPI type of one row (@a stride bytes)
+       @return Number of rows in #buf after routing. All of them are for this
+               rank. */
+   int RouteInternal(int nrows, std::size_t stride, std::size_t hdr,
+                     MPI_Datatype row_t);
 
-   /** @brief Route fields that may live on a device
+   /** @brief Partition the rows of #buf in place. The rows that cross the
+       cutoff go to the end.
 
-       Moves only the leaving particles to the host, routes them with
-       RouteInternal(), and moves the arrivals back to the device
+       @param[in] nrows   Number of rows in #buf
+       @param[in] stride  Size of one row in bytes
+       @param[in] hdr     Byte offset of the destination rank in a row
+       @param[in] cutoff  First rank of the upper half of the current group of
+                          ranks
+       @param[in] send_hi If true, send rows with rank >= @a cutoff, otherwise
+                          send those with rank < @a cutoff
+       @return Number of rows that stay (they are the first rows of #buf) */
+   int Move(int nrows, std::size_t stride, std::size_t hdr,
+            unsigned int cutoff, bool send_hi);
 
-       @param[in]     rank_list  Destination rank of each particle
-       @param[in,out] fields     Fields to route */
-   void RouteDevice(const Array<unsigned int> &rank_list,
-                    const std::vector<CR::internal::Field*> &fields);
+   /** @brief Send the last @a nsend rows of #buf to a partner rank and
+       receive rows from it
 
-   /** @brief Pack the particles that cross the cutoff into #send_buf and
-       remove them from the fields
+       The received rows replace the sent rows. If more rows arrive than were
+       sent, #buf grows.
 
-       @param[in,out] ranks    Destination ranks. Reduced to the kept particles.
-       @param[in,out] fields   Fields to split. Reduced to the kept particles.
-       @param[in]     cutoff   First rank of the upper half of the current
-                               group of ranks
-       @param[in]     send_hi  If true, send particles with rank >= @a cutoff,
-                               otherwise send those with rank < @a cutoff */
-   void Move(Array<unsigned int> &ranks,
-             const std::vector<CR::internal::Field*> &fields,
-             unsigned int cutoff, bool send_hi);
-
-   /** @brief Send #send_buf to a partner rank and append the received rows to
-       the fields
-
-       @param[in,out] ranks    Destination ranks. Received ranks are appended.
-       @param[in,out] fields   Fields. Received particles are appended.
-       @param[in]     target   Rank to send to, and to receive froconvertm
-       @param[in]     recvn    Number of messages to receive: 0, 1, or 2 (the
-                               second one comes from rank - 1)
-       @param[in]     msg_tag  Tag of the count message. The data message uses
-                               @a msg_tag + 1. */
-   void Exchange(Array<unsigned int> &ranks,
-                 const std::vector<CR::internal::Field*> &fields,
-                 int target, int recvn, int msg_tag);
+       @param[in] nkeep    Number of kept rows at the front of #buf
+       @param[in] nsend    Number of rows to send, they follow the kept rows
+       @param[in] stride   Size of one row in bytes
+       @param[in] row_t    MPI type of one row
+       @param[in] target   Rank to send to, and to receive from
+       @param[in] recvn    Number of messages to receive: 0, 1, or 2 (the
+                           second one comes from rank - 1)
+       @param[in] msg_tag  Tag of the count message. The data message uses
+                           @a msg_tag + 1.
+       @return Number of rows in #buf: the kept rows, then the received rows */
+   int Exchange(int nkeep, int nsend, std::size_t stride, MPI_Datatype row_t,
+                int target, int recvn, int msg_tag);
 };
 
 }
