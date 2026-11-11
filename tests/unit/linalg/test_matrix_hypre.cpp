@@ -259,8 +259,11 @@ TEST_CASE("Sparse Hypre host products", "[Parallel][GPU][Issue5595]")
    {
       REQUIRE(hypre_CSRMatrixSetRownnz(csr) == 0);
    }
+   // GPU hypre before 3.0 does not populate the rownnz cache.
+#if !defined(HYPRE_USING_GPU) || MFEM_HYPRE_VERSION >= 30000
    REQUIRE(hypre_CSRMatrixNumRownnz(csr) == 1);
    REQUIRE(hypre_CSRMatrixRownnz(csr) != nullptr);
+#endif
    Vector x(1), y(8);
    x = 3.0;
    matrix.AbsMult(x, y);
