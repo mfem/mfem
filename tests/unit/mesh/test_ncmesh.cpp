@@ -61,6 +61,29 @@ real_t IntegrateGridFunction(Mesh &mesh, const GridFunction &field)
    return integral;
 }
 
+#ifdef MFEM_USE_MPI
+Vector IntegrateGridFunctionComponents(Mesh &mesh, const GridFunction &field)
+{
+   Vector integral(field.FESpace()->GetVDim());
+   integral = 0.0;
+   Vector value;
+   for (int elem = 0; elem < mesh.GetNE(); elem++)
+   {
+      ElementTransformation &trans = *mesh.GetElementTransformation(elem);
+      const IntegrationRule &ir =
+         IntRules.Get(mesh.GetElementBaseGeometry(elem), 16);
+      for (int q = 0; q < ir.GetNPoints(); q++)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         field.GetVectorValue(elem, ip, value);
+         trans.SetIntPoint(&ip);
+         integral.Add(ip.weight * trans.Weight(), value);
+      }
+   }
+   return integral;
+}
+#endif
+
 // The 2D mesh of DividingPlaneMesh with its interior boundary at x = 0.5,
 // refined twice, after which the elements on one side of the interior boundary
 // are refined once more. The interior boundary edges on the coarse side are
@@ -762,9 +785,11 @@ TEST_CASE("ParNCMesh mixed pyramid derefinement", "[Parallel][NCMesh]")
    if (nranks != 2 && nranks != 3) { return; }
    const bool continuous = GENERATE(false, true);
    const bool variable_order = GENERATE(false, true);
+   const bool arbitrary_fine = GENERATE(false, true);
    const int redistribution = GENERATE(0, 1, 2);
    const int order = GENERATE(1, 2);
-   CAPTURE(continuous, variable_order, redistribution, order);
+   if (continuous && arbitrary_fine) { return; }
+   CAPTURE(continuous, variable_order, arbitrary_fine, redistribution, order);
 
    Mesh serial_mesh("../../data/l-mixed.mesh", 1, 1);
    serial_mesh.EnsureNCMesh(true);
@@ -862,6 +887,19 @@ TEST_CASE("ParNCMesh mixed pyramid derefinement", "[Parallel][NCMesh]")
       REQUIRE(balanced_exact.Normlinf() == MFEM_Approx(0.0, 1e-10));
    }
 
+   real_t fine_integral = 0.0;
+   if (arbitrary_fine)
+   {
+      const int rank = Mpi::WorldRank();
+      for (int i = 0; i < field.Size(); i++)
+      {
+         field(i) = (i % 13 - 6) / 9.0 + rank / 10.0;
+      }
+      const real_t local_integral = IntegrateGridFunction(mesh, field);
+      MPI_Allreduce(&local_integral, &fine_integral, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   }
+
    Vector error(mesh.GetNE());
    error = 0.0;
    REQUIRE(mesh.DerefineByError(error, 1.0));
@@ -875,10 +913,106 @@ TEST_CASE("ParNCMesh mixed pyramid derefinement", "[Parallel][NCMesh]")
          REQUIRE(fes.GetElementOrder(i) == order + int(variable_order));
       }
    }
-   ParGridFunction coarse_exact(&fes);
-   coarse_exact.ProjectCoefficient(affine);
-   coarse_exact -= field;
-   REQUIRE(coarse_exact.Normlinf() == MFEM_Approx(0.0, 1e-10));
+   if (arbitrary_fine)
+   {
+      const real_t local_integral = IntegrateGridFunction(mesh, field);
+      real_t coarse_integral = 0.0;
+      MPI_Allreduce(&local_integral, &coarse_integral, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+      REQUIRE(coarse_integral == MFEM_Approx(fine_integral, 1e-10));
+   }
+   else
+   {
+      ParGridFunction coarse_exact(&fes);
+      coarse_exact.ProjectCoefficient(affine);
+      coarse_exact -= field;
+      REQUIRE(coarse_exact.Normlinf() == MFEM_Approx(0.0, 1e-10));
+   }
+}
+
+TEST_CASE("ParNCMesh mixed pyramid vector L2 derefinement",
+          "[Parallel][NCMesh]")
+{
+   const int nranks = Mpi::WorldSize();
+   if (nranks != 2 && nranks != 3) { return; }
+   const bool variable_order = GENERATE(false, true);
+   const bool redistribute = GENERATE(false, true);
+   const Ordering::Type ordering = GENERATE(Ordering::byNODES,
+                                           Ordering::byVDIM);
+   CAPTURE(variable_order, redistribute, ordering);
+
+   Mesh serial_mesh("../../data/l-mixed.mesh", 1, 1);
+   serial_mesh.EnsureNCMesh(true);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   L2_FECollection fec(2, 3, BasisType::GaussLegendre,
+                       FiniteElement::VALUE);
+   ParFiniteElementSpace fes(&mesh, &fec, 3, ordering);
+   if (variable_order)
+   {
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         if (mesh.GetAttribute(i) == 9) { fes.SetElementOrder(i, 3); }
+      }
+      fes.Update(false);
+   }
+   ParGridFunction field(&fes);
+   field = 0.0;
+   const int coarse_global_ne = mesh.GetGlobalNE();
+
+   Array<Refinement> refs;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == 9)
+      {
+         refs.Append(Refinement(i, Refinement::XYZ));
+      }
+   }
+   mesh.GeneralRefinement(refs);
+   fes.Update();
+   field.Update();
+
+   if (redistribute)
+   {
+      Array<int> partition(mesh.GetNE());
+      const int rank = Mpi::WorldRank();
+      int pyramid_child = 0;
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         partition[i] = rank;
+         if (mesh.GetAttribute(i) == 9)
+         {
+            partition[i] = pyramid_child++ % nranks;
+         }
+      }
+      mesh.Rebalance(partition);
+      fes.Update();
+      field.Update();
+   }
+
+   for (int i = 0; i < field.Size(); i++)
+   {
+      field(i) = (i % 17 - 8) / 11.0 + Mpi::WorldRank() / 10.0;
+   }
+   Vector local_fine = IntegrateGridFunctionComponents(mesh, field);
+   Vector global_fine(3);
+   MPI_Allreduce(local_fine.GetData(), global_fine.GetData(), 3,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+
+   Vector error(mesh.GetNE());
+   error = 0.0;
+   REQUIRE(mesh.DerefineByError(error, 1.0));
+   fes.Update();
+   field.Update();
+   REQUIRE(mesh.GetGlobalNE() == coarse_global_ne);
+   Vector local_coarse = IntegrateGridFunctionComponents(mesh, field);
+   Vector global_coarse(3);
+   MPI_Allreduce(local_coarse.GetData(), global_coarse.GetData(), 3,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   for (int component = 0; component < 3; component++)
+   {
+      REQUIRE(global_coarse(component) ==
+              MFEM_Approx(global_fine(component), 1e-10));
+   }
 }
 
 // Test case: Verify that a conforming mesh yields the same norm for the

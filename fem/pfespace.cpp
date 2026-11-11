@@ -3761,22 +3761,26 @@ bool ParFiniteElementSpace::OrderPropagation(
       }
    }
 
-   // Send messages
-   NeighborOrderMessage::IsendAll(send_msg, MyComm);
+   // Count incoming messages before probing: a barrier alone does not ensure
+   // that every nonblocking order message has arrived.
+   Array<int> send_flags(NRanks), recv_flags(NRanks);
+   send_flags = 0;
+   for (const auto &entry : send_msg) { send_flags[entry.first] = 1; }
+   MPI_Alltoall(send_flags.GetData(), 1, MPI_INT,
+                recv_flags.GetData(), 1, MPI_INT, MyComm);
 
-   MPI_Barrier(MyComm); // This barrier is necessary for hp-refinement
-
-   NeighborOrderMessage recv_msg;
-   recv_msg.SetNCMesh(pncmesh);
-
-   // Check for and receive incoming messages
-   int rank, size;
-   while (NeighborOrderMessage::IProbe(rank, size, MyComm))
+   NeighborOrderMessage::Map recv_msg;
+   for (int rank = 0; rank < NRanks; rank++)
    {
-      // Note that Recv calls Decode(rank), setting msgs in recv_msg.
-      recv_msg.Recv(rank, size, MyComm);
+      if (recv_flags[rank]) { recv_msg[rank].SetNCMesh(pncmesh); }
+   }
 
-      for (const auto &ri : recv_msg.GetMsgs())
+   NeighborOrderMessage::IsendAll(send_msg, MyComm);
+   NeighborOrderMessage::RecvAll(recv_msg, MyComm);
+
+   for (const auto &entry : recv_msg)
+   {
+      for (const auto &ri : entry.second.GetMsgs())
       {
          const VarOrderBits mask = (VarOrderBits(1) << ri.order);
          if (ri.entity == 1)
@@ -3802,13 +3806,6 @@ bool ParFiniteElementSpace::OrderPropagation(
             MFEM_ABORT("Invalid entity type");
          }
       }
-   }
-
-   // Clean up possible remaining messages in the queue to avoid receiving them
-   // erroneously in the next run
-   while (NeighborOrderMessage::IProbe(rank, size, MyComm))
-   {
-      recv_msg.RecvDrop(rank, size, MyComm);
    }
 
    // Make sure we can discard all send buffers
