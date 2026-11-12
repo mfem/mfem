@@ -1211,6 +1211,8 @@ void NCMesh::RefineElement(const Refinement & ref)
    }
    if (el.ref_type)
    {
+      MFEM_VERIFY(ref_type < 8 && el.ref_type < 8,
+                  "An explicit refinement pattern requires a leaf element");
       const char remaining = ref_type & ~el.ref_type;
       if (remaining)
       {
@@ -1226,6 +1228,11 @@ void NCMesh::RefineElement(const Refinement & ref)
          }
       }
       return;
+   }
+
+   if (ref_type >= 8)
+   {
+      GetNCRefinementPattern(el.Geom(), ref_type);
    }
 
    /*mfem::out << "Refining element " << elem << " (" << el.node[0] << ", " <<
@@ -1754,9 +1761,15 @@ void NCMesh::RefineElement(const Refinement & ref)
       //    0              1
 
       if (ref_type == Refinement::X || ref_type == Refinement::Y ||
-          ref_type == Refinement::Z)
+          ref_type == Refinement::Z ||
+          ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
       {
          // The fixed child transforms below require a midpoint split.
+         if (ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
+         {
+            MFEM_VERIFY(scale_x == 0.5,
+                        "Tet edge (1,2) bisection requires a midpoint split");
+         }
          if (ref_type == Refinement::X)
          {
             const int mid01 = GetMidEdgeNode(no[0], no[1]);
@@ -1773,13 +1786,21 @@ void NCMesh::RefineElement(const Refinement & ref)
             child[1] = NewTetrahedron(mid02, no[1], no[2], no[3], attr,
                                       fa[0], fa[1], -1, fa[3]);
          }
-         else
+         else if (ref_type == Refinement::Z)
          {
             const int mid03 = GetMidEdgeNode(no[0], no[3]);
             child[0] = NewTetrahedron(no[0], no[1], no[2], mid03, attr,
                                       -1, fa[1], fa[2], fa[3]);
             child[1] = NewTetrahedron(mid03, no[1], no[2], no[3], attr,
                                       fa[0], fa[1], fa[2], -1);
+         }
+         else
+         {
+            const int mid12 = GetMidEdgeNode(no[1], no[2]);
+            child[0] = NewTetrahedron(no[0], no[1], mid12, no[3], attr,
+                                      fa[0], -1, fa[2], fa[3]);
+            child[1] = NewTetrahedron(no[0], mid12, no[2], no[3], attr,
+                                      fa[0], fa[1], -1, fa[3]);
          }
          Iso = false;
       }
@@ -2141,33 +2162,33 @@ int NCMesh::RetrieveNode(const Element &el, int index)
    switch (el.Geom())
    {
       case Geometry::CUBE:
-         ch = el.child[hex_deref_table[el.ref_type - 1][index]];
+         ch = el.child[GetNCRefinementPattern(el.Geom(), el.ref_type).deref[index]];
          break;
 
       case Geometry::PRISM:
-         ch = prism_deref_table[el.ref_type - 1][index];
+         ch = GetNCRefinementPattern(el.Geom(), el.ref_type).deref[index];
          MFEM_ASSERT(ch != -1, "");
          ch = el.child[ch];
          break;
 
       case Geometry::PYRAMID:
-         ch = pyramid_deref_table[el.ref_type - 1][index];
+         ch = GetNCRefinementPattern(el.Geom(), el.ref_type).deref[index];
          MFEM_ASSERT(ch != -1, "");
          ch = el.child[ch];
          break;
 
       case Geometry::SQUARE:
-         ch = el.child[quad_deref_table[el.ref_type - 1][index]];
+         ch = el.child[GetNCRefinementPattern(el.Geom(), el.ref_type).deref[index]];
          break;
 
       case Geometry::TETRAHEDRON:
-         ch = tet_deref_table[el.ref_type - 1][index];
+         ch = GetNCRefinementPattern(el.Geom(), el.ref_type).deref[index];
          MFEM_ASSERT(ch >= 0, "invalid tetrahedron refinement");
          ch = el.child[ch];
          break;
 
       case Geometry::TRIANGLE:
-         ch = el.child[tri_deref_table[el.ref_type - 1][index]];
+         ch = el.child[GetNCRefinementPattern(el.Geom(), el.ref_type).deref[index]];
          break;
 
       default:
@@ -2196,7 +2217,9 @@ void NCMesh::DerefineElement(int elem)
    }
 
    int faces_attribute[MaxElemFaces];
-   int ref_type_key = el.ref_type - 1;
+   const NCRefinementPattern &pattern =
+      GetNCRefinementPattern(el.Geom(), el.ref_type);
+   const int *deref = pattern.deref;
 
    for (int i = 0; i < MaxElemNodes; i++) { el.node[i] = -1; }
 
@@ -2207,7 +2230,7 @@ void NCMesh::DerefineElement(int elem)
       constexpr int nb_cube_childs = 8;
       for (int i = 0; i < nb_cube_childs; i++)
       {
-         const int child_local_index = hex_deref_table[ref_type_key][i];
+         const int child_local_index = deref[i];
          const int child_global_index = child[child_local_index];
          Element &ch = elements[child_global_index];
          el.node[i] = ch.node[i];
@@ -2216,8 +2239,7 @@ void NCMesh::DerefineElement(int elem)
       constexpr int nb_cube_faces = 6;
       for (int i = 0; i < nb_cube_faces; i++)
       {
-         const int child_local_index = hex_deref_table[ref_type_key]
-                                       [i + nb_cube_childs];
+         const int child_local_index = deref[i + nb_cube_childs];
          const int child_global_index = child[child_local_index];
          Element &ch = elements[child_global_index];
          const int* fv = GI[el.Geom()].faces[i];
@@ -2228,12 +2250,12 @@ void NCMesh::DerefineElement(int elem)
    }
    else if (el.Geom() == Geometry::PRISM)
    {
-      MFEM_ASSERT(prism_deref_table[ref_type_key][0] != -1,
+      MFEM_ASSERT(deref[0] != -1,
                   "invalid prism refinement");
       constexpr int nb_prism_childs = 6;
       for (int i = 0; i < nb_prism_childs; i++)
       {
-         const int child_local_index = prism_deref_table[ref_type_key][i];
+         const int child_local_index = deref[i];
          const int child_global_index = child[child_local_index];
          Element &ch = elements[child_global_index];
          el.node[i] = ch.node[i];
@@ -2243,8 +2265,7 @@ void NCMesh::DerefineElement(int elem)
       constexpr int nb_prism_faces = 5;
       for (int i = 0; i < nb_prism_faces; i++)
       {
-         const int child_local_index = prism_deref_table[ref_type_key]
-                                       [i + nb_prism_childs];
+         const int child_local_index = deref[i + nb_prism_childs];
          const int child_global_index = child[child_local_index];
          Element &ch = elements[child_global_index];
          const int* fv = GI[el.Geom()].faces[i];
@@ -2255,12 +2276,12 @@ void NCMesh::DerefineElement(int elem)
    }
    else if (el.Geom() == Geometry::PYRAMID)
    {
-      MFEM_ASSERT(pyramid_deref_table[ref_type_key][0] != -1,
+      MFEM_ASSERT(deref[0] != -1,
                   "invalid pyramid refinement");
       constexpr int nb_pyramid_childs = 5;
       for (int i = 0; i < nb_pyramid_childs; i++)
       {
-         const int child_local_index = pyramid_deref_table[ref_type_key][i];
+         const int child_local_index = deref[i];
          const int child_global_index = child[child_local_index];
          Element &ch = elements[child_global_index];
          el.node[i] = ch.node[i];
@@ -2271,8 +2292,7 @@ void NCMesh::DerefineElement(int elem)
       constexpr int nb_pyramid_faces = 5;
       for (int i = 0; i < nb_pyramid_faces; i++)
       {
-         const int child_local_index = pyramid_deref_table[ref_type_key]
-                                       [i + nb_pyramid_childs];
+         const int child_local_index = deref[i + nb_pyramid_childs];
          const int child_global_index = child[child_local_index];
          Element &ch = elements[child_global_index];
          const int* fv = GI[el.Geom()].faces[i];
@@ -2283,7 +2303,6 @@ void NCMesh::DerefineElement(int elem)
    }
    else if (el.Geom() == Geometry::TETRAHEDRON)
    {
-      const int *deref = tet_deref_table[el.ref_type - 1];
       MFEM_ASSERT(deref[0] >= 0, "invalid tetrahedron refinement");
       for (int i = 0; i < 4; i++)
       {
@@ -2303,7 +2322,7 @@ void NCMesh::DerefineElement(int elem)
       constexpr int nb_square_childs = 4;
       for (int i = 0; i < nb_square_childs; i++)
       {
-         const int child_local_index = quad_deref_table[ref_type_key][i];
+         const int child_local_index = deref[i];
          const int child_global_index = child[child_local_index];
          Element &ch = elements[child_global_index];
          el.node[i] = ch.node[i];
@@ -2311,8 +2330,7 @@ void NCMesh::DerefineElement(int elem)
       constexpr int nb_square_faces = 4;
       for (int i = 0; i < nb_square_faces; i++)
       {
-         const int child_local_index = quad_deref_table[ref_type_key]
-                                       [i + nb_square_childs];
+         const int child_local_index = deref[i + nb_square_childs];
          const int child_global_index = child[child_local_index];
          Element &ch = elements[child_global_index];
          const int* fv = GI[el.Geom()].faces[i];
@@ -2326,14 +2344,13 @@ void NCMesh::DerefineElement(int elem)
       constexpr int nb_triangle_childs = 3;
       for (int i = 0; i < nb_triangle_childs; i++)
       {
-         const int child_local_index = tri_deref_table[ref_type_key][i];
+         const int child_local_index = deref[i];
          Element& ch = elements[child[child_local_index]];
          el.node[i] = ch.node[i];
       }
       for (int i = 0; i < nb_triangle_childs; i++)
       {
-         const int child_local_index =
-            tri_deref_table[ref_type_key][i + nb_triangle_childs];
+         const int child_local_index = deref[i + nb_triangle_childs];
          Element& ch = elements[child[child_local_index]];
          const int* fv = GI[el.Geom()].faces[i];
          faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
@@ -4864,12 +4881,9 @@ int NCMesh::GetPointMatrixNumPoints(Geometry::Type geom,
 {
    while (*ref_path)
    {
-      ref_path++;
+      const int ref_type = *ref_path++;
       const int child = *ref_path++;
-      if (geom == Geometry::PYRAMID && child >= 6)
-      {
-         geom = Geometry::TETRAHEDRON;
-      }
+      geom = GetNCRefinementPattern(geom, ref_type).ChildGeometry(geom, child);
    }
    return GetGeomIdentity(geom).np;
 }
@@ -5223,11 +5237,13 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
       else if (geom == Geometry::TETRAHEDRON)
       {
          if (ref_type == Refinement::X || ref_type == Refinement::Y ||
-             ref_type == Refinement::Z)
+             ref_type == Refinement::Z ||
+             ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
          {
             const int corner = ref_type == Refinement::X ? 1 :
                                (ref_type == Refinement::Y ? 2 : 3);
-            Point mid(pm(0), pm(corner));
+            Point mid = ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId() ?
+                        Point(pm(1), pm(2)) : Point(pm(0), pm(corner));
             if (ref_type == Refinement::X)
             {
                if (child == 0) { pm = PointMatrix(pm(0), mid, pm(2), pm(3)); }
@@ -5238,10 +5254,15 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
                if (child == 0) { pm = PointMatrix(pm(0), pm(1), mid, pm(3)); }
                else if (child == 1) { pm = PointMatrix(mid, pm(1), pm(2), pm(3)); }
             }
-            else
+            else if (ref_type == Refinement::Z)
             {
                if (child == 0) { pm = PointMatrix(pm(0), pm(1), pm(2), mid); }
                else if (child == 1) { pm = PointMatrix(mid, pm(1), pm(2), pm(3)); }
+            }
+            else
+            {
+               if (child == 0) { pm = PointMatrix(pm(0), pm(1), mid, pm(3)); }
+               else if (child == 1) { pm = PointMatrix(pm(0), mid, pm(2), pm(3)); }
             }
          }
          else
@@ -5380,10 +5401,7 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
       }
 
       // Later steps in the path use the geometry produced by this child.
-      if (geom == Geometry::PYRAMID && child >= 6)
-      {
-         geom = Geometry::TETRAHEDRON;
-      }
+      geom = GetNCRefinementPattern(geom, ref_type).ChildGeometry(geom, child);
    }
 
    // write the points to the matrix
@@ -6699,9 +6717,24 @@ bool NCMesh::ZeroRootStates() const
 void NCMesh::Print(std::ostream &os, const std::string &comments,
                    bool nurbs) const
 {
+   bool extended_patterns = false;
+   for (const Element &el : elements)
+   {
+      if (el.parent != -2 && el.ref_type >= 8)
+      {
+         extended_patterns = true;
+         break;
+      }
+   }
+
    if (nurbs)
    {
       os << "MFEM NURBS NC-patch mesh v1.0\n\n";
+   }
+   else if (extended_patterns)
+   {
+      os << (using_scaling ? "MFEM NC mesh v1.3\n\n" :
+             "MFEM NC mesh v1.2\n\n");
    }
    else if (using_scaling)
    {
@@ -6743,9 +6776,12 @@ void NCMesh::Print(std::ostream &os, const std::string &comments,
       if (el.parent == -2) { os << "-1\n"; continue; } // unused element
 
       os << int(el.geom) << " " << int(el.ref_type);
-      for (int j = 0; j < MaxElemNodes && el.node[j] >= 0; j++)
+      const int count = el.ref_type ?
+                        GetNCRefinementPattern(el.Geom(), el.ref_type).num_children :
+                        GI[el.Geom()].nv;
+      for (int j = 0; j < count; j++)
       {
-         os << " " << el.node[j];
+         os << " " << (el.ref_type ? el.child[j] : el.node[j]);
       }
       os << "\n";
    }
@@ -6853,7 +6889,7 @@ int NCMesh::CountTopLevelNodes() const
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    : spaceDim(0), MyRank(0), Iso(true), Legacy(false),
-     using_scaling(version == 11)
+     using_scaling(version == 11 || version == 13)
 {
    is_nc = 1;
    if (version == 1) // old MFEM mesh v1.1 format
@@ -6863,7 +6899,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
       return;
    }
 
-   MFEM_ASSERT(version == 10 || version == 11, "");
+   MFEM_ASSERT(version >= 10 && version <= 13, "");
    std::string ident;
    int count;
 
@@ -6922,12 +6958,16 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
          GI[geom].InitGeom(type);
 
          input >> ref_type;
-         MFEM_VERIFY(ref_type >= 0 && ref_type < 8, "");
+         MFEM_VERIFY(ref_type >= 0 && ref_type <
+                     nc_refinement_pattern_counts[type],
+                     "Invalid NC refinement pattern " << ref_type);
          el.ref_type = ref_type;
 
          if (ref_type) // refined element
          {
-            for (int j = 0; j < ref_type_num_children[ref_type]; j++)
+            const int num_children =
+               GetNCRefinementPattern(type, ref_type).num_children;
+            for (int j = 0; j < num_children; j++)
             {
                input >> el.child[j];
             }
@@ -7076,11 +7116,17 @@ void NCMesh::LoadCoarseElements(std::istream &input)
 
       if (Dim == 3 && ref_type != 7) { iso = false; }
 
-      // load child IDs and make parent-child links
-      int nch = ref_type_num_children[ref_type];
-      for (int i = 0, id; i < nch; i++)
+      // In the legacy coarse_elements section the parent geometry is not
+      // stored. Its first child has the same geometry for all legacy patterns.
+      int id;
+      input >> id;
+      MFEM_VERIFY(id >= 0 && id < elements.Size(),
+                  "Invalid first child of coarse element");
+      Geometry::Type geom = elements[id].Geom();
+      const int nch = GetNCRefinementPattern(geom, ref_type).num_children;
+      for (int i = 0; i < nch; i++)
       {
-         input >> id;
+         if (i) { input >> id; }
          MFEM_VERIFY(id >= 0, "");
          MFEM_VERIFY(id < elements.Size(),
                      "coarse element cannot be referenced before it is "

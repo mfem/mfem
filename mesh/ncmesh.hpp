@@ -43,7 +43,8 @@ namespace mfem
     and end (1) of the reference element in each direction. For triangles, X,
     Y, and Z bisect edges (0,1), (0,2), and (1,2), respectively; XY produces
     four triangles. For tetrahedra, X, Y, and Z bisect edges (0,1), (0,2),
-    and (0,3), respectively; combinations produce the isotropic split. */
+    and (0,3), respectively; combinations produce the isotropic split. The
+    EDGE_12_2_TETS pattern bisects edge (1,2) at its midpoint. */
 struct Refinement
 {
    /** Identifies a refinement pattern for one parent geometry. */
@@ -52,8 +53,8 @@ struct Refinement
       Geometry::Type parent_geometry;
       char id;
 
-      Geometry::Type GetParentGeometry() const { return parent_geometry; }
-      char GetId() const { return id; }
+      constexpr Geometry::Type GetParentGeometry() const { return parent_geometry; }
+      constexpr char GetId() const { return id; }
    };
 
    int index; ///< Mesh element number
@@ -89,6 +90,7 @@ struct Refinement
       static constexpr Pattern EDGE_01_2_TETS { Geometry::TETRAHEDRON, X };
       static constexpr Pattern EDGE_02_2_TETS { Geometry::TETRAHEDRON, Y };
       static constexpr Pattern EDGE_03_2_TETS { Geometry::TETRAHEDRON, Z };
+      static constexpr Pattern EDGE_12_2_TETS { Geometry::TETRAHEDRON, 8 };
       static constexpr Pattern UNIFORM { Geometry::TETRAHEDRON, XYZ };
    };
 
@@ -618,7 +620,7 @@ public:
    void SetAttribute(int i, int attr)
    { elements[leaf_elements[i]].attribute = attr; }
 
-   /** I/O: Print the mesh in "MFEM NC mesh v1.0" format. If @a comments is
+   /** I/O: Print the mesh in the appropriate "MFEM NC mesh" format. If @a comments is
        non-empty, it will be printed after the first line of the file, and each
        line should begin with '#'. */
    void Print(std::ostream &out, const std::string &comments = "",
@@ -753,7 +755,7 @@ protected: // implementation
    struct Element
    {
       char geom;     ///< Geometry::Type of the element (char for storage only)
-      char ref_type; ///< bit mask of X,Y,Z refinements (bits 0,1,2 respectively)
+      char ref_type; ///< Geometry-specific pattern ID; IDs 1-7 are legacy masks
       char tet_type; ///< tetrahedron split type, currently always 0
       char flag;     ///< generic flag/marker, can be used by algorithms
       int index;     ///< element number in the Mesh, -1 if refined

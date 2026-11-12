@@ -61,6 +61,15 @@ real_t IntegrateGridFunction(Mesh &mesh, const GridFunction &field)
    return integral;
 }
 
+Refinement TetRefinement(int element, char type)
+{
+   if (type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
+   {
+      return Refinement(element, Refinement::Tetrahedron::EDGE_12_2_TETS);
+   }
+   return Refinement(element, type);
+}
+
 #ifdef MFEM_USE_MPI
 Vector IntegrateGridFunctionComponents(Mesh &mesh, const GridFunction &field)
 {
@@ -293,7 +302,7 @@ TEST_CASE("NCMesh geometry-specific refinement patterns", "[NCMesh]")
 {
    SECTION("pattern descriptors")
    {
-      const std::array<Refinement::Pattern, 23> patterns =
+      const std::array<Refinement::Pattern, 24> patterns =
       {
          Refinement::Segment::BISECTION,
          Refinement::Triangle::EDGE_01_2_TRIS,
@@ -306,6 +315,7 @@ TEST_CASE("NCMesh geometry-specific refinement patterns", "[NCMesh]")
          Refinement::Tetrahedron::EDGE_01_2_TETS,
          Refinement::Tetrahedron::EDGE_02_2_TETS,
          Refinement::Tetrahedron::EDGE_03_2_TETS,
+         Refinement::Tetrahedron::EDGE_12_2_TETS,
          Refinement::Tetrahedron::UNIFORM,
          Refinement::Hexahedron::SPLIT_X,
          Refinement::Hexahedron::SPLIT_Y,
@@ -500,10 +510,134 @@ TEST_CASE("NCMesh mixed pyramid children refine and derefine", "[NCMesh]")
    }
 }
 
+TEST_CASE("NCMesh legacy quad and hex pattern save and reload", "[NCMesh]")
+{
+   const bool hex = GENERATE(false, true);
+   const int ref_type = GENERATE(Refinement::X, Refinement::Y,
+                                 Refinement::XY, Refinement::Z,
+                                 Refinement::XZ, Refinement::YZ,
+                                 Refinement::XYZ);
+   if (!hex && ref_type > Refinement::XY) { return; }
+   CAPTURE(hex, ref_type);
+
+   Mesh mesh(hex ? "../../data/ref-cube.mesh" : "../../data/ref-square.mesh",
+             1, 1);
+   const real_t original_volume = mesh.GetElementVolume(0);
+   mesh.EnsureNCMesh(true);
+   Array<Refinement> refs(1);
+   refs[0].Set(0, ref_type);
+   mesh.GeneralRefinement(refs);
+   const int num_children = mesh.GetNE();
+
+   std::stringstream serialized;
+   mesh.Print(serialized);
+   REQUIRE(serialized.str().find("MFEM NC mesh v1.0") == 0);
+   Mesh reloaded(serialized, 1, 1);
+   REQUIRE(reloaded.GetNE() == num_children);
+   REQUIRE(SummarizeRefinedElements(reloaded).volume ==
+           MFEM_Approx(original_volume));
+   REQUIRE(reloaded.CheckElementOrientation(false) == 0);
+
+   Vector errors(reloaded.GetNE());
+   errors = 0.0;
+   REQUIRE(reloaded.DerefineByError(errors, 1.0));
+   REQUIRE(reloaded.GetNE() == 1);
+   REQUIRE(reloaded.GetElementVolume(0) == MFEM_Approx(original_volume));
+}
+
+TEST_CASE("NCMesh mixed pyramid children save and reload", "[NCMesh]")
+{
+   Mesh mesh("../../data/ref-pyramid.mesh", 1, 1);
+   const real_t original_volume = mesh.GetElementVolume(0);
+   mesh.EnsureNCMesh(true);
+   Array<Refinement> refs(1);
+   refs[0].Set(0, Refinement::XYZ);
+   mesh.GeneralRefinement(refs);
+
+   std::stringstream serialized;
+   mesh.Print(serialized);
+   Mesh reloaded(serialized, 1, 1);
+   const RefinedElementSummary refined = SummarizeRefinedElements(reloaded);
+   REQUIRE(reloaded.GetNE() == 10);
+   REQUIRE(refined.geometry_counts[Geometry::PYRAMID] == 6);
+   REQUIRE(refined.geometry_counts[Geometry::TETRAHEDRON] == 4);
+   REQUIRE(refined.volume == MFEM_Approx(original_volume));
+   REQUIRE(reloaded.CheckElementOrientation(false) == 0);
+   REQUIRE(reloaded.CheckBdrElementOrientation(false) == 0);
+
+   Vector errors(reloaded.GetNE());
+   errors = 0.0;
+   REQUIRE(reloaded.DerefineByError(errors, 1.0));
+   REQUIRE(reloaded.GetNE() == 1);
+   REQUIRE(reloaded.GetElementVolume(0) == MFEM_Approx(original_volume));
+}
+
+TEST_CASE("NCMesh explicit tet edge pattern", "[NCMesh]")
+{
+   const bool nested = GENERATE(false, true);
+   const bool scaled = GENERATE(false, true);
+   CAPTURE(nested, scaled);
+   Mesh mesh("../../data/ref-tetrahedron.mesh", 1, 1);
+   const real_t original_volume = mesh.GetElementVolume(0);
+   mesh.EnsureNCMesh(true);
+   if (scaled) { mesh.SetScaledNCMesh(); }
+   H1_FECollection fec(2, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + x[0] - 2.0*x[1] + 3.0*x[2];
+   });
+   field.ProjectCoefficient(affine);
+
+   Array<Refinement> refs(1);
+   refs[0].Set(0, Refinement::Tetrahedron::EDGE_12_2_TETS);
+   REQUIRE(refs[0].GetType() ==
+           Refinement::Tetrahedron::EDGE_12_2_TETS.GetId());
+   mesh.GeneralRefinement(refs);
+   REQUIRE(mesh.ncmesh->GetNumElements() == 3);
+   if (nested)
+   {
+      fes.Update();
+      field.Update();
+      refs[0].Set(0, Refinement::XYZ);
+      mesh.GeneralRefinement(refs);
+   }
+   REQUIRE(mesh.GetNE() == (nested ? 9 : 2));
+   REQUIRE(SummarizeRefinedElements(mesh).volume ==
+           MFEM_Approx(original_volume));
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
+   fes.Update();
+   field.Update();
+   GridFunction exact(&fes);
+   exact.ProjectCoefficient(affine);
+   exact -= field;
+   REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+
+   std::stringstream serialized;
+   mesh.Print(serialized);
+   REQUIRE(serialized.str().find(scaled ? "MFEM NC mesh v1.3" :
+                                 "MFEM NC mesh v1.2") == 0);
+   Mesh reloaded(serialized, 1, 1);
+   REQUIRE(reloaded.GetNE() == mesh.GetNE());
+   REQUIRE(SummarizeRefinedElements(reloaded).volume ==
+           MFEM_Approx(original_volume));
+   for (int level = 0; level < (nested ? 2 : 1); level++)
+   {
+      Vector errors(reloaded.GetNE());
+      errors = 0.0;
+      REQUIRE(reloaded.DerefineByError(errors, 1.0));
+   }
+   REQUIRE(reloaded.GetNE() == 1);
+   REQUIRE(reloaded.GetElementVolume(0) == MFEM_Approx(original_volume));
+}
+
 TEST_CASE("NCMesh anisotropic tet edge bisection", "[NCMesh]")
 {
-   const int ref_type = GENERATE(Refinement::X, Refinement::Y,
-                                 Refinement::Z);
+   const char ref_type = GENERATE(
+                            Refinement::X, Refinement::Y, Refinement::Z,
+                            Refinement::Tetrahedron::EDGE_12_2_TETS.GetId());
    CAPTURE(ref_type);
    Mesh mesh("../../data/ref-tetrahedron.mesh", 1, 1);
    const real_t original_volume = mesh.GetElementVolume(0);
@@ -518,7 +652,7 @@ TEST_CASE("NCMesh anisotropic tet edge bisection", "[NCMesh]")
    field.ProjectCoefficient(affine);
 
    Array<Refinement> refs(1);
-   refs[0].Set(0, ref_type);
+   refs[0] = TetRefinement(0, ref_type);
    mesh.GeneralRefinement(refs);
    REQUIRE(mesh.GetNE() == 2);
    REQUIRE(SummarizeRefinedElements(mesh).volume ==
@@ -571,8 +705,9 @@ TEST_CASE("NCMesh anisotropic tet edge bisection", "[NCMesh]")
 
 TEST_CASE("NCMesh anisotropic tet L2 derefinement", "[NCMesh]")
 {
-   const int ref_type = GENERATE(Refinement::X, Refinement::Y,
-                                 Refinement::Z);
+   const char ref_type = GENERATE(
+                            Refinement::X, Refinement::Y, Refinement::Z,
+                            Refinement::Tetrahedron::EDGE_12_2_TETS.GetId());
    const bool nested = GENERATE(false, true);
    const bool variable_order = GENERATE(false, true);
    CAPTURE(ref_type, nested, variable_order);
@@ -596,7 +731,7 @@ TEST_CASE("NCMesh anisotropic tet L2 derefinement", "[NCMesh]")
    field.ProjectCoefficient(affine);
 
    Array<Refinement> refs(1);
-   refs[0].Set(0, ref_type);
+   refs[0] = TetRefinement(0, ref_type);
    mesh.GeneralRefinement(refs);
    fes.Update();
    field.Update();
@@ -635,12 +770,15 @@ TEST_CASE("NCMesh anisotropic tet L2 derefinement", "[NCMesh]")
 
 TEST_CASE("NCMesh anisotropic tet shared face", "[NCMesh]")
 {
-   const int ref_type = GENERATE(Refinement::X, Refinement::Y,
-                                 Refinement::Z);
+   const char ref_type = GENERATE(
+                            Refinement::X, Refinement::Y, Refinement::Z,
+                            Refinement::Tetrahedron::EDGE_12_2_TETS.GetId());
    const int shared_face = GENERATE(1, 2, 3);
    if ((ref_type == Refinement::X && shared_face == 1) ||
        (ref_type == Refinement::Y && shared_face == 2) ||
-       (ref_type == Refinement::Z && shared_face == 3)) { return; }
+       (ref_type == Refinement::Z && shared_face == 3) ||
+       (ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId() &&
+        shared_face != 3)) { return; }
    CAPTURE(ref_type, shared_face);
    Mesh mesh(3, 5, 2, 0);
    mesh.AddVertex(0.0, 0.0, 0.0);
@@ -667,7 +805,7 @@ TEST_CASE("NCMesh anisotropic tet shared face", "[NCMesh]")
    field.ProjectCoefficient(affine);
 
    Array<Refinement> refs(1);
-   refs[0].Set(0, ref_type);
+   refs[0] = TetRefinement(0, ref_type);
    mesh.GeneralRefinement(refs);
    REQUIRE(mesh.GetNE() == 3);
    REQUIRE(SummarizeRefinedElements(mesh).volume ==
@@ -1446,8 +1584,9 @@ TEST_CASE("ParNCMesh geometry-specific refinement patterns",
 TEST_CASE("ParNCMesh anisotropic tet shared face", "[Parallel][NCMesh]")
 {
    if (Mpi::WorldSize() != 2) { return; }
-   const int ref_type = GENERATE(Refinement::X, Refinement::Y,
-                                 Refinement::Z);
+   const char ref_type = GENERATE(
+                            Refinement::X, Refinement::Y, Refinement::Z,
+                            Refinement::Tetrahedron::EDGE_12_2_TETS.GetId());
    CAPTURE(ref_type);
    Mesh serial_mesh(3, 5, 2, 0);
    serial_mesh.AddVertex(0.0, 0.0, 0.0);
@@ -1487,7 +1626,7 @@ TEST_CASE("ParNCMesh anisotropic tet shared face", "[Parallel][NCMesh]")
    if (Mpi::WorldRank() == 0)
    {
       REQUIRE(mesh.GetNE() == 1);
-      refs.Append(Refinement(0, ref_type));
+      refs.Append(TetRefinement(0, ref_type));
    }
    mesh.GeneralRefinement(refs);
    REQUIRE(mesh.GetGlobalNE() == 3);
