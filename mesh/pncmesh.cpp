@@ -169,6 +169,10 @@ void ParNCMesh::Update()
 {
    NCMesh::Update();
 
+   bool global_iso;
+   MPI_Allreduce(&Iso, &global_iso, 1, MFEM_MPI_CXX_BOOL, MPI_LAND, MyComm);
+   Iso = global_iso;
+
    groups.clear();
    group_id.clear();
 
@@ -1622,15 +1626,6 @@ bool ParNCMesh::PruneTree(int elem)
 
 void ParNCMesh::Prune()
 {
-   if (!Iso && Dim == 3)
-   {
-      if (MyRank == 0)
-      {
-         MFEM_WARNING("Can't prune 3D aniso meshes yet.");
-      }
-      return;
-   }
-
    UpdateLayers();
 
    for (int i = 0; i < leaf_elements.Size(); i++)
@@ -2307,9 +2302,6 @@ void ParNCMesh::GetFineToCoarsePartitioning(const Array<int> &derefs,
 
 void ParNCMesh::Derefine(const Array<int> &derefs)
 {
-   MFEM_VERIFY(Dim < 3 || Iso,
-               "derefinement of 3D anisotropic meshes not implemented yet.");
-
    InitDerefTransforms();
 
    // store fine element ranks

@@ -368,7 +368,16 @@ TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
                               "../../data/ref-pyramid.mesh"
                              );
 
-   auto ref_type = GENERATE(Refinement::XYZ);
+   auto ref_type = GENERATE(Refinement::X, Refinement::Y, Refinement::Z,
+                            Refinement::XY, Refinement::XZ, Refinement::YZ,
+                            Refinement::XYZ);
+
+   if (ref_type != Refinement::XYZ &&
+       std::strcmp(mesh_fname, "../../data/ref-cube.mesh") != 0 &&
+       std::strcmp(mesh_fname, "../../data/ref-prism.mesh") != 0)
+   {
+      return;
+   }
 
    Mesh mesh(mesh_fname, 1, 1);
    mesh.EnsureNCMesh(true);
@@ -383,8 +392,9 @@ TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
    {
       elem_error[i] = 0.0;
    }
-   mesh.DerefineByError(elem_error, 1.0);
+   REQUIRE(mesh.DerefineByError(elem_error, 1.0));
 
+   REQUIRE(mesh.GetNE() == 1);
    real_t derefined_volume = mesh.GetElementVolume(0);
    REQUIRE(derefined_volume == MFEM_Approx(original_volume));
 } // test case
@@ -534,6 +544,101 @@ TEST_CASE("NCMesh anisotropic prism refinement in mixed mesh", "[NCMesh]")
    exact.ProjectCoefficient(affine);
    exact -= field;
    REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+}
+
+TEST_CASE("NCMesh anisotropic prism derefinement in mixed mesh", "[NCMesh]")
+{
+   const int prism_attribute = GENERATE(5, 6, 7, 8);
+   const int ref_type = GENERATE(Refinement::XY, Refinement::Z);
+   const bool nested = GENERATE(false, true);
+   const bool continuous = GENERATE(false, true);
+   CAPTURE(prism_attribute, ref_type, nested, continuous);
+
+   Mesh mesh("../../data/l-mixed.mesh", 1, 1);
+   const RefinedElementSummary original = SummarizeRefinedElements(mesh);
+   H1_FECollection h1_fec(2, 3);
+   L2_FECollection l2_fec(2, 3, BasisType::GaussLegendre,
+                          FiniteElement::VALUE);
+   FiniteElementSpace fes(&mesh, continuous ?
+                          static_cast<FiniteElementCollection*>(&h1_fec) :
+                          static_cast<FiniteElementCollection*>(&l2_fec));
+   GridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + x[0] - 2.0*x[1] + 3.0*x[2];
+   });
+   field.ProjectCoefficient(affine);
+
+   mesh.EnsureNCMesh(true);
+   Array<Refinement> refs;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == prism_attribute)
+      {
+         refs.Append(Refinement(i, ref_type));
+      }
+   }
+   REQUIRE(refs.Size() == 1);
+   mesh.GeneralRefinement(refs);
+   fes.Update();
+   field.Update();
+
+   if (nested)
+   {
+      refs.SetSize(0);
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         if (mesh.GetAttribute(i) == prism_attribute)
+         {
+            const int second_type = ref_type == Refinement::XY ?
+                                    Refinement::Z : Refinement::XY;
+            refs.Append(Refinement(i, second_type));
+            break;
+         }
+      }
+      REQUIRE(refs.Size() == 1);
+      mesh.GeneralRefinement(refs);
+      fes.Update();
+      field.Update();
+   }
+
+   real_t fine_integral = 0.0;
+   if (!continuous)
+   {
+      for (int i = 0; i < field.Size(); i++)
+      {
+         field(i) = (i % 13 - 6) / 9.0;
+      }
+      fine_integral = IntegrateGridFunction(mesh, field);
+   }
+
+   for (int level = 0; level < (nested ? 2 : 1); level++)
+   {
+      Vector error(mesh.GetNE());
+      error = 0.0;
+      REQUIRE(mesh.DerefineByError(error, 1.0));
+      fes.Update();
+      field.Update();
+   }
+
+   const RefinedElementSummary restored = SummarizeRefinedElements(mesh);
+   REQUIRE(mesh.GetNE() == 9);
+   REQUIRE(restored.geometry_counts == original.geometry_counts);
+   REQUIRE(restored.volume == MFEM_Approx(original.volume));
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
+   if (continuous)
+   {
+      GridFunction exact(&fes);
+      exact.ProjectCoefficient(affine);
+      exact -= field;
+      REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+   }
+   else
+   {
+      REQUIRE(IntegrateGridFunction(mesh, field) ==
+              MFEM_Approx(fine_integral, EPS));
+   }
 }
 
 TEST_CASE("NCMesh nested mixed child transforms", "[NCMesh]")
@@ -1038,7 +1143,7 @@ TEST_CASE("ParNCMesh mixed pyramid derefinement", "[Parallel][NCMesh]")
    }
 }
 
-TEST_CASE("ParNCMesh anisotropic prism refinement in mixed mesh",
+TEST_CASE("ParNCMesh anisotropic prism refinement and derefinement in mixed mesh",
           "[Parallel][NCMesh]")
 {
    const int nranks = Mpi::WorldSize();
@@ -1046,13 +1151,19 @@ TEST_CASE("ParNCMesh anisotropic prism refinement in mixed mesh",
    const int prism_attribute = GENERATE(5, 6, 7, 8);
    const int ref_type = GENERATE(Refinement::XY, Refinement::Z);
    const bool redistribute = GENERATE(false, true);
-   CAPTURE(prism_attribute, ref_type, redistribute);
+   const bool nested = GENERATE(false, true);
+   const bool continuous = GENERATE(false, true);
+   CAPTURE(prism_attribute, ref_type, redistribute, nested, continuous);
 
    Mesh serial_mesh("../../data/l-mixed.mesh", 1, 1);
    serial_mesh.EnsureNCMesh(true);
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
-   H1_FECollection fec(2, 3);
-   ParFiniteElementSpace fes(&mesh, &fec);
+   H1_FECollection h1_fec(2, 3);
+   L2_FECollection l2_fec(2, 3, BasisType::GaussLegendre,
+                          FiniteElement::VALUE);
+   ParFiniteElementSpace fes(&mesh, continuous ?
+                             static_cast<FiniteElementCollection*>(&h1_fec) :
+                             static_cast<FiniteElementCollection*>(&l2_fec));
    ParGridFunction field(&fes);
    FunctionCoefficient affine([](const Vector &x)
    {
@@ -1108,6 +1219,36 @@ TEST_CASE("ParNCMesh anisotropic prism refinement in mixed mesh",
       field.Update();
    }
 
+   if (nested)
+   {
+      const int rank = Mpi::WorldRank();
+      int owner = nranks;
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         if (mesh.GetAttribute(i) == prism_attribute) { owner = rank; break; }
+      }
+      MPI_Allreduce(MPI_IN_PLACE, &owner, 1, MPI_INT, MPI_MIN,
+                    MPI_COMM_WORLD);
+      REQUIRE(owner < nranks);
+      refs.SetSize(0);
+      if (rank == owner)
+      {
+         for (int i = 0; i < mesh.GetNE(); i++)
+         {
+            if (mesh.GetAttribute(i) == prism_attribute)
+            {
+               const int second_type = ref_type == Refinement::XY ?
+                                       Refinement::Z : Refinement::XY;
+               refs.Append(Refinement(i, second_type));
+               break;
+            }
+         }
+      }
+      mesh.GeneralRefinement(refs);
+      fes.Update();
+      field.Update();
+   }
+
    real_t refined_volume = SummarizeRefinedElements(mesh).volume;
    MPI_Allreduce(MPI_IN_PLACE, &refined_volume, 1,
                  MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
@@ -1118,6 +1259,120 @@ TEST_CASE("ParNCMesh anisotropic prism refinement in mixed mesh",
    exact.ProjectCoefficient(affine);
    exact -= field;
    REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+
+   real_t fine_integral = 0.0;
+   if (!continuous)
+   {
+      const int rank = Mpi::WorldRank();
+      for (int i = 0; i < field.Size(); i++)
+      {
+         field(i) = (i % 13 - 6) / 9.0 + rank / 10.0;
+      }
+      const real_t local_integral = IntegrateGridFunction(mesh, field);
+      MPI_Allreduce(&local_integral, &fine_integral, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   }
+
+   for (int level = 0; level < (nested ? 2 : 1); level++)
+   {
+      Vector error(mesh.GetNE());
+      error = 0.0;
+      REQUIRE(mesh.DerefineByError(error, 1.0));
+      fes.Update();
+      field.Update();
+   }
+   REQUIRE(mesh.GetGlobalNE() == 9);
+   real_t restored_volume = SummarizeRefinedElements(mesh).volume;
+   MPI_Allreduce(MPI_IN_PLACE, &restored_volume, 1,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(restored_volume == MFEM_Approx(original_volume));
+   if (continuous)
+   {
+      ParGridFunction restored_exact(&fes);
+      restored_exact.ProjectCoefficient(affine);
+      restored_exact -= field;
+      REQUIRE(restored_exact.Normlinf() == MFEM_Approx(0.0, EPS));
+   }
+   else
+   {
+      const real_t local_integral = IntegrateGridFunction(mesh, field);
+      real_t restored_integral = 0.0;
+      MPI_Allreduce(&local_integral, &restored_integral, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+      REQUIRE(restored_integral == MFEM_Approx(fine_integral, 1e-10));
+   }
+}
+
+TEST_CASE("ParNCMesh anisotropic hex derefinement", "[Parallel][NCMesh]")
+{
+   if (Mpi::WorldSize() != 2) { return; }
+   const int ref_type = GENERATE(Refinement::X, Refinement::Y, Refinement::Z,
+                                 Refinement::XY, Refinement::XZ, Refinement::YZ,
+                                 Refinement::XYZ);
+   const bool continuous = GENERATE(false, true);
+   CAPTURE(ref_type, continuous);
+
+   Mesh serial_mesh = Mesh::MakeCartesian3D(
+                         2, 1, 1, Element::HEXAHEDRON, 2.0, 1.0, 1.0);
+   serial_mesh.EnsureNCMesh(true);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   H1_FECollection h1_fec(2, 3);
+   L2_FECollection l2_fec(2, 3, BasisType::GaussLegendre,
+                          FiniteElement::VALUE);
+   ParFiniteElementSpace fes(&mesh, continuous ?
+                             static_cast<FiniteElementCollection*>(&h1_fec) :
+                             static_cast<FiniteElementCollection*>(&l2_fec));
+   ParGridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + x[0] - 2.0*x[1] + 3.0*x[2];
+   });
+   field.ProjectCoefficient(affine);
+
+   Array<Refinement> refs;
+   if (Mpi::WorldRank() == 0)
+   {
+      REQUIRE(mesh.GetNE() == 1);
+      refs.Append(Refinement(0, ref_type));
+   }
+   mesh.GeneralRefinement(refs);
+   fes.Update();
+   field.Update();
+
+   real_t fine_integral = 0.0;
+   if (!continuous)
+   {
+      const int rank = Mpi::WorldRank();
+      for (int i = 0; i < field.Size(); i++)
+      {
+         field(i) = (i % 13 - 6) / 9.0 + rank / 10.0;
+      }
+      const real_t local_integral = IntegrateGridFunction(mesh, field);
+      MPI_Allreduce(&local_integral, &fine_integral, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   }
+
+   Vector error(mesh.GetNE());
+   error = 0.0;
+   REQUIRE(mesh.DerefineByError(error, 1.0));
+   fes.Update();
+   field.Update();
+   REQUIRE(mesh.GetGlobalNE() == 2);
+   if (continuous)
+   {
+      ParGridFunction exact(&fes);
+      exact.ProjectCoefficient(affine);
+      exact -= field;
+      REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+   }
+   else
+   {
+      const real_t local_integral = IntegrateGridFunction(mesh, field);
+      real_t restored_integral = 0.0;
+      MPI_Allreduce(&local_integral, &restored_integral, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+      REQUIRE(restored_integral == MFEM_Approx(fine_integral, 1e-10));
+   }
 }
 
 TEST_CASE("ParNCMesh mixed pyramid vector L2 derefinement",

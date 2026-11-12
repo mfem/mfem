@@ -259,11 +259,17 @@ NCMesh::NCMesh(const NCMesh &other)
 void NCMesh::InitGeomFlags()
 {
    Geoms = 0;
+   Iso = true;
+   const int iso_ref_type = (1 << Dim) - 1;
    for (int i = 0; i < elements.Size(); i++)
    {
       if (elements[i].parent != -2)
       {
          Geoms |= (1 << elements[i].Geom());
+         if (elements[i].ref_type && elements[i].ref_type != iso_ref_type)
+         {
+            Iso = false;
+         }
       }
    }
 }
@@ -2374,9 +2380,6 @@ void NCMesh::CheckDerefinementNCLevel(const Table &deref_table,
 
 void NCMesh::Derefine(const Array<int> &derefs)
 {
-   MFEM_VERIFY(Dim < 3 || Iso,
-               "derefinement of 3D anisotropic meshes not implemented yet.");
-
    InitDerefTransforms();
 
    Array<int> fine_coarse;

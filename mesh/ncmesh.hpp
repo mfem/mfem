@@ -919,8 +919,8 @@ protected:
        Mesh::GetGeckoElementOrdering. */
    void InitRootState(int root_count);
 
-   /** Compute the Geometry::Type present in the active element hierarchy and
-       set @a Geoms bitmask accordingly. */
+   /** Update the geometry and isotropic-refinement flags from the active
+       element hierarchy. */
    void InitGeomFlags();
 
    /// Return true if the mesh contains prism elements.

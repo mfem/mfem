@@ -207,19 +207,24 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
    int off_diag_rows = 0;
    int diag_cols = 0;
 
-   bool mixed_children = false;
+   bool general_restriction = false;
+   const bool is_l2 =
+      dynamic_cast<const L2_FECollection *>(fespace->FEColl()) != nullptr;
+   // Prism L2 coarsening needs a mass projection to preserve fine-grid moments.
    for (int geom = 0; geom < Geometry::NumGeom; ++geom)
    {
       const DenseMatrixStack &pmats = dtrans.point_matrices[geom];
       for (int matrix = 0; matrix < pmats.SizeK(); ++matrix)
       {
-         mixed_children |= internal::PointMatrixGeometry(pmats, matrix) != geom;
+         general_restriction |=
+            internal::PointMatrixGeometry(pmats, matrix) != geom ||
+            (is_l2 && geom == Geometry::PRISM && matrix != 0);
       }
    }
    auto get_dofs = [&](int k) -> std::pair<int, int>
    {
       const Embedding &emb = dtrans.embeddings[k];
-      if (mixed_children)
+      if (general_restriction)
       {
          const Geometry::Type parent_geom =
             fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
@@ -291,7 +296,7 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
          od_ks[fine_rank].emplace_back(k);
          od_seg_lens[fine_rank] += child_dofs;
          ++num_offdiagonal_blocks;
-         if (fespace->IsVariableOrder() || mixed_children)
+         if (fespace->IsVariableOrder() || general_restriction)
          {
             total_size += parent_dofs * child_dofs;
          }
@@ -304,7 +309,7 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
          const auto [parent_dofs, child_dofs] = get_dofs(k);
          diag_rows += parent_dofs;
          diag_cols += child_dofs;
-         if (fespace->IsVariableOrder() || mixed_children)
+         if (fespace->IsVariableOrder() || general_restriction)
          {
             total_size += parent_dofs * child_dofs;
          }
@@ -371,7 +376,7 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
    int geom_offsets[Geometry::NumGeom];
    real_t *bs_ptr;
 
-   if (fespace->IsVariableOrder() || mixed_children)
+   if (fespace->IsVariableOrder() || general_restriction)
    {
       block_storage.SetSize(total_size);
       bs_ptr = block_storage.HostWrite();
@@ -484,7 +489,7 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
          // either diagonal or off-diagonal
          Geometry::Type geom =
             fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
-         if (mixed_children)
+         if (general_restriction)
          {
             const DenseMatrixStack &pmats = dtrans.point_matrices[geom];
             const Geometry::Type child_geom =
@@ -534,11 +539,11 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
             fe->GetLocalRestriction(isotr, localRVO);
          }
          DenseMatrix &lR =
-            (fespace->IsVariableOrder() || mixed_children) ?
+            (fespace->IsVariableOrder() || general_restriction) ?
             localRVO : localR[geom](emb.matrix);
          max_rows = std::max(lR.Height(), max_rows);
          auto size = lR.Height() * lR.Width();
-         if (fespace->IsVariableOrder() || mixed_children)
+         if (fespace->IsVariableOrder() || general_restriction)
          {
             std::copy(lR.Data(), lR.Data() + size, bs_ptr);
             bs_ptr += size;
@@ -558,7 +563,7 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
             block_col_idcs_offsets[diag_idx + 1] =
                block_col_idcs_offsets[diag_idx] + lR.Width();
 
-            if (fespace->IsVariableOrder() || mixed_children)
+            if (fespace->IsVariableOrder() || general_restriction)
             {
                block_offsets[diag_idx] = var_offset;
                var_offset += size;
@@ -605,7 +610,7 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
             block_off_diag_widths[od_idx] = lR.Width();
             recv_segment_idcs[od_idx] = tmp[3];
 
-            if (fespace->IsVariableOrder() || mixed_children)
+            if (fespace->IsVariableOrder() || general_restriction)
             {
                off_diag_block_offsets[od_idx] = var_offset;
                var_offset += size;

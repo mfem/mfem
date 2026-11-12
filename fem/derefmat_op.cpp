@@ -242,21 +242,25 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
                                             pmats(emb.matrix), restriction);
       }
    };
-   bool mixed_children = false;
+   bool general_restriction = false;
+   const bool is_l2 =
+      dynamic_cast<const L2_FECollection *>(fespace->FEColl()) != nullptr;
+   // Prism L2 coarsening needs a mass projection to preserve fine-grid moments.
    for (int k = 0; k < dtrans.embeddings.Size(); k++)
    {
       const Embedding &emb = dtrans.embeddings[k];
       const Geometry::Type parent_geom =
          fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
       const DenseMatrixStack &pmats = dtrans.point_matrices[parent_geom];
-      mixed_children |= internal::PointMatrixGeometry(pmats, emb.matrix) !=
-                        parent_geom;
+      general_restriction |=
+         internal::PointMatrixGeometry(pmats, emb.matrix) != parent_geom ||
+         (is_l2 && parent_geom == Geometry::PRISM && emb.matrix != 0);
    }
    int total_rows = 0;
    int total_cols = 0;
    block_offsets.SetSize(dtrans.embeddings.Size());
    block_offsets.HostWrite();
-   if (mixed_children)
+   if (general_restriction)
    {
       int total_size = 0;
       for (int k = 0; k < dtrans.embeddings.Size(); ++k)
@@ -372,7 +376,7 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
             fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
 
          DenseMatrix mixed_restriction;
-         if (mixed_children)
+         if (general_restriction)
          {
             get_mixed_restriction(k, mixed_restriction);
             std::copy(mixed_restriction.Data(),
@@ -398,7 +402,7 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
             std::copy(localRVO.Data(), localRVO.Data() + size, bs_ptr);
             bs_ptr += size;
          }
-         DenseMatrix &lR = mixed_children ? mixed_restriction :
+         DenseMatrix &lR = general_restriction ? mixed_restriction :
                             (fespace->IsVariableOrder() ? localRVO :
                              localR[geom](emb.matrix));
          block_row_idcs_offsets[k + 1] =
