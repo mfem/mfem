@@ -23,7 +23,9 @@ void NURBS1DFiniteElement::SetOrder() const
 {
    order = kv[0]->GetOrder();
    dof = order + 1;
-
+#ifndef MFEM_THREAD_SAFE
+   vshape.SetSize(dof, dim);
+#endif
    weights.SetSize(dof);
    shape_x.SetSize(dof);
 }
@@ -138,6 +140,9 @@ void NURBS2DFiniteElement::SetOrder() const
 
    order = max(orders[0], orders[1]);
    dof = (orders[0] + 1)*(orders[1] + 1);
+#ifndef MFEM_THREAD_SAFE
+   vshape.SetSize(dof, dim);
+#endif
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
@@ -332,6 +337,9 @@ void NURBS3DFiniteElement::SetOrder() const
 
    order = max(max(orders[0], orders[1]), orders[2]);
    dof = (orders[0] + 1)*(orders[1] + 1)*(orders[2] + 1);
+#ifndef MFEM_THREAD_SAFE
+   vshape.SetSize(dof, dim);
+#endif
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
@@ -607,8 +615,11 @@ void NURBS_HDiv2DFiniteElement::SetOrder() const
    d2shape1_y.SetSize(orders[1]+2);
 
    order = max(orders[0]+1, orders[1]+1);
-   dof = (orders[0] + 2)*(orders[1] + 1)
-         + (orders[1] + 1)*(orders[1] + 2);
+   dof = (orders[0] + 2)*(orders[1] + 1) +
+         (orders[0] + 1)*(orders[1] + 2);
+#ifndef MFEM_THREAD_SAFE
+   vshape.SetSize(dof, dim);
+#endif
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
@@ -798,6 +809,9 @@ void NURBS_HDiv3DFiniteElement::SetOrder() const
    dof = (orders[0] + 2)*(orders[1] + 1)*(orders[2] + 1) +
          (orders[0] + 1)*(orders[1] + 2)*(orders[2] + 1) +
          (orders[0] + 1)*(orders[1] + 1)*(orders[2] + 2);
+#ifndef MFEM_THREAD_SAFE
+   vshape.SetSize(dof, dim);
+#endif
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
@@ -1079,8 +1093,11 @@ void NURBS_HCurl2DFiniteElement::SetOrder() const
    d2shape1_y.SetSize(orders[1]+2);
 
    order = max(orders[0]+1, orders[1]+1);
-   dof = (orders[0] + 1)*(orders[1] + 2)
-         + (orders[1] + 2)*(orders[1] + 1);
+   dof = (orders[0] + 1)*(orders[1] + 2) +
+         (orders[0] + 2)*(orders[1] + 1);
+#ifndef MFEM_THREAD_SAFE
+   vshape.SetSize(dof, dim);
+#endif
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
@@ -1267,6 +1284,9 @@ void NURBS_HCurl3DFiniteElement::SetOrder() const
    dof = (orders[0] + 1)*(orders[1] + 2)*(orders[2] + 2) +
          (orders[0] + 2)*(orders[1] + 1)*(orders[2] + 2) +
          (orders[0] + 2)*(orders[1] + 2)*(orders[2] + 1);
+#ifndef MFEM_THREAD_SAFE
+   vshape.SetSize(dof, dim);
+#endif
    u.SetSize(dof);
    du.SetSize(dof);
    weights.SetSize(dof);
