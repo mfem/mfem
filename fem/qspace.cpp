@@ -81,14 +81,32 @@ void ScaleByQuadratureWeights(Vector &weights, const IntegrationRule &ir)
 void QuadratureSpaceBase::ConstructWeights() const
 {
    // First get the Jacobian determinants (without the quadrature weight
-   // contributions). We also store the pointer to the Vector object, so that
-   // we know when the cached weights are invalidated.
+   // contributions). We also store the nodes_sequence, so that we know when the
+   // cached weights are invalidated.
    nodes_sequence = mesh.GetNodesSequence();
-   weights = GetGeometricFactorWeights();
+   GetGeometricFactorWeights(weights);
 
    // Then scale by the quadrature weights.
-   const IntegrationRule &ir = GetIntRule(0);
-   ScaleByQuadratureWeights(weights, ir);
+   if (offsets.Size() == 1)
+   {
+      // All entities have the same geometry type (and same integration rule).
+      ScaleByQuadratureWeights(weights, GetIntRule(0));
+   }
+   else
+   {
+      // Host fallback for mixed meshes.
+      offsets.HostRead();
+      weights.HostReadWrite();
+      for (int e = 0; e < ne; ++e)
+      {
+         const IntegrationRule &ir = GetIntRule(e);
+         const int offset = offsets[e];
+         for (int q = 0; q < ir.Size(); ++q)
+         {
+            weights[offset + q] *= ir.IntPoint(q).weight;
+         }
+      }
+   }
 }
 
 const Vector &QuadratureSpaceBase::GetWeights() const
@@ -191,15 +209,37 @@ void QuadratureSpace::Save(std::ostream &os) const
       << "Order: " << order << '\n';
 }
 
-const Vector &QuadratureSpace::GetGeometricFactorWeights() const
+void QuadratureSpace::GetGeometricFactorWeights(Vector &geom_weights) const
 {
-   auto flags = GeometricFactors::DETERMINANTS;
-   // TODO: assumes only one integration rule. This should be fixed once
-   // Mesh::GetGeometricFactors accepts a QuadratureSpace instead of
+   // TODO: assumes only one integration rule per geometry type. This should be
+   // fixed once Mesh::GetGeometricFactors accepts a QuadratureSpace instead of
    // IntegrationRule.
-   const IntegrationRule &ir = GetIntRule(0);
-   auto *geom = mesh.GetGeometricFactors(ir, flags);
-   return geom->detJ;
+
+   if (offsets.Size() == 1) // only one element geometry
+   {
+      auto flags = GeometricFactors::DETERMINANTS;
+      const IntegrationRule &ir = GetIntRule(0);
+      auto *geom = mesh.GetGeometricFactors(ir, flags);
+      geom_weights = geom->detJ;
+   }
+   else // mixed mesh
+   {
+      geom_weights.SetSize(size);
+      geom_weights.HostWrite();
+      for (int e = 0; e < GetNE(); ++e)
+      {
+         const Geometry::Type geom = mesh.GetElementGeometry(e);
+         ElementTransformation &T = *mesh.GetElementTransformation(e);
+         const IntegrationRule &ir = *int_rule[geom];
+         const int offset = Offset(e);
+         for (int q = 0; q < ir.Size(); ++q)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(q);
+            T.SetIntPoint(&ip);
+            geom_weights[offset + q] = T.Weight();
+         }
+      }
+   }
 }
 
 FaceQuadratureSpace::FaceQuadratureSpace(Mesh &mesh_, int order_,
@@ -313,15 +353,34 @@ void FaceQuadratureSpace::Save(std::ostream &os) const
       << "Order: " << order << '\n';
 }
 
-const Vector &FaceQuadratureSpace::GetGeometricFactorWeights() const
+void FaceQuadratureSpace::GetGeometricFactorWeights(Vector &geom_weights) const
 {
-   auto flags = FaceGeometricFactors::DETERMINANTS;
-   // TODO: assumes only one integration rule. This should be fixed once
-   // Mesh::GetFaceGeometricFactors accepts a QuadratureSpace instead of
-   // IntegrationRule.
-   const IntegrationRule &ir = GetIntRule(0);
-   auto *geom = mesh.GetFaceGeometricFactors(ir, flags, face_type);
-   return geom->detJ;
+   if (mesh.MeshGenerator() == (1 << 1)) // only tensor product elements
+   {
+      auto flags = FaceGeometricFactors::DETERMINANTS;
+      const IntegrationRule &ir = GetIntRule(0);
+      auto *geom = mesh.GetFaceGeometricFactors(ir, flags, face_type);
+      geom_weights = geom->detJ;
+   }
+   else
+   {
+      geom_weights.SetSize(size);
+      geom_weights.HostWrite();
+      for (int f = 0; f < face_indices.Size(); ++f)
+      {
+         const int f_idx = face_indices[f];
+         const Geometry::Type geom = mesh.GetFaceGeometry(f_idx);
+         ElementTransformation &T = *mesh.GetFaceTransformation(f_idx);
+         const IntegrationRule &ir = *int_rule[geom];
+         const int offset = Offset(f);
+         for (int q = 0; q < ir.Size(); ++q)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(q);
+            T.SetIntPoint(&ip);
+            geom_weights[offset + GetPermutedIndex(f, q)] = T.Weight();
+         }
+      }
+   }
 }
 
 } // namespace mfem
