@@ -302,13 +302,18 @@ TEST_CASE("NCMesh geometry-specific refinement patterns", "[NCMesh]")
 {
    SECTION("pattern descriptors")
    {
-      const std::array<Refinement::Pattern, 27> patterns =
+      const std::array<Refinement::Pattern, 32> patterns =
       {
          Refinement::Segment::BISECTION,
          Refinement::Triangle::EDGE_01_2_TRIS,
          Refinement::Triangle::EDGE_02_2_TRIS,
          Refinement::Triangle::EDGE_12_2_TRIS,
          Refinement::Triangle::UNIFORM,
+         Refinement::Triangle::CORNER_0_TRI_QUAD,
+         Refinement::Triangle::CORNER_1_TRI_QUAD,
+         Refinement::Triangle::CORNER_2_TRI_QUAD,
+         Refinement::Triangle::CENTER_3_TRIS,
+         Refinement::Triangle::CENTER_3_QUADS,
          Refinement::Quadrilateral::SPLIT_X,
          Refinement::Quadrilateral::SPLIT_Y,
          Refinement::Quadrilateral::UNIFORM,
@@ -694,6 +699,196 @@ TEST_CASE("NCMesh quadrilateral diagonal center on skew element", "[NCMesh]")
    REQUIRE(reloaded.GetVertex(4)[1] == MFEM_Approx(center[1]));
    REQUIRE(SummarizeRefinedElements(reloaded).volume ==
            MFEM_Approx(original_area));
+}
+
+TEST_CASE("NCMesh triangle geometry-specific patterns", "[NCMesh]")
+{
+   const Refinement::Pattern pattern = GENERATE(
+                                          Refinement::Triangle::CORNER_0_TRI_QUAD,
+                                          Refinement::Triangle::CORNER_1_TRI_QUAD,
+                                          Refinement::Triangle::CORNER_2_TRI_QUAD,
+                                          Refinement::Triangle::CENTER_3_TRIS,
+                                          Refinement::Triangle::CENTER_3_QUADS);
+   const int nested_child = GENERATE(-1, 0, 1, 2);
+   const bool center_pattern =
+      pattern.GetId() >= Refinement::Triangle::CENTER_3_TRIS.GetId();
+   const int children = center_pattern ? 3 : 2;
+   if (nested_child >= children) { return; }
+   CAPTURE(pattern.GetId(), nested_child);
+   Mesh mesh("../../data/ref-triangle.mesh", 1, 1);
+   const real_t area = mesh.GetElementVolume(0);
+   mesh.EnsureNCMesh(true);
+   H1_FECollection fec(2, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + 2.0*x[0] - 3.0*x[1];
+   });
+   field.ProjectCoefficient(affine);
+
+   Array<Refinement> refs(1);
+   refs[0].Set(0, pattern);
+   mesh.GeneralRefinement(refs);
+   const RefinedElementSummary refined = SummarizeRefinedElements(mesh);
+   REQUIRE(mesh.GetNE() == children);
+   REQUIRE(refined.volume == MFEM_Approx(area));
+   if (!center_pattern)
+   {
+      REQUIRE(refined.geometry_counts[Geometry::TRIANGLE] == 1);
+      REQUIRE(refined.geometry_counts[Geometry::SQUARE] == 1);
+   }
+   else if (pattern.GetId() == Refinement::Triangle::CENTER_3_TRIS.GetId())
+   {
+      REQUIRE(refined.geometry_counts[Geometry::TRIANGLE] == 3);
+   }
+   else
+   {
+      REQUIRE(refined.geometry_counts[Geometry::SQUARE] == 3);
+   }
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
+   fes.Update();
+   field.Update();
+   GridFunction exact(&fes);
+   exact.ProjectCoefficient(affine);
+   exact -= field;
+   REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+
+   if (center_pattern)
+   {
+      bool found_center = false;
+      for (int i = 0; i < mesh.GetNV(); i++)
+      {
+         const real_t *v = mesh.GetVertex(i);
+         if (v[0] == MFEM_Approx(1.0/3.0, EPS) &&
+             v[1] == MFEM_Approx(1.0/3.0, EPS))
+         { found_center = true; }
+      }
+      REQUIRE(found_center);
+   }
+
+   if (nested_child >= 0)
+   {
+      refs[0].Set(nested_child, Refinement::X);
+      mesh.GeneralRefinement(refs);
+      REQUIRE(mesh.GetNE() == children + 1);
+      fes.Update();
+      field.Update();
+      exact.Update();
+      exact.ProjectCoefficient(affine);
+      exact -= field;
+      REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+   }
+
+   std::stringstream serialized;
+   mesh.Print(serialized);
+   REQUIRE(serialized.str().find(center_pattern ?
+                                 "MFEM NC mesh v1.3" : "MFEM NC mesh v1.2") == 0);
+   Mesh reloaded(serialized, 1, 1);
+   REQUIRE(reloaded.GetNE() == mesh.GetNE());
+   REQUIRE(SummarizeRefinedElements(reloaded).volume == MFEM_Approx(area));
+   for (int level = 0; level < (nested_child >= 0 ? 2 : 1); level++)
+   {
+      Vector errors(reloaded.GetNE());
+      errors = 0.0;
+      REQUIRE(reloaded.DerefineByError(errors, 1.0));
+   }
+   REQUIRE(reloaded.GetNE() == 1);
+   REQUIRE(reloaded.GetElementVolume(0) == MFEM_Approx(area));
+   REQUIRE(reloaded.GetNBE() == 3);
+   int boundary_count[4] = {0, 0, 0, 0};
+   for (int i = 0; i < reloaded.GetNBE(); i++)
+   {
+      const int attribute = reloaded.GetBdrAttribute(i);
+      REQUIRE(attribute >= 1);
+      REQUIRE(attribute <= 3);
+      boundary_count[attribute]++;
+   }
+   for (int attribute = 1; attribute <= 3; attribute++)
+   { REQUIRE(boundary_count[attribute] == 1); }
+}
+
+TEST_CASE("NCMesh triangle pattern L2 transfer", "[NCMesh]")
+{
+   const Refinement::Pattern pattern = GENERATE(
+                                          Refinement::Triangle::CORNER_0_TRI_QUAD,
+                                          Refinement::Triangle::CORNER_1_TRI_QUAD,
+                                          Refinement::Triangle::CORNER_2_TRI_QUAD,
+                                          Refinement::Triangle::CENTER_3_TRIS,
+                                          Refinement::Triangle::CENTER_3_QUADS);
+   CAPTURE(pattern.GetId());
+   Mesh mesh("../../data/ref-triangle.mesh", 1, 1);
+   mesh.EnsureNCMesh(true);
+   L2_FECollection fec(2, 2, BasisType::GaussLegendre,
+                       FiniteElement::VALUE);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   for (int i = 0; i < field.Size(); i++)
+   { field(i) = (i % 11 - 5) / 7.0; }
+   const real_t coarse_integral = IntegrateGridFunction(mesh, field);
+
+   Array<Refinement> refs(1);
+   refs[0].Set(0, pattern);
+   mesh.GeneralRefinement(refs);
+   fes.Update();
+   field.Update();
+   REQUIRE(IntegrateGridFunction(mesh, field) ==
+           MFEM_Approx(coarse_integral, EPS));
+
+   Vector errors(mesh.GetNE());
+   errors = 0.0;
+   REQUIRE(mesh.DerefineByError(errors, 1.0));
+   fes.Update();
+   field.Update();
+   REQUIRE(IntegrateGridFunction(mesh, field) ==
+           MFEM_Approx(coarse_integral, EPS));
+}
+
+TEST_CASE("NCMesh triangle patterns beside unrefined triangle", "[NCMesh]")
+{
+   const Refinement::Pattern pattern = GENERATE(
+                                          Refinement::Triangle::CORNER_0_TRI_QUAD,
+                                          Refinement::Triangle::CORNER_1_TRI_QUAD,
+                                          Refinement::Triangle::CORNER_2_TRI_QUAD,
+                                          Refinement::Triangle::CENTER_3_TRIS,
+                                          Refinement::Triangle::CENTER_3_QUADS);
+   CAPTURE(pattern.GetId());
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+   mesh.EnsureNCMesh(true);
+   H1_FECollection fec(2, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + 2.0*x[0] - 3.0*x[1];
+   });
+   field.ProjectCoefficient(affine);
+   Array<Refinement> refs(1);
+   refs[0].Set(0, pattern);
+   mesh.GeneralRefinement(refs);
+   REQUIRE(mesh.GetNE() ==
+           (pattern.GetId() >= Refinement::Triangle::CENTER_3_TRIS.GetId() ?
+            4 : 3));
+   REQUIRE(SummarizeRefinedElements(mesh).volume == MFEM_Approx(1.0));
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   fes.Update();
+   field.Update();
+   GridFunction exact(&fes);
+   exact.ProjectCoefficient(affine);
+   exact -= field;
+   REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+
+   Vector errors(mesh.GetNE());
+   errors = 0.0;
+   REQUIRE(mesh.DerefineByError(errors, 1.0));
+   REQUIRE(mesh.GetNE() == 2);
+   fes.Update();
+   field.Update();
+   exact.Update();
+   exact.ProjectCoefficient(affine);
+   exact -= field;
+   REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
 }
 
 TEST_CASE("NCMesh mixed pyramid children save and reload", "[NCMesh]")
@@ -1730,6 +1925,52 @@ TEST_CASE("ParNCMesh geometry-specific refinement patterns",
    pmesh.GeneralRefinement(refs);
 
    REQUIRE(pmesh.GetGlobalNE() == 3);
+}
+
+TEST_CASE("ParNCMesh triangle patterns across ranks", "[Parallel][NCMesh]")
+{
+   if (Mpi::WorldSize() != 2) { return; }
+   const Refinement::Pattern pattern = GENERATE(
+                                          Refinement::Triangle::CORNER_0_TRI_QUAD,
+                                          Refinement::Triangle::CORNER_1_TRI_QUAD,
+                                          Refinement::Triangle::CORNER_2_TRI_QUAD,
+                                          Refinement::Triangle::CENTER_3_TRIS,
+                                          Refinement::Triangle::CENTER_3_QUADS);
+   CAPTURE(pattern.GetId());
+   Mesh serial_mesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+   serial_mesh.EnsureNCMesh(true);
+   int partitioning[2] = {0, 1};
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partitioning);
+   H1_FECollection fec(2, 2);
+   ParFiniteElementSpace fes(&mesh, &fec);
+   ParGridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + 2.0*x[0] - 3.0*x[1];
+   });
+   field.ProjectCoefficient(affine);
+   Array<Refinement> refs;
+   if (Mpi::WorldRank() == 0)
+   {
+      REQUIRE(mesh.GetNE() == 1);
+      refs.Append(Refinement(0, pattern));
+   }
+   mesh.GeneralRefinement(refs);
+   REQUIRE(mesh.GetGlobalNE() ==
+           (pattern.GetId() >= Refinement::Triangle::CENTER_3_TRIS.GetId() ?
+            4 : 3));
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   fes.Update();
+   field.Update();
+   ParGridFunction exact(&fes);
+   exact.ProjectCoefficient(affine);
+   exact -= field;
+   REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+
+   Vector errors(mesh.GetNE());
+   errors = 0.0;
+   REQUIRE(mesh.DerefineByError(errors, 1.0));
+   REQUIRE(mesh.GetGlobalNE() == 2);
 }
 
 TEST_CASE("ParNCMesh quadrilateral diagonal patterns", "[Parallel][NCMesh]")

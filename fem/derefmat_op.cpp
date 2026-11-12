@@ -51,6 +51,10 @@ void GetMixedNodalRestriction(const FiniteElement &coarse_fe,
    trans.SetIdentityTransformation(fine_geom);
    trans.SetPointMat(point_matrix);
    trans.SetIntPoint(&Geometries.GetCenter(fine_geom));
+   // Quadrilateral child maps can be bilinear. Preserve the existing local
+   // inverse path for pyramid and simplex children.
+   const bool use_linear_inverse = fine_geom != Geometry::SQUARE ||
+                                   trans.OrderJ() == 0;
 
    IntegrationPoint origin;
    origin.Set3(0.0, 0.0, 0.0);
@@ -63,13 +67,23 @@ void GetMixedNodalRestriction(const FiniteElement &coarse_fe,
    {
       real_t parent_coords[3], fine_coords[3];
       coarse_nodes.IntPoint(i).Get(parent_coords, dim);
-      Vector offset(parent_coords, dim), fine_point(fine_coords, dim);
-      offset -= parent_origin;
-      trans.InverseJacobian().Mult(offset, fine_point);
       IntegrationPoint ip;
-      ip.Set(fine_coords, dim);
+      bool mapped = true;
+      if (use_linear_inverse)
+      {
+         Vector offset(parent_coords, dim), fine_point(fine_coords, dim);
+         offset -= parent_origin;
+         trans.InverseJacobian().Mult(offset, fine_point);
+         ip.Set(fine_coords, dim);
+      }
+      else
+      {
+         Vector parent_point(parent_coords, dim);
+         mapped = trans.TransformBack(parent_point, ip) ==
+                  InverseElementTransformation::Inside;
+      }
       constexpr real_t eps = MFEM_PRECISION_SWITCH(1e-14, 1e-6f);
-      if (Geometries.CheckPoint(fine_geom, ip, eps))
+      if (mapped && Geometries.CheckPoint(fine_geom, ip, eps))
       {
          fine_fe.CalcShape(ip, fine_shape);
          restriction.SetRow(i, fine_shape);

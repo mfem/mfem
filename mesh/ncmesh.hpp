@@ -74,6 +74,11 @@ struct Refinement
       static constexpr Pattern EDGE_02_2_TRIS { Geometry::TRIANGLE, Y };
       static constexpr Pattern EDGE_12_2_TRIS { Geometry::TRIANGLE, Z };
       static constexpr Pattern UNIFORM { Geometry::TRIANGLE, XY };
+      static constexpr Pattern CORNER_0_TRI_QUAD { Geometry::TRIANGLE, 8 };
+      static constexpr Pattern CORNER_1_TRI_QUAD { Geometry::TRIANGLE, 9 };
+      static constexpr Pattern CORNER_2_TRI_QUAD { Geometry::TRIANGLE, 10 };
+      static constexpr Pattern CENTER_3_TRIS { Geometry::TRIANGLE, 11 };
+      static constexpr Pattern CENTER_3_QUADS { Geometry::TRIANGLE, 12 };
    };
 
    /** Existing quadrilateral refinement patterns. */

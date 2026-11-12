@@ -59,6 +59,31 @@ static constexpr int tri_deref_table[4][3 + 3] =
    { 0, 0, 1, /**/ 0, 0, 1 }  // 4 - Z
 };
 
+static constexpr int tri_corner_0_quad_deref[3 + 3] =
+{ 0, 1, 1, /**/ 0, 1, 0 };
+static constexpr int tri_corner_0_quad_vertex_local[3] = { 0, 1, 2 };
+static constexpr int tri_corner_0_quad_face_local[3] = { 0, 1, 2 };
+
+static constexpr int tri_corner_1_quad_deref[3 + 3] =
+{ 1, 0, 1, /**/ 0, 0, 1 };
+static constexpr int tri_corner_1_quad_vertex_local[3] = { 0, 1, 3 };
+static constexpr int tri_corner_1_quad_face_local[3] = { 0, 1, 3 };
+
+static constexpr int tri_corner_2_quad_deref[3 + 3] =
+{ 1, 1, 0, /**/ 1, 0, 0 };
+static constexpr int tri_corner_2_quad_vertex_local[3] = { 0, 1, 1 };
+static constexpr int tri_corner_2_quad_face_local[3] = { 0, 0, 1 };
+
+static constexpr int tri_center_deref[3 + 3] =
+{ 0, 1, 2, /**/ 0, 1, 2 };
+static constexpr int tri_center_tris_local[3] = { 0, 0, 0 };
+static constexpr int tri_center_quads_vertex_local[3] = { 0, 1, 2 };
+static constexpr int tri_center_quads_face_local[3] = { 0, 1, 2 };
+static constexpr Geometry::Type tri_corner_quad_children[2] =
+{ Geometry::TRIANGLE, Geometry::SQUARE };
+static constexpr Geometry::Type tri_three_quad_children[3] =
+{ Geometry::SQUARE, Geometry::SQUARE, Geometry::SQUARE };
+
 static constexpr int tet_deref_table[7][4 + 4] =
 {
    { 0, 1, 0, 0, /**/ 1, 0, 0, 0 }, // 1 - X, edge (0,1)
@@ -144,10 +169,30 @@ static constexpr NCRefinementPattern segment_patterns[8] =
 {
    {}, {2, nullptr}, {}, {}, {}, {}, {}, {}
 };
-static constexpr NCRefinementPattern triangle_patterns[8] =
+static constexpr NCRefinementPattern triangle_patterns[13] =
 {
    {}, {2, tri_deref_table[0]}, {2, tri_deref_table[1]},
-   {4, tri_deref_table[2]}, {2, tri_deref_table[3]}, {}, {}, {}
+   {4, tri_deref_table[2]}, {2, tri_deref_table[3]}, {}, {}, {},
+   {
+      2, tri_corner_0_quad_deref, tri_corner_quad_children,
+      tri_corner_0_quad_vertex_local, tri_corner_0_quad_face_local
+   },
+   {
+      2, tri_corner_1_quad_deref, tri_corner_quad_children,
+      tri_corner_1_quad_vertex_local, tri_corner_1_quad_face_local
+   },
+   {
+      2, tri_corner_2_quad_deref, tri_corner_quad_children,
+      tri_corner_2_quad_vertex_local, tri_corner_2_quad_face_local
+   },
+   {
+      3, tri_center_deref, nullptr,
+      tri_center_tris_local, tri_center_tris_local
+   },
+   {
+      3, tri_center_deref, tri_three_quad_children,
+      tri_center_quads_vertex_local, tri_center_quads_face_local
+   }
 };
 static constexpr NCRefinementPattern quadrilateral_patterns[11] =
 {

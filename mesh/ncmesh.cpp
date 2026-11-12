@@ -2043,8 +2043,78 @@ void NCMesh::RefineElement(const Refinement & ref)
    }
    else if (el.Geom() == Geometry::TRIANGLE)
    {
-      if (ref_type != Refinement::Z) { ref_type &= Refinement::XY; }
-      if (ref_type == Refinement::X)
+      if (ref_type < 8 && ref_type != Refinement::Z)
+      { ref_type &= Refinement::XY; }
+      if (ref_type == Refinement::Triangle::CORNER_0_TRI_QUAD.GetId())
+      {
+         GI[Geometry::SQUARE].InitGeom(Geometry::SQUARE);
+         const int mid01 = GetMidEdgeNode(no[0], no[1]);
+         const int mid20 = GetMidEdgeNode(no[2], no[0]);
+         nodes[mid01].SetScale(0.5);
+         nodes[mid20].SetScale(0.5);
+         child[0] = NewTriangle(no[0], mid01, mid20,
+                                attr, fa[0], -1, fa[2]);
+         child[1] = NewQuadrilateral(mid01, no[1], no[2], mid20,
+                                     attr, fa[0], fa[1], fa[2], -1);
+      }
+      else if (ref_type == Refinement::Triangle::CORNER_1_TRI_QUAD.GetId())
+      {
+         GI[Geometry::SQUARE].InitGeom(Geometry::SQUARE);
+         const int mid01 = GetMidEdgeNode(no[0], no[1]);
+         const int mid12 = GetMidEdgeNode(no[1], no[2]);
+         nodes[mid01].SetScale(0.5);
+         nodes[mid12].SetScale(0.5);
+         child[0] = NewTriangle(mid01, no[1], mid12,
+                                attr, fa[0], fa[1], -1);
+         child[1] = NewQuadrilateral(no[0], mid01, mid12, no[2],
+                                     attr, fa[0], -1, fa[1], fa[2]);
+      }
+      else if (ref_type == Refinement::Triangle::CORNER_2_TRI_QUAD.GetId())
+      {
+         GI[Geometry::SQUARE].InitGeom(Geometry::SQUARE);
+         const int mid12 = GetMidEdgeNode(no[1], no[2]);
+         const int mid20 = GetMidEdgeNode(no[2], no[0]);
+         nodes[mid12].SetScale(0.5);
+         nodes[mid20].SetScale(0.5);
+         child[0] = NewTriangle(mid12, no[2], mid20,
+                                attr, fa[1], fa[2], -1);
+         child[1] = NewQuadrilateral(no[0], no[1], mid12, mid20,
+                                     attr, fa[0], fa[1], -1, fa[2]);
+      }
+      else if (ref_type == Refinement::Triangle::CENTER_3_TRIS.GetId())
+      {
+         const int mid01 = GetMidEdgeNode(no[0], no[1]);
+         nodes[mid01].SetScale(0.5);
+         const int center = GetMidEdgeNode(mid01, no[2]);
+         SetNodeScale(mid01, no[2], 1.0/3.0);
+         using_scaling = true;
+         child[0] = NewTriangle(no[0], no[1], center,
+                                attr, fa[0], -1, -1);
+         child[1] = NewTriangle(no[1], no[2], center,
+                                attr, fa[1], -1, -1);
+         child[2] = NewTriangle(no[2], no[0], center,
+                                attr, fa[2], -1, -1);
+      }
+      else if (ref_type == Refinement::Triangle::CENTER_3_QUADS.GetId())
+      {
+         GI[Geometry::SQUARE].InitGeom(Geometry::SQUARE);
+         const int mid01 = GetMidEdgeNode(no[0], no[1]);
+         const int mid12 = GetMidEdgeNode(no[1], no[2]);
+         const int mid20 = GetMidEdgeNode(no[2], no[0]);
+         nodes[mid01].SetScale(0.5);
+         nodes[mid12].SetScale(0.5);
+         nodes[mid20].SetScale(0.5);
+         const int center = GetMidEdgeNode(mid01, no[2]);
+         SetNodeScale(mid01, no[2], 1.0/3.0);
+         using_scaling = true;
+         child[0] = NewQuadrilateral(no[0], mid01, center, mid20,
+                                     attr, fa[0], -1, -1, fa[2]);
+         child[1] = NewQuadrilateral(mid01, no[1], mid12, center,
+                                     attr, fa[0], fa[1], -1, -1);
+         child[2] = NewQuadrilateral(center, mid12, no[2], mid20,
+                                     attr, -1, fa[1], fa[2], -1);
+      }
+      else if (ref_type == Refinement::X)
       {
          const int mid01 = nodes.GetId(no[0], no[1]);
          SetNodeScale(no[0], no[1], scale_x);
@@ -4612,6 +4682,69 @@ void NCMesh::NeighborExpand(const Array<int> &elems,
    }
 }
 
+// Map a point between a triangle and one of its explicit triangle/quad
+// children. Quadrilateral children are generally trapezoids, so their maps
+// are bilinear and cannot be represented by RefTrf's affine coefficients.
+static bool MapTrianglePatternPoint(const DenseMatrix &pm,
+                                    Geometry::Type child_geom,
+                                    const RefCoord src[3], RefCoord dst[3],
+                                    bool inverse)
+{
+   const long double unit = static_cast<long double>(T_ONE);
+   const long double x = static_cast<long double>(src[0]) / unit;
+   const long double y = static_cast<long double>(src[1]) / unit;
+   const long double ax = pm(0, 1) - pm(0, 0);
+   const long double ay = pm(1, 1) - pm(1, 0);
+   const int last = child_geom == Geometry::TRIANGLE ? 2 : 3;
+   const long double bx = pm(0, last) - pm(0, 0);
+   const long double by = pm(1, last) - pm(1, 0);
+   const long double cx = child_geom == Geometry::TRIANGLE ? 0.0L :
+                          pm(0, 0) - pm(0, 1) + pm(0, 2) - pm(0, 3);
+   const long double cy = child_geom == Geometry::TRIANGLE ? 0.0L :
+                          pm(1, 0) - pm(1, 1) + pm(1, 2) - pm(1, 3);
+
+   long double u = x, v = y;
+   if (inverse)
+   {
+      u = v = 0.5L;
+      for (int i = 0; i < 16; i++)
+      {
+         const long double dx = x - (pm(0, 0) + u*ax + v*bx + u*v*cx);
+         const long double dy = y - (pm(1, 0) + u*ay + v*by + u*v*cy);
+         const long double j00 = ax + v*cx, j01 = bx + u*cx;
+         const long double j10 = ay + v*cy, j11 = by + u*cy;
+         const long double det = j00*j11 - j01*j10;
+         MFEM_VERIFY(std::abs(det) > 1.0e-15L,
+                     "Degenerate triangle refinement child");
+         const long double du = (dx*j11 - dy*j01) / det;
+         const long double dv = (dy*j00 - dx*j10) / det;
+         u += du;
+         v += dv;
+         if (std::abs(du) + std::abs(dv) < 1.0e-16L) { break; }
+      }
+
+      constexpr long double tol =
+         MFEM_PRECISION_SWITCH(1.0e-12L, 1.0e-5L);
+      if (u < -tol || v < -tol || u > 1.0L + tol ||
+          v > 1.0L + tol ||
+          (child_geom == Geometry::TRIANGLE && u + v > 1.0L + tol))
+      { return false; }
+      u = std::max(0.0L, std::min(1.0L, u));
+      v = std::max(0.0L, std::min(1.0L, v));
+      if (child_geom == Geometry::TRIANGLE && u + v > 1.0L)
+      { v = 1.0L - u; }
+      dst[0] = std::llround(u*unit);
+      dst[1] = std::llround(v*unit);
+   }
+   else
+   {
+      dst[0] = std::llround((pm(0, 0) + u*ax + v*bx + u*v*cx)*unit);
+      dst[1] = std::llround((pm(1, 0) + u*ay + v*by + u*v*cy)*unit);
+   }
+   dst[2] = 0;
+   return true;
+}
+
 int NCMesh::GetVertexRootCoord(int elem, RefCoord coord[3]) const
 {
    while (1)
@@ -4626,9 +4759,19 @@ int NCMesh::GetVertexRootCoord(int elem, RefCoord coord[3]) const
       while (ch < MaxElemChildren && pa.child[ch] != elem) { ch++; }
       MFEM_ASSERT(ch < MaxElemChildren, "internal error");
 
-      MFEM_ASSERT(geom_parent[pa.Geom()], "unsupported geometry");
-      const RefTrf &tr = geom_parent[pa.Geom()][(int) pa.ref_type][ch];
-      tr.Apply(coord, coord);
+      if (pa.Geom() == Geometry::TRIANGLE && pa.ref_type >= 8)
+      {
+         const char path[3] = { pa.ref_type, static_cast<char>(ch), 0 };
+         DenseMatrix pm;
+         GetPointMatrix(Geometry::TRIANGLE, path, pm);
+         MapTrianglePatternPoint(pm, el.Geom(), coord, coord, false);
+      }
+      else
+      {
+         MFEM_ASSERT(geom_parent[pa.Geom()], "unsupported geometry");
+         const RefTrf &tr = geom_parent[pa.Geom()][(int) pa.ref_type][ch];
+         tr.Apply(coord, coord);
+      }
 
       elem = el.parent;
    }
@@ -4678,12 +4821,23 @@ void NCMesh::CollectIncidentElements(int elem, const RefCoord coord[3],
    RefCoord tcoord[3];
    for (int ch = 0; ch < MaxElemChildren && el.child[ch] >= 0; ch++)
    {
-      const RefTrf &tr = geom_child[el.Geom()][(int) el.ref_type][ch];
-      tr.Apply(coord, tcoord);
-
       const Geometry::Type child_geom =
          GetNCRefinementPattern(el.Geom(), el.ref_type).ChildGeometry(el.Geom(), ch);
-      if (RefPointInside(child_geom, tcoord))
+      bool inside;
+      if (el.Geom() == Geometry::TRIANGLE && el.ref_type >= 8)
+      {
+         const char path[3] = { el.ref_type, static_cast<char>(ch), 0 };
+         DenseMatrix pm;
+         GetPointMatrix(Geometry::TRIANGLE, path, pm);
+         inside = MapTrianglePatternPoint(pm, child_geom, coord, tcoord, true);
+      }
+      else
+      {
+         const RefTrf &tr = geom_child[el.Geom()][(int) el.ref_type][ch];
+         tr.Apply(coord, tcoord);
+         inside = RefPointInside(child_geom, tcoord);
+      }
+      if (inside)
       {
          CollectIncidentElements(el.child[ch], tcoord, list);
       }
@@ -5276,7 +5430,47 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
       }
       else if (geom == Geometry::TRIANGLE)
       {
-         if (ref_type == Refinement::X)
+         if (ref_type == Refinement::Triangle::CORNER_0_TRI_QUAD.GetId())
+         {
+            Point mid01(pm(0), pm(1)), mid20(pm(2), pm(0));
+            if (child == 0) { pm = PointMatrix(pm(0), mid01, mid20); }
+            else if (child == 1)
+            { pm = PointMatrix(mid01, pm(1), pm(2), mid20); }
+         }
+         else if (ref_type == Refinement::Triangle::CORNER_1_TRI_QUAD.GetId())
+         {
+            Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
+            if (child == 0) { pm = PointMatrix(mid01, pm(1), mid12); }
+            else if (child == 1)
+            { pm = PointMatrix(pm(0), mid01, mid12, pm(2)); }
+         }
+         else if (ref_type == Refinement::Triangle::CORNER_2_TRI_QUAD.GetId())
+         {
+            Point mid12(pm(1), pm(2)), mid20(pm(2), pm(0));
+            if (child == 0) { pm = PointMatrix(mid12, pm(2), mid20); }
+            else if (child == 1)
+            { pm = PointMatrix(pm(0), pm(1), mid12, mid20); }
+         }
+         else if (ref_type == Refinement::Triangle::CENTER_3_TRIS.GetId())
+         {
+            Point mid01(pm(0), pm(1));
+            Point center(mid01, pm(2), 1.0/3.0);
+            if (child == 0) { pm = PointMatrix(pm(0), pm(1), center); }
+            else if (child == 1) { pm = PointMatrix(pm(1), pm(2), center); }
+            else if (child == 2) { pm = PointMatrix(pm(2), pm(0), center); }
+         }
+         else if (ref_type == Refinement::Triangle::CENTER_3_QUADS.GetId())
+         {
+            Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
+            Point mid20(pm(2), pm(0)), center(mid01, pm(2), 1.0/3.0);
+            if (child == 0)
+            { pm = PointMatrix(pm(0), mid01, center, mid20); }
+            else if (child == 1)
+            { pm = PointMatrix(mid01, pm(1), mid12, center); }
+            else if (child == 2)
+            { pm = PointMatrix(center, mid12, pm(2), mid20); }
+         }
+         else if (ref_type == Refinement::X)
          {
             Point mid01(pm(0), pm(1));
             if (child == 0) { pm = PointMatrix(pm(0), mid01, pm(2)); }
