@@ -90,6 +90,10 @@ struct Refinement
       static constexpr Pattern DIAGONAL_02_2_TRIS { Geometry::SQUARE, 8 };
       static constexpr Pattern DIAGONAL_13_2_TRIS { Geometry::SQUARE, 9 };
       static constexpr Pattern DIAGONALS_4_TRIS { Geometry::SQUARE, 10 };
+      static constexpr Pattern EDGE_01_3_TRIS { Geometry::SQUARE, 11 };
+      static constexpr Pattern EDGE_12_3_TRIS { Geometry::SQUARE, 12 };
+      static constexpr Pattern EDGE_23_3_TRIS { Geometry::SQUARE, 13 };
+      static constexpr Pattern EDGE_30_3_TRIS { Geometry::SQUARE, 14 };
    };
 
    /** Existing tetrahedron refinement patterns. */

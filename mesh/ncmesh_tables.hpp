@@ -50,6 +50,28 @@ static constexpr Geometry::Type quad_four_triangle_children[4] =
    Geometry::TRIANGLE, Geometry::TRIANGLE,
    Geometry::TRIANGLE, Geometry::TRIANGLE
 };
+static constexpr Geometry::Type quad_three_triangle_children[3] =
+{ Geometry::TRIANGLE, Geometry::TRIANGLE, Geometry::TRIANGLE };
+
+// Edge i is bisected. Child 0 contains vertex i, child 1 contains vertex
+// i+1, and child 2 contains the opposite parent edge (indices modulo four).
+static constexpr int quad_edge_deref[4][4 + 4] =
+{
+   {0, 1, 1, 0, /**/ 0, 1, 2, 0},
+   {0, 0, 1, 1, /**/ 0, 0, 1, 2},
+   {1, 0, 0, 1, /**/ 2, 0, 0, 1},
+   {1, 1, 0, 0, /**/ 1, 2, 0, 0}
+};
+static constexpr int quad_edge_vertex_local[4][4] =
+{
+   {0, 1, 2, 2}, {2, 0, 1, 2},
+   {2, 2, 0, 1}, {1, 2, 2, 0}
+};
+static constexpr int quad_edge_face_local[4][4] =
+{
+   {0, 1, 1, 2}, {2, 0, 1, 1},
+   {1, 2, 0, 1}, {1, 1, 2, 0}
+};
 
 static constexpr int tri_deref_table[4][3 + 3] =
 {
@@ -194,7 +216,7 @@ static constexpr NCRefinementPattern triangle_patterns[13] =
       tri_center_quads_vertex_local, tri_center_quads_face_local
    }
 };
-static constexpr NCRefinementPattern quadrilateral_patterns[11] =
+static constexpr NCRefinementPattern quadrilateral_patterns[15] =
 {
    {}, {2, quad_deref_table[0]}, {2, quad_deref_table[1]},
    {4, quad_deref_table[2]}, {}, {}, {}, {},
@@ -209,6 +231,22 @@ static constexpr NCRefinementPattern quadrilateral_patterns[11] =
    {
       4, quad_diag_both_deref, quad_four_triangle_children,
       quad_diag_both_local, quad_diag_both_local
+   },
+   {
+      3, quad_edge_deref[0], quad_three_triangle_children,
+      quad_edge_vertex_local[0], quad_edge_face_local[0]
+   },
+   {
+      3, quad_edge_deref[1], quad_three_triangle_children,
+      quad_edge_vertex_local[1], quad_edge_face_local[1]
+   },
+   {
+      3, quad_edge_deref[2], quad_three_triangle_children,
+      quad_edge_vertex_local[2], quad_edge_face_local[2]
+   },
+   {
+      3, quad_edge_deref[3], quad_three_triangle_children,
+      quad_edge_vertex_local[3], quad_edge_face_local[3]
    }
 };
 static constexpr NCRefinementPattern tetrahedron_patterns[9] =
@@ -235,7 +273,8 @@ static constexpr NCRefinementPattern pyramid_patterns[8] =
    {10, pyramid_deref_table[6], pyramid_child_geometries}
 };
 
-static const NCRefinementPattern *const nc_refinement_patterns[Geometry::NumGeom] =
+static const NCRefinementPattern *const
+nc_refinement_patterns[Geometry::NumGeom] =
 {
    nullptr, segment_patterns, triangle_patterns, quadrilateral_patterns,
    tetrahedron_patterns, hexahedron_patterns, prism_patterns, pyramid_patterns

@@ -1977,6 +1977,24 @@ void NCMesh::RefineElement(const Refinement & ref)
          child[3] = NewTriangle(no[3], no[0], center,
                                 attr, fa[3], -1, -1);
       }
+      else if (ref_type >= Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId() &&
+               ref_type <= Refinement::Quadrilateral::EDGE_30_3_TRIS.GetId())
+      {
+         GI[Geometry::TRIANGLE].InitGeom(Geometry::TRIANGLE);
+         const int edge = ref_type - Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId();
+         const int v0 = edge;
+         const int v1 = (edge + 1) % 4;
+         const int v2 = (edge + 2) % 4;
+         const int v3 = (edge + 3) % 4;
+         const int mid = GetMidEdgeNode(no[v0], no[v1]);
+         nodes[mid].SetScale(0.5);
+         child[0] = NewTriangle(no[v0], mid, no[v3],
+                                attr, fa[v0], -1, fa[v3]);
+         child[1] = NewTriangle(mid, no[v1], no[v2],
+                                attr, fa[v0], fa[v1], -1);
+         child[2] = NewTriangle(mid, no[v2], no[v3],
+                                attr, -1, fa[v2], -1);
+      }
       else if (ref_type == Refinement::X) // X split
       {
          const int mid01 = nodes.GetId(no[0], no[1]);
@@ -4682,10 +4700,10 @@ void NCMesh::NeighborExpand(const Array<int> &elems,
    }
 }
 
-// Map a point between a triangle and one of its explicit triangle/quad
-// children. Quadrilateral children are generally trapezoids, so their maps
-// are bilinear and cannot be represented by RefTrf's affine coefficients.
-static bool MapTrianglePatternPoint(const DenseMatrix &pm,
+// Map a point between an explicit triangle/quad parent and one of its mixed
+// children. Quadrilateral children may have bilinear maps, which RefTrf cannot
+// represent.
+static bool MapExplicitPatternPoint(const DenseMatrix &pm,
                                     Geometry::Type child_geom,
                                     const RefCoord src[3], RefCoord dst[3],
                                     bool inverse)
@@ -4759,12 +4777,14 @@ int NCMesh::GetVertexRootCoord(int elem, RefCoord coord[3]) const
       while (ch < MaxElemChildren && pa.child[ch] != elem) { ch++; }
       MFEM_ASSERT(ch < MaxElemChildren, "internal error");
 
-      if (pa.Geom() == Geometry::TRIANGLE && pa.ref_type >= 8)
+      if ((pa.Geom() == Geometry::TRIANGLE && pa.ref_type >= 8) ||
+          (pa.Geom() == Geometry::SQUARE &&
+           pa.ref_type >= Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId()))
       {
          const char path[3] = { pa.ref_type, static_cast<char>(ch), 0 };
          DenseMatrix pm;
-         GetPointMatrix(Geometry::TRIANGLE, path, pm);
-         MapTrianglePatternPoint(pm, el.Geom(), coord, coord, false);
+         GetPointMatrix(pa.Geom(), path, pm);
+         MapExplicitPatternPoint(pm, el.Geom(), coord, coord, false);
       }
       else
       {
@@ -4824,12 +4844,14 @@ void NCMesh::CollectIncidentElements(int elem, const RefCoord coord[3],
       const Geometry::Type child_geom =
          GetNCRefinementPattern(el.Geom(), el.ref_type).ChildGeometry(el.Geom(), ch);
       bool inside;
-      if (el.Geom() == Geometry::TRIANGLE && el.ref_type >= 8)
+      if ((el.Geom() == Geometry::TRIANGLE && el.ref_type >= 8) ||
+          (el.Geom() == Geometry::SQUARE &&
+           el.ref_type >= Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId()))
       {
          const char path[3] = { el.ref_type, static_cast<char>(ch), 0 };
          DenseMatrix pm;
-         GetPointMatrix(Geometry::TRIANGLE, path, pm);
-         inside = MapTrianglePatternPoint(pm, child_geom, coord, tcoord, true);
+         GetPointMatrix(el.Geom(), path, pm);
+         inside = MapExplicitPatternPoint(pm, child_geom, coord, tcoord, true);
       }
       else
       {
@@ -5377,6 +5399,21 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
             else if (child == 1) { pm = PointMatrix(pm(1), pm(2), center); }
             else if (child == 2) { pm = PointMatrix(pm(2), pm(3), center); }
             else if (child == 3) { pm = PointMatrix(pm(3), pm(0), center); }
+         }
+         else if (ref_type >= Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId() &&
+                  ref_type <= Refinement::Quadrilateral::EDGE_30_3_TRIS.GetId())
+         {
+            const int edge = ref_type - Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId();
+            const int v0 = edge;
+            const int v1 = (edge + 1) % 4;
+            const int v2 = (edge + 2) % 4;
+            const int v3 = (edge + 3) % 4;
+            Point mid(pm(v0), pm(v1));
+            if (child == 0) { pm = PointMatrix(pm(v0), mid, pm(v3)); }
+            else if (child == 1)
+            { pm = PointMatrix(mid, pm(v1), pm(v2)); }
+            else if (child == 2)
+            { pm = PointMatrix(mid, pm(v2), pm(v3)); }
          }
          else if (ref_type == 1) // X split
          {

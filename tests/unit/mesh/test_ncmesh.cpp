@@ -52,7 +52,14 @@ NCFacePartition MakePatternFacePartition(Geometry::Type geometry, int pattern)
    {
       mesh.EnsureNCMesh(true);
       Array<Refinement> refs(1);
-      refs[0].Set(0, pattern);
+      if (pattern > Refinement::XYZ)
+      {
+         refs[0].Set(0, Refinement::Pattern { geometry, static_cast<char>(pattern) });
+      }
+      else
+      {
+         refs[0].Set(0, static_cast<char>(pattern));
+      }
       mesh.GeneralRefinement(refs);
    }
    NCFacePartition partition;
@@ -75,19 +82,23 @@ NCFacePartition MakePatternFacePartition(Geometry::Type geometry, int pattern)
 struct FacePatternCase
 {
    Geometry::Type geometry;
-   int pattern;
+   Refinement::Pattern pattern;
 };
 
 constexpr FacePatternCase geometry_specific_2d_patterns[] =
 {
-   {Geometry::SQUARE, Refinement::QUAD_DIAG_02},
-   {Geometry::SQUARE, Refinement::QUAD_DIAG_13},
-   {Geometry::SQUARE, Refinement::QUAD_DIAG_BOTH},
-   {Geometry::TRIANGLE, Refinement::TRI_CORNER_0_QUAD},
-   {Geometry::TRIANGLE, Refinement::TRI_CORNER_1_QUAD},
-   {Geometry::TRIANGLE, Refinement::TRI_CORNER_2_QUAD},
-   {Geometry::TRIANGLE, Refinement::TRI_CENTER_3_TRIS},
-   {Geometry::TRIANGLE, Refinement::TRI_CENTER_3_QUADS}
+   {Geometry::SQUARE, Refinement::Quadrilateral::DIAGONAL_02_2_TRIS},
+   {Geometry::SQUARE, Refinement::Quadrilateral::DIAGONAL_13_2_TRIS},
+   {Geometry::SQUARE, Refinement::Quadrilateral::DIAGONALS_4_TRIS},
+   {Geometry::SQUARE, Refinement::Quadrilateral::EDGE_01_3_TRIS},
+   {Geometry::SQUARE, Refinement::Quadrilateral::EDGE_12_3_TRIS},
+   {Geometry::SQUARE, Refinement::Quadrilateral::EDGE_23_3_TRIS},
+   {Geometry::SQUARE, Refinement::Quadrilateral::EDGE_30_3_TRIS},
+   {Geometry::TRIANGLE, Refinement::Triangle::CORNER_0_TRI_QUAD},
+   {Geometry::TRIANGLE, Refinement::Triangle::CORNER_1_TRI_QUAD},
+   {Geometry::TRIANGLE, Refinement::Triangle::CORNER_2_TRI_QUAD},
+   {Geometry::TRIANGLE, Refinement::Triangle::CENTER_3_TRIS},
+   {Geometry::TRIANGLE, Refinement::Triangle::CENTER_3_QUADS}
 };
 
 real_t IntegrateGridFunction(Mesh &mesh, const GridFunction &field)
@@ -350,7 +361,7 @@ TEST_CASE("NCMesh geometry-specific refinement patterns", "[NCMesh]")
 {
    SECTION("pattern descriptors")
    {
-      const std::array<Refinement::Pattern, 32> patterns =
+      const std::array<Refinement::Pattern, 36> patterns =
       {
          Refinement::Segment::BISECTION,
          Refinement::Triangle::EDGE_01_2_TRIS,
@@ -368,6 +379,10 @@ TEST_CASE("NCMesh geometry-specific refinement patterns", "[NCMesh]")
          Refinement::Quadrilateral::DIAGONAL_02_2_TRIS,
          Refinement::Quadrilateral::DIAGONAL_13_2_TRIS,
          Refinement::Quadrilateral::DIAGONALS_4_TRIS,
+         Refinement::Quadrilateral::EDGE_01_3_TRIS,
+         Refinement::Quadrilateral::EDGE_12_3_TRIS,
+         Refinement::Quadrilateral::EDGE_23_3_TRIS,
+         Refinement::Quadrilateral::EDGE_30_3_TRIS,
          Refinement::Tetrahedron::EDGE_01_2_TETS,
          Refinement::Tetrahedron::EDGE_02_2_TETS,
          Refinement::Tetrahedron::EDGE_03_2_TETS,
@@ -604,16 +619,11 @@ TEST_CASE("NCMesh legacy quad and hex pattern save and reload", "[NCMesh]")
 TEST_CASE("NCMesh face partition relations", "[NCMesh]")
 {
    const int quad_patterns[] = {0, Refinement::X, Refinement::Y,
-                                Refinement::XY, Refinement::QUAD_DIAG_02,
-                                Refinement::QUAD_DIAG_13,
-                                Refinement::QUAD_DIAG_BOTH};
+                                Refinement::XY, 8, 9, 10, 11, 12, 13, 14
+                               };
    const int tri_patterns[] = {0, Refinement::X, Refinement::Y,
-                               Refinement::Z, Refinement::XY,
-                               Refinement::TRI_CORNER_0_QUAD,
-                               Refinement::TRI_CORNER_1_QUAD,
-                               Refinement::TRI_CORNER_2_QUAD,
-                               Refinement::TRI_CENTER_3_TRIS,
-                               Refinement::TRI_CENTER_3_QUADS};
+                               Refinement::Z, Refinement::XY, 8, 9, 10, 11, 12
+                              };
    for (Geometry::Type geometry : {Geometry::TRIANGLE, Geometry::SQUARE})
    {
       const int *patterns = geometry == Geometry::TRIANGLE ? tri_patterns :
@@ -630,7 +640,7 @@ TEST_CASE("NCMesh face partition relations", "[NCMesh]")
          REQUIRE(CompareNCFacePartitions(partitions[i], partitions[i]) ==
                  NCFaceRelation::Matching);
          NCFacePartition reversed = MakePatternFacePartition(geometry,
-                                                              patterns[i]);
+                                                             patterns[i]);
          for (int cell = 0; cell < reversed.cells.Size(); cell++)
          {
             const int last = reversed.cells[cell].geometry ==
@@ -678,10 +688,10 @@ TEST_CASE("NCMesh geometry-specific H1 field transfer round trip", "[NCMesh]")
 
    for (const FacePatternCase &test : geometry_specific_2d_patterns)
    {
-      CAPTURE(test.geometry, test.pattern);
+      CAPTURE(test.geometry, test.pattern.GetId());
       Mesh mesh = Mesh::MakeCartesian2D(2, 1,
-                  test.geometry == Geometry::SQUARE ?
-                  Element::QUADRILATERAL : Element::TRIANGLE);
+                                        test.geometry == Geometry::SQUARE ?
+                                        Element::QUADRILATERAL : Element::TRIANGLE);
       const int original_elements = mesh.GetNE();
       mesh.EnsureNCMesh(true);
       H1_FECollection fec(2, 2);
@@ -717,7 +727,7 @@ TEST_CASE("NCMesh geometry-specific Nedelec refinement transfer", "[NCMesh]")
 {
    const int order = GENERATE(1, 2);
    VectorFunctionCoefficient field_coefficient(2,
-      [](const Vector &x, Vector &value)
+                                               [](const Vector &x, Vector &value)
    {
       value[0] = 2.0 - x[1];
       value[1] = 1.0 + x[0];
@@ -725,10 +735,10 @@ TEST_CASE("NCMesh geometry-specific Nedelec refinement transfer", "[NCMesh]")
 
    for (const FacePatternCase &test : geometry_specific_2d_patterns)
    {
-      CAPTURE(order, test.geometry, test.pattern);
+      CAPTURE(order, test.geometry, test.pattern.GetId());
       Mesh mesh = Mesh::MakeCartesian2D(2, 1,
-                  test.geometry == Geometry::SQUARE ?
-                  Element::QUADRILATERAL : Element::TRIANGLE);
+                                        test.geometry == Geometry::SQUARE ?
+                                        Element::QUADRILATERAL : Element::TRIANGLE);
       mesh.EnsureNCMesh(true);
       ND_FECollection fec(order, 2);
       FiniteElementSpace fes(&mesh, &fec);
@@ -747,16 +757,20 @@ TEST_CASE("NCMesh geometry-specific Nedelec refinement transfer", "[NCMesh]")
    }
 }
 
-TEST_CASE("NCMesh quadrilateral diagonal patterns", "[NCMesh]")
+TEST_CASE("NCMesh quadrilateral triangle-child patterns", "[NCMesh]")
 {
    const Refinement::Pattern pattern = GENERATE(
                                           Refinement::Quadrilateral::DIAGONAL_02_2_TRIS,
                                           Refinement::Quadrilateral::DIAGONAL_13_2_TRIS,
-                                          Refinement::Quadrilateral::DIAGONALS_4_TRIS);
+                                          Refinement::Quadrilateral::DIAGONALS_4_TRIS,
+                                          Refinement::Quadrilateral::EDGE_01_3_TRIS,
+                                          Refinement::Quadrilateral::EDGE_12_3_TRIS,
+                                          Refinement::Quadrilateral::EDGE_23_3_TRIS,
+                                          Refinement::Quadrilateral::EDGE_30_3_TRIS);
    const int nested_child = GENERATE(-1, 0, 1, 2, 3);
    const int children =
-      pattern.GetId() == Refinement::Quadrilateral::DIAGONALS_4_TRIS.GetId() ?
-      4 : 2;
+      pattern.GetId() == Refinement::Quadrilateral::DIAGONALS_4_TRIS.GetId() ? 4 :
+      pattern.GetId() >= Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId() ? 3 : 2;
    if (nested_child >= children) { return; }
    CAPTURE(pattern.GetId(), nested_child);
    Mesh mesh("../../data/ref-square.mesh", 1, 1);
@@ -779,6 +793,18 @@ TEST_CASE("NCMesh quadrilateral diagonal patterns", "[NCMesh]")
    REQUIRE(SummarizeRefinedElements(mesh).volume == MFEM_Approx(1.0));
    REQUIRE(mesh.CheckElementOrientation(false) == 0);
    REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
+   if (pattern.GetId() >= Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId())
+   {
+      const int edge =
+         pattern.GetId() - Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId();
+      const real_t *v0 = mesh.GetVertex(edge);
+      const real_t *v1 = mesh.GetVertex((edge + 1) % 4);
+      const real_t *mid = mesh.GetVertex(4);
+      REQUIRE(mesh.GetNV() == 5);
+      REQUIRE(mesh.GetNBE() == 5);
+      REQUIRE(mid[0] == MFEM_Approx(0.5*(v0[0] + v1[0])));
+      REQUIRE(mid[1] == MFEM_Approx(0.5*(v0[1] + v1[1])));
+   }
    fes.Update();
    field.Update();
    GridFunction exact(&fes);
@@ -828,12 +854,16 @@ TEST_CASE("NCMesh quadrilateral diagonal patterns", "[NCMesh]")
    }
 }
 
-TEST_CASE("NCMesh quadrilateral diagonal L2 transfer", "[NCMesh]")
+TEST_CASE("NCMesh quadrilateral triangle-child L2 transfer", "[NCMesh]")
 {
    const Refinement::Pattern pattern = GENERATE(
                                           Refinement::Quadrilateral::DIAGONAL_02_2_TRIS,
                                           Refinement::Quadrilateral::DIAGONAL_13_2_TRIS,
-                                          Refinement::Quadrilateral::DIAGONALS_4_TRIS);
+                                          Refinement::Quadrilateral::DIAGONALS_4_TRIS,
+                                          Refinement::Quadrilateral::EDGE_01_3_TRIS,
+                                          Refinement::Quadrilateral::EDGE_12_3_TRIS,
+                                          Refinement::Quadrilateral::EDGE_23_3_TRIS,
+                                          Refinement::Quadrilateral::EDGE_30_3_TRIS);
    CAPTURE(pattern.GetId());
    Mesh mesh("../../data/ref-square.mesh", 1, 1);
    mesh.EnsureNCMesh(true);
@@ -1858,7 +1888,8 @@ TEST_CASE("NCMesh derived tetrahedron face edge topology", "[NCMesh]")
       const auto &faces = mesh.ncmesh->GetFaceList();
       const auto &edges = mesh.ncmesh->GetEdgeList();
       return std::array<int, 4> {faces.masters.Size(), faces.slaves.Size(),
-                                 edges.masters.Size(), edges.slaves.Size()};
+                                 edges.masters.Size(), edges.slaves.Size()
+                                };
    };
    const auto without = get_nc_counts(false);
    const auto with = get_nc_counts(true);
@@ -2167,13 +2198,18 @@ TEST_CASE("ParNCMesh triangle patterns across ranks", "[Parallel][NCMesh]")
    REQUIRE(mesh.GetGlobalNE() == 2);
 }
 
-TEST_CASE("ParNCMesh quadrilateral diagonal patterns", "[Parallel][NCMesh]")
+TEST_CASE("ParNCMesh quadrilateral triangle-child patterns",
+          "[Parallel][NCMesh]")
 {
    if (Mpi::WorldSize() != 2) { return; }
    const Refinement::Pattern pattern = GENERATE(
                                           Refinement::Quadrilateral::DIAGONAL_02_2_TRIS,
                                           Refinement::Quadrilateral::DIAGONAL_13_2_TRIS,
-                                          Refinement::Quadrilateral::DIAGONALS_4_TRIS);
+                                          Refinement::Quadrilateral::DIAGONALS_4_TRIS,
+                                          Refinement::Quadrilateral::EDGE_01_3_TRIS,
+                                          Refinement::Quadrilateral::EDGE_12_3_TRIS,
+                                          Refinement::Quadrilateral::EDGE_23_3_TRIS,
+                                          Refinement::Quadrilateral::EDGE_30_3_TRIS);
    CAPTURE(pattern.GetId());
    Mesh serial_mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL,
                                             true, 2.0, 1.0, false);
@@ -2197,8 +2233,8 @@ TEST_CASE("ParNCMesh quadrilateral diagonal patterns", "[Parallel][NCMesh]")
    }
    mesh.GeneralRefinement(refs);
    const int children =
-      pattern.GetId() == Refinement::Quadrilateral::DIAGONALS_4_TRIS.GetId() ?
-      4 : 2;
+      pattern.GetId() == Refinement::Quadrilateral::DIAGONALS_4_TRIS.GetId() ? 4 :
+      pattern.GetId() >= Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId() ? 3 : 2;
    REQUIRE(mesh.GetGlobalNE() == children + 1);
    REQUIRE(mesh.CheckElementOrientation(false) == 0);
    fes.Update();
@@ -2750,7 +2786,7 @@ TEST_CASE("ParNCMesh mixed pyramid vector L2 derefinement",
    const bool variable_order = GENERATE(false, true);
    const bool redistribute = GENERATE(false, true);
    const Ordering::Type ordering = GENERATE(Ordering::byNODES,
-                                           Ordering::byVDIM);
+                                            Ordering::byVDIM);
    CAPTURE(variable_order, redistribute, ordering);
 
    Mesh serial_mesh("../../data/l-mixed.mesh", 1, 1);
