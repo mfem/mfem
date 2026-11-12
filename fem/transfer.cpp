@@ -138,6 +138,25 @@ const Operator &GridTransfer::MakeTrueOperator(
    return *t_oper.Ptr();
 }
 
+const Operator &GenericGridTransfer::ForwardOperator()
+{
+   if (F.Ptr() == nullptr)
+   {
+      F.Reset(new GenericTransferOperator(ran_fes, dom_fes));
+   }
+   return *F.Ptr();
+}
+
+const Operator &GenericGridTransfer::BackwardOperator()
+{
+   if (B.Ptr() == nullptr)
+   {
+      B.Reset(new GenericTransferOperator(dom_fes, ran_fes));
+   }
+   return *B.Ptr();
+}
+
+
 
 InterpolationGridTransfer::~InterpolationGridTransfer()
 {
@@ -2182,6 +2201,52 @@ bool L2ProjectionGridTransfer::SupportsBackwardsOperator() const
    return ran_fes.GetTrueVSize() >= dom_fes.GetTrueVSize();
 }
 
+/*
+
+      :GenericTransferOperator(const_cast<FiniteElementSpace&>(dom_fes),
+                               const_cast<FiniteElementSpace&>(ran_fes)) {};
+
+*/
+
+GenericTransferOperator::GenericTransferOperator(const FiniteElementSpace&
+                                                 dom_fes,
+                                                 const FiniteElementSpace& ran_fes)
+   : Operator(ran_fes.GetVSize(), dom_fes.GetVSize()),
+     dom_gf(new GridFunction(const_cast<FiniteElementSpace*>(&dom_fes))),
+     ran_gf(new GridFunction(const_cast<FiniteElementSpace*>(&ran_fes)))
+{
+   MFEM_VERIFY(dom_fes.GetVectorDim() == ran_fes.GetVectorDim(),
+               "GenericTransferOperator: domainn and range VectorDim do not match");
+
+   if (dom_fes.GetVectorDim() == 1)
+   {
+      dom_cf = std::make_unique<GridFunctionCoefficient>(dom_gf.get());
+      ran_cf = std::make_unique<GridFunctionCoefficient>(ran_gf.get());
+   }
+   else
+   {
+      dom_vcf = std::make_unique<VectorGridFunctionCoefficient>(dom_gf.get());
+      ran_vcf = std::make_unique<VectorGridFunctionCoefficient>(ran_gf.get());
+   }
+}
+
+void GenericTransferOperator::Mult(const Vector& x, Vector& y) const
+{
+   dom_gf->SetFromTrueDofs(x);
+   if (dom_cf)
+   {
+      ran_gf->ProjectCoefficient(*dom_cf);
+   }
+   else if (dom_vcf)
+   {
+      ran_gf->ProjectCoefficient(*dom_vcf);
+   }
+   else
+   {
+      MFEM_ABORT("Coefficient not defined");
+   }
+   ran_gf->GetTrueDofs(y);
+}
 
 TransferOperator::TransferOperator(const FiniteElementSpace& lFESpace_,
                                    const FiniteElementSpace& hFESpace_)
