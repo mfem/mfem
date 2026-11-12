@@ -49,13 +49,12 @@ struct DerivativeApplyTranspose
       check_consistency(this->outputs, output_to_outfd, ctx.outfds);
 
       create_fieldbases<entity_t>(
-         this->inputs, input_to_infd, ctx.infds, ctx.ir, input_bases,
-         ctx.orientation);
+         this->inputs, input_to_infd, ctx.infds, ctx, input_bases);
       create_fieldbases<entity_t>(
-         this->outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
+         this->outputs, output_to_outfd, ctx.outfds, ctx, output_bases);
 
       const int nqp = ctx.ir.GetNPoints();
-      const int ne = ctx.nentities;
+      const int ne = ctx.marked_entities.Size();
       num_qp = nqp;
       gnqp = nqp * ne;
 
@@ -134,6 +133,8 @@ struct DerivativeApplyTranspose
       const int gnqp_local = gnqp;
       const int num_qp_local = num_qp;
       const int ncols_local = trial_vdim * total_trial_op_dim;
+      // The cache is indexed by entity, see DerivativeSetup.
+      const int *d_entities = ctx.marked_entities.Read();
 
       constexpr_for<0, n_outputs>([&](auto o)
       {
@@ -162,9 +163,9 @@ struct DerivativeApplyTranspose
             {
                // Cache is (q, cache_idx, e): adjacent threads (adjacent gq)
                // read adjacent addresses for a fixed cache_idx.
+               const int entity = d_entities[gq / num_qp_local];
                const int cache_base =
-                  (gq % num_qp_local) +
-                  num_qp_local * res_sz * (gq / num_qp_local);
+                  (gq % num_qp_local) + num_qp_local * res_sz * entity;
 
                for (int i = 0; i < tv_o; ++i)
                {

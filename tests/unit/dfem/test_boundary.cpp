@@ -58,6 +58,36 @@ template <int DIM> struct global_bdr_mass_qf
    }
 };
 
+// This tests global bdry integrator applied to sub entity
+// which includes also an Identity fop
+template <int DIM> struct global_rho_mass_qf
+{
+   void operator()(tensor_array<const dscalar_t> &u,
+                   tensor_array<const real_t, DIM, DIM> &J,
+                   tensor_array<const real_t> &w,
+                   tensor_array<const real_t> &rho,
+                   tensor_array<dscalar_t> &v) const
+   {
+      mfem::forall<UseEnzyme>(u.size(), [=] MFEM_HOST_DEVICE (int q)
+      {
+         v(q) = (dscalar_t)(u(q)) * rho(q) * w(q) * det(J(q));
+      });
+   }
+};
+
+template <int DIM> struct local_rho_mass_qf
+{
+   inline MFEM_HOST_DEVICE
+   void operator()(const dscalar_t &u,
+                   const tensor<real_t, DIM, DIM> &J,
+                   const real_t &w,
+                   const real_t &rho,
+                   dscalar_t &v) const
+   {
+      v = rho * u * w * det(J);
+   }
+};
+
 template <int DIM> struct local_mf_mass_qf
 {
    inline MFEM_HOST_DEVICE
@@ -159,15 +189,17 @@ void bdr_mass(const char *filename, int p)
    };
 
    // Checks the action, the direct and the cached derivative, and the
-   // transpose of @a dop against @a a, which is symmetric
-   const auto check = [&](DifferentiableOperator &dop, ParBilinearForm &a)
+   // transpose of @a dop against @a a, which is symmetric. The inputs of
+   // @a dop are U, Coords and the fields @a params.
+   const auto check = [&](DifferentiableOperator &dop, ParBilinearForm &a,
+                          auto &...params)
    {
       a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
       a.Assemble();
       a.Mult(x, y);
       pfes.GetProlongationMatrix()->MultTranspose(y, Y);
 
-      MultiVector MX{X, N}, MZ{Z};
+      MultiVector MX{X, N, params...}, MZ{Z};
       dop.Mult(MX, MZ);
       Z -= Y;
       REQUIRE(ParNormlp(Z, infinity(), pmesh.GetComm()) == MFEM_Approx(0.0));
@@ -404,9 +436,16 @@ void bdr_mass(const char *filename, int p)
          a.AddBoundaryIntegrator(new MassIntegrator(one, bdr_ir), bdr_attr);
 
          DifferentiableOperator dop(in_fds, out_fds, pmesh);
-         dop.AddBoundaryIntegrator<LocalQFBackend, action_kernels>(
-            bdr_mass_qf, IT{}, OT{}, *bdr_ir,
-            bdr_attr, DT{});
+         SECTION("LocalQF")
+         {
+            dop.AddBoundaryIntegrator<LocalQFBackend, action_kernels>(
+               bdr_mass_qf, IT{}, OT{}, *bdr_ir, bdr_attr, DT{});
+         }
+         SECTION("GlobalQF")
+         {
+            dop.AddBoundaryIntegrator<GlobalQFBackend, action_kernels>(
+               global_bdr_qf, IT{}, OT{}, *bdr_ir, bdr_attr, DT{});
+         }
          check(dop, a);
       }
 
@@ -424,13 +463,65 @@ void bdr_mass(const char *filename, int p)
          a.AddBoundaryIntegrator(new MassIntegrator(one, bdr_ir));
 
          DifferentiableOperator dop(in_fds, out_fds, pmesh);
-         for (const Array<int> *attr : { &first, &rest })
+         SECTION("LocalQF")
          {
-            dop.AddBoundaryIntegrator<LocalQFBackend, assembly_kernels>(
-               bdr_mass_qf, IT{}, OT{}, *bdr_ir, *attr, DT{});
+            for (const Array<int> *attr : { &first, &rest })
+            {
+               dop.AddBoundaryIntegrator<LocalQFBackend, assembly_kernels>(
+                  bdr_mass_qf, IT{}, OT{}, *bdr_ir, *attr, DT{});
+            }
+         }
+         SECTION("GlobalQF")
+         {
+            for (const Array<int> *attr : { &first, &rest })
+            {
+               dop.AddBoundaryIntegrator<GlobalQFBackend, assembly_kernels>(
+                  global_bdr_qf, IT{}, OT{}, *bdr_ir, *attr, DT{});
+            }
          }
          check_assembly(dop, a);
       }
+   }
+
+   SECTION("Domain Action with a parameter on an attribute subset")
+   {
+      // Every test mesh has one element attribute: put odd elements on attribute
+      // 2 so that marking attribute 1 selects a strict subset.
+      for (int e = 1; e < pmesh.GetNE(); e += 2) { pmesh.SetAttribute(e, 2); }
+      pmesh.SetAttributes();
+      Array<int> domain_attr({1, 0});
+
+      QuadratureSpace qs(pmesh, *ir);
+      VectorQuadratureSpace vqs(qs, 1);
+      QuadratureFunction rho(vqs);
+      rho.Randomize(2);
+      static constexpr int Rho = 2;
+      const auto param_in_fds = std::vector
+      {
+         FieldDescriptor{ U, &pfes },
+         FieldDescriptor{ Coords, mfes },
+         FieldDescriptor{ Rho, &vqs }
+      };
+      using RT = Inputs<Value<U>, Gradient<Coords>, Weight, Identity<Rho>>;
+
+      QuadratureFunctionCoefficient rho_coeff(rho);
+      ParBilinearForm a(&pfes);
+      a.AddDomainIntegrator(new MassIntegrator(rho_coeff, ir), domain_attr);
+
+      DifferentiableOperator dop(param_in_fds, out_fds, pmesh);
+      SECTION("LocalQF")
+      {
+         local_rho_mass_qf<DIM> qf;
+         dop.AddDomainIntegrator<LocalQFBackend, action_kernels>(
+            qf, RT{}, OT{}, *ir, domain_attr, DT{});
+      }
+      SECTION("GlobalQF")
+      {
+         global_rho_mass_qf<DIM> qf;
+         dop.AddDomainIntegrator<GlobalQFBackend, action_kernels>(
+            qf, RT{}, OT{}, *ir, domain_attr, DT{});
+      }
+      check(dop, a, rho);
    }
 }
 

@@ -45,23 +45,24 @@ struct DerivativeAction
       check_consistency(inputs, input_to_infd, ctx.infds);
       check_consistency(outputs, output_to_outfd, ctx.outfds);
 
-      create_fieldbases<entity_t>(inputs, input_to_infd, ctx.infds, ctx.ir,
-                                  input_bases, ctx.orientation);
-      create_fieldbases<entity_t>(
-         outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
+      create_fieldbases<entity_t>(inputs, input_to_infd, ctx.infds, ctx,
+                                  input_bases);
+      create_fieldbases<entity_t>(outputs, output_to_outfd, ctx.outfds, ctx,
+                                  output_bases);
 
       create_qlayouts(inputs, ctx.in_qlayouts, input_qlayouts);
       create_qlayouts(outputs, ctx.out_qlayouts, output_qlayouts);
 
       const int nqp = ctx.ir.GetNPoints();
-      gnqp = nqp * ctx.nentities;
+      gnqp = nqp * ctx.marked_entities.Size();
 
       xq_offsets.SetSize(ninputs + 1);
       xq_offsets[0] = 0;
       constexpr_for<0, ninputs>([&](auto i)
       {
          const auto input = get<i>(inputs);
-         xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.nentities;
+         xq_offsets[i + 1] =
+            nqp * input.size_on_qp * ctx.marked_entities.Size();
       });
       xq_offsets.PartialSum();
 
@@ -70,7 +71,8 @@ struct DerivativeAction
       constexpr_for<0, noutputs>([&](auto i)
       {
          const auto output = get<i>(outputs);
-         yq_offsets[i + 1] = nqp * output.size_on_qp * ctx.nentities;
+         yq_offsets[i + 1] =
+            nqp * output.size_on_qp * ctx.marked_entities.Size();
       });
       yq_offsets.PartialSum();
 

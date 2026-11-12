@@ -49,9 +49,9 @@ struct DerivativeSetup
       check_consistency(inputs, input_to_infd, ctx.infds);
       check_consistency(outputs, output_to_outfd, ctx.outfds);
 
-      create_fieldbases<entity_t>(inputs, input_to_infd, ctx.infds, ctx.ir,
-                                  input_bases, ctx.orientation);
-      create_fieldbases<entity_t>(outputs, output_to_outfd, ctx.outfds, ctx.ir,
+      create_fieldbases<entity_t>(inputs, input_to_infd, ctx.infds, ctx,
+                                  input_bases);
+      create_fieldbases<entity_t>(outputs, output_to_outfd, ctx.outfds, ctx,
                                   output_bases);
 
       create_qlayouts(inputs, ctx.in_qlayouts, input_qlayouts);
@@ -59,7 +59,7 @@ struct DerivativeSetup
 
       const int nqp = ctx.ir.GetNPoints();
       num_qp = nqp;
-      nentities = ctx.nentities;
+      nentities = ctx.marked_entities.Size();
       gnqp = nqp * nentities;
 
       xq_offsets.SetSize(ninputs + 1);
@@ -107,7 +107,9 @@ struct DerivativeSetup
       });
 
       residual_size_on_qp = total_out_size_on_qp * trial_vdim * total_trial_op_dim;
-      qp_cache.SetSize(residual_size_on_qp * num_qp * nentities);
+      // The cache is indexed by entity, as the LocalQF kernels that read it
+      // expect; only the entities of ctx.marked_entities are set.
+      qp_cache.SetSize(residual_size_on_qp * num_qp * ctx.nentities);
       qp_cache.UseDevice(true);
    }
 
@@ -138,6 +140,7 @@ struct DerivativeSetup
       const int trial_vdim_local = trial_vdim;
       const int total_trial_op_dim_local = total_trial_op_dim;
       const int residual_size_local = residual_size_on_qp;
+      const int *d_entities = ctx.marked_entities.Read();
 
       for (int j = 0; j < trial_vdim; j++)
       {
@@ -202,7 +205,7 @@ struct DerivativeSetup
                      const int gq       = idx % gnqp_local;
                      const int c_out    = idx / gnqp_local;
                      const int q        = gq % num_qp_local;
-                     const int entity   = gq / num_qp_local;
+                     const int entity   = d_entities[gq / num_qp_local];
                      const int out_comp = out_offset_o + (c_out % test_vdim_o) * test_op_dim_o +
                                           c_out / test_vdim_o;
                      const int cache_idx =
