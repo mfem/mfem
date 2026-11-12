@@ -1702,12 +1702,13 @@ void VectorFiniteElement::LocalInterpolation_ND(
 #endif
    I.SetSize(dof, vshape.Height());
 
-   // assuming Trans is linear; this should be ok for all refinement types
-   Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
-   const DenseMatrix &J = Trans.Jacobian();
    for (int k = 0; k < dof; k++)
    {
-      Trans.Transform(Nodes.IntPoint(k), xk);
+      const IntegrationPoint &node = Nodes.IntPoint(k);
+      // Mixed-child refinement can map a triangle to a bilinear quad.
+      Trans.SetIntPoint(&node);
+      const DenseMatrix &J = Trans.Jacobian();
+      Trans.Transform(node, xk);
       ip.Set3(vk);
       cfe.CalcVShape(ip, vshape);
       // xk = J t_k

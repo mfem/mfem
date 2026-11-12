@@ -72,6 +72,24 @@ NCFacePartition MakePatternFacePartition(Geometry::Type geometry, int pattern)
    return partition;
 }
 
+struct FacePatternCase
+{
+   Geometry::Type geometry;
+   int pattern;
+};
+
+constexpr FacePatternCase geometry_specific_2d_patterns[] =
+{
+   {Geometry::SQUARE, Refinement::QUAD_DIAG_02},
+   {Geometry::SQUARE, Refinement::QUAD_DIAG_13},
+   {Geometry::SQUARE, Refinement::QUAD_DIAG_BOTH},
+   {Geometry::TRIANGLE, Refinement::TRI_CORNER_0_QUAD},
+   {Geometry::TRIANGLE, Refinement::TRI_CORNER_1_QUAD},
+   {Geometry::TRIANGLE, Refinement::TRI_CORNER_2_QUAD},
+   {Geometry::TRIANGLE, Refinement::TRI_CENTER_3_TRIS},
+   {Geometry::TRIANGLE, Refinement::TRI_CENTER_3_QUADS}
+};
+
 real_t IntegrateGridFunction(Mesh &mesh, const GridFunction &field)
 {
    real_t integral = 0.0;
@@ -650,6 +668,82 @@ TEST_CASE("NCMesh face partition relations", "[NCMesh]")
          REQUIRE(CompareNCFacePartitions(partitions[5], partitions[6]) ==
                  NCFaceRelation::SecondRefinesFirst);
       }
+   }
+}
+
+TEST_CASE("NCMesh geometry-specific H1 field transfer round trip", "[NCMesh]")
+{
+   FunctionCoefficient affine([](const Vector &x)
+   { return 1.0 + 2.0*x[0] - 3.0*x[1]; });
+
+   for (const FacePatternCase &test : geometry_specific_2d_patterns)
+   {
+      CAPTURE(test.geometry, test.pattern);
+      Mesh mesh = Mesh::MakeCartesian2D(2, 1,
+                  test.geometry == Geometry::SQUARE ?
+                  Element::QUADRILATERAL : Element::TRIANGLE);
+      const int original_elements = mesh.GetNE();
+      mesh.EnsureNCMesh(true);
+      H1_FECollection fec(2, 2);
+      FiniteElementSpace fes(&mesh, &fec);
+      GridFunction field(&fes);
+      field.ProjectCoefficient(affine);
+
+      Array<Refinement> refs(1);
+      refs[0].Set(0, test.pattern);
+      mesh.GeneralRefinement(refs);
+      REQUIRE(mesh.GetNE() > original_elements);
+      fes.Update();
+      field.Update();
+      GridFunction exact(&fes);
+      exact.ProjectCoefficient(affine);
+      exact -= field;
+      REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+
+      Vector errors(mesh.GetNE());
+      errors = 0.0;
+      REQUIRE(mesh.DerefineByError(errors, 1.0));
+      REQUIRE(mesh.GetNE() == original_elements);
+      fes.Update();
+      field.Update();
+      exact.Update();
+      exact.ProjectCoefficient(affine);
+      exact -= field;
+      REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+   }
+}
+
+TEST_CASE("NCMesh geometry-specific Nedelec refinement transfer", "[NCMesh]")
+{
+   const int order = GENERATE(1, 2);
+   VectorFunctionCoefficient field_coefficient(2,
+      [](const Vector &x, Vector &value)
+   {
+      value[0] = 2.0 - x[1];
+      value[1] = 1.0 + x[0];
+   });
+
+   for (const FacePatternCase &test : geometry_specific_2d_patterns)
+   {
+      CAPTURE(order, test.geometry, test.pattern);
+      Mesh mesh = Mesh::MakeCartesian2D(2, 1,
+                  test.geometry == Geometry::SQUARE ?
+                  Element::QUADRILATERAL : Element::TRIANGLE);
+      mesh.EnsureNCMesh(true);
+      ND_FECollection fec(order, 2);
+      FiniteElementSpace fes(&mesh, &fec);
+      GridFunction field(&fes);
+      field.ProjectCoefficient(field_coefficient);
+
+      Array<Refinement> refs(1);
+      refs[0].Set(0, test.pattern);
+      mesh.GeneralRefinement(refs);
+      fes.Update();
+      field.Update();
+      GridFunction exact(&fes);
+      exact.ProjectCoefficient(field_coefficient);
+      exact -= field;
+      REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
    }
 }
 
