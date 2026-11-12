@@ -10,12 +10,14 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
+#include "../../../mesh/ncmesh_face_partition.hpp"
 #include "mesh_test_utils.hpp"
 #include "unit_tests.hpp"
 
 #include <algorithm>
 #include <array>
 #include <sstream>
+#include <vector>
 namespace mfem
 {
 
@@ -40,6 +42,34 @@ RefinedElementSummary SummarizeRefinedElements(Mesh &mesh)
       summary.volume += mesh.GetElementVolume(i);
    }
    return summary;
+}
+
+NCFacePartition MakePatternFacePartition(Geometry::Type geometry, int pattern)
+{
+   Mesh mesh(geometry == Geometry::TRIANGLE ?
+             "../../data/ref-triangle.mesh" : "../../data/ref-square.mesh", 1, 1);
+   if (pattern)
+   {
+      mesh.EnsureNCMesh(true);
+      Array<Refinement> refs(1);
+      refs[0].Set(0, pattern);
+      mesh.GeneralRefinement(refs);
+   }
+   NCFacePartition partition;
+   Array<int> vertices;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      NCFacePartition::Cell cell = {};
+      cell.geometry = mesh.GetElementBaseGeometry(i);
+      mesh.GetElementVertices(i, vertices);
+      for (int j = 0; j < vertices.Size(); j++)
+      {
+         const real_t *point = mesh.GetVertex(vertices[j]);
+         cell.vertex[j] = { point[0], point[1] };
+      }
+      partition.cells.Append(cell);
+   }
+   return partition;
 }
 
 real_t IntegrateGridFunction(Mesh &mesh, const GridFunction &field)
@@ -551,6 +581,76 @@ TEST_CASE("NCMesh legacy quad and hex pattern save and reload", "[NCMesh]")
    REQUIRE(reloaded.DerefineByError(errors, 1.0));
    REQUIRE(reloaded.GetNE() == 1);
    REQUIRE(reloaded.GetElementVolume(0) == MFEM_Approx(original_volume));
+}
+
+TEST_CASE("NCMesh face partition relations", "[NCMesh]")
+{
+   const int quad_patterns[] = {0, Refinement::X, Refinement::Y,
+                                Refinement::XY, Refinement::QUAD_DIAG_02,
+                                Refinement::QUAD_DIAG_13,
+                                Refinement::QUAD_DIAG_BOTH};
+   const int tri_patterns[] = {0, Refinement::X, Refinement::Y,
+                               Refinement::Z, Refinement::XY,
+                               Refinement::TRI_CORNER_0_QUAD,
+                               Refinement::TRI_CORNER_1_QUAD,
+                               Refinement::TRI_CORNER_2_QUAD,
+                               Refinement::TRI_CENTER_3_TRIS,
+                               Refinement::TRI_CENTER_3_QUADS};
+   for (Geometry::Type geometry : {Geometry::TRIANGLE, Geometry::SQUARE})
+   {
+      const int *patterns = geometry == Geometry::TRIANGLE ? tri_patterns :
+                            quad_patterns;
+      const int count = geometry == Geometry::TRIANGLE ?
+                        sizeof(tri_patterns)/sizeof(int) :
+                        sizeof(quad_patterns)/sizeof(int);
+      std::vector<NCFacePartition> partitions;
+      for (int i = 0; i < count; i++)
+      { partitions.push_back(MakePatternFacePartition(geometry, patterns[i])); }
+
+      for (int i = 0; i < count; i++)
+      {
+         REQUIRE(CompareNCFacePartitions(partitions[i], partitions[i]) ==
+                 NCFaceRelation::Matching);
+         NCFacePartition reversed = MakePatternFacePartition(geometry,
+                                                              patterns[i]);
+         for (int cell = 0; cell < reversed.cells.Size(); cell++)
+         {
+            const int last = reversed.cells[cell].geometry ==
+                             Geometry::TRIANGLE ? 2 : 3;
+            std::swap(reversed.cells[cell].vertex[1],
+                      reversed.cells[cell].vertex[last]);
+         }
+         REQUIRE(CompareNCFacePartitions(partitions[i], reversed) ==
+                 NCFaceRelation::Matching);
+         REQUIRE(CompareNCFacePartitions(partitions[0], partitions[i]) ==
+                 (i == 0 ? NCFaceRelation::Matching :
+                  NCFaceRelation::SecondRefinesFirst));
+         for (int j = 0; j < count; j++)
+         {
+            const NCFaceRelation ij =
+               CompareNCFacePartitions(partitions[i], partitions[j]);
+            const NCFaceRelation ji =
+               CompareNCFacePartitions(partitions[j], partitions[i]);
+            if (ij == NCFaceRelation::FirstRefinesSecond)
+            { REQUIRE(ji == NCFaceRelation::SecondRefinesFirst); }
+            else if (ij == NCFaceRelation::SecondRefinesFirst)
+            { REQUIRE(ji == NCFaceRelation::FirstRefinesSecond); }
+            else
+            { REQUIRE(ji == ij); }
+         }
+      }
+      if (geometry == Geometry::SQUARE)
+      {
+         REQUIRE(CompareNCFacePartitions(partitions[1], partitions[3]) ==
+                 NCFaceRelation::SecondRefinesFirst);
+         REQUIRE(CompareNCFacePartitions(partitions[4], partitions[5]) ==
+                 NCFaceRelation::Incompatible);
+         REQUIRE(CompareNCFacePartitions(partitions[4], partitions[6]) ==
+                 NCFaceRelation::SecondRefinesFirst);
+         REQUIRE(CompareNCFacePartitions(partitions[5], partitions[6]) ==
+                 NCFaceRelation::SecondRefinesFirst);
+      }
+   }
 }
 
 TEST_CASE("NCMesh quadrilateral diagonal patterns", "[NCMesh]")
