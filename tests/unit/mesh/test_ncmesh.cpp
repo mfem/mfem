@@ -577,6 +577,62 @@ TEST_CASE("NCMesh nested mixed child transforms", "[NCMesh]")
    REQUIRE(counts[Geometry::TETRAHEDRON] == 11);
 }
 
+TEST_CASE("NCMesh derived tetrahedron face edge topology", "[NCMesh]")
+{
+   const int pyramid_attribute = GENERATE(1, 2, 3, 4, 9);
+   const int tet_child = GENERATE(0, 1, 2, 3);
+   // The unrelated root tet must not change constraints around tetrahedra
+   // created from a pyramid; both meshes need tetrahedral face-edge traversal.
+   auto get_nc_counts = [pyramid_attribute, tet_child](bool add_root_tet)
+   {
+      Mesh mesh("../../data/l-mixed.mesh", 1, 1);
+      if (add_root_tet)
+      {
+         const int v0 = mesh.AddVertex(2.0, 0.0, 0.0);
+         const int v1 = mesh.AddVertex(3.0, 0.0, 0.0);
+         const int v2 = mesh.AddVertex(2.0, 1.0, 0.0);
+         const int v3 = mesh.AddVertex(2.0, 0.0, 1.0);
+         mesh.AddTet(v0, v1, v2, v3, 99);
+         mesh.FinalizeTopology();
+         mesh.Finalize();
+      }
+      mesh.EnsureNCMesh(true);
+      Array<Refinement> refs;
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         if (mesh.GetAttribute(i) == pyramid_attribute)
+         {
+            refs.Append(Refinement(i, Refinement::XYZ));
+         }
+      }
+      mesh.GeneralRefinement(refs);
+      refs.SetSize(0);
+      int tet = 0;
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         if (mesh.GetAttribute(i) == pyramid_attribute &&
+             mesh.GetElementBaseGeometry(i) == Geometry::TETRAHEDRON &&
+             tet++ == tet_child)
+         {
+            refs.Append(Refinement(i, Refinement::XYZ));
+            break;
+         }
+      }
+      REQUIRE(refs.Size() == 1);
+      mesh.GeneralRefinement(refs);
+      const auto &faces = mesh.ncmesh->GetFaceList();
+      const auto &edges = mesh.ncmesh->GetEdgeList();
+      return std::array<int, 4> {faces.masters.Size(), faces.slaves.Size(),
+                                 edges.masters.Size(), edges.slaves.Size()};
+   };
+   const auto without = get_nc_counts(false);
+   const auto with = get_nc_counts(true);
+   CAPTURE(pyramid_attribute, tet_child,
+           without[0], without[1], without[2], without[3],
+           with[0], with[1], with[2], with[3]);
+   REQUIRE(without == with);
+}
+
 TEST_CASE("NCMesh mixed pyramid parent field derefinement", "[NCMesh]")
 {
    const int order = GENERATE(1, 2);

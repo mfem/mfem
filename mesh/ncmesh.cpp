@@ -259,14 +259,18 @@ NCMesh::NCMesh(const NCMesh &other)
 void NCMesh::InitGeomFlags()
 {
    Geoms = 0;
-   for (int i = 0; i < root_state.Size(); i++)
+   for (int i = 0; i < elements.Size(); i++)
    {
-      Geoms |= (1 << elements[i].Geom());
+      if (elements[i].parent != -2)
+      {
+         Geoms |= (1 << elements[i].Geom());
+      }
    }
 }
 
 void NCMesh::Update()
 {
+   InitGeomFlags();
    UpdateLeafElements();
    UpdateVertices();
 
@@ -5357,7 +5361,7 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms() const
          mat_no[g][0] = 1; // 0 == identity
       }
 
-      // Geoms describes the roots; mixed refinement can add child geometries.
+      // Include geometries of fine elements that were removed by derefinement.
       int used_geoms = Geoms;
       for (int i = 0; i < transforms.embeddings.Size(); i++)
       {

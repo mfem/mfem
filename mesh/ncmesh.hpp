@@ -673,7 +673,7 @@ protected: // implementation
    int Dim, spaceDim; ///< dimensions of the elements and the vertex coordinates
    int MyRank; ///< used in parallel, or when loading a parallel file in serial
    bool Iso; ///< true if the mesh only contains isotropic refinements
-   int Geoms; ///< bit mask of element geometries present, see InitGeomFlags()
+   int Geoms; ///< bit mask of active element geometries, see InitGeomFlags()
    bool Legacy; ///< true if the mesh was loaded from the legacy v1.1 format
 
 
@@ -919,8 +919,8 @@ protected:
        Mesh::GetGeckoElementOrdering. */
    void InitRootState(int root_count);
 
-   /** Compute the Geometry::Type present in the root elements (coarse elements)
-       and set @a Geoms bitmask accordingly. */
+   /** Compute the Geometry::Type present in the active element hierarchy and
+       set @a Geoms bitmask accordingly. */
    void InitGeomFlags();
 
    /// Return true if the mesh contains prism elements.
