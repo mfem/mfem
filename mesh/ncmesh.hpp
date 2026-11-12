@@ -82,6 +82,9 @@ struct Refinement
       static constexpr Pattern SPLIT_X { Geometry::SQUARE, X };
       static constexpr Pattern SPLIT_Y { Geometry::SQUARE, Y };
       static constexpr Pattern UNIFORM { Geometry::SQUARE, XY };
+      static constexpr Pattern DIAGONAL_02_2_TRIS { Geometry::SQUARE, 8 };
+      static constexpr Pattern DIAGONAL_13_2_TRIS { Geometry::SQUARE, 9 };
+      static constexpr Pattern DIAGONALS_4_TRIS { Geometry::SQUARE, 10 };
    };
 
    /** Existing tetrahedron refinement patterns. */

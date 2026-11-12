@@ -302,7 +302,7 @@ TEST_CASE("NCMesh geometry-specific refinement patterns", "[NCMesh]")
 {
    SECTION("pattern descriptors")
    {
-      const std::array<Refinement::Pattern, 24> patterns =
+      const std::array<Refinement::Pattern, 27> patterns =
       {
          Refinement::Segment::BISECTION,
          Refinement::Triangle::EDGE_01_2_TRIS,
@@ -312,6 +312,9 @@ TEST_CASE("NCMesh geometry-specific refinement patterns", "[NCMesh]")
          Refinement::Quadrilateral::SPLIT_X,
          Refinement::Quadrilateral::SPLIT_Y,
          Refinement::Quadrilateral::UNIFORM,
+         Refinement::Quadrilateral::DIAGONAL_02_2_TRIS,
+         Refinement::Quadrilateral::DIAGONAL_13_2_TRIS,
+         Refinement::Quadrilateral::DIAGONALS_4_TRIS,
          Refinement::Tetrahedron::EDGE_01_2_TETS,
          Refinement::Tetrahedron::EDGE_02_2_TETS,
          Refinement::Tetrahedron::EDGE_03_2_TETS,
@@ -543,6 +546,154 @@ TEST_CASE("NCMesh legacy quad and hex pattern save and reload", "[NCMesh]")
    REQUIRE(reloaded.DerefineByError(errors, 1.0));
    REQUIRE(reloaded.GetNE() == 1);
    REQUIRE(reloaded.GetElementVolume(0) == MFEM_Approx(original_volume));
+}
+
+TEST_CASE("NCMesh quadrilateral diagonal patterns", "[NCMesh]")
+{
+   const Refinement::Pattern pattern = GENERATE(
+                                          Refinement::Quadrilateral::DIAGONAL_02_2_TRIS,
+                                          Refinement::Quadrilateral::DIAGONAL_13_2_TRIS,
+                                          Refinement::Quadrilateral::DIAGONALS_4_TRIS);
+   const int nested_child = GENERATE(-1, 0, 1, 2, 3);
+   const int children =
+      pattern.GetId() == Refinement::Quadrilateral::DIAGONALS_4_TRIS.GetId() ?
+      4 : 2;
+   if (nested_child >= children) { return; }
+   CAPTURE(pattern.GetId(), nested_child);
+   Mesh mesh("../../data/ref-square.mesh", 1, 1);
+   mesh.EnsureNCMesh(true);
+   H1_FECollection fec(2, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + 2.0*x[0] - 3.0*x[1];
+   });
+   field.ProjectCoefficient(affine);
+
+   Array<Refinement> refs(1);
+   refs[0].Set(0, pattern);
+   mesh.GeneralRefinement(refs);
+   REQUIRE(mesh.GetNE() == children);
+   REQUIRE(SummarizeRefinedElements(mesh).geometry_counts[Geometry::TRIANGLE]
+           == children);
+   REQUIRE(SummarizeRefinedElements(mesh).volume == MFEM_Approx(1.0));
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
+   fes.Update();
+   field.Update();
+   GridFunction exact(&fes);
+   exact.ProjectCoefficient(affine);
+   exact -= field;
+   REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+
+   if (nested_child >= 0)
+   {
+      refs[0].Set(nested_child, Refinement::X);
+      mesh.GeneralRefinement(refs);
+      REQUIRE(mesh.GetNE() == children + 1);
+      fes.Update();
+      field.Update();
+      exact.Update();
+      exact.ProjectCoefficient(affine);
+      exact -= field;
+      REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+   }
+
+   std::stringstream serialized;
+   mesh.Print(serialized);
+   REQUIRE(serialized.str().find("MFEM NC mesh v1.2") == 0);
+   Mesh reloaded(serialized, 1, 1);
+   REQUIRE(reloaded.GetNE() == mesh.GetNE());
+   REQUIRE(SummarizeRefinedElements(reloaded).volume == MFEM_Approx(1.0));
+   for (int level = 0; level < (nested_child >= 0 ? 2 : 1); level++)
+   {
+      Vector errors(reloaded.GetNE());
+      errors = 0.0;
+      REQUIRE(reloaded.DerefineByError(errors, 1.0));
+   }
+   REQUIRE(reloaded.GetNE() == 1);
+   REQUIRE(reloaded.GetElementVolume(0) == MFEM_Approx(1.0));
+   REQUIRE(reloaded.GetNBE() == 4);
+   int boundary_count[5] = {0, 0, 0, 0, 0};
+   for (int i = 0; i < reloaded.GetNBE(); i++)
+   {
+      const int attribute = reloaded.GetBdrAttribute(i);
+      REQUIRE(attribute >= 1);
+      REQUIRE(attribute <= 4);
+      boundary_count[attribute]++;
+   }
+   for (int attribute = 1; attribute <= 4; attribute++)
+   {
+      REQUIRE(boundary_count[attribute] == 1);
+   }
+}
+
+TEST_CASE("NCMesh quadrilateral diagonal L2 transfer", "[NCMesh]")
+{
+   const Refinement::Pattern pattern = GENERATE(
+                                          Refinement::Quadrilateral::DIAGONAL_02_2_TRIS,
+                                          Refinement::Quadrilateral::DIAGONAL_13_2_TRIS,
+                                          Refinement::Quadrilateral::DIAGONALS_4_TRIS);
+   CAPTURE(pattern.GetId());
+   Mesh mesh("../../data/ref-square.mesh", 1, 1);
+   mesh.EnsureNCMesh(true);
+   L2_FECollection fec(2, 2, BasisType::GaussLegendre,
+                       FiniteElement::VALUE);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   for (int i = 0; i < field.Size(); i++)
+   {
+      field(i) = (i % 11 - 5) / 7.0;
+   }
+   const real_t coarse_integral = IntegrateGridFunction(mesh, field);
+   Array<Refinement> refs(1);
+   refs[0].Set(0, pattern);
+   mesh.GeneralRefinement(refs);
+   fes.Update();
+   field.Update();
+   REQUIRE(IntegrateGridFunction(mesh, field) ==
+           MFEM_Approx(coarse_integral, EPS));
+
+   Vector errors(mesh.GetNE());
+   errors = 0.0;
+   REQUIRE(mesh.DerefineByError(errors, 1.0));
+   fes.Update();
+   field.Update();
+   REQUIRE(IntegrateGridFunction(mesh, field) ==
+           MFEM_Approx(coarse_integral, EPS));
+}
+
+TEST_CASE("NCMesh quadrilateral diagonal center on skew element", "[NCMesh]")
+{
+   Mesh mesh("../../data/ref-square.mesh", 1, 1);
+   mesh.GetVertex(2)[0] = 1.8;
+   mesh.GetVertex(2)[1] = 1.2;
+   mesh.GetVertex(3)[0] = -0.2;
+   real_t center[2] = {0.0, 0.0};
+   for (int i = 0; i < 4; i++)
+   {
+      center[0] += mesh.GetVertex(i)[0] / 4.0;
+      center[1] += mesh.GetVertex(i)[1] / 4.0;
+   }
+   const real_t original_area = mesh.GetElementVolume(0);
+   mesh.EnsureNCMesh(true);
+   Array<Refinement> refs(1);
+   refs[0].Set(0, Refinement::Quadrilateral::DIAGONALS_4_TRIS);
+   mesh.GeneralRefinement(refs);
+   REQUIRE(mesh.GetNV() == 5);
+   REQUIRE(mesh.GetVertex(4)[0] == MFEM_Approx(center[0]));
+   REQUIRE(mesh.GetVertex(4)[1] == MFEM_Approx(center[1]));
+   REQUIRE(SummarizeRefinedElements(mesh).volume == MFEM_Approx(original_area));
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   std::stringstream serialized;
+   mesh.Print(serialized);
+   Mesh reloaded(serialized, 1, 1);
+   REQUIRE(reloaded.GetNV() == 5);
+   REQUIRE(reloaded.GetVertex(4)[0] == MFEM_Approx(center[0]));
+   REQUIRE(reloaded.GetVertex(4)[1] == MFEM_Approx(center[1]));
+   REQUIRE(SummarizeRefinedElements(reloaded).volume ==
+           MFEM_Approx(original_area));
 }
 
 TEST_CASE("NCMesh mixed pyramid children save and reload", "[NCMesh]")
@@ -1579,6 +1730,53 @@ TEST_CASE("ParNCMesh geometry-specific refinement patterns",
    pmesh.GeneralRefinement(refs);
 
    REQUIRE(pmesh.GetGlobalNE() == 3);
+}
+
+TEST_CASE("ParNCMesh quadrilateral diagonal patterns", "[Parallel][NCMesh]")
+{
+   if (Mpi::WorldSize() != 2) { return; }
+   const Refinement::Pattern pattern = GENERATE(
+                                          Refinement::Quadrilateral::DIAGONAL_02_2_TRIS,
+                                          Refinement::Quadrilateral::DIAGONAL_13_2_TRIS,
+                                          Refinement::Quadrilateral::DIAGONALS_4_TRIS);
+   CAPTURE(pattern.GetId());
+   Mesh serial_mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL,
+                                            true, 2.0, 1.0, false);
+   serial_mesh.EnsureNCMesh(true);
+   int partitioning[2] = {0, 1};
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partitioning);
+   H1_FECollection fec(2, 2);
+   ParFiniteElementSpace fes(&mesh, &fec);
+   ParGridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + 2.0*x[0] - 3.0*x[1];
+   });
+   field.ProjectCoefficient(affine);
+
+   Array<Refinement> refs;
+   if (Mpi::WorldRank() == 0)
+   {
+      REQUIRE(mesh.GetNE() == 1);
+      refs.Append(Refinement(0, pattern));
+   }
+   mesh.GeneralRefinement(refs);
+   const int children =
+      pattern.GetId() == Refinement::Quadrilateral::DIAGONALS_4_TRIS.GetId() ?
+      4 : 2;
+   REQUIRE(mesh.GetGlobalNE() == children + 1);
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   fes.Update();
+   field.Update();
+   ParGridFunction exact(&fes);
+   exact.ProjectCoefficient(affine);
+   exact -= field;
+   REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+
+   Vector errors(mesh.GetNE());
+   errors = 0.0;
+   REQUIRE(mesh.DerefineByError(errors, 1.0));
+   REQUIRE(mesh.GetGlobalNE() == 2);
 }
 
 TEST_CASE("ParNCMesh anisotropic tet shared face", "[Parallel][NCMesh]")

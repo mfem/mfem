@@ -1941,9 +1941,43 @@ void NCMesh::RefineElement(const Refinement & ref)
    }
    else if (el.Geom() == Geometry::SQUARE)
    {
-      ref_type &= 0x3; // ignore Z bit
+      if (ref_type < 8) { ref_type &= 0x3; } // legacy: ignore Z bit
 
-      if (ref_type == Refinement::X) // X split
+      if (ref_type == Refinement::Quadrilateral::DIAGONAL_02_2_TRIS.GetId())
+      {
+         GI[Geometry::TRIANGLE].InitGeom(Geometry::TRIANGLE);
+         child[0] = NewTriangle(no[0], no[1], no[2],
+                                attr, fa[0], fa[1], -1);
+         child[1] = NewTriangle(no[0], no[2], no[3],
+                                attr, -1, fa[2], fa[3]);
+      }
+      else if (ref_type == Refinement::Quadrilateral::DIAGONAL_13_2_TRIS.GetId())
+      {
+         GI[Geometry::TRIANGLE].InitGeom(Geometry::TRIANGLE);
+         child[0] = NewTriangle(no[0], no[1], no[3],
+                                attr, fa[0], -1, fa[3]);
+         child[1] = NewTriangle(no[1], no[2], no[3],
+                                attr, fa[1], fa[2], -1);
+      }
+      else if (ref_type == Refinement::Quadrilateral::DIAGONALS_4_TRIS.GetId())
+      {
+         GI[Geometry::TRIANGLE].InitGeom(Geometry::TRIANGLE);
+         const int mid01 = GetMidEdgeNode(no[0], no[1]);
+         const int mid23 = GetMidEdgeNode(no[2], no[3]);
+         nodes[mid01].SetScale(0.5);
+         nodes[mid23].SetScale(0.5);
+         const int center = GetMidEdgeNode(mid01, mid23);
+         nodes[center].SetScale(0.5);
+         child[0] = NewTriangle(no[0], no[1], center,
+                                attr, fa[0], -1, -1);
+         child[1] = NewTriangle(no[1], no[2], center,
+                                attr, fa[1], -1, -1);
+         child[2] = NewTriangle(no[2], no[3], center,
+                                attr, fa[2], -1, -1);
+         child[3] = NewTriangle(no[3], no[0], center,
+                                attr, fa[3], -1, -1);
+      }
+      else if (ref_type == Refinement::X) // X split
       {
          const int mid01 = nodes.GetId(no[0], no[1]);
          const int mid23 = nodes.GetId(no[2], no[3]);
@@ -2156,46 +2190,12 @@ int NCMesh::RetrieveNode(const Element &el, int index)
 {
    if (!el.ref_type) { return el.node[index]; }
 
-   // need to retrieve node from a child element (there is always a child that
-   // inherited the parent's corner under the same index)
-   int ch;
-   switch (el.Geom())
-   {
-      case Geometry::CUBE:
-         ch = el.child[GetNCRefinementPattern(el.Geom(), el.ref_type).deref[index]];
-         break;
-
-      case Geometry::PRISM:
-         ch = GetNCRefinementPattern(el.Geom(), el.ref_type).deref[index];
-         MFEM_ASSERT(ch != -1, "");
-         ch = el.child[ch];
-         break;
-
-      case Geometry::PYRAMID:
-         ch = GetNCRefinementPattern(el.Geom(), el.ref_type).deref[index];
-         MFEM_ASSERT(ch != -1, "");
-         ch = el.child[ch];
-         break;
-
-      case Geometry::SQUARE:
-         ch = el.child[GetNCRefinementPattern(el.Geom(), el.ref_type).deref[index]];
-         break;
-
-      case Geometry::TETRAHEDRON:
-         ch = GetNCRefinementPattern(el.Geom(), el.ref_type).deref[index];
-         MFEM_ASSERT(ch >= 0, "invalid tetrahedron refinement");
-         ch = el.child[ch];
-         break;
-
-      case Geometry::TRIANGLE:
-         ch = el.child[GetNCRefinementPattern(el.Geom(), el.ref_type).deref[index]];
-         break;
-
-      default:
-         ch = 0; // suppress compiler warning
-         MFEM_ABORT("Unsupported element geometry.");
-   }
-   return RetrieveNode(elements[ch], index);
+   const NCRefinementPattern &pattern =
+      GetNCRefinementPattern(el.Geom(), el.ref_type);
+   MFEM_VERIFY(pattern.deref && pattern.deref[index] >= 0,
+               "Cannot retrieve parent vertex from child");
+   const int child = el.child[pattern.deref[index]];
+   return RetrieveNode(elements[child], pattern.VertexLocal(index));
 }
 
 
@@ -2223,154 +2223,51 @@ void NCMesh::DerefineElement(int elem)
 
    for (int i = 0; i < MaxElemNodes; i++) { el.node[i] = -1; }
 
-   // retrieve original corner nodes and face attributes from the children
-   if (el.Geom() == Geometry::CUBE)
+   // Retrieve parent corners and face attributes using each selected child's
+   // own local numbering. A pattern may have children of different geometries.
+   if (el.Geom() != Geometry::SEGMENT)
    {
-      // Sets corner nodes from children
-      constexpr int nb_cube_childs = 8;
-      for (int i = 0; i < nb_cube_childs; i++)
+      MFEM_VERIFY(deref, "Missing NC derefinement map");
+      const int nv = GI[el.Geom()].nv;
+      const int nf = GI[el.Geom()].nf;
+      for (int i = 0; i < nv; i++)
       {
-         const int child_local_index = deref[i];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         el.node[i] = ch.node[i];
+         const int child_index = deref[i];
+         MFEM_VERIFY(child_index >= 0 && child_index < pattern.num_children,
+                     "Invalid parent vertex child");
+         const Element &ch = elements[child[child_index]];
+         GI[ch.Geom()].InitGeom(ch.Geom());
+         const int local = pattern.VertexLocal(i);
+         MFEM_VERIFY(local >= 0 && local < GI[ch.Geom()].nv,
+                     "Invalid child vertex in derefinement map");
+         el.node[i] = ch.node[local];
       }
-      // Sets faces attributes from childs' faces
-      constexpr int nb_cube_faces = 6;
-      for (int i = 0; i < nb_cube_faces; i++)
+      for (int i = 0; i < nf; i++)
       {
-         const int child_local_index = deref[i + nb_cube_childs];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         const int* fv = GI[el.Geom()].faces[i];
-         faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
-                                         ch.node[fv[2]], ch.node[fv[3]])
-                              ->attribute;
-      }
-   }
-   else if (el.Geom() == Geometry::PRISM)
-   {
-      MFEM_ASSERT(deref[0] != -1,
-                  "invalid prism refinement");
-      constexpr int nb_prism_childs = 6;
-      for (int i = 0; i < nb_prism_childs; i++)
-      {
-         const int child_local_index = deref[i];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         el.node[i] = ch.node[i];
-      }
-      el.node[6] = el.node[7] = -1;
-
-      constexpr int nb_prism_faces = 5;
-      for (int i = 0; i < nb_prism_faces; i++)
-      {
-         const int child_local_index = deref[i + nb_prism_childs];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         const int* fv = GI[el.Geom()].faces[i];
-         faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
-                                         ch.node[fv[2]], ch.node[fv[3]])
-                              ->attribute;
-      }
-   }
-   else if (el.Geom() == Geometry::PYRAMID)
-   {
-      MFEM_ASSERT(deref[0] != -1,
-                  "invalid pyramid refinement");
-      constexpr int nb_pyramid_childs = 5;
-      for (int i = 0; i < nb_pyramid_childs; i++)
-      {
-         const int child_local_index = deref[i];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         el.node[i] = ch.node[i];
-      }
-      el.node[5] = el.node[6] = el.node[7] = -1;
-
-
-      constexpr int nb_pyramid_faces = 5;
-      for (int i = 0; i < nb_pyramid_faces; i++)
-      {
-         const int child_local_index = deref[i + nb_pyramid_childs];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         const int* fv = GI[el.Geom()].faces[i];
-         faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
-                                         ch.node[fv[2]], ch.node[fv[3]])
-                              ->attribute;
-      }
-   }
-   else if (el.Geom() == Geometry::TETRAHEDRON)
-   {
-      MFEM_ASSERT(deref[0] >= 0, "invalid tetrahedron refinement");
-      for (int i = 0; i < 4; i++)
-      {
-         const int vertex_child = deref[i];
-         const int face_child = deref[i + 4];
-         Element& ch1 = elements[child[vertex_child]];
-         Element& ch2 = elements[child[face_child]];
-         el.node[i] = ch1.node[i];
-         const int* fv = GI[el.Geom()].faces[i];
-         faces_attribute[i] = faces.Find(ch2.node[fv[0]], ch2.node[fv[1]],
-                                         ch2.node[fv[2]], ch2.node[fv[3]])
-                              ->attribute;
-      }
-   }
-   else if (el.Geom() == Geometry::SQUARE)
-   {
-      constexpr int nb_square_childs = 4;
-      for (int i = 0; i < nb_square_childs; i++)
-      {
-         const int child_local_index = deref[i];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         el.node[i] = ch.node[i];
-      }
-      constexpr int nb_square_faces = 4;
-      for (int i = 0; i < nb_square_faces; i++)
-      {
-         const int child_local_index = deref[i + nb_square_childs];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         const int* fv = GI[el.Geom()].faces[i];
-         faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
-                                         ch.node[fv[2]], ch.node[fv[3]])
-                              ->attribute;
-      }
-   }
-   else if (el.Geom() == Geometry::TRIANGLE)
-   {
-      constexpr int nb_triangle_childs = 3;
-      for (int i = 0; i < nb_triangle_childs; i++)
-      {
-         const int child_local_index = deref[i];
-         Element& ch = elements[child[child_local_index]];
-         el.node[i] = ch.node[i];
-      }
-      for (int i = 0; i < nb_triangle_childs; i++)
-      {
-         const int child_local_index = deref[i + nb_triangle_childs];
-         Element& ch = elements[child[child_local_index]];
-         const int* fv = GI[el.Geom()].faces[i];
-         faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
-                                         ch.node[fv[2]], ch.node[fv[3]])
-                              ->attribute;
-      }
-   }
-   else if (el.Geom() == Geometry::SEGMENT)
-   {
-      constexpr int nb_segment_childs = 2;
-      for (int i = 0; i < nb_segment_childs; i++)
-      {
-         int ni = elements[child[i]].node[i];
-         el.node[i] = ni;
-         faces_attribute[i] = faces.Find(ni, ni, ni, ni)->attribute;
+         const int child_index = deref[nv + i];
+         MFEM_VERIFY(child_index >= 0 && child_index < pattern.num_children,
+                     "Invalid parent face child");
+         const Element &ch = elements[child[child_index]];
+         GI[ch.Geom()].InitGeom(ch.Geom());
+         const GeomInfo &child_info = GI[ch.Geom()];
+         const int local = pattern.FaceLocal(i);
+         MFEM_VERIFY(local >= 0 && local < child_info.nf,
+                     "Invalid child face in derefinement map");
+         const int *fv = child_info.faces[local];
+         const Face *face = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
+                                       ch.node[fv[2]], ch.node[fv[3]]);
+         MFEM_VERIFY(face, "Child face missing during derefinement");
+         faces_attribute[i] = face->attribute;
       }
    }
    else
    {
-      MFEM_ABORT("Unsupported element geometry.");
+      for (int i = 0; i < 2; i++)
+      {
+         const int node = elements[child[i]].node[i];
+         el.node[i] = node;
+         faces_attribute[i] = faces.Find(node, node, node, node)->attribute;
+      }
    }
 
    // sign in to all nodes
@@ -4729,8 +4626,8 @@ int NCMesh::GetVertexRootCoord(int elem, RefCoord coord[3]) const
       while (ch < MaxElemChildren && pa.child[ch] != elem) { ch++; }
       MFEM_ASSERT(ch < MaxElemChildren, "internal error");
 
-      MFEM_ASSERT(geom_parent[el.Geom()], "unsupported geometry");
-      const RefTrf &tr = geom_parent[el.Geom()][(int) pa.ref_type][ch];
+      MFEM_ASSERT(geom_parent[pa.Geom()], "unsupported geometry");
+      const RefTrf &tr = geom_parent[pa.Geom()][(int) pa.ref_type][ch];
       tr.Apply(coord, coord);
 
       elem = el.parent;
@@ -4784,7 +4681,9 @@ void NCMesh::CollectIncidentElements(int elem, const RefCoord coord[3],
       const RefTrf &tr = geom_child[el.Geom()][(int) el.ref_type][ch];
       tr.Apply(coord, tcoord);
 
-      if (RefPointInside(el.Geom(), tcoord))
+      const Geometry::Type child_geom =
+         GetNCRefinementPattern(el.Geom(), el.ref_type).ChildGeometry(el.Geom(), ch);
+      if (RefPointInside(child_geom, tcoord))
       {
          CollectIncidentElements(el.child[ch], tcoord, list);
       }
@@ -5306,7 +5205,26 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
       }
       else if (geom == Geometry::SQUARE)
       {
-         if (ref_type == 1) // X split
+         if (ref_type == Refinement::Quadrilateral::DIAGONAL_02_2_TRIS.GetId())
+         {
+            if (child == 0) { pm = PointMatrix(pm(0), pm(1), pm(2)); }
+            else if (child == 1) { pm = PointMatrix(pm(0), pm(2), pm(3)); }
+         }
+         else if (ref_type == Refinement::Quadrilateral::DIAGONAL_13_2_TRIS.GetId())
+         {
+            if (child == 0) { pm = PointMatrix(pm(0), pm(1), pm(3)); }
+            else if (child == 1) { pm = PointMatrix(pm(1), pm(2), pm(3)); }
+         }
+         else if (ref_type == Refinement::Quadrilateral::DIAGONALS_4_TRIS.GetId())
+         {
+            Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
+            Point center(mid01, mid23);
+            if (child == 0) { pm = PointMatrix(pm(0), pm(1), center); }
+            else if (child == 1) { pm = PointMatrix(pm(1), pm(2), center); }
+            else if (child == 2) { pm = PointMatrix(pm(2), pm(3), center); }
+            else if (child == 3) { pm = PointMatrix(pm(3), pm(0), center); }
+         }
+         else if (ref_type == 1) // X split
          {
             Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
 
@@ -6473,13 +6391,36 @@ void NCMesh::LimitNCLevel(int max_nc_level)
 
 int NCMesh::PrintVertexParents(std::ostream *os) const
 {
+   // A vertex can depend on intermediate nodes that are not mesh vertices.
+   // Include their complete parent chain so the hierarchy can be reloaded.
+   Array<char> required(nodes.NumIds());
+   required = 0;
+   Array<int> stack;
+   for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
+   {
+      if (node->HasVertex()) { stack.Append(node.index()); }
+   }
+   while (stack.Size())
+   {
+      const int id = stack.Last();
+      stack.DeleteLast();
+      if (required[id]) { continue; }
+      required[id] = 1;
+      const Node &node = nodes[id];
+      if (node.p1 != node.p2)
+      {
+         stack.Append(node.p1);
+         stack.Append(node.p2);
+      }
+   }
+
    if (!os)
    {
-      // count vertex nodes with parents
+      // count vertices and intermediate nodes with parents
       int nv = 0;
       for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
       {
-         if (node->HasVertex() && node->p1 != node->p2) { nv++; }
+         if (required[node.index()] && node->p1 != node->p2) { nv++; }
       }
       return nv;
    }
@@ -6489,11 +6430,8 @@ int NCMesh::PrintVertexParents(std::ostream *os) const
       bool uniform_scaling = true;  // Check whether all nodes have scale 0.5
       for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
       {
-         if (node->HasVertex() && node->p1 != node->p2)
+         if (required[node.index()] && node->p1 != node->p2)
          {
-            MFEM_ASSERT(nodes[node->p1].HasVertex(), "");
-            MFEM_ASSERT(nodes[node->p2].HasVertex(), "");
-
             (*os) << node.index() << " " << node->p1 << " " << node->p2;
             if (node->GetScale() != 0.5) { uniform_scaling = false; }
             if (using_scaling) { (*os) << " " << node->GetScale(); }
@@ -6510,26 +6448,38 @@ void NCMesh::LoadVertexParents(std::istream &input)
 {
    int nv;
    input >> nv;
-   while (nv--)
+   MFEM_VERIFY(input && nv >= 0, "Invalid vertex parent count");
+   Array<int> ids(nv), parent1(nv), parent2(nv);
+   Array<real_t> scales(nv);
+   for (int i = 0; i < nv; i++)
    {
-      int id, p1, p2;
       real_t s{0.5};
-      input >> id >> p1 >> p2;
+      input >> ids[i] >> parent1[i] >> parent2[i];
       if (using_scaling) { input >> s; }
       MFEM_VERIFY(input, "problem reading vertex parents.");
+      MFEM_VERIFY(ids[i] >= 0 && parent1[i] >= 0 && parent2[i] >= 0,
+                  "Invalid vertex parent index");
+      scales[i] = s;
+      // Intermediate parent nodes need not appear in any leaf element.
+      nodes.Alloc(ids[i], ids[i], ids[i]);
+   }
 
-      MFEM_VERIFY(nodes.IdExists(id), "vertex " << id << " not found.");
-      MFEM_VERIFY(nodes.IdExists(p1), "parent " << p1 << " not found.");
-      MFEM_VERIFY(nodes.IdExists(p2), "parent " << p2 << " not found.");
+   for (int i = 0; i < nv; i++)
+   {
+      MFEM_VERIFY(nodes.IdExists(parent1[i]), "parent " << parent1[i]
+                  << " not found.");
+      MFEM_VERIFY(nodes.IdExists(parent2[i]), "parent " << parent2[i]
+                  << " not found.");
 
-      int check = nodes.FindId(p1, p2);
-      MFEM_VERIFY(check < 0, "parents (" << p1 << ", " << p2 << ") already "
+      int check = nodes.FindId(parent1[i], parent2[i]);
+      MFEM_VERIFY(check < 0, "parents (" << parent1[i] << ", "
+                  << parent2[i] << ") already "
                   "assigned to node " << check);
 
       // assign new parents for the node
-      nodes.Reparent(id, p1, p2);
+      nodes.Reparent(ids[i], parent1[i], parent2[i]);
 
-      nodes[id].SetScale(s);
+      nodes[ids[i]].SetScale(scales[i]);
    }
 }
 
