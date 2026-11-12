@@ -552,16 +552,29 @@ TEST_CASE("NCMesh anisotropic prism derefinement in mixed mesh", "[NCMesh]")
    const int ref_type = GENERATE(Refinement::XY, Refinement::Z);
    const bool nested = GENERATE(false, true);
    const bool continuous = GENERATE(false, true);
-   CAPTURE(prism_attribute, ref_type, nested, continuous);
+   const bool variable_order = GENERATE(false, true);
+   CAPTURE(prism_attribute, ref_type, nested, continuous, variable_order);
 
    Mesh mesh("../../data/l-mixed.mesh", 1, 1);
    const RefinedElementSummary original = SummarizeRefinedElements(mesh);
+   mesh.EnsureNCMesh(true);
    H1_FECollection h1_fec(2, 3);
    L2_FECollection l2_fec(2, 3, BasisType::GaussLegendre,
                           FiniteElement::VALUE);
    FiniteElementSpace fes(&mesh, continuous ?
                           static_cast<FiniteElementCollection*>(&h1_fec) :
                           static_cast<FiniteElementCollection*>(&l2_fec));
+   if (variable_order)
+   {
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         if (mesh.GetAttribute(i) == prism_attribute)
+         {
+            fes.SetElementOrder(i, 3);
+         }
+      }
+      fes.Update(false);
+   }
    GridFunction field(&fes);
    FunctionCoefficient affine([](const Vector &x)
    {
@@ -569,7 +582,6 @@ TEST_CASE("NCMesh anisotropic prism derefinement in mixed mesh", "[NCMesh]")
    });
    field.ProjectCoefficient(affine);
 
-   mesh.EnsureNCMesh(true);
    Array<Refinement> refs;
    for (int i = 0; i < mesh.GetNE(); i++)
    {
@@ -582,6 +594,13 @@ TEST_CASE("NCMesh anisotropic prism derefinement in mixed mesh", "[NCMesh]")
    mesh.GeneralRefinement(refs);
    fes.Update();
    field.Update();
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == prism_attribute)
+      {
+         REQUIRE(fes.GetElementOrder(i) == 2 + int(variable_order));
+      }
+   }
 
    if (nested)
    {
@@ -600,6 +619,13 @@ TEST_CASE("NCMesh anisotropic prism derefinement in mixed mesh", "[NCMesh]")
       mesh.GeneralRefinement(refs);
       fes.Update();
       field.Update();
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         if (mesh.GetAttribute(i) == prism_attribute)
+         {
+            REQUIRE(fes.GetElementOrder(i) == 2 + int(variable_order));
+         }
+      }
    }
 
    real_t fine_integral = 0.0;
@@ -619,6 +645,13 @@ TEST_CASE("NCMesh anisotropic prism derefinement in mixed mesh", "[NCMesh]")
       REQUIRE(mesh.DerefineByError(error, 1.0));
       fes.Update();
       field.Update();
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         if (mesh.GetAttribute(i) == prism_attribute)
+         {
+            REQUIRE(fes.GetElementOrder(i) == 2 + int(variable_order));
+         }
+      }
    }
 
    const RefinedElementSummary restored = SummarizeRefinedElements(mesh);
@@ -1153,7 +1186,9 @@ TEST_CASE("ParNCMesh anisotropic prism refinement and derefinement in mixed mesh
    const bool redistribute = GENERATE(false, true);
    const bool nested = GENERATE(false, true);
    const bool continuous = GENERATE(false, true);
-   CAPTURE(prism_attribute, ref_type, redistribute, nested, continuous);
+   const bool variable_order = GENERATE(false, true);
+   CAPTURE(prism_attribute, ref_type, redistribute, nested, continuous,
+           variable_order);
 
    Mesh serial_mesh("../../data/l-mixed.mesh", 1, 1);
    serial_mesh.EnsureNCMesh(true);
@@ -1164,6 +1199,27 @@ TEST_CASE("ParNCMesh anisotropic prism refinement and derefinement in mixed mesh
    ParFiniteElementSpace fes(&mesh, continuous ?
                              static_cast<FiniteElementCollection*>(&h1_fec) :
                              static_cast<FiniteElementCollection*>(&l2_fec));
+   if (variable_order)
+   {
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         if (mesh.GetAttribute(i) == prism_attribute)
+         {
+            fes.SetElementOrder(i, 3);
+         }
+      }
+      fes.Update(false);
+   }
+   auto check_order = [&]()
+   {
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         if (mesh.GetAttribute(i) == prism_attribute)
+         {
+            REQUIRE(fes.GetElementOrder(i) == 2 + int(variable_order));
+         }
+      }
+   };
    ParGridFunction field(&fes);
    FunctionCoefficient affine([](const Vector &x)
    {
@@ -1190,6 +1246,7 @@ TEST_CASE("ParNCMesh anisotropic prism refinement and derefinement in mixed mesh
    mesh.GeneralRefinement(refs);
    fes.Update();
    field.Update();
+   check_order();
 
    int prism_children = 0;
    for (int i = 0; i < mesh.GetNE(); i++)
@@ -1217,6 +1274,7 @@ TEST_CASE("ParNCMesh anisotropic prism refinement and derefinement in mixed mesh
       mesh.Rebalance(partition);
       fes.Update();
       field.Update();
+      check_order();
    }
 
    if (nested)
@@ -1247,6 +1305,7 @@ TEST_CASE("ParNCMesh anisotropic prism refinement and derefinement in mixed mesh
       mesh.GeneralRefinement(refs);
       fes.Update();
       field.Update();
+      check_order();
    }
 
    real_t refined_volume = SummarizeRefinedElements(mesh).volume;
@@ -1280,6 +1339,7 @@ TEST_CASE("ParNCMesh anisotropic prism refinement and derefinement in mixed mesh
       REQUIRE(mesh.DerefineByError(error, 1.0));
       fes.Update();
       field.Update();
+      check_order();
    }
    REQUIRE(mesh.GetGlobalNE() == 9);
    real_t restored_volume = SummarizeRefinedElements(mesh).volume;
