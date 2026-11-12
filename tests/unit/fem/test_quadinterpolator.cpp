@@ -737,3 +737,143 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][GPU]")
       }
    }
 }
+
+TEST_CASE("QuadratureInterpolator entity list",
+          "[QuadratureInterpolator][FaceQuadratureInterpolator][GPU]")
+{
+   const auto faces = GENERATE(false, true);
+   const auto der = GENERATE(false, true);
+   const auto dim = GENERATE(2, 3);
+   const auto p = GENERATE(2, 3);
+   const auto vdim = GENERATE_COPY(1, dim);
+   const auto l = GENERATE(QVectorLayout::byNODES, QVectorLayout::byVDIM);
+   CAPTURE(faces, der, dim, p, vdim, l);
+
+   Mesh mesh = dim == 2 ?
+               Mesh::MakeCartesian2D(5, 4, Element::QUADRILATERAL) :
+               Mesh::MakeCartesian3D(3, 3, 3, Element::HEXAHEDRON);
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace fes(&mesh, &fec, vdim);
+   GridFunction gf(&fes);
+   gf.Randomize(3);
+
+   // Elements, or boundary faces with the face interpolator
+   const auto o = ElementDofOrdering::LEXICOGRAPHIC;
+   const FaceType ft = FaceType::Boundary;
+   const auto single = L2FaceValues::SingleValued;
+   const Operator *R = faces ?
+                       static_cast<const Operator *>(
+                          fes.GetFaceRestriction(o, ft, single)) :
+                       fes.GetElementRestriction(o);
+   Vector e_vec(R->Height());
+   e_vec.UseDevice(true);
+   R->Mult(gf, e_vec);
+
+   const int n_all = faces ? mesh.GetNFbyType(ft) : mesh.GetNE();
+   const IntegrationRule &ir =
+      IntRules.Get(faces ? mesh.GetTypicalFaceGeometry() :
+                   mesh.GetTypicalElementGeometry(), 2 * p);
+   // Q-vector size of one entity: values, or reference derivatives
+   const int q_size = ir.GetNPoints() * vdim *
+                      (der ? (faces ? dim - 1 : dim) : 1);
+
+   using QI = QuadratureInterpolator;
+   using FQI = FaceQuadratureInterpolator;
+   const QI *qi = faces ? nullptr : fes.GetQuadratureInterpolator(ir);
+   const FQI *fqi = faces ? fes.GetFaceQuadratureInterpolator(ir, ft) : nullptr;
+   if (qi) { qi->SetOutputLayout(l); }
+   else { fqi->SetOutputLayout(l); }
+
+   // E -> Q, and Q -> E added to y, on the entities of list (all if null)
+   auto forward = [&](const Vector &x, Vector &q, const Array<int> *list)
+   {
+      Vector u; // unused outputs
+      if (qi)
+      {
+         qi->Mult(x, der ? QI::DERIVATIVES : QI::VALUES, der ? u : q,
+                  der ? q : u, u, list);
+      }
+      else
+      {
+         fqi->Mult(x, der ? FQI::DERIVATIVES : FQI::VALUES, der ? u : q,
+                   der ? q : u, u, u, list);
+      }
+   };
+
+   auto transpose = [&](const Vector &q, Vector &y, const Array<int> *list)
+   {
+      Vector u;
+      if (qi)
+      {
+         qi->AddMultTranspose(der ? QI::DERIVATIVES : QI::VALUES,
+                              der ? u : q, der ? q : u, y, list);
+      }
+      else
+      {
+         fqi->AddMultTranspose(der ? FQI::DERIVATIVES : FQI::VALUES,
+                               der ? u : q, der ? q : u, y, list);
+      }
+   };
+   
+   auto max_diff = [](const Vector &a, const Vector &b)
+   {
+      Vector d(a);
+      d -= b;
+      return d.Normlinf();
+   };
+
+   // Subset of entities for testing, not necessarily contiguous or in mesh order.
+   // The output will follow the order of the entities in the list.
+   Array<int> list;
+   for (int e = n_all - 1; e >= 0; e--) { if (e % 3 == 1) { list.Append(e); } }
+   const int n = list.Size();
+
+   // E -> Q: entity k of the compact Q-vector is entity list[k] of the full
+   // one; the entity index is the slowest in both layouts.
+   Vector q_full(q_size * n_all), q_list(q_size * n), q_ref(q_size * n);
+   q_full.UseDevice(true);
+   q_list.UseDevice(true);
+   forward(e_vec, q_full, nullptr);
+   forward(e_vec, q_list, &list);
+   {
+      const real_t *f = q_full.HostRead();
+      real_t *r = q_ref.HostWrite();
+      for (int j = 0; j < q_size * n; j++)
+      {
+         r[j] = f[j % q_size + q_size * list[j / q_size]];
+      }
+   }
+   REQUIRE(max_diff(q_list, q_ref) == MFEM_Approx(0.0));
+
+   // Q -> E: the same as the full transpose of the compact Q-vector scattered
+   // into zeros, so the other entities of the E-vector are unchanged.
+   Vector q_rnd(q_size * n), q_scattered(q_size * n_all);
+   q_rnd.UseDevice(true);
+   q_rnd.Randomize(7);
+   q_scattered.UseDevice(true);
+   q_scattered = 0.0;
+   {
+      const real_t *c = q_rnd.HostRead();
+      real_t *f = q_scattered.HostReadWrite();
+      for (int j = 0; j < q_size * n; j++)
+      {
+         f[j % q_size + q_size * list[j / q_size]] = c[j];
+      }
+   }
+   Vector y_list(e_vec), y_ref(e_vec);
+   transpose(q_rnd, y_list, &list);
+   transpose(q_scattered, y_ref, nullptr);
+   REQUIRE(max_diff(y_list, y_ref) == MFEM_Approx(0.0));
+
+   // Sanity check
+   // Full list = no list, empty list should not change anything.
+   Array<int> all(n_all), empty;
+   for (int e = 0; e < n_all; e++) { all[e] = e; }
+   Vector q_all(q_size * n_all), q_none, y(e_vec);
+   q_all.UseDevice(true);
+   forward(e_vec, q_all, &all);
+   REQUIRE(max_diff(q_all, q_full) == MFEM_Approx(0.0));
+   forward(e_vec, q_none, &empty);
+   transpose(q_none, y, &empty);
+   REQUIRE(max_diff(y, e_vec) == 0.0);
+}
