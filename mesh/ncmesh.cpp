@@ -2717,21 +2717,6 @@ void NCMesh::InitRootState(int root_count)
    }
 }
 
-mfem::Element* NCMesh::NewMeshElement(int geom) const
-{
-   switch (geom)
-   {
-      case Geometry::CUBE: return new mfem::Hexahedron;
-      case Geometry::PRISM: return new mfem::Wedge;
-      case Geometry::PYRAMID: return new mfem::Pyramid;
-      case Geometry::TETRAHEDRON: return new mfem::Tetrahedron;
-      case Geometry::SQUARE: return new mfem::Quadrilateral;
-      case Geometry::TRIANGLE: return new mfem::Triangle;
-   }
-   MFEM_ABORT("invalid geometry");
-   return NULL;
-}
-
 const real_t* NCMesh::CalcVertexPos(int node) const
 {
    const Node &nd = nodes[node];
