@@ -57,6 +57,7 @@ option(MFEM_USE_CUDA "Enable CUDA" OFF)
 option(MFEM_USE_HIP "Enable HIP" OFF)
 option(MFEM_USE_OCCA "Enable OCCA" OFF)
 option(MFEM_USE_RAJA "Enable RAJA" OFF)
+option(MFEM_USE_PROTEUS "Enable Proteus JIT support" OFF)
 option(MFEM_USE_CEED "Enable CEED" OFF)
 option(MFEM_USE_UMPIRE "Enable Umpire" OFF)
 option(MFEM_USE_SIMD "Enable use of SIMD intrinsics" OFF)
@@ -108,6 +109,9 @@ set(CUDA_ARCH "sm_60" CACHE STRING "Target CUDA architecture.")
 
 # Set the target HIP architecture
 set(HIP_ARCH "gfx900" CACHE STRING "Target HIP architecture.")
+
+set(PROTEUS_INSTALL_DIR "" CACHE PATH
+    "Standalone Proteus prefix used when MFEM_USE_PROTEUS is enabled without RAJA.")
 
 set(MFEM_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 

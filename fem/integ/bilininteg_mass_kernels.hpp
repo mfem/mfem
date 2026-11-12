@@ -1150,11 +1150,11 @@ inline void SmemPAMassApply3D(const int NE,
    const auto x = x_.Read();
    auto y = y_.ReadWrite();
    mfem::forall_2D_batch<T_Q1D * T_Q1D * TBATCH>(NE, Q1D, Q1D, TBATCH,
-                                                 [=] MFEM_HOST_DEVICE(int e)
+                                                 MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE(int e)
    {
       internal::SmemPAMassApply3D_Element<T_D1D, T_Q1D, TBATCH>(e, NE, b, d, x,
                                                                 y, d1d, q1d);
-   });
+   }));
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>

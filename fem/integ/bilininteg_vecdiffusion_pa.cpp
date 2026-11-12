@@ -143,7 +143,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       auto D = Reshape(pa_data.Write(), q1d, q1d, pa_size,
                        vdim * (matrix_coeff ? dim : 1), ne);
 
-      mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_2D(ne, q1d, q1d, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(q1d, nc) MFEM_HOST_DEVICE(int e)
       {
          MFEM_FOREACH_THREAD(qy, y, q1d)
          {
@@ -171,7 +171,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                }
             }
          }
-      });
+      }));
    }
    else if (dim == 2 && sdim == 2)
    {
@@ -181,7 +181,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
       auto DE = Reshape(pa_data.Write(), q1d, q1d, pa_size,
                         vdim * (matrix_coeff ? dim : 1), ne);
-      mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_2D(ne, q1d, q1d, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(q1d, matrix_coeff, vector_coeff, nc, cvdim) MFEM_HOST_DEVICE(int e)
       {
          MFEM_FOREACH_THREAD(qy, y, q1d)
          {
@@ -208,7 +208,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                }
             }
          }
-      });
+      }));
    }
    else if (dim == 3 && sdim == 3)
    {
@@ -219,7 +219,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       auto DE = Reshape(pa_data.Write(), q1d, q1d, q1d, pa_size,
                         vdim * (matrix_coeff ? dim : 1), ne);
 
-      mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_3D(ne, q1d, q1d, q1d, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(q1d, matrix_coeff, vector_coeff, nc, cvdim) MFEM_HOST_DEVICE(int e)
       {
          MFEM_FOREACH_THREAD(qz, z, q1d)
          {
@@ -273,7 +273,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                }
             }
          }
-      });
+      }));
    }
    else
    {
@@ -347,10 +347,8 @@ static void PAVectorDiffusionDiagonal2D(const int NE,
    const auto D = Reshape(d.Read(), Q1D*Q1D, /*3*/4, 2, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, 2, NE);
 
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       // gradphi \cdot Q \gradphi has four terms
@@ -392,7 +390,7 @@ static void PAVectorDiffusionDiagonal2D(const int NE,
             Y(dx,dy,1,e) += temp;
          }
       }
-   });
+   }));
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -416,10 +414,8 @@ static void PAVectorDiffusionDiagonal3D(const int NE,
    MFEM_VERIFY(d.Size() == Q1D*Q1D*Q1D*9*3*NE, "");
    auto Q = Reshape(d.Read(), Q1D*Q1D*Q1D, 9/*PA_SIZE:dims*dims*/, 3/*VDIM*/, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, 3, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       real_t QQD[MQ1][MQ1][MD1];
@@ -496,7 +492,7 @@ static void PAVectorDiffusionDiagonal3D(const int NE,
             }
          }
       }
-   });
+   }));
 }
 
 static void PAVectorDiffusionAssembleDiagonal(const int dim,

@@ -36,8 +36,7 @@ void TMOP_DatcSize_2D(const int NE,
    MFEM_VERIFY(D1D <= Q1D, "");
 
    const real_t infinity = std::numeric_limits<real_t>::infinity();
-
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D, sizeidx) MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
@@ -94,7 +93,7 @@ void TMOP_DatcSize_2D(const int NE,
             }
          }
       }
-   });
+   }));
 }
 
 MFEM_TMOP_MDQ_REGISTER(TMOPDatc2Size, TMOP_DatcSize_2D);
@@ -118,8 +117,7 @@ void TMOP_DatcSize_3D(const int NE,
    const int Q1D = T_Q1D ? T_Q1D : q1d;
 
    const real_t infinity = std::numeric_limits<real_t>::infinity();
-
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D, sizeidx) MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
@@ -181,7 +179,7 @@ void TMOP_DatcSize_3D(const int NE,
             }
          }
       }
-   });
+   }));
 }
 
 MFEM_TMOP_MDQ_REGISTER(TMOPDatc3Size, TMOP_DatcSize_3D);

@@ -117,6 +117,49 @@ if (MFEM_USE_UMPIRE)
    find_dependency(umpire)
 endif()
 
+if (MFEM_USE_PROTEUS)
+   if (MFEM_USE_RAJA)
+      # Resolve Proteus beside the RAJA package used by this consumer.
+      set(_mfem_proteus_prefix "${RAJA_PACKAGE_PREFIX_DIR}")
+      if (NOT _mfem_proteus_prefix)
+         set(_mfem_proteus_prefix "${MFEM_PROTEUS_INSTALL_DIR}")
+      endif()
+   else()
+      # Without RAJA, use the standalone Proteus prefix selected for MFEM.
+      set(_mfem_proteus_prefix "${PROTEUS_INSTALL_DIR}")
+      if (NOT _mfem_proteus_prefix)
+         set(_mfem_proteus_prefix "${MFEM_PROTEUS_INSTALL_DIR}")
+      endif()
+   endif()
+   set(_mfem_proteus_config_dirs "")
+   foreach(_mfem_config_dir
+           "${_mfem_proteus_prefix}/lib64/cmake/proteus"
+           "${_mfem_proteus_prefix}/lib/cmake/proteus"
+           "${_mfem_proteus_prefix}/share/cmake/proteus"
+           "${_mfem_proteus_prefix}")
+      if (EXISTS "${_mfem_config_dir}/proteusConfig.cmake"
+          OR EXISTS "${_mfem_config_dir}/ProteusConfig.cmake"
+          OR EXISTS "${_mfem_config_dir}/proteus-config.cmake")
+         list(APPEND _mfem_proteus_config_dirs "${_mfem_config_dir}")
+      endif()
+   endforeach()
+   if (NOT _mfem_proteus_config_dirs)
+      if (MFEM_USE_RAJA)
+         message(FATAL_ERROR
+            "MFEM requires Proteus from the selected RAJA installation "
+            "(${_mfem_proteus_prefix}).")
+      else()
+         message(FATAL_ERROR
+            "MFEM requires Proteus. Set PROTEUS_INSTALL_DIR to the "
+            "Proteus installation used when MFEM was configured "
+            "(${_mfem_proteus_prefix}).")
+      endif()
+   endif()
+
+   list(GET _mfem_proteus_config_dirs 0 proteus_DIR)
+   find_dependency(proteus REQUIRED CONFIG NO_DEFAULT_PATH)
+endif()
+
 if (NOT TARGET mfem)
   include(${CMAKE_CURRENT_LIST_DIR}/MFEMTargets.cmake)
 endif (NOT TARGET mfem)

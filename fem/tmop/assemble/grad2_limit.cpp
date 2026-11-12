@@ -37,8 +37,7 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D, const_c0, exp_lim) MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
@@ -112,7 +111,7 @@ void TMOP_AssembleGradPA_C0_2D(const real_t lim_normal,
             }
          }
       }
-   });
+   }));
 }
 
 // Assemble gradient and Hessian of ALF field at quad points for AdaptLim (2D).

@@ -67,9 +67,17 @@ function(add_benchmark name)
        set_property(SOURCE ${${NAME}_BENCH_SRCS} PROPERTY LANGUAGE CUDA)
     endif(MFEM_USE_CUDA)
 
+    if (MFEM_USE_HIP)
+        set_property(SOURCE ${${NAME}_BENCH_SRCS}
+                     PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
+    endif(MFEM_USE_HIP)
+
     add_executable(bench_${name} ${${NAME}_BENCH_SRCS})
     target_link_libraries(bench_${name} mfem pthread
                           ${MFEM_BENCHMARK_EXTRA_LIBS})
+    if (MFEM_USE_PROTEUS)
+        add_proteus(bench_${name})
+    endif()
     add_dependencies(${MFEM_ALL_BENCHMARKS_TARGET_NAME} bench_${name})
 
     add_test(NAME bench_${name}_cpu

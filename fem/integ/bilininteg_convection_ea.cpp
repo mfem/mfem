@@ -34,10 +34,8 @@ static void EAConvectionAssemble1D(const int NE,
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, NE);
    auto A = Reshape(eadata.ReadWrite(), D1D, D1D, NE);
-   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(NE, D1D, D1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(add, D1D, Q1D) MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       real_t r_Gi[MQ1];
       real_t r_Bj[MQ1];
@@ -65,7 +63,7 @@ static void EAConvectionAssemble1D(const int NE,
             }
          }
       }
-   });
+   }));
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -86,10 +84,8 @@ static void EAConvectionAssemble2D(const int NE,
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, 2, NE);
    auto A = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, NE);
-   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(NE, D1D, D1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(add, D1D, Q1D) MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       real_t r_B[MQ1][MD1];
@@ -142,7 +138,7 @@ static void EAConvectionAssemble2D(const int NE,
             }
          }
       }
-   });
+   }));
 }
 
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -163,10 +159,8 @@ static void EAConvectionAssemble3D(const int NE,
    auto G = Reshape(g.Read(), Q1D, D1D);
    auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto A = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
-   mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, D1D, D1D, D1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(add, D1D, Q1D) MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       real_t r_B[MQ1][MD1];
@@ -222,7 +216,7 @@ static void EAConvectionAssemble3D(const int NE,
             }
          }
       }
-   });
+   }));
 }
 
 void ConvectionIntegrator::AssembleEA(const FiniteElementSpace &fes,

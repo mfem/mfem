@@ -538,6 +538,62 @@ if (MFEM_USE_RAJA)
       cmake_policy(SET CMP0146 OLD)
    endif()
    find_package(RAJA REQUIRED)
+
+endif()
+
+# Proteus
+if (MFEM_USE_PROTEUS)
+   if (MFEM_USE_RAJA)
+      # A Proteus-enabled RAJA install places Proteus beside RAJA. Prefer the
+      # prefix reported by RAJA's package config, with RAJA_DIR as a fallback
+      # for older RAJA packages.
+      if (RAJA_PACKAGE_PREFIX_DIR)
+         set(_mfem_proteus_prefix "${RAJA_PACKAGE_PREFIX_DIR}")
+      elseif (RAJA_DIR)
+         get_filename_component(_mfem_raja_dir "${RAJA_DIR}" ABSOLUTE)
+         if (EXISTS "${_mfem_raja_dir}/include/RAJA")
+            set(_mfem_proteus_prefix "${_mfem_raja_dir}")
+         else()
+            get_filename_component(_mfem_proteus_prefix
+                                   "${_mfem_raja_dir}/../../.." ABSOLUTE)
+         endif()
+      else()
+         message(FATAL_ERROR
+            "MFEM_USE_PROTEUS with MFEM_USE_RAJA requires RAJA_DIR to point "
+            "to a Proteus-enabled RAJA installation.")
+      endif()
+   else()
+      if (NOT PROTEUS_INSTALL_DIR)
+         message(FATAL_ERROR
+            "MFEM_USE_PROTEUS without MFEM_USE_RAJA requires "
+            "PROTEUS_INSTALL_DIR to point to a Proteus installation.")
+      endif()
+      set(_mfem_proteus_prefix "${PROTEUS_INSTALL_DIR}")
+   endif()
+
+   set(_mfem_proteus_config_dirs
+       "${_mfem_proteus_prefix}/lib64/cmake/proteus"
+       "${_mfem_proteus_prefix}/lib/cmake/proteus"
+       "${_mfem_proteus_prefix}/share/cmake/proteus"
+       "${_mfem_proteus_prefix}")
+   set(_mfem_proteus_config_dir "")
+   foreach(_mfem_config_dir IN LISTS _mfem_proteus_config_dirs)
+      if (EXISTS "${_mfem_config_dir}/proteusConfig.cmake"
+          OR EXISTS "${_mfem_config_dir}/ProteusConfig.cmake"
+          OR EXISTS "${_mfem_config_dir}/proteus-config.cmake")
+         set(_mfem_proteus_config_dir "${_mfem_config_dir}")
+         break()
+      endif()
+   endforeach()
+   if (NOT _mfem_proteus_config_dir)
+      message(FATAL_ERROR
+         "Could not find Proteus CMake package under "
+         "${_mfem_proteus_prefix}.")
+   endif()
+   set(MFEM_PROTEUS_INSTALL_DIR "${_mfem_proteus_prefix}")
+   set(proteus_DIR "${_mfem_proteus_config_dir}")
+   message(STATUS "Using Proteus from ${proteus_DIR}")
+   find_package(proteus REQUIRED CONFIG NO_DEFAULT_PATH)
 endif()
 
 # GOOGLE-BENCHMARK
@@ -750,6 +806,9 @@ target_compile_features(mfem PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
 target_link_libraries(mfem PUBLIC ${TPL_LIBRARIES} ${TPL_TARGETS})
 if (TPL_TARGETS)
   add_dependencies(mfem ${TPL_TARGETS})
+endif()
+if (MFEM_USE_PROTEUS)
+  add_proteus(mfem)
 endif()
 if (MINGW)
   target_link_libraries(mfem PRIVATE ws2_32)
