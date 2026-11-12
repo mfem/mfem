@@ -50,6 +50,10 @@ Miscellaneous
 - Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
   column so the inner loop vectorizes. This roughly doubles the speed of full
   assembly for DiffusionIntegrator at higher orders.
+- Sped up NeoHookeanModel::AssembleH and the displacement block of
+  IncompressibleNeoHookeanIntegrator::AssembleElementGrad by updating the element
+  matrix column by column so the inner loop is unit stride and vectorizes. The
+  results are unchanged.
 
 - Fixed a bug in the Method of Moving Asymptotes (MMA) solver that would cause
   failure if an MPI rank had no design parameters (aka decision variables).
