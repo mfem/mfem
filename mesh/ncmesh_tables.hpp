@@ -38,6 +38,11 @@ static constexpr int tri_deref_table[4][3 + 3] =
    { 0, 0, 1, /**/ 0, 0, 1 }  // 4 - Z
 };
 
+static constexpr int tet_deref_table_x[4 + 4] =
+{
+   0, 1, 0, 0, /**/ 1, 0, 0, 0
+};
+
 static constexpr int hex_deref_table[7][8 + 6] =
 {
    { 0, 1, 1, 0, 0, 1, 1, 0, /**/ 1, 1, 1, 0, 0, 0 }, // 1 - X

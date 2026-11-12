@@ -42,7 +42,8 @@ namespace mfem
     parameter defines the position of the refinement between the beginning (0)
     and end (1) of the reference element in each direction. For triangles, X,
     Y, and Z bisect edges (0,1), (0,2), and (1,2), respectively; XY produces
-    four triangles. */
+    four triangles. For tetrahedra, X bisects edge (0,1), while the other
+    legacy types produce the isotropic split. */
 struct Refinement
 {
    /** Identifies a refinement pattern for one parent geometry. */
@@ -85,6 +86,7 @@ struct Refinement
    /** Existing tetrahedron refinement patterns. */
    struct Tetrahedron
    {
+      static constexpr Pattern EDGE_01_2_TETS { Geometry::TETRAHEDRON, X };
       static constexpr Pattern UNIFORM { Geometry::TETRAHEDRON, XYZ };
    };
 
@@ -1027,33 +1029,15 @@ protected:
    int QuadFaceSplitType(int n1, int n2, int n3, int n4, real_t & s,
                          int mid[5] = NULL /*optional output of mid-edge nodes*/) const;
 
-   /**
-    * @brief Given a tri face defined by three vertices, establish whether the
-    * edges that make up this face have been split, and if so optionally return
-    * the midpoints.
-    * @details This is a necessary condition for this face to have been split,
-    * but is not sufficient. Consider a triangle attached to three refined
-    * triangles, in this scenario all edges can be split but this face not be
-    * split. In this case, it is necessary to check if there is a face made up
-    * of the returned midpoint nodes.
-    *
-    * @param n1 The first node defining the face
-    * @param n2 The second node defining the face
-    * @param n3 The third node defining the face
-    * @param mid optional return of the edge mid points.
-    * @return true Splits for all edges have been found
-    * @return false
-    */
-   bool TriFaceSplit(int n1, int n2, int n3, int mid[3] = NULL) const;
+   /// Return 1, 2, or 4 for a bisected edge, 7 for an isotropic split, or 0.
+   /// The returned midpoints correspond to edges (n1,n2), (n2,n3), (n3,n1).
+   int TriFaceSplitType(int n1, int n2, int n3, int mid[3]) const;
 
    /**
     * @brief Determine if a Triangle face is a master face
-    * @details This check requires looking for the edges making up the triangle
-    * being split, if nodes exist at their midpoints, and there are vertices at
-    * them, this implies the face COULD be split. To determine if it is, we then
-    * check whether these midpoints have all been connected, this is required to
-    * discriminate between an internal master face surrounded by nonconformal
-    * refinements and a conformal boundary face surrounded by refinements.
+    * @details A split edge alone does not imply that the face is split. Check
+    * for the interior edge of a bisection or the midpoint connections of an
+    * isotropic split.
     *
     * @param n1 The first node defining the face
     * @param n2 The second node defining the face
@@ -1064,11 +1048,7 @@ protected:
    inline bool TriFaceIsMaster(int n1, int n2, int n3) const
    {
       int mid[3];
-      return !(!TriFaceSplit(n1, n2, n3, mid) // The edges aren't split
-               // OR none of the midpoints are connected.
-               || (nodes.FindId(mid[0], mid[1]) < 0 &&
-                   nodes.FindId(mid[0], mid[2]) < 0 &&
-                   nodes.FindId(mid[1], mid[2]) < 0));
+      return TriFaceSplitType(n1, n2, n3, mid) != 0;
    }
 
    /**

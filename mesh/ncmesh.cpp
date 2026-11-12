@@ -1753,77 +1753,90 @@ void NCMesh::RefineElement(const Refinement & ref)
       //     +------------+     *--X
       //    0              1
 
-      ref_type = Refinement::XYZ; // for consistency
-
-      int mid01 = GetMidEdgeNode(no[0], no[1]);
-      int mid12 = GetMidEdgeNode(no[1], no[2]);
-      int mid02 = GetMidEdgeNode(no[2], no[0]);
-
-      int mid03 = GetMidEdgeNode(no[0], no[3]);
-      int mid13 = GetMidEdgeNode(no[1], no[3]);
-      int mid23 = GetMidEdgeNode(no[2], no[3]);
-
-      child[0] = NewTetrahedron(no[0], mid01, mid02, mid03, attr,
-                                -1, fa[1], fa[2], fa[3]);
-
-      child[1] = NewTetrahedron(mid01, no[1], mid12, mid13, attr,
-                                fa[0], -1, fa[2], fa[3]);
-
-      child[2] = NewTetrahedron(mid02, mid12, no[2], mid23, attr,
-                                fa[0], fa[1], -1, fa[3]);
-
-      child[3] = NewTetrahedron(mid03, mid13, mid23, no[3], attr,
-                                fa[0], fa[1], fa[2], -1);
-
-      // There are three ways to split the inner octahedron. A good strategy is
-      // to use the shortest diagonal. At the moment we don't have the geometric
-      // information in this class to determine which diagonal is the shortest,
-      // but it seems that with reasonable shapes of the coarse tets and MFEM's
-      // default tet orientation, always using tet_type == 0 produces stable
-      // refinements. Types 1 and 2 are unused for now.
-      el.tet_type = 0;
-
-      if (el.tet_type == 0) // shortest diagonal mid01--mid23
+      if (ref_type == Refinement::X)
       {
-         child[4] = NewTetrahedron(mid01, mid23, mid02, mid03, attr,
-                                   fa[1], -1, -1, -1);
-
-         child[5] = NewTetrahedron(mid01, mid23, mid03, mid13, attr,
-                                   -1, fa[2], -1, -1);
-
-         child[6] = NewTetrahedron(mid01, mid23, mid13, mid12, attr,
-                                   fa[0], -1, -1, -1);
-
-         child[7] = NewTetrahedron(mid01, mid23, mid12, mid02, attr,
-                                   -1, fa[3], -1, -1);
+         // The fixed child transforms below require a midpoint split.
+         const int mid01 = GetMidEdgeNode(no[0], no[1]);
+         child[0] = NewTetrahedron(no[0], mid01, no[2], no[3], attr,
+                                   -1, fa[1], fa[2], fa[3]);
+         child[1] = NewTetrahedron(mid01, no[1], no[2], no[3], attr,
+                                   fa[0], -1, fa[2], fa[3]);
+         Iso = false;
       }
-      else if (el.tet_type == 1) // shortest diagonal mid12--mid03
+      else
       {
-         child[4] = NewTetrahedron(mid03, mid01, mid02, mid12, attr,
-                                   fa[3], -1, -1, -1);
+         ref_type = Refinement::XYZ; // for consistency
 
-         child[5] = NewTetrahedron(mid03, mid02, mid23, mid12, attr,
-                                   -1, -1, -1, fa[1]);
+         int mid01 = GetMidEdgeNode(no[0], no[1]);
+         int mid12 = GetMidEdgeNode(no[1], no[2]);
+         int mid02 = GetMidEdgeNode(no[2], no[0]);
 
-         child[6] = NewTetrahedron(mid03, mid23, mid13, mid12, attr,
-                                   fa[0], -1, -1, -1);
+         int mid03 = GetMidEdgeNode(no[0], no[3]);
+         int mid13 = GetMidEdgeNode(no[1], no[3]);
+         int mid23 = GetMidEdgeNode(no[2], no[3]);
 
-         child[7] = NewTetrahedron(mid03, mid13, mid01, mid12, attr,
-                                   -1, -1, -1, fa[2]);
-      }
-      else // el.tet_type == 2, shortest diagonal mid02--mid13
-      {
-         child[4] = NewTetrahedron(mid02, mid01, mid13, mid03, attr,
-                                   fa[2], -1, -1, -1);
+         child[0] = NewTetrahedron(no[0], mid01, mid02, mid03, attr,
+                                   -1, fa[1], fa[2], fa[3]);
 
-         child[5] = NewTetrahedron(mid02, mid03, mid13, mid23, attr,
-                                   -1, -1, fa[1], -1);
+         child[1] = NewTetrahedron(mid01, no[1], mid12, mid13, attr,
+                                   fa[0], -1, fa[2], fa[3]);
 
-         child[6] = NewTetrahedron(mid02, mid23, mid13, mid12, attr,
-                                   fa[0], -1, -1, -1);
+         child[2] = NewTetrahedron(mid02, mid12, no[2], mid23, attr,
+                                   fa[0], fa[1], -1, fa[3]);
 
-         child[7] = NewTetrahedron(mid02, mid12, mid13, mid01, attr,
-                                   -1, -1, fa[3], -1);
+         child[3] = NewTetrahedron(mid03, mid13, mid23, no[3], attr,
+                                   fa[0], fa[1], fa[2], -1);
+
+         // There are three ways to split the inner octahedron. A good strategy is
+         // to use the shortest diagonal. At the moment we don't have the geometric
+         // information in this class to determine which diagonal is the shortest,
+         // but it seems that with reasonable shapes of the coarse tets and MFEM's
+         // default tet orientation, always using tet_type == 0 produces stable
+         // refinements. Types 1 and 2 are unused for now.
+         el.tet_type = 0;
+
+         if (el.tet_type == 0) // shortest diagonal mid01--mid23
+         {
+            child[4] = NewTetrahedron(mid01, mid23, mid02, mid03, attr,
+                                      fa[1], -1, -1, -1);
+
+            child[5] = NewTetrahedron(mid01, mid23, mid03, mid13, attr,
+                                      -1, fa[2], -1, -1);
+
+            child[6] = NewTetrahedron(mid01, mid23, mid13, mid12, attr,
+                                      fa[0], -1, -1, -1);
+
+            child[7] = NewTetrahedron(mid01, mid23, mid12, mid02, attr,
+                                      -1, fa[3], -1, -1);
+         }
+         else if (el.tet_type == 1) // shortest diagonal mid12--mid03
+         {
+            child[4] = NewTetrahedron(mid03, mid01, mid02, mid12, attr,
+                                      fa[3], -1, -1, -1);
+
+            child[5] = NewTetrahedron(mid03, mid02, mid23, mid12, attr,
+                                      -1, -1, -1, fa[1]);
+
+            child[6] = NewTetrahedron(mid03, mid23, mid13, mid12, attr,
+                                      fa[0], -1, -1, -1);
+
+            child[7] = NewTetrahedron(mid03, mid13, mid01, mid12, attr,
+                                      -1, -1, -1, fa[2]);
+         }
+         else // el.tet_type == 2, shortest diagonal mid02--mid13
+         {
+            child[4] = NewTetrahedron(mid02, mid01, mid13, mid03, attr,
+                                      fa[2], -1, -1, -1);
+
+            child[5] = NewTetrahedron(mid02, mid03, mid13, mid23, attr,
+                                      -1, -1, fa[1], -1);
+
+            child[6] = NewTetrahedron(mid02, mid23, mid13, mid12, attr,
+                                      fa[0], -1, -1, -1);
+
+            child[7] = NewTetrahedron(mid02, mid12, mid13, mid01, attr,
+                                      -1, -1, fa[3], -1);
+         }
       }
    }
    else if (el.Geom() == Geometry::PYRAMID)
@@ -2128,7 +2141,8 @@ int NCMesh::RetrieveNode(const Element &el, int index)
          break;
 
       case Geometry::TETRAHEDRON:
-         ch = el.child[index];
+         ch = el.child[el.ref_type == Refinement::X ?
+                       tet_deref_table_x[index] : index];
          break;
 
       case Geometry::TRIANGLE:
@@ -2250,8 +2264,12 @@ void NCMesh::DerefineElement(int elem)
    {
       for (int i = 0; i < 4; i++)
       {
-         Element& ch1 = elements[child[i]];
-         Element& ch2 = elements[child[(i+1) & 0x3]];
+         const int vertex_child = el.ref_type == Refinement::X ?
+                                  tet_deref_table_x[i] : i;
+         const int face_child = el.ref_type == Refinement::X ?
+                                tet_deref_table_x[i + 4] : (i+1) & 0x3;
+         Element& ch1 = elements[child[vertex_child]];
+         Element& ch2 = elements[child[face_child]];
          el.node[i] = ch1.node[i];
          const int* fv = GI[el.Geom()].faces[i];
          faces_attribute[i] = faces.Find(ch2.node[fv[0]], ch2.node[fv[1]],
@@ -3194,23 +3212,33 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4, real_t & s,
    }
 }
 
-bool NCMesh::TriFaceSplit(int v1, int v2, int v3, int mid[3]) const
+int NCMesh::TriFaceSplitType(int v0, int v1, int v2, int mid[3]) const
 {
-   int e1 = nodes.FindId(v1, v2);
-   if (e1 < 0 || !nodes[e1].HasVertex()) { return false; }
+   const int v[3] = {v0, v1, v2};
+   for (int i = 0; i < 3; i++)
+   {
+      const int node = nodes.FindId(v[i], v[(i+1)%3]);
+      mid[i] = node >= 0 && nodes[node].HasVertex() ? node : -1;
+   }
 
-   int e2 = nodes.FindId(v2, v3);
-   if (e2 < 0 || !nodes[e2].HasVertex()) { return false; }
+   if (mid[0] >= 0 && mid[1] >= 0 && mid[2] >= 0 &&
+       (nodes.FindId(mid[0], mid[1]) >= 0 ||
+        nodes.FindId(mid[1], mid[2]) >= 0 ||
+        nodes.FindId(mid[2], mid[0]) >= 0))
+   {
+      return 7;
+   }
 
-   int e3 = nodes.FindId(v3, v1);
-   if (e3 < 0 || !nodes[e3].HasVertex()) { return false; }
-
-   if (mid) { mid[0] = e1, mid[1] = e2, mid[2] = e3; }
-
-   // This is necessary but not sufficient to determine if a face has been
-   // split. All edges might have been split due to edge attached faces being
-   // refined. Need to check for existence of face made up of midpoints.
-   return true;
+   for (int i = 0; i < 3; i++)
+   {
+      if (mid[i] < 0) { continue; }
+      const int edge = nodes.FindId(mid[i], v[(i+2)%3]);
+      if (edge >= 0 && (nodes[edge].HasEdge() || nodes[edge].HasVertex()))
+      {
+         return 1 << i;
+      }
+   }
+   return 0;
 }
 
 bool contains_node(const std::array<int, 4> &nodes, int n)
@@ -3748,7 +3776,8 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
    }
 
    int mid[3];
-   if (TriFaceSplit(vn0, vn1, vn2, mid))
+   const int split = TriFaceSplitType(vn0, vn1, vn2, mid);
+   if (split == 7)
    {
       Point pmid0(pm(0), pm(1)), pmid1(pm(1), pm(2)), pmid2(pm(2), pm(0));
       TriFaceTraverseResults b[4];
@@ -3787,6 +3816,54 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
          {
             TraverseTetEdge(mid[2], mid[0], pmid2, pmid0, matrix_map);
          }
+      }
+   }
+   else if (split != 0)
+   {
+      TriFaceTraverseResults b[2];
+      Point interior_start, interior_end;
+      int interior_v0, interior_v1;
+      if (split == 1)
+      {
+         Point pmid(pm(0), pm(1));
+         b[0] = TraverseTriFace(vn0, mid[0], vn2,
+                                PointMatrix(pm(0), pmid, pm(2)),
+                                level+1, matrix_map);
+         b[1] = TraverseTriFace(mid[0], vn1, vn2,
+                                PointMatrix(pmid, pm(1), pm(2)),
+                                level+1, matrix_map);
+         interior_v0 = mid[0]; interior_v1 = vn2;
+         interior_start = pmid; interior_end = pm(2);
+      }
+      else if (split == 2)
+      {
+         Point pmid(pm(1), pm(2));
+         b[0] = TraverseTriFace(vn0, vn1, mid[1],
+                                PointMatrix(pm(0), pm(1), pmid),
+                                level+1, matrix_map);
+         b[1] = TraverseTriFace(vn0, mid[1], vn2,
+                                PointMatrix(pm(0), pmid, pm(2)),
+                                level+1, matrix_map);
+         interior_v0 = mid[1]; interior_v1 = vn0;
+         interior_start = pmid; interior_end = pm(0);
+      }
+      else // split == 4
+      {
+         Point pmid(pm(2), pm(0));
+         b[0] = TraverseTriFace(vn0, vn1, mid[2],
+                                PointMatrix(pm(0), pm(1), pmid),
+                                level+1, matrix_map);
+         b[1] = TraverseTriFace(mid[2], vn1, vn2,
+                                PointMatrix(pmid, pm(1), pm(2)),
+                                level+1, matrix_map);
+         interior_v0 = mid[2]; interior_v1 = vn1;
+         interior_start = pmid; interior_end = pm(1);
+      }
+      if (HaveTets() && (IsParallel() || !b[0].unsplit || !b[1].unsplit ||
+                         b[0].ghost_neighbor || b[1].ghost_neighbor))
+      {
+         TraverseTetEdge(interior_v0, interior_v1,
+                         interior_start, interior_end, matrix_map);
       }
    }
    return {false, false};
@@ -4190,7 +4267,8 @@ void NCMesh::CollectEdgeVertices(int v0, int v1, Array<int> &indices)
 void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices)
 {
    int mid[3];
-   if (TriFaceSplit(v0, v1, v2, mid))
+   const int split = TriFaceSplitType(v0, v1, v2, mid);
+   if (split == 7)
    {
       for (int i = 0; i < 3; i++)
       {
@@ -4207,6 +4285,29 @@ void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices)
          CollectEdgeVertices(mid[0], mid[1], indices);
          CollectEdgeVertices(mid[1], mid[2], indices);
          CollectEdgeVertices(mid[2], mid[0], indices);
+      }
+   }
+   else if (split != 0)
+   {
+      const int edge = split == 1 ? 0 : (split == 2 ? 1 : 2);
+      indices.Append(mid[edge]);
+      if (split == 1)
+      {
+         CollectTriFaceVertices(v0, mid[0], v2, indices);
+         CollectTriFaceVertices(mid[0], v1, v2, indices);
+         if (HaveTets()) { CollectEdgeVertices(mid[0], v2, indices); }
+      }
+      else if (split == 2)
+      {
+         CollectTriFaceVertices(v0, v1, mid[1], indices);
+         CollectTriFaceVertices(v0, mid[1], v2, indices);
+         if (HaveTets()) { CollectEdgeVertices(mid[1], v0, indices); }
+      }
+      else
+      {
+         CollectTriFaceVertices(v0, v1, mid[2], indices);
+         CollectTriFaceVertices(mid[2], v1, v2, indices);
+         if (HaveTets()) { CollectEdgeVertices(mid[2], v1, indices); }
       }
    }
 }
@@ -5100,40 +5201,55 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
       }
       else if (geom == Geometry::TETRAHEDRON)
       {
-         Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2)), mid02(pm(2), pm(0));
-         Point mid03(pm(0), pm(3)), mid13(pm(1), pm(3)), mid23(pm(2), pm(3));
+         if (ref_type == Refinement::X)
+         {
+            Point mid01(pm(0), pm(1));
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), mid01, pm(2), pm(3));
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid01, pm(1), pm(2), pm(3));
+            }
+         }
+         else
+         {
+            Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2)), mid02(pm(2), pm(0));
+            Point mid03(pm(0), pm(3)), mid13(pm(1), pm(3)), mid23(pm(2), pm(3));
 
-         if (child == 0)
-         {
-            pm = PointMatrix(pm(0), mid01, mid02, mid03);
-         }
-         else if (child == 1)
-         {
-            pm = PointMatrix(mid01, pm(1), mid12, mid13);
-         }
-         else if (child == 2)
-         {
-            pm = PointMatrix(mid02, mid12, pm(2), mid23);
-         }
-         else if (child == 3)
-         {
-            pm = PointMatrix(mid03, mid13, mid23, pm(3));
-         }
-         else if (child == 4)
-         {
-            pm = PointMatrix(mid01, mid23, mid02, mid03);
-         }
-         else if (child == 5)
-         {
-            pm = PointMatrix(mid01, mid23, mid03, mid13);
-         }
-         else if (child == 6)
-         {
-            pm = PointMatrix(mid01, mid23, mid13, mid12);
-         }
-         else if (child == 7)
-         {
-            pm = PointMatrix(mid01, mid23, mid12, mid02);
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), mid01, mid02, mid03);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid01, pm(1), mid12, mid13);
+            }
+            else if (child == 2)
+            {
+               pm = PointMatrix(mid02, mid12, pm(2), mid23);
+            }
+            else if (child == 3)
+            {
+               pm = PointMatrix(mid03, mid13, mid23, pm(3));
+            }
+            else if (child == 4)
+            {
+               pm = PointMatrix(mid01, mid23, mid02, mid03);
+            }
+            else if (child == 5)
+            {
+               pm = PointMatrix(mid01, mid23, mid03, mid13);
+            }
+            else if (child == 6)
+            {
+               pm = PointMatrix(mid01, mid23, mid13, mid12);
+            }
+            else if (child == 7)
+            {
+               pm = PointMatrix(mid01, mid23, mid12, mid02);
+            }
          }
       }
       else if (geom == Geometry::SQUARE)
@@ -6107,13 +6223,29 @@ int NCMesh::EdgeSplitLevel(int vn1, int vn2) const
 int NCMesh::TriFaceSplitLevel(int vn1, int vn2, int vn3) const
 {
    int mid[3];
-   if (TriFaceSplit(vn1, vn2, vn3, mid) &&
-       faces.FindId(vn1, vn2, vn3) < 0)
+   const int split = TriFaceSplitType(vn1, vn2, vn3, mid);
+   if (split == 7 && faces.FindId(vn1, vn2, vn3) < 0)
    {
       return 1 + max(TriFaceSplitLevel(vn1, mid[0], mid[2]),
                      TriFaceSplitLevel(mid[0], vn2, mid[1]),
                      TriFaceSplitLevel(mid[2], mid[1], vn3),
                      TriFaceSplitLevel(mid[0], mid[1], mid[2]));
+   }
+
+   if (split != 0 && faces.FindId(vn1, vn2, vn3) < 0)
+   {
+      if (split == 1)
+      {
+         return 1 + std::max(TriFaceSplitLevel(vn1, mid[0], vn3),
+                             TriFaceSplitLevel(mid[0], vn2, vn3));
+      }
+      if (split == 2)
+      {
+         return 1 + std::max(TriFaceSplitLevel(vn1, vn2, mid[1]),
+                             TriFaceSplitLevel(vn1, mid[1], vn3));
+      }
+      return 1 + std::max(TriFaceSplitLevel(vn1, vn2, mid[2]),
+                          TriFaceSplitLevel(mid[2], vn2, vn3));
    }
 
    return 0; // not split
