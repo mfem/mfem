@@ -484,6 +484,58 @@ TEST_CASE("NCMesh mixed pyramid children refine and derefine", "[NCMesh]")
    }
 }
 
+TEST_CASE("NCMesh anisotropic prism refinement in mixed mesh", "[NCMesh]")
+{
+   const int prism_attribute = GENERATE(5, 6, 7, 8);
+   const int ref_type = GENERATE(Refinement::XY, Refinement::Z);
+   CAPTURE(prism_attribute, ref_type);
+
+   Mesh mesh("../../data/l-mixed.mesh", 1, 1);
+   const real_t original_volume = SummarizeRefinedElements(mesh).volume;
+   H1_FECollection fec(2, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + x[0] - 2.0*x[1] + 3.0*x[2];
+   });
+   field.ProjectCoefficient(affine);
+
+   mesh.EnsureNCMesh(true);
+   Array<Refinement> refs;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == prism_attribute)
+      {
+         REQUIRE(mesh.GetElementBaseGeometry(i) == Geometry::PRISM);
+         refs.Append(Refinement(i, ref_type));
+      }
+   }
+   REQUIRE(refs.Size() == 1);
+   mesh.GeneralRefinement(refs);
+
+   int prism_children = 0;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == prism_attribute)
+      {
+         REQUIRE(mesh.GetElementBaseGeometry(i) == Geometry::PRISM);
+         prism_children++;
+      }
+   }
+   REQUIRE(prism_children == (ref_type == Refinement::XY ? 4 : 2));
+   REQUIRE(SummarizeRefinedElements(mesh).volume ==
+           MFEM_Approx(original_volume));
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
+   fes.Update();
+   field.Update();
+   GridFunction exact(&fes);
+   exact.ProjectCoefficient(affine);
+   exact -= field;
+   REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+}
+
 TEST_CASE("NCMesh nested mixed child transforms", "[NCMesh]")
 {
    Mesh parent("../../data/ref-pyramid.mesh", 1, 1);
@@ -928,6 +980,88 @@ TEST_CASE("ParNCMesh mixed pyramid derefinement", "[Parallel][NCMesh]")
       coarse_exact -= field;
       REQUIRE(coarse_exact.Normlinf() == MFEM_Approx(0.0, 1e-10));
    }
+}
+
+TEST_CASE("ParNCMesh anisotropic prism refinement in mixed mesh",
+          "[Parallel][NCMesh]")
+{
+   const int nranks = Mpi::WorldSize();
+   if (nranks != 2 && nranks != 3) { return; }
+   const int prism_attribute = GENERATE(5, 6, 7, 8);
+   const int ref_type = GENERATE(Refinement::XY, Refinement::Z);
+   const bool redistribute = GENERATE(false, true);
+   CAPTURE(prism_attribute, ref_type, redistribute);
+
+   Mesh serial_mesh("../../data/l-mixed.mesh", 1, 1);
+   serial_mesh.EnsureNCMesh(true);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   H1_FECollection fec(2, 3);
+   ParFiniteElementSpace fes(&mesh, &fec);
+   ParGridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + x[0] - 2.0*x[1] + 3.0*x[2];
+   });
+   field.ProjectCoefficient(affine);
+
+   real_t original_volume = SummarizeRefinedElements(mesh).volume;
+   MPI_Allreduce(MPI_IN_PLACE, &original_volume, 1,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   Array<Refinement> refs;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == prism_attribute)
+      {
+         REQUIRE(mesh.GetElementBaseGeometry(i) == Geometry::PRISM);
+         refs.Append(Refinement(i, ref_type));
+      }
+   }
+   int global_refs = refs.Size();
+   MPI_Allreduce(MPI_IN_PLACE, &global_refs, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   REQUIRE(global_refs == 1);
+   mesh.GeneralRefinement(refs);
+   fes.Update();
+   field.Update();
+
+   int prism_children = 0;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == prism_attribute)
+      {
+         REQUIRE(mesh.GetElementBaseGeometry(i) == Geometry::PRISM);
+         prism_children++;
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &prism_children, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   REQUIRE(prism_children == (ref_type == Refinement::XY ? 4 : 2));
+
+   if (redistribute)
+   {
+      Array<int> partition(mesh.GetNE());
+      const int rank = Mpi::WorldRank();
+      int child = 0;
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         partition[i] = mesh.GetAttribute(i) == prism_attribute ?
+                        (rank + 1 + child++) % nranks : rank;
+      }
+      mesh.Rebalance(partition);
+      fes.Update();
+      field.Update();
+   }
+
+   real_t refined_volume = SummarizeRefinedElements(mesh).volume;
+   MPI_Allreduce(MPI_IN_PLACE, &refined_volume, 1,
+                 MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(refined_volume == MFEM_Approx(original_volume));
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
+   ParGridFunction exact(&fes);
+   exact.ProjectCoefficient(affine);
+   exact -= field;
+   REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
 }
 
 TEST_CASE("ParNCMesh mixed pyramid vector L2 derefinement",
