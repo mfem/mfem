@@ -108,6 +108,32 @@ inline std::ostream& operator<<(std::ostream& out, Weight)
    return out << "Weight";
 }
 
+/// @brief Orientation FieldOperator.
+///
+/// The orientation sign, +1 or -1, of each entity, which makes ortho(J, s) and
+/// normal(J, s) point in the intended direction, e.g. outward on boundary
+/// faces. It is not attached to a field: the entity type provides it, see
+/// EntityTraits.
+class Orientation : public FieldOperator<-1>
+{
+public:
+   constexpr Orientation() : FieldOperator<-1>() {};
+};
+
+template< typename T >
+struct is_orientation_fop : std::false_type {};
+
+template <>
+struct is_orientation_fop<Orientation> : std::true_type {};
+
+template <typename T>
+constexpr bool is_orientation_fop_v = is_orientation_fop<T>::value;
+
+inline std::ostream& operator<<(std::ostream& out, Orientation)
+{
+   return out << "Orientation";
+}
+
 /// @brief Value FieldOperator.
 ///
 /// This FieldOperator is used to signal that the field contains the

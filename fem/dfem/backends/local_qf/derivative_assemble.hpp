@@ -576,61 +576,6 @@ MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
    }
 }
 
-// Element vdofs of element e in lexicographic order, matching the dof
-// ordering of the element matrices
-inline void GetLexicographicElementVDofs(const FiniteElementSpace &fes,
-                                         const int e, Array<int> &vdofs)
-{
-   Array<int> native_vdofs;
-   fes.GetElementVDofs(e, native_vdofs);
-   const FiniteElement *fe = fes.GetFE(e);
-   const auto *tbe = dynamic_cast<const TensorBasisElement *>(fe);
-   // Vector-valued (ND/RT) dof maps carry signs, which are not handled
-   MFEM_VERIFY(tbe && fe->GetRangeType() == FiniteElement::SCALAR,
-               "DerivativeAssemble without an ElementRestriction requires "
-               "scalar tensor-product (H1/L2) elements");
-   const Array<int> &dof_map = tbe->GetDofMap();
-   if (dof_map.Size() == 0)
-   {
-      vdofs = native_vdofs;
-      return;
-   }
-   const int nd = dof_map.Size();
-   const int vd = native_vdofs.Size() / nd;
-   vdofs.SetSize(native_vdofs.Size());
-   for (int c = 0; c < vd; c++)
-   {
-      for (int i = 0; i < nd; i++)
-      {
-         vdofs[i + c * nd] = native_vdofs[dof_map[i] + c * nd];
-      }
-   }
-}
-
-// Scatter element matrices of layout
-// test_dof x test_vdim x trial_dof x trial_vdim x ne into mat through the
-// element vdofs, for spaces without an ElementRestriction (e.g. L2)
-inline void AddElementMatrices(const Vector &mat_ea,
-                               const FiniteElementSpace &test_fes,
-                               const FiniteElementSpace &trial_fes,
-                               const int ne, SparseMatrix &mat)
-{
-   const int height = mat_ea.Size() / ne;
-   Array<int> test_vdofs, trial_vdofs;
-   const real_t *h_mat_ea = mat_ea.HostRead();
-   for (int e = 0; e < ne; e++)
-   {
-      GetLexicographicElementVDofs(test_fes, e, test_vdofs);
-      GetLexicographicElementVDofs(trial_fes, e, trial_vdofs);
-      MFEM_VERIFY(test_vdofs.Size() * trial_vdofs.Size() == height,
-                  "DerivativeAssemble: element matrix size mismatch");
-      const DenseMatrix A_e(const_cast<real_t *>(h_mat_ea + e * height),
-                            test_vdofs.Size(), trial_vdofs.Size());
-      mat.AddSubMatrix(test_vdofs, trial_vdofs, A_e, 0);
-   }
-   mat.Finalize(0);
-}
-
 } // namespace detail
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -638,7 +583,8 @@ inline void AddElementMatrices(const Vector &mat_ea,
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 class DerivativeAssemble
 {
    static constexpr auto inout_tuple =
@@ -650,7 +596,7 @@ class DerivativeAssemble
    static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
 
-   const IntegratorContext ctx;
+   const IntegratorContext<entity_t> ctx;
    const Vector &qp_cache;
    inputs_t inputs;
    outputs_t outputs;
@@ -688,17 +634,10 @@ class DerivativeAssemble
    const int num_trial_dof_1d;
    const int total_trial_op_dim;
    mutable Vector inputs_trial_op_dim;
-   /// One element matrix bank per row block. Outputs on the same test field
-   /// share a bank and accumulate into it; outputs on different test fields are
-   /// different row blocks and need banks of their own, because their element
-   /// matrices have different shapes and are filled through different
-   /// ElementRestrictions, or element vdofs for spaces without one.
-   mutable std::vector<Vector> group_Ae_mem;
-
 public:
    DerivativeAssemble() = delete;
 
-   DerivativeAssemble(IntegratorContext ctx_in,
+   DerivativeAssemble(IntegratorContext<entity_t> ctx_in,
                       qfunc_t /*qfunc*/,
                       inputs_t inputs_in,
                       outputs_t outputs_in,
@@ -724,17 +663,17 @@ public:
       for (const auto &field : ctx_in.unionfds)
       {
          maps.emplace_back(
-            GetDofToQuad<Entity::Element>(field, ctx_in.ir, dtq_mode));
+            GetDofToQuad<entity_t>(field, ctx_in.ir, dtq_mode));
       }
       return maps;
    }()),
-   input_dtq_maps(create_dtq_maps<Entity::Element>(
+   input_dtq_maps(create_dtq_maps<entity_t>(
                      inputs,
                      dtqs,
                      create_union_field_map_for_dtq(ctx_in, inputs),
                      ctx_in.unionfds,
                      ctx_in.ir)),
-   output_dtq_maps(create_dtq_maps<Entity::Element>(
+   output_dtq_maps(create_dtq_maps<entity_t>(
                       outputs,
                       dtqs,
                       create_union_field_map_for_dtq(ctx_in, outputs),
@@ -803,8 +742,9 @@ public:
       });
       return top;
    }()),
-   num_trial_dof(trial_fes ? trial_fes->GetFE(0)->GetDof() : 0),
-   dim(ctx_in.mesh.Dimension()), ne(ctx_in.nentities),
+   num_trial_dof(trial_fes ?
+                 EntityTraits<entity_t>::TypicalFE(*trial_fes)->GetDof() : 0),
+   dim(GetEntityDimension<entity_t>(ctx_in.mesh)), ne(ctx_in.nentities),
    nq(ctx_in.ir.GetNPoints()), q1d(tensor_1d_size(nq, dim)),
    num_trial_dof_1d(tensor_1d_size(num_trial_dof, dim)), total_trial_op_dim(
       [&]
@@ -814,10 +754,11 @@ public:
       return compute_total_trial_op_dim(
          inputs, input_is_dependent, in_qp_sizes);
    }()),
-   inputs_trial_op_dim(), group_Ae_mem()
+   inputs_trial_op_dim()
    {
-      MFEM_ASSERT(ctx.unionfds.size() == nfields,
-                  "LocalQFBackend: unionfds size mismatch");
+      MFEM_ASSERT(nfields <= ctx.unionfds.size(),
+                  "LocalQFBackend: the q-function uses more fields than the "
+                  "operator has");
       MFEM_ASSERT(trial_field_uf != SIZE_MAX,
                   "DerivativeAssemble: trial field not found in unionfds");
 
@@ -836,21 +777,18 @@ public:
             ? get<i>(inputs).size_on_qp / get<i>(inputs).vdim
             : 0;
       });
-
-      group_Ae_mem.resize(output_groups->field_ids.size());
    }
 
-   /// @brief Assemble one SparseMatrix per assemblable output field.
+   /// @brief Add the entity matrices of every assemblable output field to
+   /// @a banks, see future::detail::EntityMatrices.
    ///
-   /// @a A is indexed by position in ctx.outfds, so A[f] receives the row block
-   /// belonging to output field f. Slots this integrator writes nothing
-   /// assemblable to -- quadrature or parameter spaces, or fields it does not
-   /// touch at all -- are left alone, which lets several integrators fill
-   /// different row blocks of the same vector. Ownership of the matrices passes
-   /// to the caller.
-   void operator()(std::vector<SparseMatrix *> &A) const
+   /// @a banks is indexed by position in ctx.outfds, so banks[f] receives the
+   /// row block belonging to output field f. Slots this integrator writes
+   /// nothing assemblable to -- quadrature or parameter spaces, or fields it
+   /// does not touch at all -- are left alone.
+   void operator()(std::vector<future::detail::EntityMatrices> &banks) const
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
 
       const bool any_assemblable =
          std::find(group_assemblable.begin(), group_assemblable.end(), true) !=
@@ -868,44 +806,48 @@ public:
                   "ParFiniteElementSpace, so the columns of the derivative "
                   "have no basis to be assembled against");
 
-      // Null for spaces without an ElementRestriction (e.g. L2)
-      const auto *trial_restr =
-         dynamic_cast<const ElementRestriction *>
-         (trial_fes->GetElementRestriction
-          (ElementDofOrdering::LEXICOGRAPHIC));
+      if (banks.size() < ctx.outfds.size()) { banks.resize(ctx.outfds.size()); }
 
-      if (A.size() < ctx.outfds.size())
-      {
-         A.resize(ctx.outfds.size(), nullptr);
-      }
-
-      for (size_t g = 0; g < group_Ae_mem.size(); g++)
+      for (size_t g = 0; g < output_groups->field_ids.size(); g++)
       {
          if (!group_assemblable[g]) { continue; }
 
-         if (group_Ae_mem[g].Size() == 0)
+         const long long bank_size =
+            static_cast<long long>(output_groups->num_test_dof[g]) *
+            output_groups->test_vdim[g] * num_trial_dof * trial_vdim * ne;
+         MFEM_VERIFY(bank_size <= std::numeric_limits<int>::max(),
+                     "DerivativeAssemble: the entity matrices, "
+                     << bank_size << " entries, do not fit in a Vector");
+         const ParFiniteElementSpace *test_fes = output_groups->fes[g];
+         const size_t f = g;
+         future::detail::EntityMatrices &m = banks[f];
+         if (!m.used)
          {
-            const long long bank_size =
-               static_cast<long long>(output_groups->num_test_dof[g]) *
-               output_groups->test_vdim[g] * num_trial_dof * trial_vdim * ne;
-            MFEM_VERIFY(bank_size <= std::numeric_limits<int>::max(),
-                        "DerivativeAssemble: the element matrices, "
-                        << bank_size << " entries, do not fit in a Vector");
-            group_Ae_mem[g].SetSize(static_cast<int>(bank_size),
-                                    Device::GetDeviceMemoryType());
-            group_Ae_mem[g].UseDevice(true);
+            // The kernel accumulates into the bank, so the first integrator of
+            // an assembly clears it: otherwise assembling twice (the next
+            // Newton step, say) would double every entry.
+            if (m.data.Size() != bank_size)
+            {
+               m.data.SetSize(static_cast<int>(bank_size),
+                              Device::GetDeviceMemoryType());
+               m.data.UseDevice(true);
+            }
+            m.data = 0.0;
+            m.test_fes = test_fes;
+            m.trial_fes = trial_fes;
+            m.restriction = EntityTraits<entity_t>::restriction;
+            m.used = true;
          }
-
-         // The kernel accumulates into Ae, so the bank has to start clean on
-         // every call: otherwise assembling twice (the next Newton step, say)
-         // would double every entry.
-         group_Ae_mem[g] = 0.0;
+         MFEM_VERIFY(m.data.Size() == bank_size && m.test_fes == test_fes &&
+                     m.trial_fes == trial_fes,
+                     "DerivativeAssemble: the integrators of one entity type "
+                     "disagree on the entity matrices of a row block");
 
          DerivativeAssembleHO::Run(dim,
                                    tile_size(),
                                    ctx,
                                    qp_cache,
-                                   group_Ae_mem[g],
+                                   m.data,
                                    inputs,
                                    outputs,
                                    input_dtq_maps,
@@ -927,32 +869,6 @@ public:
                                    ne,
                                    q1d,
                                    dim);
-
-         const ParFiniteElementSpace *test_fes = output_groups->fes[g];
-         const auto *test_restr = dynamic_cast<const ElementRestriction *>(
-                                     test_fes->GetElementRestriction(
-                                        ElementDofOrdering::LEXICOGRAPHIC));
-
-         const size_t f = g;
-         MFEM_VERIFY(A[f] == nullptr,
-                     "DerivativeAssemble: output field already carries an "
-                     "assembled matrix; two integrators contributing to the "
-                     "same row block cannot be assembled into one matrix");
-
-         SparseMatrix *M;
-         if (test_restr && trial_restr)
-         {
-            M = new SparseMatrix;
-            M->OverrideSize(test_fes->GetVSize(), trial_fes->GetVSize());
-            test_restr->FillSparseMatrix(group_Ae_mem[g], *M, *trial_restr);
-         }
-         else
-         {
-            M = new SparseMatrix(test_fes->GetVSize(), trial_fes->GetVSize());
-            detail::AddElementMatrices(group_Ae_mem[g], *test_fes, *trial_fes,
-                                       ne, *M);
-         }
-         A[f] = M;
       }
    }
 
@@ -962,7 +878,7 @@ public:
 
    template<typename backend_t = LocalQFHOBackend<3>, int T_Q1D = 0>
    static void derivative_assemble_callback(
-      const IntegratorContext &ctx,
+      const IntegratorContext<entity_t> &ctx,
       const Vector &qp_cache,
       Vector &Ae_mem,
       const inputs_t &inputs,
@@ -993,7 +909,8 @@ public:
 
       MFEM_VERIFY(dim == DIM,
                   "DerivativeAssemble: mesh dim does not match backend");
-      MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
+      MFEM_VERIFY(dim == GetEntityDimension<entity_t>(ctx.mesh),
+                  "Dimension mismatch");
       MFEM_VERIFY(q1d <= MQ1, "q1d exceeds backend MQ1 limit");
       MFEM_VERIFY(nq <= MNQ,
                   "DerivativeAssemble: nq exceeds backend quadrature capacity");
@@ -1003,11 +920,9 @@ public:
          MFEM_VERIFY(out_op_dim[o] <= DIM,
                      "DerivativeAssemble: test_op_dim exceeds spatial DIM");
       });
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
 
-      const auto d_attr = ctx.attr.Read();
-      const bool has_attr = ctx.attr.Size() > 0;
-      const auto d_elem_attr = ctx.elem_attr->Read();
+      const int *d_entities = ctx.marked_entities.Read();
 
       const auto qpdc = Reshape(qp_cache.Read(),
                                 nq,
@@ -1025,9 +940,9 @@ public:
                         ne);
 
       dfem::forall(
-         [=] MFEM_HOST_DEVICE(const int e, void *) MFEM_FORCE_INLINE
+         [=] MFEM_HOST_DEVICE(const int ek, void *) MFEM_FORCE_INLINE
       {
-         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+         const int e = d_entities[ek];
 
          MFEM_CONTRACT_VAR(out_group);
          MFEM_CONTRACT_VAR(group);
@@ -1099,7 +1014,7 @@ public:
             }
          });
       },
-      ne,
+      ctx.marked_entities.Size(),
       backend_t::thread_blocks(q1d),
       0,
       nullptr);
@@ -1115,17 +1030,18 @@ public:
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
 inline
-typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::
+typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 AssembleKernelType
-DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeAssembleHO::Kernel()
 {
    static_assert(DIM == 2 || DIM == 3);
    using assemble_t =
-      DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return assemble_t::template derivative_assemble_callback<
              LocalQFHOBackend<DIM, Q1D>>;
 }
@@ -1133,15 +1049,16 @@ DerivativeAssembleHO::Kernel()
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 inline
-typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::
+typename DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 AssembleKernelType
-DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeAssembleHO::Fallback(int dim, int q1d)
 {
    using assemble_t =
-      DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t>;
+      DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    using DerivativeAssembleHO = typename assemble_t::DerivativeAssembleHO;
    // We don't route thru DispatchHOKernelByDim() as for other callbacks
    // since this kernel caps 3D at MQ1 = 8 but leaves 2D on the default.

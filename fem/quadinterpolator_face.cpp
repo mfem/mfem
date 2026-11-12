@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "quadinterpolator_face.hpp"
+#include "quadinterpolator.hpp"
 #include "../general/annotation.hpp"
 #include "../general/forall.hpp"
 #include "../linalg/dtensor.hpp"
@@ -18,11 +19,10 @@
 namespace mfem
 {
 
-/// Return the sign to apply to the normals on each face to point from e1 to e2.
-static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
-                     Array<bool> &signs)
+void FaceQuadratureInterpolator::GetSigns(const Mesh &mesh,
+                                          const FaceType type,
+                                          Array<bool> &signs)
 {
-   const Mesh &mesh = *fes.GetMesh();
    const int dim = mesh.SpaceDimension();
    int face_id;
    int f_ind = 0;
@@ -102,7 +102,8 @@ void FaceQuadratureInterpolator::Eval2D(
    Vector &q_der,
    Vector &q_det,
    Vector &q_nor,
-   const int eval_flags)
+   const int eval_flags,
+   const Array<int> *flist)
 {
    const int nd1d = maps.ndof;
    const int nq1d = maps.nqpt;
@@ -114,21 +115,24 @@ void FaceQuadratureInterpolator::Eval2D(
    MFEM_VERIFY(VDIM == 2 || !(eval_flags & DETERMINANTS), "");
    auto B = Reshape(maps.B.Read(), NQ1D, ND1D);
    auto G = Reshape(maps.G.Read(), NQ1D, ND1D);
+   const int NM = flist ? flist->Size() : NF; // entities processed
+   const int *d_flist = flist ? flist->Read() : nullptr;
    auto F = Reshape(f_vec.Read(), ND1D, VDIM, NF);
    auto sign = signs.Read();
    auto val = q_layout == QVectorLayout::byNODES ?
-              Reshape(q_val.Write(), NQ1D, VDIM, NF):
-              Reshape(q_val.Write(), VDIM, NQ1D, NF);
+              Reshape(q_val.Write(), NQ1D, VDIM, NM):
+              Reshape(q_val.Write(), VDIM, NQ1D, NM);
    auto der = q_layout == QVectorLayout::byNODES ? // only tangential der
-              Reshape(q_der.Write(), NQ1D, VDIM, NF):
-              Reshape(q_der.Write(), VDIM, NQ1D, NF);
-   auto det = Reshape(q_det.Write(), NQ1D, NF);
+              Reshape(q_der.Write(), NQ1D, VDIM, NM):
+              Reshape(q_der.Write(), VDIM, NQ1D, NM);
+   auto det = Reshape(q_det.Write(), NQ1D, NM);
    auto n   = q_layout == QVectorLayout::byNODES ?
-              Reshape(q_nor.Write(), NQ1D, 2, NF):
-              Reshape(q_nor.Write(), 2, NQ1D, NF);
+              Reshape(q_nor.Write(), NQ1D, 2, NM):
+              Reshape(q_nor.Write(), 2, NQ1D, NM);
    // If Gauss-Lobatto
-   mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
+   mfem::forall(NM, [=] MFEM_HOST_DEVICE (int f)
    {
+      const int fx = d_flist ? d_flist[f] : f;
       const int ND1D = T_ND1D ? T_ND1D : nd1d;
       const int NQ1D = T_NQ1D ? T_NQ1D : nq1d;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -139,7 +143,7 @@ void FaceQuadratureInterpolator::Eval2D(
       {
          for (int c = 0; c < VDIM; c++)
          {
-            r_F[d][c] = F(d,c,f);
+            r_F[d][c] = F(d,c,fx);
          }
       }
       for (int q = 0; q < NQ1D; ++q)
@@ -199,7 +203,7 @@ void FaceQuadratureInterpolator::Eval2D(
                }
                if (eval_flags & NORMALS)
                {
-                  const real_t s = sign[f] ? -1.0 : 1.0;
+                  const real_t s = sign[fx] ? -1.0 : 1.0;
                   if (q_layout == QVectorLayout::byVDIM)
                   {
                      n(0,q,f) =  s*D[1]/norm;
@@ -229,7 +233,8 @@ void FaceQuadratureInterpolator::Eval3D(
    Vector &q_der,
    Vector &q_det,
    Vector &q_nor,
-   const int eval_flags)
+   const int eval_flags,
+   const Array<int> *flist)
 {
    const int nd1d = maps.ndof;
    const int nq1d = maps.nqpt;
@@ -241,20 +246,23 @@ void FaceQuadratureInterpolator::Eval3D(
    MFEM_VERIFY(VDIM == 3 || !(eval_flags & DETERMINANTS), "");
    auto B = Reshape(maps.B.Read(), NQ1D, ND1D);
    auto G = Reshape(maps.G.Read(), NQ1D, ND1D);
+   const int NM = flist ? flist->Size() : NF; // entities processed
+   const int *d_flist = flist ? flist->Read() : nullptr;
    auto F = Reshape(e_vec.Read(), ND1D, ND1D, VDIM, NF);
    auto sign = signs.Read();
    auto val = q_layout == QVectorLayout::byNODES ?
-              Reshape(q_val.Write(), NQ1D, NQ1D, VDIM, NF):
-              Reshape(q_val.Write(), VDIM, NQ1D, NQ1D, NF);
+              Reshape(q_val.Write(), NQ1D, NQ1D, VDIM, NM):
+              Reshape(q_val.Write(), VDIM, NQ1D, NQ1D, NM);
    auto der = q_layout == QVectorLayout::byNODES ?
-              Reshape(q_der.Write(), NQ1D, NQ1D, VDIM, 2, NF):
-              Reshape(q_der.Write(), VDIM, 2, NQ1D, NQ1D, NF);
-   auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NF);
+              Reshape(q_der.Write(), NQ1D, NQ1D, VDIM, 2, NM):
+              Reshape(q_der.Write(), VDIM, 2, NQ1D, NQ1D, NM);
+   auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NM);
    auto nor = q_layout == QVectorLayout::byNODES ?
-              Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NF):
-              Reshape(q_nor.Write(), 3, NQ1D, NQ1D, NF);
-   mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
+              Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NM):
+              Reshape(q_nor.Write(), 3, NQ1D, NQ1D, NM);
+   mfem::forall(NM, [=] MFEM_HOST_DEVICE (int f)
    {
+      const int fx = d_flist ? d_flist[f] : f;
       constexpr int max_ND1D = T_ND1D ? T_ND1D : MAX_ND1D;
       constexpr int max_NQ1D = T_NQ1D ? T_NQ1D : MAX_NQ1D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM3D;
@@ -265,7 +273,7 @@ void FaceQuadratureInterpolator::Eval3D(
          {
             for (int c = 0; c < VDIM; c++)
             {
-               r_F[d1][d2][c] = F(d1,d2,c,f);
+               r_F[d1][d2][c] = F(d1,d2,c,fx);
             }
          }
       }
@@ -392,7 +400,7 @@ void FaceQuadratureInterpolator::Eval3D(
             {
                for (int q1 = 0; q1 < NQ1D; ++q1)
                {
-                  const real_t s = sign[f] ? -1.0 : 1.0;
+                  const real_t s = sign[fx] ? -1.0 : 1.0;
                   n[0] = s*( BGu[q2][q1][1]*GBu[q2][q1][2]-GBu[q2][q1][1]*
                              BGu[q2][q1][2] );
                   n[1] = s*(-BGu[q2][q1][0]*GBu[q2][q1][2]+GBu[q2][q1][0]*
@@ -435,7 +443,8 @@ void FaceQuadratureInterpolator::SmemEval3D(
    Vector &q_der,
    Vector &q_det,
    Vector &q_nor,
-   const int eval_flags)
+   const int eval_flags,
+   const Array<int> *flist)
 {
    MFEM_PERF_SCOPE("FaceQuadInterpolator::SmemEval3D");
    const int nd1d = maps.ndof;
@@ -448,21 +457,24 @@ void FaceQuadratureInterpolator::SmemEval3D(
    MFEM_VERIFY(VDIM == 3 || !(eval_flags & DETERMINANTS), "");
    auto B = Reshape(maps.B.Read(), NQ1D, ND1D);
    auto G = Reshape(maps.G.Read(), NQ1D, ND1D);
+   const int NM = flist ? flist->Size() : NF; // entities processed
+   const int *d_flist = flist ? flist->Read() : nullptr;
    auto F = Reshape(e_vec.Read(), ND1D, ND1D, VDIM, NF);
    auto sign = signs.Read();
    auto val = q_layout == QVectorLayout::byNODES ?
-              Reshape(q_val.Write(), NQ1D, NQ1D, VDIM, NF):
-              Reshape(q_val.Write(), VDIM, NQ1D, NQ1D, NF);
+              Reshape(q_val.Write(), NQ1D, NQ1D, VDIM, NM):
+              Reshape(q_val.Write(), VDIM, NQ1D, NQ1D, NM);
    auto der = q_layout == QVectorLayout::byNODES ?
-              Reshape(q_der.Write(), NQ1D, NQ1D, VDIM, 2, NF):
-              Reshape(q_der.Write(), VDIM, 2, NQ1D, NQ1D, NF);
-   auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NF);
+              Reshape(q_der.Write(), NQ1D, NQ1D, VDIM, 2, NM):
+              Reshape(q_der.Write(), VDIM, 2, NQ1D, NQ1D, NM);
+   auto det = Reshape(q_det.Write(), NQ1D, NQ1D, NM);
    auto nor = q_layout == QVectorLayout::byNODES ?
-              Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NF):
-              Reshape(q_nor.Write(), 3, NQ1D, NQ1D, NF);
+              Reshape(q_nor.Write(), NQ1D, NQ1D, 3, NM):
+              Reshape(q_nor.Write(), 3, NQ1D, NQ1D, NM);
 
-   mfem::forall_3D(NF, NQ1D, NQ1D, VDIM, [=] MFEM_HOST_DEVICE (int f)
+   mfem::forall_3D(NM, NQ1D, NQ1D, VDIM, [=] MFEM_HOST_DEVICE (int f)
    {
+      const int fx = d_flist ? d_flist[f] : f;
       constexpr int max_ND1D = T_ND1D ? T_ND1D : MAX_ND1D;
       constexpr int max_NQ1D = T_NQ1D ? T_NQ1D : MAX_NQ1D;
       constexpr int max_VDIM = T_VDIM ? T_VDIM : MAX_VDIM3D;
@@ -477,7 +489,7 @@ void FaceQuadratureInterpolator::SmemEval3D(
          {
             MFEM_FOREACH_THREAD(c,z,VDIM)
             {
-               s_F[d1][d2][c] = F(d1,d2,c,f);
+               s_F[d1][d2][c] = F(d1,d2,c,fx);
             }
          }
       }
@@ -604,7 +616,7 @@ void FaceQuadratureInterpolator::SmemEval3D(
                {
                   if (MFEM_THREAD_ID(z) == 0)
                   {
-                     const real_t s = sign[f] ? -1.0 : 1.0;
+                     const real_t s = sign[fx] ? -1.0 : 1.0;
                      n[0] = s*( BGu[q2][q1][1]*GBu[q2][q1][2]-GBu[q2][q1][1]*
                                 BGu[q2][q1][2] );
                      n[1] = s*(-BGu[q2][q1][0]*GBu[q2][q1][2]+GBu[q2][q1][0]*
@@ -641,9 +653,11 @@ void FaceQuadratureInterpolator::SmemEval3D(
 
 void FaceQuadratureInterpolator::Mult(
    const Vector &e_vec, unsigned eval_flags,
-   Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor) const
+   Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor,
+   const Array<int> *flist) const
 {
-   if (nf == 0) { return; }
+   const int nf_marked = flist ? flist->Size() : nf;
+   if (nf_marked == 0) { return; }
    const int vdim = fespace->GetVDim();
    const int dim = fespace->GetMesh()->Dimension();
    const FiniteElement *fe = fespace->GetTypicalTraceElement();
@@ -662,7 +676,8 @@ void FaceQuadratureInterpolator::Mult(
       Vector &q_der,
       Vector &q_det,
       Vector &q_nor,
-      const int eval_flags) = NULL;
+      const int eval_flags,
+      const Array<int> *flist) = NULL;
    if (vdim == 1)
    {
       if (dim == 2)
@@ -776,7 +791,7 @@ void FaceQuadratureInterpolator::Mult(
    if (eval_func)
    {
       eval_func(nf, vdim, q_layout, maps, signs, e_vec,
-                q_val, q_der, q_det, q_nor, eval_flags);
+                q_val, q_der, q_det, q_nor, eval_flags, flist);
    }
    else
    {
@@ -785,10 +800,44 @@ void FaceQuadratureInterpolator::Mult(
 }
 
 void FaceQuadratureInterpolator::Values(
-   const Vector &e_vec, Vector &q_val) const
+   const Vector &e_vec, Vector &q_val, const Array<int> *flist) const
 {
    Vector q_der, q_det, q_nor;
-   Mult(e_vec, VALUES, q_val, q_der, q_det, q_nor);
+   Mult(e_vec, VALUES, q_val, q_der, q_det, q_nor, flist);
+}
+
+void FaceQuadratureInterpolator::AddMultTranspose(
+   unsigned eval_flags, const Vector &q_val, const Vector &q_der,
+   Vector &e_vec, const Array<int> *flist) const
+{
+   MFEM_VERIFY(!(eval_flags & (DETERMINANTS | NORMALS)),
+               "only VALUES and DERIVATIVES can be transposed");
+   const int nf_marked = flist ? flist->Size() : nf;
+   if (nf_marked == 0) { return; }
+   const int vdim = fespace->GetVDim();
+   const FiniteElement *fe = fespace->GetTypicalTraceElement();
+   const DofToQuad &maps = fe->GetDofToQuad(*IntRule, DofToQuad::TENSOR);
+   const int dim = fe->GetDim();
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
+
+   // We can reuse the QuadratureInterpolator transpose kernels for face E-vectors and Q-vectors.
+   // since the face E-vector and Q-vectors follow the same layout as a tensor-product element,
+   using QI = QuadratureInterpolator;
+   if (eval_flags & VALUES)
+   {
+      QI::TensorEvalTransposeKernels::Run(dim, q_layout, vdim, nd, nq, nf,
+                                          maps.B.Read(), q_val.Read(),
+                                          e_vec.ReadWrite(), vdim, nd, nq,
+                                          flist);
+   }
+   if (eval_flags & DERIVATIVES)
+   {
+      QI::GradTransposeKernels::Run(dim, q_layout, false, vdim, nd, nq, nf,
+                                    maps.B.Read(), maps.G.Read(), nullptr,
+                                    q_der.Read(), e_vec.ReadWrite(), dim, vdim,
+                                    nd, nq, flist);
+   }
 }
 
 } // namespace mfem

@@ -34,6 +34,7 @@
 #include "../quadinterpolator.hpp"
 
 #include "../../general/forall.hpp"
+#include "../../general/scan.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../mesh/mesh.hpp"
 
@@ -747,6 +748,14 @@ using Inputs = tuple<Ops...>;
 template <typename... Ops>
 using Outputs = tuple<Ops...>;
 
+/// Whether one of the field operators in @a fops_t satisfies @a trait.
+template <template <typename> class trait, typename fops_t>
+struct tuple_has_fop;
+
+template <template <typename> class trait, typename... fops>
+struct tuple_has_fop<trait, tuple<fops...>>
+   : std::bool_constant<(trait<std::decay_t<fops>>::value || ...)> {};
+
 // Convenience wrapper to encode Derivatives as integer sequence
 template <size_t... FieldIds>
 using Derivatives = std::integer_sequence<size_t, FieldIds...>;
@@ -817,6 +826,20 @@ constexpr bool NeedsQpCache(DerivativeKernels set)
       DerivativeKernels::AssembleMatrix |
       DerivativeKernels::AssembleDiagonal;
    return HasAnyKernel(set, qp_cache_kernels);
+}
+
+// The name of the single kernel @a kernel, for error messages.
+constexpr const char *KernelName(DerivativeKernels kernel)
+{
+   switch (kernel)
+   {
+      case DerivativeKernels::Apply: return "Apply";
+      case DerivativeKernels::ApplyTranspose: return "ApplyTranspose";
+      case DerivativeKernels::AssembleMatrix: return "AssembleMatrix";
+      case DerivativeKernels::AssembleDiagonal: return "AssembleDiagonal";
+      case DerivativeKernels::Action: return "Action";
+      default: return "(a combination of kernels)";
+   }
 }
 
 // A single second derivative (Hessian) block of a functional f, obtained by
@@ -1019,16 +1042,9 @@ namespace dfem
 template <class... T> constexpr bool always_false = false;
 }
 
-/// @brief Entity struct
-///
-/// This struct is used to store information about an entity type.
-namespace Entity
-{
-struct Element;
-struct BoundaryElement;
-struct Face;
-struct BoundaryFace;
-}
+/// @brief Properties of the entity type @a entity_t, see entity_utils.hpp.
+template <typename entity_t>
+struct EntityTraits;
 
 /// @brief ThreadBlocks struct
 ///
@@ -1563,18 +1579,11 @@ int GetDimension(const FieldDescriptor &f)
       if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
                     std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         if constexpr (std::is_same_v<entity_t, Entity::Element>)
-         {
-            return arg->GetMesh()->Dimension();
-         }
-         else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-         {
-            return arg->GetMesh()->Dimension() - 1;
-         }
+         return EntityTraits<entity_t>::Dimension(*arg->GetMesh());
       }
       else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
-         return arg->GetSpace()->GetMesh()->Dimension();
+         return EntityTraits<entity_t>::Dimension(*arg->GetSpace()->GetMesh());
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
@@ -1619,915 +1628,6 @@ std::variant<const QuadratureInterpolator *, const Operator *>get_qinterp(
    }, f.data);
 }
 
-/// @brief Get the prolongation operator for a field descriptor.
-///
-/// @param f the field descriptor.
-/// @returns the prolongation operator for the field descriptor.
-inline
-std::shared_ptr<const Operator> get_prolongation(const FieldDescriptor &f)
-{
-   return std::visit([](auto&& arg) -> std::shared_ptr<const Operator>
-   {
-      using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         // Non-owning shared_ptr with no-op deleter
-         return std::shared_ptr<const Operator>(arg->GetProlongationMatrix(), [](
-         const Operator*) {});
-      }
-      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
-      {
-         return nullptr;
-      }
-      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
-      {
-         // Non-owning shared_ptr with no-op deleter
-         return std::shared_ptr<const Operator>(arg->GetProlongationMatrix(), [](
-         const Operator*) {});
-      }
-      else
-      {
-         static_assert(dfem::always_false<T>, "can't use GetProlongation on type");
-      }
-      return nullptr; // Unreachable, but avoids compiler warning
-   }, f.data);
-}
-
-/// @brief Get the element restriction operator for a field descriptor.
-///
-/// @param f the field descriptor.
-/// @param o the element dof ordering.
-/// @returns the element restriction operator for the field descriptor in
-/// specified ordering.
-inline
-std::shared_ptr<const Operator> get_element_restriction(
-   const FieldDescriptor &f,
-   ElementDofOrdering o)
-{
-   return std::visit([&o](auto&& arg) -> std::shared_ptr<const Operator>
-   {
-      using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *>
-                    || std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         // Non-owning shared_ptr with no-op deleter
-         return std::shared_ptr<const Operator>(arg->GetElementRestriction(o), [](
-         const Operator*) {});
-      }
-      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
-      {
-         // For VectorQuadratureSpace, create an identity operator
-         // Data is already at quadrature points, so restriction is identity
-         const int size = arg->GetVSize();
-         return std::make_shared<IdentityOperator>(size);
-      }
-      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
-      {
-         // Non-owning shared_ptr with no-op deleter
-         return std::shared_ptr<const Operator>(arg->GetElementRestriction(o), [](
-         const Operator*) {});
-      }
-      else
-      {
-         static_assert(dfem::always_false<T>,
-                       "can't use get_element_restriction on type");
-      }
-      return nullptr; // Unreachable, but avoids compiler warning
-   }, f.data);
-}
-
-/// @brief Get the face restriction operator for a field descriptor.
-///
-/// @param f the field descriptor.
-/// @param o the face dof ordering.
-/// @param ft the face type
-/// @param m indicator if single or double valued
-/// @returns the face restriction operator for the field descriptor in
-/// specified ordering.
-inline
-std::shared_ptr<const Operator> get_face_restriction(const FieldDescriptor &f,
-                                                     ElementDofOrdering o,
-                                                     FaceType ft,
-                                                     L2FaceValues m)
-{
-   return std::visit([&o, &ft, &m](auto&& arg) -> std::shared_ptr<const Operator>
-   {
-      using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         // Non-owning shared_ptr with no-op deleter
-         return std::shared_ptr<const Operator>(arg->GetFaceRestriction(o, ft,
-         m), [](const Operator*) {});
-      }
-      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
-      {
-         // VectorQuadratureSpace does not support face restrictions
-         MFEM_ABORT("internal error");
-      }
-      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
-      {
-         // ParameterSpace does not support face restrictions
-         MFEM_ABORT("internal error");
-      }
-      else
-      {
-         static_assert(dfem::always_false<T>,
-                       "can't use get_face_restriction on type");
-      }
-      return nullptr; // Unreachable, but avoids compiler warning
-   }, f.data);
-}
-
-/// @brief Get the restriction operator for a field descriptor.
-///
-/// @param f the field descriptor.
-/// @param o the element dof ordering.
-/// @returns the restriction operator for the field descriptor in
-/// specified ordering.
-template <typename entity_t>
-inline
-std::shared_ptr<const Operator> get_restriction(const FieldDescriptor &f,
-                                                const ElementDofOrdering &o)
-{
-   if constexpr (std::is_same_v<entity_t, Entity::Element>)
-   {
-      return get_element_restriction(f, o);
-   }
-   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-   {
-      return get_face_restriction(f, o, FaceType::Boundary,
-                                  L2FaceValues::SingleValued);
-   }
-   MFEM_ABORT("restriction not implemented for Entity");
-   return nullptr;
-}
-
-/// @brief Restriction operators for a fixed list of fields, resolved once.
-///
-/// get_restriction() runs a std::visit over the descriptor variant and wraps
-/// its result in a std::shared_ptr with a no-op deleter, which allocates a
-/// control block on every call. Callers additionally dynamic_cast the result to
-/// detect identity restrictions. Both are properties that are fixed for the
-/// lifetime of the owning operator, so resolve them once and index into the
-/// result on the hot path instead.
-///
-/// A cache instance is bound to the field list it was first set up with; the
-/// owning operator should keep one instance per (field list, entity type) pair.
-///
-/// @tparam entity_t the entity type (see Entity).
-template <typename entity_t>
-class RestrictionCache
-{
-public:
-   /// @brief Resolve the restrictions for @a fields. A no-op after the first
-   /// call.
-   void EnsureSetup(const std::vector<FieldDescriptor> &fields,
-                    ElementDofOrdering o = ElementDofOrdering::LEXICOGRAPHIC)
-   {
-      if (ready)
-      {
-         MFEM_ASSERT(entries.size() == fields.size() && ordering == o,
-                     "restriction cache reused with a different field list");
-         return;
-      }
-      entries.reserve(fields.size());
-      for (const auto &f : fields) { entries.push_back(Resolve(f, o)); }
-      ordering = o;
-      ready = true;
-   }
-
-   /// @brief Resolve the restriction for the single field @a f. A no-op after
-   /// the first call.
-   void EnsureSetup(const FieldDescriptor &f,
-                    ElementDofOrdering o = ElementDofOrdering::LEXICOGRAPHIC)
-   {
-      if (ready)
-      {
-         MFEM_ASSERT(entries.size() == 1 && ordering == o,
-                     "restriction cache reused with a different field");
-         return;
-      }
-      entries.push_back(Resolve(f, o));
-      ordering = o;
-      ready = true;
-   }
-
-   /// @brief The restriction operator of field @a i, or nullptr if the field
-   /// has none (in which case the identity is assumed).
-   const Operator *Get(std::size_t i = 0) const { return entries[i].op; }
-
-   /// @brief True if applying the restriction of field @a i is a no-op, i.e.
-   /// the field has no restriction or an identity one. Such fields alias the
-   /// L-vector memory instead of copying through the operator.
-   bool IsPassthrough(std::size_t i = 0) const
-   {
-      return entries[i].op == nullptr || entries[i].is_identity;
-   }
-
-   /// @brief The height of the restriction of field @a i, or -1 if it has none.
-   int Height(std::size_t i = 0) const { return entries[i].height; }
-
-   /// @brief The width of the restriction of field @a i, or -1 if it has none.
-   int Width(std::size_t i = 0) const { return entries[i].width; }
-
-private:
-   struct Entry
-   {
-      const Operator *op = nullptr;
-      bool is_identity = false;
-      int height = -1;
-      int width = -1;
-   };
-
-   Entry Resolve(const FieldDescriptor &f, ElementDofOrdering o)
-   {
-      Entry e;
-      if (std::holds_alternative<const VectorQuadratureSpace *>(f.data))
-      {
-         // Data already lives at quadrature points, so the restriction is the
-         // identity regardless of the entity type. Resolving this through
-         // get_restriction() would abort for boundary entities, and would
-         // allocate a fresh IdentityOperator per call for element entities.
-         const int size = std::get<const VectorQuadratureSpace *>(f.data)->GetVSize();
-         owned.push_back(std::make_shared<const IdentityOperator>(size));
-         e.op = owned.back().get();
-      }
-      else
-      {
-         // The shared_ptr returned here is non-owning (no-op deleter): the
-         // FiniteElementSpace owns the restriction and outlives this cache, so
-         // the raw pointer stays valid past the temporary.
-         const std::shared_ptr<const Operator> R = get_restriction<entity_t>(f, o);
-         e.op = R.get();
-      }
-      e.is_identity = dynamic_cast<const IdentityOperator *>(e.op) != nullptr;
-      if (e.op != nullptr) { e.height = e.op->Height(); e.width = e.op->Width(); }
-      return e;
-   }
-
-   std::vector<Entry> entries;
-   /// Identity operators synthesized for quadrature space fields. Shared
-   /// rather than unique so that the cache stays copyable: the backend structs
-   /// holding one are stored in a std::function.
-   std::vector<std::shared_ptr<const IdentityOperator>> owned;
-   ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
-   bool ready = false;
-};
-
-/// @brief Get a transpose restriction callback for a field descriptor.
-///
-/// @param f the field descriptor.
-/// @param o the element dof ordering.
-/// @param fop the field operator.
-/// @returns a tuple containing a std::function with the transpose
-/// restriction callback and it's height.
-template <typename entity_t, typename fop_t>
-inline std::tuple<std::function<void(const Vector&, Vector&)>, int>
-get_restriction_transpose(
-   const FieldDescriptor &f,
-   const ElementDofOrdering &o,
-   [[maybe_unused]] const fop_t &fop)
-{
-   if constexpr (is_sum_fop<fop_t>::value)
-   {
-      auto RT = [=](const Vector &v_e, Vector &v_l)
-      {
-         v_l += v_e;
-      };
-      return std::make_tuple(RT, 1);
-   }
-   else
-   {
-      auto R = get_restriction<entity_t>(f, o);
-      std::function<void(const Vector&, Vector&)> RT = [R](const Vector &x, Vector &y)
-      {
-         R->AddMultTranspose(x, y);
-      };
-      return std::make_tuple(RT, R->Height());
-   }
-   return std::make_tuple(
-             std::function<void(const Vector&, Vector&)>([](const Vector&, Vector&)
-   {
-      /* no-op */
-   }), 0); // Never reached, but avoids compiler warning.
-}
-
-/// @brief Apply the prolongation operator to a field.
-///
-/// @param field the field descriptor.
-/// @param x the input vector in tdofs.
-/// @param field_l the output vector in vdofs.
-/// @param is_lvector whether @a x already stores L-vector data.
-inline
-void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l,
-                  const bool is_lvector = false)
-{
-   const auto P = get_prolongation(field);
-
-   // Check if input is already L-vector sized (skip prolongation if so)
-   if (is_lvector && (P == nullptr || x.Size() == P->Height()))
-   {
-      field_l.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
-      field_l.UseDevice(x.UseDevice());
-      field_l.SyncMemory(x);
-      return;
-   }
-
-   // If P is nullptr or Identity, just copy
-   if (P == nullptr || dynamic_cast<const IdentityOperator *>(P.get()))
-   {
-      if (Device::Allows(Backend::DEBUG_DEVICE))
-      {
-         int n = x.Size();
-         field_l.SetSize(n);
-         bool use_dev = false; // x.UseDevice();
-         field_l.UseDevice(use_dev);
-         const auto xr = x.Read(use_dev);
-         auto fw = field_l.ReadWrite(use_dev);
-         mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i) { fw[i] = xr[i]; });
-      }
-      else
-      {
-         field_l = x;
-      }
-      return;
-   }
-
-   // Apply prolongation
-   field_l.SetSize(P->Height());
-   P->Mult(x, field_l);
-}
-
-inline
-void prolongation_transpose(
-   const FieldDescriptor &field, const Vector &field_l, Vector &x)
-{
-   const auto P = get_prolongation(field);
-   if (P == nullptr)
-   {
-      x = field_l;
-   }
-   else
-   {
-      x.SetSize(P->Width());
-      P->MultTranspose(field_l, x);
-   }
-}
-
-/// @brief Apply the prolongation operator to a vector of fields.
-///
-/// x is a long vector containing the data for all fields on tdofs and
-/// fields contains the information about each individual field to retrieve
-/// it's corresponding prolongation.
-///
-/// @param fields the array of field descriptors.
-/// @param x the input vector in tdofs.
-/// @param fields_l the array of output vectors in vdofs.
-/// @tparam N the number of fields.
-/// @tparam M the number of output fields.
-template <std::size_t N, std::size_t M>
-void prolongation(const std::array<FieldDescriptor, N> fields,
-                  const Vector &x,
-                  std::array<Vector, M> &fields_l)
-{
-   int data_offset = 0;
-   for (int i = 0; i < N; i++)
-   {
-      const auto P = get_prolongation(fields[i]);
-      const int width = P->Width();
-      // const Vector x_i(x.GetData() + data_offset, width);
-      const Vector x_i(const_cast<Vector&>(x), data_offset, width);
-      fields_l[i].SetSize(P->Height());
-
-      P->Mult(x_i, fields_l[i]);
-      data_offset += width;
-   }
-}
-
-// inline
-// void prolongation(const std::vector<FieldDescriptor> fields,
-//                   const Vector &x,
-//                   std::vector<Vector> &fields_l)
-// {
-//    int data_offset = 0;
-//    for (std::size_t i = 0; i < fields.size(); i++)
-//    {
-//       const auto P = get_prolongation(fields[i]);
-//       const int width = P->Width();
-//       const Vector x_i(const_cast<Vector&>(x), data_offset, width);
-//       fields_l[i].SetSize(P->Height());
-//       P->Mult(x_i, fields_l[i]);
-//       data_offset += width;
-//    }
-// }
-
-/// @brief Apply the prolongation operator to a vector of fields.
-///
-/// Applies each field's prolongation operator blockwise from the input
-/// BlockVector into the corresponding L-vector storage.
-///
-/// When @a is_lvector is true, the input blocks are assumed to already be in
-/// L-vector layout and are copied directly without applying prolongation.
-///
-/// @param fields the field descriptors.
-/// @param x the input BlockVector.
-/// @param x_l the output vectors in L-vector layout.
-/// @param is_lvector whether @a x already stores L-vector data.
-inline
-void prolongation(
-   const std::vector<FieldDescriptor> &fields,
-   const BlockVector &x,
-   std::vector<Vector *> &x_l,
-   const bool is_lvector = false)
-{
-   MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
-               "error " << x.NumBlocks() << " vs " << x_l.size());
-   for (int i = 0; i < x.NumBlocks(); i++)
-   {
-      const auto P = get_prolongation(fields[i]);
-      const auto alias_lvector_block = [&]
-      {
-         const Vector &xi = x.GetBlock(i);
-         x_l[i]->NewMemoryAndSize(xi.GetMemory(), xi.Size(), false);
-         x_l[i]->UseDevice(xi.UseDevice());
-         x_l[i]->SyncMemory(xi);
-      };
-
-      // If nullptr, assume Identity.
-      if (P == nullptr)
-      {
-         alias_lvector_block();
-      }
-      // Check if input is already L-vector sized (skip prolongation if so)
-      else if (is_lvector && x.GetBlock(i).Size() == P->Height())
-      {
-         alias_lvector_block();
-      }
-      else
-      {
-         MFEM_ASSERT(P->Width() == x.GetBlock(i).Size(),
-                     "prolongation not applicable to given input data size " <<
-                     P->Width() << " vs " << x.GetBlock(i).Size());
-         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
-                     "prolongation not applicable to given output data size " <<
-                     P->Height() << " vs " << x_l[i]->Size());
-         P->Mult(x.GetBlock(i), *x_l[i]);
-      }
-   }
-}
-
-/// @brief Apply the prolongation operator to a vector of fields.
-///
-/// Applies each field's prolongation operator blockwise from the input
-/// MultiVector into the corresponding L-vector storage.
-///
-/// When @a is_lvector is true, the input blocks are assumed to already be in
-/// L-vector layout and their memory is reused directly without applying
-/// prolongation.
-///
-/// @param fields the field descriptors.
-/// @param x the input MultiVector.
-/// @param x_l the output vectors in L-vector layout.
-/// @param is_lvector whether @a x already stores L-vector data.
-inline
-void prolongation(
-   const std::vector<FieldDescriptor> &fields,
-   const MultiVector &x,
-   std::vector<Vector *> &x_l,
-   const bool is_lvector = false)
-{
-   MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
-               "error " << x.NumBlocks() << " vs " << x_l.size());
-   for (int i = 0; i < x.NumBlocks(); i++)
-   {
-      if (is_lvector)
-      {
-         x_l[i]->NewMemoryAndSize(x[i].GetMemory(), x[i].Size(), false);
-         x_l[i]->UseDevice(x[i].UseDevice());
-         x_l[i]->SyncMemory(x[i]);
-         continue;
-      }
-      const auto P = get_prolongation(fields[i]);
-
-      // If nullptr, assume Identity.
-      if (P == nullptr || dynamic_cast<const IdentityOperator*>(P.get()))
-      {
-         if (Device::Allows(Backend::DEBUG_DEVICE))
-         {
-            int n = x[i].Size();
-            x_l[i]->SetSize(n);
-            bool use_dev = false; // x[i].UseDevice();
-            x_l[i]->UseDevice(use_dev);
-            const auto xr = x[i].Read(use_dev);
-            auto fw = x_l[i]->ReadWrite(use_dev);
-            mfem::forall_switch(use_dev, n, [=] MFEM_HOST_DEVICE (int i) { fw[i] = xr[i]; });
-         }
-         else
-         {
-            x_l[i]->NewMemoryAndSize(x[i].GetMemory(), x[i].Size(), false);
-            x_l[i]->UseDevice(x[i].UseDevice());
-            x_l[i]->SyncMemory(x[i]);
-         }
-      }
-      else
-      {
-         // Classify each block using the field's true vs local dof sizes so
-         // mixed T/L MultiVector inputs stay consistent across MPI ranks.
-         const int true_sz = GetTrueVSize(fields[i]);
-         const int local_sz = GetVSize(fields[i]);
-         if (x[i].Size() == local_sz && x[i].Size() != true_sz)
-         {
-            x_l[i]->SetSize(x[i].Size());
-            *x_l[i] = x[i];
-         }
-         else if (x[i].Size() == true_sz)
-         {
-            x_l[i]->SetSize(P->Height());
-            P->Mult(x[i], *x_l[i]);
-         }
-         else
-         {
-            MFEM_ABORT("prolongation: input size " << x[i].Size()
-                       << " does not match T-vector size " << true_sz
-                       << " or L-vector size " << local_sz);
-         }
-      }
-   }
-}
-
-inline
-void prolongation_transpose(
-   const std::vector<FieldDescriptor> &fields,
-   const std::vector<Vector *> &x_l,
-   BlockVector &x,
-   const bool is_lvector = false)
-{
-   MFEM_ASSERT(static_cast<int>(x_l.size()) == x.NumBlocks(),
-               "error " << x_l.size() << " vs " << x.NumBlocks());
-   for (size_t i = 0; i < x_l.size(); i++)
-   {
-      const auto P = get_prolongation(fields[i]);
-
-      // If nullptr, assume Identity.
-      if (P == nullptr || is_lvector)
-      {
-         x.GetBlock(i) = *x_l[i];
-      }
-      else
-      {
-         MFEM_ASSERT(P->Height() == x_l[i]->Size(),
-                     "prolongation not applicable to given input data size " <<
-                     P->Height() << " vs " << x_l[i]->Size());
-         MFEM_ASSERT(P->Width() == x.GetBlock(i).Size(),
-                     "prolongation not applicable to given output data size " <<
-                     P->Width() << " vs " << x.GetBlock(i).Size());
-         P->MultTranspose(*x_l[i], x.GetBlock(i));
-      }
-   }
-}
-
-inline
-void prolongation_transpose(
-   const std::vector<FieldDescriptor> &fields,
-   const std::vector<Vector *> &x_l,
-   MultiVector &x,
-   const bool is_lvector = false)
-{
-   MFEM_ASSERT(static_cast<int>(x_l.size()) == x.NumBlocks(),
-               "error " << x_l.size() << " vs " << x.NumBlocks());
-   for (size_t i = 0; i < x_l.size(); i++)
-   {
-      if (is_lvector)
-      {
-         x[i] = *x_l[i];
-         continue;
-      }
-
-      const auto P = get_prolongation(fields[i]);
-
-      if (P == nullptr || dynamic_cast<const IdentityOperator*>(P.get()) != nullptr)
-      {
-         x[i] = *x_l[i];
-      }
-      else
-      {
-         const int true_sz = GetTrueVSize(fields[i]);
-         const int local_sz = GetVSize(fields[i]);
-         if (x[i].Size() == local_sz && x[i].Size() != true_sz)
-         {
-            x[i] = *x_l[i];
-         }
-         else
-         {
-            x[i].SetSize(true_sz);
-            P->MultTranspose(*x_l[i], x[i]);
-         }
-      }
-   }
-}
-
-/// @brief Apply the restrictions of @a fields, using @a cache to avoid
-/// re-resolving them on every call.
-///
-/// @see RestrictionCache
-template <typename entity_t>
-void restriction(
-   const std::vector<FieldDescriptor> &fields,
-   RestrictionCache<entity_t> &cache,
-   const std::vector<Vector *> &x_l,
-   std::vector<Vector *> &x_e)
-{
-   MFEM_ASSERT(x_l.size() == x_e.size(),
-               "internal error " << x_l.size() << " vs " << x_e.size());
-   cache.EnsureSetup(fields);
-   for (size_t i = 0; i < fields.size(); i++)
-   {
-      // If there is no restriction, assume Identity.
-      const int s = (cache.Get(i) == nullptr) ? x_l[i]->Size() : cache.Height(i);
-
-      // TODO
-      if (x_e[i] == nullptr)
-      {
-         x_e[i] = new Vector(s);
-         x_e[i]->UseDevice(true);
-      }
-      x_e[i]->SetSize(s);
-
-      if (cache.IsPassthrough(i))
-      {
-         x_e[i]->NewMemoryAndSize(x_l[i]->GetMemory(), x_l[i]->Size(), false);
-         x_e[i]->UseDevice(x_l[i]->UseDevice());
-         x_e[i]->SyncMemory(*x_l[i]);
-      }
-      else
-      {
-         MFEM_ASSERT(cache.Width(i) == x_l[i]->Size(),
-                     "restriction not applicable to given input data size " <<
-                     cache.Width(i) << " vs " << x_l[i]->Size());
-         cache.Get(i)->Mult(*x_l[i], *x_e[i]);
-      }
-   }
-}
-
-/// @brief Size the residual E-vectors of @a fields, using @a cache to avoid
-/// re-resolving the restrictions on every call.
-///
-/// @see RestrictionCache
-template <typename entity_t>
-void prepare_residual(
-   const std::vector<FieldDescriptor> &fields,
-   RestrictionCache<entity_t> &cache,
-   std::vector<Vector *> &r_e)
-{
-   cache.EnsureSetup(fields);
-   for (size_t i = 0; i < fields.size(); i++)
-   {
-      const int s = cache.Height(i);
-      MFEM_ASSERT(s >= 0, "output field has no restriction");
-
-      // TODO
-      if (r_e[i] == nullptr)
-      {
-         r_e[i] = new Vector(s);
-         r_e[i]->UseDevice(true);
-      }
-      else
-      {
-         r_e[i]->SetSize(s);
-      }
-   }
-}
-
-/// @brief Apply the transposed restrictions of @a fields, using @a cache to
-/// avoid re-resolving them on every call.
-///
-/// @see RestrictionCache
-template <typename entity_t>
-void restriction_transpose(
-   const std::vector<FieldDescriptor> &fields,
-   RestrictionCache<entity_t> &cache,
-   const std::vector<Vector *> &x_e,
-   std::vector<Vector *> &x_l)
-{
-   cache.EnsureSetup(fields);
-   for (size_t i = 0; i < fields.size(); i++)
-   {
-      const Operator *R = cache.Get(i);
-
-      // If there is no restriction, assume Identity and alias the E-vector.
-      // This is decided before allocating, so nothing is allocated only to be
-      // freed again on the same call.
-      if (R == nullptr || cache.IsPassthrough(i))
-      {
-         if (x_l[i] != nullptr && x_l[i] != x_e[i]) { delete x_l[i]; }
-         x_l[i] = x_e[i];
-         continue;
-      }
-
-      const int s = cache.Width(i);
-
-      // TODO
-      if (x_l[i] == x_e[i])
-      {
-         x_l[i] = nullptr;
-      }
-      if (x_l[i] == nullptr)
-      {
-         x_l[i] = new Vector(s);
-         x_l[i]->UseDevice(true);
-      }
-      x_l[i]->SetSize(s);
-
-      R->MultTranspose(*x_e[i], *x_l[i]);
-   }
-}
-
-/// @brief Apply the transposed restrictions of @a fields straight into the
-/// blocks of @a y, which keep their own memory.
-///
-/// @see RestrictionCache
-template <typename entity_t>
-void restriction_transpose(
-   const std::vector<FieldDescriptor> &fields,
-   RestrictionCache<entity_t> &cache,
-   const std::vector<Vector *> &x_e,
-   MultiVector &y)
-{
-   cache.EnsureSetup(fields);
-   for (size_t i = 0; i < fields.size(); i++)
-   {
-      const Operator *R = cache.Get(i);
-      if (R == nullptr || cache.IsPassthrough(i))
-      {
-         y[i] = *x_e[i];
-         continue;
-      }
-      y[i].SetSize(cache.Width(i));
-      R->MultTranspose(*x_e[i], y[i]);
-   }
-}
-
-inline
-void get_lvectors(const std::vector<FieldDescriptor> &fields,
-                  const Vector &x,
-                  std::vector<Vector> &fields_l)
-{
-   int data_offset = 0;
-   for (std::size_t i = 0; i < fields.size(); i++)
-   {
-      const int sz = GetVSize(fields[i]);
-      fields_l[i].SetSize(sz);
-
-      const Vector x_i(const_cast<Vector&>(x), data_offset, sz);
-      fields_l[i] = x_i;
-
-      data_offset += sz;
-   }
-}
-
-/// @brief Get a transpose prolongation callback for a field descriptor.
-///
-/// In the special case of a one field operator, the transpose prolongation
-/// is a simple sum of the local vector that is reduced to the global vector.
-///
-/// @param f the field descriptor.
-/// @param fop the field operator.
-/// @param mpi_comm the MPI communicator.
-/// @tparam fop_t the field operator type.
-template <typename fop_t>
-inline
-std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
-   const FieldDescriptor &f,
-   [[maybe_unused]] const fop_t &fop,
-   MPI_Comm mpi_comm)
-{
-   if constexpr (is_sum_fop<fop_t>::value)
-   {
-      auto PT = [=](const Vector &r_local, Vector &y)
-      {
-         MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
-         real_t local_sum = r_local.Sum();
-         MPI_Allreduce(&local_sum, y.HostWrite(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
-      };
-      return PT;
-   }
-   else if constexpr (is_identity_fop<fop_t>::value)
-   {
-      auto PT = [=](const Vector &r_local, Vector &y)
-      {
-         y = r_local;
-      };
-      return PT;
-   }
-   auto P = get_prolongation(f);
-   auto PT = [P](const Vector &r_local, Vector &y)
-   {
-      P->MultTranspose(r_local, y);
-   };
-   return PT;
-}
-
-/// @brief Apply the restriction operator to a field, using @a cache to avoid
-/// re-resolving it on every call.
-///
-/// @param u the field descriptor.
-/// @param cache the restriction cache belonging to the caller.
-/// @param u_l the input vector in vdofs.
-/// @param field_e the output vector in edofs.
-/// @param ordering the element dof ordering.
-/// @tparam entity_t the entity type (see Entity).
-/// @see RestrictionCache
-template <typename entity_t>
-void restriction(const FieldDescriptor &u,
-                 RestrictionCache<entity_t> &cache,
-                 const Vector &u_l,
-                 Vector &field_e,
-                 ElementDofOrdering ordering)
-{
-   cache.EnsureSetup(u, ordering);
-   MFEM_ASSERT(cache.Width() == u_l.Size(),
-               "restriction not applicable to given data size");
-   field_e.SetSize(cache.Height());
-   cache.Get()->Mult(u_l, field_e);
-}
-
-/// @brief Apply the restriction operator to a vector of fields.
-///
-/// @param u the vector of field descriptors.
-/// @param u_l the vector of input vectors in vdofs.
-/// @param fields_e the vector of output vectors in edofs.
-/// @param ordering the element dof ordering.
-/// @param offset the array index offset to start writing in fields_e.
-/// @tparam entity_t the entity type (see Entity).
-template <typename entity_t>
-void restriction(const std::vector<FieldDescriptor> &u,
-                 const std::vector<Vector> &u_l,
-                 std::vector<Vector> &fields_e,
-                 ElementDofOrdering ordering,
-                 const int offset = 0)
-{
-   for (std::size_t i = 0; i < u.size(); i++)
-   {
-      const auto R = get_restriction<entity_t>(u[i], ordering);
-      MFEM_ASSERT(R->Width() == u_l[i].Size(),
-                  "restriction not applicable to given data size");
-      const int height = R->Height();
-      fields_e[i + offset].SetSize(height);
-      if (dynamic_cast<const IdentityOperator*>(R.get()))
-      {
-         fields_e[i + offset].NewMemoryAndSize(u_l[i].GetMemory(), u_l[i].Size(), false);
-      }
-      else
-      {
-         R->Mult(u_l[i], fields_e[i + offset]);
-      }
-   }
-}
-
-// TODO: keep this temporarily
-template <std::size_t N, std::size_t M>
-void element_restriction(const std::array<FieldDescriptor, N> u,
-                         const std::array<Vector, N> &u_l,
-                         std::array<Vector, M> &fields_e,
-                         ElementDofOrdering ordering,
-                         const int offset = 0)
-{
-   for (int i = 0; i < N; i++)
-   {
-      const auto R = get_element_restriction(u[i], ordering);
-      MFEM_ASSERT(R->Width() == u_l[i].Size(),
-                  "element restriction not applicable to given data size");
-      const int height = R->Height();
-      fields_e[i + offset].SetSize(height);
-      R->Mult(u_l[i], fields_e[i + offset]);
-   }
-}
-
-/// @brief Get the number of entities of a given type.
-///
-/// @param mesh the mesh.
-/// @tparam entity_t the entity type (see Entity).
-/// @returns the number of entities of the given type.
-template <typename entity_t>
-int GetNumEntities(const mfem::Mesh &mesh)
-{
-   if constexpr (std::is_same_v<entity_t, Entity::Element>)
-   {
-      return mesh.GetNE();
-   }
-   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-   {
-      return mesh.GetNBE();
-   }
-   else
-   {
-      static_assert(dfem::always_false<entity_t>, "can't use GetNumEntites on type");
-   }
-   return 0; // Unreachable, but avoids compiler warning
-}
-
 /// @brief Get the GetDofToQuad object for a given entity type.
 ///
 /// This function retrieves the DofToQuad object for a given field descriptor
@@ -2549,18 +1649,7 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
       if constexpr (std::is_same_v<T, const FiniteElementSpace *>
                     || std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         if constexpr (std::is_same_v<entity_t, Entity::Element>)
-         {
-            return &arg->GetTypicalFE()->GetDofToQuad(ir, mode);
-         }
-         else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-         {
-            return &arg->GetTypicalTraceElement()->GetDofToQuad(ir, mode);
-         }
-         else
-         {
-            static_assert(dfem::always_false<T>, "can't use GetDofToQuad on type");
-         }
+         return &EntityTraits<entity_t>::TypicalFE(*arg)->GetDofToQuad(ir, mode);
       }
       else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
@@ -2701,7 +1790,8 @@ create_descriptors_to_fields_map(
 
    auto f = [&](auto &fop, auto &map)
    {
-      if constexpr (is_weight_fop<std::decay_t<decltype(fop)>>::value)
+      if constexpr (is_weight_fop<std::decay_t<decltype(fop)>>::value ||
+                    is_orientation_fop<std::decay_t<decltype(fop)>>::value)
       {
          // TODO-bug: stealing dimension from the first field
          fop.dim = GetDimension<entity_t>(fields[0]);
@@ -2865,7 +1955,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
             static_cast<int>(idx)
          };
       }
-      else if constexpr (std::is_same_v<decltype(fop), Weight>)
+      else if constexpr (std::is_same_v<decltype(fop), Weight> ||
+                         std::is_same_v<decltype(fop), Orientation>)
       {
          return DofToQuadMap
          {
@@ -2885,7 +1976,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          if (std::holds_alternative<const VectorQuadratureSpace *>(fd.data))
          {
             const auto *vqs = std::get<const VectorQuadratureSpace *>(fd.data);
-            mesh_dimension = vqs->GetSpace()->GetMesh()->Dimension();
+            mesh_dimension =
+               EntityTraits<entity_t>::Dimension(*vqs->GetSpace()->GetMesh());
          }
          else
          {
@@ -2981,6 +2073,93 @@ inline static void ExtractQLayouts(
       out[e.type] = e.layout;
    }
 }
+
+namespace detail
+{
+
+/// @brief Device implementation of A + B for two finalized SparseMatrix objects
+inline SparseMatrix *AddSparseMatrices(const SparseMatrix &A,
+                                       const SparseMatrix &B)
+{
+   MFEM_VERIFY(A.Height() == B.Height() && A.Width() == B.Width(),
+               "the matrices differ in size");
+   const int n = A.Height();
+   const int *Ai = A.ReadI(), *Aj = A.ReadJ(), *Bi = B.ReadI(), *Bj = B.ReadJ();
+   const real_t *Ad = A.ReadData(), *Bd = B.ReadData();
+
+   auto *C = new SparseMatrix;
+   C->OverrideSize(n, A.Width());
+   C->GetMemoryI().New(n + 1, C->GetMemoryI().GetMemoryType());
+   int *Ci = C->WriteI();
+
+   // 1. Entries per row: A's, plus B's on columns A lacks. Ci[n] = 0.
+   mfem::forall(n + 1, [=] MFEM_HOST_DEVICE (int r)
+   {
+      int count = 0;
+      if (r < n)
+      {
+         count = Ai[r + 1] - Ai[r];
+         for (int kb = Bi[r]; kb < Bi[r + 1]; kb++)
+         {
+            bool in_A = false;
+            for (int ka = Ai[r]; ka < Ai[r + 1] && !in_A; ka++)
+            {
+               in_A = (Aj[ka] == Bj[kb]);
+            }
+            count += in_A ? 0 : 1;
+         }
+      }
+      Ci[r] = count;
+   });
+
+   // 2. Row offsets; Ci[n] becomes the number of entries.
+   ExclusiveScan(true, Ci, Ci, n + 1, 0);
+
+   // 3. Allocate J and data, copying only Ci[n] to the host.
+   int nnz;
+   Memory<int> last(C->GetMemoryI(), n, 1);
+   last.CopyToHost(&nnz, 1);
+   last.Delete();
+   C->GetMemoryJ().New(nnz, C->GetMemoryJ().GetMemoryType());
+   C->GetMemoryData().New(nnz, C->GetMemoryData().GetMemoryType());
+   int *Cj = C->WriteJ();
+   real_t *Cd = C->WriteData();
+
+   // 4. Write each row: A's entries plus B's on the same columns, then B's on
+   //    columns A lacks.
+   mfem::forall(n, [=] MFEM_HOST_DEVICE (int r)
+   {
+      int k = Ci[r];
+      for (int ka = Ai[r]; ka < Ai[r + 1]; ka++)
+      {
+         real_t v = Ad[ka];
+         for (int kb = Bi[r]; kb < Bi[r + 1]; kb++)
+         {
+            if (Bj[kb] == Aj[ka]) { v += Bd[kb]; }
+         }
+         Cj[k] = Aj[ka];
+         Cd[k] = v;
+         k++;
+      }
+      for (int kb = Bi[r]; kb < Bi[r + 1]; kb++)
+      {
+         bool in_A = false;
+         for (int ka = Ai[r]; ka < Ai[r + 1] && !in_A; ka++)
+         {
+            in_A = (Aj[ka] == Bj[kb]);
+         }
+         if (!in_A)
+         {
+            Cj[k] = Bj[kb];
+            Cd[k] = Bd[kb];
+            k++;
+         }
+      }
+   });
+   return C;
+}
+
+} // namespace detail
 
 } // namespace mfem::future
 

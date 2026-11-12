@@ -492,22 +492,79 @@ struct lo_ker_backend
    {
       ker::LoadMatrix(d, q, B, s.B);
       using field_t = std::remove_cv_t<std::remove_reference_t<FieldParamT>>;
-      constexpr int VDIM = qf_value_vdim_v<field_t>;
-      if constexpr (DIM == 2)
+      load_byVDIM<qf_value_vdim_v<field_t>>(s, e, d, q, XE, rarg);
+   }
+
+   /// Load the dofs of a Value field with @a VDIM components and interpolate
+   /// them to the quadrature points, in @a rarg.
+   template<int VDIM, typename ArgRegT, typename XE_T>
+   static MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   void load_byVDIM(Shared &s, const int e, const int d, const int q,
+                    const XE_T &XE, ArgRegT &rarg)
+   {
+      if constexpr (VDIM == 1 || VDIM == DIM)
       {
-         ker::LoadDofs2d<VDIM, DIM, MQ1>(e, d, XE, s.M[0]);
-         ker::Eval2d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
-      }
-      else
-      {
-         ker::LoadDofs3d<VDIM, DIM, MQ1>(e, d, XE, s.M[0]);
-         if constexpr (LOOP_Z)
+         if constexpr (DIM == 2)
          {
-            loz::Eval3d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
+            ker::LoadDofs2d<VDIM, DIM, MQ1>(e, d, XE, s.M[0]);
+            ker::Eval2d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
          }
          else
          {
-            ker::Eval3d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
+            ker::LoadDofs3d<VDIM, DIM, MQ1>(e, d, XE, s.M[0]);
+            if constexpr (LOOP_Z)
+            {
+               loz::Eval3d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
+            }
+            else
+            {
+               ker::Eval3d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
+            }
+         }
+      }
+      else
+      {
+         // Handle the case where VDIM is not 1 or DIM by interpolating one component at a time.
+
+         // Register to hold the interpolated component at the quadrature points.
+         qreg_t<1> rc;
+         const int nqz = (DIM == 2) ? 1 : q;
+
+         // Loop over each component of the vector field.
+         for (int c = 0; c < VDIM; ++c)
+         {
+            // Load and interpolate the c-th component of the vector field.
+            if constexpr (DIM == 2)
+            {
+               ker::LoadDofs2d(e, d, c, XE, s.M[0]);
+               ker::Eval2d<1, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rc);
+            }
+            else
+            {
+               ker::LoadDofs3d(e, d, c, XE, s.M[0]);
+               if constexpr (LOOP_Z)
+               {
+                  loz::Eval3d<1, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rc);
+               }
+               else
+               {
+                  ker::Eval3d<1, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rc);
+               }
+            }
+
+            // Copy the interpolated component from the register to the corresponding
+            // component in the output at the quadrature points.
+            MFEM_FOREACH_THREAD(qz, z, nqz)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qy, y, q)
+               {
+                  MFEM_FOREACH_THREAD_DIRECT(qx, x, q)
+                  {
+                     lok::at<DIM>(rarg, qx, qy, qz)[c] =
+                        lok::at<DIM>(rc, qx, qy, qz)[0];
+                  }
+               }
+            }
          }
       }
    }
@@ -594,16 +651,64 @@ struct lo_ker_backend
    {
       ker::LoadMatrix(d, q, B, s.B);
       using field_t = std::remove_cv_t<std::remove_reference_t<ArgRegT>>;
-      constexpr int VDIM = qf_value_vdim_v<field_t>;
-      if constexpr (DIM == 2)
+      /// See NOTE in load_value_byVDIM for why this is needed.
+      write_byVDIM<qf_value_vdim_v<field_t>>(s, e, d, q, YE, rarg);
+   }
+
+   /// Integrate the quadrature point values @a rarg of a Value field with
+   /// @a VDIM components against the basis and add them to its dofs in @a YE.
+   template<int VDIM, typename ArgRegT, typename YE_T>
+   static MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   void write_byVDIM(Shared &s, const int e, const int d, const int q,
+                     const YE_T &YE, ArgRegT &rarg)
+   {
+      if constexpr (VDIM == 1 || VDIM == DIM)
       {
-         ker::EvalTranspose2d<VDIM, DIM, MQ1>(d, q, s.B, rarg, s.M[1], s.M[0]);
-         ker::WriteEvalDofs2d<VDIM, MQ1>(d, 0, e, rarg, YE);
+         if constexpr (DIM == 2)
+         {
+            ker::EvalTranspose2d<VDIM, DIM, MQ1>(
+               d, q, s.B, rarg, s.M[1], s.M[0]);
+            ker::WriteEvalDofs2d<VDIM, MQ1>(d, 0, e, rarg, YE);
+         }
+         else
+         {
+            ker::EvalTranspose3d<VDIM, DIM, MQ1>(
+               d, q, s.B, rarg, s.M[1], s.M[0]);
+            ker::WriteEvalDofs3d<VDIM, MQ1>(d, 0, e, rarg, YE);
+         }
       }
       else
       {
-         ker::EvalTranspose3d<VDIM, DIM, MQ1>(d, q, s.B, rarg, s.M[1], s.M[0]);
-         ker::WriteEvalDofs3d<VDIM, MQ1>(d, 0, e, rarg, YE);
+         // One component at a time, as in load_byVDIM().
+         qreg_t<1> rc;
+         const int nqz = (DIM == 2) ? 1 : q;
+         for (int c = 0; c < VDIM; ++c)
+         {
+            // Copy the c-th component of the vector field to the register rc.
+            MFEM_FOREACH_THREAD(qz, z, nqz)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qy, y, q)
+               {
+                  MFEM_FOREACH_THREAD_DIRECT(qx, x, q)
+                  {
+                     lok::at<DIM>(rc, qx, qy, qz)[0] =
+                        lok::at<DIM>(rarg, qx, qy, qz)[c];
+                  }
+               }
+            }
+
+            // Evaluate the transpose of the basis for the single component and write its dofs.
+            if constexpr (DIM == 2)
+            {
+               ker::EvalTranspose2d<1, DIM, MQ1>(d, q, s.B, rc, s.M[1], s.M[0]);
+               ker::WriteEvalDofs2d<MQ1>(d, c, e, rc, YE);
+            }
+            else
+            {
+               ker::EvalTranspose3d<1, DIM, MQ1>(d, q, s.B, rc, s.M[1], s.M[0]);
+               ker::WriteEvalDofs3d<MQ1>(d, c, e, rc, YE);
+            }
+         }
       }
    }
 

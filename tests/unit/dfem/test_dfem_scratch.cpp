@@ -664,11 +664,12 @@ TEST_CASE("dFEM Scratch multi-kernel persists tangents",
    Vector y_action_check(y);
    CheckResults(fes, ir, y_action_check, dy_action);
 
-   auto *stored_qf = dop.GetDerivativeActionQFunction<CubicQFWithScratch>(U);
+   auto *stored_qf =
+      dop.GetDerivativeActionQFunction<Entity::Element, CubicQFWithScratch>(U);
    REQUIRE(stored_qf != nullptr);
 #ifdef MFEM_USE_ENZYME
    auto *stored_qf_shadow =
-      dop.GetDerivativeActionShadowQFunction<CubicQFWithScratch>(U);
+      dop.GetDerivativeActionShadowQFunction<Entity::Element, CubicQFWithScratch>(U);
    REQUIRE(stored_qf_shadow != nullptr);
    CheckScratchResults(pmesh, ir, stored_qf->GetScratchVector(0),
                        &stored_qf_shadow->GetScratchVector(0));
@@ -684,11 +685,12 @@ TEST_CASE("dFEM Scratch multi-kernel persists tangents",
    Vector y_cached_check(y);
    CheckResults(fes, ir, y_cached_check, dy_cached);
 
-   auto *stored_setup_qf = dop.GetDerivativeSetupQFunction<CubicQFWithScratch>(U);
+   auto *stored_setup_qf =
+      dop.GetDerivativeSetupQFunction<Entity::Element, CubicQFWithScratch>(U);
    REQUIRE(stored_setup_qf != nullptr);
 #ifdef MFEM_USE_ENZYME
    auto *stored_setup_qf_shadow =
-      dop.GetDerivativeSetupShadowQFunction<CubicQFWithScratch>(U);
+      dop.GetDerivativeSetupShadowQFunction<Entity::Element, CubicQFWithScratch>(U);
    REQUIRE(stored_setup_qf_shadow != nullptr);
    CheckScratchResults(pmesh, ir, stored_setup_qf->GetScratchVector(0),
                        &stored_setup_qf_shadow->GetScratchVector(0));

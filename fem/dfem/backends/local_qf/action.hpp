@@ -60,7 +60,8 @@ constexpr bool action_outputs_direct_value_v =
    action_outputs_direct_value_impl<qfunc_t, inputs_t, outputs_t,
    std::make_index_sequence<tuple_size<outputs_t>::value>>::value;
 
-template<typename qfunc_t, typename inputs_t, typename outputs_t>
+template<typename qfunc_t, typename inputs_t, typename outputs_t,
+         typename entity_t>
 class Action
 {
    static constexpr auto inout_tuple =
@@ -106,6 +107,10 @@ class Action
       else if constexpr (is_weight_fop_v<FOP>)
       {
          return XE(qx, qy, qz, 0, 0);
+      }
+      else if constexpr (is_orientation_fop_v<FOP>)
+      {
+         return XE(0, 0, 0, 0, e);
       }
       else if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
       {
@@ -160,7 +165,7 @@ class Action
    const qfunc_t qfunc;
    const inputs_t inputs;
    const outputs_t outputs;
-   const IntegratorContext ctx;
+   const IntegratorContext<entity_t> ctx;
    const std::vector<const DofToQuad *> dtqs;
    // inputs: dtq, idx, B, G, d1d, q1d, vdim
    const std::array<DofToQuadMap, n_inputs> input_dtq;
@@ -179,14 +184,14 @@ public:
    ////////////////////////////////////////////////////////
    Action() = delete;
 
-   Action(IntegratorContext ctx,
+   Action(IntegratorContext<entity_t> ctx,
           qfunc_t qfunc,
           inputs_t inputs,
           outputs_t outputs):
       qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs), ctx(ctx),
       dtqs(make_dtqs(ctx)),
       // inputs: dtq, idx, B, G, d1d, q1d, vdim
-      input_dtq(create_dtq_maps<Entity::Element>(
+      input_dtq(create_dtq_maps<entity_t>(
                    inputs,
                    dtqs,
                    create_union_field_map_for_dtq(ctx, inputs),
@@ -197,7 +202,7 @@ public:
       input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
       input_vdim(get_vdim(inputs)),
       // outputs: dtq, idx, B, G, d1d, q1d, vdim
-      output_dtq(create_dtq_maps<Entity::Element>(
+      output_dtq(create_dtq_maps<entity_t>(
                     outputs,
                     dtqs,
                     create_union_field_map_for_dtq(ctx, outputs),
@@ -208,11 +213,13 @@ public:
       output_d1d(get_D1D(output_dtq)), output_q1d(get_Q1D(output_dtq)),
       output_vdim(get_vdim(outputs)),
       // other constants
-      dim(ctx.mesh.Dimension()), ne(ctx.nentities), nq(ctx.ir.GetNPoints()),
+      dim(GetEntityDimension<entity_t>(ctx.mesh)), ne(ctx.nentities),
+      nq(ctx.ir.GetNPoints()),
       q1d(tensor_1d_size(nq, dim))
    {
-      MFEM_ASSERT(ctx.unionfds.size() == nfields,
-                  "LocalQFBackend: unionfds size mismatch");
+      MFEM_ASSERT(nfields <= ctx.unionfds.size(),
+                  "LocalQFBackend: the q-function uses more fields than the "
+                  "operator has");
    }
 
    /// Tile size the kernel must be built at: the shared B/G arrays are square
@@ -270,7 +277,7 @@ public:
    ////////////////////////////////////////////////////////
    template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
    static void
-   action_callback(const IntegratorContext &ctx,
+   action_callback(const IntegratorContext<entity_t> &ctx,
                    const qfunc_t &qfunc,
                    // inputs: idx, B, G, vdim, d1d, q1d
                    const std::array<size_t, n_inputs> &in_idx,
@@ -292,9 +299,10 @@ public:
                    const int dim,
                    const int q1d)
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
       MFEM_CONTRACT_VAR(dim);
-      MFEM_ASSERT(dim == ctx.mesh.Dimension(), "Dimension mismatch");
+      MFEM_ASSERT(dim == GetEntityDimension<entity_t>(ctx.mesh),
+                  "Dimension mismatch");
 
       static constexpr auto B2D = backend_t::DIM == 2;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::Q1D;
@@ -331,6 +339,12 @@ public:
             in_XE[i] = Reshape(
                           ctx.ir.GetWeights().Read(), q1d, q1d, B2D ? 1 : q1d, 1, 1);
          }
+         else if constexpr (is_orientation_fop_v<FOP>)
+         {
+            MFEM_VERIFY(ctx.orientation && ctx.orientation->Size() == ne,
+                        "Size mismatch");
+            in_XE[i] = Reshape(ctx.orientation->Read(), 1, 1, 1, 1, ne);
+         }
          else
          {
             static_assert(false, "Unsupported");
@@ -363,14 +377,12 @@ public:
          }
       });
 
-      const auto d_attr = ctx.attr.Read();
-      const bool has_attr = ctx.attr.Size() > 0;
-      const auto d_elem_attr = ctx.elem_attr->Read();
+      const int *d_entities = ctx.marked_entities.Read();
 
       dfem::forall<MTPB>(
-         [=] MFEM_HOST_DEVICE(const int e, void *) MFEM_FORCE_INLINE
+         [=] MFEM_HOST_DEVICE(const int ek, void *) MFEM_FORCE_INLINE
       {
-         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+         const int e = d_entities[ek];
 
          MFEM_CONTRACT_VAR(qfunc);
          MFEM_CONTRACT_VAR(out_YE);
@@ -415,7 +427,8 @@ public:
                backend_t::template LoadGradient<RNK, rarg_t, XE_t, qf_param_t>(
                   smem, e, d, q, q1d, B, G, XE, rarg);
             }
-            else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>)
+            else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP> ||
+                               is_orientation_fop_v<FOP>)
             {
                // qp values are read directly from in_XE / IR
             }
@@ -476,6 +489,10 @@ public:
                         else if constexpr (is_weight_fop_v<FOP>)
                         {
                            qarg = XE(qx, qy, qz, 0, 0);
+                        }
+                        else if constexpr (is_orientation_fop_v<FOP>)
+                        {
+                           qarg = XE(0, 0, 0, 0, e);
                         }
                         else if constexpr (is_value_fop_v<FOP> ||
                                            is_gradient_fop_v<FOP>)
@@ -582,7 +599,7 @@ public:
             });
          }
       },
-      ne,
+      ctx.marked_entities.Size(),
       backend_t::thread_blocks(compute_kernel_thread_1d<inputs_t, outputs_t>(
                                   q1d, in_d1d, out_d1d)),
       0,
@@ -594,13 +611,14 @@ public:
 };
 
 // Low Order kernels
-template<typename qfunc_t, typename inputs_t, typename outputs_t>
+template<typename qfunc_t, typename inputs_t, typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
-inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
-Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Kernel()
+inline typename Action<qfunc_t, inputs_t, outputs_t, entity_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t, entity_t>::ActionLO::Kernel()
 {
    static_assert(Q1D <= LocalQFLOBackend<DIM>::MQ1);
-   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t>;
    if constexpr (DIM == 3 && Q1D == LocalQFLOBackendMQ1() &&
                  action_outputs_direct_value_v<qfunc_t, inputs_t, outputs_t>)
    {
@@ -613,32 +631,37 @@ Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Kernel()
 }
 
 // Low Order fallback
-template<typename qfunc_t, typename inputs_t, typename outputs_t>
-inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
-Action<qfunc_t, inputs_t, outputs_t>::ActionLO::Fallback(int dim, int q1d)
+template<typename qfunc_t, typename inputs_t, typename outputs_t,
+         typename entity_t>
+inline typename Action<qfunc_t, inputs_t, outputs_t, entity_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t, entity_t>::ActionLO::Fallback(int dim,
+                                                                   int q1d)
 {
-   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t>;
    using ActionLO = typename action_t::ActionLO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
    return DispatchLOKernelByDim<ActionLO, QFDIM>(dim, q1d);
 }
 
 // High Order kernels
-template<typename qfunc_t, typename inputs_t, typename outputs_t>
+template<typename qfunc_t, typename inputs_t, typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
-inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
-Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Kernel()
+inline typename Action<qfunc_t, inputs_t, outputs_t, entity_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t, entity_t>::ActionHO::Kernel()
 {
-   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t>;
    return action_t::template action_callback<LocalQFHOBackend<DIM, Q1D>, Q1D>;
 }
 
 // High Order fallback
-template<typename qfunc_t, typename inputs_t, typename outputs_t>
-inline typename Action<qfunc_t, inputs_t, outputs_t>::KernelType
-Action<qfunc_t, inputs_t, outputs_t>::ActionHO::Fallback(int dim, int q1d)
+template<typename qfunc_t, typename inputs_t, typename outputs_t,
+         typename entity_t>
+inline typename Action<qfunc_t, inputs_t, outputs_t, entity_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t, entity_t>::ActionHO::Fallback(int dim,
+                                                                   int q1d)
 {
-   using action_t = Action<qfunc_t, inputs_t, outputs_t>;
+   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t>;
    using ActionHO = typename action_t::ActionHO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
    return DispatchHOKernelByDim<ActionHO, QFDIM>(dim, q1d);

@@ -24,6 +24,36 @@ enum class ElementDofOrdering;
 
 class FaceQuadratureSpace;
 
+/** @brief Non-owning view of the map between the degrees of freedom of a set
+    of entities (elements or faces) and the scalar degrees of freedom of a
+    FiniteElementSpace, as stored by the element and face restrictions.
+
+    Dof i of entity e is the entity dof e*dof + i. @a gather_map gives the
+    space dof of every entity dof; @a indices lists the entity dofs of every
+    space dof k in the range [offsets[k], offsets[k+1]). A negative entry -1-k
+    stands for k with a sign flip. */
+struct EntityDofMap
+{
+   int ne;      ///< Number of entities
+   int dof;     ///< Number of dofs of one entity
+   int ndofs;   ///< Number of scalar dofs of the space
+   int vdim;    ///< Vector dimension of the space
+   bool byvdim; ///< Whether the L-vectors of the space are ordered byVDIM
+   const Array<int> &gather_map; ///< Space dof of each entity dof
+   const Array<int> &offsets;    ///< Ranges in @a indices, ndofs + 1 entries
+   const Array<int> &indices;    ///< Entity dofs of each space dof
+};
+
+/** @brief Fill @a mat with the entity matrices @a ea_data of the entities of
+    @a test and @a trial, adding up the entries of the dofs that entities
+    share.
+
+    The entity matrices are stored as test_dof x test_vdim x trial_dof x
+    trial_vdim x ne. The size of @a mat has to be set; its I, J and data
+    arrays are replaced. */
+void FillSparseMatrix(const Vector &ea_data, const EntityDofMap &test,
+                      const EntityDofMap &trial, SparseMatrix &mat);
+
 /// Abstract base class that defines an interface for element restrictions.
 class ElementRestrictionOperator : public Operator
 {
@@ -32,6 +62,9 @@ public:
    /// of freedom @a y.
    void AddMultTranspose(const Vector &x, Vector &y,
                          const real_t a = 1.0) const override = 0;
+
+   /// The map between the element dofs and the dofs of the space.
+   virtual EntityDofMap GetEntityDofMap() const = 0;
 };
 
 /// Operator that converts FiniteElementSpace L-vectors to E-vectors.
@@ -87,25 +120,14 @@ public:
    /// Fill a Sparse Matrix with Element Matrices.
    void FillSparseMatrix(const Vector &mat_ea, SparseMatrix &mat) const;
 
-   /** Fill a SparseMatrix with element matrices for this (test) restriction and
-       the given trial restriction. The element matrix layout is
-       test_dof x test_vdim x trial_dof x trial_vdim x ne. */
-   void FillSparseMatrix(const Vector &mat_ea, SparseMatrix &mat,
-                         const ElementRestriction &trial_restr) const;
-
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this ElementRestriction. */
    int FillI(SparseMatrix &mat) const;
-   /** Fill the I array for this (test) and the given trial restriction. */
-   int FillI(SparseMatrix &mat, const ElementRestriction &trial_restr) const;
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this ElementRestriction, and the values of ea_data. */
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
-   /** Fill the J and Data arrays for this (test) and the given trial
-       restriction, using element matrix layout
-       test_dof x test_vdim x trial_dof x trial_vdim x ne. */
-   void FillJAndData(const Vector &ea_data, SparseMatrix &mat,
-                     const ElementRestriction &trial_restr) const;
+
+   EntityDofMap GetEntityDofMap() const override;
    /// @private Not part of the public interface (device kernel limitation).
    ///
    /// Performs either MultTranspose or AddMultTranspose depending on the
@@ -132,6 +154,8 @@ class L2ElementRestriction : public ElementRestrictionOperator
    const bool byvdim;
    const int ndof;
    const int ndofs;
+   // The identity map of GetEntityDofMap(), built on first use
+   mutable Array<int> identity, identity_offsets;
 public:
    L2ElementRestriction(const FiniteElementSpace&);
    void Mult(const Vector &x, Vector &y) const override;
@@ -144,6 +168,8 @@ public:
    /** Fill the J and Data arrays of SparseMatrix corresponding to the sparsity
        pattern given by this L2ElementRestriction, and the values of ea_data. */
    void FillJAndData(const Vector &ea_data, SparseMatrix &mat) const;
+
+   EntityDofMap GetEntityDofMap() const override;
    /// @private Not part of the public interface (device kernel limitation).
    ///
    /// Performs either MultTranspose or AddMultTranspose depending on the
@@ -298,6 +324,13 @@ public:
    {
       MFEM_ABORT("Not implemented for this restriction operator.");
    }
+
+   /// @brief The map between the face dofs and the dofs of the space, for
+   /// restrictions that read every face dof from a single dof.
+   virtual EntityDofMap GetEntityDofMap() const
+   {
+      MFEM_ABORT("Not implemented for this restriction operator.");
+   }
 };
 
 /// @brief Operator that extracts face degrees of freedom for H1, ND, or RT
@@ -399,6 +432,8 @@ public:
       y = 0.0;
       AddAbsMultTranspose(x, y);
    }
+
+   EntityDofMap GetEntityDofMap() const override;
 
 private:
    /** @brief Compute the scatter indices: L-vector to E-vector, and the offsets
@@ -545,6 +580,9 @@ public:
        @param[in]  a Scalar coefficient for addition. */
    void AddMultTranspose(const Vector &x, Vector &y,
                          const real_t a = 1.0) const override;
+
+   /// The map of the faces to the dofs of element 1, for SingleValued only.
+   EntityDofMap GetEntityDofMap() const override;
 
    /** @brief Fill the I array of SparseMatrix corresponding to the sparsity
        pattern given by this L2FaceRestriction.
@@ -969,6 +1007,9 @@ public:
                      The face_dofs are ordered according to the given
                      ElementDofOrdering. */
    void Mult(const Vector &x, Vector &y) const override;
+
+   /// The map of the boundary faces; interior faces are interpolated.
+   EntityDofMap GetEntityDofMap() const override;
 
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.

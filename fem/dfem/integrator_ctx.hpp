@@ -15,23 +15,39 @@
 #include <vector>
 
 #include "../../general/array.hpp"
+#include "../../linalg/vector.hpp"
 #include "fielddescriptor.hpp"
 
 namespace mfem::future
 {
 
+/// @brief Data describing the entities an integrator is applied to.
+///
+/// @tparam entity_t the entity type (see Entity). Backends deduce it from the
+/// context they receive, so it selects the entity-specific restrictions,
+/// DofToQuad maps and dimensions without passing it separately.
+template <typename entity_t>
 struct IntegratorContext
 {
    const ParMesh &mesh;
-   const Array<int> *elem_attr;
-   Array<int> attr;
-   const int nentities;
+
+   ///<--- Entities
+   const int nentities;               // Total number of entities for entity_t
+   const Array<int> &marked_entities; // Entitites integrator is applied to
+
+   ///<--- Fields and integration rules
    const std::vector<FieldDescriptor> &infds;
    const std::vector<FieldDescriptor> &outfds;
    const std::vector<FieldDescriptor> &unionfds;
    const IntegrationRule &ir;
+
+   ///<--- Quadrature layouts
    std::unordered_map<std::type_index, std::vector<int>> &in_qlayouts;
    std::unordered_map<std::type_index, std::vector<int>> &out_qlayouts;
+   
+   ///<--- Orientation
+   /// Orientation sign of each entity, set when an input requests Orientation.
+   const Vector *orientation = nullptr;
 };
 
 }

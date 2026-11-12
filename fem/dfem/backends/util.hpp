@@ -11,6 +11,7 @@
 #pragma once
 
 #include "../../quadinterpolator.hpp"
+#include "../../quadinterpolator_face.hpp"
 #include "../../../general/enzyme.hpp"
 #include "../../../linalg/dual.hpp"
 
@@ -18,6 +19,8 @@
 
 #include "../fielddescriptor.hpp"
 #include "../util.hpp"
+#include "../entity_utils.hpp"
+#include "../integrator_ctx.hpp"
 
 #include "../tuple.hpp"
 using mfem::future::tuple;
@@ -48,6 +51,17 @@ inline void InitBlockVector(BlockVector &v, const Array<int> &offsets)
    v.SyncToBlocks();
 }
 
+/// Size each device Vector of @a v like the matching block of @a blocks.
+template <size_t n>
+inline void InitFromBlocks(std::array<Vector, n> &v, const BlockVector &blocks)
+{
+   for (size_t i = 0; i < n; i++)
+   {
+      v[i].UseDevice(true);
+      v[i].SetSize(blocks.GetBlock(i).Size());
+   }
+}
+
 struct FieldBasis
 {
    // E-vector -> Q-vector
@@ -57,59 +71,172 @@ struct FieldBasis
    std::function<void(const Vector &, Vector &)> transpose;
 };
 
+/// Copy the blocks of the @a marked entities between a full vector (all
+/// entities) and a compact one (marked entities only). Used by the Identity<>
+/// and ParameterSpace bases, which have no interpolator to select entities.
+///
+///   to_compact = true:   y[k] = x[marked[k]]   full x    -> compact y
+///   to_compact = false:  y[marked[k]] = x[k]   compact x -> full y
+///                        (blocks of unmarked entities left unchanged)
+inline void CopyMarkedEntities(const Vector &x, const Array<int> &marked,
+                               Vector &y, const bool to_compact)
+{
+   // Nothing to do if there are no marked entities
+   const int n = marked.Size();
+   if (n == 0) { return; }
+   const int compact_size = to_compact ? y.Size() : x.Size();
+   const int per_entity = compact_size / n;
+   MFEM_ASSERT(per_entity * n == compact_size,
+               "the compact vector does not hold whole entity blocks");
+
+   // Prepare vector pointers and entity indices
+   const real_t *X = x.Read();
+   real_t *Y = to_compact ? y.Write() : y.ReadWrite();
+   const int *E = marked.Read();
+
+   // Copy marked entities block between full and compact vectors: one block
+   // of threads per marked entity k, whose values are contiguous in both
+   // vectors. The block size is capped, the threads stride over the rest.
+   const int threads = std::min(per_entity, MFEM_CUDA_BLOCKS);
+   mfem::forall_2D(n, threads, 1, [=] MFEM_HOST_DEVICE(int k)
+   {
+      const int compact = per_entity * k, full = per_entity * E[k];
+      MFEM_FOREACH_THREAD(c, x, per_entity)
+      {
+         if (to_compact) { Y[compact + c] = X[full + c]; } // compact <- full
+         else { Y[full + c] = X[compact + c]; }            // full <- compact
+      }
+   });
+}
+
+/// The Q-vectors of the bases below hold the entities @a entities only, or
+/// all of them if it is nullptr, as for the interpolators.
 inline FieldBasis FromQI(const QuadratureInterpolator *qi,
-                         QuadratureInterpolator::EvalFlags mode)
+                         QuadratureInterpolator::EvalFlags mode,
+                         const Array<int> *entities)
 {
    return
    {
-      [qi, mode](const Vector &xe, Vector &xq)
+      [qi, mode, entities](const Vector &xe, Vector &xq)
       {
          qi->SetOutputLayout(QVectorLayout::byVDIM);
          if (mode == QuadratureInterpolator::VALUES)
          {
-            qi->Values(xe, xq);
+            qi->Values(xe, xq, entities);
          }
          else
          {
-            qi->Derivatives(xe, xq);
+            qi->Derivatives(xe, xq, entities);
          }
       },
-      [qi, mode](const Vector &yq, Vector &ye)
+      [qi, mode, entities](const Vector &yq, Vector &ye)
       {
          Vector empty;
          qi->SetOutputLayout(QVectorLayout::byVDIM);
          if (mode == QuadratureInterpolator::VALUES)
          {
-            qi->AddMultTranspose(QuadratureInterpolator::VALUES, yq, empty, ye);
+            qi->AddMultTranspose(QuadratureInterpolator::VALUES, yq, empty, ye,
+                                 entities);
          }
          else
          {
-            qi->AddMultTranspose(QuadratureInterpolator::DERIVATIVES, empty, yq, ye);
+            qi->AddMultTranspose(QuadratureInterpolator::DERIVATIVES, empty, yq,
+                                 ye, entities);
          }
       }
    };
 }
 
-// VectorQuadratureSpace identity copy
-inline FieldBasis FromQS()
+// The face counterpart of FromQI(), for face E-vectors. The derivatives are
+// the tangential ones, with respect to the reference coordinates of the face.
+inline FieldBasis FromFaceQI(const FaceQuadratureInterpolator *qi,
+                             QuadratureInterpolator::EvalFlags mode,
+                             const Array<int> *entities)
 {
+   const bool values = (mode == QuadratureInterpolator::VALUES);
+   const auto flag = values ? FaceQuadratureInterpolator::VALUES :
+                     FaceQuadratureInterpolator::DERIVATIVES;
    return
    {
-      [](const Vector &xe, Vector &xq)
+      [qi, values, flag, entities](const Vector &xe, Vector &xq)
       {
-         xq.NewMemoryAndSize(xe.GetMemory(), xe.Size(), false);
+         Vector empty;
+         qi->SetOutputLayout(QVectorLayout::byVDIM);
+         qi->Mult(xe, flag, values ? xq : empty, values ? empty : xq, empty,
+                  empty, entities);
       },
-      [](const Vector &yq, Vector &ye) { ye = yq; }
+      [qi, values, flag, entities](const Vector &yq, Vector &ye)
+      {
+         Vector empty;
+         qi->SetOutputLayout(QVectorLayout::byVDIM);
+         qi->AddMultTranspose(flag, values ? yq : empty, values ? empty : yq,
+                              ye, entities);
+      }
    };
 }
 
-// User-defined parameter space B
-inline FieldBasis FromPS(const Operator *B, const Operator *Bt)
+// VectorQuadratureSpace identity copy. 
+// The field is already quadrature point, so with no entity restriction is
+// just aliased. If a list is provided, only the listed entities are copied 
+// to the compact Q-vector.
+inline FieldBasis FromQS(const Array<int> *entities)
 {
+   if (!entities)
+   {
+      return
+      {
+         [](const Vector &xe, Vector &xq)
+         {
+            xq.NewMemoryAndSize(xe.GetMemory(), xe.Size(), false);
+         },
+         [](const Vector &yq, Vector &ye) { ye = yq; }
+      };
+   }
    return
    {
-      [B](const Vector &xe, Vector &xq) { B->Mult(xe, xq); },
-      [Bt](const Vector &yq, Vector &ye) { Bt->Mult(yq, ye); }
+      [entities](const Vector &xe, Vector &xq)
+      {
+         CopyMarkedEntities(xe, *entities, xq, true); // gather to compact
+      },
+      [entities](const Vector &yq, Vector &ye)
+      {
+         CopyMarkedEntities(yq, *entities, ye, false); // scatter from compact
+      }
+   };
+}
+
+// User-defined parameter space B, mapping the E-vector to the Q-vector of
+// all entities. 
+// B has no entity list, so with a list it is applied to all entities 
+// into a temporary, and then copied to the compact Q-vector.
+inline FieldBasis FromPS(const Operator *B, const Operator *Bt,
+                         const Array<int> *entities)
+{
+   if (!entities)
+   {
+      return
+      {
+         [B](const Vector &xe, Vector &xq) { B->Mult(xe, xq); },
+         [Bt](const Vector &yq, Vector &ye) { Bt->Mult(yq, ye); }
+      };
+   }
+   auto xq_all = std::make_shared<Vector>();
+   xq_all->UseDevice(true);
+   return
+   {
+      [B, entities, xq_all](const Vector &xe, Vector &xq)
+      {
+         xq_all->SetSize(B->Height());
+         B->Mult(xe, *xq_all);
+         CopyMarkedEntities(*xq_all, *entities, xq, true); // gather to compact
+      },
+      [Bt, entities, xq_all](const Vector &yq, Vector &ye)
+      {
+         xq_all->SetSize(Bt->Width());
+         *xq_all = 0.0;
+         CopyMarkedEntities(yq, *entities, *xq_all, false); // scatter from compact
+         Bt->Mult(*xq_all, ye);
+      }
    };
 }
 
@@ -134,29 +261,69 @@ inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
    };
 }
 
+/// Broadcasts the orientation sign of each entity to its quadrature points,
+/// to be consistent with tensor_arrays. The Q-vector holds the entities
+/// @a entities only, or all of them if it is nullptr.
+inline FieldBasis FieldBasisFromOrientation(const IntegrationRule &ir,
+                                            const Vector &orientation,
+                                            const Array<int> *entities)
+{
+   return
+   {
+      [&ir, &orientation, entities](const Vector &, Vector &xq)
+      {
+         const int nqp = ir.GetNPoints();
+         const int ne = entities ? entities->Size() : orientation.Size();
+         MFEM_ASSERT(xq.Size() == nqp * ne,
+                     "orientation block has unexpected size");
+         const auto s = orientation.Read();
+         const int *E = entities ? entities->Read() : nullptr;
+         auto xq_s = Reshape(xq.Write(), nqp, ne);
+         mfem::forall(ne * nqp, [=] MFEM_HOST_DEVICE(int eq)
+         {
+            const int q = eq % nqp, e = eq / nqp;
+            xq_s(q, e) = s[E ? E[e] : e];
+         });
+      },
+      [](const Vector &, Vector &) {}
+   };
+}
+
+/// The basis of the field @a f on the entities of type @a entity_t (see
+/// Entity), at the points of @a ir. Its Q-vectors hold the entities
+/// @a entities of the type, or all of them if it is nullptr.
+template <typename entity_t>
 inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
                                       const IntegrationRule &ir,
-                                      QuadratureInterpolator::EvalFlags mode)
+                                      QuadratureInterpolator::EvalFlags mode,
+                                      const Array<int> *entities)
 {
-   return std::visit([&ir, &mode](auto && arg) -> FieldBasis
+   return std::visit([&ir, &mode, entities](auto && arg) -> FieldBasis
    {
       using T = std::decay_t<decltype(arg)>;
 
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         return FromQI(arg->GetQuadratureInterpolator(ir), mode);
-      }
-      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         return FromQI(arg->GetQuadratureInterpolator(ir), mode);
+         constexpr RestrictionDescriptor r = EntityTraits<entity_t>::restriction;
+         if constexpr (r.is_face_restriction)
+         {
+            return FromFaceQI(
+               arg->GetFaceQuadratureInterpolator(ir, r.face_type), mode,
+               entities);
+         }
+         else
+         {
+            return FromQI(arg->GetQuadratureInterpolator(ir), mode, entities);
+         }
       }
       else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
-         return FromQS();
+         return FromQS(entities);
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return FromPS(arg->GetB(), arg->GetBt());
+         return FromPS(arg->GetB(), arg->GetBt(), entities);
       }
       else if constexpr (std::is_same_v<T, const IntegrationRule *>)
       {
@@ -169,14 +336,22 @@ inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
    }, f.data);
 }
 
-template <typename fops_t, size_t nfops>
+/// The bases of the field operators @a fops on the entities of @a ctx (see
+/// IntegratorContext::entities), see GetFieldBasis().
+template <typename entity_t, typename fops_t, size_t nfops>
 inline void create_fieldbases(
    fops_t &fops,
    const std::array<size_t, nfops> &fop_to_fd,
    const std::vector<FieldDescriptor> &fds,
-   const IntegrationRule &ir,
+   const IntegratorContext<entity_t> &ctx,
    std::array<FieldBasis, nfops> &bases)
 {
+   const IntegrationRule &ir = ctx.ir;
+   // The bases follow the convention of the interpolators: nullptr stands
+   // for all entities (a full list is 0, ..., nentities - 1), which keeps
+   // their direct, non-indexed path.
+   const bool all = ctx.marked_entities.Size() == ctx.nentities;
+   const Array<int> *entities = all ? nullptr : &ctx.marked_entities;
    constexpr_for<0, nfops>([&](auto i)
    {
       const auto fop = get<i>(fops);
@@ -188,19 +363,27 @@ inline void create_fieldbases(
          QuadratureInterpolator::VALUES;
       if constexpr (is_identity_fop<fop_t>::value)
       {
-         bases[i] = GetFieldBasis(fd, ir, dummy_mode);
+         bases[i] = GetFieldBasis<entity_t>(fd, ir, dummy_mode, entities);
       }
       else if constexpr (is_weight_fop<fop_t>::value)
       {
          bases[i] = FieldBasisFromWeight(ir);
       }
+      else if constexpr (is_orientation_fop<fop_t>::value)
+      {
+         MFEM_ASSERT(ctx.orientation, "orientation signs are missing");
+         bases[i] = FieldBasisFromOrientation(ir, *ctx.orientation, entities);
+      }
       else if constexpr (is_value_fop<fop_t>::value)
       {
-         bases[i] = GetFieldBasis(fd, ir, QuadratureInterpolator::VALUES);
+         bases[i] = GetFieldBasis<entity_t>(fd, ir,
+                                            QuadratureInterpolator::VALUES,
+                                            entities);
       }
       else if constexpr (is_gradient_fop<fop_t>::value)
       {
-         bases[i] = GetFieldBasis(fd, ir, QuadratureInterpolator::DERIVATIVES);
+         bases[i] = GetFieldBasis<entity_t>(
+                       fd, ir, QuadratureInterpolator::DERIVATIVES, entities);
       }
    });
 }
@@ -224,7 +407,8 @@ inline void check_consistency(
                      "Identity FieldOperator requested on non "
                      "VectorQuadratureSpace");
       }
-      else if constexpr (is_weight_fop<input_t>::value)
+      else if constexpr (is_weight_fop<input_t>::value ||
+                         is_orientation_fop<input_t>::value)
       {
          MFEM_CONTRACT_VAR(fd);
       }
@@ -259,6 +443,42 @@ inline void interpolate(
       if (!conditional.empty() && !conditional[i]) { return; }
 
       input_bases[i].forward(*xe[input_to_infd[i]], xq.GetBlock(i));
+   });
+}
+
+/// Whether the input @a fop_t has the same quadrature point data on every
+/// call, so that its block is filled once, see fill_constant_inputs().
+template <typename fop_t>
+constexpr bool is_constant_input_v =
+   is_weight_fop<fop_t>::value || is_orientation_fop<fop_t>::value;
+
+/// The inputs that interpolate() has to evaluate on every call.
+/// Constant ones are skipped during interpolation.
+template <typename inputs_t, size_t ninputs = tuple_size<inputs_t>::value>
+constexpr std::array<bool, ninputs> varying_inputs()
+{
+   std::array<bool, ninputs> result {};
+   constexpr_for<0, ninputs>([&](auto i)
+   {
+      using input_t = std::decay_t<decltype(get<i>(inputs_t {}))>;
+      result[i] = !is_constant_input_v<input_t>;
+   });
+   return result;
+}
+
+/// Fill the blocks of @a xq of the constant inputs, see varying_inputs().
+template <typename inputs_t, size_t ninputs>
+inline void fill_constant_inputs(const std::array<FieldBasis, ninputs> &bases,
+                                 BlockVector &xq)
+{
+   constexpr_for<0, ninputs>([&](auto i)
+   {
+      using input_t = std::decay_t<decltype(get<i>(inputs_t {}))>;
+      if constexpr (is_constant_input_v<input_t>)
+      {
+         Vector empty;
+         bases[i].forward(empty, xq.GetBlock(i));
+      }
    });
 }
 
@@ -1042,7 +1262,8 @@ void create_fop_to_fd(const fops_t &fops,
       // Handle Weight type. There is no FieldDescriptor for the weight.
       // TODO: Create weight descriptor for the weight for internal use?
       // TODO: this is a hack...
-      if (is_weight_fop<std::remove_cv_t<decltype(fop)>>::value)
+      if (is_weight_fop<std::remove_cv_t<decltype(fop)>>::value ||
+          is_orientation_fop<std::remove_cv_t<decltype(fop)>>::value)
       {
          fop_to_fd[i] = 0;
       }

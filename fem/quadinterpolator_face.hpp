@@ -68,6 +68,16 @@ public:
    /// FaceQuadratureInterpolator.
    static bool SupportsFESpace(const FiniteElementSpace &fes);
 
+   /// Return the sign to apply to the normals on each face to point from e1 to e2.
+   static void GetSigns(const Mesh &mesh, const FaceType type,
+                        Array<bool> &signs);
+
+   /// Same as GetSigns(const Mesh &, const FaceType, Array<bool> &) for the
+   /// mesh of @a fes.
+   static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
+                        Array<bool> &signs)
+   { GetSigns(*fes.GetMesh(), type, signs); }
+
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */
    /** Currently, tensor product evaluations are not implemented and this method
@@ -93,12 +103,30 @@ public:
        When the DETERMINANTS flags is set, it is assumed that the derivatives
        form a matrix at each quadrature point (i.e. the associated
        FiniteElementSpace is a vector space) and their determinants are computed
-       and stored in @a q_det. */
+       and stored in @a q_det.
+
+       If @a flist is not null, only the faces it lists are interpolated:
+       @a e_vec still holds all the faces of the interpolator, while the
+       quadrature point vectors hold only the listed ones, in the order of
+       @a flist. */
    void Mult(const Vector &e_vec, unsigned eval_flags,
-             Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor) const;
+             Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor,
+             const Array<int> *flist = nullptr) const;
 
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
-   void Values(const Vector &e_vec, Vector &q_val) const;
+   /// See Mult() for @a flist.
+   void Values(const Vector &e_vec, Vector &q_val,
+               const Array<int> *flist = nullptr) const;
+
+   /// @brief Perform the transpose operation of Mult(), adding the result to
+   /// @a e_vec.
+   /** The @a eval_flags select the Q-vectors to transpose, @a q_val for VALUES
+       and @a q_der for DERIVATIVES, with the layout set by SetOutputLayout().
+       DETERMINANTS and NORMALS are not linear in the E-vector and are not
+       supported. See Mult() for @a flist. */
+   void AddMultTranspose(unsigned eval_flags, const Vector &q_val,
+                         const Vector &q_der, Vector &e_vec,
+                         const Array<int> *flist = nullptr) const;
 
    // Compute kernels follow (cannot be private or protected with nvcc)
 
@@ -114,7 +142,8 @@ public:
                       Vector &q_der,
                       Vector &q_det,
                       Vector &q_nor,
-                      const int eval_flags);
+                      const int eval_flags,
+                      const Array<int> *flist = nullptr);
 
    /// Template compute kernel for 3D.
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
@@ -128,7 +157,8 @@ public:
                       Vector &q_der,
                       Vector &q_det,
                       Vector &q_nor,
-                      const int eval_flags);
+                      const int eval_flags,
+                      const Array<int> *flist = nullptr);
 
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
    static void SmemEval3D(const int NF,
@@ -141,7 +171,8 @@ public:
                           Vector &q_der,
                           Vector &q_det,
                           Vector &q_nor,
-                          const int eval_flags);
+                          const int eval_flags,
+                          const Array<int> *flist = nullptr);
 };
 
 } // mfem namespace

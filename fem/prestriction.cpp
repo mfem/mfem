@@ -51,6 +51,13 @@ void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
    NonconformingInterpolation(y);
 }
 
+EntityDofMap ParNCH1FaceRestriction::GetEntityDofMap() const
+{
+   MFEM_VERIFY(type == FaceType::Boundary,
+               "the interior faces of a nonconforming mesh are interpolated");
+   return H1FaceRestriction::GetEntityDofMap();
+}
+
 void ParNCH1FaceRestriction::NonconformingInterpolation(Vector& y) const
 {
    // Assumes all elements have the same number of dofs

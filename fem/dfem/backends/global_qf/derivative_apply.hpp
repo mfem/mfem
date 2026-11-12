@@ -24,14 +24,16 @@ namespace mfem::future::GlobalQFImpl
 template<
    int derivative_id,
    typename inputs_t,
-   typename outputs_t>
+   typename outputs_t,
+   typename entity_t>
 struct DerivativeApply
 {
+
    static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
 
    DerivativeApply(
-      IntegratorContext ctx,
+      IntegratorContext<entity_t> ctx,
       inputs_t inputs,
       outputs_t outputs,
       const Vector &qp_cache):
@@ -99,7 +101,7 @@ struct DerivativeApply
       const Vector *direction_l,
       std::vector<Vector *> &ye) const
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
 
       MFEM_ASSERT(direction_l != nullptr,
                   "Global DerivativeApply: direction vector is null");
@@ -214,7 +216,7 @@ struct DerivativeApply
    }
 
 private:
-   IntegratorContext ctx;
+   IntegratorContext<entity_t> ctx;
    inputs_t inputs;
    outputs_t outputs;
    const Vector &qp_cache;
@@ -232,7 +234,10 @@ private:
    Array<int> result_q_offsets;
    mutable BlockVector dir_q_local;
    mutable BlockVector result_q_local;
-   mutable RestrictionCache<Entity::Element> direction_rcache;
+   mutable RestrictionCache direction_rcache
+   {
+      EntityTraits<entity_t>::restriction
+   };
 
    int residual_size_on_qp = 0;
    int trial_vdim = 0;

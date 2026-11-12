@@ -31,16 +31,20 @@ static void ValuesTranspose1D(const int NE,
                               real_t *e_,
                               const int vdim,
                               const int d1d,
-                              const int q1d)
+                              const int q1d,
+                              const Array<int> *elist)
 {
+   const int NM = elist ? elist->Size() : NE; // entities processed
+   const int *d_elist = elist ? elist->Read() : nullptr;
    const auto b = Reshape(b_, q1d, d1d);
    const auto qd = Q_LAYOUT == QVectorLayout::byNODES ?
-                   Reshape(q_, q1d, vdim, NE) :
-                   Reshape(q_, vdim, q1d, NE);
+                   Reshape(q_, q1d, vdim, NM) :
+                   Reshape(q_, vdim, q1d, NM);
    auto e = Reshape(e_, d1d, vdim, NE);
 
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int el)
+   mfem::forall(NM, [=] MFEM_HOST_DEVICE (int el)
    {
+      const int ex = d_elist ? d_elist[el] : el;
       for (int c = 0; c < vdim; c++)
       {
          for (int d = 0; d < d1d; d++)
@@ -52,7 +56,7 @@ static void ValuesTranspose1D(const int NE,
                                    qd(c, q, el) : qd(q, c, el);
                u += b(q, d) * qval;
             }
-            e(d, c, el) += u;
+            e(d, c, ex) += u;
          }
       }
    });
@@ -67,8 +71,11 @@ static void ValuesTranspose2D(const int NE,
                               real_t *e_,
                               const int vdim = 0,
                               const int d1d = 0,
-                              const int q1d = 0)
+                              const int q1d = 0,
+                              const Array<int> *elist = nullptr)
 {
+   const int NM = elist ? elist->Size() : NE; // entities processed
+   const int *d_elist = elist ? elist->Read() : nullptr;
    static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -76,12 +83,13 @@ static void ValuesTranspose2D(const int NE,
 
    const auto b = Reshape(b_, Q1D, D1D);
    const auto q = Q_LAYOUT == QVectorLayout::byNODES ?
-                  Reshape(q_, Q1D, Q1D, VDIM, NE) :
-                  Reshape(q_, VDIM, Q1D, Q1D, NE);
+                  Reshape(q_, Q1D, Q1D, VDIM, NM) :
+                  Reshape(q_, VDIM, Q1D, Q1D, NM);
    auto e = Reshape(e_, D1D, D1D, VDIM, NE);
 
-   mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int el)
+   mfem::forall_2D_batch(NM, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int el)
    {
+      const int ex = d_elist ? d_elist[el] : el;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -149,7 +157,7 @@ static void ValuesTranspose2D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               e(dx,dy,c,el) += DD(dx,dy);
+               e(dx,dy,c,ex) += DD(dx,dy);
             }
          }
          MFEM_SYNC_THREAD;
@@ -165,20 +173,24 @@ static void ValuesTranspose3D(const int NE,
                               real_t *e_,
                               const int vdim = 0,
                               const int d1d = 0,
-                              const int q1d = 0)
+                              const int q1d = 0,
+                              const Array<int> *elist = nullptr)
 {
+   const int NM = elist ? elist->Size() : NE; // entities processed
+   const int *d_elist = elist ? elist->Read() : nullptr;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
 
    const auto b = Reshape(b_, Q1D, D1D);
    const auto q = Q_LAYOUT == QVectorLayout::byNODES ?
-                  Reshape(q_, Q1D, Q1D, Q1D, VDIM, NE) :
-                  Reshape(q_, VDIM, Q1D, Q1D, Q1D, NE);
+                  Reshape(q_, Q1D, Q1D, Q1D, VDIM, NM) :
+                  Reshape(q_, VDIM, Q1D, Q1D, Q1D, NM);
    auto e = Reshape(e_, D1D, D1D, D1D, VDIM, NE);
 
-   mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int el)
+   mfem::forall_3D(NM, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int el)
    {
+      const int ex = d_elist ? d_elist[el] : el;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -274,7 +286,7 @@ static void ValuesTranspose3D(const int NE,
             {
                MFEM_FOREACH_THREAD(dx,x,D1D)
                {
-                  e(dx,dy,dz,c,el) += DDD(dx,dy,dz);
+                  e(dx,dy,dz,c,ex) += DDD(dx,dy,dz);
                }
             }
          }

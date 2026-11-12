@@ -17,6 +17,7 @@
 #include "qspace.hpp"
 #include "fe/face_map_utils.hpp"
 #include "../general/forall.hpp"
+#include "../general/scan.hpp"
 
 #include <climits>
 
@@ -299,17 +300,6 @@ void ElementRestriction::FillSparseMatrix(const Vector &mat_ea,
    FillJAndData(mat_ea, mat);
 }
 
-void ElementRestriction::FillSparseMatrix(
-   const Vector &mat_ea, SparseMatrix &mat,
-   const ElementRestriction &trial_restr) const
-{
-   mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
-   const int nnz = FillI(mat, trial_restr);
-   mat.GetMemoryJ().New(nnz, mat.GetMemoryJ().GetMemoryType());
-   mat.GetMemoryData().New(nnz, mat.GetMemoryData().GetMemoryType());
-   FillJAndData(mat_ea, mat, trial_restr);
-}
-
 static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
                                       const int *nbr_elts, const int nbrNbElts)
 {
@@ -433,27 +423,27 @@ int ElementRestriction::FillI(SparseMatrix &mat) const
    return h_I[nTdofs];
 }
 
-int ElementRestriction::FillI(SparseMatrix &mat,
-                              const ElementRestriction &trial_restr) const
+// The I array of FillSparseMatrix()
+static int FillEntityI(const EntityDofMap &test, const EntityDofMap &trial,
+                       SparseMatrix &mat)
 {
-   MFEM_VERIFY(ne == trial_restr.ne,
-               "ElementRestriction::FillI: test/trial NE mismatch");
-   const int test_all_dofs = ndofs;
-   const int test_vd = vdim;
-   const int trial_vd = trial_restr.vdim;
-   const int test_elt_dofs = dof;
-   const int trial_elt_dofs = trial_restr.dof;
-   const bool test_byvdim = byvdim;
+   const int ne = test.ne;
+   const int test_all_dofs = test.ndofs;
+   const int test_vd = test.vdim;
+   const int trial_vd = trial.vdim;
+   const int test_elt_dofs = test.dof;
+   const int trial_elt_dofs = trial.dof;
+   const bool test_byvdim = test.byvdim;
    auto I = mat.ReadWriteI();
-   auto test_offsets = offsets.Read();
-   auto test_indices = indices.Read();
-   auto test_gather_map = gather_map.Read();
-   auto trial_offsets = trial_restr.offsets.Read();
-   auto trial_indices = trial_restr.indices.Read();
-   auto trial_gather_map = trial_restr.gather_map.Read();
+   auto test_offsets = test.offsets.Read();
+   auto test_indices = test.indices.Read();
+   auto test_gather_map = test.gather_map.Read();
+   auto trial_offsets = trial.offsets.Read();
+   auto trial_indices = trial.indices.Read();
+   auto trial_gather_map = trial.gather_map.Read();
 
-   Array<int> test_elts(indices.Size());
-   Array<int> trial_elts(trial_restr.indices.Size());
+   Array<int> test_elts(test.indices.Size());
+   Array<int> trial_elts(trial.indices.Size());
    auto d_test_elts = test_elts.Write();
    auto d_trial_elts = trial_elts.Write();
 
@@ -512,17 +502,17 @@ int ElementRestriction::FillI(SparseMatrix &mat,
       }
    });
 
-   auto h_I = mat.HostReadWriteI();
+   // The prefix sum turns the counts into the row offsets, and the last entry
+   // of I, which is zero, into the number of entries.
    const int nTdofs = test_vd*test_all_dofs;
-   int sum = 0;
-   for (int i = 0; i < nTdofs; i++)
-   {
-      const int nnz = h_I[i];
-      h_I[i] = sum;
-      sum += nnz;
-   }
-   h_I[nTdofs] = sum;
-   return h_I[nTdofs];
+   ExclusiveScan(true, I, I, nTdofs + 1, 0);
+   // Only the number of entries goes to the host, to size J and data: an alias
+   // of the last entry of I copies it alone. Delete() unregisters the alias.
+   int nnz;
+   Memory<int> last(mat.GetMemoryI(), nTdofs, 1);
+   last.CopyToHost(&nnz, 1);
+   last.Delete();
+   return nnz;
 }
 
 void ElementRestriction::FillJAndData(const Vector &ea_data,
@@ -621,36 +611,41 @@ void ElementRestriction::FillJAndData(const Vector &ea_data,
    h_I[0] = 0;
 }
 
-void ElementRestriction::FillJAndData(
-   const Vector &ea_data, SparseMatrix &mat,
-   const ElementRestriction &trial_restr) const
+// The J and data arrays of FillSparseMatrix()
+static void FillEntityJAndData(const Vector &ea_data, const EntityDofMap &test,
+                               const EntityDofMap &trial, SparseMatrix &mat)
 {
-   MFEM_VERIFY(ne == trial_restr.ne,
-               "ElementRestriction::FillJAndData: test/trial NE mismatch");
-   const int test_all_dofs = ndofs;
-   const int trial_all_dofs = trial_restr.ndofs;
-   const int test_vd = vdim;
-   const int trial_vd = trial_restr.vdim;
-   const int test_elt_dofs = dof;
-   const int trial_elt_dofs = trial_restr.dof;
-   const bool test_byvdim = byvdim;
-   const bool trial_byvdim = trial_restr.byvdim;
-   auto I = mat.ReadWriteI();
+   const int ne = test.ne;
+   const int test_all_dofs = test.ndofs;
+   const int trial_all_dofs = trial.ndofs;
+   const int test_vd = test.vdim;
+   const int trial_vd = trial.vdim;
+   const int test_elt_dofs = test.dof;
+   const int trial_elt_dofs = trial.dof;
+   const bool test_byvdim = test.byvdim;
+   const bool trial_byvdim = trial.byvdim;
+   auto I = mat.ReadI();
    auto J = mat.WriteJ();
    auto Data = mat.WriteData();
-   auto test_offsets = offsets.Read();
-   auto test_indices = indices.Read();
-   auto test_gather_map = gather_map.Read();
-   auto trial_offsets = trial_restr.offsets.Read();
-   auto trial_indices = trial_restr.indices.Read();
-   auto trial_gather_map = trial_restr.gather_map.Read();
+   auto test_offsets = test.offsets.Read();
+   auto test_indices = test.indices.Read();
+   auto test_gather_map = test.gather_map.Read();
+   auto trial_offsets = trial.offsets.Read();
+   auto trial_indices = trial.indices.Read();
+   auto trial_gather_map = trial.gather_map.Read();
    auto mat_ea = Reshape(ea_data.Read(), test_elt_dofs, test_vd,
                          trial_elt_dofs, trial_vd, ne);
 
-   Array<int> test_el(indices.Size() * 3);
-   Array<int> trial_el(trial_restr.indices.Size() * 3);
-   auto d_test_el = Reshape(test_el.Write(), indices.Size(), 3);
-   auto d_trial_el = Reshape(trial_el.Write(), trial_restr.indices.Size(), 3);
+   Array<int> test_el(test.indices.Size() * 3);
+   Array<int> trial_el(trial.indices.Size() * 3);
+   auto d_test_el = Reshape(test_el.Write(), test.indices.Size(), 3);
+   auto d_trial_el = Reshape(trial_el.Write(), trial.indices.Size(), 3);
+
+   // The next free entry of every row, which leaves I untouched
+   const int nTdofs = test_vd*test_all_dofs;
+   Array<int> next(nTdofs);
+   auto d_next = next.Write();
+   mfem::forall(nTdofs, [=] MFEM_HOST_DEVICE (int i) { d_next[i] = I[i]; });
 
    mfem::forall(ne*test_elt_dofs*test_vd, [=] MFEM_HOST_DEVICE (int iE)
    {
@@ -695,7 +690,7 @@ void ElementRestriction::FillJAndData(
             const int j_nbElts = j_next_offset - j_offset;
             if (i_nbElts == 1 || j_nbElts == 1)
             {
-               const int nnz = GetAndIncrementNnzIndex(i_L, I);
+               const int nnz = GetAndIncrementNnzIndex(i_L, d_next);
                J[nnz] = j_L;
                Data[nnz] = i_sgn*j_sgn*mat_ea(i, test_c, j, trial_c, e);
             }
@@ -732,7 +727,7 @@ void ElementRestriction::FillJAndData(
                         }
                      }
                   }
-                  const int nnz = GetAndIncrementNnzIndex(i_L, I);
+                  const int nnz = GetAndIncrementNnzIndex(i_L, d_next);
                   J[nnz] = j_L;
                   Data[nnz] = val;
                }
@@ -740,14 +735,28 @@ void ElementRestriction::FillJAndData(
          }
       }
    });
+}
 
-   auto h_I = mat.HostReadWriteI();
-   const int size = test_vd*test_all_dofs;
-   for (int i = 0; i < size; i++)
-   {
-      h_I[size-i] = h_I[size-(i+1)];
-   }
-   h_I[0] = 0;
+void FillSparseMatrix(const Vector &ea_data, const EntityDofMap &test,
+                      const EntityDofMap &trial, SparseMatrix &mat)
+{
+   MFEM_VERIFY(test.ne == trial.ne, "test and trial entity counts differ");
+   MFEM_VERIFY(ea_data.Size() == static_cast<long long>(test.dof)*test.vdim*
+               trial.dof*trial.vdim*test.ne,
+               "the entity matrices do not match the test and trial maps");
+   MFEM_VERIFY(mat.Height() == test.vdim*test.ndofs &&
+               mat.Width() == trial.vdim*trial.ndofs,
+               "the size of mat does not match the test and trial spaces");
+   mat.GetMemoryI().New(mat.Height()+1, mat.GetMemoryI().GetMemoryType());
+   const int nnz = FillEntityI(test, trial, mat);
+   mat.GetMemoryJ().New(nnz, mat.GetMemoryJ().GetMemoryType());
+   mat.GetMemoryData().New(nnz, mat.GetMemoryData().GetMemoryType());
+   FillEntityJAndData(ea_data, test, trial, mat);
+}
+
+EntityDofMap ElementRestriction::GetEntityDofMap() const
+{
+   return {ne, dof, ndofs, vdim, byvdim, gather_map, offsets, indices};
 }
 
 L2ElementRestriction::L2ElementRestriction(const FiniteElementSpace &fes)
@@ -854,6 +863,20 @@ void L2ElementRestriction::FillJAndData(const Vector &ea_data,
          Data[offset+j] = mat_ea(j,i,e);
       }
    });
+}
+
+EntityDofMap L2ElementRestriction::GetEntityDofMap() const
+{
+   // Element dof e*ndof + i is the space dof e*ndof + i, of no other element
+   if (identity_offsets.Size() == 0)
+   {
+      MFEM_ASSERT(ndofs == ne*ndof, "unexpected number of dofs");
+      identity.SetSize(ndofs);
+      identity_offsets.SetSize(ndofs + 1);
+      for (int i = 0; i < ndofs; i++) { identity[i] = i; }
+      for (int i = 0; i <= ndofs; i++) { identity_offsets[i] = i; }
+   }
+   return {ne, ndof, ndofs, vdim, byvdim, identity, identity_offsets, identity};
 }
 
 ConformingFaceRestriction::ConformingFaceRestriction(
@@ -987,6 +1010,12 @@ void ConformingFaceRestriction::AddAbsMultTranspose(
    ConformingFaceRestriction_AddMultTranspose(
       ndofs, face_dofs, nf, vdim, byvdim, gather_offsets, gather_indices, x, y,
       false, a);
+}
+
+EntityDofMap ConformingFaceRestriction::GetEntityDofMap() const
+{
+   return {nf, face_dofs, ndofs, vdim, byvdim, scatter_indices, gather_offsets,
+           gather_indices};
 }
 
 void ConformingFaceRestriction::CheckFESpace(const ElementDofOrdering
@@ -1364,6 +1393,14 @@ void L2FaceRestriction::AddMultTranspose(const Vector& x, Vector& y,
    {
       SingleValuedConformingAddMultTranspose(x, y);
    }
+}
+
+EntityDofMap L2FaceRestriction::GetEntityDofMap() const
+{
+   MFEM_VERIFY(m == L2FaceValues::SingleValued,
+               "DoubleValued faces read the dofs of two elements");
+   return {nf, face_dofs, ndofs, vdim, byvdim, scatter_indices1, gather_offsets,
+           gather_indices};
 }
 
 void L2FaceRestriction::FillI(SparseMatrix &mat,
@@ -2026,6 +2063,13 @@ void NCL2FaceRestriction::Mult(const Vector& x, Vector& y) const
    {
       SingleValuedConformingMult(x, y);
    }
+}
+
+EntityDofMap NCL2FaceRestriction::GetEntityDofMap() const
+{
+   MFEM_VERIFY(type == FaceType::Boundary,
+               "the interior faces of a nonconforming mesh are interpolated");
+   return L2FaceRestriction::GetEntityDofMap();
 }
 
 void NCL2FaceRestriction::SingleValuedNonconformingTransposeInterpolation(

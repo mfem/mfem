@@ -41,6 +41,7 @@ static void store_cache_columns(const int gnqp_local,
                                 const int yq_out_size,
                                 const int out_offset_o,
                                 const int col,
+                                const int *d_entities,
                                 const real_t *yq_d,
                                 real_t *cache_d,
                                 real_t *shadow_ptr,
@@ -55,7 +56,7 @@ static void store_cache_columns(const int gnqp_local,
       const int gq       = idx % gnqp_local;
       const int c_out    = idx / gnqp_local;
       const int q        = gq % num_qp_local;
-      const int entity   = gq / num_qp_local;
+      const int entity   = d_entities[gq / num_qp_local];
       const int out_comp = out_offset_o +
                            (c_out % test_vdim_o) * test_op_dim_o +
                            c_out / test_vdim_o;
@@ -76,14 +77,16 @@ template<
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t,
+   typename entity_t,
    size_t ninputs = tuple_size<inputs_t>::value,
    size_t noutputs = tuple_size<outputs_t>::value>
 struct DerivativeSetup
 {
+
    using qfunc_shadow_t = detail::qfunc_shadow_t<qfunc_t>;
 
    DerivativeSetup(
-      IntegratorContext ctx,
+      IntegratorContext<entity_t> ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
@@ -101,15 +104,17 @@ struct DerivativeSetup
       check_consistency(inputs, input_to_infd, ctx.infds);
       check_consistency(outputs, output_to_outfd, ctx.outfds);
 
-      create_fieldbases(inputs, input_to_infd, ctx.infds, ctx.ir, input_bases);
-      create_fieldbases(outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
+      create_fieldbases<entity_t>(inputs, input_to_infd, ctx.infds, ctx,
+                                  input_bases);
+      create_fieldbases<entity_t>(outputs, output_to_outfd, ctx.outfds, ctx,
+                                  output_bases);
 
       create_qlayouts(inputs, ctx.in_qlayouts, input_qlayouts);
       create_qlayouts(outputs, ctx.out_qlayouts, output_qlayouts);
 
       const int nqp = ctx.ir.GetNPoints();
       num_qp = nqp;
-      nentities = ctx.nentities;
+      nentities = ctx.marked_entities.Size();
       gnqp = nqp * nentities;
 
       xq_offsets.SetSize(ninputs + 1);
@@ -157,7 +162,9 @@ struct DerivativeSetup
       });
 
       residual_size_on_qp = total_out_size_on_qp * trial_vdim * total_trial_op_dim;
-      qp_cache.SetSize(residual_size_on_qp * num_qp * nentities);
+      // The cache is indexed by entity, as the LocalQF kernels that read it
+      // expect; only the entities of ctx.marked_entities are set.
+      qp_cache.SetSize(residual_size_on_qp * num_qp * ctx.nentities);
       qp_cache.UseDevice(true);
    }
 
@@ -169,21 +176,17 @@ struct DerivativeSetup
       InitBlockVector(xq, xq_offsets);
       InitBlockVector(shadow_xq, shadow_xq_offsets);
       InitBlockVector(yq, yq_offsets);
-
-      constexpr_for<0, noutputs>([&](auto o)
-      {
-         primal_output_storage[o].UseDevice(true);
-         primal_output_storage[o].SetSize(yq.GetBlock(o).Size());
-      });
+      fill_constant_inputs<inputs_t>(input_bases, xq);
+      InitFromBlocks(primal_output_storage, yq);
       buffers_ready = true;
    }
 
    void operator()(const std::vector<Vector *> &xe)
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
       InitBuffers();
 
-      interpolate(input_to_infd, input_bases, xe, xq);
+      interpolate(input_to_infd, input_bases, xe, xq, interpolated_inputs);
       shadow_xq = 0.0;
       shadow_xq.SyncToBlocks();
 
@@ -192,6 +195,7 @@ struct DerivativeSetup
       const int trial_vdim_local = trial_vdim;
       const int total_trial_op_dim_local = total_trial_op_dim;
       const int residual_size_local = residual_size_on_qp;
+      const int *d_entities = ctx.marked_entities.Read();
 
       for (int j = 0; j < trial_vdim; j++)
       {
@@ -252,7 +256,7 @@ struct DerivativeSetup
                      gnqp_local, num_qp_local, trial_vdim_local,
                      total_trial_op_dim_local, residual_size_local,
                      test_vdim_o, test_op_dim_o, yq_out_size, out_offset_o,
-                     col, yq_d, cache_d, shadow_ptr, c_shadow, input_size_s);
+                     col, d_entities, yq_d, cache_d, shadow_ptr, c_shadow, input_size_s);
                   out_offset += yq_out_size;
                });
             }
@@ -261,10 +265,12 @@ struct DerivativeSetup
       }
    }
 
-   IntegratorContext ctx;
+   IntegratorContext<entity_t> ctx;
    qfunc_t qfunc;
    qfunc_shadow_t qfunc_shadow;
    inputs_t inputs;
+   /// The inputs interpolated on every call, the others are constant.
+   static constexpr auto interpolated_inputs = varying_inputs<inputs_t>();
    outputs_t outputs;
    Vector &qp_cache;
 
