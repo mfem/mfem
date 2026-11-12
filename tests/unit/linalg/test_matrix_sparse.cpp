@@ -12,6 +12,11 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 #include <sstream>
+#include <cmath>
+#include <cstring>
+#include <limits>
+#include <random>
+#include <vector>
 
 namespace mfem
 {
@@ -289,5 +294,169 @@ TEST_CASE("SparseMatrix cuSPARSE Bug", "[SparseMatrix][GPU]")
    y -= d;
    REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
 }
+
+namespace
+{
+
+struct RaggedCSR
+{
+   std::vector<int> I, J;
+   std::vector<real_t> A;
+};
+
+// Rows have random lengths up to max_len, empty rows allowed unless
+// non_empty. With non_empty the first entry of every row dominates, so the
+// row sums used by Jacobi2/Jacobi3 are positive.
+RaggedCSR MakeRagged(int n, int max_len, bool non_empty, std::mt19937 &gen)
+{
+   RaggedCSR m;
+   m.I.assign(n + 1, 0);
+   std::uniform_real_distribution<real_t> u(-1.0, 1.0);
+   for (int i = 0; i < n; i++)
+   {
+      const int lo = non_empty ? 1 : 0;
+      const int len = lo + int(gen() % (max_len - lo + 1));
+      m.I[i+1] = m.I[i] + len;
+      for (int k = 0; k < len; k++)
+      {
+         m.J.push_back(int(gen() % n));
+         const real_t scale = std::pow(10.0, int(gen() % 4) - 3);
+         m.A.push_back(non_empty && k == 0 ? 1e4 : u(gen) * scale);
+      }
+   }
+   return m;
+}
+
+// With hardware FMA the compiler may fuse the plain and the interleaved loops
+// differently, so there compare within the rounding bound of each row.
+#if defined(MFEM_USE_SINGLE) ? defined(__FP_FAST_FMAF) : defined(__FP_FAST_FMA)
+constexpr bool may_fuse = true;
+#else
+constexpr bool may_fuse = false;
+#endif
+
+bool Matches(const Vector &got, const Vector &ref, const Vector &tol)
+{
+   if (got.Size() != ref.Size()) { return false; }
+   if (!may_fuse)
+   {
+      return ref.Size() == 0 ||
+             std::memcmp(got.GetData(), ref.GetData(),
+                         ref.Size() * sizeof(real_t)) == 0;
+   }
+   for (int i = 0; i < ref.Size(); i++)
+   {
+      if (!(std::fabs(got(i) - ref(i)) <= tol(i))) { return false; }
+   }
+   return true;
+}
+
+void CheckRowLoops(RaggedCSR &m, int n, std::mt19937 &gen, bool jacobi)
+{
+   SparseMatrix S(m.I.data(), m.J.data(), m.A.data(), n, n, false, false, false);
+   S.Finalize();
+
+   std::uniform_real_distribution<real_t> u(-1.0, 1.0);
+   Vector x(n), y0(n), b(n);
+   for (int i = 0; i < n; i++) { x(i) = u(gen); y0(i) = u(gen); b(i) = u(gen); }
+   const real_t a = 0.7, sc = 0.6;
+   const real_t eps = std::numeric_limits<real_t>::epsilon();
+
+   // Old loops, plus a bound on how far two fusing choices can drift apart
+   Vector y_ref(y0), mult_ref(n), j2_ref(n), j3_ref(n);
+   Vector y_tol(n), mult_tol(n), j2_tol(n), j3_tol(n);
+   for (int i = 0; i < n; i++)
+   {
+      real_t d = 0.0, s = 0.0;
+      for (int j = m.I[i]; j < m.I[i+1]; j++)
+      {
+         d += m.A[j] * x(m.J[j]);
+         s += std::fabs(m.A[j] * x(m.J[j]));
+      }
+      const real_t g = 2 * (m.I[i+1] - m.I[i] + 2) * eps;
+      y_tol(i) = g * (std::fabs(y0(i)) + std::fabs(a) * s);
+      y_ref(i) += a * d;
+      real_t d1 = 0.0;
+      for (int j = m.I[i]; j < m.I[i+1]; j++) { d1 += m.A[j] * x(m.J[j]); }
+      mult_ref(i) = 0.0 + 1.0 * d1;
+      mult_tol(i) = g * s;
+   }
+   for (int pass = 0; jacobi && pass < 2; pass++)
+   {
+      Vector &out = pass ? j3_ref : j2_ref;
+      Vector &tol = pass ? j3_tol : j2_tol;
+      for (int i = 0; i < n; i++)
+      {
+         real_t resi = b(i), norm = 0.0, s = std::fabs(b(i));
+         for (int j = m.I[i]; j < m.I[i+1]; j++)
+         {
+            resi -= m.A[j] * x(m.J[j]);
+            norm += pass ? m.A[j] : std::fabs(m.A[j]);
+            s += std::fabs(m.A[j] * x(m.J[j]));
+         }
+         out(i) = x(i) + sc * resi / norm;
+         const real_t g = 2 * (m.I[i+1] - m.I[i] + 3) * eps;
+         tol(i) = g * (sc * s / std::fabs(norm) + std::fabs(x(i)) +
+                       std::fabs(out(i)));
+      }
+   }
+
+   Vector y(y0);
+   S.AddMult(x, y, a);
+   REQUIRE(Matches(y, y_ref, y_tol));
+
+   Vector z(n);
+   S.Mult(x, z);
+   REQUIRE(Matches(z, mult_ref, mult_tol));
+
+   if (jacobi)
+   {
+      Vector o(n);
+      S.Jacobi2(b, x, o, sc);
+      REQUIRE(Matches(o, j2_ref, j2_tol));
+      S.Jacobi3(b, x, o, sc);
+      REQUIRE(Matches(o, j3_ref, j3_tol));
+   }
+}
+
+} // namespace
+
+TEST_CASE("SparseMatrix row loops match the plain loops",
+          "[SparseMatrix]")
+{
+   std::mt19937 gen(12345);
+   for (int n = 1; n <= 9; n++)
+   {
+      CAPTURE(n);
+      for (int rep = 0; rep < 20; rep++)
+      {
+         RaggedCSR m = MakeRagged(n, 12, false, gen);
+         CheckRowLoops(m, n, gen, false);
+         RaggedCSR p = MakeRagged(n, 12, true, gen);
+         CheckRowLoops(p, n, gen, true);
+      }
+   }
+   for (int rep = 0; rep < 3; rep++)
+   {
+      RaggedCSR m = MakeRagged(1003, 40, false, gen);
+      CheckRowLoops(m, 1003, gen, false);
+      RaggedCSR p = MakeRagged(1003, 40, true, gen);
+      CheckRowLoops(p, 1003, gen, true);
+   }
+}
+
+TEST_CASE("SparseMatrix AddMult with no rows", "[SparseMatrix]")
+{
+   std::vector<int> I(1, 0), J(1, 0);
+   std::vector<real_t> A(1, 0.0);
+   SparseMatrix S(I.data(), J.data(), A.data(), 0, 3, false, false, false);
+   S.Finalize();
+   Vector x(3), y(0);
+   x = 1.0;
+   S.AddMult(x, y);
+   S.Mult(x, y);
+   REQUIRE(y.Size() == 0);
+}
+
 
 } // namespace mfem
