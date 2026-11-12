@@ -293,9 +293,12 @@ TEST_CASE("NCMesh geometry-specific refinement patterns", "[NCMesh]")
 {
    SECTION("pattern descriptors")
    {
-      const std::array<Refinement::Pattern, 17> patterns =
+      const std::array<Refinement::Pattern, 20> patterns =
       {
          Refinement::Segment::BISECTION,
+         Refinement::Triangle::EDGE_01_2_TRIS,
+         Refinement::Triangle::EDGE_02_2_TRIS,
+         Refinement::Triangle::EDGE_12_2_TRIS,
          Refinement::Triangle::UNIFORM,
          Refinement::Quadrilateral::SPLIT_X,
          Refinement::Quadrilateral::SPLIT_Y,
@@ -496,12 +499,13 @@ TEST_CASE("NCMesh mixed pyramid children refine and derefine", "[NCMesh]")
 
 TEST_CASE("NCMesh anisotropic triangle round trip", "[NCMesh]")
 {
-   const int ref_type = GENERATE(Refinement::X, Refinement::Y);
+   const int ref_type = GENERATE(Refinement::X, Refinement::Y,
+                                 Refinement::Z);
    CAPTURE(ref_type);
 
    Mesh mesh("../../data/ref-triangle.mesh");
    const int *triangle_vertices = mesh.GetElement(0)->GetVertices();
-   const int split_vertex0 = triangle_vertices[0];
+   const int split_vertex0 = triangle_vertices[ref_type == Refinement::Z ? 1 : 0];
    const int split_vertex1 = triangle_vertices[ref_type == Refinement::X ? 1 : 2];
    int split_attribute = -1;
    Array<int> boundary_vertices;
@@ -557,6 +561,16 @@ TEST_CASE("NCMesh anisotropic triangle round trip", "[NCMesh]")
    exact -= field;
    REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
 
+   std::stringstream serialized;
+   mesh.Print(serialized);
+   Mesh reloaded(serialized, 1, 1);
+   REQUIRE(reloaded.GetNE() == 2);
+   REQUIRE(SummarizeRefinedElements(reloaded).volume == MFEM_Approx(0.5));
+   Vector reload_errors(reloaded.GetNE());
+   reload_errors = 0.0;
+   REQUIRE(reloaded.DerefineByError(reload_errors, 1.0));
+   REQUIRE(reloaded.GetNE() == 1);
+
    Vector errors(mesh.GetNE());
    errors = 0.0;
    REQUIRE(mesh.DerefineByError(errors, 1.0));
@@ -586,7 +600,8 @@ TEST_CASE("NCMesh anisotropic triangle round trip", "[NCMesh]")
 
 TEST_CASE("NCMesh anisotropic triangle hanging edge", "[NCMesh]")
 {
-   const int ref_type = GENERATE(Refinement::X, Refinement::Y);
+   const int ref_type = GENERATE(Refinement::X, Refinement::Y,
+                                 Refinement::Z);
    CAPTURE(ref_type);
 
    Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
@@ -629,6 +644,72 @@ TEST_CASE("NCMesh anisotropic triangle hanging edge", "[NCMesh]")
    exact.ProjectCoefficient(affine);
    exact -= field;
    REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+}
+
+TEST_CASE("NCMesh anisotropic triangle L2 derefinement", "[NCMesh]")
+{
+   const int ref_type = GENERATE(Refinement::X, Refinement::Y,
+                                 Refinement::Z);
+   const bool nested = GENERATE(false, true);
+   const bool variable_order = GENERATE(false, true);
+   CAPTURE(ref_type, nested, variable_order);
+
+   Mesh mesh("../../data/ref-triangle.mesh");
+   mesh.EnsureNCMesh(true);
+   L2_FECollection fec(2, 2, BasisType::GaussLegendre,
+                       FiniteElement::VALUE);
+   FiniteElementSpace fes(&mesh, &fec);
+   if (variable_order)
+   {
+      fes.SetElementOrder(0, 3);
+      fes.Update(false);
+   }
+   GridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + 2.0*x[0] - 3.0*x[1];
+   });
+   field.ProjectCoefficient(affine);
+
+   Array<Refinement> refs(1);
+   refs[0].Set(0, ref_type);
+   mesh.GeneralRefinement(refs);
+   fes.Update();
+   field.Update();
+   if (nested)
+   {
+      refs[0].Set(0, ref_type == Refinement::X ?
+                  Refinement::Y : Refinement::X);
+      mesh.GeneralRefinement(refs);
+      fes.Update();
+      field.Update();
+   }
+   REQUIRE(mesh.GetNE() == (nested ? 3 : 2));
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      REQUIRE(fes.GetElementOrder(i) == 2 + int(variable_order));
+   }
+
+   for (int i = 0; i < field.Size(); i++)
+   {
+      field(i) = (i % 11 - 5) / 7.0;
+   }
+   const real_t fine_integral = IntegrateGridFunction(mesh, field);
+   for (int level = 0; level < (nested ? 2 : 1); level++)
+   {
+      Vector errors(mesh.GetNE());
+      errors = 0.0;
+      REQUIRE(mesh.DerefineByError(errors, 1.0));
+      fes.Update();
+      field.Update();
+      REQUIRE(IntegrateGridFunction(mesh, field) ==
+              MFEM_Approx(fine_integral, EPS));
+   }
+   REQUIRE(mesh.GetNE() == 1);
+   REQUIRE(fes.GetElementOrder(0) == 2 + int(variable_order));
+   REQUIRE(SummarizeRefinedElements(mesh).volume == MFEM_Approx(0.5));
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
 }
 
 TEST_CASE("NCMesh anisotropic prism refinement in mixed mesh", "[NCMesh]")
@@ -1164,7 +1245,8 @@ TEST_CASE("ParNCMesh geometry-specific refinement patterns",
 TEST_CASE("ParNCMesh anisotropic triangle hanging edge", "[Parallel][NCMesh]")
 {
    if (Mpi::WorldSize() != 2) { return; }
-   const int ref_type = GENERATE(Refinement::X, Refinement::Y);
+   const int ref_type = GENERATE(Refinement::X, Refinement::Y,
+                                 Refinement::Z);
    CAPTURE(ref_type);
 
    Mesh serial_mesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);

@@ -1955,7 +1955,7 @@ void NCMesh::RefineElement(const Refinement & ref)
    }
    else if (el.Geom() == Geometry::TRIANGLE)
    {
-      ref_type &= Refinement::XY;
+      if (ref_type != Refinement::Z) { ref_type &= Refinement::XY; }
       if (ref_type == Refinement::X)
       {
          const int mid01 = nodes.GetId(no[0], no[1]);
@@ -1972,6 +1972,15 @@ void NCMesh::RefineElement(const Refinement & ref)
          child[0] = NewTriangle(no[0], no[1], mid20,
                                 attr, fa[0], -1, fa[2]);
          child[1] = NewTriangle(mid20, no[1], no[2],
+                                attr, -1, fa[1], fa[2]);
+      }
+      else if (ref_type == Refinement::Z)
+      {
+         const int mid12 = nodes.GetId(no[1], no[2]);
+         SetNodeScale(no[1], no[2], scale_z);
+         child[0] = NewTriangle(no[0], no[1], mid12,
+                                attr, fa[0], fa[1], -1);
+         child[1] = NewTriangle(no[0], mid12, no[2],
                                 attr, -1, fa[1], fa[2]);
       }
       else if (ref_type == Refinement::XY)
@@ -5192,6 +5201,12 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
             Point mid20(pm(2), pm(0));
             if (child == 0) { pm = PointMatrix(pm(0), pm(1), mid20); }
             else if (child == 1) { pm = PointMatrix(mid20, pm(1), pm(2)); }
+         }
+         else if (ref_type == Refinement::Z)
+         {
+            Point mid12(pm(1), pm(2));
+            if (child == 0) { pm = PointMatrix(pm(0), pm(1), mid12); }
+            else if (child == 1) { pm = PointMatrix(pm(0), mid12, pm(2)); }
          }
          else if (ref_type == Refinement::XY)
          {

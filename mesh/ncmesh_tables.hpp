@@ -30,11 +30,12 @@ static constexpr int quad_deref_table[3][4 + 4] =
    { 0, 1, 2, 3, /**/ 1, 1, 3, 3 }  // 3 - iso
 };
 
-static constexpr int tri_deref_table[3][3 + 3] =
+static constexpr int tri_deref_table[4][3 + 3] =
 {
    { 0, 1, 0, /**/ 0, 1, 0 }, // 1 - X
    { 0, 0, 1, /**/ 0, 1, 1 }, // 2 - Y
-   { 0, 1, 2, /**/ 0, 1, 2 }  // 3 - iso
+   { 0, 1, 2, /**/ 0, 1, 2 }, // 3 - iso
+   { 0, 0, 1, /**/ 0, 0, 1 }  // 4 - Z
 };
 
 static constexpr int hex_deref_table[7][8 + 6] =
@@ -385,8 +386,8 @@ static const RefTrf* hex_child[8] =
    hex_child_rt7
 };
 
-// X bisects edge (0,1); Y bisects edge (0,2). The second child in each
-// bisection needs a shear to map the reference triangle onto its parent.
+// X, Y, and Z bisect edges (0,1), (0,2), and (1,2), respectively.
+// Shears map the bisection children onto the reference triangle.
 static constexpr RefTrf tri_parent_rt1[2] =
 {
    { {S_HALF, S_ONE, 0}, {     0, 0, 0} },
@@ -427,16 +428,30 @@ static constexpr RefTrf tri_child_rt3[4] =
    { {-S_TWO, -S_TWO, 0}, { T_ONE,  T_ONE, 0} }
 };
 
-static const RefTrf* tri_parent[4] =
+static constexpr RefTrf tri_parent_rt4[2] =
 {
-   NULL, tri_parent_rt1, tri_parent_rt2,
-   tri_parent_rt3
+   { {S_ONE, S_HALF, 0}, {0, 0, 0}, S_HALF, 0 },
+   { {S_HALF, S_ONE, 0}, {0, 0, 0}, 0, S_HALF }
 };
 
-static const RefTrf* tri_child[4] =
+static constexpr RefTrf tri_child_rt4[2] =
+{
+   { {S_ONE, S_TWO, 0}, {0, 0, 0}, -S_ONE, 0 },
+   { {S_TWO, S_ONE, 0}, {0, 0, 0}, 0, -S_ONE }
+};
+
+static const RefTrf* tri_parent[8] =
+{
+   NULL, tri_parent_rt1, tri_parent_rt2,
+   tri_parent_rt3, tri_parent_rt4,
+   NULL, NULL, NULL
+};
+
+static const RefTrf* tri_child[8] =
 {
    NULL, tri_child_rt1, tri_child_rt2,
-   tri_child_rt3
+   tri_child_rt3, tri_child_rt4,
+   NULL, NULL, NULL
 };
 
 static constexpr RefTrf prism_parent_rt3[4] =

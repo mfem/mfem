@@ -40,7 +40,9 @@ namespace mfem
     for quads). The refinement spacing or scale in each direction is a number
     in (0,1), with the default 0.5 meaning bisection. This linear scale
     parameter defines the position of the refinement between the beginning (0)
-    and end (1) of the reference element in each direction. */
+    and end (1) of the reference element in each direction. For triangles, X,
+    Y, and Z bisect edges (0,1), (0,2), and (1,2), respectively; XY produces
+    four triangles. */
 struct Refinement
 {
    /** Identifies a refinement pattern for one parent geometry. */
@@ -66,6 +68,9 @@ struct Refinement
    /** Existing triangle refinement patterns. */
    struct Triangle
    {
+      static constexpr Pattern EDGE_01_2_TRIS { Geometry::TRIANGLE, X };
+      static constexpr Pattern EDGE_02_2_TRIS { Geometry::TRIANGLE, Y };
+      static constexpr Pattern EDGE_12_2_TRIS { Geometry::TRIANGLE, Z };
       static constexpr Pattern UNIFORM { Geometry::TRIANGLE, XY };
    };
 
