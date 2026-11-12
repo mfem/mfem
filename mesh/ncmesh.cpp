@@ -5357,10 +5357,12 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms() const
          mat_no[g][0] = 1; // 0 == identity
       }
 
-      // assign numbers to the different matrices used
+      // Geoms describes the roots; mixed refinement can add child geometries.
+      int used_geoms = Geoms;
       for (int i = 0; i < transforms.embeddings.Size(); i++)
       {
          Embedding &emb = transforms.embeddings[i];
+         used_geoms |= 1 << emb.geom;
          int code = emb.matrix; // see SetDerefMatrixCodes()
          if (code)
          {
@@ -5373,7 +5375,7 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms() const
 
       for (int g = 0; g < Geometry::NumGeom; g++)
       {
-         if (Geoms & (1 << g))
+         if (used_geoms & (1 << g))
          {
             Geometry::Type geom = Geometry::Type(g);
             Array<int> num_points(mat_no[geom].size());

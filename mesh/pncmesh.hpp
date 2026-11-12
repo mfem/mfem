@@ -608,14 +608,19 @@ protected: // implementation
       typedef std::map<int, NeighborPRefinementMessage> Map;
    };
 
-   /** Requests orders for current ghost leaves from their owning ranks. */
-   class GhostOrderRequestMessage : public ElementValueMessage<int, false,
-      VarMessageTag::GHOST_ORDER_REQUEST_VM>
+   /** Identifies current ghost leaves to their owning ranks. */
+   class GhostElementRequestMessage : public ElementValueMessage<int, false,
+      VarMessageTag::GHOST_ELEMENT_REQUEST_VM>
    {
    public:
       void AddRequest(int elem) { Add(elem, 0); }
-      typedef std::map<int, GhostOrderRequestMessage> Map;
+      typedef std::map<int, GhostElementRequestMessage> Map;
    };
+
+   /// Identify current ghost leaves to their owners and receive other ranks'
+   /// requests for locally owned leaves.
+   void ExchangeGhostElementRequests(GhostElementRequestMessage::Map &requests,
+                                     GhostElementRequestMessage::Map &incoming);
 
    /** Assign new Element::rank to leaf elements and send them to their new
        owners, keeping the ghost layer up to date. Used by Rebalance() and

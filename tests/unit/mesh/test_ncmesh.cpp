@@ -1015,6 +1015,119 @@ TEST_CASE("ParNCMesh mixed pyramid vector L2 derefinement",
    }
 }
 
+TEST_CASE("ParNCMesh nested mixed pyramid derefinement",
+          "[Parallel][NCMesh]")
+{
+   const int nranks = Mpi::WorldSize();
+   if (nranks != 2 && nranks != 3) { return; }
+   const bool continuous = GENERATE(false, true);
+   const bool variable_order = GENERATE(false, true);
+   const bool redistribute = GENERATE(false, true);
+   CAPTURE(continuous, variable_order, redistribute);
+
+   Mesh serial_mesh("../../data/l-mixed.mesh", 1, 1);
+   serial_mesh.EnsureNCMesh(true);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   H1_FECollection h1_fec(2, 3);
+   L2_FECollection l2_fec(2, 3, BasisType::GaussLegendre,
+                          FiniteElement::VALUE);
+   ParFiniteElementSpace fes(&mesh, continuous ?
+                             static_cast<FiniteElementCollection*>(&h1_fec) :
+                             static_cast<FiniteElementCollection*>(&l2_fec));
+   if (variable_order)
+   {
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         if (mesh.GetAttribute(i) == 9) { fes.SetElementOrder(i, 3); }
+      }
+      fes.Update(false);
+   }
+   ParGridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + x[0] - 2.0*x[1] + 3.0*x[2];
+   });
+   field.ProjectCoefficient(affine);
+   const int coarse_global_ne = mesh.GetGlobalNE();
+
+   Array<Refinement> refs;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == 9)
+      {
+         refs.Append(Refinement(i, Refinement::XYZ));
+      }
+   }
+   mesh.GeneralRefinement(refs);
+   fes.Update();
+   field.Update();
+   REQUIRE(mesh.GetGlobalNE() == coarse_global_ne + 9);
+
+   refs.SetSize(0);
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == 9 &&
+          mesh.GetElementBaseGeometry(i) == Geometry::TETRAHEDRON)
+      {
+         refs.Append(Refinement(i, Refinement::XYZ));
+         break;
+      }
+   }
+   int local_nested = refs.Size(), global_nested = 0;
+   MPI_Allreduce(&local_nested, &global_nested, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   REQUIRE(global_nested == 1);
+   mesh.GeneralRefinement(refs);
+   fes.Update();
+   field.Update();
+   REQUIRE(mesh.GetGlobalNE() == coarse_global_ne + 16);
+
+   if (redistribute)
+   {
+      Array<int> partition(mesh.GetNE());
+      const int rank = Mpi::WorldRank();
+      int pyramid_child = 0;
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         partition[i] = rank;
+         if (mesh.GetAttribute(i) == 9)
+         {
+            partition[i] = pyramid_child++ % nranks;
+         }
+      }
+      mesh.Rebalance(partition);
+      fes.Update();
+      field.Update();
+   }
+
+   auto check_field = [&]()
+   {
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         if (mesh.GetAttribute(i) == 9)
+         {
+            REQUIRE(fes.GetElementOrder(i) == 2 + int(variable_order));
+         }
+      }
+      ParGridFunction exact(&fes);
+      exact.ProjectCoefficient(affine);
+      exact -= field;
+      REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, 1e-10));
+   };
+   check_field();
+
+   for (int level = 0; level < 2; level++)
+   {
+      Vector error(mesh.GetNE());
+      error = 0.0;
+      REQUIRE(mesh.DerefineByError(error, 1.0));
+      fes.Update();
+      field.Update();
+      REQUIRE(mesh.GetGlobalNE() == coarse_global_ne + (level == 0 ? 9 : 0));
+      check_field();
+   }
+}
+
 // Test case: Verify that a conforming mesh yields the same norm for the
 //            assembled diagonal with PA when using the standard (conforming)
 //            Mesh vs. the corresponding (non-conforming) NCMesh. (note:

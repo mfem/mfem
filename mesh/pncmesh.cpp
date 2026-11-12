@@ -2194,34 +2194,41 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
       }
    }
 
-   NeighborRefinementMessage::Map send_ref;
+   GhostElementRequestMessage::Map requests, incoming;
+   ExchangeGhostElementRequests(requests, incoming);
 
-   // create refinement messages to all neighbors (NOTE: some may be empty)
-   Array<int> neighbors;
-   NeighborProcessors(neighbors);
-   for (int i = 0; i < neighbors.Size(); i++)
+   // A rank holding a ghost leaf needs every refinement of that leaf, even
+   // when it is not in the owner's immediate element-neighbor list.
+   std::map<int, std::vector<int>> subscribers;
+   NeighborRefinementMessage::Map send_ref, recv_ref;
+   for (const auto &entry : incoming)
    {
-      send_ref[neighbors[i]].SetNCMesh(this);
+      send_ref[entry.first].SetNCMesh(this);
+      for (int elem : entry.second.elements)
+      {
+         const Element &el = elements[elem];
+         MFEM_VERIFY(el.rank == MyRank && !el.ref_type &&
+                     el.index >= 0 && el.index < NElements,
+                     "Requested ghost element is not owned locally.");
+         subscribers[elem].push_back(entry.first);
+      }
+   }
+   for (const auto &entry : requests)
+   {
+      recv_ref[entry.first].SetNCMesh(this);
    }
 
-   // populate messages: all refinements that occur next to the processor
-   // boundary need to be sent to the adjoining neighbors so they can keep
-   // their ghost layer up to date
-   Array<int> ranks;
-   ranks.Reserve(64);
    for (int i = 0; i < refinements.Size(); i++)
    {
       const Refinement &ref = refinements[i];
       MFEM_ASSERT(ref.index < NElements, "");
       const int elem = leaf_elements[ref.index];
-      ElementNeighborProcessors(elem, ranks);
-      for (int j = 0; j < ranks.Size(); j++)
+      for (int rank : subscribers[elem])
       {
-         send_ref[ranks[j]].AddRefinement(elem, ref);
+         send_ref[rank].AddRefinement(elem, ref);
       }
    }
 
-   // send the messages (overlap with local refinements)
    NeighborRefinementMessage::IsendAll(send_ref, MyComm);
 
    // do local refinements
@@ -2232,17 +2239,10 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
       NCMesh::RefineElement(ref_i);
    }
 
-   // receive (ghost layer) refinements from all neighbors
-   for (int j = 0; j < neighbors.Size(); j++)
+   NeighborRefinementMessage::RecvAll(recv_ref, MyComm);
+   for (const auto &entry : recv_ref)
    {
-      int rank, size;
-      NeighborRefinementMessage::Probe(rank, size, MyComm);
-
-      NeighborRefinementMessage msg;
-      msg.SetNCMesh(this);
-      msg.Recv(rank, size, MyComm);
-
-      // do the ghost refinements
+      const NeighborRefinementMessage &msg = entry.second;
       for (int i = 0; i < msg.Size(); i++)
       {
          Refinement ghost_ref = msg.GetRefinement(msg.elements[i], i);
@@ -2252,7 +2252,6 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
 
    Update();
 
-   // make sure we can delete the send buffers
    NeighborRefinementMessage::WaitAllSent(send_ref);
 }
 
@@ -3876,6 +3875,36 @@ void ParNCMesh::GetGhostElements(Array<int> & gelem)
    }
 }
 
+void ParNCMesh::ExchangeGhostElementRequests(
+   GhostElementRequestMessage::Map &requests,
+   GhostElementRequestMessage::Map &incoming)
+{
+   Array<int> send_flags(NRanks), recv_flags(NRanks);
+   send_flags = 0;
+   for (int i = NElements; i < leaf_elements.Size(); i++)
+   {
+      const int elem = leaf_elements[i];
+      const int owner = elements[elem].rank;
+      MFEM_VERIFY(owner >= 0 && owner < NRanks && owner != MyRank,
+                  "Invalid owner of ghost element " << elem);
+      requests[owner].SetNCMesh(this);
+      requests[owner].AddRequest(elem);
+      send_flags[owner] = 1;
+   }
+
+   // The request flags tell each owner how many messages to receive.
+   MPI_Alltoall(send_flags.GetData(), 1, MPI_INT,
+                recv_flags.GetData(), 1, MPI_INT, MyComm);
+   GhostElementRequestMessage::IsendAll(requests, MyComm);
+
+   for (int rank = 0; rank < NRanks; rank++)
+   {
+      if (recv_flags[rank]) { incoming[rank].SetNCMesh(this); }
+   }
+   GhostElementRequestMessage::RecvAll(incoming, MyComm);
+   GhostElementRequestMessage::WaitAllSent(requests);
+}
+
 void ParNCMesh::CommunicateGhostData(
    const Array<VarOrderElemInfo> & sendData, Array<VarOrderElemInfo> & recvData)
 {
@@ -3893,32 +3922,8 @@ void ParNCMesh::CommunicateGhostData(
       local_orders[index] = sendData[i].order;
    }
 
-   GhostOrderRequestMessage::Map requests;
-   Array<int> send_flags(NRanks), recv_flags(NRanks);
-   send_flags = 0;
-   for (int i = NElements; i < leaf_elements.Size(); i++)
-   {
-      const int elem = leaf_elements[i];
-      const int owner = elements[elem].rank;
-      MFEM_VERIFY(owner >= 0 && owner < NRanks && owner != MyRank,
-                  "Invalid owner of ghost element " << elem);
-      requests[owner].SetNCMesh(this);
-      requests[owner].AddRequest(elem);
-      send_flags[owner] = 1;
-   }
-
-   // The request flags tell each owner how many messages to receive.
-   MPI_Alltoall(send_flags.GetData(), 1, MPI_INT,
-                recv_flags.GetData(), 1, MPI_INT, MyComm);
-   GhostOrderRequestMessage::IsendAll(requests, MyComm);
-
-   GhostOrderRequestMessage::Map incoming;
-   for (int rank = 0; rank < NRanks; rank++)
-   {
-      if (recv_flags[rank]) { incoming[rank].SetNCMesh(this); }
-   }
-   GhostOrderRequestMessage::RecvAll(incoming, MyComm);
-   GhostOrderRequestMessage::WaitAllSent(requests);
+   GhostElementRequestMessage::Map requests, incoming;
+   ExchangeGhostElementRequests(requests, incoming);
 
    NeighborPRefinementMessage::Map replies;
    for (auto &entry : incoming)
@@ -3930,7 +3935,10 @@ void ParNCMesh::CommunicateGhostData(
          const Element &el = elements[elem];
          MFEM_VERIFY(el.rank == MyRank && el.index >= 0 &&
                      el.index < local_orders.Size() && local_orders[el.index] >= 0,
-                     "Missing local order for requested element " << elem);
+                     "Missing local order for requested element " << elem
+                     << " on rank " << MyRank << " from rank " << entry.first
+                     << ": element rank " << el.rank << ", index " << el.index
+                     << ", local order count " << local_orders.Size());
          reply.AddRefinement(elem, local_orders[el.index]);
       }
    }

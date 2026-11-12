@@ -753,7 +753,7 @@ enum VarMessageTag
    NEIGHBOR_ROW_VM,          ///< NeighborRowMessage
    REBALANCE_VM,             ///< RebalanceMessage
    REBALANCE_DOF_VM,         ///< RebalanceDofMessage
-   GHOST_ORDER_REQUEST_VM,   ///< GhostOrderRequestMessage
+   GHOST_ELEMENT_REQUEST_VM, ///< GhostElementRequestMessage
 };
 
 /// \brief Variable-length MPI message containing unspecific binary data.
