@@ -38,9 +38,15 @@ static constexpr int tri_deref_table[4][3 + 3] =
    { 0, 0, 1, /**/ 0, 0, 1 }  // 4 - Z
 };
 
-static constexpr int tet_deref_table_x[4 + 4] =
+static constexpr int tet_deref_table[7][4 + 4] =
 {
-   0, 1, 0, 0, /**/ 1, 0, 0, 0
+   { 0, 1, 0, 0, /**/ 1, 0, 0, 0 }, // 1 - X, edge (0,1)
+   { 0, 0, 1, 0, /**/ 1, 0, 0, 0 }, // 2 - Y, edge (0,2)
+   {-1,-1,-1,-1, /**/ -1,-1,-1,-1 }, // 3 - unsupported
+   { 0, 0, 0, 1, /**/ 1, 0, 0, 0 }, // 4 - Z, edge (0,3)
+   {-1,-1,-1,-1, /**/ -1,-1,-1,-1 }, // 5 - unsupported
+   {-1,-1,-1,-1, /**/ -1,-1,-1,-1 }, // 6 - unsupported
+   { 0, 1, 2, 3, /**/ 1, 2, 3, 0 }  // 7 - isotropic
 };
 
 static constexpr int hex_deref_table[7][8 + 6] =

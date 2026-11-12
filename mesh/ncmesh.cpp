@@ -1753,14 +1753,34 @@ void NCMesh::RefineElement(const Refinement & ref)
       //     +------------+     *--X
       //    0              1
 
-      if (ref_type == Refinement::X)
+      if (ref_type == Refinement::X || ref_type == Refinement::Y ||
+          ref_type == Refinement::Z)
       {
          // The fixed child transforms below require a midpoint split.
-         const int mid01 = GetMidEdgeNode(no[0], no[1]);
-         child[0] = NewTetrahedron(no[0], mid01, no[2], no[3], attr,
-                                   -1, fa[1], fa[2], fa[3]);
-         child[1] = NewTetrahedron(mid01, no[1], no[2], no[3], attr,
-                                   fa[0], -1, fa[2], fa[3]);
+         if (ref_type == Refinement::X)
+         {
+            const int mid01 = GetMidEdgeNode(no[0], no[1]);
+            child[0] = NewTetrahedron(no[0], mid01, no[2], no[3], attr,
+                                      -1, fa[1], fa[2], fa[3]);
+            child[1] = NewTetrahedron(mid01, no[1], no[2], no[3], attr,
+                                      fa[0], -1, fa[2], fa[3]);
+         }
+         else if (ref_type == Refinement::Y)
+         {
+            const int mid02 = GetMidEdgeNode(no[0], no[2]);
+            child[0] = NewTetrahedron(no[0], no[1], mid02, no[3], attr,
+                                      -1, fa[1], fa[2], fa[3]);
+            child[1] = NewTetrahedron(mid02, no[1], no[2], no[3], attr,
+                                      fa[0], fa[1], -1, fa[3]);
+         }
+         else
+         {
+            const int mid03 = GetMidEdgeNode(no[0], no[3]);
+            child[0] = NewTetrahedron(no[0], no[1], no[2], mid03, attr,
+                                      -1, fa[1], fa[2], fa[3]);
+            child[1] = NewTetrahedron(mid03, no[1], no[2], no[3], attr,
+                                      fa[0], fa[1], fa[2], -1);
+         }
          Iso = false;
       }
       else
@@ -2141,8 +2161,9 @@ int NCMesh::RetrieveNode(const Element &el, int index)
          break;
 
       case Geometry::TETRAHEDRON:
-         ch = el.child[el.ref_type == Refinement::X ?
-                       tet_deref_table_x[index] : index];
+         ch = tet_deref_table[el.ref_type - 1][index];
+         MFEM_ASSERT(ch >= 0, "invalid tetrahedron refinement");
+         ch = el.child[ch];
          break;
 
       case Geometry::TRIANGLE:
@@ -2262,12 +2283,12 @@ void NCMesh::DerefineElement(int elem)
    }
    else if (el.Geom() == Geometry::TETRAHEDRON)
    {
+      const int *deref = tet_deref_table[el.ref_type - 1];
+      MFEM_ASSERT(deref[0] >= 0, "invalid tetrahedron refinement");
       for (int i = 0; i < 4; i++)
       {
-         const int vertex_child = el.ref_type == Refinement::X ?
-                                  tet_deref_table_x[i] : i;
-         const int face_child = el.ref_type == Refinement::X ?
-                                tet_deref_table_x[i + 4] : (i+1) & 0x3;
+         const int vertex_child = deref[i];
+         const int face_child = deref[i + 4];
          Element& ch1 = elements[child[vertex_child]];
          Element& ch2 = elements[child[face_child]];
          el.node[i] = ch1.node[i];
@@ -5201,16 +5222,26 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
       }
       else if (geom == Geometry::TETRAHEDRON)
       {
-         if (ref_type == Refinement::X)
+         if (ref_type == Refinement::X || ref_type == Refinement::Y ||
+             ref_type == Refinement::Z)
          {
-            Point mid01(pm(0), pm(1));
-            if (child == 0)
+            const int corner = ref_type == Refinement::X ? 1 :
+                               (ref_type == Refinement::Y ? 2 : 3);
+            Point mid(pm(0), pm(corner));
+            if (ref_type == Refinement::X)
             {
-               pm = PointMatrix(pm(0), mid01, pm(2), pm(3));
+               if (child == 0) { pm = PointMatrix(pm(0), mid, pm(2), pm(3)); }
+               else if (child == 1) { pm = PointMatrix(mid, pm(1), pm(2), pm(3)); }
             }
-            else if (child == 1)
+            else if (ref_type == Refinement::Y)
             {
-               pm = PointMatrix(mid01, pm(1), pm(2), pm(3));
+               if (child == 0) { pm = PointMatrix(pm(0), pm(1), mid, pm(3)); }
+               else if (child == 1) { pm = PointMatrix(mid, pm(1), pm(2), pm(3)); }
+            }
+            else
+            {
+               if (child == 0) { pm = PointMatrix(pm(0), pm(1), pm(2), mid); }
+               else if (child == 1) { pm = PointMatrix(mid, pm(1), pm(2), pm(3)); }
             }
          }
          else

@@ -42,8 +42,8 @@ namespace mfem
     parameter defines the position of the refinement between the beginning (0)
     and end (1) of the reference element in each direction. For triangles, X,
     Y, and Z bisect edges (0,1), (0,2), and (1,2), respectively; XY produces
-    four triangles. For tetrahedra, X bisects edge (0,1), while the other
-    legacy types produce the isotropic split. */
+    four triangles. For tetrahedra, X, Y, and Z bisect edges (0,1), (0,2),
+    and (0,3), respectively; combinations produce the isotropic split. */
 struct Refinement
 {
    /** Identifies a refinement pattern for one parent geometry. */
@@ -87,6 +87,8 @@ struct Refinement
    struct Tetrahedron
    {
       static constexpr Pattern EDGE_01_2_TETS { Geometry::TETRAHEDRON, X };
+      static constexpr Pattern EDGE_02_2_TETS { Geometry::TETRAHEDRON, Y };
+      static constexpr Pattern EDGE_03_2_TETS { Geometry::TETRAHEDRON, Z };
       static constexpr Pattern UNIFORM { Geometry::TETRAHEDRON, XYZ };
    };
 
