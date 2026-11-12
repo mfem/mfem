@@ -163,34 +163,39 @@ void GetReferenceTransformation(const Element::Type ElemType,
    }
 }
 
+enum TraceDir {X_DIR = 1, Y_DIR = 2, Z_DIR = 4};
+
 /**
  * Tests fe->CalcVShape() over a grid of IntegrationPoints
  * of resolution res. Also tests at integration points
  * that are outside the element.
  */
-void TestCalcVShape(FiniteElement* fe, ElementTransformation * T, int res)
+void TestCalcVShape(FiniteElement* fe, ElementTransformation * T, int res,
+                    int mask = X_DIR | Y_DIR | Z_DIR)
 {
-   int dim = fe->GetDim();
-   int dof = fe->GetDof();
+   int  dim = fe->GetDim();
+   int  dof = fe->GetDof();
+   int  sdim = T->GetSpaceDim();
+   int prdim = fe->GetPhysRangeDim(sdim);
 
    Vector dofsx(dof);
    Vector dofsy(dof);
    Vector dofsz(dof);
-   Vector v(dim);
-   Vector vx(dim); vx = 0.0; vx[0] = 1.0;
-   Vector vy(dim); vy = 0.0;
-   if (dim > 1) { vy[1] = 1.0; }
-   Vector vz(dim); vz = 0.0;
-   if (dim > 2) { vz[2] = 1.0; }
-   DenseMatrix weights( dof, dim );
+   Vector v(prdim);
+   Vector vx(prdim); vx = 0.0; vx[0] = 1.0;
+   Vector vy(prdim); vy = 0.0;
+   if (prdim > 1) { vy[1] = 1.0; }
+   Vector vz(prdim); vz = 0.0;
+   if (prdim > 2) { vz[2] = 1.0; }
+   DenseMatrix weights( dof, prdim );
 
    VectorConstantCoefficient vxCoef(vx);
    VectorConstantCoefficient vyCoef(vy);
    VectorConstantCoefficient vzCoef(vz);
 
    fe->Project(vxCoef, *T, dofsx);
-   if (dim> 1) { fe->Project(vyCoef, *T, dofsy); }
-   if (dim> 2) { fe->Project(vzCoef, *T, dofsz); }
+   if (prdim> 1) { fe->Project(vyCoef, *T, dofsy); }
+   if (prdim> 2) { fe->Project(vzCoef, *T, dofsz); }
 
    // Get a uniform grid or integration points
    RefinedGeometry* ref = GlobGeometryRefiner.Refine( fe->GetGeomType(), res);
@@ -216,20 +221,28 @@ void TestCalcVShape(FiniteElement* fe, ElementTransformation * T, int res)
          // Pyramid basis functions are poorly behaved outside the
          // reference pyramid
          if (fe->GetGeomType() == Geometry::PYRAMID &&
-             (ip.z >= 1.0 || ip.y > 1.0 - ip.z || ip.x > 1.0 - ip.z)) { continue; }
+             (ip.z >= 1.0 || ip.y > 1.0 - ip.z || ip.x > 1.0 - ip.z))
+         { continue; }
 
          CAPTURE(ip.x, ip.y, ip.z);
 
-         fe->CalcVShape(ip, weights);
+         T->SetIntPoint(&ip);
+         fe->CalcVShape(*T, weights);
 
-         weights.MultTranspose(dofsx, v);
-         REQUIRE( v[0] == Approx(1.) );
-         if (dim > 1)
+         Vector x(3);
+         T->Transform(ip, x);
+
+         if (mask & X_DIR)
+         {
+            weights.MultTranspose(dofsx, v);
+            REQUIRE( v[0] == Approx(1.) );
+         }
+         if (prdim > 1 && mask & Y_DIR)
          {
             weights.MultTranspose(dofsy, v);
             REQUIRE( v[1] == Approx(1.) );
          }
-         if (dim > 2)
+         if (prdim > 2 && mask & Z_DIR)
          {
             weights.MultTranspose(dofsz, v);
             REQUIRE( v[2] == Approx(1.) );
@@ -245,7 +258,10 @@ TEST_CASE("CalcVShape ND",
           "[ND_TetrahedronElement]"
           "[ND_WedgeElement]"
           "[ND_FuentesPyramidElement]"
-          "[ND_HexahedronElement]")
+          "[ND_HexahedronElement]"
+          "[ND_R2D_SegmentElement]"
+          "[ND_R2D_TriangleElement]"
+          "[ND_R2D_QuadrilateralElement]")
 {
    const int maxOrder = 5;
    const int resolution = 10;
@@ -315,6 +331,142 @@ TEST_CASE("CalcVShape ND",
       ND_HexahedronElement fe(order);
       TestCalcVShape(&fe, &T, resolution);
    }
+
+   SECTION("ND_R2D_SegmentElement")
+   {
+      ND_R2D_SegmentElement fe(order);
+
+      real_t v0[3];
+      real_t v1[3];
+      real_t v2[3];
+      real_t v3[3];
+
+      // xy-plane
+      Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+      for (int f=0; f<4; f++)
+      {
+         FaceElementTransformations * TS = mesh.GetFaceElementTransformations(f);
+         TestCalcVShape(&fe, TS, resolution, ((f % 2) ? Y_DIR : X_DIR) | Z_DIR);
+      }
+
+      // yz-plane
+      v0[0] = 0.0; v0[1] = 0.0; v0[2] = 0.0;
+      v1[0] = 0.0; v1[1] = 1.0; v1[2] = 0.0;
+      v2[0] = 0.0; v2[1] = 0.0; v2[2] = 1.0;
+      v3[0] = 0.0; v3[1] = 1.0; v3[2] = 1.0;
+
+      mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+      mesh.SetCurvature(-1); // Remove Nodes GridFunction
+      mesh.SetNode(0, v0);
+      mesh.SetNode(1, v1);
+      mesh.SetNode(2, v2);
+      mesh.SetNode(3, v3);
+
+      for (int f=0; f<4; f++)
+      {
+         FaceElementTransformations * TS = mesh.GetFaceElementTransformations(f);
+         TestCalcVShape(&fe, TS, resolution, ((f % 2) ? Z_DIR : Y_DIR) | X_DIR);
+      }
+
+      // zx-plane
+      v0[0] = 0.0; v0[1] = 0.0; v0[2] = 0.0;
+      v1[0] = 0.0; v1[1] = 0.0; v1[2] = 1.0;
+      v2[0] = 1.0; v2[1] = 0.0; v2[2] = 0.0;
+      v3[0] = 1.0; v3[1] = 0.0; v3[2] = 1.0;
+
+      mesh.SetNode(0, v0);
+      mesh.SetNode(1, v1);
+      mesh.SetNode(2, v2);
+      mesh.SetNode(3, v3);
+
+      for (int f=0; f<4; f++)
+      {
+         FaceElementTransformations * TS = mesh.GetFaceElementTransformations(f);
+         TestCalcVShape(&fe, TS, resolution, ((f % 2) ? X_DIR : Z_DIR) | Y_DIR);
+      }
+   }
+
+   SECTION("ND_R2D_TriangleElement")
+   {
+      ND_R2D_TriangleElement fe(order);
+      IsoparametricTransformation T;
+
+      // xy-plane
+      GetReferenceTransformation(Element::TRIANGLE, T);
+      TestCalcVShape(&fe, &T, resolution);
+
+      // yz-plane
+      T.GetPointMat().SetSize(3, 3);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 1.0;
+      T.GetPointMat()(2, 1) = 0.0;
+      T.GetPointMat()(0, 2) = 0.0;
+      T.GetPointMat()(1, 2) = 0.0;
+      T.GetPointMat()(2, 2) = 1.0;
+      T.SetFE(&TriangleFE);
+      TestCalcVShape(&fe, &T, resolution);
+
+      // zx-plane
+      T.GetPointMat().SetSize(3, 3);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 0.0;
+      T.GetPointMat()(2, 1) = 1.0;
+      T.GetPointMat()(0, 2) = 1.0;
+      T.GetPointMat()(1, 2) = 0.0;
+      T.GetPointMat()(2, 2) = 0.0;
+      T.SetFE(&TriangleFE);
+      TestCalcVShape(&fe, &T, resolution);
+   }
+
+   SECTION("ND_R2D_QuadrilateralElement")
+   {
+      ND_R2D_QuadrilateralElement fe(order);
+      IsoparametricTransformation T;
+
+      // xy-plane
+      GetReferenceTransformation(Element::QUADRILATERAL, T);
+      TestCalcVShape(&fe, &T, resolution);
+
+      // yz-plane
+      T.GetPointMat().SetSize(3, 4);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 1.0;
+      T.GetPointMat()(2, 1) = 0.0;
+      T.GetPointMat()(0, 2) = 0.0;
+      T.GetPointMat()(1, 2) = 1.0;
+      T.GetPointMat()(2, 2) = 1.0;
+      T.GetPointMat()(0, 3) = 0.0;
+      T.GetPointMat()(1, 3) = 0.0;
+      T.GetPointMat()(2, 3) = 1.0;
+      T.SetFE(&QuadrilateralFE);
+      TestCalcVShape(&fe, &T, resolution);
+
+      // zx-plane
+      T.GetPointMat().SetSize(3, 4);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 0.0;
+      T.GetPointMat()(2, 1) = 1.0;
+      T.GetPointMat()(0, 2) = 1.0;
+      T.GetPointMat()(1, 2) = 0.0;
+      T.GetPointMat()(2, 2) = 1.0;
+      T.GetPointMat()(0, 3) = 1.0;
+      T.GetPointMat()(1, 3) = 0.0;
+      T.GetPointMat()(2, 3) = 0.0;
+      T.SetFE(&QuadrilateralFE);
+      TestCalcVShape(&fe, &T, resolution);
+   }
 }
 
 TEST_CASE("CalcVShape RT",
@@ -323,7 +475,10 @@ TEST_CASE("CalcVShape RT",
           "[RT_TetrahedronElement]"
           "[RT_WedgeElement]"
           "[RT_FuentesPyramidElement]"
-          "[RT_HexahedronElement]")
+          "[RT_HexahedronElement]"
+          "[RT_R2D_SegmentElement]"
+          "[RT_R2D_TriangleElement]"
+          "[RT_R2D_QuadrilateralElement]")
 {
    const int maxOrder = 5;
    const int resolution = 10;
@@ -382,6 +537,142 @@ TEST_CASE("CalcVShape RT",
       GetReferenceTransformation(Element::HEXAHEDRON, T);
 
       RT_HexahedronElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
+   }
+
+   SECTION("RT_R2D_SegmentElement")
+   {
+      RT_R2D_SegmentElement fe(order);
+
+      real_t v0[3];
+      real_t v1[3];
+      real_t v2[3];
+      real_t v3[3];
+
+      // xy-plane
+      Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+      for (int f=0; f<4; f++)
+      {
+         FaceElementTransformations * TS = mesh.GetFaceElementTransformations(f);
+         TestCalcVShape(&fe, TS, resolution, (f % 2) ? X_DIR : Y_DIR);
+      }
+
+      // yz-plane
+      v0[0] = 0.0; v0[1] = 0.0; v0[2] = 0.0;
+      v1[0] = 0.0; v1[1] = 1.0; v1[2] = 0.0;
+      v2[0] = 0.0; v2[1] = 0.0; v2[2] = 1.0;
+      v3[0] = 0.0; v3[1] = 1.0; v3[2] = 1.0;
+
+      mesh.SetCurvature(1, false, 3); // Set Space Dimension to 3
+      mesh.SetCurvature(-1); // Remove Nodes GridFunction
+      mesh.SetNode(0, v0);
+      mesh.SetNode(1, v1);
+      mesh.SetNode(2, v2);
+      mesh.SetNode(3, v3);
+
+      for (int f=0; f<4; f++)
+      {
+         FaceElementTransformations * TS = mesh.GetFaceElementTransformations(f);
+         TestCalcVShape(&fe, TS, resolution, (f % 2) ? Y_DIR : Z_DIR);
+      }
+
+      // zx-plane
+      v0[0] = 0.0; v0[1] = 0.0; v0[2] = 0.0;
+      v1[0] = 0.0; v1[1] = 0.0; v1[2] = 1.0;
+      v2[0] = 1.0; v2[1] = 0.0; v2[2] = 0.0;
+      v3[0] = 1.0; v3[1] = 0.0; v3[2] = 1.0;
+
+      mesh.SetNode(0, v0);
+      mesh.SetNode(1, v1);
+      mesh.SetNode(2, v2);
+      mesh.SetNode(3, v3);
+
+      for (int f=0; f<4; f++)
+      {
+         FaceElementTransformations * TS = mesh.GetFaceElementTransformations(f);
+         TestCalcVShape(&fe, TS, resolution, (f % 2) ? Z_DIR : X_DIR);
+      }
+   }
+
+   SECTION("RT_R2D_TriangleElement")
+   {
+      RT_R2D_TriangleElement fe(order);
+      IsoparametricTransformation T;
+
+      // xy-plane
+      GetReferenceTransformation(Element::TRIANGLE, T);
+      TestCalcVShape(&fe, &T, resolution);
+
+      // yz-plane
+      T.GetPointMat().SetSize(3, 3);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 1.0;
+      T.GetPointMat()(2, 1) = 0.0;
+      T.GetPointMat()(0, 2) = 0.0;
+      T.GetPointMat()(1, 2) = 0.0;
+      T.GetPointMat()(2, 2) = 1.0;
+      T.SetFE(&TriangleFE);
+      TestCalcVShape(&fe, &T, resolution);
+
+      // zx-plane
+      T.GetPointMat().SetSize(3, 3);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 0.0;
+      T.GetPointMat()(2, 1) = 1.0;
+      T.GetPointMat()(0, 2) = 1.0;
+      T.GetPointMat()(1, 2) = 0.0;
+      T.GetPointMat()(2, 2) = 0.0;
+      T.SetFE(&TriangleFE);
+      TestCalcVShape(&fe, &T, resolution);
+   }
+
+   SECTION("RT_R2D_QuadrilateralElement")
+   {
+      RT_R2D_QuadrilateralElement fe(order);
+      IsoparametricTransformation T;
+
+      // xy-plane
+      GetReferenceTransformation(Element::QUADRILATERAL, T);
+      TestCalcVShape(&fe, &T, resolution);
+
+      // yz-plane
+      T.GetPointMat().SetSize(3, 4);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 1.0;
+      T.GetPointMat()(2, 1) = 0.0;
+      T.GetPointMat()(0, 2) = 0.0;
+      T.GetPointMat()(1, 2) = 1.0;
+      T.GetPointMat()(2, 2) = 1.0;
+      T.GetPointMat()(0, 3) = 0.0;
+      T.GetPointMat()(1, 3) = 0.0;
+      T.GetPointMat()(2, 3) = 1.0;
+      T.SetFE(&QuadrilateralFE);
+      TestCalcVShape(&fe, &T, resolution);
+
+      // zx-plane
+      T.GetPointMat().SetSize(3, 4);
+      T.GetPointMat()(0, 0) = 0.0;
+      T.GetPointMat()(1, 0) = 0.0;
+      T.GetPointMat()(2, 0) = 0.0;
+      T.GetPointMat()(0, 1) = 0.0;
+      T.GetPointMat()(1, 1) = 0.0;
+      T.GetPointMat()(2, 1) = 1.0;
+      T.GetPointMat()(0, 2) = 1.0;
+      T.GetPointMat()(1, 2) = 0.0;
+      T.GetPointMat()(2, 2) = 1.0;
+      T.GetPointMat()(0, 3) = 1.0;
+      T.GetPointMat()(1, 3) = 0.0;
+      T.GetPointMat()(2, 3) = 0.0;
+      T.SetFE(&QuadrilateralFE);
       TestCalcVShape(&fe, &T, resolution);
    }
 }
