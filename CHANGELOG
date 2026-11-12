@@ -11,6 +11,10 @@
 Version 4.10.1 (development)
 ============================
 
+- Fixed marked PA/EA diagonal assembly erasing earlier integrator contributions
+  and EA boundary assembly double-counting contributions from reused scratch
+  storage.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
