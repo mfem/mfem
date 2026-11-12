@@ -30,6 +30,13 @@ static constexpr int quad_deref_table[3][4 + 4] =
    { 0, 1, 2, 3, /**/ 1, 1, 3, 3 }  // 3 - iso
 };
 
+static constexpr int tri_deref_table[3][3 + 3] =
+{
+   { 0, 1, 0, /**/ 0, 1, 0 }, // 1 - X
+   { 0, 0, 1, /**/ 0, 1, 1 }, // 2 - Y
+   { 0, 1, 2, /**/ 0, 1, 2 }  // 3 - iso
+};
+
 static constexpr int hex_deref_table[7][8 + 6] =
 {
    { 0, 1, 1, 0, 0, 1, 1, 0, /**/ 1, 1, 1, 0, 0, 0 }, // 1 - X
@@ -174,17 +181,19 @@ static const RefPoint* geom_corners[8] =
    pyramid_corners
 };
 
-// reference domain transform: 3 scales, 3 translations
+// reference domain transform: 3 scales, 3 translations, and optional
+// off-diagonal terms for triangle bisections
 struct RefTrf
 {
    RefCoord s[3], t[3];
+   RefCoord xy = 0, yx = 0;
 
    void Apply(const RefCoord src[3], RefCoord dst[3]) const
    {
-      for (int i = 0; i < 3; i++)
-      {
-         dst[i] = (src[i]*s[i] >> 1) + t[i];
-      }
+      const RefCoord x = src[0], y = src[1], z = src[2];
+      dst[0] = ((x*s[0] + y*xy) >> 1) + t[0];
+      dst[1] = ((y*s[1] + x*yx) >> 1) + t[1];
+      dst[2] = (z*s[2] >> 1) + t[2];
    }
 };
 
@@ -376,6 +385,32 @@ static const RefTrf* hex_child[8] =
    hex_child_rt7
 };
 
+// X bisects edge (0,1); Y bisects edge (0,2). The second child in each
+// bisection needs a shear to map the reference triangle onto its parent.
+static constexpr RefTrf tri_parent_rt1[2] =
+{
+   { {S_HALF, S_ONE, 0}, {     0, 0, 0} },
+   { {S_HALF, S_ONE, 0}, {T_HALF, 0, 0}, -S_HALF, 0 }
+};
+
+static constexpr RefTrf tri_child_rt1[2] =
+{
+   { {S_TWO, S_ONE, 0}, {     0, 0, 0} },
+   { {S_TWO, S_ONE, 0}, {-T_ONE, 0, 0}, S_ONE, 0 }
+};
+
+static constexpr RefTrf tri_parent_rt2[2] =
+{
+   { {S_ONE, S_HALF, 0}, {0,      0, 0} },
+   { {S_ONE, S_HALF, 0}, {0, T_HALF, 0}, 0, -S_HALF }
+};
+
+static constexpr RefTrf tri_child_rt2[2] =
+{
+   { {S_ONE, S_TWO, 0}, {0,      0, 0} },
+   { {S_ONE, S_TWO, 0}, {0, -T_ONE, 0}, 0, S_ONE }
+};
+
 static constexpr RefTrf tri_parent_rt3[4] =
 {
    { { S_HALF,  S_HALF, 0}, {     0,      0, 0} },
@@ -394,13 +429,13 @@ static constexpr RefTrf tri_child_rt3[4] =
 
 static const RefTrf* tri_parent[4] =
 {
-   NULL, NULL, NULL,
+   NULL, tri_parent_rt1, tri_parent_rt2,
    tri_parent_rt3
 };
 
 static const RefTrf* tri_child[4] =
 {
-   NULL, NULL, NULL,
+   NULL, tri_child_rt1, tri_child_rt2,
    tri_child_rt3
 };
 

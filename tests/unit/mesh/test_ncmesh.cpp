@@ -494,6 +494,143 @@ TEST_CASE("NCMesh mixed pyramid children refine and derefine", "[NCMesh]")
    }
 }
 
+TEST_CASE("NCMesh anisotropic triangle round trip", "[NCMesh]")
+{
+   const int ref_type = GENERATE(Refinement::X, Refinement::Y);
+   CAPTURE(ref_type);
+
+   Mesh mesh("../../data/ref-triangle.mesh");
+   const int *triangle_vertices = mesh.GetElement(0)->GetVertices();
+   const int split_vertex0 = triangle_vertices[0];
+   const int split_vertex1 = triangle_vertices[ref_type == Refinement::X ? 1 : 2];
+   int split_attribute = -1;
+   Array<int> boundary_vertices;
+   for (int i = 0; i < mesh.GetNBE(); i++)
+   {
+      mesh.GetBdrElementVertices(i, boundary_vertices);
+      if ((boundary_vertices[0] == split_vertex0 &&
+           boundary_vertices[1] == split_vertex1) ||
+          (boundary_vertices[1] == split_vertex0 &&
+           boundary_vertices[0] == split_vertex1))
+      {
+         split_attribute = mesh.GetBdrAttribute(i);
+      }
+   }
+   REQUIRE(split_attribute >= 1);
+   mesh.EnsureNCMesh(true);
+   H1_FECollection fec(2, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + 2.0*x[0] - 3.0*x[1];
+   });
+   field.ProjectCoefficient(affine);
+
+   Array<Refinement> refs(1);
+   refs[0].Set(0, ref_type);
+   mesh.GeneralRefinement(refs, 1);
+   REQUIRE(mesh.GetNE() == 2);
+   REQUIRE(SummarizeRefinedElements(mesh).volume == MFEM_Approx(0.5));
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
+   REQUIRE(mesh.GetNBE() == 4);
+   int boundary_count[4] = {0, 0, 0, 0};
+   for (int i = 0; i < mesh.GetNBE(); i++)
+   {
+      const int attribute = mesh.GetBdrAttribute(i);
+      REQUIRE(attribute >= 1);
+      REQUIRE(attribute <= 3);
+      boundary_count[attribute]++;
+   }
+   for (int attribute = 1; attribute <= 3; attribute++)
+   {
+      REQUIRE(boundary_count[attribute] ==
+              (attribute == split_attribute ? 2 : 1));
+   }
+   const CoarseFineTransformations &trans = mesh.GetRefinementTransforms();
+   REQUIRE(trans.embeddings.Size() == 2);
+   fes.Update();
+   field.Update();
+   GridFunction exact(&fes);
+   exact.ProjectCoefficient(affine);
+   exact -= field;
+   REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+
+   Vector errors(mesh.GetNE());
+   errors = 0.0;
+   REQUIRE(mesh.DerefineByError(errors, 1.0));
+   REQUIRE(mesh.GetNE() == 1);
+   REQUIRE(SummarizeRefinedElements(mesh).volume == MFEM_Approx(0.5));
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
+   REQUIRE(mesh.GetNBE() == 3);
+   boundary_count[1] = boundary_count[2] = boundary_count[3] = 0;
+   for (int i = 0; i < mesh.GetNBE(); i++)
+   {
+      const int attribute = mesh.GetBdrAttribute(i);
+      REQUIRE(attribute >= 1);
+      REQUIRE(attribute <= 3);
+      boundary_count[attribute]++;
+   }
+   REQUIRE(boundary_count[1] == 1);
+   REQUIRE(boundary_count[2] == 1);
+   REQUIRE(boundary_count[3] == 1);
+   fes.Update();
+   field.Update();
+   GridFunction coarse_exact(&fes);
+   coarse_exact.ProjectCoefficient(affine);
+   coarse_exact -= field;
+   REQUIRE(coarse_exact.Normlinf() == MFEM_Approx(0.0, EPS));
+}
+
+TEST_CASE("NCMesh anisotropic triangle hanging edge", "[NCMesh]")
+{
+   const int ref_type = GENERATE(Refinement::X, Refinement::Y);
+   CAPTURE(ref_type);
+
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+   const real_t original_area = SummarizeRefinedElements(mesh).volume;
+   mesh.EnsureNCMesh(true);
+   H1_FECollection fec(2, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + 2.0*x[0] - 3.0*x[1];
+   });
+   field.ProjectCoefficient(affine);
+
+   Array<Refinement> refs(1);
+   refs[0].Set(0, ref_type);
+   mesh.GeneralRefinement(refs);
+   REQUIRE(mesh.GetNE() == 3);
+   REQUIRE(SummarizeRefinedElements(mesh).volume ==
+           MFEM_Approx(original_area));
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
+   fes.Update();
+   field.Update();
+   GridFunction exact(&fes);
+   exact.ProjectCoefficient(affine);
+   exact -= field;
+   REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+
+   // Exercise the sheared reference maps through a second refinement.
+   refs[0].Set(0, ref_type == Refinement::X ?
+               Refinement::Y : Refinement::X);
+   mesh.GeneralRefinement(refs);
+   REQUIRE(mesh.GetNE() == 4);
+   REQUIRE(SummarizeRefinedElements(mesh).volume ==
+           MFEM_Approx(original_area));
+   fes.Update();
+   field.Update();
+   exact.Update();
+   exact.ProjectCoefficient(affine);
+   exact -= field;
+   REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+}
+
 TEST_CASE("NCMesh anisotropic prism refinement in mixed mesh", "[NCMesh]")
 {
    const int prism_attribute = GENERATE(5, 6, 7, 8);
@@ -1014,7 +1151,6 @@ TEST_CASE("ParNCMesh geometry-specific refinement patterns",
 
    const int partition[] = {0, 1};
    ParMesh pmesh(MPI_COMM_WORLD, mesh, partition);
-
    Array<Refinement> refs;
    if (Mpi::WorldRank() == 0)
    {
@@ -1023,6 +1159,53 @@ TEST_CASE("ParNCMesh geometry-specific refinement patterns",
    pmesh.GeneralRefinement(refs);
 
    REQUIRE(pmesh.GetGlobalNE() == 3);
+}
+
+TEST_CASE("ParNCMesh anisotropic triangle hanging edge", "[Parallel][NCMesh]")
+{
+   if (Mpi::WorldSize() != 2) { return; }
+   const int ref_type = GENERATE(Refinement::X, Refinement::Y);
+   CAPTURE(ref_type);
+
+   Mesh serial_mesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+   serial_mesh.EnsureNCMesh(true);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   H1_FECollection fec(2, 2);
+   ParFiniteElementSpace fes(&mesh, &fec);
+   ParGridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + 2.0*x[0] - 3.0*x[1];
+   });
+   field.ProjectCoefficient(affine);
+
+   Array<Refinement> refs;
+   if (Mpi::WorldRank() == 0)
+   {
+      REQUIRE(mesh.GetNE() == 1);
+      refs.Append(Refinement(0, ref_type));
+   }
+   mesh.GeneralRefinement(refs);
+   REQUIRE(mesh.GetGlobalNE() == 3);
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
+   fes.Update();
+   field.Update();
+   ParGridFunction exact(&fes);
+   exact.ProjectCoefficient(affine);
+   exact -= field;
+   REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+
+   Vector errors(mesh.GetNE());
+   errors = 0.0;
+   REQUIRE(mesh.DerefineByError(errors, 1.0));
+   REQUIRE(mesh.GetGlobalNE() == 2);
+   fes.Update();
+   field.Update();
+   ParGridFunction coarse_exact(&fes);
+   coarse_exact.ProjectCoefficient(affine);
+   coarse_exact -= field;
+   REQUIRE(coarse_exact.Normlinf() == MFEM_Approx(0.0, EPS));
 }
 
 TEST_CASE("ParNCMesh mixed pyramid derefinement", "[Parallel][NCMesh]")

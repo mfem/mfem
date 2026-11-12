@@ -1955,17 +1955,41 @@ void NCMesh::RefineElement(const Refinement & ref)
    }
    else if (el.Geom() == Geometry::TRIANGLE)
    {
-      ref_type = Refinement::XY; // for consistency
+      ref_type &= Refinement::XY;
+      if (ref_type == Refinement::X)
+      {
+         const int mid01 = nodes.GetId(no[0], no[1]);
+         SetNodeScale(no[0], no[1], scale_x);
+         child[0] = NewTriangle(no[0], mid01, no[2],
+                                attr, fa[0], -1, fa[2]);
+         child[1] = NewTriangle(mid01, no[1], no[2],
+                                attr, fa[0], fa[1], -1);
+      }
+      else if (ref_type == Refinement::Y)
+      {
+         const int mid20 = nodes.GetId(no[2], no[0]);
+         SetNodeScale(no[0], no[2], scale_y);
+         child[0] = NewTriangle(no[0], no[1], mid20,
+                                attr, fa[0], -1, fa[2]);
+         child[1] = NewTriangle(mid20, no[1], no[2],
+                                attr, -1, fa[1], fa[2]);
+      }
+      else if (ref_type == Refinement::XY)
+      {
+         const int mid01 = nodes.GetId(no[0], no[1]);
+         const int mid12 = nodes.GetId(no[1], no[2]);
+         const int mid20 = nodes.GetId(no[2], no[0]);
 
-      // isotropic split - the only ref_type available for triangles
-      int mid01 = nodes.GetId(no[0], no[1]);
-      int mid12 = nodes.GetId(no[1], no[2]);
-      int mid20 = nodes.GetId(no[2], no[0]);
-
-      child[0] = NewTriangle(no[0], mid01, mid20, attr, fa[0], -1, fa[2]);
-      child[1] = NewTriangle(mid01, no[1], mid12, attr, fa[0], fa[1], -1);
-      child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
-      child[3] = NewTriangle(mid12, mid20, mid01, attr, -1, -1, -1);
+         child[0] = NewTriangle(no[0], mid01, mid20, attr, fa[0], -1, fa[2]);
+         child[1] = NewTriangle(mid01, no[1], mid12, attr, fa[0], fa[1], -1);
+         child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
+         child[3] = NewTriangle(mid12, mid20, mid01, attr, -1, -1, -1);
+      }
+      else
+      {
+         MFEM_ABORT("Invalid triangle refinement type.");
+      }
+      if (ref_type != Refinement::XY) { Iso = false; }
    }
    else if (el.Geom() == Geometry::SEGMENT)
    {
@@ -2095,8 +2119,11 @@ int NCMesh::RetrieveNode(const Element &el, int index)
          break;
 
       case Geometry::TETRAHEDRON:
-      case Geometry::TRIANGLE:
          ch = el.child[index];
+         break;
+
+      case Geometry::TRIANGLE:
+         ch = el.child[tri_deref_table[el.ref_type - 1][index]];
          break;
 
       default:
@@ -2251,8 +2278,15 @@ void NCMesh::DerefineElement(int elem)
       constexpr int nb_triangle_childs = 3;
       for (int i = 0; i < nb_triangle_childs; i++)
       {
-         Element& ch = elements[child[i]];
+         const int child_local_index = tri_deref_table[ref_type_key][i];
+         Element& ch = elements[child[child_local_index]];
          el.node[i] = ch.node[i];
+      }
+      for (int i = 0; i < nb_triangle_childs; i++)
+      {
+         const int child_local_index =
+            tri_deref_table[ref_type_key][i + nb_triangle_childs];
+         Element& ch = elements[child[child_local_index]];
          const int* fv = GI[el.Geom()].faces[i];
          faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
                                          ch.node[fv[2]], ch.node[fv[3]])
@@ -5147,23 +5181,26 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
       }
       else if (geom == Geometry::TRIANGLE)
       {
-         Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2)), mid20(pm(2), pm(0));
-
-         if (child == 0)
+         if (ref_type == Refinement::X)
          {
-            pm = PointMatrix(pm(0), mid01, mid20);
+            Point mid01(pm(0), pm(1));
+            if (child == 0) { pm = PointMatrix(pm(0), mid01, pm(2)); }
+            else if (child == 1) { pm = PointMatrix(mid01, pm(1), pm(2)); }
          }
-         else if (child == 1)
+         else if (ref_type == Refinement::Y)
          {
-            pm = PointMatrix(mid01, pm(1), mid12);
+            Point mid20(pm(2), pm(0));
+            if (child == 0) { pm = PointMatrix(pm(0), pm(1), mid20); }
+            else if (child == 1) { pm = PointMatrix(mid20, pm(1), pm(2)); }
          }
-         else if (child == 2)
+         else if (ref_type == Refinement::XY)
          {
-            pm = PointMatrix(mid20, mid12, pm(2));
-         }
-         else if (child == 3)
-         {
-            pm = PointMatrix(mid12, mid20, mid01);
+            Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
+            Point mid20(pm(2), pm(0));
+            if (child == 0) { pm = PointMatrix(pm(0), mid01, mid20); }
+            else if (child == 1) { pm = PointMatrix(mid01, pm(1), mid12); }
+            else if (child == 2) { pm = PointMatrix(mid20, mid12, pm(2)); }
+            else if (child == 3) { pm = PointMatrix(mid12, mid20, mid01); }
          }
       }
       else if (geom == Geometry::SEGMENT)
