@@ -123,15 +123,17 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_mesh_nodes,
       h_min = std::min(h_min, m->GetElementSize(i));
    }
    real_t v_max = 0.0;
-   const int s  = u.Size()/m->Dimension();
+   const FiniteElementSpace *ufes = u.FESpace();
+   const int ndofs = ufes->GetNDofs(), vdim = ufes->GetVDim();
 
    u.HostReadWrite();
-   for (int i = 0; i < s; i++)
+   for (int i = 0; i < ndofs; i++)
    {
       real_t vel = 0.;
-      for (int j = 0; j < m->Dimension(); j++)
+      for (int j = 0; j < vdim; j++)
       {
-         vel += u(i+j*s)*u(i+j*s);
+         const real_t u_ij = u(ufes->DofToVDof(i, j));
+         vel += u_ij * u_ij;
       }
       v_max = std::max(v_max, vel);
    }

@@ -72,10 +72,10 @@ template <typename type>
 void mult_aTa_2D(const std::vector<type> &in, std::vector<type> &outm)
 {
    outm.resize(in.size());
-   outm[0] = in[0]*in[0];
+   outm[0] = in[0]*in[0] + in[1]*in[1];
    outm[1] = in[0]*in[2] + in[1]*in[3];
    outm[2] = in[0]*in[2] + in[1]*in[3];
-   outm[3] = in[3]*in[3];
+   outm[3] = in[2]*in[2] + in[3]*in[3];
 }
 
 template <typename scalartype, typename type>
@@ -167,7 +167,7 @@ template <typename type>
 type mu55_ad(const std::vector<type> &T, const std::vector<type> &W)
 {
    auto det = det_2D(T);
-   return pow(det-1.0, 2.0);
+   return (det-1.0)*(det-1.0);
 };
 
 // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
@@ -296,7 +296,10 @@ type nu14_ad(const std::vector<type> &T, const std::vector<type> &W)
    auto sqalpha = sqrt(det_2D(A));
    auto sqomega = sqrt(det_2D(W));
 
-   return 0.5*pow(sqalpha/sqomega - sqomega/sqalpha, 2.0);
+   // Written as d*d rather than pow(d, 2.0): the dual-number pow divides by
+   // d, which gives NaN derivatives at d = 0 (det(T) = 1).
+   auto d = sqalpha/sqomega - sqomega/sqalpha;
+   return 0.5*d*d;
 };
 
 // (1/alpha) | A - W |^2
@@ -1960,7 +1963,7 @@ real_t TMOP_Metric_322::EvalW(const DenseMatrix &Jpt) const
 {
    // mu_322 = 1 / (6 det(J)) |J - adj(J)^t|^2
    //        = 1 / (6 det(J)) |J|^2 + 1/6 det(J) |J^{-1}|^2 - 1
-   //        = I1b / (I3b^-1/3) / 6 + I2b (I3b^1/3) / 6 - 1
+   //        = I1b / (I3b^1/3) / 6 + I2b (I3b^1/3) / 6 - 1
    ie.SetJacobian(Jpt.GetData());
 
    return ie.Get_I1b() / pow(ie.Get_I3b(), 1.0/3.0) / 6.0 +
@@ -3254,7 +3257,7 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                    ntspec_dofs = ndofs*ncomp;
 
          Vector shape(ndofs), tspec_vals(ntspec_dofs), par_vals,
-                par_vals_c1(ndofs), par_vals_c2(ndofs), par_vals_c3(ndofs);
+                par_vals_c1, par_vals_c2, par_vals_c3;
 
          Array<int> dofs;
          DenseMatrix dD_rho(dim), dQ_phi(dim), dR_theta(dim);
@@ -3342,9 +3345,9 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                {
                   par_vals.SetDataAndSize(tspec_vals.GetData()+
                                           aspectratioidx*ndofs, ndofs*3);
-                  par_vals_c1.SetData(par_vals.GetData());
-                  par_vals_c2.SetData(par_vals.GetData()+ndofs);
-                  par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
+                  par_vals_c1.SetDataAndSize(par_vals.GetData(), ndofs);
+                  par_vals_c2.SetDataAndSize(par_vals.GetData()+ndofs, ndofs);
+                  par_vals_c3.SetDataAndSize(par_vals.GetData()+2*ndofs, ndofs);
 
                   grad_phys.Mult(par_vals_c1, grad_ptr_c1);
                   grad_phys.Mult(par_vals_c2, grad_ptr_c2);
@@ -3413,9 +3416,9 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                {
                   par_vals.SetDataAndSize(tspec_vals.GetData()+
                                           skewidx*ndofs, ndofs*3);
-                  par_vals_c1.SetData(par_vals.GetData());
-                  par_vals_c2.SetData(par_vals.GetData()+ndofs);
-                  par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
+                  par_vals_c1.SetDataAndSize(par_vals.GetData(), ndofs);
+                  par_vals_c2.SetDataAndSize(par_vals.GetData()+ndofs, ndofs);
+                  par_vals_c3.SetDataAndSize(par_vals.GetData()+2*ndofs, ndofs);
 
                   grad_phys.Mult(par_vals_c1, grad_ptr_c1);
                   grad_phys.Mult(par_vals_c2, grad_ptr_c2);
@@ -3490,9 +3493,9 @@ void DiscreteAdaptTC::ComputeElementTargetsGradient(const IntegrationRule &ir,
                {
                   par_vals.SetDataAndSize(tspec_vals.GetData()+
                                           orientationidx*ndofs, ndofs*3);
-                  par_vals_c1.SetData(par_vals.GetData());
-                  par_vals_c2.SetData(par_vals.GetData()+ndofs);
-                  par_vals_c3.SetData(par_vals.GetData()+2*ndofs);
+                  par_vals_c1.SetDataAndSize(par_vals.GetData(), ndofs);
+                  par_vals_c2.SetDataAndSize(par_vals.GetData()+ndofs, ndofs);
+                  par_vals_c3.SetDataAndSize(par_vals.GetData()+2*ndofs, ndofs);
 
                   grad_phys.Mult(par_vals_c1, grad_ptr_c1);
                   grad_phys.Mult(par_vals_c2, grad_ptr_c2);
