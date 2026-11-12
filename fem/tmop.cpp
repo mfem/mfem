@@ -4485,7 +4485,7 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
          const IntegrationPoint &ip_s = ir_s->IntPoint(s);
          Tpr->SetIntPoint(&ip_s);
          real_t w = surf_fit_coeff->Eval(*Tpr, ip_s) * surf_fit_normal *
-                    1.0 / surf_fit_dof_count[scalar_dof_id];
+                    1.0 / surf_fit_dof_count[vdofs[s]];
 
          if (surf_fit_gf)
          {
@@ -5005,14 +5005,19 @@ void TMOP_Integrator::AssembleElemVecAdaptLim(const FiniteElement &el,
    const int dof = el.GetDof(), dim = el.GetDim(), nqp = weights.Size();
    const int nal = adapt_lim_coeff.Size();
 
-   Vector shape(dof), adapt_lim_gf_e, adapt_lim_gf_q(nqp), adapt_lim_gf0_q(nqp);
+   const FiniteElement &el_f =
+      *adapt_lim_gf[0]->FESpace()->GetFE(Tpr.ElementNo);
+   const int dof_f = el_f.GetDof();
+
+   Vector shape(dof), shape_f(dof_f);
+   Vector adapt_lim_gf_e, adapt_lim_gf_q(nqp), adapt_lim_gf0_q(nqp);
    Array<int> dofs;
    adapt_lim_gf[0]->FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
 
    // Project the gradient of adapt_lim_gf in the same space.
    // The FE coefficients of the gradient go in adapt_lim_gf_grad_e.
-   DenseMatrix grad_phys; // This will be (dof x dim, dof).
-   el.ProjectGrad(el, Tpr, grad_phys);
+   DenseMatrix grad_phys; // This will be (dof_f x dim, dof_f).
+   el_f.ProjectGrad(el_f, Tpr, grad_phys);
 
    Vector adapt_lim_gf_grad_q(dim);
    for (int c = 0; c < nal; c++)
@@ -5022,16 +5027,17 @@ void TMOP_Integrator::AssembleElemVecAdaptLim(const FiniteElement &el,
       adapt_lim_gf[c]->GetValues(Tpr.ElementNo, ir, adapt_lim_gf_q);
       adapt_lim_gf0[c]->GetValues(Tpr.ElementNo, ir, adapt_lim_gf0_q);
 
-      DenseMatrix adapt_lim_gf_grad_e(dof, dim);
-      Vector grad_ptr(adapt_lim_gf_grad_e.GetData(), dof*dim);
+      DenseMatrix adapt_lim_gf_grad_e(dof_f, dim);
+      Vector grad_ptr(adapt_lim_gf_grad_e.GetData(), dof_f*dim);
       grad_phys.Mult(adapt_lim_gf_e, grad_ptr);
 
       for (int q = 0; q < nqp; q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
          el.CalcShape(ip, shape);
+         el_f.CalcShape(ip, shape_f);
 
-         adapt_lim_gf_grad_e.MultTranspose(shape, adapt_lim_gf_grad_q);
+         adapt_lim_gf_grad_e.MultTranspose(shape_f, adapt_lim_gf_grad_q);
          adapt_lim_gf_grad_q *= 2.0 * (adapt_lim_gf_q(q) - adapt_lim_gf0_q(q)) /
                                 delta2;
          adapt_lim_gf_grad_q *=
@@ -5051,14 +5057,19 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
    const int dof = el.GetDof(), dim = el.GetDim(), nqp = weights.Size();
    const int nal = adapt_lim_coeff.Size();
 
-   Vector shape(dof), adapt_lim_gf_e, adapt_lim_gf_q(nqp), adapt_lim_gf0_q(nqp);
+   const FiniteElement &el_f =
+      *adapt_lim_gf[0]->FESpace()->GetFE(Tpr.ElementNo);
+   const int dof_f = el_f.GetDof();
+
+   Vector shape(dof), shape_f(dof_f);
+   Vector adapt_lim_gf_e, adapt_lim_gf_q(nqp), adapt_lim_gf0_q(nqp);
    Array<int> dofs;
    adapt_lim_gf[0]->FESpace()->GetElementDofs(Tpr.ElementNo, dofs);
 
    // Project the gradient of adapt_lim_gf in the same space.
    // The FE coefficients of the gradient go in adapt_lim_gf_grad_e.
-   DenseMatrix grad_phys; // This will be (dof x dim, dof).
-   el.ProjectGrad(el, Tpr, grad_phys);
+   DenseMatrix grad_phys; // This will be (dof_f x dim, dof_f).
+   el_f.ProjectGrad(el_f, Tpr, grad_phys);
    Vector adapt_lim_gf_grad_q(dim);
    DenseMatrix adapt_lim_gf_hess_q(dim, dim);
 
@@ -5069,25 +5080,26 @@ void TMOP_Integrator::AssembleElemGradAdaptLim(const FiniteElement &el,
       adapt_lim_gf[c]->GetValues(Tpr.ElementNo, ir, adapt_lim_gf_q);
       adapt_lim_gf0[c]->GetValues(Tpr.ElementNo, ir, adapt_lim_gf0_q);
 
-      DenseMatrix adapt_lim_gf_grad_e(dof, dim);
-      Vector grad_ptr(adapt_lim_gf_grad_e.GetData(), dof*dim);
+      DenseMatrix adapt_lim_gf_grad_e(dof_f, dim);
+      Vector grad_ptr(adapt_lim_gf_grad_e.GetData(), dof_f*dim);
       grad_phys.Mult(adapt_lim_gf_e, grad_ptr);
 
       // Project the gradient of each gradient of adapt_lim_gf in the same space.
       // The FE coefficients of the second derivatives go in adapt_lim_gf_hess_e.
-      DenseMatrix adapt_lim_gf_hess_e(dof*dim, dim);
+      DenseMatrix adapt_lim_gf_hess_e(dof_f*dim, dim);
       Mult(grad_phys, adapt_lim_gf_grad_e, adapt_lim_gf_hess_e);
       // Reshape to be more convenient later (no change in the data).
-      adapt_lim_gf_hess_e.SetSize(dof, dim*dim);
+      adapt_lim_gf_hess_e.SetSize(dof_f, dim*dim);
 
       for (int q = 0; q < nqp; q++)
       {
          const IntegrationPoint &ip = ir.IntPoint(q);
          el.CalcShape(ip, shape);
+         el_f.CalcShape(ip, shape_f);
 
-         adapt_lim_gf_grad_e.MultTranspose(shape, adapt_lim_gf_grad_q);
+         adapt_lim_gf_grad_e.MultTranspose(shape_f, adapt_lim_gf_grad_q);
          Vector gg_ptr(adapt_lim_gf_hess_q.GetData(), dim*dim);
-         adapt_lim_gf_hess_e.MultTranspose(shape, gg_ptr);
+         adapt_lim_gf_hess_e.MultTranspose(shape_f, gg_ptr);
 
          const real_t coeff_q = adapt_lim_coeff[c]->Eval(Tpr, ip);
          const real_t factor =
