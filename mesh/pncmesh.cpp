@@ -1438,7 +1438,14 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       // Populates face_nbr_el_to_face, always needed.
       pmesh.BuildFaceNbrElementToFaceTable();
 
-      if (face_nbr_w_tri_faces)
+      // The orientations are exchanged with every face neighbor, so all ranks
+      // must agree on whether the exchange takes place: a rank whose face
+      // neighbors only have tensor-product faces would otherwise skip it while
+      // its neighbors wait for its messages.
+      int any_tri_faces = face_nbr_w_tri_faces;
+      MPI_Allreduce(MPI_IN_PLACE, &any_tri_faces, 1, MPI_INT, MPI_LOR, MyComm);
+
+      if (any_tri_faces)
       {
          // There are face neighbor elements with triangular faces, need to
          // perform communication to ensure the orientation is valid.
