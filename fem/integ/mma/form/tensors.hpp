@@ -98,7 +98,7 @@ MFEM_HOST_DEVICE inline void ApplyGradQFnVec(QFn qfn, real_t *g,
 {
    using Tr = qfn_traits<QFn>;
    static_assert(Tr::trial_is_grad &&
-                 Tr::has_trial, "ApplyGradQFnVec needs Grad×Grad QFn");
+                 Tr::has_trial, "ApplyGradQFnVec needs GradxGrad QFn");
    constexpr int DIM = Tr::spatial_dim;
    constexpr bool SYM = Tr::symmetric_pa;
    grad_t<DIM> u, y;

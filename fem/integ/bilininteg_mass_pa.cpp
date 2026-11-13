@@ -190,18 +190,19 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    if (use_simplex_mma)
    {
       if (ne <= 0 || nq <= 0) { return; }
-      const int nd = mma_P.Size() / nq;
-      MFEM_VERIFY(nd > 0 && mma_P.Size() == nq * nd, "");
-      MFEM_VERIFY(pa_data.Size() == nq * ne, "");
-      const auto P = Reshape(mma_P.Read(), nq, nd);
-      const auto D = Reshape(pa_data.Read(), nq, ne);
+      const int NQ = nq;
+      const int nd = mma_P.Size() / NQ;
+      MFEM_VERIFY(nd > 0 && mma_P.Size() == NQ * nd, "");
+      MFEM_VERIFY(pa_data.Size() == NQ * ne, "");
+      const auto P = Reshape(mma_P.Read(), NQ, nd);
+      const auto D = Reshape(pa_data.Read(), NQ, ne);
       auto Y = Reshape(diag.ReadWrite(), nd, ne);
       mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
       {
          for (int i = 0; i < nd; ++i)
          {
             real_t s = 0.0;
-            for (int q = 0; q < nq; ++q)
+            for (int q = 0; q < NQ; ++q)
             {
                const real_t b = P(q, i);
                s += b * b * D(q, e);
