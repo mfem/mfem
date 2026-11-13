@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
+#include "../../../mesh/ncmesh_face_partition.hpp"
 #include "mesh_test_utils.hpp"
 #include "unit_tests.hpp"
 
@@ -67,6 +68,87 @@ constexpr FacePatternCase geometry_specific_2d_patterns[] =
 };
 constexpr int num_geometry_specific_2d_patterns =
    sizeof(geometry_specific_2d_patterns)/sizeof(FacePatternCase);
+
+// Extract leaf faces on a plane of a refined 3D element, then express them
+// in a common pair of face coordinates.
+NCFacePartition MakePlanarFacePartition(
+   Mesh &mesh, const std::array<real_t, 3> &normal, int u, int v, real_t plane)
+{
+   NCFacePartition partition;
+   for (int elem = 0; elem < mesh.GetNE(); elem++)
+   {
+      const Element *element = mesh.GetElement(elem);
+      const int *vertices = element->GetVertices();
+      for (int face = 0; face < element->GetNFaces(); face++)
+      {
+         const int count = element->GetNFaceVertices(face);
+         const int *local = element->GetFaceVertices(face);
+         bool on_plane = true;
+         for (int i = 0; i < count; i++)
+         {
+            const real_t *point = mesh.GetVertex(vertices[local[i]]);
+            const real_t position = normal[0]*point[0] +
+                                    normal[1]*point[1] +
+                                    normal[2]*point[2];
+            on_plane &= std::abs(position - plane) < EPS;
+         }
+         if (!on_plane) { continue; }
+
+         NCFacePartition::Cell cell = {};
+         cell.geometry = count == 3 ? Geometry::TRIANGLE : Geometry::SQUARE;
+         for (int i = 0; i < count; i++)
+         {
+            const real_t *point = mesh.GetVertex(vertices[local[i]]);
+            cell.vertex[i] = { point[u], point[v] };
+         }
+         partition.cells.Append(cell);
+      }
+   }
+   return partition;
+}
+
+NCFacePartition MakeRefinedFacePartition(
+   const char *mesh_file, const std::array<real_t, 3> &normal,
+   int u, int v, real_t plane, int pattern = 0)
+{
+   Mesh mesh(mesh_file, 1, 1);
+   if (pattern)
+   {
+      mesh.EnsureNCMesh(true);
+      Array<Refinement> refs(1);
+      refs[0].Set(0, pattern);
+      mesh.GeneralRefinement(refs);
+   }
+   return MakePlanarFacePartition(mesh, normal, u, v, plane);
+}
+
+NCFacePartition MakePatternFacePartition(Geometry::Type geometry, int pattern)
+{
+   Mesh mesh(geometry == Geometry::TRIANGLE ?
+             "../../data/ref-triangle.mesh" : "../../data/ref-square.mesh", 1, 1);
+   if (pattern)
+   {
+      mesh.EnsureNCMesh(true);
+      Array<Refinement> refs(1);
+      refs[0].Set(0, pattern);
+      mesh.GeneralRefinement(refs);
+   }
+   NCFacePartition partition;
+   Array<int> vertices;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      NCFacePartition::Cell cell = {};
+      cell.geometry = mesh.GetElementBaseGeometry(i);
+      mesh.GetElementVertices(i, vertices);
+      for (int j = 0; j < vertices.Size(); j++)
+      {
+         const real_t *point = mesh.GetVertex(vertices[j]);
+         cell.vertex[j] = { point[0], point[1] };
+      }
+      partition.cells.Append(cell);
+   }
+   return partition;
+}
 
 real_t IntegrateGridFunction(Mesh &mesh, const GridFunction &field)
 {
@@ -581,6 +663,126 @@ TEST_CASE("NCMesh legacy quad and hex pattern save and reload", "[NCMesh]")
    REQUIRE(reloaded.DerefineByError(errors, 1.0));
    REQUIRE(reloaded.GetNE() == 1);
    REQUIRE(reloaded.GetElementVolume(0) == MFEM_Approx(original_volume));
+}
+
+TEST_CASE("NCMesh geometry-specific face partition relations", "[NCMesh]")
+{
+   for (Geometry::Type geometry : {Geometry::TRIANGLE, Geometry::SQUARE})
+   {
+      std::vector<int> patterns = {0, Refinement::X, Refinement::Y,
+                                   Refinement::XY
+                                  };
+      if (geometry == Geometry::TRIANGLE)
+      { patterns.push_back(Refinement::Z); }
+      for (const FacePatternCase &test : geometry_specific_2d_patterns)
+      {
+         if (test.geometry == geometry) { patterns.push_back(test.pattern); }
+      }
+
+      std::vector<NCFacePartition> partitions;
+      for (int pattern : patterns)
+      { partitions.push_back(MakePatternFacePartition(geometry, pattern)); }
+
+      for (size_t i = 0; i < patterns.size(); i++)
+      {
+         CAPTURE(geometry, patterns[i]);
+         REQUIRE(CompareNCFacePartitions(partitions[i], partitions[i]) ==
+                 NCFaceRelation::Matching);
+         REQUIRE(CompareNCFacePartitions(partitions[0], partitions[i]) ==
+                 (i == 0 ? NCFaceRelation::Matching :
+                  NCFaceRelation::SecondRefinesFirst));
+         for (size_t j = 0; j < patterns.size(); j++)
+         {
+            const NCFaceRelation forward =
+               CompareNCFacePartitions(partitions[i], partitions[j]);
+            const NCFaceRelation reverse =
+               CompareNCFacePartitions(partitions[j], partitions[i]);
+            if (forward == NCFaceRelation::FirstRefinesSecond)
+            { REQUIRE(reverse == NCFaceRelation::SecondRefinesFirst); }
+            else if (forward == NCFaceRelation::SecondRefinesFirst)
+            { REQUIRE(reverse == NCFaceRelation::FirstRefinesSecond); }
+            else
+            { REQUIRE(reverse == forward); }
+         }
+      }
+   }
+}
+
+TEST_CASE("NCMesh three-dimensional face partition relations", "[NCMesh]")
+{
+   const auto tet = [](int pattern)
+   {
+      return MakeRefinedFacePartition("../../data/ref-tetrahedron.mesh",
+      {1.0, 1.0, 1.0}, 0, 1, 1.0, pattern);
+   };
+   const auto hex = [](int pattern)
+   {
+      return MakeRefinedFacePartition("../../data/ref-cube.mesh",
+      {0.0, 0.0, 1.0}, 0, 1, 0.0, pattern);
+   };
+   const auto prism_base = [](int pattern)
+   {
+      return MakeRefinedFacePartition("../../data/ref-prism.mesh",
+      {0.0, 0.0, 1.0}, 0, 1, 0.0, pattern);
+   };
+   const auto prism_side = [](int pattern)
+   {
+      return MakeRefinedFacePartition("../../data/ref-prism.mesh",
+      {0.0, 1.0, 0.0}, 0, 2, 0.0, pattern);
+   };
+   const auto pyramid_base = [](int pattern)
+   {
+      return MakeRefinedFacePartition("../../data/ref-pyramid.mesh",
+      {0.0, 0.0, 1.0}, 0, 1, 0.0, pattern);
+   };
+   const auto pyramid_side = [](int pattern)
+   {
+      return MakeRefinedFacePartition("../../data/ref-pyramid.mesh",
+      {0.0, 1.0, 0.0}, 0, 2, 0.0, pattern);
+   };
+
+   const NCFacePartition tet_coarse = tet(0);
+   const NCFacePartition tet_x = tet(Refinement::X);
+   const NCFacePartition tet_y = tet(Refinement::Y);
+   const NCFacePartition tet_iso = tet(Refinement::XYZ);
+   REQUIRE(tet_coarse.cells.Size() == 1);
+   REQUIRE(tet_x.cells.Size() == 2);
+   REQUIRE(tet_iso.cells.Size() == 4);
+   REQUIRE(CompareNCFacePartitions(tet_coarse, tet_x) ==
+           NCFaceRelation::SecondRefinesFirst);
+   REQUIRE(CompareNCFacePartitions(tet_x, tet_y) ==
+           NCFaceRelation::Incompatible);
+   REQUIRE(CompareNCFacePartitions(tet_y, tet_x) ==
+           NCFaceRelation::Incompatible);
+   REQUIRE(CompareNCFacePartitions(tet_x, tet_iso) ==
+           NCFaceRelation::Incompatible);
+   REQUIRE(CompareNCFacePartitions(tet_x, tet_x) ==
+           NCFaceRelation::Matching);
+   NCFacePartition reversed = tet_x;
+   for (auto &cell : reversed.cells)
+   { std::swap(cell.vertex[1], cell.vertex[2]); }
+   REQUIRE(CompareNCFacePartitions(tet_x, reversed) ==
+           NCFaceRelation::Matching);
+   REQUIRE(CompareNCFacePartitions(tet_iso, prism_base(Refinement::XY)) ==
+           NCFaceRelation::Matching);
+   REQUIRE(CompareNCFacePartitions(tet_iso, pyramid_side(Refinement::XYZ)) ==
+           NCFaceRelation::Matching);
+
+   const NCFacePartition hex_x = hex(Refinement::X);
+   const NCFacePartition hex_y = hex(Refinement::Y);
+   const NCFacePartition hex_xy = hex(Refinement::XY);
+   REQUIRE(hex_x.cells.Size() == 2);
+   REQUIRE(hex_xy.cells.Size() == 4);
+   REQUIRE(CompareNCFacePartitions(hex_x, hex_y) ==
+           NCFaceRelation::Incompatible);
+   REQUIRE(CompareNCFacePartitions(hex_x, hex_xy) ==
+           NCFaceRelation::SecondRefinesFirst);
+   REQUIRE(CompareNCFacePartitions(hex_xy, hex_x) ==
+           NCFaceRelation::FirstRefinesSecond);
+   REQUIRE(CompareNCFacePartitions(hex_xy, pyramid_base(Refinement::XYZ)) ==
+           NCFaceRelation::Matching);
+   REQUIRE(CompareNCFacePartitions(prism_side(Refinement::Z), hex_xy) ==
+           NCFaceRelation::SecondRefinesFirst);
 }
 
 TEST_CASE("NCMesh geometry-specific H1 field transfer round trip", "[NCMesh]")
