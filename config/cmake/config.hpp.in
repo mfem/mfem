@@ -103,6 +103,7 @@
 
 // Enable MFEM functionality based on the MUMPS library.
 #cmakedefine MFEM_USE_MUMPS
+#cmakedefine MFEM_USE_COMPLEX_MUMPS
 #cmakedefine MFEM_MUMPS_VERSION @MFEM_MUMPS_VERSION@
 
 // Enable MFEM functionality based on the STRUMPACK library.
@@ -128,9 +129,6 @@
 
 // Enable secure socket streams based on the GNUTLS library.
 #cmakedefine MFEM_USE_GNUTLS
-
-// Enable Sidre support.
-#cmakedefine MFEM_USE_SIDRE
 
 // Enable the use of SIMD in the high performance templated classes.
 #cmakedefine MFEM_USE_SIMD
