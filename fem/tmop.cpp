@@ -1939,11 +1939,10 @@ void TMOP_Metric_321::AssembleH(const DenseMatrix &Jpt,
    const real_t c1 = weight*c0*c0;
    const real_t c2 = -2*c0*c1;
    const real_t c3 = c2*ie.Get_I2();
-   ie.Assemble_ddI1(weight, A.GetData());
-   ie.Assemble_ddI2(c1, A.GetData());
-   ie.Assemble_ddI3b(c3, A.GetData());
-   ie.Assemble_TProd(c2, ie.Get_dI2(), ie.Get_dI3b(), A.GetData());
-   ie.Assemble_TProd(-3*c0*c3, ie.Get_dI3b(), A.GetData());
+   // Same terms as ddI1, ddI2, ddI3b and the two TProds, in two passes over A.
+   ie.Assemble_ddI2_TProd(c1, c2, ie.Get_dI2(), ie.Get_dI3b(), -3*c0*c3,
+                          A.GetData());
+   ie.Assemble_ddI1_ddI2_struct_ddI3b(weight, c1, c3, A.GetData());
 }
 
 real_t TMOP_Metric_322::EvalWMatrixForm(const DenseMatrix &Jpt) const
