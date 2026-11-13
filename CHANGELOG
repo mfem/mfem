@@ -20,6 +20,10 @@ Discretization improvements
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
+- Added a BlockNonlinearForm::Mult overload taking arrays of true-dof vector
+  pointers, one per space, where null entries are skipped. This allows mixed
+  operators that read and write only some of the blocks to be applied without
+  allocating full block vectors.
 
 - Added class VectorQuadratureSpace that represents a vector (multi-component)
   version of the scalar (single-component) class QuadratureSpaceBase.
