@@ -82,9 +82,12 @@ public:
     - AssembleGradPA(x_f, fes) in GetGradient(),
     - AddMultGradPA(x_f, y_f) in the gradient's Mult(),
     - AssembleGradDiagonalPA(d_f) in the gradient's AssembleDiagonal(),
-    where every vector is a boundary E-vector. Boundary attribute markers are
-    applied by the extension: an integrator always sees all boundary faces.
-    Every boundary face must be a boundary element, as in LinearForm. */
+    where every vector is a boundary E-vector. Every boundary face must be a
+    boundary element, as in LinearForm.
+
+    Domain and boundary attribute markers are applied by the extension: an
+    integrator always sees all elements or boundary faces. Domain markers are
+    not supported with libCEED, nor in GetGridFunctionEnergy(). */
 class PANonlinearFormExtension : public NonlinearFormExtension
 {
 private:
@@ -123,17 +126,37 @@ protected:
    const FiniteElementSpace &fes;
    const Array<NonlinearFormIntegrator*> &dnfi;
    const Array<NonlinearFormIntegrator*> &bnfi;
-   const Operator *elemR; // not owned
+   const Operator *elemR = nullptr; // not owned
+   const Array<int> *elem_attributes = nullptr; // not owned, set if marked
+   mutable Vector ye_tmp; // sized if some domain integrator is marked
    const FaceRestriction *bdrR = nullptr; // not owned, set if bnfi exist
    const Array<int> *bdr_face_attributes = nullptr; // not owned
    mutable Vector bdr_xe, bdr_ye, bdr_tmp;
    mutable Gradient Grad;
 
+   /// Set up #elem_attributes and #ye_tmp when a domain integrator is marked.
+   void SetupDomain();
+
    /// Set up #bdrR and the boundary E-vectors when there are bnfi.
    void SetupBdr();
 
-   /** @brief Add to the boundary E-vector @a y the result of @a apply(integ,
-       out) for every boundary integrator, honoring the attribute markers. */
+   /** @brief Add to the E-vector @a y the result of @a apply(integ, out) for
+       every integrator of @a integs, honoring the attribute @a markers.
+
+       A marked integrator writes into @a tmp, then only the entities
+       (elements or boundary faces) whose @a attributes are marked are added
+       to @a y, so earlier contributions to @a y are kept. */
+   template <typename Apply>
+   void AddMarked(const Array<NonlinearFormIntegrator*> &integs,
+                  const Array<Array<int>*> &markers,
+                  const Array<int> *attributes, Vector &tmp,
+                  Apply &&apply, Vector &y) const;
+
+   /// AddMarked() for the domain integrators, on element E-vectors.
+   template <typename Apply>
+   void AddDomain(Apply &&apply, Vector &y) const;
+
+   /// AddMarked() for the boundary integrators, on boundary E-vectors.
    template <typename Apply>
    void AddBdr(Apply &&apply, Vector &y) const;
 

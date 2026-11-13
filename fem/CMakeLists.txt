@@ -294,6 +294,7 @@ set(HDRS
   integ/bilininteg_vecdiffusion_kernels.hpp
   integ/bilininteg_vecdiffusion_pa.hpp
   integ/bilininteg_vecmass_pa.hpp
+  integ/lininteg_boundary_kernels.hpp
   integ/lininteg_domain_kernels.hpp
   integ/nonlininteg_vecconvection_pa.hpp
   integ/nonlininteg_vecconvection_pa_diag.hpp

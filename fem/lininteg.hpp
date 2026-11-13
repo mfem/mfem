@@ -528,7 +528,7 @@ private:
 public:
    VectorBoundaryFluxLFIntegrator(Coefficient &f, real_t s = 1.0,
                                   const IntegrationRule *ir = NULL)
-      : LinearFormIntegrator(ir), Sign(s), F(&f) { }
+      : LinearFormIntegrator(ir), Sign(s), F(&f) { static Kernels kernels; }
 
    bool SupportsDevice() const override { return true; }
 
@@ -542,6 +542,23 @@ public:
                                Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;
+
+   /// args: vdim, nbe, d1d, q1d, markers, B, detJ, W, n, coeff, sign, y
+   using AssembleKernelType = void (*)(const int, const int, const int,
+                                       const int, const int *,
+                                       const real_t *, const real_t *,
+                                       const real_t *, const real_t *,
+                                       const Vector &,
+                                       const real_t, real_t *);
+
+   /// parameters: use DIM, T_D1D, T_Q1D
+   MFEM_REGISTER_KERNELS(AssembleKernels, AssembleKernelType, (int, int, int));
+   struct Kernels { Kernels(); };
+
+   template <int DIM, int D1D, int Q1D> static void AddSpecialization()
+   {
+      AssembleKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
 };
 
 /** Class for boundary integration of $ (f, v \cdot n) $ for scalar coefficient $f$ and
