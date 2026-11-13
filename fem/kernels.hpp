@@ -27,51 +27,214 @@ namespace kernels
 namespace internal
 {
 
+/** @brief Registers of type @a T distributed over the threads of a kernel.
+
+    @a TDims are the extents of the thread dimensions, in indexing order:
+    typically two, (y, x), for kernels using a 2D tile of threads, or three,
+    (z, y, x), for kernels using a 3D block of threads.
+     - On GPU, each thread owns exactly one @a T: the thread dimensions
+       collapse to a single value and their indices are ignored (the thread
+       ids are the indices).
+     - On CPU, all thread dimensions are stored in full, as a nested array.
+
+    Entries are accessed with chained operator[], or with operator() taking the
+    thread indices followed by the indices of @a T, if any. All extents must be
+    positive.
+
+    @warning The size and layout of these types differ between the host and
+    the device compilation passes of the same translation unit. Objects of
+    these types must only be used as local variables inside a kernel body (or
+    in host-only code): they must not be kernel arguments, captured by a
+    forall lambda, or stored in memory that is visible to both host and
+    device. */
+template <typename T, int... TDims> struct thread_regs;
+
+/// One thread dimension
+template <typename T, int N0>
+struct thread_regs<T, N0>
+{
+   static_assert(N0 > 0, "thread_regs: dimensions must be positive");
+
+#ifdef MFEM_DEVICE_COMPILE
+   T value;
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   T &at(int) { return value; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const T &at(int) const { return value; }
+#else
+   T values[N0];
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   T &at(int i) { return values[i]; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const T &at(int i) const { return values[i]; }
+#endif
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   T &operator[](int i) { return at(i); }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const T &operator[](int i) const { return at(i); }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   decltype(auto) operator()(int i, index_types... is)
+   {
+      if constexpr (sizeof...(is) == 0) { return (at(i)); }
+      else { return at(i)(is...); }
+   }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   decltype(auto) operator()(int i, index_types... is) const
+   {
+      if constexpr (sizeof...(is) == 0) { return (at(i)); }
+      else { return at(i)(is...); }
+   }
+};
+
+/// Two or more thread dimensions
+template <typename T, int N0, int N1, int... Ns>
+struct thread_regs<T, N0, N1, Ns...>
+{
+   static_assert(N0 > 0, "thread_regs: dimensions must be positive");
+   using sub_type = thread_regs<T, N1, Ns...>;
+
+#ifdef MFEM_DEVICE_COMPILE
+   sub_type value;
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   sub_type &at(int) { return value; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const sub_type &at(int) const { return value; }
+#else
+   sub_type values[N0];
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   sub_type &at(int i) { return values[i]; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const sub_type &at(int i) const { return values[i]; }
+#endif
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   sub_type &operator[](int i) { return at(i); }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const sub_type &operator[](int i) const { return at(i); }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   decltype(auto) operator()(int i, int i1, index_types... is)
+   { return at(i)(i1, is...); }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   decltype(auto) operator()(int i, int i1, index_types... is) const
+   { return at(i)(i1, is...); }
+};
+
+/** @brief Tensor of registers with trailing thread dimensions.
+
+    The last two dimensions are the (y, x) thread dimensions, see thread_regs;
+    the leading ones, if any, are component dimensions stored in full. Entries
+    are accessed with chained operator[] or with a full list of indices in
+    operator(). All dimensions must be positive and the rank must be at least
+    2. The @warning of thread_regs about host/device layout applies. */
+template <int... Dims>
+struct regs
+{
+   static_assert(sizeof...(Dims) >= 2, "regs: the rank must be at least 2");
+};
+
+/// 2D tile of registers mapped onto the (y, x) threads of a kernel
+template <int N0, int N1>
+struct regs<N0, N1> : thread_regs<real_t, N0, N1> { };
+
+/// Tensor of registers of rank > 2: array of tensors of registers of rank - 1
+template <int N0, int N1, int N2, int... Ns>
+struct regs<N0, N1, N2, Ns...>
+{
+   static_assert(N0 > 0, "regs: dimensions must be positive");
+
+   using sub_type = regs<N1, N2, Ns...>;
+
+   sub_type values[N0];
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   sub_type &operator[](int i) { return values[i]; }
+
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const sub_type &operator[](int i) const { return values[i]; }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   real_t &operator()(int i0, index_types... is)
+   {
+      static_assert(sizeof...(is) == 2 + sizeof...(Ns),
+                    "regs: invalid number of indices!");
+      return values[i0](is...);
+   }
+
+   template <typename... index_types>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   const real_t &operator()(int i0, index_types... is) const
+   {
+      static_assert(sizeof...(is) == 2 + sizeof...(Ns),
+                    "regs: invalid number of indices!");
+      return values[i0](is...);
+   }
+};
+
 // Types for tensors mapped to registers
 //  - N is the number of threads in each of the x and y dimensions
 //  - N should not be greater than 32, to have a maximum of 1024 threads
-// On GPU, the last two dimensions are set to 0 to match a 2D tile of threads
-#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||       \
-     (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
-template <int N = 0>
-using s_regs2d_t = mfem::future::tensor<real_t, 0, 0>;
-
-template <int VDIM, int N>
-using v_regs2d_t = mfem::future::tensor<real_t, VDIM, 0, 0>;
-
-template <int VDIM, int DIM, int N = 0>
-using vd_regs2d_t = mfem::future::tensor<real_t, VDIM, DIM, 0, 0>;
-
+// The last two dimensions are the thread dimensions, see regs above.
 template <int N>
-using s_regs3d_t = mfem::future::tensor<real_t, N, 0, 0>;
+using s_regs2d_t = regs<N, N>;
 
 template <int VDIM, int N>
-using v_regs3d_t = mfem::future::tensor<real_t, VDIM, N, 0, 0>;
+using v_regs2d_t = regs<VDIM, N, N>;
 
 template <int VDIM, int DIM, int N>
-using vd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, N, 0, 0>;
+using vd_regs2d_t = regs<VDIM, DIM, N, N>;
 
+template <int N>
+using s_regs3d_t = regs<N, N, N>;
+
+template <int VDIM, int N>
+using v_regs3d_t = regs<VDIM, N, N, N>;
+
+template <int VDIM, int DIM, int N>
+using vd_regs3d_t = regs<VDIM, DIM, N, N, N>;
+
+// Types for tensors mapped to registers with leading thread dimensions, used
+// by the dFEM kernels: the (y, x) or (z, y, x) thread indices come first and
+// are followed by the component indices of the tensor held by each thread,
+// e.g. reg[qz][qy][qx][c] or reg(qz, qy, qx, c). In 3D, all three thread
+// dimensions are collapsed on GPU, matching kernels using a 3D block of
+// threads.
+template <int DIM, int N>
+using regs2d_t = thread_regs<mfem::future::tensor<real_t, DIM>, N, N>;
+
+template <int VDIM, int DIM, int N>
+using regs2d_vd_t = thread_regs<mfem::future::tensor<real_t, VDIM, DIM>, N, N>;
+
+template <int DIM, int N>
+using regs3d_t = thread_regs<mfem::future::tensor<real_t, DIM>, N, N, N>;
+
+template <int VDIM, int DIM, int N>
+using regs3d_vd_t =
+   thread_regs<mfem::future::tensor<real_t, VDIM, DIM>, N, N, N>;
+
+#ifdef MFEM_DEVICE_COMPILE
 // on GPU, SetMaxOf is a no-op, for minimal register usage
 constexpr int SetMaxOf(int n) { return n; }
 #else
-template <int N>
-using s_regs2d_t = mfem::future::tensor<real_t, N, N>;
-
-template <int VDIM, int N>
-using v_regs2d_t = mfem::future::tensor<real_t, VDIM, N, N>;
-
-template <int VDIM, int DIM, int N>
-using vd_regs2d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N>;
-
-template <int N>
-using s_regs3d_t = mfem::future::tensor<real_t, N, N, N>;
-
-template <int VDIM, int N>
-using v_regs3d_t = mfem::future::tensor<real_t, VDIM, N, N, N>;
-
-template <int VDIM, int DIM, int N>
-using vd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N, N>;
-
 // on CPU, get next multiple of 4, allowing better alignments
 template <int N>
 constexpr int NextMultipleOf(int n)
@@ -80,7 +243,7 @@ constexpr int NextMultipleOf(int n)
    return (n + (N - 1)) & ~(N - 1);
 }
 constexpr int SetMaxOf(int n) { return NextMultipleOf<4>(n); }
-#endif // CUDA/HIP && DEVICE_COMPILE
+#endif // MFEM_DEVICE_COMPILE
 
 /// Load 2D matrix into shared memory
 template <int MQ1, bool TRANSPOSE = false>
@@ -105,7 +268,7 @@ inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
 }
 
 /// Load 2D input VDIM*DIM vector into given register tensor, specific component
-template <int VDIM, int DIM, int MQ1 = 0>
+template <int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d, const int c,
                                         const DeviceTensor<4, const real_t> &X,
                                         vd_regs2d_t<VDIM, DIM, MQ1> &Y)
@@ -124,7 +287,7 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d, const int c,
 }
 
 /// Load 2D input VDIM*DIM vector into given register tensor
-template <int VDIM, int DIM, int MQ1 = 0>
+template <int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
                                         const DeviceTensor<4, const real_t> &X,
                                         vd_regs2d_t<VDIM, DIM, MQ1> &Y)
@@ -133,7 +296,7 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
 }
 
 /// Load 2D input VDIM vector into given register tensor
-template <int VDIM, int MQ1 = 0>
+template <int VDIM, int MQ1>
 inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
                                         const DeviceTensor<4, const real_t> &X,
                                         v_regs2d_t<VDIM, MQ1> &Y)
@@ -152,7 +315,7 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
 }
 
 /// Load 2D input scalar into given register tensor
-template <int MQ1 = 0>
+template <int MQ1>
 inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
                                         const DeviceTensor<3, const real_t> &X,
                                         s_regs2d_t<MQ1> &Y)
@@ -168,7 +331,7 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
 }
 
 /// Write 2D vector into given device tensor, with read (i) write (j) indices
-template <int VDIM, int DIM, int MQ1 = 0>
+template <int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
                                          const int i, const int j,
                                          vd_regs2d_t<VDIM, DIM, MQ1> &X,
@@ -187,7 +350,7 @@ inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
 }
 
 /// Write 2D VDIM*DIM vector into given device tensor
-template <int VDIM, int DIM, int MQ1 = 0>
+template <int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
                                          vd_regs2d_t<VDIM, DIM, MQ1> &X,
                                          const DeviceTensor<4, real_t> &Y)
@@ -196,7 +359,7 @@ inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
 }
 
 /// Write 2D VDIM vector into given device tensor
-template <int VDIM, int MQ1 = 0>
+template <int VDIM, int MQ1>
 inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
                                          v_regs2d_t<VDIM, MQ1> &X,
                                          const DeviceTensor<4, real_t> &Y)
@@ -399,7 +562,7 @@ inline MFEM_HOST_DEVICE void ContractY2d(const int d1d, const int q1d,
 }
 
 /// 2D scalar copy
-template <int MQ1 = 0>
+template <int MQ1>
 inline MFEM_HOST_DEVICE void Copy2d(const int q1d,
                                     s_regs2d_t<MQ1> &X,
                                     s_regs2d_t<MQ1> &Y)
