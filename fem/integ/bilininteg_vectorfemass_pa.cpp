@@ -80,8 +80,6 @@ VectorFEMassIntegrator::Kernels::Kernels()
                           FiniteElement::CURL, 3, 3, 3, 4>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
                           FiniteElement::CURL, 3, 4, 4, 5>();
-   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
-                          FiniteElement::CURL, 3, 5, 5, 6>();
    // Q = P + 2 (3D)
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
                           FiniteElement::CURL, 3, 2, 2, 4>();
@@ -139,8 +137,6 @@ VectorFEMassIntegrator::Kernels::Kernels()
                           FiniteElement::DIV, 3, 3, 3, 4>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
                           FiniteElement::DIV, 3, 4, 4, 5>();
-   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
-                          FiniteElement::DIV, 3, 5, 5, 6>();
 }
 
 void VectorFEMassIntegrator::Init(Coefficient *q, DiagonalMatrixCoefficient *dq,

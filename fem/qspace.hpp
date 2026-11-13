@@ -27,7 +27,11 @@ enum class QSpaceOffsetStorage
 
 /// Abstract base class for QuadratureSpace and FaceQuadratureSpace.
 /** This class represents the storage layout for QuadratureFunction%s, that may
-    be defined either on mesh elements or mesh faces. */
+    be defined either on mesh elements or mesh faces.
+
+    This class represents the layout for a single scalar value at each
+    quadrature point. Use class VectorQuadratureSpace to represent a space with
+    multiple (vector) values at each quadrature point. */
 class QuadratureSpaceBase
 {
 protected:
@@ -158,8 +162,62 @@ public:
    virtual ~QuadratureSpaceBase() { }
 };
 
+/// Vector version of the scalar class QuadratureSpaceBase.
+class VectorQuadratureSpace
+{
+protected:
+   /// Points to an external object provided during construction. Not owned.
+   QuadratureSpaceBase *qspace;
+   /// Vector dimension.
+   int vdim;
+
+public:
+   /** @brief Construct a VectorQuadratureSpace on the given
+       QuadratureSpaceBase, @a qspace_, with the given vector dimension,
+       @a vdim_.
+
+       The VectorQuadratureSpace does not assume ownership of the
+       QuadratureSpaceBase, @a qspace_. */
+   VectorQuadratureSpace(QuadratureSpaceBase &qspace_, int vdim_)
+      : qspace(&qspace_),
+        vdim(vdim_)
+   { }
+
+   /// Copy constructor: default.
+   VectorQuadratureSpace(const VectorQuadratureSpace &) = default;
+
+   /// Copy assignment: default.
+   VectorQuadratureSpace &operator=(const VectorQuadratureSpace &) = default;
+
+   /// Move construction is not allowed.
+   VectorQuadratureSpace(VectorQuadratureSpace &&) = delete;
+
+   /// Move assignment is not allowed.
+   VectorQuadratureSpace &operator=(VectorQuadratureSpace &&) = delete;
+
+   /// Destructor: default.
+   ~VectorQuadratureSpace() = default;
+
+   /// Get the associated scalar QuadratureSpaceBase object.
+   QuadratureSpaceBase *GetSpace() { return qspace; }
+
+   /// Get the associated scalar QuadratureSpaceBase object (const version).
+   const QuadratureSpaceBase *GetSpace() const { return qspace; }
+
+   /// Get the vector dimension.
+   int GetVDim() const { return vdim; }
+
+   /** @brief Get the total size (on this MPI-rank in parallel) of the
+       VectorQuadratureSpace. */
+   int GetVSize() const { return qspace->GetSize() * vdim; }
+};
+
 /// Class representing the storage layout of a QuadratureFunction.
-/** Multiple QuadratureFunction%s can share the same QuadratureSpace. */
+/** Multiple QuadratureFunction%s can share the same QuadratureSpace.
+
+    This class represents the layout for a single scalar value at each
+    quadrature point. Use class VectorQuadratureSpace to represent a space with
+    multiple (vector) values at each quadrature point. */
 class QuadratureSpace : public QuadratureSpaceBase
 {
 protected:
@@ -209,7 +267,11 @@ public:
 
 /// Class representing the storage layout of a FaceQuadratureFunction.
 /** FaceQuadratureSpace is defined on either the interior or boundary faces
-    of a mesh, depending on the provided FaceType. */
+    of a mesh, depending on the provided FaceType.
+
+    This class represents the layout for a single scalar value at each
+    quadrature point. Use class VectorQuadratureSpace to represent a space with
+    multiple (vector) values at each quadrature point. */
 class FaceQuadratureSpace : public QuadratureSpaceBase
 {
    FaceType face_type; ///< Is the space defined on interior or boundary faces?

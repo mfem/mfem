@@ -49,13 +49,9 @@ static int SnapMmaElementsPerDir(int n) noexcept
    return (n + 7) / 8 * 8;
 }
 
-static void CustomArguments(bm::Benchmark *benchmark) noexcept
+static void CustomArguments(bmi::Benchmark *benchmark) noexcept
 {
-#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
-   constexpr int MAX_NDOFS = 16 * 1024 * 1024;
-#else
-   constexpr int MAX_NDOFS = 16 * 1024 * 8;
-#endif
+   constexpr int MAX_NDOFS = 16 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
    const auto orders = { 7, 6, 5, 4, 3, 2, 1 };
 
@@ -792,7 +788,7 @@ static void Benchmark(bm::State& state) noexcept
    GEMForce tgem(T::gem);
 
    T run(state.range(0), state.range(1));
-   while (state.KeepRunning()) { run.benchmark(); }
+   for (auto _ : state) { run.benchmark(); }
    BeginCounters();
    AddCounter(state, "Dofs", bm::Counter(run.dofs));
    AddCounter(state, "MDof/s",
