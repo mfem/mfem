@@ -50,15 +50,12 @@ class DerivativeApply
    const outputs_t outputs;
    const IntegratorContext<entity_t> ctx;
    const Vector &qp_cache;
-   const std::vector<const DofToQuad *> dtqs;
    // inputs/outputs: dtq, idx, B, G, d1d, q1d, vdim
    const FieldMetadata<n_inputs> in_data;
    const FieldMetadata<n_outputs> out_data;
    // Jacobian cache metadata
    const std::array<bool, n_inputs> input_is_dependent;
    const std::array<int, n_inputs> input_size_on_qp;
-   const std::array<int, n_outputs> out_op_dim;
-   const std::array<int, n_outputs> out_offsets;
    const int output_size_on_qp;
    const int trial_vdim;
    const int total_trial_op_dim;
@@ -81,14 +78,11 @@ public:
                    outputs_t outputs,
                    const Vector &qp_cache_in):
       inputs(inputs), outputs(outputs), ctx(ctx), qp_cache(qp_cache_in),
-      dtqs(make_dtqs(ctx)),
-      in_data(MakeFieldMetadata(ctx, dtqs, inputs, ctx.infds)),
-      out_data(MakeFieldMetadata(ctx, dtqs, outputs, ctx.outfds)),
+      in_data(MakeFieldMetadata(ctx, inputs, ctx.infds)),
+      out_data(MakeFieldMetadata(ctx, outputs, ctx.outfds)),
       input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
       input_size_on_qp(
          get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs> {})),
-                           out_op_dim(compute_out_op_dim(outputs)),
-                           out_offsets(compute_out_offsets(out_data.vdim, out_op_dim)),
                            output_size_on_qp(
                               [&]
    {
@@ -142,16 +136,12 @@ public:
                    input_is_dependent,
                    // outputs
                    out_data,
-                   out_op_dim,
-                   out_offsets,
                    trial_vdim,
                    total_trial_op_dim,
                    residual_size_on_qp,
-                   output_size_on_qp,
                    direction_e,
                    ye,
                    // fallback arguments
-                   dim,
                    q1d);
    }
 
@@ -193,25 +183,19 @@ public:
                              const std::array<int, n_inputs> &in_size_on_qp,
                              const std::array<bool, n_inputs> &input_dep,
                              const FieldMetadata<n_outputs> &out,
-                             const std::array<int, n_outputs> &out_op_dim,
-                             const std::array<int, n_outputs> &out_offsets,
                              const int trial_vdim,
                              const int total_trial_op_dim,
                              const int residual_size_on_qp,
-                             const int output_size_on_qp,
                              const Vector &direction_e,
                              std::vector<Vector *> &ye,
                              // fallback arguments
-                             const int dim,
                              const int q1d)
    {
       MFEM_CONTRACT_VAR(input_dep);
       MFEM_CONTRACT_VAR(in_size_on_qp);
-      MFEM_CONTRACT_VAR(out_op_dim);
-      MFEM_CONTRACT_VAR(out_offsets);
       MFEM_CONTRACT_VAR(trial_vdim);
       MFEM_CONTRACT_VAR(total_trial_op_dim);
-      MFEM_VERIFY(dim == GetEntityDimension<entity_t>(ctx.mesh),
+      MFEM_VERIFY(backend_t::DIM == GetEntityDimension<entity_t>(ctx.mesh),
                   "Dimension mismatch");
 
       // Check that the q-function parameter size matches the field size for each input
@@ -239,7 +223,6 @@ public:
 
       const int ne = ctx.nentities;
       const int nq = ctx.ir.GetNPoints();
-      MFEM_CONTRACT_VAR(output_size_on_qp);
 
       // --------------------------------------------------
       // DIRECTION (trial): XE_dir for the dependent inputs

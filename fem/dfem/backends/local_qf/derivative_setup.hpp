@@ -49,15 +49,9 @@ class DerivativeSetup
    const outputs_t outputs;
    const IntegratorContext<entity_t> ctx;
    Vector &qp_cache;
-   const std::vector<const DofToQuad *> dtqs;
    // inputs: dtq, idx, B, G, d1d, q1d, vdim
    const FieldMetadata<n_inputs> in_data;
    // Jacobian cache metadata
-   const std::array<bool, n_inputs> input_is_dependent;
-   const std::array<int, n_inputs> input_size_on_qp;
-   const std::array<int, n_outputs> out_vdim;
-   const std::array<int, n_outputs> out_op_dim;
-   const std::array<int, n_outputs> out_offsets;
    const int output_size_on_qp;
    const int trial_vdim;
    const int total_trial_op_dim;
@@ -75,14 +69,10 @@ public:
                    outputs_t outputs,
                    Vector &qp_cache):
       qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs), ctx(ctx),
-      qp_cache(qp_cache), dtqs(make_dtqs(ctx)),
-      in_data(MakeFieldMetadata(ctx, dtqs, inputs, ctx.infds)),
-      input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
-      input_size_on_qp(
-         get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs> {})),
-                           out_vdim(get_vdim(outputs)), out_op_dim(compute_out_op_dim(outputs)),
-                           out_offsets(compute_out_offsets(out_vdim, out_op_dim)), output_size_on_qp(
-                              [&]
+      qp_cache(qp_cache),
+      in_data(MakeFieldMetadata(ctx, inputs, ctx.infds)),
+      output_size_on_qp(
+         [&]
    {
       int s = 0;
       for_constexpr_host<n_outputs>([&](auto o)
@@ -91,7 +81,10 @@ public:
    }()),
    trial_vdim(compute_trial_vdim(inputs, derivative_id)),
    total_trial_op_dim(compute_total_trial_op_dim(
-                         inputs, input_is_dependent, input_size_on_qp)),
+                         inputs,
+                         compute_input_is_dependent(inputs, derivative_id),
+                         get_input_size_on_qp(
+                            inputs, std::make_index_sequence<n_inputs> {}))),
    residual_size_on_qp(output_size_on_qp * trial_vdim * total_trial_op_dim),
    dim(GetEntityDimension<entity_t>(ctx.mesh)), ne(ctx.nentities),
    nq(ctx.ir.GetNPoints()),
@@ -143,20 +136,13 @@ public:
                    qfunc,
                    // inputs
                    in_data,
-                   input_size_on_qp,
-                   input_is_dependent,
                    // outputs / cache metadata
-                   out_vdim,
-                   out_op_dim,
-                   out_offsets,
                    trial_vdim,
                    total_trial_op_dim,
-                   residual_size_on_qp,
                    // vectors
                    xe,
                    cache_tensor,
                    // fallback arguments
-                   dim,
                    q1d);
    }
 
@@ -210,30 +196,18 @@ public:
    derivative_setup_callback(const IntegratorContext<entity_t> &ctx,
                              qfunc_t &qfunc,
                              const FieldMetadata<n_inputs> &in,
-                             const std::array<int, n_inputs> &in_size_on_qp,
-                             const std::array<bool, n_inputs> &input_dep,
                              // outputs / cache metadata
-                             const std::array<int, n_outputs> &out_vdim,
-                             const std::array<int, n_outputs> &out_op_dim,
-                             const std::array<int, n_outputs> &out_offsets,
                              const int trial_vdim,
                              const int total_trial_op_dim,
-                             const int residual_size_on_qp,
                              const std::vector<Vector *> &xe,
                              DeviceTensor<3, real_t> &cache_tensor,
                              // fallback arguments
-                             const int dim,
                              const int q1d)
    {
-      MFEM_VERIFY(dim == GetEntityDimension<entity_t>(ctx.mesh),
+      MFEM_VERIFY(backend_t::DIM == GetEntityDimension<entity_t>(ctx.mesh),
                   "Dimension mismatch");
       if (ctx.marked_entities.Size() == 0) { return; }
 
-      MFEM_CONTRACT_VAR(in_size_on_qp);
-      MFEM_CONTRACT_VAR(input_dep);
-      MFEM_CONTRACT_VAR(out_vdim);
-      MFEM_CONTRACT_VAR(out_op_dim);
-      MFEM_CONTRACT_VAR(out_offsets);
       MFEM_VERIFY(Layout::StaticCacheColumns() == trial_vdim * total_trial_op_dim,
                   "DerivativeSetup: derivative cache row width mismatch");
 
@@ -241,7 +215,6 @@ public:
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
       static constexpr auto MTPB = backend_t::MAX_THREADS_PER_BLOCK();
 
-      MFEM_CONTRACT_VAR(residual_size_on_qp);
 
       // --------------------------------------------------
       // INPUTS: XE, 3(max DIM) + 1(VDIM) + 1(number of elements)

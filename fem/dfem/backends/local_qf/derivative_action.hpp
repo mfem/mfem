@@ -46,9 +46,7 @@ class DerivativeAction
    /// differentiated against. This is a property of `inputs_t` and
    /// `derivative_id` alone, so it is available at compile time: it decides the
    /// Enzyme activity of every q-function parameter, which loads the tangent
-   /// pass has to do, and how large the shadow register bank has to be. The
-   /// runtime `input_is_dependent` below holds the same values and is kept for
-   /// the host-side sizing checks.
+   /// pass has to do, and how large the shadow register bank has to be.
    static constexpr auto input_activity =
       mfem::future::detail::make_activity_map <
    static_cast<std::size_t>(derivative_id) > (inputs_t {});
@@ -113,14 +111,12 @@ class DerivativeAction
    const inputs_t inputs;
    const outputs_t outputs;
    const IntegratorContext<entity_t> ctx;
-   const std::vector<const DofToQuad *> dtqs;
    // inputs/outputs: dtq, idx, B, G, d1d, q1d, vdim
    const FieldMetadata<n_inputs> in_data;
    const FieldMetadata<n_outputs> out_data;
    // other constants
    const int dim, ne, nq, q1d;
 
-   std::array<bool, n_inputs> input_is_dependent;
    FieldDescriptor direction_fd;
    mutable Vector direction_e;
    mutable RestrictionCache direction_rcache
@@ -137,9 +133,8 @@ public:
                     inputs_t inputs,
                     outputs_t outputs):
       qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs), ctx(ctx),
-      dtqs(make_dtqs(ctx)),
-      in_data(MakeFieldMetadata(ctx, dtqs, inputs, ctx.infds)),
-      out_data(MakeFieldMetadata(ctx, dtqs, outputs, ctx.outfds)),
+      in_data(MakeFieldMetadata(ctx, inputs, ctx.infds)),
+      out_data(MakeFieldMetadata(ctx, outputs, ctx.outfds)),
       // other constants
       dim(GetEntityDimension<entity_t>(ctx.mesh)), ne(ctx.nentities),
       nq(ctx.ir.GetNPoints()),
@@ -149,12 +144,8 @@ public:
                   "LocalQFBackend: the q-function uses more fields than the "
                   "operator has");
 
-      // Determine which inputs are dependent on the derivative direction
-      auto dependency_map = make_dependency_map(inputs);
-      auto it = dependency_map.find(derivative_id);
-      MFEM_ASSERT(it != dependency_map.end(),
+      MFEM_ASSERT(make_dependency_map(inputs).count(derivative_id),
                   "Derivative ID not found in dependency map");
-      input_is_dependent = it->second;
 
       // Find direction field index
       int direction_field_idx = -1;
@@ -193,10 +184,8 @@ public:
                    // input and output vectors
                    xe,
                    ye,
-                   input_is_dependent,
                    direction_e,
                    // fallback arguments
-                   dim,
                    q1d);
    }
 
@@ -239,7 +228,6 @@ public:
       std::array<DeviceTensor<3 + 1 + 1, real_t>, n_outputs> out_YE;
       FieldMetadata<n_inputs> in;
       FieldMetadata<n_outputs> out;
-      std::array<bool, n_inputs> input_dep;
       const int *d_entities;
       int q1d;
    };
@@ -257,8 +245,6 @@ public:
       const auto &out_YE = data.out_YE;
       const auto &in = data.in;
       const auto &out = data.out;
-      const auto &input_dep = data.input_dep;
-      MFEM_CONTRACT_VAR(input_dep);
       const int q1d = data.q1d;
       const int e = data.d_entities[ek];
 
@@ -406,6 +392,7 @@ public:
                for_constexpr<n_inputs>([&](auto ic)
                {
                   constexpr size_t i = ic.value;
+                  constexpr bool active = input_activity[i];
                   auto &qarg = get<i>(qargs);
                   const auto &XE = in_XE[i];
                   const auto &XEd = in_XE_dir[i];
@@ -419,7 +406,7 @@ public:
                      if constexpr (qf_param_uses_dual_v<DT>)
                      {
                         qarg = backend_t::template identity_qp_pull_dual<DT>(
-                           input_dep[i], XE, XEd, qx, qy, qz, e);
+                           active, XE, XEd, qx, qy, qz, e);
                      }
                      else
                      {
@@ -443,7 +430,7 @@ public:
                         qx,
                         qy,
                         qz,
-                        input_dep[i]);
+                        active);
                   }
                   else
                   {
@@ -531,17 +518,12 @@ public:
                               const FieldMetadata<n_outputs> &out,
                               const std::vector<Vector *> &xe,
                               std::vector<Vector *> &ye,
-                              const std::array<bool, n_inputs> &input_dep,
                               const Vector &direction_e,
                               // fallback arguments
-                              const int dim,
                               const int q1d)
    {
-      MFEM_VERIFY(dim == GetEntityDimension<entity_t>(ctx.mesh),
+      MFEM_VERIFY(backend_t::DIM == GetEntityDimension<entity_t>(ctx.mesh),
                   "Dimension mismatch");
-      // Dependency is resolved at compile time through `input_activity`; the
-      // runtime array is only carried for the non-Enzyme dual-number path.
-      MFEM_CONTRACT_VAR(input_dep);
 
       if (ctx.marked_entities.Size() == 0) { return; }
 
@@ -564,7 +546,6 @@ public:
          out_YE,
          in,
          out,
-         input_dep,
          ctx.marked_entities.Read(),
          q1d
       };

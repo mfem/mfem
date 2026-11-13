@@ -70,15 +70,10 @@ class DerivativeApplyTranspose
    const outputs_t outputs;
    const IntegratorContext<entity_t> ctx;
    const Vector &qp_cache; // Jacobian cache from DerivativeSetup
-   const std::vector<const DofToQuad *> dtqs;
    // inputs/outputs: dtq, idx, B, G, d1d, q1d, vdim
    const FieldMetadata<n_inputs> in_data; // trial / derivative fields
    const FieldMetadata<n_outputs> out_data; // test / cotangent fields
    // Jacobian cache metadata
-   const std::array<bool, n_inputs> input_is_dependent;
-   const std::array<int, n_inputs> input_size_on_qp;
-   const std::array<int, n_outputs> out_op_dim;
-   const std::array<int, n_outputs> out_offsets;
    const int output_size_on_qp;
    const int trial_vdim;
    const int total_trial_op_dim;
@@ -102,16 +97,10 @@ public:
                             outputs_t outputs,
                             const Vector &qp_cache):
       inputs(inputs), outputs(outputs), ctx(ctx), qp_cache(qp_cache),
-      dtqs(make_dtqs(ctx)),
-      in_data(MakeFieldMetadata(ctx, dtqs, inputs, ctx.infds)),
-      out_data(MakeFieldMetadata(ctx, dtqs, outputs, ctx.outfds)),
-      input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
-      input_size_on_qp(
-         get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs> {})),
-                           out_op_dim(compute_out_op_dim(outputs)),
-                           out_offsets(compute_out_offsets(out_data.vdim, out_op_dim)),
-                           output_size_on_qp(
-                              [&]
+      in_data(MakeFieldMetadata(ctx, inputs, ctx.infds)),
+      out_data(MakeFieldMetadata(ctx, outputs, ctx.outfds)),
+      output_size_on_qp(
+         [&]
    {
       int s = 0;
       for_constexpr_host<n_outputs>([&](auto o)
@@ -120,7 +109,10 @@ public:
    }()),
    trial_vdim(compute_trial_vdim(inputs, derivative_id)),
    total_trial_op_dim(compute_total_trial_op_dim(
-                         inputs, input_is_dependent, input_size_on_qp)),
+                         inputs,
+                         compute_input_is_dependent(inputs, derivative_id),
+                         get_input_size_on_qp(
+                            inputs, std::make_index_sequence<n_inputs> {}))),
    residual_size_on_qp(output_size_on_qp * trial_vdim * total_trial_op_dim),
    dim(GetEntityDimension<entity_t>(ctx.mesh)), ne(ctx.nentities),
    nq(ctx.ir.GetNPoints()),
@@ -161,19 +153,13 @@ public:
                    dir_out_e,
                    // inputs (integration target metadata)
                    in_data,
-                   input_size_on_qp,
-                   input_is_dependent,
                    // outputs (direction interpolation metadata)
                    out_data,
-                   out_op_dim,
-                   out_offsets,
                    trial_vdim,
                    total_trial_op_dim,
                    residual_size_on_qp,
-                   output_size_on_qp,
                    ye,
                    // fallback arguments
-                   dim,
                    q1d);
    }
 
@@ -234,29 +220,19 @@ public:
       const Vector &dir_e, // restricted, concatenated output cotangents
       // inputs (integration target metadata)
       const FieldMetadata<n_inputs> &in,
-      const std::array<int, n_inputs> &in_size_on_qp,
-      const std::array<bool, n_inputs> &input_dep,
       // outputs (direction interpolation metadata)
       const FieldMetadata<n_outputs> &out,
-      const std::array<int, n_outputs> &out_op_dim,
-      const std::array<int, n_outputs> &out_offsets,
       const int trial_vdim,
       const int total_trial_op_dim,
       const int residual_size_on_qp,
-      const int output_size_on_qp,
       std::vector<Vector *> &ye,
       // fallback arguments
-      const int dim,
       const int q1d)
    {
-      MFEM_VERIFY(dim == GetEntityDimension<entity_t>(ctx.mesh),
+      MFEM_VERIFY(backend_t::DIM == GetEntityDimension<entity_t>(ctx.mesh),
                   "Dimension mismatch");
       if (ctx.marked_entities.Size() == 0) { return; }
 
-      MFEM_CONTRACT_VAR(in_size_on_qp);
-      MFEM_CONTRACT_VAR(input_dep);
-      MFEM_CONTRACT_VAR(out_op_dim);
-      MFEM_CONTRACT_VAR(out_offsets);
       MFEM_VERIFY(Layout::StaticCacheColumns() == trial_vdim * total_trial_op_dim,
                   "DerivativeApplyTranspose: derivative cache row width mismatch");
 
@@ -266,7 +242,6 @@ public:
 
       const int ne = ctx.nentities;
       const int nq = ctx.ir.GetNPoints();
-      MFEM_CONTRACT_VAR(output_size_on_qp);
 
       // --------------------------------------------------
       // DIRECTION (test cotangent): out_XE_dir, concatenated per output
@@ -274,8 +249,11 @@ public:
       // --------------------------------------------------
       const auto out_XE_dir = CotangentViews<DIM, outputs_t>(ctx, dir_e, out);
       constexpr size_t t = deriv_input_idx_ct;
-      auto ye_XE = ReshapeE<DIM, tuple_element_t<t, inputs_t>>(
-                      ye[in.idx[t]]->ReadWrite(), in, t, ne);
+      using trial_fop_t = tuple_element_t<t, inputs_t>;
+      const int ye_size = ESize<DIM, trial_fop_t>(in, t, ne);
+      Vector &trial_e = *ye[in.idx[t]];
+      MFEM_VERIFY(trial_e.Size() == ye_size, "Size mismatch");
+      auto ye_XE = ReshapeE<DIM, trial_fop_t>(trial_e.ReadWrite(), in, t, ne);
 
       auto cache_tensor = DeviceTensor<3, const real_t>(
                              qp_cache.Read(), nq, residual_size_on_qp, ne);

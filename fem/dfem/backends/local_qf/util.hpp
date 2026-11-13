@@ -965,10 +965,10 @@ struct FieldMetadata
 /// like @a fds (ctx.infds or ctx.outfds). Sets the dimensions of @a fops.
 template <typename entity_t, typename fops_t>
 FieldMetadata<tuple_size<fops_t>::value>
-MakeFieldMetadata(const IntegratorContext<entity_t> &ctx,
-                  const std::vector<const DofToQuad *> &dtqs, fops_t &fops,
+MakeFieldMetadata(const IntegratorContext<entity_t> &ctx, fops_t &fops,
                   const std::vector<FieldDescriptor> &fds)
 {
+   const auto dtqs = make_dtqs(ctx);
    const auto dtq = create_dtq_maps<entity_t>(
                        fops, dtqs, create_union_field_map_for_dtq(ctx, fops),
                        ctx.unionfds, ctx.ir);
@@ -1510,6 +1510,7 @@ CotangentViews(const IntegratorContext<entity_t> &ctx, const Vector &dir,
       XE[o] = ReshapeE<DIM, FOP>(d_dir + offset, out, o, ne);
       offset += size;
    });
+   MFEM_VERIFY(offset == dir.Size(), "cotangent E-vector size mismatch");
    return XE;
 }
 

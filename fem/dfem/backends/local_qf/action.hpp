@@ -166,7 +166,6 @@ class Action
    const inputs_t inputs;
    const outputs_t outputs;
    const IntegratorContext<entity_t> ctx;
-   const std::vector<const DofToQuad *> dtqs;
    // inputs/outputs: dtq, idx, B, G, d1d, q1d, vdim
    const FieldMetadata<n_inputs> in_data;
    const FieldMetadata<n_outputs> out_data;
@@ -182,9 +181,8 @@ public:
           inputs_t inputs,
           outputs_t outputs):
       qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs), ctx(ctx),
-      dtqs(make_dtqs(ctx)),
-      in_data(MakeFieldMetadata(ctx, dtqs, inputs, ctx.infds)),
-      out_data(MakeFieldMetadata(ctx, dtqs, outputs, ctx.outfds)),
+      in_data(MakeFieldMetadata(ctx, inputs, ctx.infds)),
+      out_data(MakeFieldMetadata(ctx, outputs, ctx.outfds)),
       // other constants
       dim(GetEntityDimension<entity_t>(ctx.mesh)), ne(ctx.nentities),
       nq(ctx.ir.GetNPoints()),
@@ -217,7 +215,6 @@ public:
                    xe,
                    ye,
                    // fallback arguments
-                   dim,
                    q1d);
    }
 
@@ -248,12 +245,10 @@ public:
                    const std::vector<Vector *> &xe,
                    std::vector<Vector *> &ye,
                    // fallback arguments
-                   const int dim,
                    const int q1d)
    {
       if (ctx.marked_entities.Size() == 0) { return; }
-      MFEM_CONTRACT_VAR(dim);
-      MFEM_ASSERT(dim == GetEntityDimension<entity_t>(ctx.mesh),
+      MFEM_ASSERT(backend_t::DIM == GetEntityDimension<entity_t>(ctx.mesh),
                   "Dimension mismatch");
 
       static constexpr int DIM = backend_t::DIM;
