@@ -42,6 +42,10 @@ Linear and nonlinear solvers
   previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
   in a NewtonSolver.
 
+- Sped up DSmoother by caching the positions of the diagonal entries instead
+  of searching each row on every application. The positions are checked on
+  every use. Added an overload of SparseMatrix::DiagScale that takes the cache.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new example for solving the biharmonic equation (examples/ex42) based
