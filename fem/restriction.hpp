@@ -292,6 +292,13 @@ public:
 ///
 /// Objects of this type are typically created and owned by FiniteElementSpace
 /// objects, see FiniteElementSpace::GetFaceRestriction().
+///
+/// Face DOF ordering, as requested with GetEVectorOrdering(fes):
+/// - tensor (quad/hex): LEXICOGRAPHIC, element 1's lexicographic face map;
+/// - simplex (tri/tet): NATIVE, i.e. FiniteElementSpace::GetFaceDofs() order,
+///   which is the native order of GetFaceElement() on the face's own vertex
+///   order (the one used by Mesh::GetFaceTransformation()). LEXICOGRAPHIC is
+///   rejected on simplices.
 class ConformingFaceRestriction : public FaceRestriction
 {
 protected:
@@ -307,6 +314,8 @@ protected:
    Array<int> gather_offsets; // offsets for the gathering indices of each dof
    Array<int> gather_indices; // gathering indices for each dof
    Array<int> vol_dof_map; // mapping from lexicographic to native ordering
+   /// Simplex spaces: face DOFs in NATIVE order, taken from GetFaceDofs().
+   bool native_faces = false;
 
    /** @brief Construct a ConformingFaceRestriction.
 
@@ -438,6 +447,14 @@ protected:
    void SetFaceDofsGatherIndices(const Mesh::FaceInformation &face,
                                  const int face_index,
                                  const ElementDofOrdering f_ordering);
+
+   /** @brief NATIVE (simplex) variants of SetFaceDofsScatterIndices() and
+       SetFaceDofsGatherIndices(), for the mesh face @a face.
+
+       The face E-vector block of @a face_index holds the DOFs returned by
+       FiniteElementSpace::GetFaceDofs(@a face), in that order. */
+   void SetNativeFaceDofsScatterIndices(const int face, const int face_index);
+   void SetNativeFaceDofsGatherIndices(const int face, const int face_index);
 
 public:
    // This method needs to be public due to 'nvcc' restriction.

@@ -253,8 +253,11 @@ public:
    /// @brief Returns the permuted index of the @a iq quadrature point in entity
    /// @a idx.
    ///
-   /// For tensor-product faces, returns the lexicographic index of the
-   /// quadrature point, oriented relative to "element 1".
+   /// For tensor-product faces of tensor-product elements, returns the
+   /// lexicographic index of the quadrature point, oriented relative to
+   /// "element 1". Faces of simplices (including the segments of triangles)
+   /// keep the native order of the face IntegrationRule, matching their
+   /// NATIVE face restrictions and FaceGeometricFactors.
    int GetPermutedIndex(int idx, int iq) const override;
 
    /// @brief Get the face index (in the standard Mesh numbering) associated

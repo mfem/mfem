@@ -15518,11 +15518,14 @@ FaceGeometricFactors::FaceGeometricFactors(const Mesh *mesh,
    const int NF   = fespace->GetNFbyType(type);
    const int NQ   = ir.GetNPoints();
 
+   // Simplex node spaces have NATIVE face restrictions only; the node DOF
+   // order is internal here: the factors follow the IntegrationRule order.
+   const ElementDofOrdering ordering = UsesTensorBasis(*fespace) ?
+                                       ElementDofOrdering::LEXICOGRAPHIC :
+                                       ElementDofOrdering::NATIVE;
    const FaceRestriction *face_restr = fespace->GetFaceRestriction(
-                                          ElementDofOrdering::LEXICOGRAPHIC,
-                                          type,
+                                          ordering, type,
                                           L2FaceValues::SingleValued);
-
 
    MemoryType my_d_mt = (d_mt != MemoryType::DEFAULT) ? d_mt :
                         Device::GetDeviceMemoryType();

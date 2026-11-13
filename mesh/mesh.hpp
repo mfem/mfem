@@ -3173,7 +3173,14 @@ public:
 /** @brief Structure for storing face geometric factors: coordinates, Jacobians,
     determinants of the Jacobians, and normal vectors. */
 /** Typically objects of this type are constructed and owned by objects of class
-    Mesh. See Mesh::GetFaceGeometricFactors(). */
+    Mesh. See Mesh::GetFaceGeometricFactors().
+
+    Faces are numbered as in FiniteElementSpace::GetFaceRestriction() for the
+    same FaceType, and normals point out of element 1 (out of the domain on
+    boundary faces). On tensor meshes the quadrature points are lexicographic
+    in element 1's view of the face; on simplex meshes they follow the native
+    order of the IntegrationRule on the face's own reference frame, the frame
+    of Mesh::GetFaceTransformation() and FaceQuadratureSpace. */
 class FaceGeometricFactors
 {
 public:

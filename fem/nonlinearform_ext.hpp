@@ -98,6 +98,15 @@ protected:
 public:
    PANonlinearFormExtension(const NonlinearForm *nlf);
 
+   /** @brief The boundary-face restriction used for boundary integrators on
+       @a fes: ordering GetEVectorOrdering(fes), FaceType::Boundary.
+
+       This is the object cached by FiniteElementSpace::GetFaceRestriction(),
+       so a boundary integrator may query it (e.g. its Height()) in
+       AssemblePA() and get the same operator as the extension. */
+   static const FaceRestriction &GetBdrFaceRestriction(
+      const FiniteElementSpace &fes);
+
    /// Prepare the PANonlinearFormExtension for evaluation with Mult().
    /** This method must be called before the first call to Mult(), when the mesh
        coordinates are changed, or some coefficients in the integrators need to

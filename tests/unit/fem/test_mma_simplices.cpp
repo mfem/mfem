@@ -15,6 +15,7 @@
 #endif
 
 #include <limits>
+#include <type_traits>
 #include <cmath>
 
 #include "unit_tests.hpp"
@@ -1671,6 +1672,168 @@ TEST_CASE("NL Convection PA Gradient Simplices MMA",
       test_nl_convection_pa_grad_simplices(
          MFEM_GENERATE_RANGES(meshs, extra), p);
    }
+}
+
+// Simplex boundary-face PA: the NATIVE face restriction, the simplex face
+// geometric factors, device boundary linear forms (counterparts of the hex
+// "Linear Form Extension" boundary tests) and PA boundary nonlinear
+// integrators. P1 face DOFs are vertex DOFs in any order; P2+ catches a face
+// DOF or face point ordering mismatch.
+
+/// Comparison tolerance for these tests, in double or single precision.
+constexpr double BdrTol()
+{
+   return std::is_same<real_t, float>::value ? 1e-4 : 1e-10;
+}
+
+void test_simplex_bdr_face_restriction(const char *filename, int p, int vdim,
+                                       Ordering::Type ordering)
+{
+   CAPTURE(filename, p, vdim, ordering);
+   Mesh mesh(filename);
+   const int dim = mesh.Dimension();
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace fes(&mesh, &fec, vdim, ordering);
+   REQUIRE(UsesSimplexMMA(fes));
+   REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::NATIVE);
+
+   // The extension, the linear forms and the integrators share one object.
+   const FaceRestriction &R =
+      PANonlinearFormExtension::GetBdrFaceRestriction(fes);
+   REQUIRE(&R == fes.GetFaceRestriction(ElementDofOrdering::NATIVE,
+                                        FaceType::Boundary,
+                                        L2FaceValues::SingleValued));
+   const Array<int> &faces = mesh.GetFaceIndices(FaceType::Boundary);
+   const int nbf = faces.Size(), nd = fes.GetFaceElement(0)->GetDof();
+   REQUIRE(nbf == fes.GetNFbyType(FaceType::Boundary));
+   REQUIRE(R.Height() == nd * vdim * nbf);
+   REQUIRE(R.Width() == fes.GetVSize());
+
+   // Contract: block f is x[GetFaceVDofs(faces[f])], layout (nd, vdim, nbf).
+   GridFunction x(&fes);
+   x.Randomize(0x51);
+   Vector xf(R.Height());
+   R.Mult(x, xf);
+   const real_t *h_xf = xf.HostRead();
+   const real_t *h_x = x.HostRead();
+   Array<int> vdofs;
+   for (int f = 0; f < nbf; ++f)
+   {
+      fes.GetFaceVDofs(faces[f], vdofs);
+      REQUIRE(vdofs.Size() == nd * vdim);
+      for (int i = 0; i < nd * vdim; ++i)
+      {
+         REQUIRE(h_xf[i + nd * vdim * f] == h_x[vdofs[i]]);
+      }
+   }
+
+   // Adjoint: (R x, y_f) == (x, R^T y_f).
+   Vector yf(R.Height()), y(fes.GetVSize());
+   yf.Randomize(0x52);
+   y = 0.0;
+   R.AddMultTranspose(yf, y);
+   REQUIRE((xf * yf) == MFEM_Approx(x * y, BdrTol(), BdrTol()));
+}
+
+void test_simplex_bdr_face_geometry(const char *filename, bool curved)
+{
+   CAPTURE(filename, curved);
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   const int dim = mesh.Dimension();
+   const IntegrationRule &ir =
+      IntRules.Get(mesh.GetTypicalFaceGeometry(), 8);
+   const int nq = ir.GetNPoints();
+   constexpr int flags = FaceGeometricFactors::COORDINATES |
+                         FaceGeometricFactors::JACOBIANS |
+                         FaceGeometricFactors::DETERMINANTS |
+                         FaceGeometricFactors::NORMALS;
+   const FaceGeometricFactors *geom =
+      mesh.GetFaceGeometricFactors(ir, flags, FaceType::Boundary);
+   const Array<int> &faces = mesh.GetFaceIndices(FaceType::Boundary);
+   const int nbf = faces.Size();
+   const auto X = Reshape(geom->X.HostRead(), nq, dim, nbf);
+   const auto J = Reshape(geom->J.HostRead(), nq, dim, dim - 1, nbf);
+   const auto detJ = Reshape(geom->detJ.HostRead(), nq, nbf);
+   const auto N = Reshape(geom->normal.HostRead(), nq, dim, nbf);
+
+   // Pointwise: the face's own transformation, in the IntegrationRule order.
+   Vector x(dim), nor(dim), xc(dim), flux(dim);
+   real_t x_dot_n = 0.0;
+   flux = 0.0;
+   for (int f = 0; f < nbf; ++f)
+   {
+      const auto info = mesh.GetFaceInformation(faces[f]);
+      ElementTransformation &T1 =
+         *mesh.GetElementTransformation(info.element[0].index);
+      T1.Transform(Geometries.GetCenter(T1.GetGeometryType()), xc);
+      ElementTransformation &T = *mesh.GetFaceTransformation(faces[f]);
+      for (int q = 0; q < nq; ++q)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         T.SetIntPoint(&ip);
+         T.Transform(ip, x);
+         CalcOrtho(T.Jacobian(), nor);
+         const real_t det = nor.Norml2();
+         REQUIRE(detJ(q, f) == MFEM_Approx(det, BdrTol(), BdrTol()));
+         real_t out = 0.0;
+         for (int c = 0; c < dim; ++c)
+         {
+            REQUIRE(X(q, c, f) == MFEM_Approx(x(c), BdrTol(), BdrTol()));
+            const real_t nc = nor(c) / det;
+            REQUIRE(N(q, c, f) == MFEM_Approx(nc, BdrTol(), BdrTol()));
+            for (int k = 0; k < dim - 1; ++k)
+            {
+               const real_t jck = T.Jacobian()(c, k);
+               REQUIRE(J(q, c, k, f) == MFEM_Approx(jck, BdrTol(), BdrTol()));
+            }
+            out += (x(c) - xc(c)) * N(q, c, f);
+            x_dot_n += ip.weight * detJ(q, f) * x(c) * N(q, c, f);
+            flux(c) += ip.weight * detJ(q, f) * N(q, c, f);
+         }
+         REQUIRE(out > 0.0); // points out of element 1, i.e. of the domain
+      }
+   }
+
+   // Divergence theorem: int x.n = dim |Omega| and int n = 0. The volume
+   // uses a rule exact for the curved (P2) Jacobian determinants.
+   real_t volume = 0.0;
+   const IntegrationRule &vir =
+      IntRules.Get(mesh.GetTypicalElementGeometry(), 8);
+   for (int e = 0; e < mesh.GetNE(); ++e)
+   {
+      ElementTransformation &Te = *mesh.GetElementTransformation(e);
+      for (const IntegrationPoint &ip : vir)
+      {
+         Te.SetIntPoint(&ip);
+         volume += ip.weight * Te.Weight();
+      }
+   }
+   REQUIRE(x_dot_n == MFEM_Approx(dim * volume, BdrTol(), BdrTol()));
+   REQUIRE(flux.Normlinf() == MFEM_Approx(0.0, BdrTol(), BdrTol()));
+}
+
+TEST_CASE("Simplex NATIVE boundary face restriction",
+          "[MMA][FaceRestriction][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3, 4);
+   const auto vdim = GENERATE(1, 3);
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   const auto mesh = GENERATE("../../data/inline-tri.mesh",
+                              "../../data/beam-tri.mesh",
+                              "../../data/inline-tet.mesh",
+                              "../../data/beam-tet.mesh");
+   test_simplex_bdr_face_restriction(mesh, p, vdim, ordering);
+}
+
+TEST_CASE("Simplex boundary face geometric factors",
+          "[MMA][FaceRestriction][GPU]")
+{
+   const auto curved = GENERATE(false, true);
+   const auto mesh = GENERATE("../../data/inline-tri.mesh",
+                              "../../data/beam-tri.mesh",
+                              "../../data/inline-tet.mesh",
+                              "../../data/beam-tet.mesh");
+   test_simplex_bdr_face_geometry(mesh, curved);
 }
 
 #undef MMA_ROUND

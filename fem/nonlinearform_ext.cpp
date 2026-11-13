@@ -38,6 +38,16 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
    ye.UseDevice(true);
 }
 
+const FaceRestriction &PANonlinearFormExtension::GetBdrFaceRestriction(
+   const FiniteElementSpace &fes)
+{
+   // Same ordering as the element E-vectors, so that a boundary integrator
+   // builds its face basis with the convention of the domain integrators.
+   return *fes.GetFaceRestriction(GetEVectorOrdering(fes),
+                                  FaceType::Boundary,
+                                  L2FaceValues::SingleValued);
+}
+
 real_t PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
 {
    real_t energy = 0.0;
