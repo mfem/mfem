@@ -49,13 +49,9 @@ static int SnapMmaElementsPerDir(int n) noexcept
    return (n + 7) / 8 * 8;
 }
 
-static void CustomArguments(bm::Benchmark *benchmark) noexcept
+static void CustomArguments(bmi::Benchmark *benchmark) noexcept
 {
-#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
-   constexpr int MAX_NDOFS = 16 * 1024 * 1024;
-#else
-   constexpr int MAX_NDOFS = 16 * 1024 * 8;
-#endif
+   constexpr int MAX_NDOFS = 16 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
    const auto orders = { 7, 6, 5, 4, 3, 2, 1 };
 
@@ -179,29 +175,29 @@ static void AddKernelSpecializations()
    // BP8 ND mass: closed D1D=p+1, Q1D=p+2. BP10 RT mass: D1D=Q1D=p+2.
    using VFM = VectorFEMassIntegrator;
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 2, 2, 2, 3>();
+   FiniteElement::CURL, FiniteElement::CURL, 2, 2, 2, 3>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 2, 3, 3, 4>();
+   FiniteElement::CURL, FiniteElement::CURL, 2, 3, 3, 4>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 2, 4, 4, 5>();
+   FiniteElement::CURL, FiniteElement::CURL, 2, 4, 4, 5>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 2, 5, 5, 6>();
+   FiniteElement::CURL, FiniteElement::CURL, 2, 5, 5, 6>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 2, 6, 6, 7>();
+   FiniteElement::CURL, FiniteElement::CURL, 2, 6, 6, 7>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 2, 7, 7, 8>();
+   FiniteElement::CURL, FiniteElement::CURL, 2, 7, 7, 8>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 3, 2, 2, 3>();
+   FiniteElement::CURL, FiniteElement::CURL, 3, 2, 2, 3>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 3, 3, 3, 4>();
+   FiniteElement::CURL, FiniteElement::CURL, 3, 3, 3, 4>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 3, 4, 4, 5>();
+   FiniteElement::CURL, FiniteElement::CURL, 3, 4, 4, 5>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 3, 5, 5, 6>();
+   FiniteElement::CURL, FiniteElement::CURL, 3, 5, 5, 6>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 3, 6, 6, 7>();
+   FiniteElement::CURL, FiniteElement::CURL, 3, 6, 6, 7>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 3, 7, 7, 8>();
+   FiniteElement::CURL, FiniteElement::CURL, 3, 7, 7, 8>();
    VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 2, 3, 3, 3>();
    VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 2, 4, 4, 4>();
    VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 2, 5, 5, 5>();
@@ -410,9 +406,9 @@ struct BakeOff
          ElementTransformation &T0 = *mesh.GetTypicalElementTransformation();
          const IntegrationRule &fa_ir = mass
                                         ? MassIntegrator::GetRule(el, el,
-                                              T0, false)
+                                                                  T0, false)
                                         : DiffusionIntegrator::GetRule(
-                                              el, el, false);
+                                           el, el, false);
          const int fa_nq = fa_ir.GetNPoints();
          MFEM_VERIFY(qnd == fa_nq, "simplex MMA qnd must match FA GetRule nq");
       }
@@ -590,7 +586,7 @@ struct BakeOffDeRham
    static constexpr bool is_mass = (BFI == 8 || BFI == 10);
 
    using FecType = std::conditional_t<is_hcurl, ND_FECollection,
-                                      RT_FECollection>;
+         RT_FECollection>;
    using IntegratorType = std::conditional_t<
                           BFI == 7, CurlCurlIntegrator,
                           std::conditional_t<BFI == 9, DivDivIntegrator,
@@ -792,7 +788,7 @@ static void Benchmark(bm::State& state) noexcept
    GEMForce tgem(T::gem);
 
    T run(state.range(0), state.range(1));
-   while (state.KeepRunning()) { run.benchmark(); }
+   for (auto _ : state) { run.benchmark(); }
    BeginCounters();
    AddCounter(state, "Dofs", bm::Counter(run.dofs));
    AddCounter(state, "MDof/s",

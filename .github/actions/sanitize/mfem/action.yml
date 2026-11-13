@@ -48,7 +48,7 @@ runs:
       run: echo CXXFLAGS=${{env.CXXFLAGS}} ${{env.MSAN_CXXFLAGS}} >> $GITHUB_ENV
       shell: bash
 
-    - uses: mfem/github-actions/build-mfem@v2.8
+    - uses: mfem/github-actions/build-mfem@v2.9
       if: ${{steps.debug.outputs.cache-hit != 'true'}}
       env:
         CXXFLAGS: ${{env.CXXFLAGS}}

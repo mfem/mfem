@@ -37,6 +37,14 @@ namespace mfem
 
 constexpr std::size_t KB = (1 << 10);
 
+/// True when MFEM is built with a CUDA or HIP backend. This is a build-time
+/// flag only; it does not reflect the device configured at runtime.
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
+constexpr bool mfem_use_gpu = true;
+#else
+constexpr bool mfem_use_gpu = false;
+#endif
+
 /// Parse a boolean from --benchmark_context=key=value (true/false/1/0/yes/no).
 inline bool ParseBoolContext(const std::string &value)
 {

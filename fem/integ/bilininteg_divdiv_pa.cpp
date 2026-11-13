@@ -19,6 +19,43 @@
 namespace mfem
 {
 
+DivDivIntegrator::DivDivIntegrator() : Q(nullptr)
+{
+   static Kernels kernels;
+}
+
+DivDivIntegrator::DivDivIntegrator(Coefficient &q, const IntegrationRule *ir)
+   : BilinearFormIntegrator(ir), Q(&q)
+{
+   static Kernels kernels;
+}
+
+/// \cond DO_NOT_DOCUMENT
+
+DivDivIntegrator::Kernels::Kernels()
+{
+   // 2D: Q1D = D1D
+   // RT0 (D1D = Q1D = 2) is not specialized because the fallback is faster
+   DivDivIntegrator::AddSpecialization<2, 3, 3>();
+   DivDivIntegrator::AddSpecialization<2, 4, 4>();
+   DivDivIntegrator::AddSpecialization<2, 5, 5>();
+   // 3D: Q1D = D1D + 1
+   DivDivIntegrator::AddSpecialization<3, 2, 3>();
+   DivDivIntegrator::AddSpecialization<3, 3, 4>();
+   DivDivIntegrator::AddSpecialization<3, 4, 5>();
+   DivDivIntegrator::AddSpecialization<3, 5, 6>();
+}
+
+DivDivIntegrator::ApplyKernelType
+DivDivIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
+{
+   if (DIM == 2) { return internal::PADivDivApply2D; }
+   else if (DIM == 3) { return internal::PADivDivApply3D; }
+   else { MFEM_ABORT("Unsupported dimension!"); }
+}
+
+/// \endcond DO_NOT_DOCUMENT
+
 void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
    use_tensors_mma_sum = false;
@@ -146,15 +183,14 @@ void DivDivIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
       return;
    }
-   if (dim == 3)
+   if (dim == 3 || dim == 2)
    {
-      internal::PADivDivApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
-                                mapsO->Bt, mapsC->Gt, pa_data, x, y);
-   }
-   else if (dim == 2)
-   {
-      internal::PADivDivApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
-                                mapsO->Bt, mapsC->Gt, pa_data, x, y);
+      // internal::PADivDivApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
+      //                           mapsO->Bt, mapsC->Gt, pa_data, x, y);
+      // internal::PADivDivApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
+      //                           mapsO->Bt, mapsC->Gt, pa_data, x, y);
+      ApplyPAKernels::Run(dim, dofs1D, quad1D, dofs1D, quad1D, ne, mapsO->B,
+                          mapsC->G, mapsO->Bt, mapsC->Gt, pa_data, x, y);
    }
    else
    {

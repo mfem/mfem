@@ -779,6 +779,19 @@ inline void swap(Array<T> &a, Array<T> &b)
    a.Swap(b);
 }
 
+/** @brief Drop the entries that are >= @a N from @a v, then sort and unique
+    what is left, so that @a v holds the distinct local values it started with.
+    Used by the mesh classes to clean up vertex, edge and face lists after a
+    parallel exchange. */
+inline void FilterSortUnique(Array<int> &v, int N)
+{
+   // The O(N) filter runs before the O(N log N) sort.
+   auto last = std::remove_if(v.begin(), v.end(), [N](int i) { return i >= N; });
+   std::sort(v.begin(), last);
+   const int n = static_cast<int>(std::unique(v.begin(), last) - v.begin());
+   v.SetSize(n);
+}
+
 template <class T>
 inline Array<T>::Array(const Array &src)
    : size(src.Size())

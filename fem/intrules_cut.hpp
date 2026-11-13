@@ -1416,6 +1416,7 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
          shape(275,2) = -2.995357736356377*xi + 26.958219627207395*pow(xi,3.)
                         - 59.30808317985627*pow(xi,5.)
                         + 36.714527682768164*pow(xi,7.);
+         [[fallthrough]];
       case 6:
          shape(133,0) = -0.3983608994994363 + 8.365578889488162*pow(nu,2.)
                         - 25.096736668464487*pow(nu,4.)
@@ -1827,6 +1828,7 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
          shape(195,2) = -0.3983608994994363 + 8.365578889488162*pow(xi,2.)
                         - 25.096736668464487*pow(xi,4.)
                         + 18.404273556873957*pow(xi,6.);
+         [[fallthrough]];
       case 5:
          shape( 85,0) = 2.1986323874172324*nu - 10.260284474613751*pow(nu,3.)
                         + 9.234256027152377*pow(nu,5.);
@@ -2066,6 +2068,7 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
                         + 9.234256027152377*pow(xi,5.);
          shape(132,2) = 2.1986323874172324*xi - 10.260284474613751*pow(xi,3.)
                         + 9.234256027152377*pow(xi,5.);
+         [[fallthrough]];
       case 4:
          shape( 50,0) = 0.397747564417433 - 3.97747564417433*pow(nu,2.)
                         + 4.640388251536718*pow(nu,4.);
@@ -2189,6 +2192,7 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
                         + 4.640388251536718*pow(xi,4.);
          shape( 84,2) = 0.397747564417433 - 3.97747564417433*pow(xi,2.)
                         + 4.640388251536718*pow(xi,4.);
+         [[fallthrough]];
       case 3:
          shape( 26,0) = -1.403121520040228*nu + 2.3385358667337135*pow(nu,3.);
          shape( 27,1) = -1.403121520040228*nu + 2.3385358667337135*pow(nu,3.);
@@ -2251,6 +2255,7 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
                         - 7.0156076002011405*pow(xi,2.)*nu;
          shape( 48,1) = -1.403121520040228*xi + 2.3385358667337135*pow(xi,3.);
          shape( 49,2) = -1.403121520040228*xi + 2.3385358667337135*pow(xi,3.);
+         [[fallthrough]];
       case 2:
          shape( 11,0) = -0.39528470752104744 + 1.1858541225631423*pow(nu,2.);
          shape( 12,1) = -0.39528470752104744 + 1.1858541225631423*pow(nu,2.);
@@ -2273,6 +2278,7 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
          shape( 23,2) = -2.3717082451262845*xi*nu;
          shape( 24,1) = -0.39528470752104744 + 1.1858541225631423*pow(xi,2.);
          shape( 25,2) = -0.39528470752104744 + 1.1858541225631423*pow(xi,2.);
+         [[fallthrough]];
       case 1:
          shape(  3,0) = 0.6123724356957945*nu;
          shape(  4,1) = 0.6123724356957945*nu;
@@ -2284,6 +2290,7 @@ inline void GetDivFree3DBasis(const Vector& X, DenseMatrix& shape, int Order)
          shape(  8,2) = -0.6123724356957945*nu;
          shape(  9,1) = 0.6123724356957945*xi;
          shape( 10,2) = 0.6123724356957945*xi;
+         [[fallthrough]];
       case 0:
          shape(  0,0) = 0.3535533905932738;
          shape(  1,1) = 0.3535533905932738;
