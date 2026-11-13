@@ -38,6 +38,9 @@ Meshing improvements
   refined on one side only: on parallel meshes, the edges on the unrefined side
   of essential boundaries were not essential, and on serial meshes, those of
   all interior boundaries were.
+- NURBS mesh HDF5 file I/O is now supported, by using mesh-explorer (option 'S')
+  or Mesh::SaveNURBSHDF5 for writing and the usual Mesh constructors or loaders
+  for reading.
 
 Linear and nonlinear solvers
 ----------------------------
@@ -252,6 +255,10 @@ Linear and nonlinear solvers
 - Added new class MemoryView that enables the viewing of Vector objects as
   Array<real_t> objects, and vice versa. Currently, viewing methods are
   provided only for the first direction, see Vector::GetArrayView().
+
+- Added interface to MUMPS direct solver for complex-valued problems.
+  Its usage is demonstrated in ex25p. See http://mumps.enseeiht.fr/ for more details.
+  Supported versions >= 5.1.1.
 
 New and updated examples and miniapps
 -------------------------------------
