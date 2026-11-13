@@ -9,12 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "../../general/forall.hpp"
 #include "../bilininteg.hpp"
 #include "bilininteg_elasticity_kernels.hpp"
 
 namespace mfem
 {
+
 void ElasticityComponentIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                                Vector &emat,
                                                const bool add)
@@ -22,7 +22,7 @@ void ElasticityComponentIntegrator::AssembleEA(const FiniteElementSpace &fes,
    AssemblePA(fes);
    const auto &ir = parent.q_space->GetIntRule(0);
    internal::ElasticityAssembleEA(parent.vdim, i_block, j_block, parent.ndofs, ir,
-                                  *parent.lambda_quad, *parent.mu_quad,
-                                  *geom, *maps, emat);
+                                  *maps, parent.pa_data, emat, add);
 }
-}
+
+} // namespace mfem
