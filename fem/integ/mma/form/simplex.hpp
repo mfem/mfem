@@ -239,9 +239,9 @@ struct EvalApplyRuntimeKernel
       MFEM_SHARED real_t Us[max_u_ld * max_nb];
 #else
       real_t *XY = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                               static_cast<size_t>(x_ld) * nb));
+                                                static_cast<size_t>(x_ld) * nb));
       real_t *Us = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                               static_cast<size_t>(u_ld) * nb));
+                                                static_cast<size_t>(u_ld) * nb));
 #endif
       const int tid = getThreadIdx();
       const int nthr = getBlockNthreads();
@@ -961,7 +961,7 @@ struct LFApplyRuntimeKernel
       MFEM_SHARED real_t Us[max_u_ld * max_nb];
 #else
       real_t *Us = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                               static_cast<size_t>(u_ld) * nb));
+                                                static_cast<size_t>(u_ld) * nb));
 #endif
       const int tid = getThreadIdx();
       const int nthr = getBlockNthreads();
@@ -1607,10 +1607,10 @@ struct GradApplyRuntimeKernel
       MFEM_SHARED real_t UV[DIM * max_u_ld * max_nb];
 #else
       real_t *XY = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                               static_cast<size_t>(x_ld) * nb));
+                                                static_cast<size_t>(x_ld) * nb));
       real_t *UV = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                               static_cast<size_t>(DIM) * u_ld *
-                                               nb));
+                                                static_cast<size_t>(DIM) * u_ld *
+                                                nb));
 #endif
       const int tid = getThreadIdx();
       const int nthr = getBlockNthreads();
@@ -2344,9 +2344,9 @@ struct VecScalarEvalRuntimeKernel
       real_t *Us = XY + x_ld * nb;
 #else
       real_t *XY = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                               static_cast<size_t>(x_ld) * nb));
+                                                static_cast<size_t>(x_ld) * nb));
       real_t *Us = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                               static_cast<size_t>(u_ld) * nb));
+                                                static_cast<size_t>(u_ld) * nb));
 #endif
       const int tid = getThreadIdx();
       const int nthr = getBlockNthreads();
@@ -2378,7 +2378,7 @@ struct VecPlaneEvalRuntimeKernel
       real_t *UV = XY + x_ld * nb;
 #else
       real_t *XY = static_cast<real_t *>(alloca(sizeof(real_t) *
-                                               static_cast<size_t>(x_ld) * nb));
+                                                static_cast<size_t>(x_ld) * nb));
       real_t *UV = static_cast<real_t *>(alloca(sizeof(real_t) *
                                                 static_cast<size_t>(DIM) *
                                                 u_ld * nb));
@@ -2526,7 +2526,7 @@ inline void ApplySimplexPlaneEval(const int NE, const int nq, const int nd,
       const real_t *Dv = d.Read();
       HostPlaneEvalApply<DIM>(NE, nq, nd, basis.Read(), x.Read(), y.ReadWrite(),
                               [qfn, Dv, nq, NE](const real_t *u, real_t *v,
-                                 int q, int e)
+                                                int q, int e)
       {
          HostApplyPlaneQFn<QFn, DIM>(qfn, Dv, nq, NE, q, e, u, v);
       });

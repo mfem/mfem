@@ -631,7 +631,7 @@ void HcurlDLFAssemble2D(const int ne, const Array<int> &markers,
                const real_t C0 = cst ? cst_val_0 : C(0,x,y,e);
                const real_t C1 = cst ? cst_val_1 : C(1,x,y,e);
                const real_t Av = (vd == 0) ? (A11*C0 + A12*C1)
-                              : (A21*C0 + A22*C1);
+                                 : (A21*C0 + A22*C1);
                QQ(x,y,vd) = W(x,y)*Av;
             }
          }

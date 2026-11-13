@@ -179,29 +179,29 @@ static void AddKernelSpecializations()
    // BP8 ND mass: closed D1D=p+1, Q1D=p+2. BP10 RT mass: D1D=Q1D=p+2.
    using VFM = VectorFEMassIntegrator;
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 2, 2, 2, 3>();
+   FiniteElement::CURL, FiniteElement::CURL, 2, 2, 2, 3>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 2, 3, 3, 4>();
+   FiniteElement::CURL, FiniteElement::CURL, 2, 3, 3, 4>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 2, 4, 4, 5>();
+   FiniteElement::CURL, FiniteElement::CURL, 2, 4, 4, 5>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 2, 5, 5, 6>();
+   FiniteElement::CURL, FiniteElement::CURL, 2, 5, 5, 6>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 2, 6, 6, 7>();
+   FiniteElement::CURL, FiniteElement::CURL, 2, 6, 6, 7>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 2, 7, 7, 8>();
+   FiniteElement::CURL, FiniteElement::CURL, 2, 7, 7, 8>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 3, 2, 2, 3>();
+   FiniteElement::CURL, FiniteElement::CURL, 3, 2, 2, 3>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 3, 3, 3, 4>();
+   FiniteElement::CURL, FiniteElement::CURL, 3, 3, 3, 4>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 3, 4, 4, 5>();
+   FiniteElement::CURL, FiniteElement::CURL, 3, 4, 4, 5>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 3, 5, 5, 6>();
+   FiniteElement::CURL, FiniteElement::CURL, 3, 5, 5, 6>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 3, 6, 6, 7>();
+   FiniteElement::CURL, FiniteElement::CURL, 3, 6, 6, 7>();
    VFM::AddSpecialization<
-      FiniteElement::CURL, FiniteElement::CURL, 3, 7, 7, 8>();
+   FiniteElement::CURL, FiniteElement::CURL, 3, 7, 7, 8>();
    VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 2, 3, 3, 3>();
    VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 2, 4, 4, 4>();
    VFM::AddSpecialization<FiniteElement::DIV, FiniteElement::DIV, 2, 5, 5, 5>();
@@ -410,9 +410,9 @@ struct BakeOff
          ElementTransformation &T0 = *mesh.GetTypicalElementTransformation();
          const IntegrationRule &fa_ir = mass
                                         ? MassIntegrator::GetRule(el, el,
-                                              T0, false)
+                                                                  T0, false)
                                         : DiffusionIntegrator::GetRule(
-                                              el, el, false);
+                                           el, el, false);
          const int fa_nq = fa_ir.GetNPoints();
          MFEM_VERIFY(qnd == fa_nq, "simplex MMA qnd must match FA GetRule nq");
       }
@@ -590,7 +590,7 @@ struct BakeOffDeRham
    static constexpr bool is_mass = (BFI == 8 || BFI == 10);
 
    using FecType = std::conditional_t<is_hcurl, ND_FECollection,
-                                      RT_FECollection>;
+         RT_FECollection>;
    using IntegratorType = std::conditional_t<
                           BFI == 7, CurlCurlIntegrator,
                           std::conditional_t<BFI == 9, DivDivIntegrator,

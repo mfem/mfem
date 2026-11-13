@@ -231,20 +231,20 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (use_simplex_mma)
    {
       ApplySimplexMmaGemPAKernels::Run(dim, dofs1D, nq, ne, mma_P,
-                                    pa_data, x, y);
+                                       pa_data, x, y);
    }
    else if (use_tensors_mma_gem)
    {
       ApplyTensorsMmaGemPAKernels::Run(dim, dofs1D, quad1D, ne, mma_P,
-                                     pa_data, x, y);
+                                       pa_data, x, y);
    }
    else if (use_tensors_mma_sum)
    {
       const Array<real_t> &B = maps->B;
       const Array<real_t> &Bt = maps->Bt;
       ApplyTensorsMmaSumPAKernels::Run(dim, dofs1D, quad1D, ne, B, Bt,
-                                      pa_data, x,
-                                    y, dofs1D, quad1D);
+                                       pa_data, x,
+                                       y, dofs1D, quad1D);
    }
    else if (ceedOp)
    {

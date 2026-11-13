@@ -614,7 +614,7 @@ TEST_CASE("DomainLF Simplices MMA", "[LinearFormExtension][MMA][GPU]")
    {
       // Tables register (2,4/8/14/24), not (2,35).
       test_domain_lf_simplex_mma("../../data/ref-tetrahedron.mesh",
-                                1, false, 7);
+                                 1, false, 7);
       test_domain_lf_simplex_mma("../../data/inline-tet.mesh", 1, false, 7);
    }
 }

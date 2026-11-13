@@ -800,7 +800,7 @@ inline void TensorEvalApplyDevice(const int NE,
                               ? mma::TensorThreads3D<T_D1D, T_Q1D,
                               mma::kTensorCostLight>()
                               : mma::TensorThreads3DRuntime(D1D, Q1D,
-                              mma::kTensorCostLight));
+                                                            mma::kTensorCostLight));
 
       const auto B = Reshape(b.Read(), Q1D, D1D);
 
@@ -1683,9 +1683,9 @@ inline void TensorGradApplyDevice(const int NE,
                      ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
                      : mma::TensorNB3DRuntime(D1D, mma::kTensorCostHeavy);
       const int nthreads = mma::TensorShellNthreads(
-         T_D1D
-         ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
-         : mma::TensorThreads3DRuntime(D1D, Q1D, mma::kTensorCostHeavy));
+                              T_D1D
+                              ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
+                              : mma::TensorThreads3DRuntime(D1D, Q1D, mma::kTensorCostHeavy));
 
       const auto B = Reshape(b.Read(), Q1D, D1D);
       const auto G = Reshape(g.Read(), Q1D, D1D);
@@ -2239,9 +2239,9 @@ inline void TensorVecEvalApplyDevice(const int NE,
    else
    {
       const int nthreads = mma::TensorShellNthreads(
-         T_D1D
-         ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
-         : mma::TensorThreads3DRuntime(D1D, Q1D, mma::kTensorCostHeavy));
+                              T_D1D
+                              ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
+                              : mma::TensorThreads3DRuntime(D1D, Q1D, mma::kTensorCostHeavy));
       const int NB = T_D1D
                      ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
                      : mma::TensorNB3DRuntime(D1D, mma::kTensorCostHeavy);
@@ -2575,9 +2575,9 @@ inline void TensorCurlCurlApplyDevice(const int NE,
       constexpr int ncomp = SYM ? 6 : 9;
       MFEM_VERIFY(d.Size() == nq * ncomp * NE, "");
       const int nthreads = mma::TensorShellNthreads(
-         T_D1D
-         ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
-         : mma::TensorThreads3DRuntime(D1D, Q1D, mma::kTensorCostHeavy));
+                              T_D1D
+                              ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
+                              : mma::TensorThreads3DRuntime(D1D, Q1D, mma::kTensorCostHeavy));
       const int NB = T_D1D
                      ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
                      : mma::TensorNB3DRuntime(D1D, mma::kTensorCostHeavy);
@@ -2806,9 +2806,9 @@ inline void TensorDivDivApplyDevice(const int NE,
    else
    {
       const int nthreads = mma::TensorShellNthreads(
-         T_D1D
-         ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
-         : mma::TensorThreads3DRuntime(D1D, Q1D, mma::kTensorCostHeavy));
+                              T_D1D
+                              ? mma::TensorThreads3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
+                              : mma::TensorThreads3DRuntime(D1D, Q1D, mma::kTensorCostHeavy));
       const int NB = T_D1D
                      ? mma::TensorNB3D<T_D1D, T_Q1D, mma::kTensorCostHeavy>()
                      : mma::TensorNB3DRuntime(D1D, mma::kTensorCostHeavy);
