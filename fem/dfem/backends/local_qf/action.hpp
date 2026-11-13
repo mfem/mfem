@@ -270,6 +270,7 @@ public:
          const int e = d_entities[ek];
 
          MFEM_CONTRACT_VAR(qfunc);
+         MFEM_CONTRACT_VAR(out);
          MFEM_CONTRACT_VAR(out_YE);
 
          // -----------------------------------------------

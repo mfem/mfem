@@ -266,6 +266,8 @@ public:
          const int e = d_entities[ek];
 
          MFEM_CONTRACT_VAR(cache_tensor);
+         MFEM_CONTRACT_VAR(in);
+         MFEM_CONTRACT_VAR(ye_XE);
 
          // -----------------------------------------------
          // Output cotangent (direction) registers live in oargs; the trial
