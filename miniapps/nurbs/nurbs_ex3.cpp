@@ -113,10 +113,10 @@ int main(int argc, char *argv[])
    FiniteElementCollection *fec = nullptr;
    NURBSExtension *NURBSext = nullptr;
 
-   if (mesh->NURBSext && NURBS)
+   if (mesh->IsNURBS() && NURBS)
    {
       fec = new NURBS_HCurlFECollection(order,dim);
-      NURBSext  = new NURBSExtension(mesh->NURBSext, order);
+      NURBSext  = new NURBSExtension(mesh->NURBSExt(), order);
       mfem::out<<"Create NURBS fec and ext"<<std::endl;
    }
    else

@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
    // 4. Refine the serial mesh on all processors to increase the resolution.
    //    Also project a NURBS mesh to a piecewise-quadratic curved mesh. Make
    //    sure that the mesh is non-conforming.
-   if (mesh->NURBSext)
+   if (mesh->IsNURBS())
    {
       mesh->UniformRefinement();
       mesh->SetCurvature(2);
