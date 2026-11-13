@@ -194,10 +194,10 @@ static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const double *elx[2],
       pt.jac[2] += wtend[3 * r_g_wt_offset * pN + pN + j] * ELX(1, j, kidx);
 
       // dx/ds
-      pt.jac[1] += wtend[3 * s_g_wt_offset * pN + pN + j] * ELX(0, kidx, j);
+      pt.jac[1] += wtend[3 * s_g_wt_offset * pN + pN + j] * ELX(0, jidx, j);
 
       // dy/ds
-      pt.jac[3] += wtend[3 * s_g_wt_offset * pN + pN + j] * ELX(1, kidx, j);
+      pt.jac[3] += wtend[3 * s_g_wt_offset * pN + pN + j] * ELX(1, jidx, j);
    }
 
    pt.hes[0] = 0.0;
@@ -213,10 +213,10 @@ static MFEM_HOST_DEVICE inline findptsElementGPT_t get_pt(const double *elx[2],
       pt.hes[2] += wtend[3 * r_g_wt_offset * pN + 2*pN + j] * ELX(1, j, kidx);
 
       // d2x/ds2
-      pt.hes[1] += wtend[3 * s_g_wt_offset * pN + 2*pN + j] * ELX(0, kidx, j);
+      pt.hes[1] += wtend[3 * s_g_wt_offset * pN + 2*pN + j] * ELX(0, jidx, j);
 
       // d2y/ds2
-      pt.hes[3] += wtend[3 * s_g_wt_offset * pN + 2*pN + j] * ELX(1, kidx, j);
+      pt.hes[3] += wtend[3 * s_g_wt_offset * pN + 2*pN + j] * ELX(1, jidx, j);
    }
 #undef ELX
    return pt;
@@ -600,7 +600,8 @@ static void FindPointsLocal2DKernel(const int npt,
    const int p_NEL = nel*p_NE;
    MFEM_VERIFY(MD1 <= DofQuadLimits::MAX_D1D,
                "Increase Max allowable polynomial order.");
-   MFEM_VERIFY(D1D != 0, "Polynomial order not specified.");
+   MFEM_VERIFY(D1D > 0, "Polynomial order not specified.");
+   MFEM_VERIFY(D1D <= MD1, "D1D exceeds the allocated workspace size.");
    const int nThreads = D1D*DIM;
 
    mfem::forall_2D(npt, nThreads, 1, [=] MFEM_HOST_DEVICE (int i)
