@@ -745,34 +745,6 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
 
 #ifdef MFEM_USE_MPI
 
-class TestableParallelH1L2Projection :
-   public L2ProjectionGridTransfer::L2ProjectionH1Space
-{
-public:
-   using L2ProjectionH1Space::L2ProjectionH1Space;
-
-   const Operator &ForwardMatrix() const { return *R; }
-
-   void LocalFirstForward(const Vector &x, Vector &y) const
-   {
-      Vector ho_local(pfes_ho_scalar->GetVSize());
-      pfes_ho_scalar->GetProlongationMatrix()->Mult(x, ho_local);
-      Vector mixed_local(M_LH_local_op->Height());
-      M_LH_local_op->Mult(ho_local, mixed_local);
-      Vector scaled_local(mixed_local.Size());
-      ML_inv_vea->Mult(mixed_local, scaled_local);
-      pfes_lor_scalar->GetProlongationMatrix()->MultTranspose(scaled_local, y);
-   }
-
-   void LegacyForward(const Vector &x, Vector &y) const
-   {
-      M_LH->Mult(x, y);
-      Vector true_inverse(pfes_lor_scalar->GetTrueVSize());
-      pfes_lor_scalar->GetRestrictionOperator()->Mult(ML_inv_ea, true_inverse);
-      for (int i = 0; i < y.Size(); ++i) { y(i) *= true_inverse(i); }
-   }
-};
-
 TEST_CASE("Parallel H1 L2 projection EA agrees with standard",
           "[Transfer][Parallel]")
 {
@@ -836,20 +808,18 @@ TEST_CASE("Parallel H1 L2 projection EA agrees with standard",
    CHECK(backward_error < 1e-12 * std::max(real_t(1.0), backward_norm));
 }
 
-TEST_CASE("Parallel H1 EA shared-DOF transfer ordering",
+TEST_CASE("Parallel H1 L2 projection analytic transfer and operator identities",
           "[Transfer][Parallel]")
 {
    int num_procs;
    MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   if (num_procs < 2)
+   if (num_procs != 2 && num_procs != 4)
    {
-      SUCCEED("Run with at least two MPI ranks to exercise shared dofs");
+      SUCCEED("Run with two or four MPI ranks for this small mesh");
       return;
    }
 
-   // Hanging-node constraints expose the difference between local inverse
-   // mass scaling and scaling after summation onto true dofs.
-   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL,
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL,
                                      true, 1.0, 1.0);
    mesh.EnsureNCMesh();
    Array<int> refine;
@@ -863,26 +833,98 @@ TEST_CASE("Parallel H1 EA shared-DOF transfer ordering",
    H1_FECollection fine_fec(1, 2);
    ParFiniteElementSpace coarse_fes(&coarse_mesh, &coarse_fec);
    ParFiniteElementSpace fine_fes(&fine_mesh, &fine_fec);
-   TestableParallelH1L2Projection ea(coarse_fes, fine_fes, true);
+   L2ProjectionGridTransfer transfer(coarse_fes, fine_fes);
+   const bool use_ea = GENERATE(false, true);
+   INFO("element assembly: " << use_ea);
+   transfer.UseEA(use_ea);
+   const Operator &forward = transfer.TrueForwardOperator();
+   const Operator &backward = transfer.TrueBackwardOperator();
 
-   Vector x(coarse_fes.GetTrueVSize());
-   for (int i = 0; i < x.Size(); ++i) { x(i) = 1.0 + 0.01*i; }
-   Vector actual(fine_fes.GetTrueVSize());
-   Vector expected(fine_fes.GetTrueVSize());
-   Vector old_order(fine_fes.GetTrueVSize());
-   ea.ForwardMatrix().Mult(x, actual);
-   ea.LocalFirstForward(x, expected);
-   ea.LegacyForward(x, old_order);
-   expected -= actual;
-   old_order -= actual;
-   const real_t expected_error = std::sqrt(InnerProduct(MPI_COMM_WORLD,
-                                                        expected, expected));
-   const real_t error = std::sqrt(InnerProduct(MPI_COMM_WORLD,
-                                               old_order, old_order));
-   INFO("local-first operator error: " << expected_error);
-   INFO("old versus corrected ordering: " << error);
-   CHECK(expected_error < 1e-12);
-   CHECK(error > 1e-6);
+   auto norm = [](const Vector &v)
+   {
+      return std::sqrt(InnerProduct(MPI_COMM_WORLD, v, v));
+   };
+
+   SECTION("Constant input has an analytically integrated answer")
+   {
+      // For an affine Q1 quadrilateral, integral(phi_i) = area / 4.
+      // A constant Q2 input therefore gives these same mixed-mass row sums.
+      // Assemble them geometrically, without using either transfer or mass
+      // assembly implementation. Constraints mean the answer need not be one.
+      Vector local_mass(fine_fes.GetVSize());
+      local_mass = 0.0;
+      Array<int> dofs;
+      for (int e = 0; e < fine_mesh.GetNE(); ++e)
+      {
+         fine_fes.GetElementDofs(e, dofs);
+         REQUIRE(dofs.Size() == 4);
+         const real_t weight = fine_mesh.GetElementVolume(e) / 4;
+         for (int i = 0; i < dofs.Size(); ++i)
+         {
+            local_mass(dofs[i]) += weight;
+         }
+      }
+
+      const Operator &prolongation = *fine_fes.GetProlongationMatrix();
+      Vector true_mass(fine_fes.GetTrueVSize());
+      prolongation.MultTranspose(local_mass, true_mass);
+      true_mass.Reciprocal();
+      Vector local_weight(fine_fes.GetVSize());
+      prolongation.Mult(true_mass, local_weight);
+      for (int i = 0; i < local_weight.Size(); ++i)
+      {
+         local_weight(i) *= local_mass(i);
+      }
+      Vector expected(fine_fes.GetTrueVSize());
+      prolongation.MultTranspose(local_weight, expected);
+
+      Vector x(coarse_fes.GetTrueVSize());
+      x = 1.0;
+      Vector actual(fine_fes.GetTrueVSize());
+      forward.Mult(x, actual);
+      actual -= expected;
+      INFO("analytic forward error: " << norm(actual));
+      CHECK(norm(actual) < 1e-12 * std::max(real_t(1.0), norm(expected)));
+   }
+
+   SECTION("Round trip and transpose identities")
+   {
+      int rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+      Vector x(coarse_fes.GetTrueVSize());
+      Vector y(fine_fes.GetTrueVSize());
+      for (int i = 0; i < x.Size(); ++i)
+      {
+         x(i) = std::sin(real_t(1 + i + 17*rank));
+      }
+      for (int i = 0; i < y.Size(); ++i)
+      {
+         y(i) = std::cos(real_t(1 + i + 13*rank));
+      }
+
+      Vector fx(y.Size()), round_trip(x.Size());
+      forward.Mult(x, fx);
+      backward.Mult(fx, round_trip);
+      round_trip -= x;
+      INFO("round-trip error: " << norm(round_trip));
+      CHECK(norm(round_trip) < 1e-11 * std::max(real_t(1.0), norm(x)));
+
+      Vector fty(x.Size()), by(x.Size()), btx(y.Size());
+      forward.MultTranspose(y, fty);
+      backward.Mult(y, by);
+      backward.MultTranspose(x, btx);
+      const real_t forward_defect = std::abs(
+                                       InnerProduct(MPI_COMM_WORLD, fx, y) -
+                                       InnerProduct(MPI_COMM_WORLD, x, fty));
+      const real_t backward_defect = std::abs(
+                                        InnerProduct(MPI_COMM_WORLD, by, x) -
+                                        InnerProduct(MPI_COMM_WORLD, y, btx));
+      INFO("forward transpose defect: " << forward_defect);
+      INFO("backward transpose defect: " << backward_defect);
+      CHECK(forward_defect < 1e-12 * std::max(real_t(1.0), norm(fx)*norm(y)));
+      // Both backward solves use a 1e-13 stopping tolerance.
+      CHECK(backward_defect < 1e-11 * std::max(real_t(1.0), norm(by)*norm(x)));
+   }
 }
 
 TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")

@@ -465,8 +465,8 @@ public:
       void SetAbsTol(real_t p_atol_) override;
 
    protected:
-      /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
-      void SetupPCG();
+      /// Sets up solvers for the backward operator and its transpose.
+      void SetupSolvers();
 
       /// @brief Computes on-rank R and M_LH matrices. If true, computes mixed mass and/or
       /// inverse lumped mass matrix error when compared to device implementation.
@@ -502,16 +502,17 @@ public:
       std::unique_ptr<SparseMatrix> AllocR();
 
       CGSolver pcg;
+      // Hanging-node constraints can make M_LH^T R nonsymmetric.
+      std::unique_ptr<GMRESSolver> gmres, gmres_transpose;
       std::unique_ptr<Solver> precon;
-      // The restriction operator is represented as an Operator R. The
-      // prolongation operator is a dense matrix computed as the inverse of (R^T
-      // M_L R), and hence, is not stored.
-      // If element assembly is enabled
+      // Store the restriction operator R and apply its mass-conservative
+      // left inverse through an iterative solve.
       std::unique_ptr<Operator> R;
-      // Used to compute P = (RT*M_LH)^(-1) M_LH^T
+      // Used to compute P = (M_LH^T R)^(-1) M_LH^T
       std::unique_ptr<Operator> M_LH;
-      // Inverted operator in P = (RT*M_LH)^(-1) M_LH^T. Used to compute P via PCG.
+      // R^T M_LH, used for the transpose solve (and both solves if symmetric).
       std::unique_ptr<Operator> RTxM_LH;
+      std::unique_ptr<Operator> M_LHxR;
       // Lumped M_L inverse operator built via EA. Wrapped with restriction maps
       // to multiply with scalar TDof LOR vectors.
       std::unique_ptr<Operator> ML_inv_vea;

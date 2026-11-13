@@ -1190,7 +1190,7 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    R = std::move(R_mat);
    M_LH = std::move(M_LH_mat);
 
-   SetupPCG();
+   SetupSolvers();
 }
 
 #ifdef MFEM_USE_MPI
@@ -1249,14 +1249,14 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    RTxM_LH.reset(RTxM_LH_mat);
    precon.reset(amg);
 
-   SetupPCG();
+   SetupSolvers();
    pcg.SetPreconditioner(*precon);
    pcg.SetOperator(*RTxM_LH);
 }
 
 #endif
 
-void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupPCG()
+void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupSolvers()
 {
    // Basic PCG solver setup
    pcg.SetPrintLevel(0);
@@ -1267,6 +1267,39 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupPCG()
    pcg.SetAbsTol(1e-13);
    pcg.SetPreconditioner(*precon);
    pcg.SetOperator(*RTxM_LH);
+
+   if (fes_lor.GetMesh()->Nonconforming())
+   {
+      // B = (M_LH^T R)^(-1) M_LH^T is a left inverse of R.
+      // With hanging nodes, M_LH^T R need not equal R^T M_LH, so
+      // use GMRES and solve the transposed system separately for B^T.
+      M_LHxR.reset(new TransposeOperator(RTxM_LH.get()));
+#ifdef MFEM_USE_MPI
+      if (pfes_ho_scalar)
+      {
+         gmres.reset(new GMRESSolver(pfes_ho_scalar->GetComm()));
+         gmres_transpose.reset(new GMRESSolver(pfes_ho_scalar->GetComm()));
+      }
+      else
+#endif
+      {
+         gmres.reset(new GMRESSolver);
+         gmres_transpose.reset(new GMRESSolver);
+      }
+      for (auto *solver : {gmres.get(), gmres_transpose.get()})
+      {
+         solver->SetPrintLevel(0);
+         solver->SetMaxIter(1000);
+         solver->SetRelTol(1e-13);
+         solver->SetAbsTol(1e-13);
+      }
+      gmres->SetOperator(*M_LHxR);
+      gmres_transpose->SetOperator(*RTxM_LH);
+      // Keep the existing preconditioner built for R^T M_LH. In particular,
+      // AMG cannot be reset from the matrix-free transpose wrapper.
+      gmres->SetPreconditioner(*precon);
+      gmres_transpose->SetPreconditioner(*precon);
+   }
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space()
@@ -1361,7 +1394,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space()
    TransposeOperator* RT = new TransposeOperator(R.get());
    RTxM_LH.reset(new ProductOperator(RT, M_LH.get(), true, false));
 
-   SetupPCG();
+   SetupSolvers();
 }
 
 #ifdef MFEM_USE_MPI
@@ -1514,7 +1547,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
    TransposeOperator* RT = new TransposeOperator(R.get());
    RTxM_LH.reset(new ProductOperator(RT, M_LH.get(), true, false));
 
-   SetupPCG();
+   SetupSolvers();
 }
 
 #endif
@@ -1591,9 +1624,10 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
    {
       TDofsListByVDim(fes_lor, d, vdofs_list);
       X.GetSubVector(vdofs_list, X_dim);
-      // Compute y = P x = (R^T M_LH)^(-1) M_LH^T X = (R^T M_LH)^(-1) Xbar
+      // Compute y = P x = (M_LH^T R)^(-1) M_LH^T X.
       M_LH->MultTranspose(X_dim, Xbar);
-      pcg.Mult(Xbar, Y_dim);
+      if (gmres) { gmres->Mult(Xbar, Y_dim); }
+      else { pcg.Mult(Xbar, Y_dim); }
       TDofsListByVDim(fes_ho, d, vdofs_list);
       Y.SetSubVector(vdofs_list, Y_dim);
    }
@@ -1620,9 +1654,10 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
    {
       TDofsListByVDim(fes_ho, d, vdofs_list);
       X.GetSubVector(vdofs_list, X_dim);
-      // Compute y = P^T x = M_LH (R^T M_LH)^(-1) X = M_LH Xbar
+      // Compute y = P^T x = M_LH (R^T M_LH)^(-1) X.
       Xbar = 0.0;
-      pcg.Mult(X_dim, Xbar);
+      if (gmres_transpose) { gmres_transpose->Mult(X_dim, Xbar); }
+      else { pcg.Mult(X_dim, Xbar); }
       M_LH->Mult(Xbar, Y_dim);
       TDofsListByVDim(fes_lor, d, vdofs_list);
       Y.SetSubVector(vdofs_list, Y_dim);
@@ -1635,11 +1670,15 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetRelTol(real_t p_rtol_)
 {
    pcg.SetRelTol(p_rtol_);
+   if (gmres) { gmres->SetRelTol(p_rtol_); }
+   if (gmres_transpose) { gmres_transpose->SetRelTol(p_rtol_); }
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetAbsTol(real_t p_atol_)
 {
    pcg.SetAbsTol(p_atol_);
+   if (gmres) { gmres->SetAbsTol(p_atol_); }
+   if (gmres_transpose) { gmres_transpose->SetAbsTol(p_atol_); }
 }
 
 std::pair<
