@@ -230,36 +230,18 @@ map_quadrature_data_to_fields(DeviceTensor<2, real_t> &y,
       const int sq_begin = f_slab ? tv_dof : 0;
       const int sq_end = f_slab ? tv_dof + 1 : output.size_on_qp;
 
-      if constexpr (DIM == 2)
+      const int qy1d = ny<DIM>(q1d), qz1d = nz<DIM>(q1d);
+      const auto fqp = Reshape(&f(0, 0, 0), f_sq, q1d, qy1d, qz1d);
+      auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, qy1d, qz1d);
+      for (int sq = sq_begin; sq < sq_end; sq++)
       {
-         const auto fqp = Reshape(&f(0, 0, 0), f_sq, q1d, q1d);
-         auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d);
-         for (int sq = sq_begin; sq < sq_end; sq++)
+         for (int qz = 0; qz < qz1d; qz++)
          {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
+            MFEM_FOREACH_THREAD(qy, y, qy1d)
             MFEM_FOREACH_THREAD(qx, x, q1d)
-            {
-               int qz = 0;
-               MFEM_CONTRACT_VAR(qz);
-               yqp(sq, qx, qy) = fqp(0, qx, qy);
-            }
-            MFEM_SYNC_THREAD;
+            { yqp(sq, qx, qy, qz) = fqp(0, qx, qy, qz); }
          }
-      }
-      else
-      {
-         const auto fqp = Reshape(&f(0, 0, 0), f_sq, q1d, q1d, q1d);
-         auto yqp = Reshape(&y(0, 0), output.size_on_qp, q1d, q1d, q1d);
-         for (int sq = sq_begin; sq < sq_end; sq++)
-         {
-            for (int qz = 0; qz < q1d; qz++)
-            {
-               MFEM_FOREACH_THREAD(qy, y, q1d)
-               MFEM_FOREACH_THREAD(qx, x, q1d)
-               { yqp(sq, qx, qy, qz) = fqp(0, qx, qy, qz); }
-            }
-            MFEM_SYNC_THREAD;
-         }
+         MFEM_SYNC_THREAD;
       }
    }
    else
@@ -276,7 +258,7 @@ map_quadrature_data_to_fields(DeviceTensor<2, real_t> &y,
 template<int DIM, int MQ1>
 constexpr int fhat_slab_capacity()
 {
-   return 4 * ((DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1);
+   return 4 * MQ1 * ny<DIM>(MQ1) * nz<DIM>(MQ1);
 }
 
 template<int DIM,
@@ -332,18 +314,10 @@ void assemble_element_mat_sumfact(
    // Iterate quadrature points using the thread-block mapping
    const auto foreach_qp = [&](auto &&body)
    {
-      if constexpr (DIM == 2)
+      for (int qz = 0; qz < nz<DIM>(q1d); qz++)
       {
-         MFEM_FOREACH_THREAD(qx, x, q1d)
-         MFEM_FOREACH_THREAD(qy, y, q1d) { body(qx, qy, 0); }
-      }
-      else
-      {
-         for (int qz = 0; qz < q1d; qz++)
-         {
-            MFEM_FOREACH_THREAD(qy, y, q1d)
-            MFEM_FOREACH_THREAD(qx, x, q1d) { body(qx, qy, qz); }
-         }
+         MFEM_FOREACH_THREAD(qy, y, ny<DIM>(q1d))
+         MFEM_FOREACH_THREAD(qx, x, q1d) { body(qx, qy, qz); }
       }
    };
 
@@ -437,7 +411,7 @@ void assemble_element_mat_sumfact(
       });
    };
 
-   for (int Jz = 0; Jz < ((DIM == 2) ? 1 : num_trial_dof_1d); Jz++)
+   for (int Jz = 0; Jz < nz<DIM>(num_trial_dof_1d); Jz++)
    {
       for (int Jy = 0; Jy < num_trial_dof_1d; Jy++)
       {
@@ -906,7 +880,7 @@ public:
    {
       static constexpr int DIM = backend_t::DIM;
       static constexpr int MQ1 = max_q1d_v<backend_t, T_Q1D>;
-      static constexpr int MNQ = (DIM == 2) ? MQ1 * MQ1 : MQ1 * MQ1 * MQ1;
+      static constexpr int MNQ = MQ1 * ny<DIM>(MQ1) * nz<DIM>(MQ1);
 
       MFEM_VERIFY(dim == DIM,
                   "DerivativeAssemble: mesh dim does not match backend");

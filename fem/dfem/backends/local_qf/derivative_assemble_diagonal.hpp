@@ -350,7 +350,7 @@ public:
                   "Dimension mismatch");
       if (ctx.marked_entities.Size() == 0) { return; }
 
-      static constexpr bool B2D = backend_t::DIM == 2;
+      static constexpr int DIM = backend_t::DIM;
       static constexpr int MTPB = backend_t::MAX_THREADS_PER_BLOCK();
 
       const int *d_entities = ctx.marked_entities.Read();
@@ -385,7 +385,7 @@ public:
 
          // Backend-owned shared scratch for the sum-factorized contraction.
          MFEM_SHARED typename backend_t::Shared s_diag;
-         const int nz_dof = B2D ? 1 : num_test_dof_1d;
+         const int nz_dof = nz<DIM>(num_test_dof_1d);
 
          for (int vd = 0; vd < test_vdim; vd++)
          {

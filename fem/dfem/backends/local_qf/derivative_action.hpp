@@ -289,9 +289,9 @@ public:
       // Warning: no 'DIRECT' on the 'Z' direction,
       // as one backend may need to iterate over it.
       // -----------------------------------------------
-      MFEM_FOREACH_THREAD(qz, z, (DIM == 2) ? 1 : q1d)
+      MFEM_FOREACH_THREAD(qz, z, nz<DIM>(q1d))
       {
-         MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, ny<DIM>(q1d))
          {
             MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
             {

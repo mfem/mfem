@@ -271,9 +271,9 @@ public:
          // Contract the cached Jacobian with the trial direction at each
          // quadrature point and push the result into the test registers.
          // -----------------------------------------------
-         MFEM_FOREACH_THREAD(qz, z, (DIM == 2) ? 1 : q1d)
+         MFEM_FOREACH_THREAD(qz, z, nz<DIM>(q1d))
          {
-            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, ny<DIM>(q1d))
             {
                MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                {

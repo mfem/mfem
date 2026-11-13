@@ -294,9 +294,9 @@ public:
          // each quadrature point and push the trial result into the dependent
          // input registers.
          // -----------------------------------------------
-         MFEM_FOREACH_THREAD(qz, z, (DIM == 2) ? 1 : q1d)
+         MFEM_FOREACH_THREAD(qz, z, nz<DIM>(q1d))
          {
-            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, ny<DIM>(q1d))
             {
                MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                {

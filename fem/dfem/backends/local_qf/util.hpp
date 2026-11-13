@@ -1362,6 +1362,14 @@ struct QpCacheLayout
    }
 };
 
+/// Extents along y and z of @a n points per axis on an entity of dimension
+/// @a DIM: @a n inside the entity dimension, 1 beyond it.
+template <int DIM> MFEM_HOST_DEVICE constexpr int ny(const int n)
+{ return DIM > 1 ? n : 1; }
+
+template <int DIM> MFEM_HOST_DEVICE constexpr int nz(const int n)
+{ return DIM > 2 ? n : 1; }
+
 /// Size of the E-vector of field @a i of @a m, with field operator @a FOP, on
 /// @a ne entities of dimension @a DIM.
 template <int DIM, typename FOP, size_t N>
@@ -1369,7 +1377,7 @@ int ESize(const FieldMetadata<N> &m, const size_t i, const int ne)
 {
    const bool dofs = is_value_fop_v<FOP> || is_gradient_fop_v<FOP>;
    const int n = dofs ? m.d1d(i) : m.q1d(i);
-   return n * n * ((DIM == 2) ? 1 : n) * m.vdim[i] * ne;
+   return n * ny<DIM>(n) * nz<DIM>(n) * m.vdim[i] * ne;
 }
 
 /// Tensor view of the E-vector @a x of field @a i of @a m, with field operator
@@ -1383,14 +1391,14 @@ auto ReshapeE(T *x, const FieldMetadata<N> &m, const size_t i, const int ne)
    if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
    {
       const int d = m.d1d(i);
-      return Reshape(x, d, d, (DIM == 2) ? 1 : d, v, ne);
+      return Reshape(x, d, ny<DIM>(d), nz<DIM>(d), v, ne);
    }
    else
    {
       static_assert(is_identity_fop_v<FOP> || is_functionalvalue_fop_v<FOP>,
                     "Unsupported FieldOperator");
       const int q = m.q1d(i);
-      return Reshape(x, v, q, q, (DIM == 2) ? 1 : q, ne);
+      return Reshape(x, v, q, ny<DIM>(q), nz<DIM>(q), ne);
    }
 }
 
@@ -1416,7 +1424,7 @@ InputViews(const IntegratorContext<entity_t> &ctx,
       if constexpr (is_weight_fop_v<FOP>)
       {
          const int ir_q1d = tensor_1d_size(ctx.ir.GetNPoints(), DIM);
-         const int qy = ir_q1d, qz = (DIM == 2) ? 1 : ir_q1d;
+         const int qy = ny<DIM>(ir_q1d), qz = nz<DIM>(ir_q1d);
          MFEM_VERIFY(ctx.ir.GetNPoints() == ir_q1d * qy * qz,
                      "tensor-product IR expected");
          XE[i] = Reshape(ctx.ir.GetWeights().Read(), ir_q1d, qy, qz, 1, 1);
