@@ -85,7 +85,6 @@ class DerivativeApplyTranspose
    const int residual_size_on_qp;
    // other constants
    const int dim, ne, nq, q1d;
-   const size_t deriv_infd_idx; // index of the derivative field in ye
    // output cotangent restriction workspace (blocked by element)
    std::array<int, n_outputs> out_elem_dof_size;
    mutable Vector dir_out_e;
@@ -125,15 +124,11 @@ public:
    residual_size_on_qp(output_size_on_qp * trial_vdim * total_trial_op_dim),
    dim(GetEntityDimension<entity_t>(ctx.mesh)), ne(ctx.nentities),
    nq(ctx.ir.GetNPoints()),
-   q1d(tensor_1d_size(nq, dim)),
-   deriv_infd_idx(find_infd_index(ctx, derivative_id)), out_elem_dof_size{}
+   q1d(tensor_1d_size(nq, dim)), out_elem_dof_size{}
    {
       MFEM_ASSERT(nfields <= ctx.unionfds.size(),
                   "LocalQFBackend: the q-function uses more fields than the "
                   "operator has");
-      MFEM_ASSERT(
-         deriv_infd_idx != SIZE_MAX,
-         "DerivativeApplyTranspose: derivative field not found in infds");
 
       // Size the workspace that holds the output cotangent(s) in element
       // layout.
@@ -176,7 +171,6 @@ public:
                    total_trial_op_dim,
                    residual_size_on_qp,
                    output_size_on_qp,
-                   deriv_infd_idx,
                    ye,
                    // fallback arguments
                    dim,
@@ -250,7 +244,6 @@ public:
       const int total_trial_op_dim,
       const int residual_size_on_qp,
       const int output_size_on_qp,
-      const size_t deriv_infd_idx,
       std::vector<Vector *> &ye,
       // fallback arguments
       const int dim,
@@ -267,7 +260,7 @@ public:
       MFEM_VERIFY(Layout::StaticCacheColumns() == trial_vdim * total_trial_op_dim,
                   "DerivativeApplyTranspose: derivative cache row width mismatch");
 
-      static constexpr auto B2D = backend_t::DIM == 2;
+      static constexpr int DIM = backend_t::DIM;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
       static constexpr auto MTPB = backend_t::MAX_THREADS_PER_BLOCK();
 
@@ -275,42 +268,14 @@ public:
       const int nq = ctx.ir.GetNPoints();
       MFEM_CONTRACT_VAR(output_size_on_qp);
 
-      constexpr auto k_dim = [](const int k) { return k * k * (B2D ? 1 : k); };
-
       // --------------------------------------------------
       // DIRECTION (test cotangent): out_XE_dir, concatenated per output
-      // --------------------------------------------------
-      const auto d_dir = dir_e.Read();
-      std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_outputs> out_XE_dir;
-      int e_offset = 0;
-      for_constexpr_host<n_outputs>([&](auto oc)
-      {
-         constexpr size_t o = oc.value;
-         const int d = out.d1d(o), q = out.q1d(o), v = out.vdim[o];
-         using FOP = tuple_element_t<o, outputs_t>;
-         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
-         {
-            out_XE_dir[o] = Reshape(d_dir + e_offset, d, d, B2D ? 1 : d, v, ne);
-            e_offset += k_dim(d) * v * ne;
-         }
-         else if constexpr (is_identity_fop_v<FOP>)
-         {
-            out_XE_dir[o] = Reshape(d_dir + e_offset, v, q, q, B2D ? 1 : q, ne);
-            e_offset += k_dim(q) * v * ne;
-         }
-         else
-         {
-            static_assert(false, "Unsupported");
-         }
-      });
-
-      // --------------------------------------------------
       // DERIVATIVE TRIAL FIELD: ye_XE (accumulates Jᵀ w)
       // --------------------------------------------------
-      const int d_in = in.d1d(deriv_input_idx_ct);
-      const int v_in = in.vdim[deriv_input_idx_ct];
-      auto ye_XE = Reshape(
-                      ye[deriv_infd_idx]->ReadWrite(), d_in, d_in, B2D ? 1 : d_in, v_in, ne);
+      const auto out_XE_dir = CotangentViews<DIM, outputs_t>(ctx, dir_e, out);
+      constexpr size_t t = deriv_input_idx_ct;
+      auto ye_XE = ReshapeE<DIM, tuple_element_t<t, inputs_t>>(
+                      ye[in.idx[t]]->ReadWrite(), in, t, ne);
 
       auto cache_tensor = DeviceTensor<3, const real_t>(
                              qp_cache.Read(), nq, residual_size_on_qp, ne);
@@ -339,35 +304,10 @@ public:
          // -----------------------------------------------
          for_constexpr<n_outputs>([&](auto oc)
          {
-            constexpr size_t o = oc.value, ao = n_inputs + o;
+            constexpr size_t o = oc.value;
             using FOP = tuple_element_t<o, outputs_t>;
-            const auto &XE = out_XE_dir[o];
-            const int d = out.d1d(o), q = out.q1d(o), Q1D = q1d;
-            const real_t *B = out.dtq[o].B, *G = out.dtq[o].G;
-            auto &oarg = get<o>(oargs);
-            if constexpr (is_value_fop_v<FOP>)
-            {
-               backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, oarg);
-            }
-            else if constexpr (is_gradient_fop_v<FOP>)
-            {
-               constexpr auto RNK = qf_param_slot<qfunc_t, ao>::extents.size();
-               using FieldParamT =
-                  typename qf_param_slot<qfunc_t, ao>::qf_decay_param_t;
-               backend_t::template LoadGradient<RNK,
-                                                decltype(oarg),
-                                                decltype(XE),
-                                                FieldParamT>(
-                                                   smem, e, d, q, Q1D, B, G, XE, oarg);
-            }
-            else if constexpr (is_identity_fop_v<FOP>)
-            {
-               // identity cotangent is read directly at qp from out_XE_dir
-            }
-            else
-            {
-               static_assert(false, "Unsupported");
-            }
+            LoadField<backend_t, qfunc_t, n_inputs + o, FOP>(
+               smem, e, q1d, out.dtq[o], out_XE_dir[o], get<o>(oargs));
          });
          MFEM_SYNC_THREAD;
 
@@ -376,7 +316,7 @@ public:
          // each quadrature point and push the trial result into the dependent
          // input registers.
          // -----------------------------------------------
-         MFEM_FOREACH_THREAD(qz, z, (B2D ? 1 : q1d))
+         MFEM_FOREACH_THREAD(qz, z, (DIM == 2) ? 1 : q1d)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
@@ -475,29 +415,11 @@ public:
          {
             constexpr size_t s = sc.value;
             using FOP = tuple_element_t<s, inputs_t>;
-            const int d = in.d1d(s), q = in.q1d(s), Q1D = q1d;
-            const real_t *B = in.dtq[s].B, *G = in.dtq[s].G;
-            auto &sarg = get<s>(iargs);
-            auto &YE = ye_XE;
             // Only trial slots have a register bank to integrate
-            if constexpr (!Layout::template StaticInputDep<s>()) { }
-            else if constexpr (is_value_fop_v<FOP>)
+            if constexpr (Layout::template StaticInputDep<s>())
             {
-               backend_t::WriteValue(smem, e, d, q, Q1D, B, YE, sarg);
-            }
-            else if constexpr (is_gradient_fop_v<FOP>)
-            {
-               using YE_t = decltype(YE);
-               using rarg_t = decltype(sarg);
-               using qf_param_t =
-                  typename qf_param_slot<qfunc_t, s>::qf_decay_param_t;
-               constexpr auto RNK = qf_param_slot<qfunc_t, s>::extents.size();
-               backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>(
-                  smem, e, d, q, Q1D, B, G, YE, sarg);
-            }
-            else
-            {
-               // identity / weight derivative targets are not produced here
+               WriteField<backend_t, qfunc_t, s, FOP>(
+                  smem, e, q1d, in.dtq[s], ye_XE, get<s>(iargs));
             }
          });
       },

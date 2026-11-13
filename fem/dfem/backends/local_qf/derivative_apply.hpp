@@ -233,7 +233,7 @@ public:
 
       if (ctx.marked_entities.Size() == 0) { return; }
 
-      static constexpr auto B2D = backend_t::DIM == 2;
+      static constexpr int DIM = backend_t::DIM;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
       static constexpr auto MTPB = backend_t::MAX_THREADS_PER_BLOCK();
 
@@ -241,62 +241,13 @@ public:
       const int nq = ctx.ir.GetNPoints();
       MFEM_CONTRACT_VAR(output_size_on_qp);
 
-      constexpr auto k_dim = [](const int k) { return k * k * (B2D ? 1 : k); };
-
       // --------------------------------------------------
       // DIRECTION (trial): XE_dir for the dependent inputs
-      // --------------------------------------------------
-      const auto d_direction = direction_e.Read();
-      std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_inputs> in_XE_dir;
-      for_constexpr_host<n_inputs>([&](auto ic)
-      {
-         constexpr size_t i = ic.value;
-         const int d = in.d1d(i), q = in.q1d(i), v = in.vdim[i];
-         using FOP = tuple_element_t<i, inputs_t>;
-         if (!input_dep[i]) { return; }
-         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
-         {
-            in_XE_dir[i] = Reshape(d_direction, d, d, B2D ? 1 : d, v, ne);
-         }
-         else if constexpr (is_identity_fop_v<FOP>)
-         {
-            in_XE_dir[i] = Reshape(d_direction, v, q, q, B2D ? 1 : q, ne);
-         }
-         else if constexpr (is_weight_fop_v<FOP> || is_orientation_fop_v<FOP>)
-         {
-            // never a direction
-         }
-         else
-         {
-            static_assert(false, "Unsupported");
-         }
-      });
-
-      // --------------------------------------------------
       // OUTPUTS: YE, 3(max DIM) + 1(VDIM) + 1(number of elements)
       // --------------------------------------------------
-      std::array<DeviceTensor<3 + 1 + 1, real_t>, n_outputs> out_YE;
-      for_constexpr_host<n_outputs>([&](auto ic)
-      {
-         constexpr size_t i = ic.value;
-         const size_t k = out.idx[i];
-         const int d = out.d1d(i), q = out.q1d(i), v = out.vdim[i];
-         using FOP = tuple_element_t<i, outputs_t>;
-         if constexpr (is_gradient_fop_v<FOP> || is_value_fop_v<FOP>)
-         {
-            MFEM_VERIFY(ye[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
-            out_YE[i] = Reshape(ye[k]->ReadWrite(), d, d, B2D ? 1 : d, v, ne);
-         }
-         else if constexpr (is_identity_fop_v<FOP>)
-         {
-            MFEM_VERIFY(ye[k]->Size() == k_dim(q) * v * ne, "Size mismatch");
-            out_YE[i] = Reshape(ye[k]->ReadWrite(), v, q, q, B2D ? 1 : q, ne);
-         }
-         else
-         {
-            static_assert(false, "Unsupported FieldOperator");
-         }
-      });
+      const auto in_XE_dir = TangentViews<DIM, inputs_t>(ctx, direction_e, in,
+                                                         input_dep);
+      const auto out_YE = OutputViews<DIM, outputs_t>(ctx, ye, out);
 
       auto cache_tensor = DeviceTensor<3, const real_t>(
                              qp_cache.Read(), nq, residual_size_on_qp, ne);
@@ -327,35 +278,9 @@ public:
          {
             constexpr size_t i = ic.value;
             if constexpr (!Layout::template StaticInputDep<i>()) { return; }
-            const auto &XE = in_XE_dir[i];
-            const int d = in.d1d(i), q = in.q1d(i), Q1D = q1d;
-            const real_t *B = in.dtq[i].B, *G = in.dtq[i].G;
-            auto &sarg = get<i>(sargs);
             using FOP = tuple_element_t<i, inputs_t>;
-            if constexpr (is_value_fop<FOP>::value)
-            {
-               backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, sarg);
-            }
-            else if constexpr (is_gradient_fop_v<FOP>)
-            {
-               constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
-               using FieldParamT =
-                  typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
-               backend_t::template LoadGradient<RNK,
-                                                decltype(sarg),
-                                                decltype(XE),
-                                                FieldParamT>(
-                                                   smem, e, d, q, Q1D, B, G, XE, sarg);
-            }
-            else if constexpr (is_identity_fop_v<FOP> || is_weight_fop_v<FOP> ||
-                               is_orientation_fop_v<FOP>)
-            {
-               // identity read at qp; weight is never a trial direction
-            }
-            else
-            {
-               static_assert(false, "Unsupported");
-            }
+            LoadField<backend_t, qfunc_t, i, FOP>(
+               smem, e, q1d, in.dtq[i], in_XE_dir[i], get<i>(sargs));
          });
          MFEM_SYNC_THREAD;
 
@@ -363,7 +288,7 @@ public:
          // Contract the cached Jacobian with the trial direction at each
          // quadrature point and push the result into the test registers.
          // -----------------------------------------------
-         MFEM_FOREACH_THREAD(qz, z, (B2D ? 1 : q1d))
+         MFEM_FOREACH_THREAD(qz, z, (DIM == 2) ? 1 : q1d)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
@@ -467,30 +392,9 @@ public:
          for_constexpr<n_outputs>([&](auto ic)
          {
             constexpr size_t i = ic.value, o = n_inputs + i;
-            const int d = out.d1d(i), q = out.q1d(i), Q1D = q1d;
-            const auto B = out.dtq[i].B, G = out.dtq[i].G;
-            auto &YE = out_YE[i];
-            auto &rarg = get<i>(rargs);
             using FOP = tuple_element_t<i, outputs_t>;
-            if constexpr (is_value_fop_v<FOP>)
-            {
-               backend_t::WriteValue(smem, e, d, q, Q1D, B, YE, rarg);
-            }
-            else if constexpr (is_gradient_fop_v<FOP>)
-            {
-               using YE_t = decltype(YE);
-               using rarg_t = decltype(rarg);
-               using qf_param_t =
-                  typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
-               constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
-               backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>(
-                  smem, e, d, q, Q1D, B, G, YE, rarg);
-            }
-            else if constexpr (is_identity_fop_v<FOP>) { /* written at qp */ }
-            else
-            {
-               static_assert(false, "Unsupported");
-            }
+            WriteField<backend_t, qfunc_t, o, FOP>(
+               smem, e, q1d, out.dtq[i], out_YE[i], get<i>(rargs));
          });
       },
       ctx.marked_entities.Size(),

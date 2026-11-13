@@ -256,78 +256,16 @@ public:
       MFEM_ASSERT(dim == GetEntityDimension<entity_t>(ctx.mesh),
                   "Dimension mismatch");
 
-      static constexpr auto B2D = backend_t::DIM == 2;
+      static constexpr int DIM = backend_t::DIM;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::Q1D;
       static constexpr auto MTPB = backend_t::MAX_THREADS_PER_BLOCK();
 
-      const int ne = ctx.nentities;
-
-      constexpr auto k_dim = [](const int k) { return k * k * (B2D ? 1 : k); };
-
       // --------------------------------------------------
-      // INPUTS: XE, 3(max DIM) + 1(VDIM) + 1(number of elements)
-      // --------------------------------------------------
-      std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_inputs> in_XE;
-      for_constexpr_host<n_inputs>([&](auto ic)
-      {
-         constexpr size_t i = ic.value;
-         const size_t k = in.idx[i];
-         const int d = in.d1d(i), q = in.q1d(i), v = in.vdim[i];
-         using FOP = tuple_element_t<i, inputs_t>;
-         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
-         {
-            MFEM_VERIFY(xe[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
-            in_XE[i] = Reshape(xe[k]->Read(), d, d, B2D ? 1 : d, v, ne);
-         }
-         else if constexpr (is_identity_fop_v<FOP>)
-         {
-            MFEM_VERIFY(xe[k]->Size() == k_dim(q) * v * ne, "Size mismatch");
-            in_XE[i] = Reshape(xe[k]->Read(), v, q, q, B2D ? 1 : q, ne);
-         }
-         else if constexpr (is_weight_fop_v<FOP>)
-         {
-            MFEM_VERIFY(ctx.ir.GetNPoints() == k_dim(q1d),
-                        "tensor-product IR expected");
-            in_XE[i] = Reshape(
-                          ctx.ir.GetWeights().Read(), q1d, q1d, B2D ? 1 : q1d, 1, 1);
-         }
-         else if constexpr (is_orientation_fop_v<FOP>)
-         {
-            MFEM_VERIFY(ctx.orientation && ctx.orientation->Size() == ne,
-                        "Size mismatch");
-            in_XE[i] = Reshape(ctx.orientation->Read(), 1, 1, 1, 1, ne);
-         }
-         else
-         {
-            static_assert(false, "Unsupported");
-         }
-      });
-
-      // --------------------------------------------------
+      // INPUTS:  XE, 3(max DIM) + 1(VDIM) + 1(number of elements)
       // OUTPUTS: YE, 3(max DIM) + 1(VDIM) + 1(number of elements)
       // --------------------------------------------------
-      std::array<DeviceTensor<3 + 1 + 1, real_t>, n_outputs> out_YE;
-      for_constexpr_host<n_outputs>([&](auto ic)
-      {
-         constexpr size_t i = ic.value;
-         const size_t k = out.idx[i];
-         const int d = out.d1d(i), q = out.q1d(i), v = out.vdim[i];
-         using FOP = tuple_element_t<i, outputs_t>;
-         if constexpr (is_gradient_fop_v<FOP> || is_value_fop_v<FOP>)
-         {
-            MFEM_ASSERT(ye[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
-            out_YE[i] = Reshape(ye[k]->ReadWrite(), d, d, B2D ? 1 : d, v, ne);
-         }
-         else if constexpr (is_identity_fop_v<FOP> || is_functionalvalue_fop_v<FOP>)
-         {
-            MFEM_ASSERT(ye[k]->Size() == k_dim(q) * v * ne, "Size mismatch");
-            out_YE[i] = Reshape(ye[k]->ReadWrite(), v, q, q, B2D ? 1 : q, ne);
-         }
-         else
-         {
-            static_assert(false, "Unsupported FieldOperator");
-         }
-      });
+      const auto in_XE = InputViews<DIM, inputs_t>(ctx, xe, in);
+      const auto out_YE = OutputViews<DIM, outputs_t>(ctx, ye, out);
 
       const int *d_entities = ctx.marked_entities.Read();
 
@@ -355,35 +293,9 @@ public:
          for_constexpr<n_inputs>([&](auto ic)
          {
             constexpr size_t i = ic.value;
-            const auto &XE = in_XE[i];
-            const int d = in.d1d(i), q = in.q1d(i), Q1D = q1d;
-            ;
-            const real_t *B = in.dtq[i].B, *G = in.dtq[i].G;
-            auto &rarg = get<i>(rargs);
             using FOP = tuple_element_t<i, inputs_t>;
-            if constexpr (is_value_fop<FOP>::value)
-            {
-               backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, rarg);
-            }
-            else if constexpr (is_gradient_fop_v<FOP>)
-            {
-               using XE_t = decltype(XE);
-               using rarg_t = decltype(rarg);
-               using qf_param_t =
-                  typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
-               constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
-               backend_t::template LoadGradient<RNK, rarg_t, XE_t, qf_param_t>(
-                  smem, e, d, q, q1d, B, G, XE, rarg);
-            }
-            else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP> ||
-                               is_orientation_fop_v<FOP>)
-            {
-               // qp values are read directly from in_XE / IR
-            }
-            else
-            {
-               static_assert(false, "Unsupported");
-            }
+            LoadField<backend_t, qfunc_t, i, FOP>(
+               smem, e, q1d, in.dtq[i], in_XE[i], get<i>(rargs));
          });
 
          // -----------------------------------------------
@@ -391,7 +303,7 @@ public:
          // Warning: no 'DIRECT' on the 'Z' direction,
          // as one backend may need to iterate over it.
          // -----------------------------------------------
-         MFEM_FOREACH_THREAD(qz, z, (B2D ? 1 : q1d))
+         MFEM_FOREACH_THREAD(qz, z, (DIM == 2) ? 1 : q1d)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
@@ -402,8 +314,8 @@ public:
                   {
                      call_qfunc_direct<backend_t>(
                         qfunc, rargs, in_XE, out_YE, qx, qy, qz, e,
-                        std::make_index_sequence<n_inputs> {},
-                        std::make_index_sequence<n_outputs> {});
+                     std::make_index_sequence<n_inputs> {},
+                     std::make_index_sequence<n_outputs> {});
                   }
                   else
                   {
@@ -514,36 +426,9 @@ public:
             for_constexpr<n_outputs>([&](auto ic)
             {
                constexpr size_t i = ic.value, o = n_inputs + i;
-               const int d = out.d1d(i), q = out.q1d(i), Q1D = q1d;
-               const auto B = out.dtq[i].B, G = out.dtq[i].G;
-               const auto &YE = out_YE[i];
-               auto &rarg = get<o>(rargs);
                using FOP = tuple_element_t<i, outputs_t>;
-               if constexpr (is_value_fop_v<FOP>)
-               {
-                  backend_t::WriteValue(smem, e, d, q, q1d, B, YE, rarg);
-               }
-               else if constexpr (is_gradient_fop_v<FOP>)
-               {
-                  using YE_t = decltype(YE);
-                  using rarg_t = decltype(rarg);
-                  // Both the rank and the extents have to come from the output
-                  // parameter slot o, not from the output index i.
-                  using qf_param_t =
-                     typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
-                  constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
-                  backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>(
-                     smem, e, d, q, Q1D, B, G, YE, rarg);
-               }
-               else if constexpr (is_identity_fop_v<FOP> ||
-                                  is_functionalvalue_fop_v<FOP>)
-               {
-                  // nothing to do
-               }
-               else
-               {
-                  static_assert(false, "Unsupported");
-               }
+               WriteField<backend_t, qfunc_t, o, FOP>(
+                  smem, e, q1d, out.dtq[i], out_YE[i], get<o>(rargs));
             });
          }
       },

@@ -1088,17 +1088,6 @@ inline size_t find_union_field_index(const IntegratorContext<entity_t> &ctx,
    return SIZE_MAX;
 }
 
-template<typename entity_t>
-inline size_t find_infd_index(const IntegratorContext<entity_t> &ctx,
-                              int field_id)
-{
-   for (size_t i = 0; i < ctx.infds.size(); i++)
-   {
-      if (static_cast<int>(ctx.infds[i].id) == field_id) { return i; }
-   }
-   return SIZE_MAX;
-}
-
 /// @brief Metadata for grouping an integrator's output operators by field.
 /// @tparam outputs_t The type of the tuple containing the output operators.
 ///
@@ -1372,5 +1361,216 @@ struct QpCacheLayout
       return offset;
    }
 };
+
+/// Size of the E-vector of field @a i of @a m, with field operator @a FOP, on
+/// @a ne entities of dimension @a DIM.
+template <int DIM, typename FOP, size_t N>
+int ESize(const FieldMetadata<N> &m, const size_t i, const int ne)
+{
+   const bool dofs = is_value_fop_v<FOP> || is_gradient_fop_v<FOP>;
+   const int n = dofs ? m.d1d(i) : m.q1d(i);
+   return n * n * ((DIM == 2) ? 1 : n) * m.vdim[i] * ne;
+}
+
+/// Tensor view of the E-vector @a x of field @a i of @a m, with field operator
+/// @a FOP, on @a ne entities of dimension @a DIM: dofs (d, d, d, v, ne) for
+/// Value and Gradient, quadrature data (v, q, q, q, ne) otherwise. Axes beyond
+/// DIM have extent 1.
+template <int DIM, typename FOP, typename T, size_t N>
+auto ReshapeE(T *x, const FieldMetadata<N> &m, const size_t i, const int ne)
+{
+   const int v = m.vdim[i];
+   if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+   {
+      const int d = m.d1d(i);
+      return Reshape(x, d, d, (DIM == 2) ? 1 : d, v, ne);
+   }
+   else
+   {
+      static_assert(is_identity_fop_v<FOP> || is_functionalvalue_fop_v<FOP>,
+                    "Unsupported FieldOperator");
+      const int q = m.q1d(i);
+      return Reshape(x, v, q, q, (DIM == 2) ? 1 : q, ne);
+   }
+}
+
+/// Views of the inputs @a inputs_t of an integrator: the E-vectors @a xe of
+/// its fields, the weights of the integration rule and the entity orientations.
+template <int DIM, typename inputs_t, typename entity_t, size_t N>
+std::array<DeviceTensor<5, const real_t>, N>
+InputViews(const IntegratorContext<entity_t> &ctx,
+           const std::vector<Vector *> &xe, const FieldMetadata<N> &in)
+{
+   const int ne = ctx.nentities;
+
+   // Allocate views for the E-vectors of the inputs.
+   // Dimension 5 because:
+   // - 3 (dof/quadrature axes x, y, z; extent 1 beyond DIM)
+   // - 1 (VDIM, the field components)
+   // - 1 (number of entities)
+   std::array<DeviceTensor<3 + 1 + 1, const real_t>, N> XE;
+   for_constexpr_host<N>([&](auto ic)
+   {
+      constexpr size_t i = ic.value;
+      using FOP = tuple_element_t<i, inputs_t>;
+      if constexpr (is_weight_fop_v<FOP>)
+      {
+         const int ir_q1d = tensor_1d_size(ctx.ir.GetNPoints(), DIM);
+         const int qy = ir_q1d, qz = (DIM == 2) ? 1 : ir_q1d;
+         MFEM_VERIFY(ctx.ir.GetNPoints() == ir_q1d * qy * qz,
+                     "tensor-product IR expected");
+         XE[i] = Reshape(ctx.ir.GetWeights().Read(), ir_q1d, qy, qz, 1, 1);
+      }
+      else if constexpr (is_orientation_fop_v<FOP>)
+      {
+         MFEM_VERIFY(ctx.orientation && ctx.orientation->Size() == ne,
+                     "Size mismatch");
+         XE[i] = Reshape(ctx.orientation->Read(), 1, 1, 1, 1, ne);
+      }
+      else
+      {
+         const int size = ESize<DIM, FOP>(in, i, ne);
+         const Vector &x = *xe[in.idx[i]];
+         MFEM_VERIFY(x.Size() == size, "Size mismatch");
+         XE[i] = ReshapeE<DIM, FOP>(x.Read(), in, i, ne);
+      }
+   });
+   return XE;
+}
+
+
+/// Views of the output E-vectors @a ye of the outputs @a outputs_t of an
+/// integrator.
+template <int DIM, typename outputs_t, typename entity_t, size_t N>
+std::array<DeviceTensor<5, real_t>, N>
+OutputViews(const IntegratorContext<entity_t> &ctx,
+            std::vector<Vector *> &ye, const FieldMetadata<N> &out)
+{
+   const int ne = ctx.nentities;
+   std::array<DeviceTensor<5, real_t>, N> YE;
+   for_constexpr_host<N>([&](auto ic)
+   {
+      constexpr size_t i = ic.value;
+      using FOP = tuple_element_t<i, outputs_t>;
+      const int size = ESize<DIM, FOP>(out, i, ne);
+      Vector &y = *ye[out.idx[i]];
+      MFEM_VERIFY(y.Size() == size, "Size mismatch");
+      YE[i] = ReshapeE<DIM, FOP>(y.ReadWrite(), out, i, ne);
+   });
+   return YE;
+}
+
+
+/// Views of the tangent @a dir, the E-vector of the field being
+/// differentiated, for the inputs @a inputs_t that depend on it (@a dep); the
+/// other inputs keep their view in @a XE. Weight and Orientation inputs never
+/// have a tangent.
+template <int DIM, typename inputs_t, typename entity_t, size_t N>
+std::array<DeviceTensor<5, const real_t>, N>
+TangentViews(const IntegratorContext<entity_t> &ctx, const Vector &dir,
+             const FieldMetadata<N> &in, const std::array<bool, N> &dep,
+             std::array<DeviceTensor<5, const real_t>, N> XE = {})
+{
+   const int ne = ctx.nentities;
+   const real_t *d_dir = dir.Read();
+   for_constexpr_host<N>([&](auto ic)
+   {
+      constexpr size_t i = ic.value;
+      using FOP = tuple_element_t<i, inputs_t>;
+      if constexpr (!(is_weight_fop_v<FOP> || is_orientation_fop_v<FOP>))
+      {
+         if (!dep[i]) { return; }
+         const int size = ESize<DIM, FOP>(in, i, ne);
+         MFEM_VERIFY(dir.Size() == size,
+                     "tangent E-vector size mismatch for input " << i);
+         XE[i] = ReshapeE<DIM, FOP>(d_dir, in, i, ne);
+      }
+   });
+   return XE;
+}
+
+/// Views of the cotangents @a dir of the outputs @a outputs_t, stored one
+/// output after the other.
+template <int DIM, typename outputs_t, typename entity_t, size_t N>
+std::array<DeviceTensor<5, const real_t>, N>
+CotangentViews(const IntegratorContext<entity_t> &ctx, const Vector &dir,
+               const FieldMetadata<N> &out)
+{
+   const int ne = ctx.nentities;
+   std::array<DeviceTensor<5, const real_t>, N> XE;
+   const real_t *d_dir = dir.Read();
+   int offset = 0;
+   for_constexpr_host<N>([&](auto ic)
+   {
+      constexpr size_t o = ic.value;
+      using FOP = tuple_element_t<o, outputs_t>;
+      const int size = ESize<DIM, FOP>(out, o, ne);
+      MFEM_VERIFY(offset + size <= dir.Size(),
+                  "cotangent E-vector too small for output " << o);
+      XE[o] = ReshapeE<DIM, FOP>(d_dir + offset, out, o, ne);
+      offset += size;
+   });
+   return XE;
+}
+
+/// Interpolates the field of the field operator @a FOP, q-function parameter
+/// @a SLOT, from its E-vector view @a XE with the bases @a dtq into the
+/// registers @a rarg of entity @a e.
+/// Weight, Identity and Orientation are read at the quadrature points.
+template <typename backend_t, typename qfunc_t, size_t SLOT, typename FOP,
+          typename XE_t, typename rarg_t>
+MFEM_HOST_DEVICE inline MFEM_FORCE_INLINE
+void LoadField(typename backend_t::Shared &smem, const int e, const int q1d,
+               const DofToQuadMap &dtq, XE_t &XE, rarg_t &rarg)
+{
+   const int d = dtq.B.GetShape()[DofToQuadMap::DOF];
+   const int q = dtq.B.GetShape()[DofToQuadMap::QP];
+   if constexpr (is_value_fop_v<FOP>)
+   {
+      backend_t::LoadValue(smem, e, d, q, q1d, dtq.B, XE, rarg);
+   }
+   else if constexpr (is_gradient_fop_v<FOP>)
+   {
+      using param_t = typename qf_param_slot<qfunc_t, SLOT>::qf_decay_param_t;
+      constexpr auto RNK = qf_param_slot<qfunc_t, SLOT>::extents.size();
+      backend_t::template LoadGradient<RNK, rarg_t, XE_t, param_t>(
+         smem, e, d, q, q1d, dtq.B, dtq.G, XE, rarg);
+   }
+   else
+   {
+      static_assert(is_weight_fop_v<FOP> || is_identity_fop_v<FOP> ||
+                    is_orientation_fop_v<FOP>, "Unsupported FieldOperator");
+   }
+}
+
+/// Integrates the registers @a rarg of entity @a e, q-function parameter
+/// @a SLOT, against the test functions @a dtq of the field operator @a FOP
+/// into its E-vector view @a YE. Identity and FunctionalValue are written at the
+/// quadrature points.
+template <typename backend_t, typename qfunc_t, size_t SLOT, typename FOP,
+          typename YE_t, typename rarg_t>
+MFEM_HOST_DEVICE inline MFEM_FORCE_INLINE
+void WriteField(typename backend_t::Shared &smem, const int e, const int q1d,
+                const DofToQuadMap &dtq, YE_t &YE, rarg_t &rarg)
+{
+   const int d = dtq.B.GetShape()[DofToQuadMap::DOF];
+   const int q = dtq.B.GetShape()[DofToQuadMap::QP];
+   if constexpr (is_value_fop_v<FOP>)
+   {
+      backend_t::WriteValue(smem, e, d, q, q1d, dtq.B, YE, rarg);
+   }
+   else if constexpr (is_gradient_fop_v<FOP>)
+   {
+      using param_t = typename qf_param_slot<qfunc_t, SLOT>::qf_decay_param_t;
+      constexpr auto RNK = qf_param_slot<qfunc_t, SLOT>::extents.size();
+      backend_t::template WriteGradient<RNK, rarg_t, YE_t, param_t>(
+         smem, e, d, q, q1d, dtq.B, dtq.G, YE, rarg);
+   }
+   else
+   {
+      static_assert(is_identity_fop_v<FOP> || is_functionalvalue_fop_v<FOP>,
+                    "Unsupported FieldOperator");
+   }
+}
 
 } // namespace mfem::future

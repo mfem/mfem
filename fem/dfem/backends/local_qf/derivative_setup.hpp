@@ -237,53 +237,16 @@ public:
       MFEM_VERIFY(Layout::StaticCacheColumns() == trial_vdim * total_trial_op_dim,
                   "DerivativeSetup: derivative cache row width mismatch");
 
-      static constexpr auto B2D = backend_t::DIM == 2;
+      static constexpr int DIM = backend_t::DIM;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
       static constexpr auto MTPB = backend_t::MAX_THREADS_PER_BLOCK();
 
-      const int ne = ctx.nentities;
       MFEM_CONTRACT_VAR(residual_size_on_qp);
-
-      constexpr auto k_dim = [](const int k) { return k * k * (B2D ? 1 : k); };
 
       // --------------------------------------------------
       // INPUTS: XE, 3(max DIM) + 1(VDIM) + 1(number of elements)
       // --------------------------------------------------
-      std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_inputs> in_XE;
-      for_constexpr_host<n_inputs>([&](auto ic)
-      {
-         constexpr size_t i = ic.value;
-         const size_t k = in.idx[i];
-         const int d = in.d1d(i), q = in.q1d(i), v = in.vdim[i];
-         using FOP = tuple_element_t<i, inputs_t>;
-         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
-         {
-            MFEM_VERIFY(xe[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
-            in_XE[i] = Reshape(xe[k]->Read(), d, d, B2D ? 1 : d, v, ne);
-         }
-         else if constexpr (is_identity_fop_v<FOP>)
-         {
-            MFEM_VERIFY(xe[k]->Size() == k_dim(q) * v * ne, "Size mismatch");
-            in_XE[i] = Reshape(xe[k]->Read(), v, q, q, B2D ? 1 : q, ne);
-         }
-         else if constexpr (is_weight_fop_v<FOP>)
-         {
-            MFEM_VERIFY(ctx.ir.GetNPoints() == k_dim(q1d),
-                        "tensor-product IR expected");
-            in_XE[i] = Reshape(
-                          ctx.ir.GetWeights().Read(), q1d, q1d, B2D ? 1 : q1d, 1, 1);
-         }
-         else if constexpr (is_orientation_fop_v<FOP>)
-         {
-            MFEM_VERIFY(ctx.orientation && ctx.orientation->Size() == ne,
-                        "Size mismatch");
-            in_XE[i] = Reshape(ctx.orientation->Read(), 1, 1, 1, 1, ne);
-         }
-         else
-         {
-            static_assert(false, "Unsupported");
-         }
-      });
+      const auto in_XE = InputViews<DIM, inputs_t>(ctx, xe, in);
 
       const int *d_entities = ctx.marked_entities.Read();
 
@@ -307,35 +270,9 @@ public:
          for_constexpr<n_inputs>([&](auto ic)
          {
             constexpr size_t i = ic.value;
-            const auto &XE = in_XE[i];
-            const int d = in.d1d(i), q = in.q1d(i), Q1D = q1d;
-            const real_t *B = in.dtq[i].B, *G = in.dtq[i].G;
-            auto &rarg = get<i>(rargs);
-            using XE_t = decltype(XE);
-            using rarg_t = decltype(rarg);
             using FOP = tuple_element_t<i, inputs_t>;
-            if constexpr (is_value_fop<FOP>::value)
-            {
-               backend_t::template LoadValue<rarg_t, XE_t>(
-                  smem, e, d, q, Q1D, B, XE, rarg);
-            }
-            else if constexpr (is_gradient_fop_v<FOP>)
-            {
-               constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
-               using FieldParamT =
-                  typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
-               backend_t::template LoadGradient<RNK, rarg_t, XE_t, FieldParamT>(
-                  smem, e, d, q, q1d, B, G, XE, rarg);
-            }
-            else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP> ||
-                               is_orientation_fop_v<FOP>)
-            {
-               // qp values are read directly from in_XE / IR
-            }
-            else
-            {
-               static_assert(false, "Unsupported");
-            }
+            LoadField<backend_t, qfunc_t, i, FOP>(
+               smem, e, q1d, in.dtq[i], in_XE[i], get<i>(rargs));
          });
          MFEM_SYNC_THREAD;
 
@@ -349,7 +286,7 @@ public:
          // Warning: no 'DIRECT' on the 'Z' direction,
          // as one backend may need to iterate over it.
          // -----------------------------------------------
-         MFEM_FOREACH_THREAD(qz, z, (B2D ? 1 : q1d))
+         MFEM_FOREACH_THREAD(qz, z, (DIM == 2) ? 1 : q1d)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
             {
