@@ -67,6 +67,7 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
       ir = &IntRules.Get(el.GetGeomType(), oa * el.GetOrder() + ob);
    }
 
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
@@ -74,7 +75,7 @@ void DomainLFIntegrator::AssembleRHSElementVect(const FiniteElement &el,
       Tr.SetIntPoint (&ip);
       real_t val = Tr.Weight() * Q.Eval(Tr, ip);
 
-      el.CalcPhysShape(Tr, shape);
+      shapes.CalcPhysShape(i, Tr, shape);
 
       add(elvect, ip.weight * val, shape, elvect);
    }
@@ -107,12 +108,13 @@ void DomainLFGradIntegrator::AssembleRHSElementVect(
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
 
       Tr.SetIntPoint(&ip);
-      el.CalcPhysDShape(Tr, dshape);
+      shapes.CalcPhysDShape(i, Tr, dshape);
 
       Q.Eval(Qvec, Tr, ip);
       Qvec *= ip.weight * Tr.Weight();
@@ -306,6 +308,7 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
       ir = &IntRules.Get(el.GetGeomType(), intorder);
    }
 
+   const RuleShapes shapes(el, *ir);
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
@@ -313,7 +316,7 @@ void VectorDomainLFIntegrator::AssembleRHSElementVect(
       Tr.SetIntPoint (&ip);
       val = Tr.Weight();
 
-      el.CalcPhysShape(Tr, shape);
+      shapes.CalcPhysShape(i, Tr, shape);
       Q.Eval (Qvec, Tr, ip);
 
       for (int k = 0; k < vdim; k++)
@@ -368,12 +371,13 @@ void VectorDomainLFGradIntegrator::AssembleRHSElementVect(
    Vector pelvect(dof);
    Vector part_x(dim);
 
+   const RuleShapes shapes(el, *ir);
    for (int q = 0; q < ir->GetNPoints(); q++)
    {
       const IntegrationPoint &ip = ir->IntPoint(q);
 
       Tr.SetIntPoint(&ip);
-      el.CalcPhysDShape(Tr, dshape);
+      shapes.CalcPhysDShape(q, Tr, dshape);
 
       Q.Eval(Qvec, Tr, ip);
       Qvec *= ip.weight * Tr.Weight();
