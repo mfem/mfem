@@ -232,11 +232,6 @@ if (MFEM_USE_GINKGO)
   add_subdirectory(ginkgo)
 endif()
 
-# Include the examples/hiop directory if HiOp is enabled
-if (MFEM_USE_HIOP)
-  add_subdirectory(hiop)
-endif()
-
 # Include the examples/petsc directory if PETSc is enabled.
 if (MFEM_USE_PETSC)
   add_subdirectory(petsc)

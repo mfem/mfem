@@ -28,6 +28,8 @@
 #include "densemat.hpp"
 #include "symmat.hpp"
 #include "ode.hpp"
+#include "functional.hpp"
+#include "optimization.hpp"
 #include "solvers.hpp"
 #include "handle.hpp"
 #include "invariants.hpp"
@@ -48,10 +50,6 @@
 
 #ifdef MFEM_USE_SUNDIALS
 #include "sundials.hpp"
-#endif
-
-#ifdef MFEM_USE_HIOP
-#include "hiop.hpp"
 #endif
 
 #ifdef MFEM_USE_GINKGO

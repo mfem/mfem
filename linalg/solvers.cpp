@@ -2568,6 +2568,234 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    return 1;
 }
 
+void SLBQPOptimizer::SetOptimizationProblem(const optimization::Problem &prob)
+{
+   if (print_options.warnings && prob.GetObjective().Height() > 0)
+   {
+      MFEM_WARNING("Objective functional is ignored as SLBQP always minimizes "
+                   "the l2 norm of (x - x_target).");
+   }
+   MFEM_VERIFY(prob.NumFields() == 1, "Solver expects a single field.");
+   const auto [C, c_e] = prob.GetEquality();
+   MFEM_VERIFY(C.Height() == 1, "Solver expects scalar constraint.");
+   MFEM_VERIFY(std::get<0>(prob.GetInequality()).Height() == 0,
+               "Solver does not support inequality constraints.");
+
+   MFEM_VERIFY(prob.NumLocalConstraints() == 1,
+               "Solver expects a single local constraint.");
+   const auto [field, set, op] = prob.GetLocalConstraint(0);
+   const auto *box = dynamic_cast<const optimization::BoxConstraint*>(&set);
+   MFEM_VERIFY(box && op == nullptr, "Solver expects dofwise bounds.");
+   SetBounds(box->lower, box->upper);
+
+   // The constraint is linear: its derivative at any point gives w.
+   const int n = prob.GetFieldSizes()[0];
+   Vector zero(n);
+   zero = 0.0;
+   const MultiVector x0(zero);
+   MFEM_VERIFY(C.ComponentHessian(x0, 0) == nullptr,
+               "Solver expects a linear constraint.");
+   problem_w.SetSize(n);
+   MultiVector dC(problem_w);
+   C.ComponentDerivative(x0, 0, dC);
+   MFEM_VERIFY(Dot(problem_w, problem_w) > 0.0,
+               "The derivative of the constraint is zero.");
+   SetLinearConstraint(problem_w, c_e.target(0));
+
+   problem = &prob;
+}
+
+void SLBQPOptimizer::SetBounds(const Vector &lo_, const Vector &hi_)
+{
+   lo.MakeRef(const_cast<Vector&>(lo_), 0, lo_.Size());
+   hi.MakeRef(const_cast<Vector&>(hi_), 0, hi_.Size());
+}
+
+void SLBQPOptimizer::SetLinearConstraint(const Vector &w_, real_t a_)
+{
+   w.MakeRef(const_cast<Vector&>(w_), 0, w_.Size());
+   a = a_;
+}
+
+inline void SLBQPOptimizer::print_iteration(int it, real_t r, real_t l) const
+{
+   if (print_options.iterations || (print_options.first_and_last && it == 0))
+   {
+      mfem::out << "SLBQP iteration " << it << ": residual = " << r
+                << ", lambda = " << l << '\n';
+   }
+}
+
+void SLBQPOptimizer::Mult(const Vector& xt, Vector& x) const
+{
+   // Based on code provided by Denis Ridzal, dridzal@sandia.gov.
+   // Algorithm adapted from Dai and Fletcher, "New Algorithms for
+   // Singly Linearly Constrained Quadratic Programs Subject to Lower
+   // and Upper Bounds", Numerical Analysis Report NA/216, 2003.
+
+   // Set some algorithm-specific constants and temporaries.
+   int nclip   = 0;
+   real_t l    = 0;
+   real_t llow = 0;
+   real_t lupp = 0;
+   real_t lnew = 0;
+   real_t dl   = 2;
+   real_t r    = 0;
+   real_t rlow = 0;
+   real_t rupp = 0;
+   real_t s    = 0;
+
+   const real_t smin = 0.1;
+
+   const real_t tol = max(abs_tol, rel_tol*a);
+
+   // *** Start bracketing phase of SLBQP ***
+   if (print_options.iterations)
+   {
+      mfem::out << "SLBQP bracketing phase" << '\n';
+   }
+
+   // Solve QP with fixed Lagrange multiplier
+   r = initial_norm = solve(l,xt,x,nclip);
+   print_iteration(nclip, r, l);
+
+
+   // If x=xt was already within bounds and satisfies the linear
+   // constraint, then we already have the solution.
+   if (fabs(r) <= tol)
+   {
+      converged = true;
+      goto slbqp_done;
+   }
+
+   if (r < 0)
+   {
+      llow = l;  rlow = r;  l = l + dl;
+
+      // Solve QP with fixed Lagrange multiplier
+      r = solve(l,xt,x,nclip);
+      print_iteration(nclip, r, l);
+
+      while ((r < 0) && (nclip < max_iter))
+      {
+         llow = l;
+         s = rlow/r - 1.0;
+         if (s < smin) { s = smin; }
+         dl = dl + dl/s;
+         l = l + dl;
+
+         // Solve QP with fixed Lagrange multiplier
+         r = solve(l,xt,x,nclip);
+         print_iteration(nclip, r, l);
+      }
+
+      lupp = l;  rupp = r;
+   }
+   else
+   {
+      lupp = l;  rupp = r;  l = l - dl;
+
+      // Solve QP with fixed Lagrange multiplier
+      r = solve(l,xt,x,nclip);
+      print_iteration(nclip, r, l);
+
+      while ((r > 0) && (nclip < max_iter))
+      {
+         lupp = l;
+         s = rupp/r - 1.0;
+         if (s < smin) { s = smin; }
+         dl = dl + dl/s;
+         l = l - dl;
+
+         // Solve QP with fixed Lagrange multiplier
+         r = solve(l,xt,x,nclip);
+         print_iteration(nclip, r, l);
+      }
+
+      llow = l;  rlow = r;
+   }
+
+   // *** Stop bracketing phase of SLBQP ***
+
+
+   // *** Start secant phase of SLBQP ***
+   if (print_options.iterations)
+   {
+      mfem::out << "SLBQP secant phase" << '\n';
+   }
+
+   s = 1.0 - rlow/rupp;  dl = dl/s;  l = lupp - dl;
+
+   // Solve QP with fixed Lagrange multiplier
+   r = solve(l,xt,x,nclip);
+   print_iteration(nclip, r, l);
+
+   while ( (fabs(r) > tol) && (nclip < max_iter) )
+   {
+      if (r > 0)
+      {
+         if (s <= 2.0)
+         {
+            lupp = l;  rupp = r;  s = 1.0 - rlow/rupp;
+            dl = (lupp - llow)/s;  l = lupp - dl;
+         }
+         else
+         {
+            s = rupp/r - 1.0;
+            if (s < smin) { s = smin; }
+            dl = (lupp - l)/s;
+            lnew = 0.75*llow + 0.25*l;
+            if (lnew < l-dl) { lnew = l-dl; }
+            lupp = l;  rupp = r;  l = lnew;
+            s = (lupp - llow)/(lupp - l);
+         }
+
+      }
+      else
+      {
+         if (s >= 2.0)
+         {
+            llow = l;  rlow = r;  s = 1.0 - rlow/rupp;
+            dl = (lupp - llow)/s;  l = lupp - dl;
+         }
+         else
+         {
+            s = rlow/r - 1.0;
+            if (s < smin) { s = smin; }
+            dl = (l - llow)/s;
+            lnew = 0.75*lupp + 0.25*l;
+            if (lnew < l+dl) { lnew = l+dl; }
+            llow = l;  rlow = r; l = lnew;
+            s = (lupp - llow)/(lupp - l);
+         }
+      }
+
+      // Solve QP with fixed Lagrange multiplier
+      r = solve(l,xt,x,nclip);
+      print_iteration(nclip, r, l);
+   }
+
+   // *** Stop secant phase of SLBQP ***
+   converged = (fabs(r) <= tol);
+
+slbqp_done:
+
+   final_iter = nclip;
+   final_norm = r;
+
+   if (print_options.summary || (!converged && print_options.warnings) ||
+       print_options.first_and_last)
+   {
+      mfem::out << "SLBQP: Number of iterations: " << final_iter << '\n'
+                << "   lambda = " << l << '\n'
+                << "   ||r||  = " << final_norm << '\n';
+   }
+   if (!converged && print_options.warnings)
+   {
+      mfem::out << "SLBQP: No convergence!" << '\n';
+   }
+}
+
 struct WeightMinHeap
 {
    const std::vector<real_t> &w;

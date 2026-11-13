@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "densemat.hpp"
 #include "handle.hpp"
+#include "optimization.hpp"
 #include <memory>
 
 #ifdef MFEM_USE_MPI
@@ -932,6 +933,103 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
            int m_max, int m_min, int m_step, real_t cf,
            real_t &tol, real_t &atol, int printit);
 
+/// Abstract solver for Problems.
+class OptimizationSolver : public IterativeSolver
+{
+protected:
+   const optimization::Problem *problem = nullptr;
+
+public:
+   OptimizationSolver() : IterativeSolver() { }
+#ifdef MFEM_USE_MPI
+   OptimizationSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
+#endif
+   ~OptimizationSolver() override { }
+
+   /** This function is virtual as solvers might need to perform some initial
+    *  actions (e.g. validation) with the Problem, which must be finalized. */
+   virtual void SetOptimizationProblem(const optimization::Problem &prob)
+   { problem = &prob; }
+
+   void MultMV(const MultiVector &x0, MultiVector &x) const override = 0;
+
+   /// @brief MultMV() with @a x0 and @a x split into blocks that refer to the
+   /// fields of the problem, or into one block when no problem is set.
+   void Mult(const Vector &x0, Vector &x) const override
+   {
+      const Array<int> sizes = problem ? problem->GetFieldSizes()
+                               : Array<int>({x.Size()});
+      const MultiVector X0(const_cast<Vector&>(x0), sizes);
+      MultiVector X(x, sizes);
+      MultMV(X0, X);
+      for (int b = 0; b < X.NumBlocks(); b++) { X[b].SyncAliasMemory(x); }
+   }
+
+   void SetPreconditioner(Solver &pr) override
+   { MFEM_ABORT("Not meaningful for this solver."); }
+   void SetOperator(const Operator &op) override
+   { MFEM_ABORT("Not meaningful for this solver."); }
+};
+
+/** SLBQP optimizer:
+ *  (S)ingle (L)inearly Constrained with (B)ounds (Q)uadratic (P)rogram
+ *
+ *    Minimize || x-x_t ||, subject to
+ *    sum w_i x_i = a,
+ *    x_lo <= x <= x_hi.
+ */
+class SLBQPOptimizer : public OptimizationSolver
+{
+protected:
+   Vector lo, hi, w;
+   real_t a;
+   /// The constraint weights of the Problem, see SetOptimizationProblem().
+   Vector problem_w;
+
+   /// Solve QP at fixed lambda
+   inline real_t solve(real_t l, const Vector &xt, Vector &x, int &nclip) const
+   {
+      add(xt, l, w, x);
+      x.median(lo,hi);
+      nclip++;
+      if (problem == NULL) { return Dot(w, x) - a; }
+      else
+      {
+         Vector c(1);
+         // Includes parallel communication.
+         const auto [C, c_e] = problem->GetEquality();
+         C.Eval(MultiVector(x), c);
+
+         return c(0) - c_e.target(0);
+      }
+   }
+
+   inline void print_iteration(int it, real_t r, real_t l) const;
+
+public:
+   SLBQPOptimizer() { }
+
+#ifdef MFEM_USE_MPI
+   SLBQPOptimizer(MPI_Comm comm_) : OptimizationSolver(comm_) { }
+#endif
+
+   /** Setting a Problem will overwrite the Vectors given by SetBounds and
+    *  SetLinearConstraint. The objective function remains unchanged. The
+    *  Problem must have a single field, a scalar linear equality constraint,
+    *  no inequality constraints, and a dofwise BoxConstraint on the field as
+    *  its only local constraint. */
+   void SetOptimizationProblem(const optimization::Problem &prob) override;
+
+   void SetBounds(const Vector &lo_, const Vector &hi_);
+   void SetLinearConstraint(const Vector &w_, real_t a_);
+
+   /** We let the target values play the role of the initial vector xt, from
+    *  which the operator generates the optimal vector x. */
+   void Mult(const Vector &xt, Vector &x) const override;
+
+   void MultMV(const MultiVector &xt, MultiVector &x) const override
+   { Mult(xt[0], x[0]); }
+};
 
 /** Block ILU solver:
  *  Performs a block ILU(k) approximate factorization with specified block
