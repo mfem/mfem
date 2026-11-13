@@ -1998,6 +1998,10 @@ public:
    /** @brief Return the mesh geometric factors for the faces corresponding
        to the given integration rule.
 
+       The mesh node finite element space must use a single tensor-product
+       element geometry with a supported nodal basis. Mixed element geometries
+       and non-tensor-product spaces are not currently supported.
+
        The IntegrationRule used with GetFaceGeometricFactors needs to remain
        valid until the internally stored FaceGeometricFactors objects are
        destroyed (by either calling Mesh::DeleteGeometricFactors(),
