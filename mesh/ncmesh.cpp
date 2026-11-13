@@ -5694,10 +5694,9 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms() const
          {
             Geometry::Type geom = Geometry::Type(g);
             Array<int> num_points(path_map[g].size());
-            int matrix = 0;
             for (const auto &path : path_map[g])
             {
-               num_points[matrix++] =
+               num_points[path.second-1] =
                   GetPointMatrixNumPoints(geom, path.first.c_str());
             }
 

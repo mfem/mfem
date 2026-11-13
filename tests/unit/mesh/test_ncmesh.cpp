@@ -627,6 +627,54 @@ TEST_CASE("NCMesh geometry-specific H1 field transfer round trip", "[NCMesh]")
    }
 }
 
+TEST_CASE("NCMesh mixed 2D attribute pattern round trip", "[NCMesh]")
+{
+   Mesh mesh("../../data/rings-mixed.mesh", 1, 0);
+   REQUIRE(mesh.GetNE() == 21);
+   mesh.EnsureNCMesh(true);
+   H1_FECollection fec(2, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   { return 1.0 + 2.0*x[0] - 3.0*x[1]; });
+   field.ProjectCoefficient(affine);
+
+   Array<Refinement> refs;
+   for (int elem = 0; elem < mesh.GetNE(); elem++)
+   {
+      const int pattern = mesh.GetElement(elem)->GetAttribute();
+      if (pattern != 15)
+      { refs.Append(Refinement(elem, static_cast<char>(pattern))); }
+   }
+   REQUIRE(refs.Size() == 19);
+   mesh.GeneralRefinement(refs);
+   {
+      std::ofstream mesh_ofs("rings-mixed-refined.mesh");
+      mesh_ofs.precision(8);
+      mesh.Print(mesh_ofs);
+   }
+
+   REQUIRE(mesh.GetNE() == 52);
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   fes.Update();
+   field.Update();
+   GridFunction difference(&fes);
+   difference.ProjectCoefficient(affine);
+   difference -= field;
+   REQUIRE(difference.Normlinf() == MFEM_Approx(0.0, EPS));
+
+   Vector errors(mesh.GetNE());
+   errors = 0.0;
+   REQUIRE(mesh.DerefineByError(errors, 1.0));
+   REQUIRE(mesh.GetNE() == 21);
+   fes.Update();
+   field.Update();
+   difference.Update();
+   difference.ProjectCoefficient(affine);
+   difference -= field;
+   REQUIRE(difference.Normlinf() == MFEM_Approx(0.0, EPS));
+}
+
 TEST_CASE("NCMesh geometry-specific Nedelec refinement transfer", "[NCMesh]")
 {
    const int order = GENERATE(1, 2);
