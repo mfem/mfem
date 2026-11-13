@@ -2741,6 +2741,9 @@ public:
    int GetVDim() const { return vdim; }
    void SetVDim(int vdim_) { vdim = vdim_; }
 
+   /// Return the coefficient, or nullptr if none is set.
+   CoefficientBase *GetCoefficientBase() const { return CoefficientBase::Get(Q, VQ, MQ); }
+
    void AssembleElementMatrix(const FiniteElement &el,
                               ElementTransformation &Trans,
                               DenseMatrix &elmat) override;

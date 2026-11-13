@@ -27,7 +27,7 @@ LOR_ELAST_SRC = block_fespace_operator.cpp lor_elast.cpp
 LOR_ELAST_OBJ = $(LOR_ELAST_SRC:.cpp=.o)
 
 SEQ_MINIAPPS = lor_solvers
-PAR_MINIAPPS = block-solvers plor_solvers lor_elast
+PAR_MINIAPPS = block-solvers plor_solvers lor_elast bras_mass bras_darcy
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -48,6 +48,7 @@ all: $(MINIAPPS)
 
 lor_solvers.o: $(SRC)lor_mms.hpp
 plor_solvers.o: $(SRC)lor_mms.hpp
+bras_mass.o: $(SRC)lor_mms.hpp
 
 %: %.o
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(MFEM_LIBS)
@@ -91,6 +92,17 @@ lor_elast-tri: lor_elast
 lor_elast-hex: lor_elast
 	@$(call mfem-test,$<, $(RUN_MPI), Elasticity LOR miniapp,-l 1 -pa -o 2\
 	  -m ../../data/beam-hex.mesh)
+
+# BRAS miniapp tests
+bras_mass-test-par: bras_mass-hdiv bras_mass-hcurl
+bras_mass-hdiv: bras_mass
+	@$(call mfem-test,$<, $(RUN_MPI), BRAS mass miniapp,-fe r -amr 2 -t)
+bras_mass-hcurl: bras_mass
+	@$(call mfem-test,$<, $(RUN_MPI), BRAS mass miniapp,\
+	  -m ../../data/inline-hex.mesh -rs 1 -o 2 -fe n -amr 1 -cheb 2)
+bras_darcy-test-par: bras_darcy
+	@$(call mfem-test,$<, $(RUN_MPI), BRAS Darcy miniapp,\
+	  -m ../../data/amr-quad.mesh -rs 1)
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):

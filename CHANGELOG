@@ -38,12 +38,31 @@ Meshing improvements
 
 Linear and nonlinear solvers
 ----------------------------
+- Added the BRASPreconditioner class, a weighted broken-space additive Schwarz
+  (BRAS) preconditioner for H1, H(curl), H(div), and L2 mass matrices with
+  scalar or matrix coefficients, see arXiv:2607.12138. It applies one
+  element-local solve per element and is spectrally equivalent to the inverse
+  mass matrix, independently of the mesh size and of the refinement level of
+  nonconforming meshes. The element solves are dense (batched) or use sum
+  factorization on affine tensor-product elements. On nonconforming meshes,
+  the hanging DOFs are treated by left-inverse approximations, with a diagonal
+  or a Chebyshev approximation of the coupling operator, selected
+  automatically by default. BRAS works in serial and in parallel, on
+  conforming and nonconforming meshes, and its application runs on devices. The preconditioner can also be assembled as a SparseMatrix or a
+  HypreParMatrix, e.g. to form Schur complement approximations.
+
 - Fixed HypreParaSails::SetOperator, which read the communicator of the
   previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
   in a NewtonSolver.
 
 New and updated examples and miniapps
 -------------------------------------
+- Added two BRAS miniapps in miniapps/solvers: bras_mass compares BRAS and
+  Jacobi for H1, H(curl), H(div), and L2 projections on conforming and locally
+  refined meshes, and bras_darcy uses BRAS in a block diagonal preconditioner
+  for the mixed Darcy problem of Example 5, both for the velocity mass matrix
+  and in the Schur complement approximation.
+
 - Added a new example for solving the biharmonic equation (examples/ex42) based
   on the C0 interior penalty method of Brenner & Sung using H1 elements.
 
