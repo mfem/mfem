@@ -8,14 +8,16 @@ This directory contains MFEM's suite of unit tests, using the
 MFEM's unit test suite includes a number of executables:
 
 * `unit_tests`
-* `gpu_unit_tests` if MFEM is compiled with CUDA/HIP support
 * `sedov_tests_cpu`, `sedov_tests_debug` (and `sedov_tests_gpu` and
   `sedov_tests_gpu_uvm` if GPU is enabled), testing a Sedov hydrodynamics case
 * `tmop_pa_tests_cpu`, `tmop_pa_tests_debug` (and `tmop_pa_tests_gpu` if GPU
   is enabled), testing TMOP with partial assembly
 
 There are also parallel versions of these executables (prefixed with `p`), which
-are built if MFEM is compiled with MPI enabled.
+are built if MFEM is compiled with MPI enabled. Both `unit_tests` and
+`punit_tests` accept `--device` to select an enabled MFEM device backend. The default
+is `cpu`; configured builds also run these executables with `gpu`, `raja-gpu`,
+ `omp` (OpenMP), and 'raja-omp' as applicable.
 
 ## Basics of using Catch
 
@@ -67,11 +69,10 @@ and those are:
   serial test executables, and will only be tested with the parallel executable
   (e.g. `punit_tests`). `punit_tests` will only run tests marked with
   `[Parallel]`.
-* `[GPU]`, which indicates that a test will be tested with the GPU executables
-  (e.g. `gpu_unit_tests`). These tests will still be run by the standard (CPU)
-  executables. `gpu_unit_tests` will only run tests marked with `[GPU]`, and its
-  parallel version `pgpu_unit_tests` will only run tests marked with _both_
-  `[GPU]` and `[Parallel]`.
+* `[GPU]`, which indicates that a test will be run when `--device` selects a backend
+  other than `cpu`. These tests also run with the default CPU backend. With a
+  non-CPU backend, `punit_tests` runs tests marked with both `[GPU]` and
+  `[Parallel]`.
 * `[MFEMData]`, which indicates that a test requires access to a clone of the
   MFEM data repository (see the `--data` flag below), in order to run tests on
   some larger mesh files. By default, tests tagged with this tag are skipped,
@@ -80,8 +81,10 @@ and those are:
 ## Special command line arguments
 
 In addition to the standard Catch command line arguments (which can be viewed
-with the `-h` or `--help` flag), MFEM's unit tests support two additional
+with the `-h` or `--help` flag), MFEM's unit tests support these additional
 command line arguments:
+
+* `--device`, which selects the MFEM device backend (default: `cpu`).
 
 * `--all`, which enables some more thorough tests, at the expense of longer
   runtimes. This sets the global variable `launch_all_non_regression_tests` to

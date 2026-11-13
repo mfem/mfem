@@ -38,8 +38,6 @@ DATA_DIR = data
 
 SEQ_MAIN_OBJ = unit_test_main.o
 PAR_MAIN_OBJ = punit_test_main.o
-GPU_MAIN_OBJ = gpu_unit_test_main.o
-PGPU_MAIN_OBJ = pgpu_unit_test_main.o
 
 # Sedov numerical seq/par files and tests
 SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
@@ -82,9 +80,9 @@ PAR_TMOP_GPU_OBJ_FILES = $(if $(USE_GPU),$(TMOP_FILES:$(SRC)%.cpp=%.pgpu.o))
 PAR_TMOP_GPU_UVM_OBJ_FILES = $(if $(USE_GPU),$(TMOP_FILES:$(SRC)%.cpp=%.pgpu_uvm.o))
 
 # seq/par files and tests
-SEQ_UNIT_TESTS = unit_tests $(if $(USE_GPU),gpu_unit_tests)
+SEQ_UNIT_TESTS = unit_tests
 SEQ_UNIT_TESTS += $(SEQ_SEDOV_TESTS) $(SEQ_TMOP_TESTS)
-PAR_UNIT_TESTS = punit_tests $(if $(USE_GPU),pgpu_unit_tests)
+PAR_UNIT_TESTS = punit_tests
 PAR_UNIT_TESTS += $(PAR_SEDOV_TESTS) $(PAR_TMOP_TESTS)
 
 # Ceed tests
@@ -116,12 +114,6 @@ unit_tests: $(SEQ_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_D
 punit_tests: $(PAR_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(PAR_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-gpu_unit_tests: $(GPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(GPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
-
-pgpu_unit_tests: $(PGPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(PGPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
-
 ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
@@ -133,11 +125,13 @@ $(LIBTESTS_O): $(OBJECT_FILES)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
-$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(GPU_MAIN_OBJ) \
- $(PGPU_MAIN_OBJ) $(DEBUG_DEVICE_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) \
+$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) \
+ $(DEBUG_DEVICE_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) \
  $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
+
+$(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ): $(SRC)run_unit_tests.hpp
 
 $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
@@ -255,6 +249,25 @@ endif
 %-test-seq: %
 	@$(call mfem-test,$<,, Unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)
 
+unit_tests-test-seq: unit_tests
+	@$(call mfem-test,$<,, Unit tests (cpu),--device cpu $(MFEM_DATA_FLAG),SKIP-NO-VIS)
+
+# Run the same executable with each enabled device backend.
+UNIT_TEST_DEVICES = $(if $(USE_GPU),gpu)
+UNIT_TEST_DEVICES += $(if $(and $(USE_GPU),$(filter YES,$(MFEM_USE_RAJA))),raja-gpu)
+UNIT_TEST_DEVICES += $(if $(filter YES,$(MFEM_USE_OPENMP)),omp)
+UNIT_TEST_DEVICES += $(if $(and $(filter YES,$(MFEM_USE_OPENMP)),$(filter YES,$(MFEM_USE_RAJA))),raja-omp)
+test-par-NO: $(UNIT_TEST_DEVICES:%=unit_tests-test-seq-%)
+test-par-YES: $(UNIT_TEST_DEVICES:%=unit_tests-test-seq-%) \
+              $(UNIT_TEST_DEVICES:%=punit_tests-test-par-%)
+
+unit_tests-test-seq-%: unit_tests
+	@$(call mfem-test,$<,, Unit tests ($*),--device $* $(MFEM_DATA_FLAG),SKIP-NO-VIS,unit_tests-$*)
+
+punit_tests-test-par-%: punit_tests
+	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel unit tests ($*),--device $* $(MFEM_DATA_FLAG),SKIP-NO-VIS,punit_tests-$*-np1)
+	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel unit tests ($*),--device $* $(MFEM_DATA_FLAG),SKIP-NO-VIS,punit_tests-$*-np$(MFEM_MPI_NP))
+
 ceed_tests-test-seq: ceed_tests
 	@$(call mfem-test,$<,, CEED Unit tests (cpu),--device ceed-cpu $(MFEM_DATA_FLAG),SKIP-NO-VIS)
 ifeq ($(MFEM_USE_CUDA),YES)
@@ -268,6 +281,10 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
 	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)
 	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)
 
+punit_tests-test-par: punit_tests
+	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel unit tests (cpu),--device cpu $(MFEM_DATA_FLAG),SKIP-NO-VIS)
+	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel unit tests (cpu),--device cpu $(MFEM_DATA_FLAG),SKIP-NO-VIS)
+
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
@@ -276,5 +293,6 @@ clean-exec:
 	@rm -rf output_meshes parallel_in_serial.mesh parallel_in_serial.gf
 
 clean: clean-exec
-	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) *.o */*.o */*~ *~
+	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) \
+	   *.o */*.o */*~ *~
 	rm -rf *.dSYM
