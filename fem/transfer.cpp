@@ -354,6 +354,29 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
    }
 
    BuildHo2Lor(nel_ho, nel_lor, cf_tr);
+   const int *lor_map = ho2lor.ReadJ();
+   // Child positions can differ between NC parents. Map each child to the
+   // reference embedding used to sample the basis on the first parent.
+   Array<int> basis_indices(nel_lor);
+   const int nref_basis = ho2lor.RowSize(0);
+   const int *reference_children = ho2lor.GetRow(0);
+   Array<int> basis_by_matrix(nref_max);
+   basis_by_matrix = -1;
+   for (int i = 0; i < nref_basis; ++i)
+   {
+      basis_by_matrix[cf_tr.embeddings[reference_children[i]].matrix] = i;
+   }
+   for (int e = 0; e < nel_ho; ++e)
+   {
+      const int *children = ho2lor.GetRow(e);
+      for (int i = 0; i < nref_basis; ++i)
+      {
+         const int basis = basis_by_matrix[cf_tr.embeddings[children[i]].matrix];
+         MFEM_VERIFY(basis >= 0, "inconsistent LOR refinement embeddings");
+         basis_indices[i + nref_basis*e] = basis;
+      }
+   }
+   const int *basis_map = basis_indices.Read();
 
    IntegrationPointTransformation ip_tr;
    IsoparametricTransformation &emb_tr = ip_tr.Transf;
@@ -397,12 +420,34 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
       const int dim = mesh_ho.Dimension();
       const int nq1d = (int)floor(pow(ir_ea.Size(), 1.0/dim) + 0.5);
       const int nref_1d = (int)floor(pow(nref, 1.0/dim) + 0.5);
+      bool tensor_ordered = mesh_ho.Conforming();
+      for (int e = 0; e < nel_ho && tensor_ordered; ++e)
+      {
+         const int *children = ho2lor.GetRow(e);
+         for (int i = 0; i < nref && tensor_ordered; ++i)
+         {
+            const DenseMatrix &embedding = pmats(cf_tr.embeddings[children[i]].matrix);
+            int index = i;
+            for (int d = 0; d < dim; ++d)
+            {
+               const int digit = index % nref_1d;
+               index /= nref_1d;
+               const DenseMatrix &axis = pmats(
+                                            cf_tr.embeddings[reference_children[digit]].matrix);
+               if (std::abs(embedding(d,0) - axis(0,0)) > 1e-12)
+               {
+                  tensor_ordered = false;
+               }
+            }
+         }
+      }
+
 
       if (!coeff_ho)
       {
          coeff_vec = 1.0;
       }
-      else if (UsesTensorBasis(fes_ho) &&
+      else if (tensor_ordered && UsesTensorBasis(fes_ho) &&
                nq1d*nref_1d <= DeviceDofQuadLimits::Get().MAX_Q1D)
       {
          // Fast coefficient evaluation for tensor-product case. We create a
@@ -421,8 +466,8 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
             IntegrationRule ir_ho_1d(nq1d * nref_1d);
             for (int iref = 0; iref < nref_1d; ++iref)
             {
-               const real_t a = pmats(cf_tr.embeddings[iref].matrix)(0,0);
-               const real_t b = pmats(cf_tr.embeddings[iref].matrix)(0,1);
+               const real_t a = pmats(cf_tr.embeddings[lor_els[iref]].matrix)(0,0);
+               const real_t b = pmats(cf_tr.embeddings[lor_els[iref]].matrix)(0,1);
                for (int iq = 0; iq < nq1d; ++iq)
                {
                   ir_ho_1d[iq + iref*nq1d].x = a + ir_ea[iq].x*(b - a);
@@ -463,7 +508,7 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
                iq_stride *= nq1d;
                iref_stride *= nref_1d;
             }
-            const int e_lor = iref + e_ho*nref;
+            const int e_lor = lor_map[iref + e_ho*nref];
 
             d_Q(iq_lor, e_lor) = d_Q_ho(iq_ho, e_ho);
          });
@@ -479,7 +524,7 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
             ElementTransformation &ho_tr = *mesh_ho.GetElementTransformation(e_ho);
             for (int iref = 0; iref < nref; ++iref)
             {
-               const int e_lor = iref + e_ho*nref;
+               const int e_lor = ho2lor.GetRow(e_ho)[iref];
                emb_tr.SetPointMat(pmats(cf_tr.embeddings[e_lor].matrix));
 
                for (int iq = 0; iq < qPts; ++iq)
@@ -505,7 +550,7 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          const int iref = (tid / qPts) % nref;
          const int iho  = (tid / (qPts * nref)) % nel_ho;
 
-         const int lo_el_id = iref + nref*iho;
+         const int lo_el_id = lor_map[iref + nref*iho];
          const real_t detJ = J(q, lo_el_id);
 
          d_D(q, iref, iho) = W(q) * d_Q(q, lo_el_id) * detJ;
@@ -523,8 +568,8 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
          // within the coarse high-order element in reference space
          emb_tr.SetPointMat(pmats(cf_tr.embeddings[ilor].matrix));
 
-         DenseMatrix &b_lo = B_L(ilor);
-         DenseMatrix &b_ho = B_H(ilor);
+         DenseMatrix &b_lo = B_L(iref);
+         DenseMatrix &b_ho = B_H(iref);
 
          ElemMixedEvaluation(geom, fe_ho, fe_lor, ip_tr, ir_ea, b_lo, b_ho);
       } // loop over subcells of ho element
@@ -564,13 +609,14 @@ void L2ProjectionGridTransfer::L2Projection::MixedMassEA(
       const int bh = idx % fe_ho_ndof;
       const int iref = (idx / fe_ho_ndof) % nref;
       const int iho = idx / fe_ho_ndof / nref;
+      const int basis = basis_map[iref + nref*iho];
       // (B_lo_dofs x Q) x (Q x B_ho_dofs)
       for (int bl = 0; bl < fe_lor_ndof; ++bl)
       {
          real_t dot = 0.0;
          for (int qi=0; qi<qPts; ++qi)
          {
-            dot += d_B_L(qi, bl, iref) *  d_D(qi, iref, iho) * d_B_H(qi, bh, iref);
+            dot += d_B_L(qi, bl, basis) * d_D(qi, iref, iho) * d_B_H(qi, bh, basis);
          }
          // column major storage
          v_M_LH(bl, bh, iref, iho) = dot;
@@ -1158,7 +1204,8 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
 
    std::unique_ptr<SparseMatrix> R_mat, M_LH_mat;
 
-   std::tie(R_mat, M_LH_mat) = ComputeSparseRAndM_LH();
+   Vector ML_inv;
+   std::tie(R_mat, M_LH_mat) = ComputeSparseRAndM_LH(ML_inv);
 
    const SparseMatrix *P_ho = fes_ho_scalar->GetConformingProlongation();
    const SparseMatrix *P_lor = fes_lor_scalar->GetConformingProlongation();
@@ -1177,11 +1224,13 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
       }
       else // P_lor != nullptr
       {
-         R_mat.reset(mfem::Mult(*P_lor, *R_mat));
-         M_LH_mat.reset(mfem::Mult(*P_lor, *M_LH_mat));
+         R_mat.reset(TransposeMult(*P_lor, *R_mat));
+         M_LH_mat.reset(TransposeMult(*P_lor, *M_LH_mat));
       }
    }
 
+   // Scale only after assembling the mixed mass onto true dofs.
+   R_mat->ScaleRows(ML_inv);
    SparseMatrix *RTxM_LH_mat = TransposeMult(*R_mat, *M_LH_mat);
    precon.reset(new DSmoother(*RTxM_LH_mat));
 
@@ -1190,7 +1239,7 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    R = std::move(R_mat);
    M_LH = std::move(M_LH_mat);
 
-   SetupSolvers();
+   SetupPCG();
 }
 
 #ifdef MFEM_USE_MPI
@@ -1217,7 +1266,8 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
       return;
    }
 
-   std::tie(R, M_LH) = ComputeSparseRAndM_LH();
+   Vector ML_inv;
+   std::tie(R, M_LH) = ComputeSparseRAndM_LH(ML_inv);
 
 
    HypreParMatrix R_local = HypreParMatrix(pfes_ho.GetComm(),
@@ -1238,6 +1288,8 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    HypreParMatrix *M_LH_mat = RAP(pfes_lor_scalar->Dof_TrueDof_Matrix(),
                                   &M_LH_local, pfes_ho_scalar->Dof_TrueDof_Matrix());
 
+   // R = D_true^(-1) M_LH preserves symmetry of R^T M_LH.
+   R_mat->ScaleRows(ML_inv);
    std::unique_ptr<HypreParMatrix> R_T(R_mat->Transpose());
    HypreParMatrix *RTxM_LH_mat = ParMult(R_T.get(), M_LH_mat, true);
 
@@ -1249,14 +1301,14 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
    RTxM_LH.reset(RTxM_LH_mat);
    precon.reset(amg);
 
-   SetupSolvers();
+   SetupPCG();
    pcg.SetPreconditioner(*precon);
    pcg.SetOperator(*RTxM_LH);
 }
 
 #endif
 
-void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupSolvers()
+void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupPCG()
 {
    // Basic PCG solver setup
    pcg.SetPrintLevel(0);
@@ -1267,39 +1319,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::SetupSolvers()
    pcg.SetAbsTol(1e-13);
    pcg.SetPreconditioner(*precon);
    pcg.SetOperator(*RTxM_LH);
-
-   if (fes_lor.GetMesh()->Nonconforming())
-   {
-      // B = (M_LH^T R)^(-1) M_LH^T is a left inverse of R.
-      // With hanging nodes, M_LH^T R need not equal R^T M_LH, so
-      // use GMRES and solve the transposed system separately for B^T.
-      M_LHxR.reset(new TransposeOperator(RTxM_LH.get()));
-#ifdef MFEM_USE_MPI
-      if (pfes_ho_scalar)
-      {
-         gmres.reset(new GMRESSolver(pfes_ho_scalar->GetComm()));
-         gmres_transpose.reset(new GMRESSolver(pfes_ho_scalar->GetComm()));
-      }
-      else
-#endif
-      {
-         gmres.reset(new GMRESSolver);
-         gmres_transpose.reset(new GMRESSolver);
-      }
-      for (auto *solver : {gmres.get(), gmres_transpose.get()})
-      {
-         solver->SetPrintLevel(0);
-         solver->SetMaxIter(1000);
-         solver->SetRelTol(1e-13);
-         solver->SetAbsTol(1e-13);
-      }
-      gmres->SetOperator(*M_LHxR);
-      gmres_transpose->SetOperator(*RTxM_LH);
-      // Keep the existing preconditioner built for R^T M_LH. In particular,
-      // AMG cannot be reset from the matrix-free transpose wrapper.
-      gmres->SetPreconditioner(*precon);
-      gmres_transpose->SetPreconditioner(*precon);
-   }
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space()
@@ -1382,6 +1401,30 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space()
                                            &ho2lor,
                                            &M_LH_ea));
 
+   const Operator *P_ho = fes_ho_scalar->GetConformingProlongation();
+   const Operator *P_lor = fes_lor_scalar->GetConformingProlongation();
+   if (P_ho && P_lor)
+   {
+      M_LH.reset(new TripleProductOperator(new TransposeOperator(P_lor),
+                                           M_LH.release(), P_ho,
+                                           true, true, false));
+   }
+   else if (P_ho)
+   {
+      M_LH.reset(new ProductOperator(M_LH.release(), P_ho, true, false));
+   }
+   else if (P_lor)
+   {
+      M_LH.reset(new ProductOperator(new TransposeOperator(P_lor),
+                                     M_LH.release(), true, true));
+   }
+   if (P_ho)
+   {
+      Vector true_mass(fes_ho_scalar->GetTrueVSize());
+      P_ho->MultTranspose(M_H, true_mass);
+      M_H = true_mass;
+   }
+
    ML_inv_vea.reset(new H1SpaceLumpedMassOperator(fes_ho_scalar.get(),
                                                   fes_lor_scalar.get(),
                                                   ML_inv_ea));
@@ -1394,7 +1437,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space()
    TransposeOperator* RT = new TransposeOperator(R.get());
    RTxM_LH.reset(new ProductOperator(RT, M_LH.get(), true, false));
 
-   SetupSolvers();
+   SetupPCG();
 }
 
 #ifdef MFEM_USE_MPI
@@ -1489,14 +1532,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
          M_LH.reset(new TripleProductOperator(Pt_lor, M_LH_local_op, P_ho, true,
                                               true, false));
 
-         // Apply the rank-local inverse lumped mass before summing shared
-         // LOR dofs onto true dofs. Scaling after P_lor^T is not equivalent
-         // at processor interfaces.
-         Operator *R_local = new ProductOperator(ML_inv_vea.get(),
-                                                 M_LH_local_op, false, false);
-         R.reset(new TripleProductOperator(new TransposeOperator(P_lor),
-                                           R_local, P_ho, true, true, false));
-
          Vector RM_H(pfes_ho_scalar->GetTrueVSize());
          GetTDofsTranspose(*pfes_ho_scalar, M_H, RM_H);
          precon.reset(new OperatorJacobiSmoother(RM_H, ess_tdof_list));
@@ -1520,12 +1555,6 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
                                                         ML_inv_ea));
          M_LH.reset(new ProductOperator(Pt_lor, M_LH_local_op, true, true));
 
-         // Weight local mixed-mass rows before restriction to true LOR dofs.
-         Operator *R_local = new ProductOperator(ML_inv_vea.get(),
-                                                 M_LH_local_op, false, false);
-         R.reset(new ProductOperator(new TransposeOperator(P_lor), R_local,
-                                     true, true));
-
          precon.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
       }
       else
@@ -1538,16 +1567,13 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::EAL2ProjectionH1Space
          precon.reset(new OperatorJacobiSmoother(M_H, ess_tdof_list));
       }
    }
-   if (!R)
-   {
-      R.reset(new ProductOperator(ML_inv_vea.get(), M_LH.get(), false,
-                                  false));
-   }
+   // The diagonal and mixed mass both act on assembled true dofs.
+   R.reset(new ProductOperator(ML_inv_vea.get(), M_LH.get(), false, false));
 
    TransposeOperator* RT = new TransposeOperator(R.get());
    RTxM_LH.reset(new ProductOperator(RT, M_LH.get(), true, false));
 
-   SetupSolvers();
+   SetupPCG();
 }
 
 #endif
@@ -1626,8 +1652,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::Prolongate(
       X.GetSubVector(vdofs_list, X_dim);
       // Compute y = P x = (M_LH^T R)^(-1) M_LH^T X.
       M_LH->MultTranspose(X_dim, Xbar);
-      if (gmres) { gmres->Mult(Xbar, Y_dim); }
-      else { pcg.Mult(Xbar, Y_dim); }
+      pcg.Mult(Xbar, Y_dim);
       TDofsListByVDim(fes_ho, d, vdofs_list);
       Y.SetSubVector(vdofs_list, Y_dim);
    }
@@ -1656,8 +1681,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
       X.GetSubVector(vdofs_list, X_dim);
       // Compute y = P^T x = M_LH (R^T M_LH)^(-1) X.
       Xbar = 0.0;
-      if (gmres_transpose) { gmres_transpose->Mult(X_dim, Xbar); }
-      else { pcg.Mult(X_dim, Xbar); }
+      pcg.Mult(X_dim, Xbar);
       M_LH->Mult(Xbar, Y_dim);
       TDofsListByVDim(fes_lor, d, vdofs_list);
       Y.SetSubVector(vdofs_list, Y_dim);
@@ -1670,21 +1694,18 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::ProlongateTranspose(
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetRelTol(real_t p_rtol_)
 {
    pcg.SetRelTol(p_rtol_);
-   if (gmres) { gmres->SetRelTol(p_rtol_); }
-   if (gmres_transpose) { gmres_transpose->SetRelTol(p_rtol_); }
 }
 
 void L2ProjectionGridTransfer::L2ProjectionH1Space::SetAbsTol(real_t p_atol_)
 {
    pcg.SetAbsTol(p_atol_);
-   if (gmres) { gmres->SetAbsTol(p_atol_); }
-   if (gmres_transpose) { gmres_transpose->SetAbsTol(p_atol_); }
 }
 
 std::pair<
 std::unique_ptr<SparseMatrix>,
 std::unique_ptr<SparseMatrix>>
-                            L2ProjectionGridTransfer::L2ProjectionH1Space::ComputeSparseRAndM_LH()
+                            L2ProjectionGridTransfer::L2ProjectionH1Space::ComputeSparseRAndM_LH(
+                               Vector &ML_inv)
 {
    std::pair<std::unique_ptr<SparseMatrix>,
        std::unique_ptr<SparseMatrix>> r_and_mlh;
@@ -1698,6 +1719,9 @@ std::unique_ptr<SparseMatrix>>
    // If the local mesh is empty, skip all computations
    if (nel_ho == 0)
    {
+      ML_inv.SetSize(ndof_lor);
+      ML_inv = 0.0;
+      LumpedMassInverse(ML_inv);
       return std::make_pair(
                 std::unique_ptr<SparseMatrix>(new SparseMatrix),
                 std::unique_ptr<SparseMatrix>(new SparseMatrix)
@@ -1720,7 +1744,7 @@ std::unique_ptr<SparseMatrix>>
    // ML_inv contains the inverse lumped (row sum) mass matrix. Note that the
    // method will also work with a full (consistent) mass matrix, though this is
    // not implemented here. L refers to the low-order refined mesh
-   Vector ML_inv(ndof_lor);
+   ML_inv.SetSize(ndof_lor);
    ML_inv = 0.0;
 
    // Compute ML_inv
@@ -1790,7 +1814,7 @@ std::unique_ptr<SparseMatrix>>
    IntegrationPointTransformation ip_tr;
    IsoparametricTransformation& emb_tr = ip_tr.Transf;
 
-   // Compute M_LH and R
+   // Compute unscaled local copies of M_LH and R. Row scaling follows assembly.
    offsets.SetSize(nel_ho+1);
    offsets[0] = 0;
    for (int iho = 0; iho < nel_ho; ++iho)
@@ -1827,12 +1851,7 @@ std::unique_ptr<SparseMatrix>>
 
          Array<int> dofs_lor(nedof_lor);
          fes_lor.GetElementDofs(ilor, dofs_lor);
-         Vector R_row;
-         for (int i = 0; i < nedof_lor; ++i)
-         {
-            M_LH_el.GetRow(i, R_row);
-            R_el.SetRow(i, R_row.Set(ML_inv[dofs_lor[i]], R_row));
-         }
+         R_el = M_LH_el;
          Array<int> dofs_ho(nedof_ho);
          fes_ho.GetElementDofs(iho, dofs_ho);
          r_and_mlh.second->AddSubMatrix(dofs_lor, dofs_ho, M_LH_el);
@@ -1942,8 +1961,7 @@ void L2ProjectionGridTransfer::L2ProjectionH1Space::LumpedMassInverse(
 
    ML_inv_true.Reciprocal();
 
-   if (P) { P->Mult(ML_inv_true, ML_inv); }
-   else { ML_inv = ML_inv_true; }
+   ML_inv = ML_inv_true;
 
 }
 
@@ -2076,7 +2094,9 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::Mult(const Vector &x,
    auto v_M_mixed_ea = Reshape(M_LH_ea->Read(), ndof_lor, ndof_ho, nref,
                                nel_ho);
    auto v_tempx    = Reshape(tempx.Read(), ndof_ho, vdim, nel_ho);
-   auto v_tempy    = Reshape(tempy.Write(), ndof_lor, nref, vdim, nel_ho);
+   // Element restrictions use fine-mesh order, not parent/child order.
+   const int *lor_map = ho2lor->ReadJ();
+   auto v_tempy = Reshape(tempy.Write(), ndof_lor, vdim, fes_lor->GetNE());
 
 
    mfem::forall(ndof_lor * nref * vdim * nel_ho, [=] MFEM_HOST_DEVICE (int tid)
@@ -2092,7 +2112,7 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::Mult(const Vector &x,
          dot += v_M_mixed_ea(j, k, i, iho) * v_tempx(k, v, iho);
       }
 
-      v_tempy(j, i, v, iho) = dot;
+      v_tempy(j, v, lor_map[i + nref*iho]) = dot;
    });
 
    elem_restrict_lor->MultTranspose(tempy, y);
@@ -2126,7 +2146,8 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::MultTranspose(
 
    auto v_M_mixed_ea = Reshape(M_LH_ea->Read(), ndof_lor, ndof_ho, nref,
                                nel_ho);
-   auto v_tempx    = Reshape(tempx.Read(), ndof_lor, nref, vdim, nel_ho);
+   const int *lor_map = ho2lor->ReadJ();
+   auto v_tempx = Reshape(tempx.Read(), ndof_lor, vdim, fes_lor->GetNE());
    auto v_tempy    = Reshape(tempy.Write(), ndof_ho, vdim, nel_ho);
 
    mfem::forall(ndof_ho * vdim * nel_ho, [=] MFEM_HOST_DEVICE (int tid)
@@ -2140,7 +2161,7 @@ void L2ProjectionGridTransfer::H1SpaceMixedMassOperator::MultTranspose(
       {
          for (int j=0; j<ndof_lor; ++j)
          {
-            dot += v_M_mixed_ea(j, k, i, iho) * v_tempx(j, i, v, iho);
+            dot += v_M_mixed_ea(j, k, i, iho) * v_tempx(j, v, lor_map[i + nref*iho]);
          }
          v_tempy(k, v, iho) = dot;
       }

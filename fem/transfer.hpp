@@ -458,20 +458,20 @@ public:
       /// is also provided as an Operator by L2Prolongation.
       void ProlongateTranspose(const Vector& x, Vector& y) const override;
 
-      /// Returns the inverse of an on-rank lumped mass matrix
+      /// Assembles the lumped mass on true dofs and inverts its diagonal.
       void LumpedMassInverse(Vector& ML_inv) const;
 
       void SetRelTol(real_t p_rtol_) override;
       void SetAbsTol(real_t p_atol_) override;
 
    protected:
-      /// Sets up solvers for the backward operator and its transpose.
-      void SetupSolvers();
+      /// Sets up the PCG solver (parameters, operator, and preconditioner).
+      void SetupPCG();
 
-      /// @brief Computes on-rank R and M_LH matrices. If true, computes mixed mass and/or
-      /// inverse lumped mass matrix error when compared to device implementation.
+      /// Computes unscaled local mixed-mass matrices and the inverse lumped
+      /// diagonal assembled on true dofs. The caller scales R after assembly.
       std::pair<std::unique_ptr<SparseMatrix>,
-          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH();
+          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH(Vector &ML_inv);
 
       /// @brief Recovers vector of tdofs given a vector of dofs and a finite
       /// element space
@@ -502,19 +502,15 @@ public:
       std::unique_ptr<SparseMatrix> AllocR();
 
       CGSolver pcg;
-      // Hanging-node constraints can make M_LH^T R nonsymmetric.
-      std::unique_ptr<GMRESSolver> gmres, gmres_transpose;
       std::unique_ptr<Solver> precon;
       // Store the restriction operator R and apply its mass-conservative
       // left inverse through an iterative solve.
       std::unique_ptr<Operator> R;
       // Used to compute P = (M_LH^T R)^(-1) M_LH^T
       std::unique_ptr<Operator> M_LH;
-      // R^T M_LH, used for the transpose solve (and both solves if symmetric).
+      // Symmetric matrix R^T M_LH = M_LH^T D_true^(-1) M_LH.
       std::unique_ptr<Operator> RTxM_LH;
-      std::unique_ptr<Operator> M_LHxR;
-      // Lumped M_L inverse operator built via EA. Wrapped with restriction maps
-      // to multiply with scalar TDof LOR vectors.
+      // Inverse lumped mass on scalar true LOR dofs, built via EA.
       std::unique_ptr<Operator> ML_inv_vea;
       // LDof Mixed mass operator built via EA. Wrapped with restriction maps to send
       // scalar LDof HO vectors to LDof LOR vectors.
@@ -525,7 +521,7 @@ public:
       std::unique_ptr<FiniteElementSpace> fes_lor_scalar;
       // Element Assembled mixed mass
       Vector M_LH_ea;
-      // Element Assembled lumped M_L inverse built via EA. Stores diagonal as a Ldof vector.
+      // Inverse assembled lumped mass diagonal on true dofs, built via EA.
       Vector ML_inv_ea;
 
 #ifdef MFEM_USE_MPI
