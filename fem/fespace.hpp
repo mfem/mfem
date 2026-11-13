@@ -292,6 +292,10 @@ protected:
    mutable Array<int> face_to_be; // NURBS FE space only
 
    Array<StatelessDofTransformation *> DoFTransArray;
+   /** Variable-order spaces only: DoF transformations for elements whose
+       order differs from the base order, indexed by
+       geom*(MaxVarOrder+1) + order and created on demand. */
+   mutable Array<StatelessDofTransformation *> var_DoFTransArray;
    mutable DofTransformation DoFTrans;
 
    /** Matrix representing the prolongation from the global conforming dofs to
@@ -356,6 +360,13 @@ protected:
    void ConstructDoFTransArray();
    void DestroyDoFTransArray();
 
+   /** Return the DoF transformation for an element or boundary element of
+       geometry @a geom and order @a order, or NULL if none is needed. In a
+       variable-order space the transformation depends on the element order
+       (the number of face DoFs does), not only on the geometry. */
+   const StatelessDofTransformation *GetDoFTransformation(Geometry::Type geom,
+                                                          int order) const;
+
    void BuildElementToDofTable() const;
    void BuildBdrElementToDofTable() const;
    void BuildFaceToDofTable() const;
@@ -388,6 +399,9 @@ protected:
 
    /// Return element order: internal version of GetElementOrder without checks.
    int GetElementOrderImpl(int i) const;
+
+   /// Return the order of a boundary element (that of its adjacent element).
+   int GetBdrElementOrder(int bel) const;
 
    /// Returns true if the space is H1 and has variable-order elements.
    bool IsVariableOrderH1() const
