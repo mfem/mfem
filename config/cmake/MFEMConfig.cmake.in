@@ -70,6 +70,9 @@ set(MFEM_USE_BENCHMARK @MFEM_USE_BENCHMARK@)
 set(MFEM_USE_PARELAG @MFEM_USE_PARELAG@)
 set(MFEM_USE_TRIBOL @MFEM_USE_TRIBOL@)
 set(MFEM_USE_ENZYME @MFEM_USE_ENZYME@)
+set(MFEM_USE_GLVIS @MFEM_USE_GLVIS@)
+set(MFEM_FETCH_GLVIS @MFEM_FETCH_GLVIS@)
+set(MFEM_FETCH_TPLS @MFEM_FETCH_TPLS@)
 
 set(MFEM_CXX_COMPILER "@CMAKE_CXX_COMPILER@")
 set(MFEM_CXX_FLAGS "@CMAKE_CXX_FLAGS@")
@@ -116,6 +119,48 @@ endif (MFEM_USE_CUDSS)
 
 if (MFEM_USE_UMPIRE)
    find_dependency(umpire)
+endif()
+
+if (MFEM_USE_GLVIS)
+  find_dependency(OpenGL)
+  find_dependency(GLEW)
+  find_dependency(SDL2)
+  find_dependency(PNG)
+  find_dependency(Freetype)
+  if (CMAKE_VERSION VERSION_GREATER_EQUAL 3.14)
+    find_dependency(Fontconfig)
+  else()
+    find_library(FONTCONFIG_LIBRARIES NAMES fontconfig)
+  endif()
+endif()
+
+if (MFEM_USE_GLVIS AND (MFEM_FETCH_GLVIS OR MFEM_FETCH_TPLS)
+    AND NOT TARGET GLVIS)
+  include(${CMAKE_CURRENT_LIST_DIR}/MFEMGLVisDep.cmake)
+  mfem_glvis_dep(glvis_opengl OpenGL::GL OPENGL_LIBRARIES OpenGL_LIBRARIES)
+  mfem_glvis_dep(glvis_glew GLEW::GLEW GLEW_LIBRARIES)
+  mfem_glvis_dep(glvis_sdl SDL2::SDL2 SDL2_LIBRARIES SDL2_LIBRARY)
+  mfem_glvis_dep(glvis_png PNG::PNG PNG_LIBRARIES)
+  mfem_glvis_dep(glvis_freetype Freetype::Freetype FREETYPE_LIBRARIES)
+  mfem_glvis_dep(glvis_fontconfig Fontconfig::Fontconfig FONTCONFIG_LIBRARIES
+    Fontconfig_LIBRARIES)
+  set(_glvis_link
+    "@PACKAGE_MFEM_GLVIS_LOGO_LIBRARY@"
+    "${glvis_opengl}" "${glvis_glew}" "${glvis_sdl}" "${glvis_png}"
+    "${glvis_freetype}" "${glvis_fontconfig}")
+  if (APPLE)
+    # REQUIRED on find_library needs CMake 3.18. MFEM requires 3.12.
+    find_library(COCOA_LIBRARY Cocoa)
+    if (NOT COCOA_LIBRARY)
+      message(FATAL_ERROR "Cocoa library not found.")
+    endif()
+    list(APPEND _glvis_link "${COCOA_LIBRARY}")
+  endif()
+  add_library(GLVIS STATIC IMPORTED)
+  set_target_properties(GLVIS PROPERTIES
+    IMPORTED_LOCATION "@PACKAGE_MFEM_GLVIS_LIBRARY@"
+    INTERFACE_LINK_LIBRARIES "${_glvis_link}")
+@MFEM_GLVIS_CONFIG_LOCATIONS@
 endif()
 
 if (NOT TARGET mfem)
