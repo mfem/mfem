@@ -1686,6 +1686,26 @@ constexpr double BdrTol()
    return std::is_same<real_t, float>::value ? 1e-4 : 1e-10;
 }
 
+/// Relative check of @a diff against the size of the reference @a ref.
+void RequireSmallRel(const Vector &diff, const Vector &ref)
+{
+   const real_t scale = std::max(real_t(1), ref.Normlinf());
+   REQUIRE(diff.Normlinf() <= BdrTol() * scale);
+}
+
+/// Mark boundary attributes 1, 2 alternately; the marker keeps attribute 2.
+void SetAlternateBdrAttributes(Mesh &mesh, Array<int> &marker)
+{
+   for (int be = 0; be < mesh.GetNBE(); ++be)
+   {
+      mesh.SetBdrAttribute(be, 1 + be % 2);
+   }
+   mesh.SetAttributes();
+   marker.SetSize(mesh.bdr_attributes.Max());
+   marker = 0;
+   marker[marker.Size() - 1] = 1;
+}
+
 void test_simplex_bdr_face_restriction(const char *filename, int p, int vdim,
                                        Ordering::Type ordering)
 {
@@ -1812,6 +1832,69 @@ void test_simplex_bdr_face_geometry(const char *filename, bool curved)
    REQUIRE(flux.Normlinf() == MFEM_Approx(0.0, BdrTol(), BdrTol()));
 }
 
+real_t SimplexBdrLoad(const Vector &x)
+{
+   return 1.0 + std::sin(2.0 * x(0)) + 0.5 * x(1) * x(1);
+}
+
+void test_bdr_lf_simplex_mma(const char *filename, int p, bool curved)
+{
+   CAPTURE(filename, p, curved);
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   Array<int> bdr_marker;
+   SetAlternateBdrAttributes(mesh, bdr_marker);
+   const int dim = mesh.Dimension();
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace sfes(&mesh, &fec);
+   FiniteElementSpace vfes_n(&mesh, &fec, dim, Ordering::byNODES);
+   FiniteElementSpace vfes_v(&mesh, &fec, dim, Ordering::byVDIM);
+   REQUIRE(UsesSimplexMMA(sfes));
+
+   FunctionCoefficient f(SimplexBdrLoad);
+   VectorFunctionCoefficient g(dim, fvec_dim);
+
+   // The device form reads its marker on the device: give the legacy form
+   // its own copy, legacy assembly indexes markers on the host.
+   Array<int> bdr_marker_std(bdr_marker);
+   auto compare = [&](FiniteElementSpace &fes, auto make, bool marked)
+   {
+      CAPTURE(fes.GetVDim(), fes.GetOrdering(), marked);
+      LinearForm lf_dev(&fes), lf_std(&fes);
+      if (marked)
+      {
+         lf_dev.AddBoundaryIntegrator(make(), bdr_marker);
+         lf_std.AddBoundaryIntegrator(make(), bdr_marker_std);
+      }
+      else
+      {
+         lf_dev.AddBoundaryIntegrator(make());
+         lf_std.AddBoundaryIntegrator(make());
+      }
+      REQUIRE(lf_dev.SupportsDevice());
+      lf_dev.UseFastAssembly(true);
+      lf_dev.Assemble();
+      lf_std.UseFastAssembly(false);
+      lf_std.Assemble();
+      REQUIRE(lf_std.Norml2() > 0.0);
+      Vector diff(lf_std);
+      diff -= lf_dev;
+      RequireSmallRel(diff, lf_std);
+   };
+
+   for (bool marked : {false, true})
+   {
+      compare(sfes, [&] { return new BoundaryLFIntegrator(f); }, marked);
+      compare(sfes, [&] { return new BoundaryNormalLFIntegrator(g); }, marked);
+      for (FiniteElementSpace *vfes : {&vfes_n, &vfes_v})
+      {
+         compare(*vfes, [&] { return new VectorBoundaryFluxLFIntegrator(f); },
+                 marked);
+         compare(*vfes, [&]
+         { return new VectorBoundaryFluxLFIntegrator(f, -0.7); }, marked);
+      }
+   }
+}
+
 TEST_CASE("Simplex NATIVE boundary face restriction",
           "[MMA][FaceRestriction][GPU]")
 {
@@ -1834,6 +1917,22 @@ TEST_CASE("Simplex boundary face geometric factors",
                               "../../data/inline-tet.mesh",
                               "../../data/beam-tet.mesh");
    test_simplex_bdr_face_geometry(mesh, curved);
+}
+
+TEST_CASE("Boundary LF Simplices MMA", "[LinearFormExtension][MMA][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3, 4);
+   const auto curved = GENERATE(false, true);
+   SECTION("2D")
+   {
+      test_bdr_lf_simplex_mma("../../data/inline-tri.mesh", p, curved);
+      test_bdr_lf_simplex_mma("../../data/beam-tri.mesh", p, curved);
+   }
+   SECTION("3D")
+   {
+      test_bdr_lf_simplex_mma("../../data/inline-tet.mesh", p, curved);
+      test_bdr_lf_simplex_mma("../../data/beam-tet.mesh", p, curved);
+   }
 }
 
 #undef MMA_ROUND

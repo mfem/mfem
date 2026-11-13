@@ -157,9 +157,28 @@ bool LinearForm::SupportsDevice() const
    // Tensor-product FE spaces use the existing device kernels
    if (UsesTensorBasis(*fes)) { return true; }
 
-   // Simplices with no boundary linear form can use MMA (H1, H(curl), H(div))
-   if ((UsesSimplexMMA(*fes) || UsesSimplexMmaHcurl(*fes) ||
-        UsesSimplexMmaHdiv(*fes)) && boundary_integs.Size() == 0)
+   // Simplex boundary loads: H1 only, through the NATIVE face restriction and
+   // the simplex FaceGeometricFactors (continuous mesh nodes are needed).
+   if (boundary_integs.Size() > 0)
+   {
+      if (!UsesSimplexMMA(*fes)) { return false; }
+      const GridFunction *nodes = mesh.GetNodes();
+      if (nodes && nodes->FESpace()->IsDGSpace()) { return false; }
+      for (int k = 0; k < boundary_integs.Size(); ++k)
+      {
+         const LinearFormIntegrator *lfi = boundary_integs[k];
+         if (!dynamic_cast<const BoundaryLFIntegrator*>(lfi) &&
+             !dynamic_cast<const BoundaryNormalLFIntegrator*>(lfi) &&
+             !dynamic_cast<const VectorBoundaryFluxLFIntegrator*>(lfi))
+         {
+            return false;
+         }
+      }
+   }
+
+   // Simplices can use MMA (H1, H(curl), H(div); boundary loads H1 only)
+   if (UsesSimplexMMA(*fes) || UsesSimplexMmaHcurl(*fes) ||
+       UsesSimplexMmaHdiv(*fes))
    {
       for (int i = 0; i < domain_integs.Size(); ++i)
       {

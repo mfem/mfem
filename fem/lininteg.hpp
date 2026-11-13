@@ -530,6 +530,13 @@ public:
                                   const IntegrationRule *ir = NULL)
       : LinearFormIntegrator(ir), Sign(s), F(&f) { }
 
+   bool SupportsDevice() const override { return true; }
+
+   /// Method defining assembly on device (tensor and simplex H1 spaces).
+   void AssembleDevice(const FiniteElementSpace &fes,
+                       const Array<int> &markers,
+                       Vector &b) override;
+
    void AssembleRHSElementVect(const FiniteElement &el,
                                ElementTransformation &Tr,
                                Vector &elvect) override;
