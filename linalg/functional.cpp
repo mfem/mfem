@@ -606,7 +606,7 @@ real_t DiffDerivativeAgainstCentralDiff(const GlobalFunctional &f,
       real_t df_d = 0.0;
       for (int b=0; b<num_blocks; b++) { df_d += df[b] * d[b]; }
       df_d = f.Reduce(df_d);
-      diff = std::max(diff, std::abs(df_d - (fp[i] - fm[i]) / (2.0 * h)));
+      diff = std::max(diff, std::abs(df_d - (fp[i] - fm[i]) / (2 * h)));
    }
    return diff;
 }
