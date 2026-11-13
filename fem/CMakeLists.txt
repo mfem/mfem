@@ -88,6 +88,7 @@ set(SRCS
   pderefmat_op.cpp
   geom.cpp
   gridfunc.cpp
+  ghost_penalty.cpp
   hybridization.cpp
   hybridization_ext.cpp
   intrules.cpp
@@ -246,6 +247,7 @@ set(HDRS
   fespace.hpp
   geom.hpp
   gridfunc.hpp
+  ghost_penalty.hpp
   hybridization.hpp
   hybridization_ext.hpp
   intrules.hpp
