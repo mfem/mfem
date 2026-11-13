@@ -436,7 +436,10 @@ MFEM_USE_GNUTLS = YES/NO
 
 MFEM_USE_HDF5 = YES/NO
    The HDF5 library is used for input and output of HDF5 files, for example
-   Cubit mesh files or VTKHDF files for ParaView.
+   Cubit mesh files or VTKHDF files for ParaView. It also enables MFEM's native
+   HDF5 NURBS mesh format. Native NURBS HDF5 files can be loaded with the Mesh
+   filename constructor or Mesh::LoadFromFile(), and can be written with
+   Mesh::SaveNURBSHDF5().
 
 MFEM_USE_NETCDF = YES/NO
    NetCDF is the library that is used by the SNL Cubit mesh generator to create

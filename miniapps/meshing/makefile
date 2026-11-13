@@ -131,4 +131,4 @@ clean-exec:
 	@rm -f optimized* perturbed* polar-nc.mesh
 	@rm -rf mesh-explorer-{visit,paraview}*
 	@rm -f mesh.* order.* sol.* refined.mesh
-	@rm -rf jacobian-determinant-bounds* bounding-box*
+	@rm -rf jacobian-determinant-bounds* bounding-box* mesh-explorer.h5
