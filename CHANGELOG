@@ -31,6 +31,12 @@ Meshing improvements
   of essential boundaries were not essential, and on serial meshes, those of
   all interior boundaries were.
 
+- Fixed run-to-run variations in the numbering of parallel non-conforming
+  meshes after refinement, derefinement and rebalancing, e.g. in the order of
+  the boundary elements and of the shared entities: ParNCMesh processed the
+  messages of these operations in their arrival order, and now processes them
+  in the order of the source ranks.
+
 Linear and nonlinear solvers
 ----------------------------
 - Fixed HypreParaSails::SetOperator, which read the communicator of the

@@ -12,6 +12,10 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <chrono>
+#include <thread>
+#include <vector>
+
 namespace mfem
 {
 #ifdef MFEM_USE_MPI
@@ -195,6 +199,172 @@ void SolveDiffusionProblem(ParMesh &mesh, Vector &x_out)
    x_out = X;
 }
 
+}
+
+// Test case: the numbering of a parallel non-conforming mesh must not depend
+//            on the order in which ParNCMesh receives the messages of
+//            Refine() and of Rebalance() with a custom partition. The mesh is
+//            a row of slabs owned by the ranks a, x, b, x, r (then the other
+//            ranks), so that a, b and r are not neighbors of one another.
+//            Delaying a, or b, before an operation makes its messages arrive
+//            after those of the other one, at x for the refinement and at r
+//            for the rebalance, where a and b move their elements to r. The
+//            two runs must give the same mesh. (Rebalance() with the default
+//            partition and derefinement communicate collectively before
+//            sending, which absorbs the delay, so they are not tested here.)
+TEST_CASE("ParNCMesh numbering is independent of message order",
+          "[Parallel], [ParMesh], [NCMesh]")
+{
+   const int rank = Mpi::WorldRank();
+   const int nranks = Mpi::WorldSize();
+   if (nranks < 4) { return; }
+   constexpr int x = 0, a = 1, b = 2, r = 3;
+
+   const auto type = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON);
+   CAPTURE(type);
+
+   // The vertices of the elements and of the boundary elements, the shared
+   // entities of the groups, and the edge and face indices in the lists of
+   // the ParNCMesh, which include the ghost edges and faces.
+   auto Numbering = [](ParMesh &pmesh)
+   {
+      std::vector<int> num;
+      Array<int> v;
+      for (int i = 0; i < pmesh.GetNE(); i++)
+      {
+         pmesh.GetElementVertices(i, v);
+         num.insert(num.end(), v.begin(), v.end());
+      }
+      for (int i = 0; i < pmesh.GetNBE(); i++)
+      {
+         pmesh.GetBdrElementVertices(i, v);
+         num.insert(num.end(), v.begin(), v.end());
+         num.push_back(pmesh.GetBdrAttribute(i));
+      }
+      for (int g = 1; g < pmesh.GetNGroups(); g++)
+      {
+         const int *group = pmesh.gtopo.GetGroup(g);
+         num.insert(num.end(), group, group + pmesh.gtopo.GetGroupSize(g));
+         int ent, ori;
+         for (int i = 0; i < pmesh.GroupNVertices(g); i++)
+         {
+            num.push_back(pmesh.GroupVertex(g, i));
+         }
+         for (int i = 0; i < pmesh.GroupNEdges(g); i++)
+         {
+            pmesh.GroupEdge(g, i, ent, ori);
+            num.insert(num.end(), {ent, ori});
+         }
+         for (int i = 0; i < pmesh.GroupNTriangles(g); i++)
+         {
+            pmesh.GroupTriangle(g, i, ent, ori);
+            num.insert(num.end(), {ent, ori});
+         }
+         for (int i = 0; i < pmesh.GroupNQuadrilaterals(g); i++)
+         {
+            pmesh.GroupQuadrilateral(g, i, ent, ori);
+            num.insert(num.end(), {ent, ori});
+         }
+      }
+      auto AddIndices = [&num](const NCMesh::NCList &list)
+      {
+         for (const auto &id : list.conforming) { num.push_back(id.index); }
+         for (const auto &id : list.masters) { num.push_back(id.index); }
+         for (const auto &id : list.slaves) { num.push_back(id.index); }
+      };
+      if (pmesh.GetNE())
+      {
+         AddIndices(pmesh.pncmesh->GetEdgeList());
+         AddIndices(pmesh.pncmesh->GetFaceList());
+      }
+      return num;
+   };
+
+   auto Vertices = [](const ParMesh &pmesh)
+   {
+      std::vector<real_t> x;
+      for (int i = 0; i < pmesh.GetNV(); i++)
+      {
+         const real_t *v = pmesh.GetVertex(i);
+         x.insert(x.end(), v, v + pmesh.SpaceDimension());
+      }
+      return x;
+   };
+
+   struct Result
+   {
+      std::vector<int> refined, rebalanced;
+      std::vector<real_t> vertices;
+   };
+
+   // Refine and rebalance a mesh, delaying 'delayed_rank' at the start of
+   // both operations.
+   auto Run = [&](int delayed_rank)
+   {
+      auto Delay = [&]()
+      {
+         MPI_Barrier(MPI_COMM_WORLD);
+         if (rank == delayed_rank)
+         {
+            // long compared to the time the other ranks need to send
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+         }
+      };
+
+      const int nslabs = nranks + 1;
+      const int slab_rank[] = {a, x, b, x, r};
+      Mesh mesh = Mesh::MakeCartesian3D(nslabs, 1, 1, type, nslabs, 1.0, 1.0,
+                                        false);
+      mesh.EnsureNCMesh(true);
+      Array<int> partition(mesh.GetNE());
+      Vector center;
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         mesh.GetElementCenter(i, center);
+         const int slab = static_cast<int>(center(0));
+         partition[i] = (slab < 5) ? slab_rank[slab] : slab - 1;
+      }
+      ParMesh pmesh(MPI_COMM_WORLD, mesh, partition.GetData());
+
+      Result res;
+
+      // Refine() sends before any other communication: at x, the ghost
+      // refinements from the delayed rank arrive last.
+      Delay();
+      pmesh.UniformRefinement();
+      res.refined = Numbering(pmesh);
+
+      // Move the elements of a and b to r. Before sending, the ranks only wait
+      // for their neighbors: the delayed rank sends late, the other one of a
+      // and b does not.
+      Array<int> new_partition(pmesh.GetNE());
+      new_partition = (rank == a || rank == b) ? r : rank;
+      Delay();
+      pmesh.Rebalance(new_partition);
+      res.rebalanced = Numbering(pmesh);
+      res.vertices = Vertices(pmesh);
+
+      return res;
+   };
+
+   const Result run_a = Run(a);
+   const Result run_b = Run(b);
+
+   // reduce over all ranks, so that they pass or fail together
+   auto AllRanks = [](bool local)
+   {
+      int global = local;
+      MPI_Allreduce(MPI_IN_PLACE, &global, 1, MPI_INT, MPI_LAND,
+                    MPI_COMM_WORLD);
+      return global != 0;
+   };
+   // ghost refinements in ParNCMesh::Refine()
+   const bool same_refined = AllRanks(run_a.refined == run_b.refined);
+   // decoding of the elements in ParNCMesh::RedistributeElements()
+   const bool same_rebalanced = AllRanks(run_a.rebalanced == run_b.rebalanced &&
+                                         run_a.vertices == run_b.vertices);
+   CHECK(same_refined);
+   CHECK(same_rebalanced);
 }
 
 TEST_CASE("ParMeshMakeSimplicial", "[Parallel], [ParMesh]")
