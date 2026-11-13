@@ -633,12 +633,25 @@ public:
 class UmpireDeviceMemorySpace : public DeviceMemorySpace,
    public UmpireMemorySpace
 {
+   // The Umpire resource of the device id
+   static std::string DeviceResource(int id)
+   {
+      // "DEVICE" is the device 0 for all the versions of Umpire
+      if (id == 0) { return "DEVICE"; }
+#if UMPIRE_VERSION_MAJOR > 4 || \
+    (UMPIRE_VERSION_MAJOR == 4 && UMPIRE_VERSION_MINOR >= 1)
+      return "DEVICE::" + std::to_string(id);
+#elif defined(MFEM_USE_CUDA)
+      return "DEVICE_" + std::to_string(id);
+#else
+      // With HIP, Umpire < 5.0 allocates on the current device
+      return "DEVICE";
+#endif
+   }
 public:
    UmpireDeviceMemorySpace(const char * name)
       : DeviceMemorySpace(),
-        // "DEVICE" is the device 0; "DEVICE::<id>" exists since Umpire 4.1
-        UmpireMemorySpace(name, (Device::GetId() == 0) ? "DEVICE" :
-                          "DEVICE::" + std::to_string(Device::GetId())) {}
+        UmpireMemorySpace(name, DeviceResource(Device::GetId())) {}
    void Alloc(Memory &base) override
    { base.d_ptr = allocator.allocate(base.bytes); }
    void Dealloc(Memory &base) override { allocator.deallocate(base.d_ptr); }
