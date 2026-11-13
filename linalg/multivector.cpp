@@ -47,6 +47,17 @@ void MultiVector::SetSizes(const Array<int> &vector_sizes, MemoryType mt)
    }
 }
 
+Array<int> MultiVector::GetSizes() const
+{
+   int num_blocks = NumBlocks();
+   Array<int> sizes(num_blocks);
+   for (int i = 0; i < num_blocks; i++)
+   {
+      sizes[i] = (*this)[i].Size();
+   }
+   return sizes;
+}
+
 void MultiVector::MakeRef(Vector &base, const Array<int> &vector_sizes)
 {
    blocks.resize(vector_sizes.Size());
@@ -55,6 +66,32 @@ void MultiVector::MakeRef(Vector &base, const Array<int> &vector_sizes)
       blocks[i].emplace<0>(base, offset, vector_sizes[i]);
       offset += vector_sizes[i];
    }
+}
+
+MultiVector MultiVector::GetBlockViews(const Array<int> &blk_idx)
+{
+   if (blk_idx.Size() == 0) { return MultiVector(); }
+   MFEM_VERIFY(blk_idx.Max() < NumBlocks() && blk_idx.Min() >= 0,
+               "Block index out of bounds.");
+   MultiVector v(blk_idx.Size());
+   for (int i=0; i<blk_idx.Size(); i++)
+   {
+      v.MakeRef(i, (*this)[blk_idx[i]]);
+   }
+   return v;
+}
+
+MultiVector MultiVector::GetBlockViews(const Array<int> &blk_idx) const
+{
+   if (blk_idx.Size() == 0) { return MultiVector(); }
+   MFEM_VERIFY(blk_idx.Max() < NumBlocks() && blk_idx.Min() >= 0,
+               "Block index out of bounds.");
+   MultiVector v(blk_idx.Size());
+   for (int i=0; i<blk_idx.Size(); i++)
+   {
+      v.MakeRef(i, (*this)[blk_idx[i]]);
+   }
+   return v;
 }
 
 } // namespace mfem

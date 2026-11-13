@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "densemat.hpp"
 #include "handle.hpp"
+#include "optimization.hpp"
 #include <memory>
 
 #ifdef MFEM_USE_MPI
@@ -932,93 +933,37 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
            int m_max, int m_min, int m_step, real_t cf,
            real_t &tol, real_t &atol, int printit);
 
-#ifdef MFEM_USE_HIOP
-class HiopOptimizationProblem;
-#endif
-
-/** Defines operators and constraints for the following optimization problem:
- *
- *    Find x that minimizes the objective function F(x), subject to
- *    C(x) = c_e,
- *    d_lo <= D(x) <= d_hi,
- *    x_lo <= x <= x_hi.
- *
- *  The operators F, C, D must take input of the same size (same width).
- *  Gradients of F, C, D might be needed, depending on the OptimizationSolver.
- *  When used with Hiop, gradients of C and D must be DenseMatrices.
- *  F always returns a scalar value, see CalcObjective(), CalcObjectiveGrad().
- *  C and D can have arbitrary heights.
- *  C and D can be NULL, meaning that their constraints are not used.
- *
- *  When used in parallel, all Vectors are assumed to be true dof vectors, and
- *  the operators are expected to be defined for tdof vectors. */
-class OptimizationProblem
-{
-#ifdef MFEM_USE_HIOP
-   friend class HiopOptimizationProblem;
-#endif
-
-private:
-   /// See NewX().
-   mutable bool new_x = true;
-
-protected:
-   /// Not owned, some can remain unused (NULL).
-   const Operator *C, *D;
-   const Vector *c_e, *d_lo, *d_hi, *x_lo, *x_hi;
-
-   /// Implementations of CalcObjective() and CalcObjectiveGrad() can use this
-   /// method to check if the argument Vector x has been changed after the last
-   /// call to CalcObjective() or CalcObjectiveGrad().
-   /// The result is on by default, and gets set by the OptimizationSolver.
-   bool NewX() const { return new_x; }
-
-public:
-   const int input_size;
-
-   /// In parallel, insize is the number of the local true dofs.
-   OptimizationProblem(int insize, const Operator *C_, const Operator *D_);
-
-   /// Objective F(x). In parallel, the result should be reduced over tasks.
-   virtual real_t CalcObjective(const Vector &x) const = 0;
-   /// The result grad is expected to enter with the correct size.
-   virtual void CalcObjectiveGrad(const Vector &x, Vector &grad) const
-   { MFEM_ABORT("The objective gradient is not implemented."); }
-
-   void SetEqualityConstraint(const Vector &c);
-   void SetInequalityConstraint(const Vector &dl, const Vector &dh);
-   void SetSolutionBounds(const Vector &xl, const Vector &xh);
-
-   const Operator *GetC() const { return C; }
-   const Operator *GetD() const { return D; }
-   const Vector *GetEqualityVec() const { return c_e; }
-   const Vector *GetInequalityVec_Lo() const { return d_lo; }
-   const Vector *GetInequalityVec_Hi() const { return d_hi; }
-   const Vector *GetBoundsVec_Lo() const { return x_lo; }
-   const Vector *GetBoundsVec_Hi() const { return x_hi; }
-
-   int GetNumConstraints() const;
-};
-
-/// Abstract solver for OptimizationProblems.
+/// Abstract solver for Problems.
 class OptimizationSolver : public IterativeSolver
 {
 protected:
-   const OptimizationProblem *problem;
+   const optimization::Problem *problem = nullptr;
 
 public:
-   OptimizationSolver(): IterativeSolver(), problem(NULL) { }
+   OptimizationSolver() : IterativeSolver() { }
 #ifdef MFEM_USE_MPI
-   OptimizationSolver(MPI_Comm comm_): IterativeSolver(comm_), problem(NULL) { }
+   OptimizationSolver(MPI_Comm comm_) : IterativeSolver(comm_) { }
 #endif
    ~OptimizationSolver() override { }
 
    /** This function is virtual as solvers might need to perform some initial
-    *  actions (e.g. validation) with the OptimizationProblem. */
-   virtual void SetOptimizationProblem(const OptimizationProblem &prob)
+    *  actions (e.g. validation) with the Problem, which must be finalized. */
+   virtual void SetOptimizationProblem(const optimization::Problem &prob)
    { problem = &prob; }
 
-   void Mult(const Vector &xt, Vector &x) const override = 0;
+   void MultMV(const MultiVector &x0, MultiVector &x) const override = 0;
+
+   /// @brief MultMV() with @a x0 and @a x split into blocks that refer to the
+   /// fields of the problem, or into one block when no problem is set.
+   void Mult(const Vector &x0, Vector &x) const override
+   {
+      const Array<int> sizes = problem ? problem->GetFieldSizes()
+                               : Array<int>({x.Size()});
+      const MultiVector X0(const_cast<Vector&>(x0), sizes);
+      MultiVector X(x, sizes);
+      MultMV(X0, X);
+      for (int b = 0; b < X.NumBlocks(); b++) { X[b].SyncAliasMemory(x); }
+   }
 
    void SetPreconditioner(Solver &pr) override
    { MFEM_ABORT("Not meaningful for this solver."); }
@@ -1038,26 +983,24 @@ class SLBQPOptimizer : public OptimizationSolver
 protected:
    Vector lo, hi, w;
    real_t a;
+   /// The constraint weights of the Problem, see SetOptimizationProblem().
+   Vector problem_w;
 
    /// Solve QP at fixed lambda
    inline real_t solve(real_t l, const Vector &xt, Vector &x, int &nclip) const
    {
       add(xt, l, w, x);
-      if (problem == NULL) { x.median(lo,hi); }
-      else
-      {
-         x.median(*problem->GetBoundsVec_Lo(),
-                  *problem->GetBoundsVec_Hi());
-      }
+      x.median(lo,hi);
       nclip++;
       if (problem == NULL) { return Dot(w, x) - a; }
       else
       {
          Vector c(1);
          // Includes parallel communication.
-         problem->GetC()->Mult(x, c);
+         const auto [C, c_e] = problem->GetEquality();
+         C.Eval(MultiVector(x), c);
 
-         return c(0) - (*problem->GetEqualityVec())(0);
+         return c(0) - c_e.target(0);
       }
    }
 
@@ -1070,10 +1013,12 @@ public:
    SLBQPOptimizer(MPI_Comm comm_) : OptimizationSolver(comm_) { }
 #endif
 
-   /** Setting an OptimizationProblem will overwrite the Vectors given by
-    *  SetBounds and SetLinearConstraint. The objective function remains
-    *  unchanged. */
-   void SetOptimizationProblem(const OptimizationProblem &prob) override;
+   /** Setting a Problem will overwrite the Vectors given by SetBounds and
+    *  SetLinearConstraint. The objective function remains unchanged. The
+    *  Problem must have a single field, a scalar linear equality constraint,
+    *  no inequality constraints, and a dofwise BoxConstraint on the field as
+    *  its only local constraint. */
+   void SetOptimizationProblem(const optimization::Problem &prob) override;
 
    void SetBounds(const Vector &lo_, const Vector &hi_);
    void SetLinearConstraint(const Vector &w_, real_t a_);
@@ -1081,6 +1026,9 @@ public:
    /** We let the target values play the role of the initial vector xt, from
     *  which the operator generates the optimal vector x. */
    void Mult(const Vector &xt, Vector &x) const override;
+
+   void MultMV(const MultiVector &xt, MultiVector &x) const override
+   { Mult(xt[0], x[0]); }
 };
 
 /** Block ILU solver:
