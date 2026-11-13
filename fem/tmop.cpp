@@ -296,8 +296,6 @@ type nu14_ad(const std::vector<type> &T, const std::vector<type> &W)
    auto sqalpha = sqrt(det_2D(A));
    auto sqomega = sqrt(det_2D(W));
 
-   // Written as d*d rather than pow(d, 2.0): the dual-number pow divides by
-   // d, which gives NaN derivatives at d = 0 (det(T) = 1).
    auto d = sqalpha/sqomega - sqomega/sqalpha;
    return 0.5*d*d;
 };
@@ -3797,7 +3795,7 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0,
    MFEM_VERIFY(lim_dist->FESpace()->GetVDim() == 1,
                "'dist' must be a scalar GridFunction!");
 
-   delete lim_func;
+   if (lfunc != lim_func) { delete lim_func; }
    lim_func = (lfunc) ? lfunc : new TMOP_QuadraticLimiter;
 }
 
@@ -3808,7 +3806,7 @@ void TMOP_Integrator::EnableLimiting(const GridFunction &n0, Coefficient &w0,
    lim_coeff = &w0;
    lim_dist = NULL;
 
-   delete lim_func;
+   if (lfunc != lim_func) { delete lim_func; }
    lim_func = (lfunc) ? lfunc : new TMOP_QuadraticLimiter;
 }
 
@@ -3940,11 +3938,31 @@ EnableAdaptiveLimiting(const Array<const ParGridFunction *> &z0,
 }
 #endif
 
+void TMOP_Integrator::ResetSurfaceFitting()
+{
+   delete surf_fit_gf;      surf_fit_gf = nullptr;
+   delete surf_fit_grad;    surf_fit_grad = nullptr;
+   delete surf_fit_hess;    surf_fit_hess = nullptr;
+   delete surf_fit_limiter; surf_fit_limiter = nullptr;
+
+   surf_fit_pos       = nullptr;
+   surf_fit_marker    = nullptr;
+   surf_fit_coeff     = nullptr;
+   surf_fit_eval      = nullptr;
+   surf_fit_eval_grad = nullptr;
+   surf_fit_eval_hess = nullptr;
+
+   surf_fit_dof_count.SetSize(0);
+   surf_fit_marker_dof_index.SetSize(0);
+}
+
 void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
                                            const Array<bool> &smarker,
                                            Coefficient &coeff,
                                            AdaptivityEvaluator &ae)
 {
+   MFEM_VERIFY(!PA.enabled, "Surface fitting is not supported with partial "
+               "assembly.");
    // To have both we must duplicate the markers.
    MFEM_VERIFY(surf_fit_pos == NULL,
                "Using both fitting approaches is not supported.");
@@ -3961,7 +3979,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &s0,
    MFEM_VERIFY(fec, "Only H1_FECollection is supported for the surface fitting "
                "grid function.");
 
-   delete surf_fit_gf;
+   ResetSurfaceFitting();
    surf_fit_gf = new GridFunction(s0);
    surf_fit_gf->CountElementsPerVDof(surf_fit_dof_count);
    surf_fit_marker = &smarker;
@@ -3978,6 +3996,8 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
                                            const Array<bool> &smarker,
                                            Coefficient &coeff)
 {
+   MFEM_VERIFY(!PA.enabled, "Surface fitting is not supported with partial "
+               "assembly.");
    // To have both we must duplicate the markers.
    MFEM_VERIFY(surf_fit_gf == NULL,
                "Using both fitting approaches is not supported.");
@@ -3990,11 +4010,11 @@ void TMOP_Integrator::EnableSurfaceFitting(const GridFunction &pos,
    const bool per = pos.FESpace()->IsDGSpace();
    MFEM_VERIFY(per == false, "Fitting is not supported for periodic meshes.");
 
+   ResetSurfaceFitting();
    surf_fit_pos     = &pos;
    pos.CountElementsPerVDof(surf_fit_dof_count);
    surf_fit_marker  = &smarker;
    surf_fit_coeff   = &coeff;
-   delete surf_fit_limiter;
    surf_fit_limiter = new TMOP_QuadraticLimiter;
 }
 
@@ -4006,6 +4026,8 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
                                            AdaptivityEvaluator *aegrad,
                                            AdaptivityEvaluator *aehess)
 {
+   MFEM_VERIFY(!PA.enabled, "Surface fitting is not supported with partial "
+               "assembly.");
    // To have both we must duplicate the markers.
    MFEM_VERIFY(surf_fit_pos == NULL,
                "Using both fitting approaches is not supported.");
@@ -4022,8 +4044,7 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    MFEM_VERIFY(fec, "Only H1_FECollection is supported for the surface fitting "
                "grid function.");
 
-
-   delete surf_fit_gf;
+   ResetSurfaceFitting();
    surf_fit_gf = new GridFunction(s0);
    s0.CountElementsPerVDof(surf_fit_dof_count);
    surf_fit_marker = &smarker;
@@ -4041,7 +4062,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    ParFiniteElementSpace *fes = s0.ParFESpace();
 
    // FE space for gradients.
-   delete surf_fit_grad;
    H1_FECollection *fec_grad = new H1_FECollection(fec->GetOrder(), dim,
                                                    fec->GetBasisType());
    ParFiniteElementSpace *fes_grad = new ParFiniteElementSpace(pmesh, fec_grad,
@@ -4059,7 +4079,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
    surf_fit_eval_grad->SetInitialField(*pmesh->GetNodes(), *surf_fit_grad);
 
    // FE space for Hessians.
-   delete surf_fit_hess;
    H1_FECollection *fec_hess = new H1_FECollection(fec->GetOrder(), dim,
                                                    fec->GetBasisType());
    ParFiniteElementSpace *fes_hess = new ParFiniteElementSpace(pmesh, fec_hess,
@@ -4086,7 +4105,6 @@ void TMOP_Integrator::EnableSurfaceFitting(const ParGridFunction &s0,
 
    // Store DOF indices that are marked for fitting. Used to reduce work for
    // transferring information between source/background and current mesh.
-   surf_fit_marker_dof_index.SetSize(0);
 #ifdef MFEM_USE_GSLIB
    if (dynamic_cast<InterpolatorFP *>(surf_fit_eval) &&
        dynamic_cast<InterpolatorFP *>(surf_fit_eval_grad) &&
@@ -4114,6 +4132,11 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    const ParGridFunction &s_bg_hess,
    ParGridFunction &s0_hess, AdaptivityEvaluator &ahe)
 {
+   MFEM_VERIFY(!PA.enabled, "Surface fitting is not supported with partial "
+               "assembly.");
+   // To have both we must duplicate the markers.
+   MFEM_VERIFY(surf_fit_pos == NULL,
+               "Using both fitting approaches is not supported.");
 #ifndef MFEM_USE_GSLIB
    MFEM_ABORT("Surface fitting from source requires GSLIB!");
 #endif
@@ -4121,8 +4144,9 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    const bool per = s0.FESpace()->IsDGSpace();
    MFEM_VERIFY(per == false, "Fitting is not supported for periodic meshes.");
 
+   ResetSurfaceFitting();
+
    // Setup for level set function
-   delete surf_fit_gf;
    surf_fit_gf = new GridFunction(s0);
    surf_fit_marker = &smarker;
    surf_fit_coeff = &coeff;
@@ -4141,7 +4165,6 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
                s0_grad.ParFESpace()->GetOrdering(),
                "Nodal ordering for grid function on source mesh and current mesh"
                "should be the same.");
-   delete surf_fit_grad;
    surf_fit_grad = new GridFunction(s0_grad);
    *surf_fit_grad = 0.0;
    surf_fit_eval_grad = &age;
@@ -4156,7 +4179,6 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
                s0_hess.ParFESpace()->GetOrdering(),
                "Nodal ordering for grid function on source mesh and current mesh"
                "should be the same.");
-   delete surf_fit_hess;
    surf_fit_hess = new GridFunction(s0_hess);
    *surf_fit_hess = 0.0;
    surf_fit_eval_hess = &ahe;
@@ -4170,7 +4192,6 @@ void TMOP_Integrator::EnableSurfaceFittingFromSource(
    s0.CountElementsPerVDof(surf_fit_dof_count);
    // Store DOF indices that are marked for fitting. Used to reduce work for
    // transferring information between source/background and current mesh.
-   surf_fit_marker_dof_index.SetSize(0);
    for (int i = 0; i < surf_fit_marker->Size(); i++)
    {
       if ((*surf_fit_marker)[i] == true)

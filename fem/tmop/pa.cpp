@@ -256,6 +256,9 @@ void TMOP_Integrator::AssemblePA(const FiniteElementSpace &fes)
 {
    const MemoryType mt =
       (pa_mt == MemoryType::DEFAULT) ? Device::GetDeviceMemoryType() : pa_mt;
+   MFEM_VERIFY(surf_fit_gf == nullptr && surf_fit_pos == nullptr,
+               "Surface fitting is not supported with partial assembly.");
+
    PA.enabled = true;
    PA.fes = &fes;
    Mesh *mesh = fes.GetMesh();

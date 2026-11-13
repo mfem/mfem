@@ -2062,7 +2062,7 @@ protected:
    real_t surf_fit_normal;                  // Normalization factor.
    GridFunction *surf_fit_grad, *surf_fit_hess; // Owned. Created internally.
    AdaptivityEvaluator *surf_fit_eval_grad, *surf_fit_eval_hess; // Not owned.
-   Array<int> surf_fit_dof_count;            // Number of dofs per node.
+   Array<int> surf_fit_dof_count;            // # of elements sharing each vdof.
    Array<int> surf_fit_marker_dof_index;     // Indices of nodes to fit.
 
    DiscreteAdaptTC *discr_tc;
@@ -2501,6 +2501,17 @@ public:
        @param[in] coeff   Coefficient c for the above integral. */
    void EnableSurfaceFitting(const GridFunction &pos,
                              const Array<bool> &smarker, Coefficient &coeff);
+
+   /** @brief Disables surface fitting and releases its data.
+
+       Deletes the objects owned for fitting (level-set copy, its gradient and
+       Hessian, the position limiter), nulls the pointers to user objects
+       (positions, marker, coefficient, adaptivity evaluators) and empties the
+       DOF counts and marked-DOF indices. Every EnableSurfaceFitting* call does
+       this before its setup, so state from an earlier call is never reused.
+       The normalization factor is not changed. */
+   void ResetSurfaceFitting();
+
    void GetSurfaceFittingErrors(const Vector &d_loc,
                                 real_t &err_avg, real_t &err_max);
    bool IsSurfaceFittingEnabled()
