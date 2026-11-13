@@ -12,6 +12,7 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 #include "linalg/dtensor.hpp"
+#include "linalg/kernels.hpp"
 
 using namespace mfem;
 
@@ -398,6 +399,44 @@ TEST_CASE("LUFactors RightSolve", "[DenseMatrix]")
    C -= B;
 
    REQUIRE(C.MaxMaxNorm() < tol);
+}
+
+TEST_CASE("LUFactors solve with several columns", "[DenseMatrix]")
+{
+   for (int m : { 1, 4, 13, 37 })
+   {
+      DenseMatrix A(m);
+      for (int i = 0; i < m; i++)
+         for (int j = 0; j < m; j++)
+         {
+            A(i, j) = (i == j ? 0.1 : 0.0) + sin(1.0 + 7*i + 3*j);
+         }
+      DenseMatrix LU(A);
+      Array<int> ipiv(m);
+      LUFactors lu(LU.Data(), ipiv.GetData());
+      REQUIRE(lu.Factor(m));
+
+      for (int n = 1; n <= 9; n++)
+      {
+         DenseMatrix B(m, n);
+         for (int i = 0; i < m*n; i++) { B.GetData()[i] = cos(0.3*i); }
+
+         // Each column must come out the same as with the one-vector kernel
+         DenseMatrix X(B), Y(B);
+         lu.LSolve(m, n, X.Data());
+         lu.USolve(m, n, X.Data());
+         for (int k = 0; k < n; k++)
+         {
+            kernels::LUSolve(LU.Data(), m, ipiv.GetData(), Y.GetColumn(k));
+         }
+         for (int i = 0; i < m*n; i++) { REQUIRE(X.GetData()[i] == Y.GetData()[i]); }
+
+         DenseMatrix AX(m, n);
+         Mult(A, X, AX);
+         AX -= B;
+         REQUIRE(AX.MaxMaxNorm() < 1e-10);
+      }
+   }
 }
 
 TEST_CASE("Batched Linear Algebra",
