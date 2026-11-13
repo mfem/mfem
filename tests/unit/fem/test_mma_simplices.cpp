@@ -20,6 +20,7 @@
 #include "unit_tests.hpp"
 #include "mfem.hpp"
 #include "fem/integ/mma/mma.hpp"
+#include "fem/integ/mma/vector.hpp"
 
 using namespace mfem;
 
@@ -1206,6 +1207,470 @@ TEST_CASE("Tensor MMA GEM mass vs FA", MMA_ROUND)
    fa.Assemble();
    fa.Finalize();
    RequireMultMatches(fes, pa, fa, 0x55);
+}
+
+/** Mesh @a filename; @a curved makes it a perturbed quadratic mesh. */
+Mesh MakeSimplexMmaMesh(const char *filename, bool curved)
+{
+   Mesh mesh(filename);
+   if (curved)
+   {
+      mesh.SetCurvature(2);
+      mesh.Transform([](const Vector &x, Vector &y)
+      {
+         y = x;
+         y(0) += 0.05 * std::sin(M_PI * x(1));
+         y(1) += 0.05 * std::sin(M_PI * x(0));
+      });
+   }
+   return mesh;
+}
+
+real_t SimplexMmaCoeff(const Vector &x)
+{
+   return 1.0 + 0.5 * x(0) + 0.25 * x(1);
+}
+
+void RequireSmall(Vector &diff)
+{
+   REQUIRE(diff.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
+}
+
+/** Elasticity simplex MMA PA vs FA: (lambda, mu) and (mu, q_l, q_m). */
+void test_elasticity_simplex_mma(const char *filename, int p, bool positive,
+                                 bool curved)
+{
+   CAPTURE(filename, p, positive, curved);
+   MMAForce force(positive || GetForceMMA());
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   const int dim = mesh.Dimension();
+   const int btype = positive ? BasisType::Positive : BasisType::GaussLobatto;
+   H1_FECollection fec(p, dim, btype);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+   REQUIRE(UsesSimplexMMA(fes));
+
+   ConstantCoefficient lambda(1.7);
+   FunctionCoefficient mu(SimplexMmaCoeff);
+   BilinearForm pa(&fes), fa(&fes);
+   for (BilinearForm *a : {&pa, &fa})
+   {
+      a->AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+      a->AddDomainIntegrator(new ElasticityIntegrator(mu, 0.5, 0.75));
+   }
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   fa.Assemble();
+   fa.Finalize();
+   RequireMultMatches(fes, pa, fa, 0x61);
+   RequireDiagonalMatches(fes, pa, fa);
+}
+
+TEST_CASE("Elasticity Simplices MMA vs FA", "[PartialAssembly][MMA][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3);
+   SECTION("2D")
+   {
+      test_elasticity_simplex_mma("../../data/ref-triangle.mesh", p,
+                                  false, false);
+      test_elasticity_simplex_mma("../../data/inline-tri.mesh", p,
+                                  false, true);
+   }
+   SECTION("3D")
+   {
+      test_elasticity_simplex_mma("../../data/ref-tetrahedron.mesh", p,
+                                  false, false);
+      test_elasticity_simplex_mma("../../data/inline-tet.mesh", p,
+                                  false, true);
+   }
+   SECTION("Positive")
+   {
+      test_elasticity_simplex_mma("../../data/inline-tri.mesh", p,
+                                  true, false);
+      test_elasticity_simplex_mma("../../data/ref-tetrahedron.mesh", p,
+                                  true, false);
+   }
+}
+
+/** VectorDivergence simplex MMA PA vs FA, Mult and MultTranspose.
+    test_kind: 0 = H1, 1 = L2 VALUE, 2 = L2 INTEGRAL. */
+void test_vecdiv_simplex_mma(const char *filename, int p, int test_kind,
+                             bool curved)
+{
+   CAPTURE(filename, p, test_kind, curved);
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   const int dim = mesh.Dimension();
+   H1_FECollection vfec(p, dim);
+   FiniteElementSpace vfes(&mesh, &vfec, dim);
+   std::unique_ptr<FiniteElementCollection> sfec;
+   if (test_kind == 0)
+   {
+      sfec.reset(new H1_FECollection(std::max(p - 1, 1), dim));
+   }
+   else
+   {
+      const int map = (test_kind == 1) ? FiniteElement::VALUE
+                      : FiniteElement::INTEGRAL;
+      sfec.reset(new L2_FECollection(p - 1, dim, BasisType::GaussLegendre,
+                                     map));
+   }
+   FiniteElementSpace sfes(&mesh, sfec.get());
+   REQUIRE(UsesSimplexMmaVectorDivergence(vfes, sfes));
+
+   FunctionCoefficient q(SimplexMmaCoeff);
+   MixedBilinearForm pa(&vfes, &sfes), fa(&vfes, &sfes);
+   pa.AddDomainIntegrator(new VectorDivergenceIntegrator(q));
+   fa.AddDomainIntegrator(new VectorDivergenceIntegrator(q));
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   fa.Assemble();
+   fa.Finalize();
+
+   GridFunction x(&vfes), y_pa(&sfes), y_fa(&sfes);
+   x.Randomize(0x62);
+   pa.Mult(x, y_pa);
+   fa.Mult(x, y_fa);
+   y_fa -= y_pa;
+   RequireSmall(y_fa);
+
+   GridFunction s(&sfes), z_pa(&vfes), z_fa(&vfes);
+   s.Randomize(0x63);
+   pa.MultTranspose(s, z_pa);
+   fa.MultTranspose(s, z_fa);
+   z_fa -= z_pa;
+   RequireSmall(z_fa);
+}
+
+TEST_CASE("VectorDivergence Simplices MMA vs FA",
+          "[PartialAssembly][MMA][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3);
+   const auto test_kind = GENERATE(0, 1, 2);
+   SECTION("2D")
+   {
+      test_vecdiv_simplex_mma("../../data/ref-triangle.mesh", p, test_kind,
+                              false);
+      test_vecdiv_simplex_mma("../../data/inline-tri.mesh", p, test_kind,
+                              true);
+   }
+   SECTION("3D")
+   {
+      test_vecdiv_simplex_mma("../../data/ref-tetrahedron.mesh", p,
+                              test_kind, false);
+      test_vecdiv_simplex_mma("../../data/inline-tet.mesh", p, test_kind,
+                              true);
+   }
+}
+
+/** VectorConvectionNL simplex MMA PA vs FA: action, gradient, diagonal. */
+void test_vecconv_simplex_mma(const char *filename, int p, bool positive,
+                              bool curved)
+{
+   CAPTURE(filename, p, positive, curved);
+   MMAForce force(positive || GetForceMMA());
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   const int dim = mesh.Dimension();
+   const int btype = positive ? BasisType::Positive : BasisType::GaussLobatto;
+   H1_FECollection fec(p, dim, btype);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+   REQUIRE(UsesSimplexMMA(fes));
+   // P1 native and lex agree; P2+ catches a basis/form ordering mismatch.
+   REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::NATIVE);
+
+   ConstantCoefficient const_coeff(M_2_SQRTPI);
+   FunctionCoefficient funct_coeff(SimplexMmaCoeff);
+   NonlinearForm nlf_fa(&fes), nlf_pa(&fes);
+   nlf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   for (NonlinearForm *nlf : {&nlf_fa, &nlf_pa})
+   {
+      nlf->AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+      nlf->AddDomainIntegrator(new VectorConvectionNLFIntegrator(const_coeff));
+      nlf->AddDomainIntegrator(new VectorConvectionNLFIntegrator(funct_coeff));
+   }
+   nlf_pa.Setup();
+
+   GridFunction x(&fes), dx(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(0x64);
+   dx.Randomize(0x65);
+
+   nlf_fa.Mult(x, y_fa);
+   nlf_pa.Mult(x, y_pa);
+   y_fa -= y_pa;
+   RequireSmall(y_fa);
+
+   Operator &grad_fa = nlf_fa.GetGradient(x);
+   Operator &grad_pa = nlf_pa.GetGradient(x);
+   grad_fa.Mult(dx, y_fa);
+   grad_pa.Mult(dx, y_pa);
+   y_fa -= y_pa;
+   RequireSmall(y_fa);
+
+   Vector diag_fa(fes.GetVSize()), diag_pa(fes.GetVSize());
+   dynamic_cast<SparseMatrix &>(grad_fa).GetDiag(diag_fa);
+   grad_pa.AssembleDiagonal(diag_pa);
+   diag_fa -= diag_pa;
+   RequireSmall(diag_fa);
+}
+
+TEST_CASE("VectorConvectionNL Simplices MMA vs FA",
+          "[PartialAssembly][NonlinearPA][MMA][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3);
+   SECTION("2D")
+   {
+      test_vecconv_simplex_mma("../../data/ref-triangle.mesh", p,
+                               false, false);
+      test_vecconv_simplex_mma("../../data/inline-tri.mesh", p, false, true);
+   }
+   SECTION("3D")
+   {
+      test_vecconv_simplex_mma("../../data/ref-tetrahedron.mesh", p,
+                               false, false);
+      test_vecconv_simplex_mma("../../data/inline-tet.mesh", p, false, true);
+   }
+   SECTION("Positive")
+   {
+      test_vecconv_simplex_mma("../../data/inline-tri.mesh", p, true, false);
+      test_vecconv_simplex_mma("../../data/ref-tetrahedron.mesh", p,
+                               true, false);
+   }
+}
+
+// Simplex counterparts of the hex/quad tests in test_pa_diagonal.cpp
+// ("Elasticity Diagonal PA"), test_pa_vecdiv.cpp ("VecDivPA") and
+// test_pa_nlvc.cpp ("NL Convection PA Gradient"), on triangle/tet meshes.
+
+TEST_CASE("Elasticity Diagonal PA Simplices MMA",
+          "[AssembleDiagonal][PartialAssembly][ElasticityPA][MMA][GPU]")
+{
+   const auto dim = GENERATE(2, 3);
+   const auto order = GENERATE(1, 2);
+   CAPTURE(dim, order);
+
+   Mesh mesh;
+   if (dim == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(2, 2, Element::TRIANGLE, 0, 1.0, 1.0);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON,
+                                   1.0, 1.0, 1.0);
+   }
+
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim, Ordering::byNODES);
+   REQUIRE(UsesSimplexMMA(fes));
+
+   ConstantCoefficient lambda(1.0), mu(1.0);
+
+   BilinearForm form_pa(&fes);
+   form_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   form_pa.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+   form_pa.Assemble();
+
+   BilinearForm form_fa(&fes);
+   form_fa.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+   form_fa.Assemble();
+   form_fa.Finalize();
+
+   Vector diag_pa(fes.GetVSize()), diag_fa(fes.GetVSize());
+   form_pa.AssembleDiagonal(diag_pa);
+   form_fa.SpMat().GetDiag(diag_fa);
+
+   diag_fa -= diag_pa;
+   REQUIRE(diag_fa.Normlinf() == MFEM_Approx(0.0));
+
+   RequireMultMatches(fes, form_pa, form_fa, 0x66);
+}
+
+template <bool TRANSPOSE>
+void pa_mixed_simplex_test(FiniteElementSpace &fes1,
+                           FiniteElementSpace &fes2,
+                           const IntegrationRule &ir)
+{
+   auto make = [&]() -> BilinearFormIntegrator *
+   {
+      BilinearFormIntegrator *integ = new VectorDivergenceIntegrator;
+      if constexpr (TRANSPOSE) { integ = new TransposeIntegrator(integ); }
+      integ->SetIntRule(&ir);
+      return integ;
+   };
+   MixedBilinearForm bform_pa(&fes1, &fes2), bform_fa(&fes1, &fes2);
+   bform_pa.AddDomainIntegrator(make());
+   bform_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   bform_pa.Assemble();
+   bform_fa.AddDomainIntegrator(make());
+   bform_fa.Assemble();
+   bform_fa.Finalize();
+
+   GridFunction x(&fes1), y_pa(&fes2), y_fa(&fes2);
+   x.Randomize(0x100001b3);
+
+   bform_pa.Mult(x, y_pa);
+   bform_fa.Mult(x, y_fa);
+
+   y_pa -= y_fa;
+   REQUIRE(y_pa.Normlinf() == MFEM_Approx(0.0));
+}
+
+void test_pa_divergence_simplices(const char *filename, int vp, int sp)
+{
+   CAPTURE(filename, vp, sp);
+
+   Mesh mesh(filename);
+   const int dim = mesh.Dimension();
+
+   // Vector
+   H1_FECollection vfec(vp, dim);
+   FiniteElementSpace vfes(&mesh, &vfec, dim);
+
+   // Scalar
+   H1_FECollection sfec(sp, dim);
+   FiniteElementSpace sfes(&mesh, &sfec);
+   REQUIRE(UsesSimplexMmaVectorDivergence(vfes, sfes));
+
+   const auto &trial_fe = *vfes.GetTypicalFE();
+   const auto &test_fe = *sfes.GetTypicalFE();
+   const auto &Trans = *mesh.GetTypicalElementTransformation();
+   const int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() +
+                     Trans.OrderJ();
+   const IntegrationRule &ir = IntRules.Get(trial_fe.GetGeomType(), order);
+
+   pa_mixed_simplex_test<false>(vfes, sfes, ir);
+   pa_mixed_simplex_test<true>(sfes, vfes, ir);
+}
+
+TEST_CASE("VecDivPA Simplices MMA",
+          "[PartialAssembly][VecDivPA][MMA][GPU]")
+{
+   // Vector (vp) and scalar (sp) space orders
+   const auto vp_base = {1, 2}, vp_extra = {3, 4};
+   const auto sp_base = {1, 2}, sp_extra = {3, 4};
+   const auto vp = MFEM_GENERATE_RANGES(vp_base, vp_extra);
+   const auto sp = MFEM_GENERATE_RANGES(sp_base, sp_extra);
+
+   SECTION("2D")
+   {
+      const auto meshs = { "../../data/inline-tri.mesh",
+                           "../../data/beam-tri.mesh"
+                         };
+      const auto extra = { "../../data/ref-triangle.mesh",
+                           "../../data/rt-2d-p4-tri.mesh",
+                           "../../data/square-disc-p2.mesh",
+                           "../../data/square-disc-p3.mesh",
+                           "../../data/periodic-annulus-sector.msh"
+                         };
+      test_pa_divergence_simplices(MFEM_GENERATE_RANGES(meshs, extra),
+                                   vp, sp);
+   }
+
+   SECTION("3D")
+   {
+      const auto meshs = { "../../data/inline-tet.mesh",
+                           "../../data/beam-tet.mesh"
+                         };
+      const auto extra = { "../../data/ref-tetrahedron.mesh",
+                           "../../data/escher.mesh",
+                           "../../data/escher-p2.mesh"
+                         };
+      test_pa_divergence_simplices(MFEM_GENERATE_RANGES(meshs, extra),
+                                   vp, sp);
+   }
+}
+
+void test_nl_convection_pa_grad_simplices(const char *filename, int p)
+{
+   CAPTURE(filename, p);
+
+   Mesh mesh(filename);
+   const int dim = mesh.Dimension();
+
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+   REQUIRE(UsesSimplexMMA(fes));
+   // P1 native and lex agree; P2+ catches a basis/form ordering mismatch.
+   REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::NATIVE);
+
+   GridFunction x(&fes), dx(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(0x100001b3);
+   dx.Randomize(0x9e3779b9);
+
+   ConstantCoefficient const_coeff(M_2_SQRTPI);
+   FunctionCoefficient funct_coeff([](const Vector &pt)
+   { return M_1_PI + pt[0] * pt[0]; });
+
+   NonlinearForm nlf_fa(&fes);
+   nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+   nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(const_coeff));
+   nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(funct_coeff));
+
+   NonlinearForm nlf_pa(&fes);
+   nlf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   nlf_pa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+   nlf_pa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(const_coeff));
+   nlf_pa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(funct_coeff));
+   nlf_pa.Setup();
+
+   SECTION("Action")
+   {
+      nlf_fa.Mult(x, y_fa), nlf_pa.Mult(x, y_pa);
+      y_fa -= y_pa;
+      REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
+   }
+
+   SECTION("Gradient")
+   {
+      Operator &nlf_fa_grad = nlf_fa.GetGradient(x);
+      Operator &nlf_pa_grad = nlf_pa.GetGradient(x);
+      nlf_pa_grad.Mult(dx, y_pa);
+      nlf_fa_grad.Mult(dx, y_fa);
+      y_fa -= y_pa;
+      REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
+   }
+
+   SECTION("Diagonal")
+   {
+      Vector diag_fa(fes.GetVSize()), diag_pa(fes.GetVSize());
+      dynamic_cast<SparseMatrix &>(nlf_fa.GetGradient(x)).GetDiag(diag_fa);
+      nlf_pa.GetGradient(x).AssembleDiagonal(diag_pa);
+      diag_fa -= diag_pa;
+      REQUIRE(diag_fa.Norml2() == MFEM_Approx(0.0));
+   }
+}
+
+TEST_CASE("NL Convection PA Gradient Simplices MMA",
+          "[PartialAssembly][NonlinearPA][MMA][GPU][NLConv]")
+{
+   const auto p_base = {1, 2}, p_extra = {3, 4};
+   const auto p = MFEM_GENERATE_RANGES(p_base, p_extra);
+
+   SECTION("2D")
+   {
+      const auto meshs = { "../../data/inline-tri.mesh",
+                           "../../data/beam-tri.mesh"
+                         };
+      const auto extra = { "../../data/ref-triangle.mesh",
+                           "../../data/rt-2d-p4-tri.mesh",
+                           "../../data/square-disc-p2.mesh",
+                           "../../data/square-disc-p3.mesh",
+                           "../../data/periodic-annulus-sector.msh"
+                         };
+      test_nl_convection_pa_grad_simplices(
+         MFEM_GENERATE_RANGES(meshs, extra), p);
+   }
+
+   SECTION("3D")
+   {
+      const auto meshs = { "../../data/inline-tet.mesh",
+                           "../../data/beam-tet.mesh"
+                         };
+      const auto extra = { "../../data/ref-tetrahedron.mesh",
+                           "../../data/escher.mesh",
+                           "../../data/escher-p2.mesh"
+                         };
+      test_nl_convection_pa_grad_simplices(
+         MFEM_GENERATE_RANGES(meshs, extra), p);
+   }
 }
 
 #undef MMA_ROUND

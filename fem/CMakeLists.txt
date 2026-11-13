@@ -102,6 +102,10 @@ set(SRCS
   integ/mma/domain_lf.cpp
   integ/mma/hcurl.cpp
   integ/mma/hdiv.cpp
+  integ/mma/vector.cpp
+  integ/mma/elasticity.cpp
+  integ/mma/vecdiv.cpp
+  integ/mma/vecconvection.cpp
   integ/bilininteg_trace_jump_ea.cpp
   integ/bilininteg_transpose_ea.cpp
   integ/bilininteg_vecdiffusion_mf.cpp
@@ -274,6 +278,7 @@ set(HDRS
   integ/mma/domain_lf.hpp
   integ/mma/hcurl.hpp
   integ/mma/hdiv.hpp
+  integ/mma/vector.hpp
   integ/mma/mode/batch.hpp
   integ/mma/mode/blas.hpp
   integ/mma/mode/common.hpp

@@ -12,6 +12,7 @@
 #include "../bilininteg.hpp"
 #include "../qfunction.hpp"
 #include "bilininteg_elasticity_kernels.hpp"
+#include "mma/vector.hpp"
 
 namespace mfem
 {
@@ -47,6 +48,13 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
    vdim = fespace->GetVDim();
    ndofs = fespace->GetTypicalFE()->GetDof();
 
+   use_simplex_mma = false;
+   if (UsesSimplexMMA(fes))
+   {
+      AssembleSimplexMmaPA(fes);
+      return;
+   }
+
    SetUpQuadratureSpaceAndCoefficients(fes);
 
    auto ordering = GetEVectorOrdering(*fespace);
@@ -58,12 +66,25 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
 void ElasticityIntegrator::AssembleDiagonalPA(Vector &diag)
 {
+   if (use_simplex_mma)
+   {
+      internal::MmaElasticityDiagonalSimplex(vdim, fespace->GetNE(), mma_nq,
+                                             ndofs, mma_G, mma_pa, diag);
+      return;
+   }
    internal::ElasticityAssembleDiagonalPA(vdim, ndofs, *lambda_quad, *mu_quad,
                                           *geom, *maps, *IntRule, diag);
 }
 
 void ElasticityIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   if (use_simplex_mma)
+   {
+      internal::MmaElasticityApplySimplex(vdim, fespace->GetNE(), mma_nq,
+                                          ndofs, mma_G, mma_pa, x, mma_u,
+                                          mma_v, y);
+      return;
+   }
    internal::ElasticityAddMultPA(vdim, ndofs, *fespace, *lambda_quad, *mu_quad,
                                  *geom, *maps, x, *q_vec, y);
 }

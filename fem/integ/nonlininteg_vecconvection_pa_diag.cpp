@@ -11,6 +11,7 @@
 
 #include "../ceed/interface/util.hpp"
 #include "./nonlininteg_vecconvection_pa_diag.hpp" // IWYU pragma: keep
+#include "mma/vector.hpp"
 
 namespace mfem
 {
@@ -20,6 +21,15 @@ void VectorConvectionNLFIntegrator::AssembleGradDiagonalPA(Vector &de) const
    MFEM_VERIFY(!DeviceCanUseCeed(),
                "VectorConvectionNLFIntegrator PA gradients are not supported "
                "with the libCEED backend");
+
+   if (use_simplex_mma)
+   {
+      MFEM_VERIFY(mma_uq.Size() > 0, "AssembleGradPA must be called first");
+      internal::MmaVectorConvectionGradDiagonalSimplex(dim, ne, nq, simplex_nd,
+                                                       mma_BG, pa_adj, mma_uq,
+                                                       de);
+      return;
+   }
 
    if (dim == 2)
    {

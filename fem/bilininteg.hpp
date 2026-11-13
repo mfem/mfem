@@ -3332,6 +3332,11 @@ private:
    const GeometricFactors *geom;            ///< Not owned
    int dim, sdim, ne, nq;
    int trial_dofs1D, test_dofs1D, quad1D;
+   bool use_simplex_mma = false;
+   int simplex_trial_nd = 0, simplex_test_nd = 0;
+   Array<real_t> mma_G; ///< Dense trial ref gradients at Q (nq, dim, nd)
+   Array<real_t> mma_B; ///< Dense test values at Q (nq, nd)
+   mutable Vector mma_u, mma_v;
 
 public:
    VectorDivergenceIntegrator() :
@@ -3352,6 +3357,8 @@ public:
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &trial_fes,
                    const FiniteElementSpace &test_fes) override;
+   void AssembleSimplexMmaPA(const FiniteElementSpace &trial_fes,
+                             const FiniteElementSpace &test_fes);
 
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddMultTransposePA(const Vector &x, Vector &y) const override;
@@ -3618,6 +3625,12 @@ private:
    /// Workspace vector
    std::unique_ptr<QuadratureFunction> q_vec;
 
+   bool use_simplex_mma = false;
+   int mma_nq = 0;
+   Array<real_t> mma_G; ///< Dense ref gradients at Q (nq, dim, nd)
+   Vector mma_pa;       ///< (w|J| lambda, w|J| mu, J^{-1}) at Q
+   mutable Vector mma_u, mma_v;
+
    /// Set up the quadrature space and project lambda and mu coefficients
    void SetUpQuadratureSpaceAndCoefficients(const FiniteElementSpace &fes);
 
@@ -3635,6 +3648,7 @@ public:
 
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
+   void AssembleSimplexMmaPA(const FiniteElementSpace &fes);
 
    void AssembleDiagonalPA(Vector &diag) override;
 

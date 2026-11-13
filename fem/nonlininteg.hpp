@@ -391,6 +391,14 @@ private:
    Vector pa_adj, pa_u;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
+   bool use_simplex_mma = false;
+   int simplex_nd = 0;
+   Array<real_t> mma_BG; ///< Dense values + ref gradients (nq, 1+dim, nd)
+   Vector mma_uq;        ///< Gradient state BG u at Q
+   mutable Vector mma_xq, mma_vq;
+
+   void AssembleSimplexMmaPA(const FiniteElementSpace &fes);
+   void SetSimplexMmaState(const Vector &u);
 
 public:
    struct Kernels { Kernels(); };

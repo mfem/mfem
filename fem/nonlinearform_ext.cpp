@@ -30,7 +30,7 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
 {
    if (!DeviceCanUseCeed())
    {
-      elemR = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+      elemR = fes.GetElementRestriction(GetEVectorOrdering(fes));
       // TODO: optimize for the case when 'elemR' is identity
       xe.SetSize(elemR->Height(), Device::GetMemoryType());
       ye.SetSize(elemR->Height(), Device::GetMemoryType());
@@ -88,7 +88,7 @@ Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
 void PANonlinearFormExtension::Update()
 {
    height = width = fes.GetVSize();
-   elemR = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
+   elemR = fes.GetElementRestriction(GetEVectorOrdering(fes));
    xe.SetSize(elemR->Height());
    ye.SetSize(elemR->Height());
    Grad.Update();
