@@ -285,7 +285,8 @@ template<int DIM,
          typename input_fop_ts,
          std::size_t n_inputs,
          typename output_fop_t>
-MFEM_HOST_DEVICE void assemble_element_mat_sumfact(
+MFEM_HOST_DEVICE inline MFEM_FORCE_INLINE
+void assemble_element_mat_sumfact(
    const DeviceTensor<5, real_t> &Ae,
    const DeviceTensor<5, const real_t> &qpdc,
    const int e,
