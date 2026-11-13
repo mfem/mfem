@@ -64,6 +64,11 @@ if (MFEM_USE_MPI)
     ${NAVIER_COMMON_FILES}
     LIBRARIES mfem)
 
+  add_mfem_miniapp(navier_windtunnel
+    MAIN navier_windtunnel.cpp
+    ${NAVIER_COMMON_FILES}
+    LIBRARIES mfem)
+
   set(MESH_FILE "channel-bifurcation-2d.mesh")
   add_custom_command(OUTPUT data_is_copied
     COMMAND ${CMAKE_COMMAND} -E copy_if_different "${PROJECT_SOURCE_DIR}/data/${MESH_FILE}" .

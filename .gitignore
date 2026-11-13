@@ -306,6 +306,7 @@ miniapps/fluids/navier/navier_turbchan
 miniapps/fluids/navier/navier_cht
 miniapps/fluids/navier/navier_bifurcation
 miniapps/fluids/navier/Navier_Bifurcation_[0-9]*
+miniapps/fluids/navier/navier_windtunnel
 miniapps/fluids/navier/ParaView
 miniapps/fluids/navier/tgv_out*.txt
 miniapps/fluids/navier/*_output
