@@ -267,9 +267,10 @@ void LinearForm::Assemble()
          if (boundary_integs_marker[k] == NULL)
          {
             bdr_attr_marker = 1;
-            break;
+            continue; // the markers are also read on host below
          }
-         Array<int> &bdr_marker = *boundary_integs_marker[k];
+         const Array<int> &bdr_marker = *boundary_integs_marker[k];
+         bdr_marker.HostRead();
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary integrator #"
                      << k << ", counting from zero");
@@ -312,9 +313,10 @@ void LinearForm::Assemble()
          if (boundary_face_integs_marker[k] == NULL)
          {
             bdr_attr_marker = 1;
-            break;
+            continue; // the markers are also read on host below
          }
-         Array<int> &bdr_marker = *boundary_face_integs_marker[k];
+         const Array<int> &bdr_marker = *boundary_face_integs_marker[k];
+         bdr_marker.HostRead();
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");
