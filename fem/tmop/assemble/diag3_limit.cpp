@@ -138,6 +138,7 @@ void TMOP_AssembleDiagPA_AdaptLim_3D(const real_t lim_normal,
                                      const int NE,
                                      const DeviceTensor<6, const real_t> &J,
                                      const ConstDeviceCube &W,
+                                     const bool integ_over_target,
                                      const real_t *b,
                                      const DeviceTensor<5, const real_t> &ALF_grad,
                                      const DeviceTensor<6, const real_t> &ALF_hess,
@@ -181,7 +182,8 @@ void TMOP_AssembleDiagPA_AdaptLim_3D(const real_t lim_normal,
                      const real_t bb = Bz * Bz;
 
                      const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
-                     const real_t detJtr = kernels::Det<3>(Jtr);
+                     const real_t detJtr =
+                        integ_over_target ? kernels::Det<3>(Jtr) : 1.0;
                      const real_t weight = W(qx, qy, qz) * detJtr;
                      const real_t coeff =
                         const_coeff ? ALC(0, 0, 0, 0) : ALC(qx, qy, qz, e);
@@ -302,7 +304,8 @@ void TMOP_Integrator::AssembleDiagonalPA_AdaptLim_3D(Vector &diagonal) const
       const auto ALF_hess = Reshape(ALFH_all + c * ALFH_stride, 3, 3, q, q, q, NE);
 
       TMOPAssembleDiagAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE,
-                                      J, W, B, ALF_grad, ALF_hess, ALFmF0, D, d, q);
+                                      J, W, integ_over_target, B, ALF_grad,
+                                      ALF_hess, ALFmF0, D, d, q);
    }
 }
 

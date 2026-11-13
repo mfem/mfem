@@ -11,6 +11,10 @@
 Version 4.10.1 (development)
 ============================
 
+GPU computing
+-------------
+- Fixed RAJA CUDA/HIP element coverage when using a smaller fixed launch grid.
+
 Discretization improvements
 ---------------------------
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
@@ -21,6 +25,9 @@ Discretization improvements
   order 2 and above, which used incorrect DOF indices for shared edges and
   faces. This affected, e.g., essential DOFs and boundary projections, and
   could write out of bounds after lowering element orders.
+
+- Added class VectorQuadratureSpace that represents a vector (multi-component)
+  version of the scalar (single-component) class QuadratureSpaceBase.
 
 Meshing improvements
 --------------------
@@ -35,8 +42,16 @@ Linear and nonlinear solvers
   previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
   in a NewtonSolver.
 
+New and updated examples and miniapps
+-------------------------------------
+- Added a new example for solving the biharmonic equation (examples/ex42) based
+  on the C0 interior penalty method of Brenner & Sung using H1 elements.
+
 Miscellaneous
 -------------
+- Added continuous benchmarking of selected tests/benchmarks in GitHub CI
+  using CodSpeed (https://codspeed.io), enabled by the new CMake option
+  MFEM_USE_CODSPEED.
 - Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
   column so the inner loop vectorizes. This roughly doubles the speed of full
   assembly for DiffusionIntegrator at higher orders.
@@ -44,6 +59,9 @@ Miscellaneous
 - Fixed a bug in the Method of Moving Asymptotes (MMA) solver that would cause
   failure if an MPI rank had no design parameters (aka decision variables).
   Also plugged a MPI communicator leak that would cause memory leaks.
+
+- Removes the SidreDataCollection class from MFEM in favor of the
+  MFEMSidreDataCollection class in the Axom library (https://github.com/llnl/axom).
 
 
 Version 4.10, released on Sep 1, 2026
@@ -227,6 +245,10 @@ Linear and nonlinear solvers
 - Added new class MemoryView that enables the viewing of Vector objects as
   Array<real_t> objects, and vice versa. Currently, viewing methods are
   provided only for the first direction, see Vector::GetArrayView().
+
+- Added interface to MUMPS direct solver for complex-valued problems.
+  Its usage is demonstrated in ex25p. See http://mumps.enseeiht.fr/ for more details.
+  Supported versions >= 5.1.1.
 
 New and updated examples and miniapps
 -------------------------------------
