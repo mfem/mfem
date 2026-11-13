@@ -53,6 +53,8 @@
 #endif
 
 #include <functional>
+#include <map>
+#include <memory>
 
 #define MFEM_SUNDIALS_VERSION \
    (SUNDIALS_VERSION_MAJOR*10000 + SUNDIALS_VERSION_MINOR*100 + \
@@ -108,7 +110,14 @@ namespace mfem
 class SundialsMemHelper
 {
    /// The actual SUNDIALS object
-   SUNMemoryHelper h;
+   SUNMemoryHelper h = nullptr;
+
+   /// Raw allocations are shared by cloned helpers and freed individually.
+   using AllocationMap = std::map<void *, std::pair<size_t, MemoryType>>;
+   using Allocations = std::shared_ptr<AllocationMap>;
+
+   static SUNMemoryHelper Clone(SUNMemoryHelper helper);
+   static int Destroy(SUNMemoryHelper helper);
 
 public:
 

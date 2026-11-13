@@ -598,11 +598,7 @@ void DPGWeakForm::RecoverFEMSolution(const Vector &X,
       // Private dofs back solve
       static_cond->ComputeSolution(X, x);
    }
-   else if (!P)
-   {
-      x.SyncMemory(X);
-   }
-   else
+   else if (P)
    {
       x.SetSize(P->Height());
       P->Mult(X, x);

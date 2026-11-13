@@ -501,7 +501,7 @@ template<class B, class R> struct reduction_kernel
          }
       }
       // binary tree reduction
-      for (int i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
+      for (auto i = (MFEM_THREAD_SIZE(x) >> 1); i > 0; i >>= 1)
       {
          MFEM_SYNC_THREAD;
          if (MFEM_THREAD_ID(x) < i)
@@ -515,6 +515,15 @@ template<class B, class R> struct reduction_kernel
       }
    }
 };
+
+inline auto DevReduceWorkspaceMType()
+{
+#ifdef MFEM_USE_TEMPORARY_WORK_BUFFERS
+   return MemoryManager::Instance().GetTempHostPinnedMemoryType();
+#else
+   return MemoryManager::HOST_PINNED;
+#endif
+}
 }
 
 /**
@@ -524,10 +533,12 @@ template<class B, class R> struct reduction_kernel
  @a reducer helper for joining two reduced values.
  @a use_dev true to perform the reduction on the device, if possible.
  @a workspace temporary workspace used for device reductions. May be resized to
- a larger capacity as needed. Preferably should have MemoryType::MANAGED or
- MemoryType::HOST_PINNED. TODO: replace with internal temporary workspace
- vectors once that's added to the memory manager.
+ a larger capacity as needed. Note that the memory type and contents of this
+ workspace could be changed.
  @tparam T value_type to operate on
+
+ This version of reduce is @deprecated, use the version without an external
+ workspace parameter instead.
  */
 template <class T, class B, class R>
 void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
@@ -568,12 +579,8 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
 
       red_type red{nullptr, std::forward<B>(body), reducer, N, items_per_thread};
       // allocate res to fit block_size entries
-      auto mt = workspace.GetMemory().GetMemoryType();
-      if (mt != MemoryType::HOST_PINNED && mt != MemoryType::MANAGED)
-      {
-         mt = MemoryType::HOST_PINNED;
-      }
-      workspace.SetSize(nblocks, mt);
+      workspace.SetSize(nblocks, internal::DevReduceWorkspaceMType());
+      // By design allow reduce kernel use the "host" pointer.
       auto work = workspace.HostWrite();
       red.work = work;
       forall_2D(nblocks, block_size, 1, std::move(red));
@@ -583,6 +590,42 @@ void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev,
       {
          reducer.Join(res, work[i]);
       }
+      return;
+   }
+#endif
+
+   for (int i = 0; i < N; ++i)
+   {
+      body(i, res);
+   }
+}
+
+/**
+ @brief Performs a 1D reduction on the range [0,N).
+ @a res initial value and where the result will be written.
+ @a body reduction function body.
+ @a reducer helper for joining two reduced values.
+ @a use_dev true to perform the reduction on the device, if possible.
+ @tparam T value_type to operate on
+ */
+template <class T, class B, class R>
+void reduce(int N, T &res, B &&body, const R &reducer, bool use_dev)
+{
+   if (N == 0)
+   {
+      return;
+   }
+#if defined(MFEM_USE_CUDA_OR_HIP)
+   if (use_dev &&
+       mfem::Device::Allows(Backend::CUDA | Backend::HIP | Backend::RAJA_CUDA |
+                            Backend::RAJA_HIP))
+   {
+#ifndef MFEM_USE_TEMPORARY_WORK_BUFFERS
+      static
+#endif
+      Array<T>
+      workspace;
+      reduce(N, res, std::forward<B>(body), reducer, use_dev, workspace);
       return;
    }
 #endif
