@@ -1014,10 +1014,8 @@ inline void SmemPADiffusionApply3D(const int NE,
 
    mfem::forall_3D<T_Q1D*T_Q1D*T_Q1D>(NE,
                                       Q1D, Q1D, Q1D,
-                                      [=] MFEM_HOST_DEVICE (int e)
+                                      MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(symmetric, D1D, Q1D) MFEM_HOST_DEVICE(int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int MDQ = (MQ1 > MD1) ? MQ1 : MD1;
@@ -1211,7 +1209,7 @@ inline void SmemPADiffusionApply3D(const int NE,
             }
          }
       }
-   });
+   }));
 }
 
 } // namespace internal

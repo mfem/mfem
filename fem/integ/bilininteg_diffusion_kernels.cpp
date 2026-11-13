@@ -166,7 +166,7 @@ void PADiffusionSetup2D<2>(const int Q1D,
       return const_c ? C(i,0,0,0) : C(i,qx,qy,e);
    };
 
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(NE, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(Q1D, coeffDim, symmetric, const_c) MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -211,7 +211,7 @@ void PADiffusionSetup2D<2>(const int Q1D,
             }
          }
       }
-   });
+   }));
 }
 
 template<>
@@ -232,7 +232,7 @@ void PADiffusionSetup2D<3>(const int Q1D,
    const auto C = const_c ? Reshape(c.Read(), 1,1,1) :
                   Reshape(c.Read(), Q1D,Q1D,NE);
    auto D = Reshape(d.Write(), Q1D,Q1D, 3, NE);
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D(NE, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(Q1D, const_c) MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -256,7 +256,7 @@ void PADiffusionSetup2D<3>(const int Q1D,
             D(qx,qy,2,e) =  alpha * E; // 2,2
          }
       }
-   });
+   }));
 }
 
 void PADiffusionSetup3D(const int Q1D,
@@ -281,7 +281,7 @@ void PADiffusionSetup3D(const int Q1D,
       return const_c ? C(i,0,0,0,0) : C(i,qx,qy,qz,e);
    };
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(Q1D, coeffDim, symmetric, const_c) MFEM_HOST_DEVICE (int e)
    {
       MFEM_FOREACH_THREAD(qx,x,Q1D)
       {
@@ -382,7 +382,7 @@ void PADiffusionSetup3D(const int Q1D,
             }
          }
       }
-   });
+   }));
 }
 
 #ifdef MFEM_USE_OCCA

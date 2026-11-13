@@ -29,8 +29,7 @@ void TMOP_MinDetJpr_3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -58,7 +57,7 @@ void TMOP_MinDetJpr_3D(const int NE,
             }
          }
       }
-   });
+   }));
 }
 
 MFEM_TMOP_MDQ_REGISTER(TMOPMinDetJpr3D, TMOP_MinDetJpr_3D);

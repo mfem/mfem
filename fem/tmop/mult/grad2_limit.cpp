@@ -29,8 +29,7 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t sB[MD1][MQ1];
       MFEM_SHARED real_t smem[MQ1][MQ1];
@@ -64,7 +63,7 @@ void TMOP_AddMultGradPA_C0_2D(const int NE,
       MFEM_SYNC_THREAD;
       kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB, r0, r1);
       kernels::internal::WriteDofs2d(e, D1D, r1, Y);
-   });
+   }));
 }
 
 // Gradient action for AdaptLim limiting (2D)

@@ -27,8 +27,7 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t smem[MQ1][MQ1];
       kernels::internal::s_regs3d_t<MQ1> r0, r1;
@@ -110,7 +109,7 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
             MFEM_SYNC_THREAD;
          }
       }
-   });
+   }));
 }
 
 MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiagCoef3D, TMOP_AssembleDiagPA_C0_3D);

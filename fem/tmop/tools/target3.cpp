@@ -24,9 +24,8 @@ void TMOP_TcIdealShapeUnitSize_3D(const int NE, const ConstDeviceMatrix &W,
                                   DeviceTensor<6> &J, const int q1d = 0)
 {
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
    mfem::forall_3D(NE, Q1D, Q1D, Q1D,
-                   [=] MFEM_HOST_DEVICE(int e)
+                   MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(Q1D) MFEM_HOST_DEVICE(int e)
    {
       MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
       {
@@ -38,7 +37,7 @@ void TMOP_TcIdealShapeUnitSize_3D(const int NE, const ConstDeviceMatrix &W,
             }
          }
       }
-   });
+   }));
 }
 
 MFEM_TMOP_REGISTER_KERNELS_1(TMOPTcIdealShapeUnitSize3D,
@@ -57,8 +56,7 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -89,7 +87,7 @@ void TMOP_TcIdealShapeGivenSize_3D(const int NE,
             }
          }
       }
-   });
+   }));
 }
 
 MFEM_TMOP_MDQ_REGISTER(TMOPTcIdealShapeGivenSize3D,

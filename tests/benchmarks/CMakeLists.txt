@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -19,42 +19,6 @@ include_directories(BEFORE ${PROJECT_BINARY_DIR})
 # Include the Google Benchmark include directory
 include_directories(BEFORE ${BENCHMARK_INCLUDE_DIRS})
 
-# When benchmarking with CodSpeed (MFEM_USE_CODSPEED is set by the user), Google
-# Benchmark is replaced by CodSpeed's compatibility layer: it is fetched here and
-# the benchmarks are linked against the 'benchmark::benchmark' target, which
-# takes care of the include directories and the compile definitions.
-set(MFEM_BENCHMARK_EXTRA_LIBS "")
-if (MFEM_USE_CODSPEED)
-   # 3.28 is needed for FetchContent EXCLUDE_FROM_ALL below.
-   if (CMAKE_VERSION VERSION_LESS 3.28.0)
-      message(FATAL_ERROR "Benchmarking with CodSpeed requires CMake >= 3.28")
-   endif()
-   include(FetchContent)
-   set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
-   set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
-   set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
-   set(BENCHMARK_INSTALL_DOCS OFF CACHE BOOL "" FORCE)
-   # Build the fork in 'simulation' mode: this compiles in CodSpeed's CPU
-   # simulation (valgrind) instrument.
-   set(CODSPEED_MODE "simulation" CACHE STRING "" FORCE)
-   # EXCLUDE_FROM_ALL keeps CodSpeed core's install rules, which are
-   # hard-coded to /usr/local and not disabled by BENCHMARK_ENABLE_INSTALL=OFF,
-   # out of MFEM's installation.
-   FetchContent_Declare(google_benchmark
-      GIT_REPOSITORY https://github.com/CodSpeedHQ/codspeed-cpp
-      GIT_TAG v2.4.0
-      SOURCE_SUBDIR google_benchmark
-      EXCLUDE_FROM_ALL)
-   FetchContent_MakeAvailable(google_benchmark)
-
-   # CodSpeed v2.4.0's generated Zig C source is incompatible with C23
-   set_property(TARGET instrument_hooks PROPERTY C_STANDARD 17)
-   set_property(TARGET instrument_hooks PROPERTY C_STANDARD_REQUIRED ON)
-   set_property(TARGET instrument_hooks PROPERTY C_EXTENSIONS OFF)
-
-   set(MFEM_BENCHMARK_EXTRA_LIBS benchmark::benchmark)
-endif()
-
 #-------------------------------------------------------------------------------
 # Function to add one benchmark from the tests/benchmarks directory.
 #-------------------------------------------------------------------------------
@@ -67,9 +31,16 @@ function(add_benchmark name)
        set_property(SOURCE ${${NAME}_BENCH_SRCS} PROPERTY LANGUAGE CUDA)
     endif(MFEM_USE_CUDA)
 
+    if (MFEM_USE_HIP)
+        set_property(SOURCE ${${NAME}_BENCH_SRCS}
+                     PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
+    endif(MFEM_USE_HIP)
+
     add_executable(bench_${name} ${${NAME}_BENCH_SRCS})
-    target_link_libraries(bench_${name} mfem pthread
-                          ${MFEM_BENCHMARK_EXTRA_LIBS})
+    target_link_libraries(bench_${name} PRIVATE mfem pthread)
+    if (MFEM_USE_PROTEUS)
+        add_proteus(bench_${name})
+    endif()
     add_dependencies(${MFEM_ALL_BENCHMARKS_TARGET_NAME} bench_${name})
 
     add_test(NAME bench_${name}_cpu
@@ -93,4 +64,3 @@ add_benchmark(elasticity)
 add_benchmark(tmop)
 add_benchmark(vector)
 add_benchmark(virtuals)
-add_benchmark(nlvc)

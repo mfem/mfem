@@ -140,7 +140,7 @@ void ImplEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
               Reshape(q_der.Write(), nq, vdim, NE):
               Reshape(q_der.Write(), vdim, nq, NE);
    auto det = Reshape(q_det.Write(), nq, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall(NE, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(eval_flags, q_layout, nd, nq, vdim) MFEM_HOST_DEVICE(int e)
    {
       const auto B = Reshape(B_, nq, nd);
       const auto G = Reshape(G_, nq, nd);
@@ -204,7 +204,7 @@ void ImplEval1D(const int NE, const int vdim, const QVectorLayout q_layout,
             }
          }
       }
-   });
+   }));
 }
 
 template void
