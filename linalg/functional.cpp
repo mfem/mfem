@@ -54,28 +54,24 @@ void WeightedSumOperator::Mult(const Vector &x, Vector &y) const
    }
 }
 
-SubBlockSumOperator::SubBlockSumOperator(int n,
-                                         Array<const Operator *> operators,
-                                         std::vector<const Array<int> *> indices_)
-   : Operator(n), ops(std::move(operators)), indices(std::move(indices_))
+void BlockMVOperator::MultMV(const MultiVector &x,
+                                      MultiVector &y) const
 {
-   MFEM_VERIFY(ops.Size() == (int)indices.size(),
-               "Size mismatch between operators and indices.");
-}
-
-void SubBlockSumOperator::Mult(const Vector &x, Vector &y) const
-{
-   y.SetSize(height);
-   y = 0.0;
-   for (int j=0; j<ops.Size(); j++)
+   MFEM_VERIFY(x.NumBlocks() == NumColBlocks() && y.NumBlocks() == NumRowBlocks(),
+               "Expected " << NumColBlocks() << " input and " << NumRowBlocks()
+               << " output blocks, but got " << x.NumBlocks() << " and "
+               << y.NumBlocks());
+   mv_tmp.UseDevice(true);
+   for (int i=0; i<NumRowBlocks(); i++)
    {
-      if (indices[j] == nullptr) { ops[j]->AddMult(x, y); continue; }
-      xs.UseDevice(x.UseDevice());
-      ys.UseDevice(y.UseDevice());
-      x.GetSubVector(*indices[j], xs);
-      ys.SetSize(ops[j]->Height());
-      ops[j]->Mult(xs, ys);
-      y.AddElementVector(*indices[j], ys);
+      y[i] = 0.0;
+      mv_tmp.SetSize(y[i].Size());
+      for (int j=0; j<NumColBlocks(); j++)
+      {
+         if (IsZeroBlock(i, j) || GetBlockCoef(i, j) == 0.0) { continue; }
+         GetBlock(i, j).Mult(x[j], mv_tmp);
+         y[i].Add(GetBlockCoef(i, j), mv_tmp);
+      }
    }
 }
 
@@ -110,36 +106,112 @@ void GlobalFunctional::Derivative(const MultiVector &x,
    }
 }
 
-const Operator *GlobalFunctional::ComponentHessian(const MultiVector &x,
-                                                   int i) const
+Operator *GlobalFunctional::ComponentHessian(const MultiVector &x, int k,
+                                             int i, int j) const
 {
    MFEM_ABORT("ComponentHessian is not implemented for this functional.");
    return nullptr;
 }
 
-const Operator *GlobalFunctional::WeightedSumHessian(const MultiVector &x,
-                                                     const Vector &lambda) const
+Operator *GlobalFunctional::ComponentHessian(const MultiVector &x, int k) const
+{
+   VerifyInputSize(x.GetSizes());
+   const int nf = field_sizes.Size();
+   Array<Operator *> blocks(nf*nf);
+   for (int i=0; i<nf; i++)
+   {
+      for (int j=0; j<nf; j++) { blocks[i*nf + j] = ComponentHessian(x, k, i, j); }
+   }
+   if ((int)full_hess.size() != height) { full_hess.resize(height); }
+   return CollectBlocks(blocks, full_hess[k]);
+}
+
+Operator *GlobalFunctional::WeightedSumHessian(const MultiVector &x,
+                                               const Vector &lambda,
+                                               int i, int j) const
 {
    VerifyInputSize(x.GetSizes());
    MFEM_VERIFY(lambda.Size() == height,
                "Expected " << height << " components in lambda, but got " << lambda.Size());
    Array<const Operator *> ops(height);
+   Operator *last_valid = nullptr;
    int valid_count = 0;
    int last_valid_idx = -1;
-   for (int i=0; i<height; i++)
+   for (int k=0; k<height; k++)
    {
-      ops[i] = ComponentHessian(x, i);
-      valid_count += (ops[i] != nullptr);
-      if (ops[i] != nullptr) { last_valid_idx = i; }
+      Operator *op = ComponentHessian(x, k, i, j);
+      ops[k] = op;
+      valid_count += (op != nullptr);
+      if (op != nullptr) { last_valid_idx = k; last_valid = op; }
    }
-   if (valid_count == 0) { return nullptr; } // linear functional
+   if (valid_count == 0) { return nullptr; } // zero block
    if (valid_count == 1 && lambda.HostRead()[last_valid_idx] == 1.0)
    {
       // Return the single non-null Hessian if the weight is 1.0
-      return ops[last_valid_idx];
+      return last_valid;
    }
-   contracted_hess = std::make_unique<WeightedSumOperator>(ops, lambda);
-   return contracted_hess.get();
+   const int nf = field_sizes.Size();
+   if ((int)block_sum_hess.size() != nf*nf) { block_sum_hess.resize(nf*nf); }
+   block_sum_hess[i*nf + j] = std::make_unique<WeightedSumOperator>(ops, lambda);
+   return block_sum_hess[i*nf + j].get();
+}
+
+Operator *GlobalFunctional::WeightedSumHessian(const MultiVector &x,
+                                               const Vector &lambda) const
+{
+   VerifyInputSize(x.GetSizes());
+   const int nf = field_sizes.Size();
+   Array<Operator *> blocks(nf*nf);
+   for (int i=0; i<nf; i++)
+   {
+      for (int j=0; j<nf; j++)
+      {
+         blocks[i*nf + j] = WeightedSumHessian(x, lambda, i, j);
+      }
+   }
+   return CollectBlocks(blocks, full_sum_hess);
+}
+
+Operator *GlobalFunctional::CollectBlocks(const Array<Operator *> &blocks,
+                                          std::unique_ptr<BlockMVOperator> &hess) const
+{
+   const int nf = field_sizes.Size();
+   bool all_null = true;
+   for (Operator *block : blocks) { all_null = all_null && block == nullptr; }
+   if (all_null) { return nullptr; }
+
+   Array<int> offsets(nf + 1);
+   offsets[0] = 0;
+   for (int b=0; b<nf; b++) { offsets[b+1] = offsets[b] + field_sizes[b]; }
+   if (!(offsets == hess_offsets))
+   {
+      // The block operators refer to hess_offsets.
+      for (auto &h : full_hess) { h.reset(); }
+      full_sum_hess.reset();
+      hess_offsets = offsets;
+   }
+
+   bool same = hess != nullptr;
+   for (int i=0; same && i<nf; i++)
+   {
+      for (int j=0; same && j<nf; j++)
+      {
+         Operator *block = blocks[i*nf + j];
+         same = hess->IsZeroBlock(i, j) ? block == nullptr
+                : block == &hess->GetBlock(i, j);
+      }
+   }
+   if (same) { return hess.get(); }
+
+   hess = std::make_unique<BlockMVOperator>(hess_offsets);
+   for (int i=0; i<nf; i++)
+   {
+      for (int j=0; j<nf; j++)
+      {
+         if (blocks[i*nf + j]) { hess->SetBlock(i, j, blocks[i*nf + j]); }
+      }
+   }
+   return hess.get();
 }
 
 bool GlobalFunctional::IsParallel() const
@@ -244,39 +316,10 @@ void WeightedSumFunctional::Finalize()
    height = out_offsets.Last();
    work.SetSizes(field_sizes);
 
-   Array<int> field_offsets(field_sizes.Size() + 1);
-   field_offsets[0] = 0;
-   for (int b=0; b<field_sizes.Size(); b++)
-   {
-      field_offsets[b+1] = field_offsets[b] + field_sizes[b];
-   }
-   term_group.SetSize(functionals.Size());
-   for (int j=0; j<functionals.Size(); j++)
-   {
-      int g = 0;
-      while (g < (int)groups.size() && !(groups[g].f == functionals[j] &&
-                                         groups[g].subfield_ids == field_ids[j]))
-      { g++; }
-      if (g == (int)groups.size())
-      {
-         HessianGroup group{functionals[j], field_ids[j], Array<int>(),
-                            field_ids[j].Size() == field_sizes.Size(),
-                            Vector(functionals[j]->Height())};
-         for (int b=0; b<field_ids[j].Size(); b++)
-         {
-            const int id = field_ids[j][b];
-            group.all_fields = group.all_fields && id == b;
-            for (int k=field_offsets[id]; k<field_offsets[id+1]; k++)
-            {
-               group.indices.Append(k);
-            }
-         }
-         groups.push_back(std::move(group));
-      }
-      term_group[j] = g;
-   }
+   const int nf = field_sizes.Size();
    unit.SetSize(height);
-   component_hess.resize(height);
+   component_hess.resize(height*nf*nf);
+   sum_hess.resize(nf*nf);
    finalized = true;
 }
 
@@ -345,76 +388,66 @@ void WeightedSumFunctional::ComponentDerivative(const MultiVector &x, int i,
    }
 }
 
-const Operator* WeightedSumFunctional::ComponentHessian(const MultiVector &x,
-                                                        int i) const
+Operator *WeightedSumFunctional::ComponentHessian(const MultiVector &x, int k,
+                                                  int i, int j) const
 {
    MFEM_VERIFY(finalized,
                "WeightedSumFunctional is not finalized. Call Finalize() first.");
    real_t *e = unit.HostWrite();
-   for (int k=0; k<height; k++) { e[k] = 0.0; }
-   e[i] = 1.0;
-   return Hessian(x, unit, component_hess[i]);
+   for (int r=0; r<height; r++) { e[r] = 0.0; }
+   e[k] = 1.0;
+   const int nf = field_sizes.Size();
+   return HessianBlock(x, unit, i, j, component_hess[(k*nf + i)*nf + j]);
 }
 
-const Operator *WeightedSumFunctional::WeightedSumHessian(const MultiVector &x,
-                                                          const Vector &lambda) const
+Operator *WeightedSumFunctional::WeightedSumHessian(const MultiVector &x,
+                                                    const Vector &lambda,
+                                                    int i, int j) const
 {
    MFEM_VERIFY(finalized,
                "WeightedSumFunctional is not finalized. Call Finalize() first.");
    MFEM_VERIFY(lambda.Size() == height,
                "Expected " << height << " components in lambda, but got "
                << lambda.Size());
-   return Hessian(x, lambda, sum_hess);
+   return HessianBlock(x, lambda, i, j, sum_hess[i*field_sizes.Size() + j]);
 }
 
-const Operator *WeightedSumFunctional::Hessian(const MultiVector &x,
-                                               const Vector &lambda,
-                                               std::unique_ptr<Operator> &hess) const
+Operator *WeightedSumFunctional::HessianBlock(const MultiVector &x,
+                                              const Vector &lambda,
+                                              int i, int j,
+                                              std::unique_ptr<Operator> &hess) const
 {
    const real_t *l = lambda.HostRead();
-   for (auto &group : groups)
-   {
-      real_t *mu = group.mu.HostWrite();
-      for (int k=0; k<group.mu.Size(); k++) { mu[k] = 0.0; }
-   }
-   for (int j=0; j<functionals.Size(); j++)
-   {
-      Vector &group_mu = groups[term_group[j]].mu;
-      real_t *mu = group_mu.HostReadWrite();
-      const int offset = out_offsets[block_row_idx[j]];
-      if (weights[j].Size() > 0)
-      {
-         const real_t *weight = weights[j].HostRead();
-         for (int k=0; k<group_mu.Size(); k++) { mu[k] += l[offset] * weight[k]; }
-      }
-      else
-      {
-         for (int k=0; k<group_mu.Size(); k++) { mu[k] += l[offset + k]; }
-      }
-   }
-
    Array<const Operator *> ops;
-   std::vector<const Array<int> *> indices;
-   for (const auto &group : groups)
+   Array<real_t> coefs;
+   Operator *first = nullptr;
+   for (int t=0; t<functionals.Size(); t++)
    {
-      const real_t *mu = group.mu.HostRead();
-      int num_nonzero = 0, last_nonzero = -1;
-      for (int k=0; k<group.mu.Size(); k++)
+      // Fields i and j as fields a and b of the functional.
+      const int a = field_ids[t].Find(i), b = field_ids[t].Find(j);
+      if (a < 0 || b < 0) { continue; }
+      const GlobalFunctional *f = functionals[t];
+      const int offset = out_offsets[block_row_idx[t]];
+      const bool weighted = weights[t].Size() > 0;
+      const real_t *weight = weighted ? weights[t].HostRead() : nullptr;
+      const MultiVector subx = x.GetBlockViews(field_ids[t]);
+      for (int c=0; c<f->Height(); c++)
       {
-         if (mu[k] != 0.0) { num_nonzero++; last_nonzero = k; }
+         const real_t coef = weighted ? l[offset] * weight[c] : l[offset + c];
+         if (coef == 0.0) { continue; }
+         Operator *h = f->ComponentHessian(subx, c, a, b);
+         if (h == nullptr) { continue; }
+         if (ops.Size() == 0) { first = h; }
+         ops.Append(h);
+         coefs.Append(coef);
       }
-      if (num_nonzero == 0) { continue; }
-      const MultiVector subx = x.GetBlockViews(group.subfield_ids);
-      const Operator *h = (num_nonzero == 1 && mu[last_nonzero] == 1.0)
-                          ? group.f->ComponentHessian(subx, last_nonzero)
-                          : group.f->WeightedSumHessian(subx, group.mu);
-      if (h == nullptr) { continue; }
-      ops.Append(h);
-      indices.push_back(group.all_fields ? nullptr : &group.indices);
    }
    if (ops.Size() == 0) { return nullptr; }
-   if (ops.Size() == 1 && indices[0] == nullptr) { return ops[0]; }
-   hess = std::make_unique<SubBlockSumOperator>(Width(), ops, indices);
+   if (ops.Size() == 1 && coefs[0] == 1.0) { return first; }
+   Vector w(coefs.Size());
+   real_t *wp = w.HostWrite();
+   for (int n=0; n<coefs.Size(); n++) { wp[n] = coefs[n]; }
+   hess = std::make_unique<WeightedSumOperator>(ops, w);
    return hess.get();
 }
 
@@ -424,7 +457,6 @@ ConstrainedFunctional::ConstrainedFunctional(std::vector<const Array<int>*>
    : GlobalFunctional(f_ ? f_->GetFieldSizes() : Array<int>(),
                       f_ ? f_->Height() : 0)
    , f(f_), own(own_), ess_dofs(std::move(ess_dofs_))
-   , constrained_hessians(height), wrapped_hessians(height, nullptr)
 {
    MFEM_VERIFY(f_ != nullptr, "ConstrainedFunctional: f is nullptr.");
    MFEM_VERIFY((int)ess_dofs.size() == field_sizes.Size(),
@@ -433,15 +465,9 @@ ConstrainedFunctional::ConstrainedFunctional(std::vector<const Array<int>*>
 #ifdef MFEM_USE_MPI
    if (f->IsParallel()) { SetComm(f->GetComm()); }
 #endif
-   for (int b=0, offset=0; b<field_sizes.Size(); offset += field_sizes[b++])
-   {
-      if (ess_dofs[b] == nullptr) { continue; }
-      const int *dofs = ess_dofs[b]->HostRead();
-      for (int k=0; k<ess_dofs[b]->Size(); k++)
-      {
-         ess_tdofs.Append(dofs[k] + offset);
-      }
-   }
+   const int nf = field_sizes.Size();
+   constrained_hessians.resize((height + 1)*nf*nf);
+   wrapped_hessians.resize((height + 1)*nf*nf, nullptr);
 }
 
 void ConstrainedFunctional::ComponentDerivative(const MultiVector &x, int i,
@@ -455,33 +481,47 @@ void ConstrainedFunctional::ComponentDerivative(const MultiVector &x, int i,
    }
 }
 
-const Operator* ConstrainedFunctional::ComponentHessian(const MultiVector &x,
-                                                        int i) const
+Operator *ConstrainedFunctional::ComponentHessian(const MultiVector &x, int k,
+                                                  int i, int j) const
 {
-   return Constrain(f->ComponentHessian(x, i), wrapped_hessians[i],
-                    constrained_hessians[i]);
+   const int nf = field_sizes.Size();
+   return Constrain(f->ComponentHessian(x, k, i, j), i, j, (k*nf + i)*nf + j);
 }
 
-const Operator *ConstrainedFunctional::WeightedSumHessian(const MultiVector &x,
-                                                          const Vector &lambda) const
+Operator *ConstrainedFunctional::WeightedSumHessian(const MultiVector &x,
+                                                    const Vector &lambda,
+                                                    int i, int j) const
 {
-   return Constrain(f->WeightedSumHessian(x, lambda), wrapped_sum_hessian,
-                    constrained_sum_hessian);
+   const int nf = field_sizes.Size();
+   return Constrain(f->WeightedSumHessian(x, lambda, i, j), i, j,
+                    (height*nf + i)*nf + j);
 }
 
-const Operator *ConstrainedFunctional::Constrain(const Operator *hess,
-                                                 const Operator *&wrapped,
-                                                 std::unique_ptr<ConstrainedOperator> &constrained) const
+Operator *ConstrainedFunctional::Constrain(Operator *hess, int i, int j,
+                                           int slot) const
 {
-   if (hess == nullptr || ess_tdofs.Size() == 0) { return hess; }
-   if (hess != wrapped)
+   const Array<int> &test_dofs = ess_dofs[i] ? *ess_dofs[i] : no_dofs;
+   const Array<int> &trial_dofs = ess_dofs[j] ? *ess_dofs[j] : no_dofs;
+   if (hess == nullptr || (test_dofs.Size() == 0 && trial_dofs.Size() == 0))
    {
-      // ConstrainedOperator does not call non-const methods.
-      constrained = std::make_unique<ConstrainedOperator>(
-                       const_cast<Operator*>(hess), ess_tdofs);
-      wrapped = hess;
+      return hess;
    }
-   return constrained.get();
+   if (hess != wrapped_hessians[slot])
+   {
+      if (i == j)
+      {
+         constrained_hessians[slot] =
+            std::make_unique<ConstrainedOperator>(hess, test_dofs);
+      }
+      else
+      {
+         constrained_hessians[slot] =
+            std::make_unique<RectangularConstrainedOperator>(hess, trial_dofs,
+                                                             test_dofs);
+      }
+      wrapped_hessians[slot] = hess;
+   }
+   return constrained_hessians[slot].get();
 }
 
 LinearFunctional::LinearFunctional(const Vector *b_, bool own_)
@@ -517,10 +557,10 @@ void LinearFunctional::ComponentDerivative(const MultiVector &x, int i,
    df_i[0] = *b;
 }
 
-const Operator *LinearFunctional::ComponentHessian(const MultiVector &x,
-                                                   int i) const
+Operator *LinearFunctional::ComponentHessian(const MultiVector &x, int k,
+                                             int i, int j) const
 {
-   MFEM_VERIFY(i == 0, "LinearFunctional: only one component.");
+   MFEM_VERIFY(k == 0, "LinearFunctional: only one component.");
    return nullptr; // linear functional has no Hessian
 }
 
@@ -573,11 +613,11 @@ void QuadraticFunctional::ComponentDerivative(const MultiVector &x, int i,
    if (b) { df_i[0] -= *b; }
 }
 
-const Operator *QuadraticFunctional::ComponentHessian(const MultiVector &x,
-                                                      int i) const
+Operator *QuadraticFunctional::ComponentHessian(const MultiVector &x, int k,
+                                                int i, int j) const
 {
-   MFEM_VERIFY(i == 0, "QuadraticFunctional: only one component.");
-   return A; // Hessian is constant and equal to A
+   MFEM_VERIFY(k == 0, "QuadraticFunctional: only one component.");
+   return const_cast<Operator*>(A); // Hessian is constant and equal to A
 }
 
 real_t DiffDerivativeAgainstCentralDiff(const GlobalFunctional &f,

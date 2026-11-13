@@ -16,6 +16,7 @@
 #include "../general/array.hpp"
 #include "../general/communication.hpp"
 #include "operator.hpp"
+#include "blockoperator.hpp"
 #include "multivector.hpp"
 #include <memory>
 #include <vector>
@@ -44,18 +45,22 @@ public:
    void Mult(const Vector &x, Vector &y) const override;
 };
 
-/// @brief y = sum_j P_j^T A_j P_j x, where P_j extracts the entries
-/// @a indices[j] of x, or all entries when @a indices[j] is nullptr.
-class SubBlockSumOperator : public Operator
+/// @brief A BlockOperator that can also be applied to MultiVector%s with one
+/// block per column block (input) and per row block (output),
+/// y[i] = sum_j c_ij A_ij x[j].
+class BlockMVOperator : public BlockOperator
 {
-   Array<const Operator *> ops;
-   std::vector<const Array<int> *> indices;
-   mutable Vector xs, ys;
+   mutable Vector mv_tmp;
 public:
-   SubBlockSumOperator(int n, Array<const Operator *> operators,
-                       std::vector<const Array<int> *> indices_);
+   using BlockOperator::BlockOperator;
 
-   void Mult(const Vector &x, Vector &y) const override;
+   /// The blocks A_ij are applied with their Mult() method; the blocks of
+   /// @a y must have the sizes of the row blocks.
+   void MultMV(const MultiVector &x, MultiVector &y) const override;
+
+   /// The operator is linear: its gradient is the operator itself.
+   Operator &GetGradientMV(const MultiVector &x) const override
+   { return const_cast<BlockMVOperator&>(*this); }
 };
 
 /** @brief Abstract base class of a vector-valued functional f : X -> R^m with
@@ -69,19 +74,28 @@ public:
     - Eval(x, fx): fx_i = f_i(x), i = 0, ..., m-1.
     - ComponentDerivative(x, i, df_i): df_i = f_i'(x), with one block per
       field; Derivative(x, df) evaluates all components.
-    - ComponentHessian(x, i): f_i''(x) as an Operator on the concatenated
-      input, or nullptr when f_i is linear.
-    - WeightedSumHessian(x, lambda): (sum_i lambda_i f_i)''(x), or nullptr
-      when all components are linear.
+    - ComponentHessian(x, k, i, j): the block d^2 f_k / dx_i dx_j, an Operator
+      from field j to field i, or nullptr when the block is zero.
+    - ComponentHessian(x, k): f_k''(x) on all fields, or nullptr when f_k is
+      linear. The returned Operator supports Mult() on the concatenated input
+      and MultMV() with one block per field.
+    - WeightedSumHessian(x, lambda, i, j) and WeightedSumHessian(x, lambda):
+      the same for sum_k lambda_k f_k.
 
-    The returned Hessians are owned by the functional. See the documentation
-    of each function for how long they stay valid. */
+    As in Operator::GetGradient(), the Hessians are returned non-const: they
+    are owned by the functional and stay valid until the next call with the
+    same indices, unless a derived class documents otherwise. */
 class GlobalFunctional
 {
 #ifdef MFEM_USE_MPI
    MPI_Comm comm = MPI_COMM_NULL;
 #endif
-   mutable std::unique_ptr<Operator> contracted_hess;
+   // Hessians built by the default implementations: one per output and one
+   // for the weighted sum on all fields, and the weighted sum blocks.
+   mutable Array<int> hess_offsets;
+   mutable std::vector<std::unique_ptr<BlockMVOperator>> full_hess;
+   mutable std::unique_ptr<BlockMVOperator> full_sum_hess;
+   mutable std::vector<std::unique_ptr<Operator>> block_sum_hess;
 protected:
    Array<int> field_sizes;
    int height;
@@ -107,10 +121,20 @@ public:
                                     MultiVector &df_i) const;
    /// @brief Evaluate derivative, df[i] = df_i/dx
    virtual void Derivative(const MultiVector &x, Array<MultiVector*> &df) const;
-   /// @brief Return the Hessian of f_i(x) or nullptr (linear)
-   virtual const Operator *ComponentHessian(const MultiVector &x, int i) const;
+   /// @brief Return the block (i, j) of the Hessian of f_k(x), an Operator
+   /// from field j to field i, or nullptr (zero block)
+   virtual Operator *ComponentHessian(const MultiVector &x, int k,
+                                      int i, int j) const;
+   /// @brief Return the Hessian of f_k(x) or nullptr (linear)
+   ///
+   /// Default path is to collect the blocks ComponentHessian(x, k, i, j) in a
+   /// BlockMVOperator. A derived class that overrides this function must return
+   /// an Operator that supports Mult() on the concatenated input and MultMV()
+   /// with one block per field.
+   virtual Operator *ComponentHessian(const MultiVector &x, int k) const;
 
-   /// @brief Return the Hessian of $ \sum_i \lambda_i f_i(x) $ or nullptr (linear)
+   /// @brief Return the block (i, j) of the Hessian of
+   /// $ \sum_k \lambda_k f_k(x) $ or nullptr (zero block)
    ///
    /// Default path is to call ComponentHessian() for each component and return
    /// a WeightedSumOperator. Derived classes can override this function to provide
@@ -125,8 +149,15 @@ public:
    /// sparse matrix types. Later, a helper function can be added to assemble
    /// the weighted sum Hessian into a sparse matrix if all component Hessians
    /// are of the same type.
-   virtual const Operator *WeightedSumHessian(const MultiVector &x,
-                                              const Vector &lambda) const;
+   virtual Operator *WeightedSumHessian(const MultiVector &x,
+                                        const Vector &lambda,
+                                        int i, int j) const;
+   /// @brief Return the Hessian of $ \sum_k \lambda_k f_k(x) $ or nullptr (linear)
+   ///
+   /// Default path is to collect the blocks WeightedSumHessian(x, lambda, i, j)
+   /// in a BlockMVOperator; see ComponentHessian(x, k).
+   virtual Operator *WeightedSumHessian(const MultiVector &x,
+                                        const Vector &lambda) const;
 
    /// @brief Return the output size of the functional, i.e., number of components.
    int Height() const { return height; }
@@ -150,6 +181,12 @@ public:
 
    real_t Reduce(real_t value) const;
    real_t Dot(const Vector &x, const Vector &y) const;
+
+private:
+   /// The block operator of @a blocks (row-major, one per field pair), built in
+   /// @a hess unless it already holds these blocks; nullptr if all are null.
+   Operator *CollectBlocks(const Array<Operator *> &blocks,
+                           std::unique_ptr<BlockMVOperator> &hess) const;
 };
 
 /** @brief A global functional representing [w1*f1(x) + w2*f2(x); ...]
@@ -173,20 +210,11 @@ class WeightedSumFunctional : public GlobalFunctional
 
    mutable MultiVector work;
 
-   // Hessians: terms with the same functional and fields form one group.
-   struct HessianGroup
-   {
-      const GlobalFunctional *f;
-      Array<int> subfield_ids;
-      Array<int> indices; // entries of the concatenated input
-      bool all_fields;    // subfield_ids == (0, 1, ..., NumFields-1)
-      mutable Vector mu;  // weights of the components of f
-   };
-   std::vector<HessianGroup> groups;
-   Array<int> term_group;
+   // Hessian blocks that combine several terms: one per (output, field pair)
+   // and one per field pair for the weighted sum.
    mutable Vector unit;
    mutable std::vector<std::unique_ptr<Operator>> component_hess;
-   mutable std::unique_ptr<Operator> sum_hess;
+   mutable std::vector<std::unique_ptr<Operator>> sum_hess;
 public:
    WeightedSumFunctional(Array<int> field_sizes)
       : GlobalFunctional(std::move(field_sizes), 0)
@@ -218,21 +246,24 @@ public:
    void ComponentDerivative(const MultiVector &x, int i,
                             MultiVector &df_i) const override;
 
-   /// @brief Return the Hessian of the @a i-th output.
+   using GlobalFunctional::ComponentHessian;
+   using GlobalFunctional::WeightedSumHessian;
+
+   /// @brief Return the block (i, j) of the Hessian of the @a k-th output.
    ///
    /// @note A functional added on different fields must return Hessians that
-   /// stay valid over calls of its ComponentHessian() and
-   /// WeightedSumHessian().
-   const Operator* ComponentHessian(const MultiVector &x, int i) const override;
+   /// stay valid over calls of its ComponentHessian().
+   Operator *ComponentHessian(const MultiVector &x, int k,
+                              int i, int j) const override;
 
-   const Operator *WeightedSumHessian(const MultiVector &x,
-                                      const Vector &lambda) const override;
+   Operator *WeightedSumHessian(const MultiVector &x, const Vector &lambda,
+                                int i, int j) const override;
 
 private:
-   /// Hessian of sum_i lambda_i f_i, built in @a hess when it combines
-   /// several Hessians.
-   const Operator *Hessian(const MultiVector &x, const Vector &lambda,
-                           std::unique_ptr<Operator> &hess) const;
+   /// Block (i, j) of the Hessian of sum_k lambda_k f_k, built in @a hess
+   /// when it combines several blocks.
+   Operator *HessianBlock(const MultiVector &x, const Vector &lambda,
+                          int i, int j, std::unique_ptr<Operator> &hess) const;
 };
 
 /** @brief A functional @a f with essential dofs held fixed, similar to
@@ -245,7 +276,10 @@ private:
     and each WeightedSumHessian() separately, for any weights, while a linear
     functional returns nullptr. A solver that adds the Hessians of k such
     functionals (e.g., an objective and its constraints) gets k on that
-    diagonal; it is nonzero, but not one. */
+    diagonal; it is nonzero, but not one.
+
+    The identity is set on the diagonal blocks (i, i) that @a f returns; a
+    field whose diagonal block is zero gets no identity. */
 class ConstrainedFunctional : public GlobalFunctional
 {
    const GlobalFunctional *f;
@@ -253,13 +287,11 @@ class ConstrainedFunctional : public GlobalFunctional
    // Not owned; one list per field, nullptr for none. The lists must not
    // change during the lifetime of this functional.
    std::vector<const Array<int> *> ess_dofs;
-   Array<int> ess_tdofs; // ess_dofs in the concatenated input numbering
-   // The constrained Hessians and the Hessians of f that they wrap: one per
-   // component, and one for the weighted sum.
-   mutable std::vector<std::unique_ptr<ConstrainedOperator>> constrained_hessians;
+   const Array<int> no_dofs; // for the fields without essential dofs
+   // The constrained Hessian blocks and the blocks of f that they wrap: one
+   // per (output, field pair), then one per field pair for the weighted sum.
+   mutable std::vector<std::unique_ptr<Operator>> constrained_hessians;
    mutable std::vector<const Operator *> wrapped_hessians;
-   mutable std::unique_ptr<ConstrainedOperator> constrained_sum_hessian;
-   mutable const Operator *wrapped_sum_hessian = nullptr;
 public:
    ConstrainedFunctional(std::vector<const Array<int>*> ess_dofs_,
                          const GlobalFunctional *f_, bool own_ = false);
@@ -272,17 +304,20 @@ public:
    void ComponentDerivative(const MultiVector &x, int i,
                             MultiVector &df_i) const override;
 
-   const Operator* ComponentHessian(const MultiVector &x, int i) const override;
+   using GlobalFunctional::ComponentHessian;
+   using GlobalFunctional::WeightedSumHessian;
 
-   const Operator *WeightedSumHessian(const MultiVector &x,
-                                      const Vector &lambda) const override;
+   Operator *ComponentHessian(const MultiVector &x, int k,
+                              int i, int j) const override;
+
+   Operator *WeightedSumHessian(const MultiVector &x, const Vector &lambda,
+                                int i, int j) const override;
    const GlobalFunctional *GetFunctional() const { return f; }
 
 private:
-   /// @a hess with the identity on the essential dofs, rebuilt in
-   /// @a constrained only when @a hess differs from @a wrapped.
-   const Operator *Constrain(const Operator *hess, const Operator *&wrapped,
-                             std::unique_ptr<ConstrainedOperator> &constrained) const;
+   /// The block (i, j) @a hess with the essential dofs constrained, rebuilt
+   /// in @a slot only when @a hess differs from the block wrapped there.
+   Operator *Constrain(Operator *hess, int i, int j, int slot) const;
 };
 
 class LinearFunctional : public GlobalFunctional
@@ -299,12 +334,16 @@ public:
    void Eval(const MultiVector &x, Vector &fx) const override;
    void ComponentDerivative(const MultiVector &x, int i,
                             MultiVector &df_i) const override;
-   const Operator *ComponentHessian(const MultiVector &x, int i) const override;
+   using GlobalFunctional::ComponentHessian;
+   Operator *ComponentHessian(const MultiVector &x, int k,
+                              int i, int j) const override;
 };
 
 /// @brief Quadratic functional f(x) = 0.5 * x^T A x - b^T x for a symmetric A
 ///
 /// @note We do not check if A is symmetric.
+///
+/// @note The Hessian is A itself, not a copy: it must not be modified.
 class QuadraticFunctional : public GlobalFunctional
 {
 protected:
@@ -330,7 +369,9 @@ public:
    void ComponentDerivative(const MultiVector &x, int i,
                             MultiVector &df_i) const override;
 
-   const Operator *ComponentHessian(const MultiVector &x, int i) const override;
+   using GlobalFunctional::ComponentHessian;
+   Operator *ComponentHessian(const MultiVector &x, int k,
+                              int i, int j) const override;
 };
 
 /** @brief Compare the derivative of @a f at @a x in the direction @a d with

@@ -113,9 +113,11 @@ public:
    {
       (i == 0 ? A0 : A1).Mult(x[0], df_i[0]);
    }
-   const Operator *ComponentHessian(const MultiVector &x, int i) const override
+   using GlobalFunctional::ComponentHessian;
+   Operator *ComponentHessian(const MultiVector &x, int k,
+                              int i, int j) const override
    {
-      return i == 0 ? &A0 : &A1;
+      return const_cast<DenseOperator*>(k == 0 ? &A0 : &A1);
    }
 };
 
@@ -123,11 +125,24 @@ public:
 class BlockQuadratic : public GlobalFunctional
 {
    const DenseOperator A;
+   DenseMatrix blocks[2][2];
+   std::unique_ptr<DenseOperator> block_ops[2][2];
    mutable Vector z, w;
 public:
    BlockQuadratic(int n0, int n1, const DenseMatrix &A_)
       : GlobalFunctional(Array<int>({n0, n1}), 1), A(A_), z(n0 + n1),
-        w(n0 + n1) {}
+        w(n0 + n1)
+   {
+      const int n[2] = {n0, n1}, offset[2] = {0, n0};
+      for (int i=0; i<2; i++)
+      {
+         for (int j=0; j<2; j++)
+         {
+            blocks[i][j].CopyMN(A_, n[i], n[j], offset[i], offset[j]);
+            block_ops[i][j].reset(new DenseOperator(blocks[i][j]));
+         }
+      }
+   }
 
    void Eval(const MultiVector &x, Vector &fx) const override
    {
@@ -145,9 +160,11 @@ public:
       df_i[0] = Vector(w, 0, n0);
       df_i[1] = Vector(w, n0, n1);
    }
-   const Operator *ComponentHessian(const MultiVector &x, int i) const override
+   using GlobalFunctional::ComponentHessian;
+   Operator *ComponentHessian(const MultiVector &x, int k,
+                              int i, int j) const override
    {
-      return &A;
+      return block_ops[i][j].get();
    }
 
 private:
@@ -167,7 +184,9 @@ public:
    NoOutput(MPI_Comm comm, int n) : GlobalFunctional(comm, n, 0) {}
 #endif
    void Eval(const MultiVector &x, Vector &fx) const override { fx.SetSize(0); }
-   const Operator *ComponentHessian(const MultiVector &x, int i) const override
+   using GlobalFunctional::ComponentHessian;
+   Operator *ComponentHessian(const MultiVector &x, int k,
+                              int i, int j) const override
    {
       return nullptr;
    }
@@ -299,16 +318,18 @@ static void TestQuadraticFunctional()
    f.ComponentDerivative(x, 0, df);
    Vector g(Ax); g -= b;
    Check(Near(dv, g), "QuadraticFunctional::ComponentDerivative");
-   Check(f.ComponentHessian(x, 0) == &Aop,
-         "QuadraticFunctional::ComponentHessian");
+   Check(f.ComponentHessian(x, 0, 0, 0) == &Aop,
+         "QuadraticFunctional::ComponentHessian block");
+   Vector Hx(4);
+   f.ComponentHessian(x, 0)->Mult(xv, Hx);
+   Check(Near(Hx, Ax), "QuadraticFunctional::ComponentHessian");
 
    Vector lambda(1);
    lambda = 1.0;
-   Check(f.WeightedSumHessian(x, lambda) == &Aop,
+   Check(f.WeightedSumHessian(x, lambda, 0, 0) == &Aop,
          "QuadraticFunctional::WeightedSumHessian, unit weight");
    lambda = 2.0;
    const Operator *H = f.WeightedSumHessian(x, lambda);
-   Vector Hx(4);
    H->Mult(xv, Hx);
    Vector Ax2(Ax); Ax2 *= 2.0;
    Check(Near(Hx, Ax2), "QuadraticFunctional::WeightedSumHessian, weight 2");
@@ -430,6 +451,42 @@ static void TestWeightedSumHessian()
    Vector lambda = MakeVector(f.Height(), 6);
    Check(DiffHessianAgainstCentralDiff(f, x, lambda, d, 1e-3) < 1e-8,
          "WeightedSumFunctional::WeightedSumHessian");
+
+   // Blocks: output 1 acts on field 1 only; output 3 couples the two fields.
+   Check(f.ComponentHessian(x, 1, 0, 0) == nullptr &&
+         f.ComponentHessian(x, 1, 0, 1) == nullptr &&
+         f.ComponentHessian(x, 1, 1, 1) != nullptr &&
+         f.ComponentHessian(x, 3, 0, 1) != nullptr,
+         "WeightedSumFunctional::ComponentHessian blocks");
+
+   // The Hessian applied to the blocks and to the concatenated input.
+   Vector h0(3), h1(2);
+   MultiVector Hd(h0, h1);
+   const Operator *H = f.WeightedSumHessian(x, lambda);
+   H->MultMV(d, Hd);
+   H->Mult(D, y0);
+   Check(Near(Concatenate(Hd), y0), "WeightedSumFunctional Hessian MultMV");
+   Check(&H->GetGradientMV(d) == H, "WeightedSumFunctional Hessian gradient");
+
+   // One functional on two fields, with weights other than one.
+   DenseMatrix Q;
+   MakeSPD(3, 7, Q);
+   DenseOperator Qop(Q);
+   QuadraticFunctional quad(&Qop);
+   WeightedSumFunctional twice(Array<int>({3, 3}));
+   Vector two_w(1), three_w(1);
+   two_w = 2.0; three_w = 3.0;
+   twice.Add(0, Array<int>({0}), two_w, &quad);
+   twice.Add(0, Array<int>({1}), three_w, &quad);
+   twice.Finalize();
+   Vector u0 = MakeVector(3, 8), u1 = MakeVector(3, 9), q0(3), q1(3);
+   Vector r0(3), r1(3);
+   MultiVector u(u0, u1), Hu(q0, q1);
+   twice.ComponentHessian(u, 0)->MultMV(u, Hu);
+   Q.Mult(u0, r0); r0 *= 2.0;
+   Q.Mult(u1, r1); r1 *= 3.0;
+   Check(Near(q0, r0) && Near(q1, r1),
+         "WeightedSumFunctional, one functional on two fields");
 
    // A functional added twice with ownership is deleted once.
    WeightedSumFunctional owner(Array<int>({3}));

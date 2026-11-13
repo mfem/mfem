@@ -101,9 +101,9 @@ int main(int argc, char *argv[])
 
    // Hessian of the objective, the identity on the essential dofs. AMG uses
    // the energy matrix with the essential dofs eliminated.
-   const Operator &H = *obj.ComponentHessian(U, 0);
+   const Operator &H = *obj.ComponentHessian(U, 0, 0, 0);
    HypreParMatrix A_elim(*static_cast<const HypreParMatrix*>(
-                            energy.ComponentHessian(U, 0)));
+                            energy.ComponentHessian(U, 0, 0, 0)));
    delete A_elim.EliminateRowsCols(ess_tdofs);
    HypreBoomerAMG amg(A_elim);
    amg.SetPrintLevel(0);
