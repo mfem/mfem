@@ -215,8 +215,8 @@ int main(int argc, char *argv[])
 
       for (int i=0; i<nev; i++)
       {
-         // convert eigenvector from HypreParVector to ParGridFunction
-         x = ame->GetEigenvector(i);
+         // convert eigenvector from Vector to ParGridFunction
+         x.Distribute(ame->GetEigenvector(i));
 
          mode_name << "mode_" << setfill('0') << setw(2) << i << "."
                    << setfill('0') << setw(6) << myid;
@@ -244,8 +244,8 @@ int main(int argc, char *argv[])
                  << ", Lambda = " << eigenvalues[i] << endl;
          }
 
-         // convert eigenvector from HypreParVector to ParGridFunction
-         x = ame->GetEigenvector(i);
+         // convert eigenvector from Vector to ParGridFunction
+         x.Distribute(ame->GetEigenvector(i));
 
          mode_sock << "parallel " << num_procs << " " << myid << "\n"
                    << "solution\n" << *pmesh << x << flush
