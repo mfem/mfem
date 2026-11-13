@@ -325,7 +325,10 @@ public:
    void SingularValues(Vector &sv) const;
    int Rank(real_t tol) const;
 
-   /// Return the i-th singular value (decreasing order) of NxN matrix, N=1,2,3.
+   /** Return the i-th singular value (decreasing order) of a matrix with
+       min(Height(), Width()) = 1, 2, or 3. For a rectangular matrix $A$, the
+       values are $\sigma_i(A) = \sqrt{\lambda_i(A^T A)}$ when $A$ is tall and
+       $\sigma_i(A) = \sqrt{\lambda_i(A A^T)}$ when it is wide. */
    real_t CalcSingularvalue(const int i) const;
 
    /** Return the eigenvalues (in increasing order) and eigenvectors of a
