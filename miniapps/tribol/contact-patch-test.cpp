@@ -63,6 +63,9 @@ int main(int argc, char *argv[])
    // Initialize MPI
    mfem::Mpi::Init();
 
+   // Initialize HYPRE with MFEM's default CPU execution and memory policies.
+   mfem::Hypre::Init();
+
    // Initialize logging with axom::slic
    axom::slic::SimpleLogger logger;
    axom::slic::setIsRoot(mfem::Mpi::Root());
@@ -205,10 +208,11 @@ int main(int argc, char *argv[])
    // the coupling scheme, so the host code can reference and update it as
    // needed.
    auto& pressure = tribol::getMfemPressure(coupling_scheme_id);
+   auto n_pressure_dofs = pressure.ParFESpace()->GlobalTrueVSize();
    if (mfem::Mpi::Root())
    {
       std::cout << "Number of pressure unknowns: " <<
-                pressure.ParFESpace()->GlobalTrueVSize() << std::endl;
+                n_pressure_dofs << std::endl;
    }
 
    // Set Tribol options for Lagrange multiplier enforcement
@@ -284,6 +288,7 @@ int main(int argc, char *argv[])
    std::unique_ptr<mfem::STRUMPACKRowLocMatrix> A_strumpk(new
                                                           mfem::STRUMPACKRowLocMatrix(*A_hyprePar));
    mfem::STRUMPACKSolver solver(MPI_COMM_WORLD);
+   solver.DisableGPU();
    solver.SetKrylovSolver(strumpack::KrylovSolver::DIRECT);
    solver.SetReorderingStrategy(strumpack::ReorderingStrategy::METIS);
    solver.SetPrintFactorStatistics(true);

@@ -28,6 +28,12 @@
 // mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -nonlin -amgf -amgf-fsolver auto
 // mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -nonlin -no-amgf
 
+// Problem 3: onion, 9 nested spherical shells (linear elasticity)
+// mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 2 -nsteps 1 -msteps 0 -amgf -amgf-fsolver auto
+// mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 2 -nsteps 1 -msteps 0 -no-amgf
+// Output: -pl 0 for silence, -pl 1 for the final IP summary,
+//         -pl 2 for solver tables/results (default), -pl 3 for debug diagnostics.
+
 // Description:
 // This miniapp solves benchmark frictionless contact problems using a
 // self-contained Interior Point (IP) optimizer. Contact constraints
@@ -38,20 +44,30 @@
 
 // Notes:
 //  1. Non-linear elasticity is supported only for -prob 2. If -nonlin is
-//     requested for -prob 0/1, the app falls back to the linear model.
-//  2. The required meshes for -prob 0,1 are generated on the fly. For -prob 2,
-//     the mesh is constructed from the file ./meshes/beam-sphere.mesh.
-//  3. AMGF requires a parallel direct solver for the filtered subspace; build
-//     MFEM with MUMPS or MKL CPardiso. If unavailable, requesting -amgf aborts
+//     requested for -prob 0/1/3, the app falls back to the linear model.
+//  2. The meshes for -prob 0,1,3 are generated on the fly. For -prob 2,
+//     the mesh is read from ./meshes/beam-sphere.mesh.
+//  3. AMGF requires a sparse direct solver for the filtered subspace; build
+//     MFEM with MUMPS, SuperLU_DIST, STRUMPACK, MKL CPardiso, or cuDSS.
+//     If unavailable, requesting -amgf aborts
 //     with an error.
 //  4. This miniapp requires MFEM build with Tribol, an open source contact mechanics library
 //     available at https://github.com/LLNL/Tribol.
 
 #include "mfem.hpp"
+#include <array>
+#include <cctype>
+#include <cmath>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 #include "ip.hpp"
 #include "solver_utils.hpp"
+#include "contact_output.hpp"
 
 using namespace std;
 using namespace mfem;
@@ -60,10 +76,245 @@ enum problem_name
 {
    twoblock,
    ironing,
-   beamsphere
+   beamsphere,
+   onion
 };
 
 Mesh * GetProblemMesh(problem_name prob_name);
+Mesh * MakeOnionMesh();
+
+template <typename T>
+void PrintAMGOption(const char *option, const T &value)
+{
+   const int option_width = 28;
+   cout << "  " << left << setw(option_width) << option << value << endl;
+}
+
+void PrintAMGIntOption(const char *option, HYPRE_Solver solver,
+                       HYPRE_Int (*getter)(HYPRE_Solver, HYPRE_Int *))
+{
+   HYPRE_Int value = 0;
+   const HYPRE_Int ierr = getter(solver, &value);
+   PrintAMGOption(option, ierr ? "unavailable" : to_string(value));
+}
+
+void PrintAMGRealOption(const char *option, HYPRE_Solver solver,
+                        HYPRE_Int (*getter)(HYPRE_Solver, HYPRE_Real *))
+{
+   HYPRE_Real value = 0.0;
+   const HYPRE_Int ierr = getter(solver, &value);
+   PrintAMGOption(option, ierr ? "unavailable" : to_string(value));
+}
+
+void PrintAMGCycleIntOption(const char *option, HYPRE_Solver solver,
+                            HYPRE_Int cycle,
+                            HYPRE_Int (*getter)(HYPRE_Solver, HYPRE_Int *,
+                                                HYPRE_Int))
+{
+   HYPRE_Int value = 0;
+   const HYPRE_Int ierr = getter(solver, &value, cycle);
+   PrintAMGOption(option, ierr ? "unavailable" : to_string(value));
+}
+
+void PrintAMGOptions(const HypreBoomerAMG &amg,
+                     const char *preconditioner,
+                     int amg_agg_levels,
+                     const char *amgf_fsolver = nullptr)
+{
+   const int option_width = 28;
+   HYPRE_Solver solver = amg;
+
+   cout << "BoomerAMG options from configured object:" << endl
+        << "  " << left << setw(option_width) << "option" << "value" << endl
+        << "  " << left << setw(option_width) << "preconditioner"
+        << preconditioner << endl;
+
+   if (amgf_fsolver)
+   {
+      PrintAMGOption("filtered-solver", amgf_fsolver);
+   }
+
+   PrintAMGIntOption("num-functions", solver, HYPRE_BoomerAMGGetNumFunctions);
+   PrintAMGIntOption("converge-type", solver, HYPRE_BoomerAMGGetConvergeType);
+   PrintAMGRealOption("tol", solver, HYPRE_BoomerAMGGetTol);
+   PrintAMGIntOption("max-iter", solver, HYPRE_BoomerAMGGetMaxIter);
+   PrintAMGIntOption("max-coarse-size", solver,
+                     HYPRE_BoomerAMGGetMaxCoarseSize);
+   PrintAMGIntOption("min-coarse-size", solver,
+                     HYPRE_BoomerAMGGetMinCoarseSize);
+   PrintAMGIntOption("max-levels", solver, HYPRE_BoomerAMGGetMaxLevels);
+   PrintAMGIntOption("coarsen-cut-factor", solver,
+                     HYPRE_BoomerAMGGetCoarsenCutFactor);
+   PrintAMGRealOption("strong-threshold", solver,
+                      HYPRE_BoomerAMGGetStrongThreshold);
+   PrintAMGRealOption("strong-threshold-r", solver,
+                      HYPRE_BoomerAMGGetStrongThresholdR);
+   PrintAMGRealOption("filter-threshold-r", solver,
+                      HYPRE_BoomerAMGGetFilterThresholdR);
+   PrintAMGRealOption("max-row-sum", solver, HYPRE_BoomerAMGGetMaxRowSum);
+   PrintAMGIntOption("coarsen-type", solver, HYPRE_BoomerAMGGetCoarsenType);
+   PrintAMGOption("aggressive-levels", amg_agg_levels);
+   HYPRE_Int interp_type = 0;
+   const HYPRE_Int interp_ierr =
+      hypre_BoomerAMGGetInterpType((void *)solver, &interp_type);
+   PrintAMGOption("interpolation-type",
+                  interp_ierr ? "unavailable" : to_string(interp_type));
+   PrintAMGIntOption("measure-type", solver, HYPRE_BoomerAMGGetMeasureType);
+   PrintAMGRealOption("trunc-factor", solver, HYPRE_BoomerAMGGetTruncFactor);
+   PrintAMGIntOption("p-max-elmts", solver, HYPRE_BoomerAMGGetPMaxElmts);
+   PrintAMGIntOption("cycle-type", solver, HYPRE_BoomerAMGGetCycleType);
+   PrintAMGIntOption("f-cycle", solver, HYPRE_BoomerAMGGetFCycle);
+   PrintAMGIntOption("additive", solver, HYPRE_BoomerAMGGetAdditive);
+   PrintAMGIntOption("mult-additive", solver, HYPRE_BoomerAMGGetMultAdditive);
+   PrintAMGIntOption("simple", solver, HYPRE_BoomerAMGGetSimple);
+   PrintAMGIntOption("seq-threshold", solver, HYPRE_BoomerAMGGetSeqThreshold);
+   PrintAMGIntOption("redundant", solver, HYPRE_BoomerAMGGetRedundant);
+   PrintAMGCycleIntOption("num-sweeps-down", solver, 1,
+                          HYPRE_BoomerAMGGetCycleNumSweeps);
+   PrintAMGCycleIntOption("num-sweeps-up", solver, 2,
+                          HYPRE_BoomerAMGGetCycleNumSweeps);
+   PrintAMGCycleIntOption("num-sweeps-coarse", solver, 3,
+                          HYPRE_BoomerAMGGetCycleNumSweeps);
+   PrintAMGCycleIntOption("relax-type-down", solver, 1,
+                          HYPRE_BoomerAMGGetCycleRelaxType);
+   PrintAMGCycleIntOption("relax-type-up", solver, 2,
+                          HYPRE_BoomerAMGGetCycleRelaxType);
+   PrintAMGCycleIntOption("relax-type-coarse", solver, 3,
+                          HYPRE_BoomerAMGGetCycleRelaxType);
+   PrintAMGIntOption("smooth-type", solver, HYPRE_BoomerAMGGetSmoothType);
+   PrintAMGIntOption("smooth-num-levels", solver,
+                     HYPRE_BoomerAMGGetSmoothNumLevels);
+   PrintAMGIntOption("smooth-num-sweeps", solver,
+                     HYPRE_BoomerAMGGetSmoothNumSweeps);
+   PrintAMGIntOption("variant", solver, HYPRE_BoomerAMGGetVariant);
+   PrintAMGIntOption("overlap", solver, HYPRE_BoomerAMGGetOverlap);
+   PrintAMGIntOption("domain-type", solver, HYPRE_BoomerAMGGetDomainType);
+   PrintAMGRealOption("schwarz-relax-weight", solver,
+                      HYPRE_BoomerAMGGetSchwarzRlxWeight);
+   PrintAMGIntOption("print-level", solver, HYPRE_BoomerAMGGetPrintLevel);
+   PrintAMGIntOption("logging", solver, HYPRE_BoomerAMGGetLogging);
+   PrintAMGIntOption("debug-flag", solver, HYPRE_BoomerAMGGetDebugFlag);
+   PrintAMGIntOption("post-interp-type", solver,
+                     HYPRE_BoomerAMGGetPostInterpType);
+   PrintAMGRealOption("jacobi-trunc-threshold", solver,
+                      HYPRE_BoomerAMGGetJacobiTruncThreshold);
+
+   cout << right;
+}
+
+void ConfigureAMG(HypreBoomerAMG &amg, int coarsen_type, int agg_levels,
+                  int interp_type, int relax_type)
+{
+   amg.SetSystemsOptions(3);
+   amg.SetCoarsening(coarsen_type);
+   amg.SetAggressiveCoarsening(agg_levels);
+   amg.SetInterpolation(interp_type);
+   amg.SetPrintLevel(0);
+   amg.SetRelaxType(relax_type);
+}
+
+namespace
+{
+
+struct IPSolveSummary
+{
+   int load_step;
+   bool converged;
+   const char *termination_reason = "not run";
+   int ip_steps;
+   int newton_solves;
+   long long cg_iterations = 0;
+   real_t optimality_error;
+   bool has_energy = false;
+   real_t initial_energy = 0.0;
+   real_t final_energy = 0.0;
+};
+
+template <typename T>
+void PrintResultField(std::ostream &out, const char *label, const T &value)
+{
+   out << "  " << std::left << std::setw(32) << label << " = " << value << '\n';
+}
+
+void PrintIPSolveResult(const IPSolver &optimizer, const IPSolveSummary &result)
+{
+   using namespace contact_output;
+   std::ostringstream out;
+   PrintLine(out);
+   out << "  " << Center("IP SOLVE RESULT - LOAD STEP " +
+                         std::to_string(result.load_step), report_width) << '\n';
+   PrintLine(out);
+   PrintResultField(out, "Optimizer status", optimizer.GetTerminationReason());
+   PrintResultField(out, "Accepted IP steps", result.ip_steps);
+   PrintResultField(out, "Newton solves", result.newton_solves);
+   PrintResultField(out, "CG iterations", result.cg_iterations);
+   PrintResultField(out, "Final stationarity error",
+                    optimizer.GetStationarityError());
+   PrintResultField(out, "Final feasibility error",
+                    optimizer.GetFeasibilityError());
+   PrintResultField(out, "Final complementarity error",
+                    optimizer.GetComplementarityError());
+   PrintResultField(out, "Final optimality error", result.optimality_error);
+   if (result.has_energy)
+   {
+      PrintResultField(out, "Initial Energy objective", result.initial_energy);
+      PrintResultField(out, "Final Energy objective", result.final_energy);
+   }
+   PrintLine(out, '=');
+   mfem::out << out.str() << std::flush;
+}
+
+void PrintIPSummary(const std::vector<IPSolveSummary> &results, int total_steps)
+{
+   using namespace contact_output;
+   const std::array<int, 7> widths = {4, 9, 8, 13, 8, 13, 13};
+   std::ostringstream out;
+   PrintBanner(out, "FINAL IP SUMMARY");
+   PrintTableRow(out, widths,
+   {
+      "Step", "Status", "IP steps", "Newton solves", "CG iters",
+      "Optimality", "Final energy"
+   });
+   PrintTableSeparator(out, widths);
+   long long ip_steps = 0, newton_solves = 0, cg_iterations = 0;
+   int converged_steps = 0;
+   for (const auto &result : results)
+   {
+      PrintTableRow(out, widths,
+      {
+         std::to_string(result.load_step),
+         result.converged ? "converged" : "failed",
+         std::to_string(result.ip_steps),
+         std::to_string(result.newton_solves),
+         std::to_string(result.cg_iterations),
+         Scientific(result.optimality_error),
+         result.has_energy ? Scientific(result.final_energy) : "n/a"
+      });
+      ip_steps += result.ip_steps;
+      newton_solves += result.newton_solves;
+      cg_iterations += result.cg_iterations;
+      converged_steps += result.converged;
+   }
+   PrintTableSeparator(out, widths);
+   PrintResultField(out, "Converged load steps",
+                    std::to_string(converged_steps) + " / " + std::to_string(total_steps));
+   if (!results.empty() && !results.back().converged)
+   {
+      PrintResultField(out, "Termination reason", results.back().termination_reason);
+   }
+   PrintResultField(out, "Total accepted IP steps", ip_steps);
+   PrintResultField(out, "Total Newton solves", newton_solves);
+   PrintResultField(out, "Total CG iterations", cg_iterations);
+   PrintLine(out, '=');
+   // Summary-only mode suppresses library output during the solve. Enable this
+   // stream just for the summary, then restore its previous state.
+   const bool output_enabled = mfem::out.IsEnabled();
+   mfem::out.Enable();
+   mfem::out << out.str() << std::flush;
+   if (!output_enabled) { mfem::out.Disable(); }
+}
+
+}
 
 int main(int argc, char *argv[])
 {
@@ -94,6 +345,10 @@ int main(int argc, char *argv[])
    int nsteps = 1;
    // number of times steps in the x-direction (problem 1)
    int msteps = 0;
+   // Maximum number of iterations for the optimizer
+   int opt_maxit = 100;
+   // Driver output: silent, final summary, solver tables/results, or debug.
+   int print_level = 2;
    // Use non-linear elasticity (only for problem 2)
    bool nonlinear = false;
    // Tribol search proximity ratio
@@ -102,8 +357,18 @@ int main(int argc, char *argv[])
    bool amgf = false;
 
    // Direct solver for AMGF filtered subspace
-   // Choices:"auto", "mumps", "cpardiso", "superlu", "strumpack"
+   // Choices:"auto", "mumps", "cpardiso", "superlu", "strumpack", "cudss"
    const char *amgf_fsolver = "auto";
+   // BoomerAMG options. Defaults match MFEM/HYPRE's GPU-oriented defaults.
+   int amg_coarsen_type = 8;
+   int amg_agg_levels = 0;
+   int amg_interp_type = 6;
+   int amg_relax_type = 18;
+   bool amg_print_options = false;
+   // Device configuration string.
+   const char *device_config = "cpu";
+   // Use full assembly for the linear elasticity stiffness matrix.
+   bool elasticity_fa = false;
 
 
    // 1. Parse command-line options.
@@ -112,11 +377,17 @@ int main(int argc, char *argv[])
                   "Choice of problem:"
                   "0: two-block problem"
                   "1: ironing problem"
-                  "2: beam-sphere problem");
+                  "2: beam-sphere problem"
+                  "3: onion problem");
    args.AddOption(&nonlinear, "-nonlin", "--nonlinear", "-lin",
                   "--linear", "Choice between linear and non-linear Elasticiy model.");
    args.AddOption(&sref, "-sr", "--serial-refinements",
                   "Number of uniform refinements.");
+   args.AddOption(&opt_maxit, "-opt-maxit", "--optimizer-max-iterations",
+                  "Maximum number of iterations for the optimizer.");
+   args.AddOption(&print_level, "-pl", "--print-level",
+                  "Output level: 0 = silent, 1 = final IP summary only, "
+                  "2 = solver tables/results (default), 3 = debug diagnostics.");
    args.AddOption(&nsteps, "-nsteps", "--nsteps",
                   "Number of steps.");
    args.AddOption(&msteps, "-msteps", "--msteps",
@@ -127,13 +398,35 @@ int main(int argc, char *argv[])
                   "--no-amgf", "Enable or disable AMG with Filtering solver.");
    args.AddOption(&amgf_fsolver, "-amgf-fsolver", "--amgf-filtered-solver",
                   "Direct solver for AMGF filtered subspace.\n"
-                  "Choices: auto, mumps, cpardiso, superlu, strumpack.");
+                  "Choices: auto, mumps, cpardiso, superlu, strumpack, cudss "
+                  "(CUDA only; use auto on CPU or HIP).");
+   args.AddOption(&amg_coarsen_type, "-amg-coarsen-type",
+                  "--amg-coarsen-type",
+                  "BoomerAMG coarsening type.");
+   args.AddOption(&amg_agg_levels, "-amg-agg-levels",
+                  "--amg-agg-levels",
+                  "BoomerAMG number of aggressive coarsening levels.");
+   args.AddOption(&amg_interp_type, "-amg-interp-type",
+                  "--amg-interpolation-type",
+                  "BoomerAMG interpolation type.");
+   args.AddOption(&amg_relax_type, "-amg-relax-type",
+                  "--amg-relax-type",
+                  "BoomerAMG relaxation/smoother type.");
+   args.AddOption(&amg_print_options, "-amg-print-options",
+                  "--amg-print-options", "-no-amg-print-options",
+                  "--no-amg-print-options",
+                  "Print BoomerAMG options configured by this miniapp.");
+   args.AddOption(&elasticity_fa, "-fa", "--full-assembly", "-no-fa",
+                  "--no-full-assembly",
+                  "Use full assembly for the linear elasticity stiffness matrix.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
    args.AddOption(&paraview, "-paraview", "--paraview", "-no-paraview",
                   "--no-paraview",
                   "Enable or disable ParaView visualization.");
+   args.AddOption(&device_config, "-d", "--device",
+                  "Device configuration string, see Device::Configure().");
    args.AddOption(&tribol_ratio, "-tr", "--tribol-proximity-parameter",
                   "Tribol-proximity-parameter.");
 
@@ -146,27 +439,70 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
-   if (myid == 0)
+   if (print_level < 0 || print_level > 3)
+   {
+      if (myid == 0)
+      {
+         mfem::err << "Print level must be 0, 1, 2, or 3." << endl;
+      }
+      return 1;
+   }
+   if (print_level < 2)
+   {
+      mfem::out.Disable();
+      mfem::err.Disable();
+   }
+   Device device(device_config);
+   if (amgf)
+   {
+      std::string solver_name(amgf_fsolver);
+      for (char &c : solver_name)
+      {
+         c = std::tolower(static_cast<unsigned char>(c));
+      }
+      if (solver_name == "cudss" &&
+          !ParallelDirectSolver::CanUseCuDSS(MPI_COMM_WORLD))
+      {
+         if (myid == 0)
+         {
+            mfem::err.Enable();
+            mfem::err << "cuDSS requires MFEM_USE_CUDSS, an active CUDA device "
+                      << "(-d cuda), and CUDA-aware MPI for multiple ranks.\n"
+                      << "Use -amgf-fsolver auto to select an available solver "
+                      << "on CPU or HIP.\n";
+         }
+         return 1;
+      }
+   }
+   if (myid == 0 && print_level >= 2)
    {
       args.PrintOptions(cout);
    }
+   if (myid == 0 && print_level >= 2) { device.Print(); }
 
    // Validate selection and convert to enum.
    MFEM_VERIFY(prob_no >= 0 &&
-               prob_no <= 2, "Unknown test problem number: " << prob_no);
+               prob_no <= 3, "Unknown test problem number: " << prob_no);
 
    prob_name = (problem_name)prob_no;
 
    // Only the beam–sphere supports non-linear elasticity; fall back if needed.
    if (nonlinear && prob_name!=problem_name::beamsphere)
    {
-      if (myid == 0)
+      if (myid == 0 && print_level >= 2)
       {
-         cout << "Non-linear elasticity not supported for the two-block and ironing problems"
+         cout << "Non-linear elasticity is only supported for the beam-sphere problem"
               << endl;
          cout << "Switching to the linear model ..." << endl;
       }
       nonlinear = false;
+   }
+   if (nonlinear && elasticity_fa && myid == 0 && print_level >= 2)
+   {
+      cout << "Full assembly is only used by the linear elasticity model; "
+           << "nonlinear reference assembly uses "
+           << (Device::IsEnabled() ? "device kernels." : "CPU kernels.")
+           << endl;
    }
 
    // Bound constraints are used only for the non-linear case
@@ -175,7 +511,7 @@ int main(int argc, char *argv[])
 
 
    // 2. Get the problem mesh.
-   Mesh * mesh = GetProblemMesh(prob_name);
+   std::unique_ptr<Mesh> mesh(GetProblemMesh(prob_name));
 
    // 3. Refine the mesh serially.
    for (int i = 0; i<sref; i++)
@@ -185,7 +521,7 @@ int main(int argc, char *argv[])
 
    // 4. Convert to ParMesh and refine in parallel.
    ParMesh pmesh(MPI_COMM_WORLD,*mesh);
-   delete mesh;
+   mesh.reset();
    for (int i = 0; i<pref; i++)
    {
       pmesh.UniformRefinement();
@@ -219,6 +555,14 @@ int main(int argc, char *argv[])
          E = 1.e3;
          nu = 0.4;
          break;
+      case onion:
+         // symmetry planes x = 0, y = 0, z = 0
+         ess_bdr_attr.Append(21); ess_bdr_attr_comp.Append(0);
+         ess_bdr_attr.Append(22); ess_bdr_attr_comp.Append(1);
+         ess_bdr_attr.Append(23); ess_bdr_attr_comp.Append(2);
+         E = 1.e3;
+         nu = 0.33;
+         break;
       default:
          MFEM_ABORT("Should be unreachable");
          break;
@@ -227,32 +571,43 @@ int main(int argc, char *argv[])
    // 6. Build the elasticity problem object (linear or non-linear).
    // It owns the FE space and will assemble the stiffness and RHS.
    ElasticityOperator prob(&pmesh, ess_bdr_attr,ess_bdr_attr_comp, E, nu,
-                           nonlinear);
+                           nonlinear, elasticity_fa);
 
    ParFiniteElementSpace * fes = prob.GetFESpace();
    HYPRE_BigInt gndofs = fes->GlobalTrueVSize();
-   if (myid == 0)
+   if (myid == 0 && print_level >= 2)
    {
       mfem::out << "\n --------------------------------------" << endl;
       mfem::out << "  Global number of dofs = " << gndofs << endl;
+      mfem::out << "  Elasticity assembly   = "
+                << (nonlinear ? (Device::IsEnabled() ? "nonlinear device" :
+                                 "nonlinear CPU") :
+                    elasticity_fa ? "full" : "legacy") << endl;
+      mfem::out << "  RHS assembly          = "
+                << (prob.UsesFastRHSAssembly() ? "fast" : "legacy") << endl;
       mfem::out << " --------------------------------------" << endl;
    }
 
-   // 7. Set up the contact interface for Tribol.
-   std::set<int> mortar_attr;
-   std::set<int> nonmortar_attr;
+   // 7. Set up the contact interfaces for Tribol. Each interface is handled
+   // by its own coupling scheme.
+   std::vector<ContactInterface> contact_interfaces;
    switch (prob_name)
    {
       case twoblock:
       case  ironing:
-         mortar_attr.insert(3);
-         nonmortar_attr.insert(4);
+         contact_interfaces.push_back({{3}, {4}});
          break;
       case beamsphere:
-         mortar_attr.insert(6);
-         mortar_attr.insert(9);
-         nonmortar_attr.insert(7);
-         nonmortar_attr.insert(8);
+         contact_interfaces.push_back({{6, 9}, {7, 8}});
+         break;
+      case onion:
+         // interfaces between consecutive shells: outer surface of shell k
+         // (mortar, attr 2k) and inner surface of shell k+1 (non-mortar,
+         // attr 2k+1)
+         for (int a = 2; a <= 16; a += 2)
+         {
+            contact_interfaces.push_back({{a}, {a+1}});
+         }
          break;
       default:
          MFEM_ABORT("Should be unreachable");
@@ -266,7 +621,7 @@ int main(int argc, char *argv[])
    ParGridFunction xcopy_gf(&fes_copy); xcopy_gf = x_gf;
 
    // Optional ParaView data collection
-   ParaViewDataCollection * paraview_dc = nullptr;
+   std::unique_ptr<ParaViewDataCollection> paraview_dc;
    if (paraview)
    {
       std::ostringstream paraview_file_name;
@@ -274,7 +629,8 @@ int main(int argc, char *argv[])
                          << "_par_ref_" << pref
                          << "_ser_ref_" << sref
                          << "_nonlinear_" << nonlinear;
-      paraview_dc = new ParaViewDataCollection(paraview_file_name.str(), &pmesh_copy);
+      paraview_dc = std::make_unique<ParaViewDataCollection>(
+                       paraview_file_name.str(), &pmesh_copy);
       paraview_dc->SetPrefixPath("ParaView");
       paraview_dc->SetLevelsOfDetail(2);
       paraview_dc->SetDataFormat(VTKFormat::BINARY);
@@ -301,16 +657,16 @@ int main(int argc, char *argv[])
    pmesh.GetNodes(new_coords);
    pmesh.GetNodes(ref_coords);
 
-   // Load magnitude for problem 2 (beam-sphere).
-   real_t p = 40.0;
+   // Load magnitude for problems 2 (beam-sphere) and 3 (onion).
+   real_t p = (prob_name == problem_name::onion) ? 30.0 : 40.0;
    ConstantCoefficient f(p);
 
    // 8. Construct the contact optimization problem wrapper. It sets up the
    // contact system using Tribol and provides operators for objective evaluation,
    // gradients, Hessians, and constraints. It also provides the filtered subspace
    // transfer operator used by AMGF
-   OptContactProblem contact(&prob, mortar_attr, nonmortar_attr,
-                             tribol_ratio, bound_constraints);
+   OptContactProblem contact(&prob, contact_interfaces, tribol_ratio,
+                             bound_constraints);
 
    int dim = pmesh.Dimension();
    Vector ess_values(dim); ess_values = 0.0;
@@ -322,14 +678,14 @@ int main(int argc, char *argv[])
 
    // 9. Time/load stepping loop.
    int total_steps = nsteps + msteps;
+   std::vector<IPSolveSummary> solve_results;
    for (int i = 0; i<total_steps; i++)
    {
-      if (Mpi::Root())
+      if (Mpi::Root() && print_level >= 2)
       {
-         std::ostringstream oss;
-         oss << "\n Solving optimization problem for time step: " << i;
-         mfem::out << oss.str() << endl;
-         mfem::out << " " <<std::string(oss.str().size()-2, '-') << endl;
+         contact_output::PrintBanner(mfem::out,
+                                     "Solving optimization problem for time step: " +
+                                     std::to_string(i));
       }
       ess_values = 0.0;
       // 9(a). Apply problem-specific boundary conditions / loads for this step.
@@ -360,6 +716,21 @@ int main(int argc, char *argv[])
             f.constant = -p*(i+1)/nsteps;
             prob.SetNeumannPressureData(f,ess_bdr);
             break;
+         case onion:
+            // equal pressure on the innermost (attr 1) and outermost
+            // (attr 18) surfaces
+            f.constant = -p*(i+1)/nsteps;
+            if (ess_bdr.Size())
+            {
+               ess_bdr = 0; ess_bdr[0] = 1;
+            }
+            prob.SetNeumannPressureData(f,ess_bdr);
+            if (ess_bdr.Size())
+            {
+               ess_bdr = 0; ess_bdr[17] = 1;
+            }
+            prob.SetNeumannPressureData(f,ess_bdr);
+            break;
          default:
             MFEM_ABORT("Should be unreachable");
             break;
@@ -370,6 +741,7 @@ int main(int argc, char *argv[])
 
       // Store the current (reference) displacement in true dofs.
       Vector xref;
+      xref.UseDevice(true);
       x_gf.GetTrueDofs(xref);
 
       // 9(c). Form the contact system. This also builds the filtered subspace
@@ -384,35 +756,37 @@ int main(int argc, char *argv[])
       }
 
       // 9(e). Choose preconditioner: AMGF (with direct solver for subspace) or AMG.
-      Solver * prec = nullptr;
-      ParallelDirectSolver * subspacesolver = nullptr;
-#if MFEM_HYPRE_VERSION >= 23000
-      // new l1-hybrid symmetric Gauss-Seidel smoother
-      int amg_relax_type = 88;
-#else
-      int amg_relax_type = (!amgf && prob_name==problem_name::ironing) ? 18 : 8;
-#endif
-
+      // The preconditioner borrows the filtered solver, so it must die first.
+      std::unique_ptr<ParallelDirectSolver> subspacesolver;
+      std::unique_ptr<Solver> prec;
       if (amgf)
       {
-         prec = new AMGFSolver();
-         auto * amgfprec = dynamic_cast<AMGFSolver *>(prec);
-         amgfprec->GetAMG().SetSystemsOptions(3);
-         amgfprec->GetAMG().SetPrintLevel(0);
-         amgfprec->GetAMG().SetRelaxType(amg_relax_type);
-         subspacesolver = new ParallelDirectSolver(MPI_COMM_WORLD, amgf_fsolver);
+         auto amgfprec = std::make_unique<AMGFSolver>();
+         ConfigureAMG(amgfprec->GetAMG(), amg_coarsen_type, amg_agg_levels,
+                      amg_interp_type, amg_relax_type);
+         if (amg_print_options && myid == 0 && print_level >= 2)
+         {
+            PrintAMGOptions(amgfprec->GetAMG(), "AMGF", amg_agg_levels,
+                            amgf_fsolver);
+         }
+         subspacesolver = std::make_unique<ParallelDirectSolver>(
+                             MPI_COMM_WORLD, amgf_fsolver);
          subspacesolver->SetPrintLevel(0);
          amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
          amgfprec->SetFilteredSubspaceTransferOperator(
             *contact.GetContactSubspaceTransferOperator());
+         prec = std::move(amgfprec);
       }
       else
       {
-         prec = new HypreBoomerAMG();
-         auto * amgprec = dynamic_cast<HypreBoomerAMG *>(prec);
-         amgprec->SetSystemsOptions(3);
-         amgprec->SetPrintLevel(0);
-         amgprec->SetRelaxType(amg_relax_type);
+         auto amgprec = std::make_unique<HypreBoomerAMG>();
+         ConfigureAMG(*amgprec, amg_coarsen_type, amg_agg_levels,
+                      amg_interp_type, amg_relax_type);
+         if (amg_print_options && myid == 0 && print_level >= 2)
+         {
+            PrintAMGOptions(*amgprec, "AMG", amg_agg_levels);
+         }
+         prec = std::move(amgprec);
       }
 
       // 9(f). Linear solver used inside the IP optimizer.
@@ -425,48 +799,67 @@ int main(int argc, char *argv[])
       // 9(g). Interior-Point optimizer driving contact resolution.
       IPSolver optimizer(&contact);
       optimizer.SetTol(1e-6);
-      optimizer.SetMaxIter(100);
+      optimizer.SetMaxIter(opt_maxit);
       optimizer.SetLinearSolver(&cgsolver);
-      optimizer.SetPrintLevel(0);
+      optimizer.SetPrintLevel(print_level == 3 ? 1 : 0);
+      optimizer.SetPrintLinearSolverStatistics(print_level >= 2);
 
       // Initial guess = previous reference configuration.
       x_gf.SetTrueVector();
       int ndofs = prob.GetFESpace()->GetTrueVSize();
-      Vector x0(ndofs); x0 = 0.0;
+      Vector x0(ndofs); x0.UseDevice(true); x0 = 0.0;
       x0.Set(1.0, xref);
 
       // Solve for the next step displacement (xf).
-      Vector xf(ndofs); xf = 0.0;
+      Vector xf(ndofs); xf.UseDevice(true); xf = 0.0;
       optimizer.Mult(x0, xf);
 
-      delete prec;
-      if (subspacesolver) { delete subspacesolver; }
+      IPSolveSummary result;
+      result.load_step = i;
+      result.converged = optimizer.GetConverged();
+      result.termination_reason = optimizer.GetTerminationReason();
+      result.ip_steps = optimizer.GetNumIPSteps();
+      result.newton_solves = optimizer.GetNumIterations();
+      result.optimality_error = optimizer.GetOptimalityError();
+      for (int iterations : optimizer.GetLinearSolverIterations())
+      {
+         result.cg_iterations += iterations;
+      }
+
+      if (!optimizer.GetConverged())
+      {
+         if (Mpi::Root() && print_level > 0)
+         {
+            if (print_level >= 2)
+            {
+               PrintIPSolveResult(optimizer, result);
+               mfem::err << "Contact solve failed at load step " << i << "." << endl;
+            }
+            solve_results.push_back(result);
+            PrintIPSummary(solve_results, total_steps);
+         }
+         return 2;
+      }
 
       // Update internal state for next step (for bound constraints).
-      Vector dx(xf); dx -= x0;
+      Vector dx(xf); dx.UseDevice(true); dx -= x0;
       if (bound_constraints)
       {
          contact.SetDisplacement(dx, (i>=activation_step));
       }
 
-      // 9(h). Report objective values, dofs, IP and CG iteration counts.
+      // 9(h). Report objective values, dofs and IP iteration counts.
       int eval_err;
-      real_t Einitial = contact.E(x0, eval_err);
-      real_t Efinal = contact.E(xf, eval_err);
-      Array<int> & PCGiterations = optimizer.GetLinearSolverIterations();
+      real_t Einitial = contact.GetEnergy(x0, eval_err);
+      real_t Efinal = contact.GetEnergy(xf, eval_err);
 
-      if (Mpi::Root())
+      if (Mpi::Root() && print_level > 0)
       {
-         mfem::out << " Initial Energy objective        = " << Einitial << endl;
-         mfem::out << " Final Energy objective          = " << Efinal << endl;
-         mfem::out << " Optimizer number of iterations  = " <<
-                   optimizer.GetNumIterations() << endl;
-         mfem::out << " PCG number of iterations        = " ;
-         for (int i = 0; i < PCGiterations.Size(); ++i)
-         {
-            std::cout << PCGiterations[i] << " ";
-         }
-         mfem::out << "\n";
+         result.has_energy = true;
+         result.initial_energy = Einitial;
+         result.final_energy = Efinal;
+         if (print_level >= 2) { PrintIPSolveResult(optimizer, result); }
+         solve_results.push_back(result);
       }
 
       // 9(i). Visualization outputs.
@@ -504,8 +897,10 @@ int main(int argc, char *argv[])
       prob.UpdateRHS();
    }
 
-   // 10. Cleanup.
-   if (paraview_dc) { delete paraview_dc; }
+   if (Mpi::Root() && print_level > 0)
+   {
+      PrintIPSummary(solve_results, total_steps);
+   }
    return 0;
 }
 
@@ -515,6 +910,10 @@ Mesh * GetProblemMesh(problem_name prob_name)
    if (prob_name == problem_name::beamsphere)
    {
       return new Mesh("meshes/beam-sphere.mesh",1);
+   }
+   else if (prob_name == problem_name::onion)
+   {
+      return MakeOnionMesh();
    }
    else // construct the two-block or ironing mesh
    {
@@ -633,4 +1032,120 @@ Mesh * GetProblemMesh(problem_name prob_name)
 
       return combined_mesh;
    }
+}
+
+// Generate nine disconnected spherical octant shells. Distinct surface meshes
+// at each shared radius are intentional: Tribol owns the eight interfaces.
+Mesh * MakeOnionMesh()
+{
+   // Keep the element count close to the former mesh while giving neighboring
+   // shells different surface resolutions for nonmatching mortar interfaces.
+   constexpr int angular_cells[9] = {16, 17, 17, 17, 18, 18, 19, 19, 19};
+   Mesh *mesh = new Mesh(3, 0, 0);
+
+   for (int shell = 0; shell < 9; ++shell)
+   {
+      const int n = angular_cells[shell];
+      const int radial_cells = shell < 4 ? 2 : 1;
+      const int side = n + 1;
+      const auto flat = [side](int i, int j, int k)
+      {
+         return (i * side + j) * side + k;
+      };
+
+      // Three square faces of the positive octant of a cube map to a sphere.
+      // The shared edges use one vertex, while different shells do not share
+      // vertices, including where their radii coincide.
+      std::vector<int> surface_index(side * side * side, -1);
+      std::vector<std::array<int, 3>> directions;
+      for (int i = 0; i <= n; ++i)
+      {
+         for (int j = 0; j <= n; ++j)
+         {
+            for (int k = 0; k <= n; ++k)
+            {
+               if (i != n && j != n && k != n) { continue; }
+               surface_index[flat(i, j, k)] = directions.size();
+               directions.push_back({i, j, k});
+            }
+         }
+      }
+
+      std::vector<std::vector<int>> vertex(radial_cells + 1,
+                                           std::vector<int>(directions.size()));
+      for (int layer = 0; layer <= radial_cells; ++layer)
+      {
+         const real_t radius = 5.5 + 0.5 * shell +
+                               0.5 * layer / radial_cells;
+         for (int d = 0; d < static_cast<int>(directions.size()); ++d)
+         {
+            const auto &p = directions[d];
+            const real_t scale = radius / std::sqrt(real_t(p[0] * p[0] +
+                                                           p[1] * p[1] +
+                                                           p[2] * p[2]));
+            vertex[layer][d] = mesh->AddVertex(scale * p[0], scale * p[1],
+                                               scale * p[2]);
+         }
+      }
+
+      const auto face_point = [n](int face, int u, int v)
+      {
+         if (face == 0) { return std::array<int, 3> {n, u, v}; }
+         if (face == 1) { return std::array<int, 3> {u, n, v}; }
+         return std::array<int, 3> {u, v, n};
+      };
+      for (int face = 0; face < 3; ++face)
+      {
+         for (int u = 0; u < n; ++u)
+         {
+            for (int v = 0; v < n; ++v)
+            {
+               std::array<std::array<int, 3>, 4> p = {{
+                     face_point(face, u, v), face_point(face, u + 1, v),
+                     face_point(face, u + 1, v + 1), face_point(face, u, v + 1)
+                  }
+               };
+               if (face == 1) { std::swap(p[1], p[3]); }
+
+               for (int layer = 0; layer < radial_cells; ++layer)
+               {
+                  int inner[4], outer[4];
+                  for (int c = 0; c < 4; ++c)
+                  {
+                     const int id = surface_index[flat(p[c][0], p[c][1], p[c][2])];
+                     inner[c] = vertex[layer][id];
+                     outer[c] = vertex[layer + 1][id];
+                  }
+                  mesh->AddHex(inner[0], inner[1], inner[2], inner[3],
+                               outer[0], outer[1], outer[2], outer[3], shell + 1);
+                  if (layer == 0)
+                  {
+                     mesh->AddBdrQuad(inner[3], inner[2], inner[1], inner[0],
+                                      2 * shell + 1);
+                  }
+                  if (layer == radial_cells - 1)
+                  {
+                     mesh->AddBdrQuad(outer[0], outer[1], outer[2], outer[3],
+                                      2 * shell + 2);
+                  }
+                  for (int edge = 0; edge < 4; ++edge)
+                  {
+                     const int next = (edge + 1) % 4;
+                     for (int axis = 0; axis < 3; ++axis)
+                     {
+                        if (p[edge][axis] == 0 && p[next][axis] == 0)
+                        {
+                           mesh->AddBdrQuad(inner[edge], inner[next],
+                                            outer[next], outer[edge], 21 + axis);
+                        }
+                     }
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   mesh->FinalizeHexMesh(1, 1);
+   return mesh;
 }

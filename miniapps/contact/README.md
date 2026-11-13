@@ -12,7 +12,7 @@ inequality-constrained minimization problem enforcing the non-penetration
 condition. Linear systems arising in the IP iterations are solved with 
 **Conjugate Gradient (CG)** preconditioned by the recently introduced
  **AMG with Filtering (AMGF)** solver. Benchmark examples include the two-block 
- compression, ironing, and beam-sphere contact tests. 
+ compression, ironing, beam-sphere, and onion (nested spheres) contact tests. 
 
 ---
 
@@ -23,9 +23,12 @@ correction restricted to degrees of freedom involved in active contact constrain
 This correction significantly improves solver convergence in late-stage IP iterations 
 where contact constraints dominate and classical AMG performance typically degrades.
 
-- **AMGF** requires a user-specified solver for the filtered subspace. In this 
-miniapp a  parallel sparse direct solver is used, so MFEM must be built with 
-either **MUMPS** (`MFEM_USE_MUMPS=YES`) or **CPardiso** (`MFEM_USE_CPARDISO=YES`). 
+- **AMGF** requires a sparse direct solver for the filtered subspace. Build MFEM
+  with **MUMPS**, **CPardiso**, **SuperLU_DIST**, **STRUMPACK**, or **cuDSS**.
+  Select one with `-amgf-fsolver mumps|cpardiso|superlu|strumpack|cudss`.
+  `auto` prefers cuDSS on CUDA when available; otherwise it selects the first
+  enabled host solver in the order MUMPS, SuperLU_DIST, STRUMPACK, CPardiso.
+  With OpenMPI, `auto` also checks CUDA buffer support for multiple ranks.
 - **AMG** may be used when no direct solver is available, though it often exhibits 
 slower or stagnating convergence.
 
@@ -47,17 +50,91 @@ elasticity and **AMG with Filtering (AMGF)** preconditioning.
 
 ### Notes
 
-- `-prob` selects the problem: `0` two-block, `1` ironing, `2` beam–sphere.  
+- `-prob` selects the problem: `0` two-block, `1` ironing, `2` beam–sphere,
+`3` onion (9 nested spherical shells under equal inner and outer pressure).  
+- The onion mesh is generated at startup; only the beam–sphere problem reads a
+  mesh file from `meshes/`.
 - `-nonlin`: enables nonlinear elasticity. This option is available only for the 
 beam–sphere case (`-prob 2`). 
-- `-amgf` selects the AMGF  preconditioner and requires MFEM to be built with 
-**MUMPS** or **CPardiso**. Use `-no-amgf` to fall back to standard HypreBoomerAMG. 
+- `-amgf` selects the AMGF preconditioner and requires one of the direct solvers
+  listed above. Use `-no-amgf` to select standard HypreBoomerAMG.
 - `-nsteps` sets the number of incremental load steps (pseudo time-stepping)    
 - `-sr` sets the number of serial refinements
 - `-pr` sets the number of parallel refinements
 - `-tr` sets the Tribol proximity parameter
 - `-vis`: real-time visualization using [GLVis](https://glvis.org) 
 - `-paraview` enables ParaView visualization
+
+Each load step reports optimizer termination status and final stationarity,
+feasibility, complementarity, and optimality errors. A failed linear solve,
+line search, curvature test, or optimizer convergence check stops the load
+sequence and returns exit code 2.
+
+### GPU execution
+
+Use a CUDA-enabled MFEM and a CUDA-enabled HYPRE build for `-d cuda`. The HIP
+equivalent is `-d hip`, with HIP enabled in both libraries. GPU HYPRE builds
+require version 2.31 or newer for MFEM's runtime host/device memory policy
+support used around Tribol. HYPRE 3.0 is the validated CUDA configuration.
+
+For example, from `miniapps/contact`, on one GPU:
+
+```bash
+mpirun -np 1 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 2 \
+  -lin -fa -d cuda -amgf -amgf-fsolver mumps -no-vis
+```
+
+`-fa` assembles the linear elasticity stiffness matrix on the device. Without
+it, stiffness assembly uses the legacy host path, while the IP vector kernels,
+contact filtering, and GPU HYPRE operations still use the device. Nonlinear
+beam-sphere runs use the same portable Neo-Hookean implementation to evaluate
+reference energy, gradient, and Hessian on CPU and device backends. `-fa` controls
+only the linear elasticity model.
+
+Pressure RHS assembly, lumped masses, bound Jacobian assembly, and contact
+CSR filtering also have device paths. Tribol's implicit single-mortar residual
+and Jacobian remain host operations: the miniapp synchronizes coordinates and
+temporarily selects HYPRE's host policy around those calls. A device-enabled
+Tribol build does not change that implicit-mortar limitation.
+
+MUMPS and CPardiso perform filtered solves on the host. To keep the filtered
+solve on CUDA, enable `MFEM_USE_CUDSS=YES` and use `-amgf-fsolver cudss` (or
+`auto`). Set `CUDSS_COMM_LIB` to the cuDSS OpenMPI communication layer matching
+your CUDA-aware MPI installation, unless MFEM already records that path.
+The communication layer must support device buffers. For example:
+
+```bash
+export CUDSS_COMM_LIB=<cudss-prefix>/lib/libcudss_commlayer_openmpi.so
+mpirun -np 1 ./contact -prob 2 -sr 0 -tr 2 -nsteps 2 \
+  -fa -d cuda -amgf -amgf-fsolver cudss -no-vis
+```
+
+For multiple GPUs, use the MPI launcher's device binding to assign ranks to
+GPUs. Multiple ranks sharing one GPU can have substantially different timing.
+
+The contact and Tribol miniapp targets select C++20 for GPU builds because
+their device-enabled Tribol dependencies require it; MFEM itself can remain
+C++17. With NVCC 13.4, the header-only fmt 12 configuration exported by some
+Umpire builds can fail in `fmt/format-inl.h`. Use compatible dependency headers
+or a Umpire build using compiled fmt. An example CUDA CMake configuration is:
+
+```bash
+cmake -S . -B <mfem-build-dir> \
+  -DMFEM_USE_MPI=YES -DMFEM_USE_CUDA=YES -DMFEM_USE_TRIBOL=YES \
+  -DCMAKE_CUDA_ARCHITECTURES=<gpu-architecture-number> \
+  -DHYPRE_DIR=<path/to/cuda-hypre> -DMETIS_DIR=<path/to/metis> \
+  -DAXOM_DIR=<path/to/axom> -DTRIBOL_DIR=<path/to/tribol> \
+  -DRAJA_DIR=<path/to/raja> -DUMPIRE_DIR=<path/to/umpire> \
+  -DCAMP_DIR=<path/to/camp>
+cmake --build <mfem-build-dir> --target contact -j
+```
+
+Add `-DMFEM_USE_MUMPS=YES -DMUMPS_DIR=<path/to/mumps>` or
+`-DMFEM_USE_CUDSS=YES -DCUDSS_DIR=<path/to/cudss>` to enable an AMGF filtered
+solver. The architecture number is hardware-specific (for example, `86` for
+an RTX A4000). For Make builds, enable `MFEM_USE_CUDA=YES`, set `CUDA_ARCH` and
+the dependency prefixes, and compile native device kernels with the CUDA
+compiler (`CUDA_CXX=nvcc`, with the compatible `MPICXX` host compiler).
 
 ---
 

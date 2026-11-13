@@ -24,10 +24,17 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
+# Device-enabled Tribol dependencies require C++20; MFEM remains C++17.
+ifeq ($(MFEM_USE_TRIBOL),YES)
+ifneq ($(filter YES,$(MFEM_USE_CUDA) $(MFEM_USE_HIP)),)
+   MFEM_FLAGS := $(filter-out -std=c++17,$(MFEM_FLAGS)) -std=c++20
+endif
+endif
+
 
 ifeq ($(MFEM_USE_TRIBOL)$(MFEM_USE_MPI),YESYES)
    MINIAPPS = contact
-   CONTACT_SRC =  elastoperator.cpp optcontactproblem.cpp ip.cpp solver_utils.cpp
+   CONTACT_SRC = elastoperator.cpp optcontactproblem.cpp ip.cpp solver_utils.cpp neo_hookean.cpp
 else
    MINIAPPS = 
    CONTACT_SRC = 
@@ -46,8 +53,9 @@ CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
 %: %.cpp
 %.o: %.cpp
 
-%: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONTACT_OBJ) $(CONFIG_MK)
-	$(MFEM_CXX) $(MFEM_FLAGS) $< -o $@ $(CONTACT_OBJ) $(MFEM_LIBS) \
+$(MINIAPPS): %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONTACT_OBJ) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@.o
+	$(MFEM_CXX) $(filter-out -x=cu,$(MFEM_FLAGS)) $@.o -o $@ $(CONTACT_OBJ) $(MFEM_LIBS) \
 		-l$(patsubst lib%,%,$(basename $(notdir $(MFEM_LIB_FILE))))
 
 %.o: $(SRC)%.cpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
@@ -55,6 +63,8 @@ CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
+
+ip.o contact: $(SRC)contact_output.hpp
 
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
@@ -69,7 +79,7 @@ TEST_NAME := Contact miniapp
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f $(CONTACT_OBJ) *~ $(MINIAPPS)
+	rm -f $(CONTACT_OBJ) $(MINIAPPS:=.o) *~ $(MINIAPPS)
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:
@@ -78,4 +88,3 @@ clean-exec:
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
 	$(error The MFEM library is not built)
-	
