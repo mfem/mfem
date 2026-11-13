@@ -120,6 +120,12 @@ static constexpr int tet_deref_table[7][4 + 4] =
 static constexpr int tet_edge12_deref[4 + 4] =
 { 0, 0, 1, 0, /**/ 0, 1, 0, 0 };
 
+static constexpr int tet_edge13_deref[4 + 4] =
+{ 0, 0, 0, 1, /**/ 0, 1, 0, 0 };
+
+static constexpr int tet_edge23_deref[4 + 4] =
+{ 0, 0, 0, 1, /**/ 0, 0, 1, 0 };
+
 static constexpr int hex_deref_table[7][8 + 6] =
 {
    { 0, 1, 1, 0, 0, 1, 1, 0, /**/ 1, 1, 1, 0, 0, 0 }, // 1 - X
@@ -249,11 +255,11 @@ static constexpr NCRefinementPattern quadrilateral_patterns[15] =
       quad_edge_vertex_local[3], quad_edge_face_local[3]
    }
 };
-static constexpr NCRefinementPattern tetrahedron_patterns[9] =
+static constexpr NCRefinementPattern tetrahedron_patterns[11] =
 {
    {}, {2, tet_deref_table[0]}, {2, tet_deref_table[1]}, {},
    {2, tet_deref_table[3]}, {}, {}, {8, tet_deref_table[6]},
-   {2, tet_edge12_deref}
+   {2, tet_edge12_deref}, {2, tet_edge13_deref}, {2, tet_edge23_deref}
 };
 static constexpr NCRefinementPattern hexahedron_patterns[8] =
 {

@@ -1763,13 +1763,17 @@ void NCMesh::RefineElement(const Refinement & ref)
 
       if (ref_type == Refinement::X || ref_type == Refinement::Y ||
           ref_type == Refinement::Z ||
-          ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
+          ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId() ||
+          ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId() ||
+          ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId())
       {
          // The fixed child transforms below require a midpoint split.
-         if (ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
+         if (ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId() ||
+             ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId() ||
+             ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId())
          {
-            MFEM_VERIFY(scale_x == 0.5,
-                        "Tet edge (1,2) bisection requires a midpoint split");
+            MFEM_VERIFY(scale_x == 0.5, "Explicit tet edge bisection requires "
+                        "a midpoint split");
          }
          if (ref_type == Refinement::X)
          {
@@ -1795,13 +1799,29 @@ void NCMesh::RefineElement(const Refinement & ref)
             child[1] = NewTetrahedron(mid03, no[1], no[2], no[3], attr,
                                       fa[0], fa[1], fa[2], -1);
          }
-         else
+         else if (ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
          {
             const int mid12 = GetMidEdgeNode(no[1], no[2]);
             child[0] = NewTetrahedron(no[0], no[1], mid12, no[3], attr,
                                       fa[0], -1, fa[2], fa[3]);
             child[1] = NewTetrahedron(no[0], mid12, no[2], no[3], attr,
                                       fa[0], fa[1], -1, fa[3]);
+         }
+         else if (ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId())
+         {
+            const int mid13 = GetMidEdgeNode(no[1], no[3]);
+            child[0] = NewTetrahedron(no[0], no[1], no[2], mid13, attr,
+                                      fa[0], -1, fa[2], fa[3]);
+            child[1] = NewTetrahedron(no[0], mid13, no[2], no[3], attr,
+                                      fa[0], fa[1], fa[2], -1);
+         }
+         else
+         {
+            const int mid23 = GetMidEdgeNode(no[2], no[3]);
+            child[0] = NewTetrahedron(no[0], no[1], no[2], mid23, attr,
+                                      fa[0], fa[1], -1, fa[3]);
+            child[1] = NewTetrahedron(no[0], no[1], mid23, no[3], attr,
+                                      fa[0], fa[1], fa[2], -1);
          }
          Iso = false;
       }
@@ -5372,12 +5392,18 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
       {
          if (ref_type == Refinement::X || ref_type == Refinement::Y ||
              ref_type == Refinement::Z ||
-             ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
+             ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId() ||
+             ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId() ||
+             ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId())
          {
             const int corner = ref_type == Refinement::X ? 1 :
                                (ref_type == Refinement::Y ? 2 : 3);
             Point mid = ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId() ?
-                        Point(pm(1), pm(2)) : Point(pm(0), pm(corner));
+                        Point(pm(1), pm(2)) :
+                        (ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId() ?
+                         Point(pm(1), pm(3)) :
+                         (ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId() ?
+                          Point(pm(2), pm(3)) : Point(pm(0), pm(corner))));
             if (ref_type == Refinement::X)
             {
                if (child == 0) { pm = PointMatrix(pm(0), mid, pm(2), pm(3)); }
@@ -5393,10 +5419,20 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
                if (child == 0) { pm = PointMatrix(pm(0), pm(1), pm(2), mid); }
                else if (child == 1) { pm = PointMatrix(mid, pm(1), pm(2), pm(3)); }
             }
-            else
+            else if (ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
             {
                if (child == 0) { pm = PointMatrix(pm(0), pm(1), mid, pm(3)); }
                else if (child == 1) { pm = PointMatrix(pm(0), mid, pm(2), pm(3)); }
+            }
+            else if (ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId())
+            {
+               if (child == 0) { pm = PointMatrix(pm(0), pm(1), pm(2), mid); }
+               else if (child == 1) { pm = PointMatrix(pm(0), mid, pm(2), pm(3)); }
+            }
+            else
+            {
+               if (child == 0) { pm = PointMatrix(pm(0), pm(1), pm(2), mid); }
+               else if (child == 1) { pm = PointMatrix(pm(0), pm(1), mid, pm(3)); }
             }
          }
          else

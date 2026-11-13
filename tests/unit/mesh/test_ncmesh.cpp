@@ -123,11 +123,12 @@ NCFacePartition MakeRefinedFacePartition(
    return MakePlanarFacePartition(mesh, normal, u, v, plane);
 }
 
-NCFacePartition MakePatternFacePartition(Geometry::Type geometry, int pattern)
+NCFacePartition MakePatternFacePartition(const Refinement::Pattern &pattern)
 {
+   const Geometry::Type geometry = pattern.GetParentGeometry();
    Mesh mesh(geometry == Geometry::TRIANGLE ?
              "../../data/ref-triangle.mesh" : "../../data/ref-square.mesh", 1, 1);
-   if (pattern)
+   if (pattern.GetId())
    {
       mesh.EnsureNCMesh(true);
       Array<Refinement> refs(1);
@@ -175,6 +176,14 @@ Refinement TetRefinement(int element, char type)
    if (type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
    {
       return Refinement(element, Refinement::Tetrahedron::EDGE_12_2_TETS);
+   }
+   if (type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId())
+   {
+      return Refinement(element, Refinement::Tetrahedron::EDGE_13_2_TETS);
+   }
+   if (type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId())
+   {
+      return Refinement(element, Refinement::Tetrahedron::EDGE_23_2_TETS);
    }
    return Refinement(element, type);
 }
@@ -670,23 +679,25 @@ TEST_CASE("NCMesh geometry-specific face partition relations", "[NCMesh]")
 {
    for (Geometry::Type geometry : {Geometry::TRIANGLE, Geometry::SQUARE})
    {
-      std::vector<int> patterns = {0, Refinement::X, Refinement::Y,
-                                   Refinement::XY
-                                  };
+      std::vector<Refinement::Pattern> patterns =
+      {
+         {geometry, 0}, {geometry, Refinement::X}, {geometry, Refinement::Y},
+         {geometry, Refinement::XY}
+      };
       if (geometry == Geometry::TRIANGLE)
-      { patterns.push_back(Refinement::Z); }
+      { patterns.push_back({geometry, Refinement::Z}); }
       for (const FacePatternCase &test : geometry_specific_2d_patterns)
       {
          if (test.geometry == geometry) { patterns.push_back(test.pattern); }
       }
 
       std::vector<NCFacePartition> partitions;
-      for (int pattern : patterns)
-      { partitions.push_back(MakePatternFacePartition(geometry, pattern)); }
+      for (const Refinement::Pattern &pattern : patterns)
+      { partitions.push_back(MakePatternFacePartition(pattern)); }
 
       for (size_t i = 0; i < patterns.size(); i++)
       {
-         CAPTURE(geometry, patterns[i]);
+         CAPTURE(geometry, patterns[i].GetId());
          REQUIRE(CompareNCFacePartitions(partitions[i], partitions[i]) ==
                  NCFaceRelation::Matching);
          REQUIRE(CompareNCFacePartitions(partitions[0], partitions[i]) ==
@@ -1232,11 +1243,15 @@ TEST_CASE("NCMesh mixed pyramid children save and reload", "[NCMesh]")
    REQUIRE(reloaded.GetElementVolume(0) == MFEM_Approx(original_volume));
 }
 
-TEST_CASE("NCMesh explicit tet edge pattern", "[NCMesh]")
+TEST_CASE("NCMesh explicit tet edge patterns", "[NCMesh]")
 {
+   const Refinement::Pattern pattern = GENERATE(
+                                          Refinement::Tetrahedron::EDGE_12_2_TETS,
+                                          Refinement::Tetrahedron::EDGE_13_2_TETS,
+                                          Refinement::Tetrahedron::EDGE_23_2_TETS);
    const bool nested = GENERATE(false, true);
    const bool scaled = GENERATE(false, true);
-   CAPTURE(nested, scaled);
+   CAPTURE(pattern.GetId(), nested, scaled);
    Mesh mesh("../../data/ref-tetrahedron.mesh", 1, 1);
    const real_t original_volume = mesh.GetElementVolume(0);
    mesh.EnsureNCMesh(true);
@@ -1251,9 +1266,8 @@ TEST_CASE("NCMesh explicit tet edge pattern", "[NCMesh]")
    field.ProjectCoefficient(affine);
 
    Array<Refinement> refs(1);
-   refs[0].Set(0, Refinement::Tetrahedron::EDGE_12_2_TETS);
-   REQUIRE(refs[0].GetType() ==
-           Refinement::Tetrahedron::EDGE_12_2_TETS.GetId());
+   refs[0].Set(0, pattern);
+   REQUIRE(refs[0].GetType() == pattern.GetId());
    mesh.GeneralRefinement(refs);
    REQUIRE(mesh.ncmesh->GetNumElements() == 3);
    if (nested)
@@ -1297,7 +1311,9 @@ TEST_CASE("NCMesh anisotropic tet edge bisection", "[NCMesh]")
 {
    const char ref_type = GENERATE(
                             Refinement::X, Refinement::Y, Refinement::Z,
-                            Refinement::Tetrahedron::EDGE_12_2_TETS.GetId());
+                            Refinement::Tetrahedron::EDGE_12_2_TETS.GetId(),
+                            Refinement::Tetrahedron::EDGE_13_2_TETS.GetId(),
+                            Refinement::Tetrahedron::EDGE_23_2_TETS.GetId());
    CAPTURE(ref_type);
    Mesh mesh("../../data/ref-tetrahedron.mesh", 1, 1);
    const real_t original_volume = mesh.GetElementVolume(0);
@@ -1367,7 +1383,9 @@ TEST_CASE("NCMesh anisotropic tet L2 derefinement", "[NCMesh]")
 {
    const char ref_type = GENERATE(
                             Refinement::X, Refinement::Y, Refinement::Z,
-                            Refinement::Tetrahedron::EDGE_12_2_TETS.GetId());
+                            Refinement::Tetrahedron::EDGE_12_2_TETS.GetId(),
+                            Refinement::Tetrahedron::EDGE_13_2_TETS.GetId(),
+                            Refinement::Tetrahedron::EDGE_23_2_TETS.GetId());
    const bool nested = GENERATE(false, true);
    const bool variable_order = GENERATE(false, true);
    CAPTURE(ref_type, nested, variable_order);
@@ -1432,13 +1450,19 @@ TEST_CASE("NCMesh anisotropic tet shared face", "[NCMesh]")
 {
    const char ref_type = GENERATE(
                             Refinement::X, Refinement::Y, Refinement::Z,
-                            Refinement::Tetrahedron::EDGE_12_2_TETS.GetId());
+                            Refinement::Tetrahedron::EDGE_12_2_TETS.GetId(),
+                            Refinement::Tetrahedron::EDGE_13_2_TETS.GetId(),
+                            Refinement::Tetrahedron::EDGE_23_2_TETS.GetId());
    const int shared_face = GENERATE(1, 2, 3);
    if ((ref_type == Refinement::X && shared_face == 1) ||
        (ref_type == Refinement::Y && shared_face == 2) ||
        (ref_type == Refinement::Z && shared_face == 3) ||
        (ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId() &&
-        shared_face != 3)) { return; }
+        shared_face != 3) ||
+       (ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId() &&
+        shared_face != 2) ||
+       (ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId() &&
+        shared_face != 1)) { return; }
    CAPTURE(ref_type, shared_face);
    Mesh mesh(3, 5, 2, 0);
    mesh.AddVertex(0.0, 0.0, 0.0);
@@ -2291,25 +2315,37 @@ TEST_CASE("ParNCMesh anisotropic tet shared face", "[Parallel][NCMesh]")
    if (Mpi::WorldSize() != 2) { return; }
    const char ref_type = GENERATE(
                             Refinement::X, Refinement::Y, Refinement::Z,
-                            Refinement::Tetrahedron::EDGE_12_2_TETS.GetId());
+                            Refinement::Tetrahedron::EDGE_12_2_TETS.GetId(),
+                            Refinement::Tetrahedron::EDGE_13_2_TETS.GetId(),
+                            Refinement::Tetrahedron::EDGE_23_2_TETS.GetId());
    CAPTURE(ref_type);
    Mesh serial_mesh(3, 5, 2, 0);
    serial_mesh.AddVertex(0.0, 0.0, 0.0);
    serial_mesh.AddVertex(1.0, 0.0, 0.0);
    serial_mesh.AddVertex(0.0, 1.0, 0.0);
    serial_mesh.AddVertex(0.0, 0.0, 1.0);
-   if (ref_type == Refinement::Z)
+   if (ref_type == Refinement::Z ||
+       ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId())
    {
       serial_mesh.AddVertex(0.0, -1.0, 0.0);
+   }
+   else if (ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId())
+   {
+      serial_mesh.AddVertex(-1.0, 0.0, 0.0);
    }
    else
    {
       serial_mesh.AddVertex(0.0, 0.0, -1.0);
    }
    serial_mesh.AddTet(0, 1, 2, 3);
-   if (ref_type == Refinement::Z)
+   if (ref_type == Refinement::Z ||
+       ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId())
    {
       serial_mesh.AddTet(0, 1, 3, 4);
+   }
+   else if (ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId())
+   {
+      serial_mesh.AddTet(0, 3, 2, 4);
    }
    else
    {

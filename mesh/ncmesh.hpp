@@ -44,7 +44,8 @@ namespace mfem
     Y, and Z bisect edges (0,1), (0,2), and (1,2), respectively; XY produces
     four triangles. For tetrahedra, X, Y, and Z bisect edges (0,1), (0,2),
     and (0,3), respectively; combinations produce the isotropic split. The
-    EDGE_12_2_TETS pattern bisects edge (1,2) at its midpoint. */
+    EDGE_12_2_TETS, EDGE_13_2_TETS, and EDGE_23_2_TETS patterns bisect the
+    corresponding edges at their midpoints. */
 struct Refinement
 {
    /** Identifies a refinement pattern for one parent geometry. */
@@ -103,6 +104,8 @@ struct Refinement
       static constexpr Pattern EDGE_02_2_TETS { Geometry::TETRAHEDRON, Y };
       static constexpr Pattern EDGE_03_2_TETS { Geometry::TETRAHEDRON, Z };
       static constexpr Pattern EDGE_12_2_TETS { Geometry::TETRAHEDRON, 8 };
+      static constexpr Pattern EDGE_13_2_TETS { Geometry::TETRAHEDRON, 9 };
+      static constexpr Pattern EDGE_23_2_TETS { Geometry::TETRAHEDRON, 10 };
       static constexpr Pattern UNIFORM { Geometry::TETRAHEDRON, XYZ };
    };
 
