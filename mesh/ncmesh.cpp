@@ -1765,15 +1765,15 @@ void NCMesh::RefineElement(const Refinement & ref)
           ref_type == Refinement::Z ||
           ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId() ||
           ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId() ||
-          ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId())
+          ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId() ||
+          (ref_type >= Refinement::Tetrahedron::CORNER_0_TET_PRISM.GetId() &&
+           ref_type <= Refinement::Tetrahedron::CORNER_3_TET_PRISM.GetId()))
       {
          // The fixed child transforms below require a midpoint split.
-         if (ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId() ||
-             ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId() ||
-             ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId())
+         if (ref_type >= Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
          {
-            MFEM_VERIFY(scale_x == 0.5, "Explicit tet edge bisection requires "
-                        "a midpoint split");
+            MFEM_VERIFY(scale_x == 0.5,
+                        "Explicit tet refinement requires a midpoint split");
          }
          if (ref_type == Refinement::X)
          {
@@ -1815,13 +1815,27 @@ void NCMesh::RefineElement(const Refinement & ref)
             child[1] = NewTetrahedron(no[0], mid13, no[2], no[3], attr,
                                       fa[0], fa[1], fa[2], -1);
          }
-         else
+         else if (ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId())
          {
             const int mid23 = GetMidEdgeNode(no[2], no[3]);
             child[0] = NewTetrahedron(no[0], no[1], no[2], mid23, attr,
                                       fa[0], fa[1], -1, fa[3]);
             child[1] = NewTetrahedron(no[0], no[1], mid23, no[3], attr,
                                       fa[0], fa[1], fa[2], -1);
+         }
+         else
+         {
+            GI[Geometry::PRISM].InitGeom(Geometry::PRISM);
+            const int *v = tet_corner_vertex_order[
+                   ref_type - Refinement::Tetrahedron::CORNER_0_TET_PRISM.GetId()];
+            const int mid0 = GetMidEdgeNode(no[v[0]], no[v[1]]);
+            const int mid1 = GetMidEdgeNode(no[v[0]], no[v[2]]);
+            const int mid2 = GetMidEdgeNode(no[v[0]], no[v[3]]);
+            child[0] = NewTetrahedron(no[v[0]], mid0, mid1, mid2, attr,
+                                      -1, fa[v[1]], fa[v[2]], fa[v[3]]);
+            child[1] = NewWedge(mid0, mid1, mid2,
+                                no[v[1]], no[v[2]], no[v[3]], attr,
+                                -1, fa[v[0]], fa[v[3]], fa[v[1]], fa[v[2]]);
          }
          Iso = false;
       }
@@ -3273,6 +3287,18 @@ int NCMesh::TriFaceSplitType(int v0, int v1, int v2, int mid[3]) const
       return 7;
    }
 
+   const auto is_interior_edge = [&](int n0, int n1)
+   {
+      const int edge = nodes.FindId(n0, n1);
+      return edge >= 0 && (nodes[edge].HasEdge() || nodes[edge].HasVertex());
+   };
+   if (mid[0] >= 0 && mid[2] >= 0 && is_interior_edge(mid[0], mid[2]))
+   { return 8; }
+   if (mid[0] >= 0 && mid[1] >= 0 && is_interior_edge(mid[0], mid[1]))
+   { return 16; }
+   if (mid[1] >= 0 && mid[2] >= 0 && is_interior_edge(mid[1], mid[2]))
+   { return 32; }
+
    for (int i = 0; i < 3; i++)
    {
       if (mid[i] < 0) { continue; }
@@ -3796,7 +3822,8 @@ void NCMesh::TraverseTetEdge(int vn0, int vn1, const Point &p0, const Point &p1,
 NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
                                                        int vn2,
                                                        const PointMatrix& pm, int level,
-                                                       MatrixMap &matrix_map)
+                                                       MatrixMap &matrix_map,
+                                                       MatrixMap &quad_matrix_map)
 {
    if (level > 0)
    {
@@ -3828,19 +3855,19 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
 
       b[0] = TraverseTriFace(vn0, mid[0], mid[2],
                              PointMatrix(pm(0), pmid0, pmid2),
-                             level+1, matrix_map);
+                             level+1, matrix_map, quad_matrix_map);
 
       b[1] = TraverseTriFace(mid[0], vn1, mid[1],
                              PointMatrix(pmid0, pm(1), pmid1),
-                             level+1, matrix_map);
+                             level+1, matrix_map, quad_matrix_map);
 
       b[2] = TraverseTriFace(mid[2], mid[1], vn2,
                              PointMatrix(pmid2, pmid1, pm(2)),
-                             level+1, matrix_map);
+                             level+1, matrix_map, quad_matrix_map);
 
       b[3] = TraverseTriFace(mid[1], mid[2], mid[0],
                              PointMatrix(pmid1, pmid2, pmid0),
-                             level+1, matrix_map);
+                             level+1, matrix_map, quad_matrix_map);
 
       // An interior edge may be owned by a rank with no local slave face.
       // Record the edge-face relation so that rank receives the master face's
@@ -3862,6 +3889,42 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
          }
       }
    }
+   else if (split == 8 || split == 16 || split == 32)
+   {
+      if (split == 8)
+      {
+         Point pmid0(pm(0), pm(1)), pmid1(pm(2), pm(0));
+         TraverseTriFace(vn0, mid[0], mid[2],
+                         PointMatrix(pm(0), pmid0, pmid1),
+                         level+1, matrix_map, quad_matrix_map);
+         Face *dummy[4];
+         TraverseQuadFace(mid[0], vn1, vn2, mid[2],
+                          PointMatrix(pmid0, pm(1), pm(2), pmid1),
+                          level+1, dummy, quad_matrix_map);
+      }
+      else if (split == 16)
+      {
+         Point pmid0(pm(1), pm(2)), pmid1(pm(0), pm(1));
+         TraverseTriFace(vn1, mid[1], mid[0],
+                         PointMatrix(pm(1), pmid0, pmid1),
+                         level+1, matrix_map, quad_matrix_map);
+         Face *dummy[4];
+         TraverseQuadFace(mid[1], vn2, vn0, mid[0],
+                          PointMatrix(pmid0, pm(2), pm(0), pmid1),
+                          level+1, dummy, quad_matrix_map);
+      }
+      else
+      {
+         Point pmid0(pm(2), pm(0)), pmid1(pm(1), pm(2));
+         TraverseTriFace(vn2, mid[2], mid[1],
+                         PointMatrix(pm(2), pmid0, pmid1),
+                         level+1, matrix_map, quad_matrix_map);
+         Face *dummy[4];
+         TraverseQuadFace(mid[2], vn0, vn1, mid[1],
+                          PointMatrix(pmid0, pm(0), pm(1), pmid1),
+                          level+1, dummy, quad_matrix_map);
+      }
+   }
    else if (split != 0)
    {
       TriFaceTraverseResults b[2];
@@ -3872,10 +3935,10 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
          Point pmid(pm(0), pm(1));
          b[0] = TraverseTriFace(vn0, mid[0], vn2,
                                 PointMatrix(pm(0), pmid, pm(2)),
-                                level+1, matrix_map);
+                                level+1, matrix_map, quad_matrix_map);
          b[1] = TraverseTriFace(mid[0], vn1, vn2,
                                 PointMatrix(pmid, pm(1), pm(2)),
-                                level+1, matrix_map);
+                                level+1, matrix_map, quad_matrix_map);
          interior_v0 = mid[0]; interior_v1 = vn2;
          interior_start = pmid; interior_end = pm(2);
       }
@@ -3884,10 +3947,10 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
          Point pmid(pm(1), pm(2));
          b[0] = TraverseTriFace(vn0, vn1, mid[1],
                                 PointMatrix(pm(0), pm(1), pmid),
-                                level+1, matrix_map);
+                                level+1, matrix_map, quad_matrix_map);
          b[1] = TraverseTriFace(vn0, mid[1], vn2,
                                 PointMatrix(pm(0), pmid, pm(2)),
-                                level+1, matrix_map);
+                                level+1, matrix_map, quad_matrix_map);
          interior_v0 = mid[1]; interior_v1 = vn0;
          interior_start = pmid; interior_end = pm(0);
       }
@@ -3896,10 +3959,10 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
          Point pmid(pm(2), pm(0));
          b[0] = TraverseTriFace(vn0, vn1, mid[2],
                                 PointMatrix(pm(0), pm(1), pmid),
-                                level+1, matrix_map);
+                                level+1, matrix_map, quad_matrix_map);
          b[1] = TraverseTriFace(mid[2], vn1, vn2,
                                 PointMatrix(pmid, pm(1), pm(2)),
-                                level+1, matrix_map);
+                                level+1, matrix_map, quad_matrix_map);
          interior_v0 = mid[2]; interior_v1 = vn1;
          interior_start = pmid; interior_end = pm(1);
       }
@@ -3977,7 +4040,8 @@ void NCMesh::BuildFaceList()
             else
             {
                TraverseTriFace(node[0], node[1], node[2],
-                               pm_tri_identity, 0, matrix_maps[fgeom]);
+                               pm_tri_identity, 0, matrix_maps[fgeom],
+                               matrix_maps[Geometry::SQUARE]);
             }
 
             int se = face_list.slaves.Size();
@@ -4388,6 +4452,24 @@ void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices)
          CollectEdgeVertices(mid[1], mid[2], indices);
          CollectEdgeVertices(mid[2], mid[0], indices);
       }
+   }
+   else if (split == 8)
+   {
+      indices.Append(mid[0]);
+      indices.Append(mid[2]);
+      CollectTriFaceVertices(v0, mid[0], mid[2], indices);
+   }
+   else if (split == 16)
+   {
+      indices.Append(mid[0]);
+      indices.Append(mid[1]);
+      CollectTriFaceVertices(v1, mid[1], mid[0], indices);
+   }
+   else if (split == 32)
+   {
+      indices.Append(mid[1]);
+      indices.Append(mid[2]);
+      CollectTriFaceVertices(v2, mid[2], mid[1], indices);
    }
    else if (split != 0)
    {
@@ -5390,11 +5472,27 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
       }
       else if (geom == Geometry::TETRAHEDRON)
       {
-         if (ref_type == Refinement::X || ref_type == Refinement::Y ||
-             ref_type == Refinement::Z ||
-             ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId() ||
-             ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId() ||
-             ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId())
+         if (ref_type >= Refinement::Tetrahedron::CORNER_0_TET_PRISM.GetId() &&
+             ref_type <= Refinement::Tetrahedron::CORNER_3_TET_PRISM.GetId())
+         {
+            const int *v = tet_corner_vertex_order[
+                   ref_type - Refinement::Tetrahedron::CORNER_0_TET_PRISM.GetId()];
+            Point mid0(pm(v[0]), pm(v[1]));
+            Point mid1(pm(v[0]), pm(v[2]));
+            Point mid2(pm(v[0]), pm(v[3]));
+            if (child == 0)
+            { pm = PointMatrix(pm(v[0]), mid0, mid1, mid2); }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid0, mid1, mid2,
+                                pm(v[1]), pm(v[2]), pm(v[3]));
+            }
+         }
+         else if (ref_type == Refinement::X || ref_type == Refinement::Y ||
+                  ref_type == Refinement::Z ||
+                  ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId() ||
+                  ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId() ||
+                  ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId())
          {
             const int corner = ref_type == Refinement::X ? 1 :
                                (ref_type == Refinement::Y ? 2 : 3);
@@ -6523,6 +6621,13 @@ int NCMesh::TriFaceSplitLevel(int vn1, int vn2, int vn3) const
                      TriFaceSplitLevel(mid[2], mid[1], vn3),
                      TriFaceSplitLevel(mid[0], mid[1], mid[2]));
    }
+
+   if (split == 8 && faces.FindId(vn1, vn2, vn3) < 0)
+   { return 1 + TriFaceSplitLevel(vn1, mid[0], mid[2]); }
+   if (split == 16 && faces.FindId(vn1, vn2, vn3) < 0)
+   { return 1 + TriFaceSplitLevel(vn2, mid[1], mid[0]); }
+   if (split == 32 && faces.FindId(vn1, vn2, vn3) < 0)
+   { return 1 + TriFaceSplitLevel(vn3, mid[2], mid[1]); }
 
    if (split != 0 && faces.FindId(vn1, vn2, vn3) < 0)
    {

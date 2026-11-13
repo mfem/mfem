@@ -1196,22 +1196,26 @@ void FiniteElementSpace::BuildConformingInterpolation() const
          const FiniteElement *master_fe = fec->GetFE(master_geom, p);
          if (!master_fe) { continue; }
 
-         switch (master_geom)
-         {
-            case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
-            case Geometry::TRIANGLE: T.SetFE(&TriangleFE); break;
-            case Geometry::SEGMENT:  T.SetFE(&SegmentFE); break;
-            default: MFEM_ABORT("unsupported geometry");
-         }
-
          for (int si = master.slaves_begin; si < master.slaves_end; si++)
          {
             const NCMesh::Slave &slave = list.slaves[si];
+            // Degenerate edge-face relations use the master's reference
+            // geometry. Actual slave faces may have a different geometry.
+            const Geometry::Type slave_geom =
+               slave.index < 0 ? master_geom : slave.Geom();
 
-            int q = GetEntityDofs(entity, slave.index, slave_dofs, master_geom);
+            int q = GetEntityDofs(entity, slave.index, slave_dofs, slave_geom);
             if (!slave_dofs.Size()) { break; }
 
-            const FiniteElement *slave_fe = fec->GetFE(slave.Geom(), q);
+            switch (slave_geom)
+            {
+               case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
+               case Geometry::TRIANGLE: T.SetFE(&TriangleFE); break;
+               case Geometry::SEGMENT:  T.SetFE(&SegmentFE); break;
+               default: MFEM_ABORT("unsupported geometry");
+            }
+
+            const FiniteElement *slave_fe = fec->GetFE(slave_geom, q);
             list.OrientedPointMatrix(slave, T.GetPointMat());
             slave_fe->GetTransferMatrix(*master_fe, T, I);
 
@@ -1219,7 +1223,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
             int skipfirst = 0;
             if (IsVariableOrder() && entity == 2 && slave.index >= 0)
             {
-               skipfirst = GetNumBorderDofs(master_geom, q);
+               skipfirst = GetNumBorderDofs(slave_geom, q);
             }
 
             // make each slave DOF dependent on all master DOFs

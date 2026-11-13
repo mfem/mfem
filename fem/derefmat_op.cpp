@@ -51,9 +51,10 @@ void GetMixedNodalRestriction(const FiniteElement &coarse_fe,
    trans.SetIdentityTransformation(fine_geom);
    trans.SetPointMat(point_matrix);
    trans.SetIntPoint(&Geometries.GetCenter(fine_geom));
-   // Quadrilateral child maps can be bilinear. Preserve the existing local
-   // inverse path for pyramid and simplex children.
-   const bool use_linear_inverse = fine_geom != Geometry::SQUARE ||
+   // Quadrilateral and prism child maps can be non-affine. Preserve the
+   // existing local inverse path for pyramid and simplex children.
+   const bool use_linear_inverse = (fine_geom != Geometry::SQUARE &&
+                                    fine_geom != Geometry::PRISM) ||
                                    trans.OrderJ() == 0;
 
    IntegrationPoint origin;

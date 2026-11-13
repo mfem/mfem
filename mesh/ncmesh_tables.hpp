@@ -126,6 +126,34 @@ static constexpr int tet_edge13_deref[4 + 4] =
 static constexpr int tet_edge23_deref[4 + 4] =
 { 0, 0, 0, 1, /**/ 0, 0, 1, 0 };
 
+// Each row contains the corner vertex followed by the ordered vertices of the
+// opposite face. The ordering preserves the tetrahedron orientation.
+static constexpr int tet_corner_vertex_order[4][4] =
+{
+   {0, 1, 2, 3}, {1, 0, 3, 2}, {2, 0, 1, 3}, {3, 0, 2, 1}
+};
+
+static constexpr int tet_corner_deref[4][4 + 4] =
+{
+   {0, 1, 1, 1, /**/ 1, 1, 1, 1},
+   {1, 0, 1, 1, /**/ 1, 1, 1, 1},
+   {1, 1, 0, 1, /**/ 1, 1, 1, 1},
+   {1, 1, 1, 0, /**/ 1, 1, 1, 1}
+};
+
+static constexpr int tet_corner_vertex_local[4][4] =
+{
+   {0, 3, 4, 5}, {3, 0, 5, 4}, {3, 4, 0, 5}, {3, 5, 4, 0}
+};
+
+static constexpr int tet_corner_face_local[4][4] =
+{
+   {1, 3, 4, 2}, {3, 1, 2, 4}, {3, 4, 1, 2}, {3, 2, 4, 1}
+};
+
+static constexpr Geometry::Type tet_corner_child_geometries[2] =
+{ Geometry::TETRAHEDRON, Geometry::PRISM };
+
 static constexpr int hex_deref_table[7][8 + 6] =
 {
    { 0, 1, 1, 0, 0, 1, 1, 0, /**/ 1, 1, 1, 0, 0, 0 }, // 1 - X
@@ -255,11 +283,27 @@ static constexpr NCRefinementPattern quadrilateral_patterns[15] =
       quad_edge_vertex_local[3], quad_edge_face_local[3]
    }
 };
-static constexpr NCRefinementPattern tetrahedron_patterns[11] =
+static constexpr NCRefinementPattern tetrahedron_patterns[15] =
 {
    {}, {2, tet_deref_table[0]}, {2, tet_deref_table[1]}, {},
    {2, tet_deref_table[3]}, {}, {}, {8, tet_deref_table[6]},
-   {2, tet_edge12_deref}, {2, tet_edge13_deref}, {2, tet_edge23_deref}
+   {2, tet_edge12_deref}, {2, tet_edge13_deref}, {2, tet_edge23_deref},
+   {
+      2, tet_corner_deref[0], tet_corner_child_geometries,
+      tet_corner_vertex_local[0], tet_corner_face_local[0]
+   },
+   {
+      2, tet_corner_deref[1], tet_corner_child_geometries,
+      tet_corner_vertex_local[1], tet_corner_face_local[1]
+   },
+   {
+      2, tet_corner_deref[2], tet_corner_child_geometries,
+      tet_corner_vertex_local[2], tet_corner_face_local[2]
+   },
+   {
+      2, tet_corner_deref[3], tet_corner_child_geometries,
+      tet_corner_vertex_local[3], tet_corner_face_local[3]
+   }
 };
 static constexpr NCRefinementPattern hexahedron_patterns[8] =
 {

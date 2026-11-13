@@ -4138,28 +4138,33 @@ int ParFiniteElementSpace
 
             if (fe == nullptr) { continue; }
 
-            switch (mf.Geom())
-            {
-               case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
-               case Geometry::TRIANGLE: T.SetFE(&TriangleFE); break;
-               case Geometry::SEGMENT:  T.SetFE(&SegmentFE); break;
-               default: MFEM_ABORT("unsupported geometry");
-            }
-
             // constrain slaves that exist in our mesh
             for (int si = mf.slaves_begin; si < mf.slaves_end; si++)
             {
                const NCMesh::Slave &sf = list.slaves[si];
                if (pncmesh->IsGhost(entity, sf.index)) { continue; }
 
+               // Degenerate edge-face relations use the master's reference
+               // geometry. Actual slave faces may have a different geometry.
+               const Geometry::Type slave_geom =
+                  sf.index < 0 ? mf.Geom() : sf.Geom();
                constexpr int variant = 0;
-               const int q = GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom(), variant);
+               const int q = GetEntityDofs(entity, sf.index, slave_dofs,
+                                           slave_geom, variant);
                if (q < 0) { break; }
                if (slave_dofs.Size() == 0) { continue; }
 
+               switch (slave_geom)
+               {
+                  case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
+                  case Geometry::TRIANGLE: T.SetFE(&TriangleFE); break;
+                  case Geometry::SEGMENT:  T.SetFE(&SegmentFE); break;
+                  default: MFEM_ABORT("unsupported geometry");
+               }
+
                list.OrientedPointMatrix(sf, T.GetPointMat());
 
-               const auto *slave_fe = fec->GetFE(mf.Geom(), q);
+               const auto *slave_fe = fec->GetFE(slave_geom, q);
                slave_fe->GetTransferMatrix(*fe, T, I);
 
                // make each slave DOF dependent on all master DOFs

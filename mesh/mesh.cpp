@@ -126,7 +126,7 @@ real_t Mesh::GetElementVolume(int i)
 {
    ElementTransformation *et = GetElementTransformation(i);
    const IntegrationRule &ir = IntRules.Get(GetElementBaseGeometry(i),
-                                            et->OrderJ());
+                                            et->OrderW());
    real_t volume = 0.0;
    for (int j = 0; j < ir.GetNPoints(); j++)
    {
