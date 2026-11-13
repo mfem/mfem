@@ -227,13 +227,15 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
       if (general_restriction)
       {
          const Geometry::Type parent_geom =
-            fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
+         fespace->GetMesh()->GetElementBaseGeometry(emb.parent);
          const DenseMatrixStack &pmats = dtrans.point_matrices[parent_geom];
          const Geometry::Type child_geom =
-            internal::PointMatrixGeometry(pmats, emb.matrix);
+         internal::PointMatrixGeometry(pmats, emb.matrix);
          const int order = fespace->GetElementOrder(emb.parent);
-         return {fespace->GetFE(emb.parent)->GetDof(),
-                 fespace->FEColl()->GetFE(child_geom, order)->GetDof()};
+         return
+         {
+            fespace->GetFE(emb.parent)->GetDof(),
+            fespace->FEColl()->GetFE(child_geom, order)->GetDof()};
       }
       if (fespace->IsVariableOrder())
       {

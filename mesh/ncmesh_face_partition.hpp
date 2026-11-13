@@ -47,7 +47,7 @@ enum class NCFaceRelation
 // This is a geometric relation, not a claim that BuildFaceList can represent
 // the resulting master/slave relation for every combination of cell types.
 inline NCFaceRelation CompareNCFacePartitions(const NCFacePartition &first,
-                                               const NCFacePartition &second)
+                                              const NCFacePartition &second)
 {
    const real_t tolerance = 128*std::numeric_limits<real_t>::epsilon();
    const auto num_vertices = [](const NCFacePartition::Cell &cell)

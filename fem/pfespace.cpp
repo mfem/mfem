@@ -227,7 +227,8 @@ void ParFiniteElementSpace::CommunicateGhostOrder()
    {
       received_ghosts.insert(entry.element);
    }
-   MFEM_VERIFY(received_ghosts.size() == static_cast<size_t>(current_ghosts.Size()) &&
+   MFEM_VERIFY(received_ghosts.size() == static_cast<size_t>
+               (current_ghosts.Size()) &&
                ghost_orders.Size() == current_ghosts.Size(),
                "Ghost element orders do not match the current ghost layer.");
    for (int ghost : current_ghosts)

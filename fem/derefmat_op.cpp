@@ -417,8 +417,8 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
             bs_ptr += size;
          }
          DenseMatrix &lR = general_restriction ? mixed_restriction :
-                            (fespace->IsVariableOrder() ? localRVO :
-                             localR[geom](emb.matrix));
+                           (fespace->IsVariableOrder() ? localRVO :
+                            localR[geom](emb.matrix));
          block_row_idcs_offsets[k + 1] =
             block_row_idcs_offsets[k] + lR.Height();
          block_col_idcs_offsets[k + 1] = block_col_idcs_offsets[k] + lR.Width();
