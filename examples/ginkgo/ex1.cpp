@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
             Ginkgo::IcPreconditioner ginkgo_precond(exec, "paric", 30);
             Ginkgo::CGSolver ginkgo_solver(exec, ginkgo_precond);
             ginkgo_solver.SetPrintLevel(print_lvl);
-            ginkgo_solver.SetRelTol(1e-12);
+            ginkgo_solver.SetRelTol(sqrt(1e-12));
             ginkgo_solver.SetAbsTol(0.0);
             ginkgo_solver.SetMaxIter(400);
             ginkgo_solver.SetOperator(*(A.Ptr()));
@@ -225,7 +225,7 @@ int main(int argc, char *argv[])
             Ginkgo::MFEMPreconditioner gko_M(exec, M);
             Ginkgo::CGSolver ginkgo_solver(exec, gko_M);
             ginkgo_solver.SetPrintLevel(print_lvl);
-            ginkgo_solver.SetRelTol(1e-12);
+            ginkgo_solver.SetRelTol(sqrt(1e-12));
             ginkgo_solver.SetAbsTol(0.0);
             ginkgo_solver.SetMaxIter(400);
             ginkgo_solver.SetOperator(*(A.Ptr()));
@@ -283,7 +283,7 @@ int main(int argc, char *argv[])
                Ginkgo::MFEMPreconditioner gko_M(exec, M);
                Ginkgo::CGSolver ginkgo_solver(exec, gko_M);
                ginkgo_solver.SetPrintLevel(print_lvl);
-               ginkgo_solver.SetRelTol(1e-12);
+               ginkgo_solver.SetRelTol(sqrt(1e-12));
                ginkgo_solver.SetAbsTol(0.0);
                ginkgo_solver.SetMaxIter(400);
                ginkgo_solver.SetOperator(*(A.Ptr()));

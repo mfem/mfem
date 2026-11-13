@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -88,7 +88,9 @@ public:
 class ZienkiewiczZhuEstimator : public AnisotropicErrorEstimator
 {
 protected:
+   /// Sequence of the solution finite element space, including p-refinement.
    long current_sequence;
+   long current_flux_sequence;
    Vector error_estimates;
    real_t total_error;
    bool anisotropic;
@@ -103,12 +105,15 @@ protected:
    bool with_coeff;
    bool own_flux_fes; ///< Ownership flag for flux_space.
 
-   /// Check if the mesh of the solution was modified.
+   /// Check if the solution or flux finite element space was modified.
    bool MeshIsModified()
    {
-      long mesh_sequence = solution.FESpace()->GetMesh()->GetSequence();
-      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
-      return (mesh_sequence > current_sequence);
+      long solution_sequence = solution.FESpace()->GetSequence();
+      long flux_sequence = flux_space->GetSequence();
+      MFEM_ASSERT(solution_sequence >= current_sequence, "");
+      MFEM_ASSERT(flux_sequence >= current_flux_sequence, "");
+      return (solution_sequence > current_sequence ||
+              flux_sequence > current_flux_sequence);
    }
 
    /// Compute the element error estimates.
@@ -125,6 +130,7 @@ public:
    ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
                            FiniteElementSpace *flux_fes)
       : current_sequence(-1),
+        current_flux_sequence(-1),
         total_error(),
         anisotropic(false),
         flux_averaging(0),
@@ -145,6 +151,7 @@ public:
    ZienkiewiczZhuEstimator(BilinearFormIntegrator &integ, GridFunction &sol,
                            FiniteElementSpace &flux_fes)
       : current_sequence(-1),
+        current_flux_sequence(-1),
         total_error(),
         anisotropic(false),
         flux_averaging(0),
@@ -191,7 +198,11 @@ public:
    }
 
    /// Reset the error estimator.
-   void Reset() override { current_sequence = -1; }
+   void Reset() override
+   {
+      current_sequence = -1;
+      current_flux_sequence = -1;
+   }
 
    /** @brief Destroy a ZienkiewiczZhuEstimator object. Destroys, if owned, the
        FiniteElementSpace, flux_space. */
@@ -241,6 +252,7 @@ public:
 class LSZienkiewiczZhuEstimator : public ErrorEstimator
 {
 protected:
+   /// Sequence of the solution finite element space, including p-refinement.
    long current_sequence;
    Vector error_estimates;
    real_t total_error;
@@ -251,12 +263,12 @@ protected:
    GridFunction &solution;
    bool with_coeff;
 
-   /// Check if the mesh of the solution was modified.
+   /// Check if the solution finite element space was modified.
    bool MeshIsModified()
    {
-      long mesh_sequence = solution.FESpace()->GetMesh()->GetSequence();
-      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
-      return (mesh_sequence > current_sequence);
+      long solution_sequence = solution.FESpace()->GetSequence();
+      MFEM_ASSERT(solution_sequence >= current_sequence, "");
+      return (solution_sequence > current_sequence);
    }
 
    /// Compute the element error estimates.
@@ -320,15 +332,18 @@ public:
     error estimation procedure where the flux averaging is replaced by a global
     L2 projection (requiring a mass matrix solve).
 
-    The required BilinearFormIntegrator must implement the methods
-    ComputeElementFlux() and ComputeFluxEnergy().
+    The required BilinearFormIntegrator must implement the method
+    ComputeElementFlux().
 
     Implemented for the parallel case only.
  */
 class L2ZienkiewiczZhuEstimator : public ErrorEstimator
 {
 protected:
+   /// Sequence of the solution finite element space, including p-refinement.
    long current_sequence;
+   long current_flux_sequence;
+   long current_smooth_flux_sequence;
    int local_norm_p; ///< Local L_p norm to use, default is 1.
    Vector error_estimates;
    real_t total_error;
@@ -344,12 +359,18 @@ protected:
       class when needed.*/
    bool own_flux_fes; ///< Ownership flag for flux_space and smooth_flux_space.
 
-   /// Check if the mesh of the solution was modified.
+   /// Check if the solution or flux finite element space was modified.
    bool MeshIsModified()
    {
-      long mesh_sequence = solution.FESpace()->GetMesh()->GetSequence();
-      MFEM_ASSERT(mesh_sequence >= current_sequence, "");
-      return (mesh_sequence > current_sequence);
+      long solution_sequence = solution.FESpace()->GetSequence();
+      long flux_sequence = flux_space->GetSequence();
+      long smooth_flux_sequence = smooth_flux_space->GetSequence();
+      MFEM_ASSERT(solution_sequence >= current_sequence, "");
+      MFEM_ASSERT(flux_sequence >= current_flux_sequence, "");
+      MFEM_ASSERT(smooth_flux_sequence >= current_smooth_flux_sequence, "");
+      return (solution_sequence > current_sequence ||
+              flux_sequence > current_flux_sequence ||
+              smooth_flux_sequence > current_smooth_flux_sequence);
    }
 
    /// Compute the element error estimates.
@@ -357,8 +378,8 @@ protected:
 
 public:
    /** @brief Construct a new L2ZienkiewiczZhuEstimator object.
-       @param integ    This BilinearFormIntegrator must implement the methods
-                       ComputeElementFlux() and ComputeFluxEnergy().
+       @param integ    This BilinearFormIntegrator must implement the method
+                       ComputeElementFlux().
        @param sol      The solution field whose error is to be estimated.
        @param flux_fes The L2ZienkiewiczZhuEstimator assumes ownership of this
                        FiniteElementSpace and will call its Update() method when
@@ -372,6 +393,8 @@ public:
                              ParFiniteElementSpace *flux_fes,
                              ParFiniteElementSpace *smooth_flux_fes)
       :  current_sequence(-1),
+         current_flux_sequence(-1),
+         current_smooth_flux_sequence(-1),
          local_norm_p(1),
          total_error(0.0),
          integ(integ),
@@ -382,8 +405,8 @@ public:
    { }
 
    /** @brief Construct a new L2ZienkiewiczZhuEstimator object.
-       @param integ    This BilinearFormIntegrator must implement the methods
-                       ComputeElementFlux() and ComputeFluxEnergy().
+       @param integ    This BilinearFormIntegrator must implement the method
+                       ComputeElementFlux().
        @param sol      The solution field whose error is to be estimated.
        @param flux_fes The L2ZienkiewiczZhuEstimator does NOT assume ownership
                        of this FiniteElementSpace; will call its Update() method
@@ -397,6 +420,8 @@ public:
                              ParFiniteElementSpace &flux_fes,
                              ParFiniteElementSpace &smooth_flux_fes)
       :  current_sequence(-1),
+         current_flux_sequence(-1),
+         current_smooth_flux_sequence(-1),
          local_norm_p(1),
          total_error(0.0),
          integ(integ),
@@ -421,7 +446,12 @@ public:
    }
 
    /// Reset the error estimator.
-   void Reset() override { current_sequence = -1; }
+   void Reset() override
+   {
+      current_sequence = -1;
+      current_flux_sequence = -1;
+      current_smooth_flux_sequence = -1;
+   }
 
    /** @brief Destroy a L2ZienkiewiczZhuEstimator object. Destroys, if owned,
        the FiniteElementSpace, flux_space. */

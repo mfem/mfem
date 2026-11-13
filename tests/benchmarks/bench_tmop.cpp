@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -138,7 +138,7 @@ struct Kernel: public bm::Fixture
 #define BENCHMARK_TMOP_F(Bench)\
 BENCHMARK_DEFINE_F(Kernel,Bench)(bm::State &state){\
    assert(ker.get());\
-   while (state.KeepRunning()) { ker->Bench(); }\
+   for (auto _ : state) { ker->Bench(); }\
    state.counters["MDof"] = bm::Counter(ker->Mdof(), bm::Counter::kIsRate);\
    state.counters["MDof/s"] = bm::Counter(ker->Mdofs());}\
  BENCHMARK_REGISTER_F(Kernel,Bench)->ArgsProduct({P_EQ_Q,P_ORDERS})->Unit(bm::kMicrosecond);
@@ -154,7 +154,7 @@ BENCHMARK_DEFINE_F(Kernel,Bench)(bm::State &state){\
 #define BENCHMARK_TMOP(Bench)\
 static void Bench(bm::State &state){\
    TMOP ker(state.range(1),state.range(0));\
-   while (state.KeepRunning()) { ker.Bench(); }\
+   for (auto _ : state) { ker.Bench(); }\
    state.counters["MDof"] = bm::Counter(ker.Mdof(), bm::Counter::kIsRate);\
    state.counters["MDof/s"] = bm::Counter(ker.Mdofs());}\
  BENCHMARK(Bench)->ArgsProduct({P_EQ_Q,P_ORDERS})->Unit(bm::kMicrosecond);

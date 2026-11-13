@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -19,4 +19,6 @@ include(MfemCmakeUtilities)
 mfem_find_package(Tribol TRIBOL TRIBOL_DIR "include" tribol/config.hpp "lib" tribol
   "Paths to headers required by Tribol." "Libraries required by Tribol."
   ADD_COMPONENT redecomp
-    "include" redecomp/redecomp.hpp "lib" redecomp)
+    "include" redecomp/redecomp.hpp "lib" redecomp
+  ADD_COMPONENT tribol_shared
+    "include" tribol/config.hpp "lib" tribol_shared)

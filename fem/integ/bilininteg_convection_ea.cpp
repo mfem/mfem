@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -273,9 +273,6 @@ void ConvectionIntegrator::AssembleEA(const FiniteElementSpace &fes,
          case 0x34: return EAConvectionAssemble3D<3,4>(ne,B,G,pa_data,ea_data,add);
          case 0x45: return EAConvectionAssemble3D<4,5>(ne,B,G,pa_data,ea_data,add);
          case 0x56: return EAConvectionAssemble3D<5,6>(ne,B,G,pa_data,ea_data,add);
-         case 0x67: return EAConvectionAssemble3D<6,7>(ne,B,G,pa_data,ea_data,add);
-         case 0x78: return EAConvectionAssemble3D<7,8>(ne,B,G,pa_data,ea_data,add);
-         case 0x89: return EAConvectionAssemble3D<8,9>(ne,B,G,pa_data,ea_data,add);
          default:   return EAConvectionAssemble3D(ne,B,G,pa_data,ea_data,add,
                                                      dofs1D,quad1D);
       }

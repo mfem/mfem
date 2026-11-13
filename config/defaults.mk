@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -18,6 +18,7 @@
 # Some choices below are based on the OS type:
 NOTMAC := $(subst Darwin,,$(shell uname -s))
 
+ASTYLE_BIN = astyle
 ETAGS_BIN = $(shell command -v etags 2> /dev/null)
 EGREP_BIN = $(shell command -v egrep 2> /dev/null)
 
@@ -26,7 +27,10 @@ MPICXX = mpicxx
 
 BASE_FLAGS  = -std=c++17
 OPTIM_FLAGS = -O3 $(BASE_FLAGS)
-DEBUG_FLAGS = -g $(XCOMPILER)-Wall $(BASE_FLAGS)
+
+# The variable WARNING_FLAGS depends on which compiler is used, and is defined
+# later in this file.
+DEBUG_FLAGS = $(strip -g $(addprefix $(XCOMPILER),$(WARNING_FLAGS)) $(BASE_FLAGS))
 
 # Prefixes for passing flags to the compiler and linker when using CXX or MPICXX
 CXX_XCOMPILER =
@@ -45,6 +49,10 @@ SHARED = NO
 #
 # If you set MFEM_USE_ENZYME=YES, must use CUDA_CXX=clang++
 CUDA_CXX = nvcc
+# CUDA compute capability used during compilation, e.g. sm_60. Multiple
+# architectures can be requested as a comma-separated list, e.g. sm_70,sm_80.
+# A single value may also be one of the nvcc special values "all",
+# "all-major", or "native".
 CUDA_ARCH = sm_60
 # Base CUDA install directory, only needed if building with clang+cuda:
 # The default setting is:
@@ -53,11 +61,23 @@ CUDA_ARCH = sm_60
 # 3. Use /usr/local/cuda
 CUDA_DIR = $(or $(CUDA_HOME),$(patsubst %/,%,$(dir \
  $(patsubst %/,%,$(dir $(shell command -v nvcc))))),/usr/local/cuda)
+# Derive nvcc/clang architecture flags from CUDA_ARCH. A comma-separated list
+# expands into one -gencode / --cuda-gpu-arch flag per architecture; otherwise
+# use the -arch / --cuda-gpu-arch shorthand.
+MFEM_COMMA := ,
+CUDA_ARCH_NUMS = $(patsubst sm_%,%,$(subst $(MFEM_COMMA), ,$(CUDA_ARCH)))
+NVCC_ARCH_FLAGS = $(strip $(if $(findstring $(MFEM_COMMA),$(CUDA_ARCH)),\
+ $(foreach arch,$(CUDA_ARCH_NUMS),\
+ -gencode arch=compute_$(arch)$(MFEM_COMMA)code=sm_$(arch)),\
+ -arch=$(CUDA_ARCH)))
+CLANG_ARCH_FLAGS = $(strip $(if $(findstring $(MFEM_COMMA),$(CUDA_ARCH)),\
+ $(foreach arch,$(CUDA_ARCH_NUMS),--cuda-gpu-arch=sm_$(arch)),\
+ --cuda-gpu-arch=$(CUDA_ARCH)))
 # flags for clang+cuda
-CLANG_CUDA_FLAGS = -xcuda --cuda-path=$(CUDA_DIR) --cuda-gpu-arch=$(CUDA_ARCH)
+CLANG_CUDA_FLAGS = -xcuda --cuda-path=$(CUDA_DIR) $(CLANG_ARCH_FLAGS)
 # flags for nvcc
 NVCC_FLAGS = -x=cu --expt-extended-lambda --expt-relaxed-constexpr \
- -arch=$(CUDA_ARCH) -isystem "$(CUDA_DIR)/include"
+ $(NVCC_ARCH_FLAGS) -isystem "$(CUDA_DIR)/include"
 # Prefixes for passing flags to the host compiler and linker when using
 # CUDA_CXX=nvcc
 CUDA_XCOMPILER = -Xcompiler=
@@ -151,7 +171,9 @@ MFEM_USE_SUITESPARSE   = NO
 MFEM_USE_SUPERLU       = NO
 MFEM_USE_SUPERLU5      = NO
 MFEM_USE_MUMPS         = NO
+MFEM_USE_COMPLEX_MUMPS = NO
 MFEM_USE_STRUMPACK     = NO
+MFEM_USE_CUDSS         = NO
 MFEM_USE_GINKGO        = NO
 MFEM_USE_AMGX          = NO
 MFEM_USE_MAGMA         = NO
@@ -161,7 +183,6 @@ MFEM_USE_NETCDF        = NO
 MFEM_USE_PETSC         = NO
 MFEM_USE_SLEPC         = NO
 MFEM_USE_MPFR          = NO
-MFEM_USE_SIDRE         = NO
 MFEM_USE_FMS           = NO
 MFEM_USE_CONDUIT       = NO
 MFEM_USE_PUMI          = NO
@@ -197,6 +218,14 @@ else ifneq ($(filter single Single SINGLE,$(MFEM_PRECISION)),)
 else ifeq ($(MAKECMDGOALS),config)
    $(error Invalid floating-point precision: \
      MFEM_PRECISION = $(MFEM_PRECISION))
+endif
+
+ifeq ($(MFEM_USE_RAJA),YES)
+  BASE_FLAGS = -std=c++20
+endif
+
+ifeq ($(MFEM_USE_UMPIRE),YES)
+  BASE_FLAGS = -std=c++20
 endif
 
 # MPI library compile and link flags
@@ -247,7 +276,7 @@ ifeq (YES,$(MFEM_USE_HIP))
 endif
 
 # METIS library configuration
-ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
+ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK),NONO)
    ifeq ($(MFEM_USE_METIS_5),NO)
      METIS_DIR = @MFEM_DIR@/../metis-4.0
      METIS_OPT =
@@ -351,13 +380,19 @@ MPI_FORTRAN_LIB = -lmpifort
 # MUMPS library configuration
 MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.5.0
 MUMPS_OPT = -I$(MUMPS_DIR)/include
-MUMPS_LIB = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib
+COMPLEX_MUMPS_OPT = $(MUMPS_OPT)
+
+MUMPS_COMMON_PATH = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib
+MUMPS_COMMON_LIB = -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
 ifeq ($(MFEM_USE_SINGLE),YES)
-   MUMPS_LIB += -lsmumps
+  MUMPS_SOLVER_LIB         = -lsmumps
+  COMPLEX_MUMPS_SOLVER_LIB = -lcmumps
 else
-   MUMPS_LIB += -ldmumps
+  MUMPS_SOLVER_LIB         = -ldmumps
+  COMPLEX_MUMPS_SOLVER_LIB = -lzmumps
 endif
-MUMPS_LIB += -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
+MUMPS_LIB         = $(MUMPS_COMMON_PATH) $(MUMPS_SOLVER_LIB) $(MUMPS_COMMON_LIB)
+COMPLEX_MUMPS_LIB = $(MUMPS_COMMON_PATH) $(COMPLEX_MUMPS_SOLVER_LIB) $(MUMPS_COMMON_LIB)
 
 # STRUMPACK library configuration
 STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
@@ -366,6 +401,19 @@ STRUMPACK_OPT = -I$(STRUMPACK_DIR)/include $(SCOTCH_OPT)
 # STRUMPACK_OPT += $(OPENMP_OPT)
 STRUMPACK_LIB = -L$(STRUMPACK_DIR)/lib -lstrumpack $(MPI_FORTRAN_LIB)\
  $(SCOTCH_LIB) $(SCALAPACK_LIB)
+
+# CUDSS library configuration
+CUDSS_DIR         = @MFEM_DIR@/../cudss
+CUDSS_INCLUDE_DIR = $(CUDSS_DIR)/include
+CUDSS_LIBRARY_DIR = $(CUDSS_DIR)/lib
+CUDSS_OPT         = -I$(CUDSS_INCLUDE_DIR)
+CUDSS_LIB         = \
+ $(XLINKER)-rpath,$(CUDSS_LIBRARY_DIR) -L$(CUDSS_LIBRARY_DIR) -lcudss
+# The cuDSS communication and threading libraries.
+MFEM_CUDSS_COMM_LIB = $(abspath $(wildcard $(or $(CUDSS_COMM_LIB),\
+   $(subst @MFEM_DIR@,$(MFEM_DIR), $(CUDSS_LIBRARY_DIR)/libcudss_commlayer_openmpi.so))))
+MFEM_CUDSS_THREADING_LIB = $(abspath $(wildcard $(or $(CUDSS_THREADING_LIB),\
+   $(subst @MFEM_DIR@,$(MFEM_DIR),$(CUDSS_LIBRARY_DIR)/libcudss_mtlayer_gomp.so))))
 
 # Ginkgo library configuration
 GINKGO_DIR = @MFEM_DIR@/../ginkgo/install
@@ -402,12 +450,18 @@ GINKGO_LIB = $(XLINKER)-rpath,$(GINKGO_LINK_LIB_DIR) -L$(GINKGO_LINK_LIB_DIR)\
 # AmgX library configuration
 AMGX_DIR = @MFEM_DIR@/../amgx
 AMGX_OPT = -I$(AMGX_DIR)/include
-AMGX_LIB = -L$(AMGX_DIR)/lib -lamgx -lcusparse -lcusolver -lcublas -lnvToolsExt
+AMGX_LIB = -L$(AMGX_DIR)/lib -lamgx -lcusparse -lcusolver -lcublas
+CUDA_VERSION_NUM = $(strip $(shell \
+  awk '$$2 == "CUDA_VERSION" { print $$3; exit }' \
+  "$(CUDA_DIR)/include/cuda.h" 2>/dev/null))
+AMGX_LIB += $(if $(filter YES,$(MFEM_USE_AMGX)),$(if $(CUDA_VERSION_NUM),\
+  $(if $(shell test $(CUDA_VERSION_NUM) -lt 12090 && echo YES),-lnvToolsExt),\
+  -lnvToolsExt))
 
 # MAGMA library configuration
 MAGMA_DIR = @MFEM_DIR@/../magma
 MAGMA_OPT = -I$(MAGMA_DIR)/include
-MAGMA_LIB = -L$(MAGMA_DIR)/lib -l:libmagma.a -lcublas -lcusparse $(LAPACK_LIB)
+MAGMA_LIB = -L$(MAGMA_DIR)/lib -l:libmagma.a $(LAPACK_LIB)
 
 # GnuTLS library configuration
 GNUTLS_OPT =
@@ -485,17 +539,6 @@ ifneq (,$(wildcard $(CONDUIT_HDF5_HEADER)))
    CONDUIT_LIB += $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
                   -lhdf5 $(ZLIB_LIB)
 endif
-
-# Sidre and required libraries configuration
-# Be sure to check the HDF5_DIR (set above) is correct
-SIDRE_DIR = @MFEM_DIR@/../axom
-SIDRE_OPT = -I$(SIDRE_DIR)/include -I$(CONDUIT_DIR)/include/conduit\
- -I$(HDF5_DIR)/include
-SIDRE_LIB = \
-   $(XLINKER)-rpath,$(SIDRE_DIR)/lib -L$(SIDRE_DIR)/lib \
-   $(XLINKER)-rpath,$(CONDUIT_DIR)/lib -L$(CONDUIT_DIR)/lib \
-   $(XLINKER)-rpath,$(HDF5_DIR)/lib -L$(HDF5_DIR)/lib \
-   -laxom -lconduit -lconduit_relay -lconduit_blueprint -lhdf5 $(ZLIB_LIB) -ldl
 
 # PUMI
 # Note that PUMI_DIR is needed -- it is used to check for gmi_sim.h
@@ -578,7 +621,13 @@ ifdef CUB_DIR
    RAJA_OPT += -I$(CUB_DIR)
 endif
 
+# CAMP library configuration (required by RAJA/Umpire for most installs)
 CAMP_LIB = -lcamp
+# If the common sibling layout exists, use it as a default (handles versioned
+# directories like camp-<hash>).
+ifneq ($(wildcard $(RAJA_DIR)/../camp*/include/camp/camp.hpp),)
+   CAMP_DIR ?= $(patsubst %/include/camp/camp.hpp,%,$(firstword $(wildcard $(RAJA_DIR)/../camp*/include/camp/camp.hpp)))
+endif
 ifdef CAMP_DIR
    RAJA_OPT += -I$(CAMP_DIR)/include
    CAMP_LIB = $(XLINKER)-rpath,$(CAMP_DIR)/lib -L$(CAMP_DIR)/lib -lcamp
@@ -588,7 +637,12 @@ RAJA_LIB = $(XLINKER)-rpath,$(RAJA_DIR)/lib -L$(RAJA_DIR)/lib -lRAJA $(CAMP_LIB)
 # UMPIRE library configuration
 UMPIRE_DIR = @MFEM_DIR@/../umpire
 UMPIRE_OPT = -I$(UMPIRE_DIR)/include $(if $(CAMP_DIR), -I$(CAMP_DIR)/include)
-UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -L$(UMPIRE_DIR)/lib64 -lumpire $(CAMP_LIB)
+UMPIRE_LIB = -L$(UMPIRE_DIR)/lib -L$(UMPIRE_DIR)/lib64 -lumpire $(CAMP_LIB) -lpthread
+# If the common sibling layout exists, use it as a default (handles versioned
+# directories like fmt-<hash>).
+ifneq ($(wildcard $(UMPIRE_DIR)/../fmt*/include/fmt/format.h),)
+   FMT_DIR ?= $(patsubst %/include/fmt/format.h,%,$(firstword $(wildcard $(UMPIRE_DIR)/../fmt*/include/fmt/format.h)))
+endif
 ifdef FMT_DIR
    UMPIRE_OPT += -I$(FMT_DIR)/include
    UMPIRE_LIB += -L$(FMT_DIR)/lib -L$(FMT_DIR)/lib64 -lfmt
@@ -620,8 +674,63 @@ PARELAG_LIB = -L$(PARELAG_DIR)/build/src -lParELAG
 AXOM_DIR = @MFEM_DIR@/../axom
 TRIBOL_DIR = @MFEM_DIR@/../tribol
 TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
-TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -lredecomp -L$(AXOM_DIR)/lib -laxom_mint\
-   -laxom_slam -laxom_slic -laxom_core
+# Tribol may be built with optional dependencies (e.g. RAJA/UMPIRE/CALIPER).
+# Add those options only when the corresponding headers/libraries exist.
+ifneq ($(wildcard $(RAJA_DIR)/include/RAJA/RAJA.hpp),)
+   TRIBOL_OPT += $(RAJA_OPT)
+endif
+ifneq ($(wildcard $(UMPIRE_DIR)/include/umpire/Umpire.hpp),)
+   TRIBOL_OPT += $(UMPIRE_OPT)
+endif
+ifneq ($(wildcard $(CALIPER_DIR)/include/caliper/cali.h),)
+   TRIBOL_OPT += $(CALIPER_OPT)
+endif
+
+TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -L$(TRIBOL_DIR)/lib64
+ifneq ($(wildcard $(TRIBOL_DIR)/lib/libtribol.* $(TRIBOL_DIR)/lib64/libtribol.*),)
+   TRIBOL_LIB += -ltribol
+endif
+ifneq ($(wildcard $(TRIBOL_DIR)/lib/libtribol_shared.* $(TRIBOL_DIR)/lib64/libtribol_shared.*),)
+   TRIBOL_LIB += -ltribol_shared
+endif
+ifneq ($(wildcard $(TRIBOL_DIR)/lib/libredecomp.* $(TRIBOL_DIR)/lib64/libredecomp.*),)
+   TRIBOL_LIB += -lredecomp
+endif
+
+TRIBOL_LIB += -L$(AXOM_DIR)/lib -L$(AXOM_DIR)/lib64
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_quest.* $(AXOM_DIR)/lib64/libaxom_quest.*),)
+   TRIBOL_LIB += -laxom_quest
+endif
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_mint.* $(AXOM_DIR)/lib64/libaxom_mint.*),)
+   TRIBOL_LIB += -laxom_mint
+endif
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_slam.* $(AXOM_DIR)/lib64/libaxom_slam.*),)
+   TRIBOL_LIB += -laxom_slam
+endif
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_slic.* $(AXOM_DIR)/lib64/libaxom_slic.*),)
+   TRIBOL_LIB += -laxom_slic
+endif
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_lumberjack.* $(AXOM_DIR)/lib64/libaxom_lumberjack.*),)
+   TRIBOL_LIB += -laxom_lumberjack
+endif
+ifneq ($(wildcard $(AXOM_DIR)/lib/libaxom_core.* $(AXOM_DIR)/lib64/libaxom_core.*),)
+   TRIBOL_LIB += -laxom_core
+endif
+
+# Add common optional Tribol TPLs when their libraries are present.
+ifneq ($(wildcard $(ADIAK_DIR)/lib/libadiak.* $(ADIAK_DIR)/lib64/libadiak.*),)
+   TRIBOL_LIB += $(XLINKER)-rpath,$(ADIAK_DIR)/lib64 $(XLINKER)-rpath,$(ADIAK_DIR)/lib \
+      -L$(ADIAK_DIR)/lib64 -L$(ADIAK_DIR)/lib -ladiak -ldl
+endif
+ifneq ($(wildcard $(UMPIRE_DIR)/lib/libumpire.* $(UMPIRE_DIR)/lib64/libumpire.*),)
+   TRIBOL_LIB += $(UMPIRE_LIB)
+endif
+ifneq ($(wildcard $(RAJA_DIR)/lib/libRAJA.* $(RAJA_DIR)/lib64/libRAJA.*),)
+   TRIBOL_LIB += $(RAJA_LIB)
+endif
+ifneq ($(wildcard $(CALIPER_DIR)/lib/libcaliper.* $(CALIPER_DIR)/lib64/libcaliper.*),)
+   TRIBOL_LIB += $(CALIPER_LIB)
+endif
 
 # Enzyme configuration
 ENZYME_DIR = @MFEM_DIR@/../enzyme
@@ -629,10 +738,10 @@ ENZYME_PLUGIN = $(abspath $(wildcard $(subst \
    @MFEM_DIR@,$(MFEM_DIR),$(ENZYME_DIR))/lib/ClangEnzyme-*.$(SO_EXT)))
 ifeq ($(MAKECMDGOALS)-$(MFEM_USE_ENZYME),config-YES)
    ifeq ($(ENZYME_PLUGIN),)
-      $(error Unable to find the Enzyme pluging! Please set ENZYME_DIR)
+      $(error Unable to find the Enzyme plugin! Please set ENZYME_DIR)
    endif
    ifneq ($(words $(ENZYME_PLUGIN)),1)
-      $(error Multiple versions of the Enzyme pluging found! \
+      $(error Multiple versions of the Enzyme plugin found! \
               Please set ENZYME_PLUGIN directly)
    endif
 endif
@@ -644,3 +753,15 @@ VERBOSE = NO
 
 # Optional build tag
 MFEM_BUILD_TAG = $(shell uname -snm)
+
+# Enable -pedantic flag only for gcc or clang. nvcc complains with -pedantic
+# because of line directives.
+PEDANTIC_FLAG = $(if \
+   $(findstring NVIDIA,$(shell $(MFEM_CXX) --version 2>&1)),, \
+   $(if $(or \
+      $(findstring gcc version,$(shell $(MFEM_CXX) -v 2>&1)), \
+      $(findstring clang version,$(shell $(MFEM_CXX) -v 2>&1))),-pedantic,))
+# Enable shadow warnings for clang only; GCC's -Wshadow flags more.
+SHADOW_WARNING_FLAG = $(if $(findstring clang,\
+ $(shell $(MFEM_HOST_CXX) --version 2>/dev/null)),-Wshadow,)
+WARNING_FLAGS = $(PEDANTIC_FLAG) -Wall $(SHADOW_WARNING_FLAG)

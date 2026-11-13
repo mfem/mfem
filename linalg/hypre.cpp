@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -16,7 +16,6 @@
 #include "linalg.hpp"
 #include "../fem/fem.hpp"
 #include "../general/forall.hpp"
-
 #include <fstream>
 #include <iomanip>
 #include <cmath>
@@ -242,6 +241,8 @@ HypreParVector::HypreParVector(const HypreParVector &y) : HypreParVector(
       y.CreateCompatibleVector())
 {
    // Deep copy the local data
+   y.HypreRead();
+   HypreWrite();
    hypre_SeqVectorCopy(hypre_ParVectorLocalVector(y.x),
                        hypre_ParVectorLocalVector(x));
 }
@@ -317,10 +318,12 @@ void HypreParVector::WrapHypreParVector(hypre_ParVector *y, bool owner)
 
 Vector * HypreParVector::GlobalVector() const
 {
+   MFEM_VERIFY(size > 0,
+               "GlobalVector method can only be called on vectors wherein each "
+               "process owns one or more entries");
    hypre_Vector *hv = hypre_ParVectorToVectorAll(*this);
-   Vector *v = new Vector(hv->data, internal::to_int(hv->size));
-   v->MakeDataOwner();
-   hypre_SeqVectorSetDataOwner(hv,0);
+   Vector *v = new Vector(internal::to_int(hypre_VectorSize(hv)));
+   *v = hypre_VectorData(hv);
    hypre_SeqVectorDestroy(hv);
    return v;
 }
@@ -436,12 +439,19 @@ void HypreParVector::WrapMemoryWrite(Memory<real_t> &mem)
 
 HYPRE_Int HypreParVector::Randomize(HYPRE_Int seed)
 {
+   HypreWrite();
    return hypre_ParVectorSetRandomValues(x,seed);
 }
 
 void HypreParVector::Print(const std::string &fname) const
 {
+   hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
+   hypre_VectorData(x_loc) = const_cast<real_t*>(HostRead());
+#ifdef HYPRE_USING_GPU
+   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_HOST;
+#endif
    hypre_ParVectorPrint(x, fname.c_str());
+   HypreRead();
 }
 
 void HypreParVector::Read(MPI_Comm comm, const std::string &fname)
@@ -467,45 +477,16 @@ HypreParVector::~HypreParVector()
 
 real_t InnerProduct(HypreParVector *x, HypreParVector *y)
 {
+   x->HypreRead();
+   y->HypreRead();
    return hypre_ParVectorInnerProd(*x, *y);
 }
 
 real_t InnerProduct(HypreParVector &x, HypreParVector &y)
 {
+   x.HypreRead();
+   y.HypreRead();
    return hypre_ParVectorInnerProd(x, y);
-}
-
-
-real_t ParNormlp(const Vector &vec, real_t p, MPI_Comm comm)
-{
-   real_t norm = 0.0;
-   if (p == 1.0)
-   {
-      real_t loc_norm = vec.Norml1();
-      MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
-   }
-   if (p == 2.0)
-   {
-      real_t loc_norm = vec*vec;
-      MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
-      norm = sqrt(norm);
-   }
-   if (p < infinity())
-   {
-      real_t sum = 0.0;
-      for (int i = 0; i < vec.Size(); i++)
-      {
-         sum += pow(fabs(vec(i)), p);
-      }
-      MPI_Allreduce(&sum, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
-      norm = pow(norm, 1.0/p);
-   }
-   else
-   {
-      real_t loc_norm = vec.Normlinf();
-      MPI_Allreduce(&loc_norm, &norm, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, comm);
-   }
-   return norm;
 }
 
 /** @brief Shallow or deep copy @a src to @a dst with the goal to make the
@@ -1372,9 +1353,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
       }
    }
    // count the number of columns in the off-diagonal and set the local indices
-   for (auto it = offd_map.begin(); it != offd_map.end(); ++it)
+   for (auto &[col, index] : offd_map)
    {
-      it->second = offd_num_cols++;
+      index = offd_num_cols++;
    }
 
    // construct the global ParCSR matrix
@@ -1422,9 +1403,9 @@ HypreParMatrix::HypreParMatrix(MPI_Comm comm, int nrows,
    }
    diag_i[nrows] = diag_nnz;
    offd_i[nrows] = offd_nnz;
-   for (auto it = offd_map.begin(); it != offd_map.end(); ++it)
+   for (const auto &[col, index] : offd_map)
    {
-      offd_col_map[it->second] = it->first;
+      offd_col_map[index] = col;
    }
 
    hypre_ParCSRMatrixSetNumNonzeros(A);
@@ -1681,6 +1662,13 @@ void HypreParMatrix::GetOffd(SparseMatrix &offd, HYPRE_BigInt* &cmap) const
    cmap = A->col_map_offd;
 }
 
+void HypreParMatrix::GetOffdColMap(HYPRE_BigInt* &cmap,
+                                   HYPRE_Int &num_cols) const
+{
+   cmap = A->col_map_offd;
+   num_cols = hypre_CSRMatrixNumCols(A->offd);
+}
+
 void HypreParMatrix::MergeDiagAndOffd(SparseMatrix &merged)
 {
    HostRead();
@@ -1794,11 +1782,11 @@ HypreParMatrix *HypreParMatrix::ExtractSubmatrix(const Array<int> &indices,
 #if (MFEM_HYPRE_VERSION > 22300) || (MFEM_HYPRE_VERSION == 22300 && HYPRE_DEVELOP_NUMBER >=8)
    HYPRE_BigInt cpts_global[2];
 
-   hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
+   hypre_BoomerAMGCoarseParms(A->comm, local_num_vars, 1, NULL,
                               CF_marker, NULL, cpts_global);
 #else
    HYPRE_BigInt *cpts_global;
-   hypre_BoomerAMGCoarseParms(MPI_COMM_WORLD, local_num_vars, 1, NULL,
+   hypre_BoomerAMGCoarseParms(A->comm, local_num_vars, 1, NULL,
                               CF_marker, NULL, &cpts_global);
 #endif
 
@@ -2403,8 +2391,20 @@ void HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols,
    Array<HYPRE_Int> rc_sorted;
    get_sorted_rows_cols(rows_cols, rc_sorted);
 
+   HostReadWrite();
+   hypre_Vector *x_loc = hypre_ParVectorLocalVector(x.x);
+   hypre_Vector *b_loc = hypre_ParVectorLocalVector(b.x);
+   hypre_VectorData(x_loc) = const_cast<real_t*>(x.HostRead());
+   hypre_VectorData(b_loc) = b.HostReadWrite();
+#ifdef HYPRE_USING_GPU
+   hypre_VectorMemoryLocation(x_loc) = HYPRE_MEMORY_HOST;
+   hypre_VectorMemoryLocation(b_loc) = HYPRE_MEMORY_HOST;
+#endif
    internal::hypre_ParCSRMatrixEliminateAXB(
       A, rc_sorted.Size(), rc_sorted.GetData(), x, b);
+   HypreRead();
+   x.HypreRead();
+   b.HypreRead();
 }
 
 HypreParMatrix* HypreParMatrix::EliminateRowsCols(const Array<int> &rows_cols)
@@ -2751,6 +2751,7 @@ void HypreParMatrix::PrintCommPkg(std::ostream &os) const
 
 void HypreParMatrix::PrintHash(std::ostream &os) const
 {
+   HostRead();
    HashFunction hf;
 
    os << "global number of rows    : " << A->global_num_rows << '\n'
@@ -2813,6 +2814,7 @@ void HypreParMatrix::PrintHash(std::ostream &os) const
 
    hf.AppendInts(A->col_map_offd, A->offd->num_cols);
    os << "col map offd hash : " << hf.GetHash() << '\n';
+   HypreRead();
 }
 
 real_t HypreParMatrix::FNorm() const
@@ -2862,8 +2864,8 @@ void HypreParMatrix::Destroy()
    if (HypreUsingGPU() && ParCSROwner && (diagOwner < 0 || offdOwner < 0))
    {
       // Put the "host" or "hypre" pointers in {i,j,data} of A->{diag,offd}, so
-      // that they can be destroyed by hypre when hypre_ParCSRMatrixDestroy(A)
-      // is called below.
+      // that they can be destroyed by mfem_hypre_TFree_host() or hypre when
+      // hypre_ParCSRMatrixDestroy(A) is called below, respectively.
 
       // Check that if both diagOwner and offdOwner are negative then they have
       // the same value.
@@ -2872,7 +2874,33 @@ void HypreParMatrix::Destroy()
 
       MemoryClass mc = (diagOwner == -1 || offdOwner == -1) ?
                        Device::GetHostMemoryClass() : GetHypreMemoryClass();
-      Write(mc, diagOwner < 0, offdOwner <0);
+      Write(mc, diagOwner < 0, offdOwner < 0);
+      if (diagOwner == -1)
+      {
+         // Note: mfem_hypre_TFree_host() sets the pointer to NULL.
+         mfem_hypre_TFree_host(hypre_CSRMatrixI(A->diag));
+         if (hypre_CSRMatrixOwnsData(A->diag))
+         {
+            mfem_hypre_TFree_host(hypre_CSRMatrixJ(A->diag));
+            mfem_hypre_TFree_host(hypre_CSRMatrixData(A->diag));
+         }
+#if MFEM_HYPRE_VERSION >= 21800
+         hypre_CSRMatrixMemoryLocation(A->diag) = GetHypreMemoryLocation();
+#endif
+      }
+      if (offdOwner == -1)
+      {
+         // Note: mfem_hypre_TFree_host() sets the pointer to NULL.
+         mfem_hypre_TFree_host(hypre_CSRMatrixI(A->offd));
+         if (hypre_CSRMatrixOwnsData(A->offd))
+         {
+            mfem_hypre_TFree_host(hypre_CSRMatrixJ(A->offd));
+            mfem_hypre_TFree_host(hypre_CSRMatrixData(A->offd));
+         }
+#if MFEM_HYPRE_VERSION >= 21800
+         hypre_CSRMatrixMemoryLocation(A->offd) = GetHypreMemoryLocation();
+#endif
+      }
    }
 #endif
 
@@ -3151,7 +3179,8 @@ void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
 {
    std::vector<std::vector<int>> all_block_num_loc(numBlocks);
 
-   MPI_Allgather(&num_loc, 1, MPI_INT, all_num_loc.data(), 1, MPI_INT, comm);
+   MPI_Allgather(const_cast<int*>(&num_loc), 1, MPI_INT, all_num_loc.data(), 1,
+                 MPI_INT, comm);
 
    for (int j = 0; j < numBlocks; ++j)
    {
@@ -3159,7 +3188,8 @@ void GatherBlockOffsetData(MPI_Comm comm, const int rank, const int nprocs,
       blockProcOffsets[j].resize(nprocs);
 
       const int blockNumRows = offsets[j + 1] - offsets[j];
-      MPI_Allgather(&blockNumRows, 1, MPI_INT, all_block_num_loc[j].data(), 1,
+      MPI_Allgather(const_cast<int*>(&blockNumRows), 1, MPI_INT,
+                    all_block_num_loc[j].data(), 1,
                     MPI_INT, comm);
       blockProcOffsets[j][0] = 0;
       for (int i = 0; i < nprocs - 1; ++i)
@@ -3625,10 +3655,23 @@ void HypreSmoother::SetType(HypreSmoother::Type type_, int relax_times_)
    relax_times = relax_times_;
 }
 
+void HypreSmoother::GetType(HypreSmoother::Type &type_, int &relax_times_) const
+{
+   type_ = static_cast<HypreSmoother::Type>(type);
+   relax_times_ = relax_times;
+}
+
 void HypreSmoother::SetSOROptions(real_t relax_weight_, real_t omega_)
 {
    relax_weight = relax_weight_;
    omega = omega_;
+}
+
+void HypreSmoother::GetSOROptions(real_t &relax_weight_, real_t &omega_) const
+{
+   // TODO: are these used for all smoother types?
+   relax_weight_ = relax_weight;
+   omega_ = omega;
 }
 
 void HypreSmoother::SetPolyOptions(int poly_order_, real_t poly_fraction_,
@@ -3639,12 +3682,29 @@ void HypreSmoother::SetPolyOptions(int poly_order_, real_t poly_fraction_,
    eig_est_cg_iter = eig_est_cg_iter_;
 }
 
+void HypreSmoother::GetPolyOptions(int &poly_order_, real_t &poly_fraction_,
+                                   int &eig_est_cg_iter_) const
+{
+   // TODO: are these used for all smoother types?
+   poly_order_ = poly_order;
+   poly_fraction_ = poly_fraction;
+   eig_est_cg_iter_ = eig_est_cg_iter;
+}
+
 void HypreSmoother::SetTaubinOptions(real_t lambda_, real_t mu_,
                                      int taubin_iter_)
 {
    lambda = lambda_;
    mu = mu_;
    taubin_iter = taubin_iter_;
+}
+
+void HypreSmoother::GetTaubinOptions(real_t &lambda_, real_t &mu_,
+                                     int &taubin_iter_) const
+{
+   lambda_ = lambda;
+   mu_ = mu;
+   taubin_iter_ = taubin_iter;
 }
 
 void HypreSmoother::SetWindowByName(const char* name)
@@ -3667,6 +3727,13 @@ void HypreSmoother::SetWindowParameters(real_t a, real_t b, real_t c)
    window_params[0] = a;
    window_params[1] = b;
    window_params[2] = c;
+}
+
+void HypreSmoother::GetWindowParameters(real_t &a, real_t &b, real_t &c) const
+{
+   a = window_params[0];
+   b = window_params[1];
+   c = window_params[2];
 }
 
 void HypreSmoother::SetOperator(const Operator &op)
@@ -4164,12 +4231,20 @@ HypreSolver::~HypreSolver()
    auxX.Delete();
 }
 
+void HyprePCG::SetDefaultOptions()
+{
+   // Explicitly set just in case past/future versions of hypre change the
+   // defaults
+   SetTol(1e-6);
+   SetMaxIter(1000);
+}
 
 HyprePCG::HyprePCG(MPI_Comm comm) : precond(NULL)
 {
    iterative_mode = true;
 
    HYPRE_ParCSRPCGCreate(comm, &pcg_solver);
+   SetDefaultOptions();
 }
 
 HyprePCG::HyprePCG(const HypreParMatrix &A_) : HypreSolver(&A_), precond(NULL)
@@ -4181,6 +4256,7 @@ HyprePCG::HyprePCG(const HypreParMatrix &A_) : HypreSolver(&A_), precond(NULL)
    HYPRE_ParCSRMatrixGetComm(*A, &comm);
 
    HYPRE_ParCSRPCGCreate(comm, &pcg_solver);
+   SetDefaultOptions();
 }
 
 void HyprePCG::SetOperator(const Operator &op)
@@ -4205,9 +4281,28 @@ void HyprePCG::SetOperator(const Operator &op)
    auxX.Delete(); auxX.Reset();
 }
 
+void HyprePCG::SetUseTwoNorm(bool val)
+{
+   HYPRE_PCGSetTwoNorm(pcg_solver, val);
+}
+
+bool HyprePCG::GetUseTwoNorm() const
+{
+   HYPRE_Int val;
+   HYPRE_PCGGetTwoNorm(pcg_solver, &val);
+   return val != 0;
+}
+
 void HyprePCG::SetTol(real_t tol)
 {
    HYPRE_PCGSetTol(pcg_solver, tol);
+}
+
+real_t HyprePCG::GetTol() const
+{
+   HYPRE_Real tol;
+   HYPRE_PCGGetTol(pcg_solver, &tol);
+   return tol;
 }
 
 void HyprePCG::SetAbsTol(real_t atol)
@@ -4215,9 +4310,23 @@ void HyprePCG::SetAbsTol(real_t atol)
    HYPRE_PCGSetAbsoluteTol(pcg_solver, atol);
 }
 
+real_t HyprePCG::GetAbsTol() const
+{
+   HYPRE_Real atol;
+   hypre_PCGGetAbsoluteTol(pcg_solver, &atol);
+   return atol;
+}
+
 void HyprePCG::SetMaxIter(int max_iter)
 {
    HYPRE_PCGSetMaxIter(pcg_solver, max_iter);
+}
+
+int HyprePCG::GetMaxIter() const
+{
+   HYPRE_Int max_iter;
+   HYPRE_PCGGetMaxIter(pcg_solver, &max_iter);
+   return max_iter;
 }
 
 void HyprePCG::SetLogging(int logging)
@@ -4335,6 +4444,20 @@ HyprePCG::~HyprePCG()
    HYPRE_ParCSRPCGDestroy(pcg_solver);
 }
 
+#if MFEM_HYPRE_VERSION >= 21500
+HypreParVector HyprePCG::GetResiduals() const
+{
+   HYPRE_ParVector r;
+   HYPRE_ParCSRPCGGetResidual(pcg_solver, &r);
+   return HypreParVector(r);
+}
+
+void HyprePCG::GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p) const
+{
+   auto r = GetResiduals();
+   final_res_norm = ParNormlp(r, p, r.GetComm());
+}
+#endif
 
 HypreGMRES::HypreGMRES(MPI_Comm comm) : precond(NULL)
 {
@@ -4390,9 +4513,31 @@ void HypreGMRES::SetOperator(const Operator &op)
    auxX.Delete(); auxX.Reset();
 }
 
+#if MFEM_HYPRE_VERSION >= 21500
+HypreParVector HypreGMRES::GetResiduals() const
+{
+   HYPRE_ParVector r;
+   HYPRE_ParCSRGMRESGetResidual(gmres_solver, &r);
+   return HypreParVector(r);
+}
+
+void HypreGMRES::GetFinalAbsResidualNorm(real_t &final_res_norm, real_t p) const
+{
+   auto r = GetResiduals();
+   final_res_norm = ParNormlp(r, p, r.GetComm());
+}
+#endif
+
 void HypreGMRES::SetTol(real_t tol)
 {
    HYPRE_GMRESSetTol(gmres_solver, tol);
+}
+
+real_t HypreGMRES::GetTol()const
+{
+   HYPRE_Real tol;
+   HYPRE_GMRESGetTol(gmres_solver, &tol);
+   return tol;
 }
 
 void HypreGMRES::SetAbsTol(real_t tol)
@@ -4400,14 +4545,35 @@ void HypreGMRES::SetAbsTol(real_t tol)
    HYPRE_GMRESSetAbsoluteTol(gmres_solver, tol);
 }
 
+real_t HypreGMRES::GetAbsTol() const
+{
+   HYPRE_Real atol;
+   HYPRE_GMRESGetAbsoluteTol(gmres_solver, &atol);
+   return atol;
+}
+
 void HypreGMRES::SetMaxIter(int max_iter)
 {
    HYPRE_GMRESSetMaxIter(gmres_solver, max_iter);
 }
 
+int HypreGMRES::GetMaxIter() const
+{
+   HYPRE_Int max_iter;
+   HYPRE_GMRESGetMaxIter(gmres_solver, &max_iter);
+   return max_iter;
+}
+
 void HypreGMRES::SetKDim(int k_dim)
 {
    HYPRE_GMRESSetKDim(gmres_solver, k_dim);
+}
+
+int HypreGMRES::GetKDim() const
+{
+   HYPRE_Int k_dim;
+   HYPRE_GMRESGetKDim(gmres_solver, &k_dim);
+   return k_dim;
 }
 
 void HypreGMRES::SetLogging(int logging)
@@ -4567,14 +4733,35 @@ void HypreFGMRES::SetTol(real_t tol)
    HYPRE_ParCSRFlexGMRESSetTol(fgmres_solver, tol);
 }
 
+real_t HypreFGMRES::GetTol() const
+{
+   HYPRE_Real tol;
+   HYPRE_FlexGMRESGetTol(fgmres_solver, &tol);
+   return tol;
+}
+
 void HypreFGMRES::SetMaxIter(int max_iter)
 {
    HYPRE_ParCSRFlexGMRESSetMaxIter(fgmres_solver, max_iter);
 }
 
+int HypreFGMRES::GetMaxIter() const
+{
+   HYPRE_Int max_iter;
+   HYPRE_FlexGMRESGetMaxIter(fgmres_solver, &max_iter);
+   return max_iter;
+}
+
 void HypreFGMRES::SetKDim(int k_dim)
 {
    HYPRE_ParCSRFlexGMRESSetKDim(fgmres_solver, k_dim);
+}
+
+int HypreFGMRES::GetKDim() const
+{
+   HYPRE_Int k_dim;
+   HYPRE_FlexGMRESGetKDim(fgmres_solver, &k_dim);
+   return k_dim;
 }
 
 void HypreFGMRES::SetLogging(int logging)
@@ -4673,6 +4860,21 @@ HypreFGMRES::~HypreFGMRES()
    HYPRE_ParCSRFlexGMRESDestroy(fgmres_solver);
 }
 
+#if MFEM_HYPRE_VERSION >= 21500
+HypreParVector HypreFGMRES::GetResiduals() const
+{
+   HYPRE_ParVector r;
+   HYPRE_ParCSRFlexGMRESGetResidual(fgmres_solver, &r);
+   return HypreParVector(r);
+}
+
+void HypreFGMRES::GetFinalAbsResidualNorm(real_t &final_res_norm,
+                                          real_t p) const
+{
+   auto r = GetResiduals();
+   final_res_norm = ParNormlp(r, p, r.GetComm());
+}
+#endif
 
 void HypreDiagScale::SetOperator(const Operator &op)
 {
@@ -4764,7 +4966,7 @@ void HypreParaSails::SetOperator(const Operator &op)
    if (A)
    {
       MPI_Comm comm;
-      HYPRE_ParCSRMatrixGetComm(*A, &comm);
+      HYPRE_ParCSRMatrixGetComm(*new_A, &comm);
       ResetSAIPrecond(comm);
    }
 
@@ -5098,6 +5300,8 @@ void HypreBoomerAMG::ResetAMGPrecond()
    HYPRE_Int Pmax;
    HYPRE_Int print_level;
    HYPRE_Int max_levels;
+   HYPRE_Real tol;
+   HYPRE_Int max_iter;
    HYPRE_Int dim;
    HYPRE_Int nrbms = rbms.Size();
    HYPRE_Int nodal;
@@ -5120,6 +5324,8 @@ void HypreBoomerAMG::ResetAMGPrecond()
    HYPRE_BoomerAMGGetPMaxElmts(amg_precond, &Pmax);
    HYPRE_BoomerAMGGetPrintLevel(amg_precond, &print_level);
    HYPRE_BoomerAMGGetMaxLevels(amg_precond, &max_levels);
+   HYPRE_BoomerAMGGetTol(amg_precond, &tol);
+   HYPRE_BoomerAMGGetMaxIter(amg_precond, &max_iter);
    HYPRE_BoomerAMGGetNumFunctions(amg_precond, &dim);
    if (nrbms) // elasticity solver options
    {
@@ -5139,13 +5345,13 @@ void HypreBoomerAMG::ResetAMGPrecond()
    HYPRE_BoomerAMGSetAggNumLevels(amg_precond, agg_levels);
    HYPRE_BoomerAMGSetRelaxType(amg_precond, relax_type);
    HYPRE_BoomerAMGSetNumSweeps(amg_precond, relax_sweeps);
-   HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels);
-   HYPRE_BoomerAMGSetTol(amg_precond, 0.0);
-   HYPRE_BoomerAMGSetMaxIter(amg_precond, 1); // one V-cycle
    HYPRE_BoomerAMGSetStrongThreshold(amg_precond, theta);
    HYPRE_BoomerAMGSetInterpType(amg_precond, interp_type);
    HYPRE_BoomerAMGSetPMaxElmts(amg_precond, Pmax);
    HYPRE_BoomerAMGSetPrintLevel(amg_precond, print_level);
+   HYPRE_BoomerAMGSetMaxLevels(amg_precond, max_levels);
+   HYPRE_BoomerAMGSetTol(amg_precond, tol);
+   HYPRE_BoomerAMGSetMaxIter(amg_precond, max_iter);
    HYPRE_BoomerAMGSetNumFunctions(amg_precond, dim);
    if (nrbms)
    {
@@ -5159,6 +5365,13 @@ void HypreBoomerAMG::ResetAMGPrecond()
       RecomputeRBMs();
       HYPRE_BoomerAMGSetInterpVectors(amg_precond, rbms.Size(), rbms.GetData());
    }
+}
+
+int HypreBoomerAMG::GetMaxIter() const
+{
+   HYPRE_Int max_iter;
+   HYPRE_BoomerAMGGetMaxIter(amg_precond, &max_iter);
+   return max_iter;
 }
 
 void HypreBoomerAMG::SetOperator(const Operator &op)
@@ -5302,6 +5515,8 @@ void HypreBoomerAMG::RecomputeRBMs()
    // Transfer the RBMs from the ParGridFunction to the HYPRE_ParVector objects
    for (int i = 0; i < nrbms; i++)
    {
+      // Prepare the current values in hypre's memory space before handoff.
+      gf_rbms[i]->HypreRead();
       rbms[i] = gf_rbms[i]->StealParVector();
       delete gf_rbms[i];
    }
@@ -5320,9 +5535,12 @@ void HypreBoomerAMG::SetElasticityOptions(ParFiniteElementSpace *fespace_,
    // Save the finite element space to support multiple calls to SetOperator()
    this->fespace = fespace_;
 
+   MFEM_VERIFY(fespace->GetOrdering() == Ordering::byVDIM,
+               "The elasticity version of BoomerAMG requires Ordering::byVDIM");
+
    // Make sure the systems AMG options are set
    int dim = fespace_->GetParMesh()->Dimension();
-   SetSystemsOptions(dim, fespace->GetOrdering() == Ordering::byNODES);
+   SetSystemsOptions(dim); // elasticity solver only works for Ordering::byVDIM
 
    // Nodal coarsening options (nodal coarsening is required for this solver)
    // See hypre's new_ij driver and the paper for descriptions.
@@ -5507,6 +5725,9 @@ HypreAMS::HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_,
    int cycle_type = 13;
    MakeSolver(sdim, cycle_type);
 
+   x->HypreRead();
+   y->HypreRead();
+   if (z) { z->HypreRead(); }
    HYPRE_ParVector pz = z ? static_cast<HYPRE_ParVector>(*z) : NULL;
    HYPRE_AMSSetCoordinateVectors(ams, *x, *y, pz);
    HYPRE_AMSSetDiscreteGradient(ams, *G);
@@ -5621,6 +5842,10 @@ void HypreAMS::MakeGradientAndInterpolation(
    if (trace_space)
    {
       grad->AddTraceFaceInterpolator(new GradientInterpolator);
+   }
+   else if (dynamic_cast<const RT_FECollection *>(edge_fec))
+   {
+      grad->AddDomainInterpolator(new CurlInterpolator);
    }
    else
    {
@@ -5908,6 +6133,9 @@ HypreADS::HypreADS(
 
    MakeSolver();
 
+   x->HypreRead();
+   y->HypreRead();
+   z->HypreRead();
    HYPRE_ADSSetCoordinateVectors(ads, *x, *y, *z);
    HYPRE_ADSSetDiscreteCurl(ads, *C);
    HYPRE_ADSSetDiscreteGradient(ads, *G);
@@ -6505,6 +6733,13 @@ HypreLOBPCG::Solve()
 
    eigenvalues.SetSize(nev);
    eigenvalues = NAN;
+
+   // Initial-vector assignment and subspace projection may update host data.
+   // LOBPCG also modifies these vectors, so invalidate their host copies.
+   for (int i = 0; i < nev; i++)
+   {
+      multi_vec->GetVector(i).HypreReadWrite();
+   }
 
    // Perform eigenmode calculation
    //

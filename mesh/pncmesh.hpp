@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -46,9 +46,9 @@ namespace mfem
  *  seen by the rest of MFEM as they are skipped when a Mesh is created from
  *  the NCMesh.
  *
- *  The processor that owns a vertex, edge or a face (and in turn its DOFs) is
- *  currently defined to be the one with the lowest rank in the group of
- *  processors that share the entity.
+ *  Edges, faces, and non-hanging vertices use the lowest sharing rank as owner.
+ *  A hanging vertex uses the lowest-ranked owner of a constraining slave
+ *  edge or face containing it.
  *
  *  Vertices, edges and faces that are not owned by this ('MyRank') processor
  *  are ghosts, and are numbered after all real vertices/edges/faces, i.e.,
@@ -154,6 +154,10 @@ public:
    using GroupId = short;
    using CommGroup = std::vector<int>;
 
+   /// ID of the group containing only this rank, i.e., groups[SelfGroupId] =
+   /// { MyRank }.
+   static constexpr GroupId SelfGroupId = 0;
+
    /// Return vertex/edge/face ('entity' == 0/1/2, resp.) owner.
    GroupId GetEntityOwnerId(int entity, int index)
    {
@@ -247,7 +251,7 @@ public:
    /** Extension of NCMesh::GetBoundaryClosure. Filters out ghost vertices and
        ghost edges from 'bdr_vertices' and 'bdr_edges', and uncovers hidden
        internal boundary faces. */
-   void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+   void GetBoundaryClosure(const Array<int> &bdr_attr_marked,
                            Array<int> &bdr_vertices,
                            Array<int> &bdr_edges, Array<int> &bdr_faces) override;
 
@@ -308,7 +312,7 @@ protected: // implementation
    using GroupList = std::vector<CommGroup>;
    using GroupMap = std::map<CommGroup, GroupId>;
 
-   GroupList groups;  // comm group list; NOTE: groups[0] = { MyRank }
+   GroupList groups;  // comm group list; NOTE: groups[SelfGroupId] = {MyRank}
    GroupMap group_id; // search index over groups
 
    // owner rank for each vertex, edge and face (encoded as singleton group)
@@ -497,11 +501,27 @@ protected: // implementation
    /** Used by ParNCMesh::Refine() to inform neighbors about refinements at
     *  the processor boundary. This keeps their ghost layers synchronized.
     */
-   class NeighborRefinementMessage : public ElementValueMessage<char, false,
-      VarMessageTag::NEIGHBOR_REFINEMENT_VM>
+   struct NeighborRefinement
+   {
+      char ref_type;
+      real_t scale[3];
+   };
+
+   class NeighborRefinementMessage
+      : public ElementValueMessage<NeighborRefinement, false,
+        VarMessageTag::NEIGHBOR_REFINEMENT_VM>
    {
    public:
-      void AddRefinement(int elem, char ref_type) { Add(elem, ref_type); }
+      void AddRefinement(int elem, const Refinement &ref)
+      {
+         NeighborRefinement data{};
+         data.ref_type = ref.GetType();
+         for (int i = 0; i < 3; i++)
+         {
+            data.scale[i] = ref.s[i];
+         }
+         Add(elem, data);
+      }
       typedef std::map<int, NeighborRefinementMessage> Map;
    };
 
@@ -515,26 +535,36 @@ protected: // implementation
       typedef std::map<int, NeighborDerefinementMessage> Map;
    };
 
-   /** Used in Step 2 of Rebalance() to synchronize new rank assignments in
-    *  the ghost layer.
+   struct ElementRankAndAttribute
+   {
+      int rank;
+      int attribute;
+   };
+
+   /** Used in RedistributeElements() to synchronize new rank assignments and
+    *  element attributes in the ghost layer.
     */
-   class NeighborElementRankMessage : public ElementValueMessage<int, false,
+   class NeighborElementRankMessage :
+      public ElementValueMessage<ElementRankAndAttribute, false,
       VarMessageTag::NEIGHBOR_ELEMENT_RANK_VM>
    {
    public:
-      void AddElementRank(int elem, int rank) { Add(elem, rank); }
+      void AddElement(int elem, int rank, int attribute)
+      { Add(elem, {rank, attribute}); }
       typedef std::map<int, NeighborElementRankMessage> Map;
    };
 
-   /** Used by Rebalance() to send elements and their ranks. Note that
+   /** Used by Rebalance() to send elements, ranks, and attributes. Note that
     *  RefTypes == true which means the refinement hierarchy will be recreated
     *  on the receiving side.
     */
-   class RebalanceMessage : public ElementValueMessage<int, true,
+   class RebalanceMessage :
+      public ElementValueMessage<ElementRankAndAttribute, true,
       VarMessageTag::REBALANCE_VM>
    {
    public:
-      void AddElementRank(int elem, int rank) { Add(elem, rank); }
+      void AddElement(int elem, int rank, int attribute)
+      { Add(elem, {rank, attribute}); }
       typedef std::map<int, RebalanceMessage> Map;
    };
 
@@ -602,7 +632,8 @@ protected: // implementation
    /** For the face with ordered vertices vn* and neighboring element @a elem,
        check whether the other neighboring element (if it exists) is marked for
        a horizontal refinement conflicting with a vertical split. */
-   void CheckRefAnisoFace(int elem, int vn1, int vn2, int vn3, int vn4,
+   void CheckRefAnisoFace(const Refinement &ref, int elem,
+                          int vn1, int vn2, int vn3, int vn4,
                           const Array<Refinement> &refinements,
                           const std::map<int, int> &elemToRef,
                           std::set<int> &conflicts);
@@ -611,7 +642,8 @@ protected: // implementation
        neighboring element @a elem, check whether the other neighboring element
        (if it exists) is marked for a refinement conflicting with an isotropic
        refinement of the face. */
-   void CheckRefIsoFace(int elem, int vn1, int vn2, int vn3, int vn4,
+   void CheckRefIsoFace(const Refinement &ref, int elem,
+                        int vn1, int vn2, int vn3, int vn4,
                         int en1, int en2, int en3, int en4,
                         const Array<Refinement> &refinements,
                         const std::map<int, int> &elemToRef,
@@ -622,9 +654,8 @@ protected: // implementation
                               const std::map<int, int> &elemToRef,
                               std::set<int> &conflicts);
 
-   /** Check whether the refinement of the element with index @a elem and type
-       @a ref_type would cause a conflict. */
-   void CheckRefinement(int elem, char ref_type,
+   /// Check whether the input refinement would cause a conflict.
+   void CheckRefinement(int elem, const Refinement &ref,
                         const Array<Refinement> &refinements,
                         const std::map<int, int> &elemToRef,
                         std::set<int> &conflicts);

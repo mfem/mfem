@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -397,7 +397,7 @@ void HyperbolicFormIntegrator::AssembleFaceGrad(
             for (int dj = 0; dj < fluxFunction.num_equations; dj++)
             {
                // pre-multiply integration weight to Jacobian
-               const real_t w = +ip.weight * sign * JDotN(di,dj);
+               const real_t w = -ip.weight * sign * JDotN(di,dj);
                for (int j = 0; j < dof2; j++)
                {
                   // Test side 1
@@ -799,6 +799,7 @@ void RusanovFlux::Grad(int side, const Vector &state1, const Vector &state2,
    if (side == 1)
    {
       fluxFunction.ComputeFluxJacobianDotN(state1, nor, Tr, grad);
+      grad *= 0.5;
 
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {
@@ -808,6 +809,7 @@ void RusanovFlux::Grad(int side, const Vector &state1, const Vector &state2,
    else
    {
       fluxFunction.ComputeFluxJacobianDotN(state2, nor, Tr, grad);
+      grad *= 0.5;
 
       for (int i = 0; i < fluxFunction.num_equations; i++)
       {

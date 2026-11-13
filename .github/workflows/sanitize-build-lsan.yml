@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -14,17 +14,17 @@ on:
   workflow_call:
 jobs:
   build-file-lsan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04  # can switch to 'ubuntu-latest' after 2026-11-19
     name: lsan.supp
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: ./.github/actions/sanitize/config
       - name: Cache
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{env.LSAN_DIR}}
-          key: build-lsan-suppression-file
+          key: ${{env.IMAGE_OS}}-build-lsan-suppression-file
       - name: Setup
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
@@ -35,4 +35,8 @@ jobs:
           leak:ompi_mpi_init
           leak:PMPI_Init
           leak:strdup
+          leak:libopen-pal.so
+          leak:libpmix.so
+          leak:libhwloc.so
+          leak:ompi_mpi_instance_init
           EOF

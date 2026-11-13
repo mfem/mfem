@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -188,7 +188,6 @@ protected:
    long long num_marked_elements;
 
    Array<Refinement> marked_elements;
-   long current_sequence;
 
    int non_conforming;
    int nc_limit;
@@ -435,7 +434,7 @@ class Rebalancer : public MeshOperator
 protected:
    /** @brief Rebalance a parallel mesh (only non-conforming parallel meshes are
        supported).
-       @return CONTINUE + REBALANCE on success, NONE otherwise. */
+       @return CONTINUE + REBALANCED on success, NONE otherwise. */
    int ApplyImpl(Mesh &mesh) override;
 
 public:

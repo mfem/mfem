@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -253,7 +253,7 @@ void adios2stream::Print(const Mesh& mesh, const mode print_mode)
       else
       {
          mesh_type = "MFEM mesh v1.0";
-         viz_tools.push_back("Paraview: ADIOS2VTXReader");
+         viz_tools.push_back("ParaView: ADIOS2VTXReader");
          viz_tools.push_back("VTK: vtkADIOS2VTXReader.h");
       }
 

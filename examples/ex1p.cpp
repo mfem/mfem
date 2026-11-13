@@ -42,7 +42,11 @@
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/square-mixed.mesh
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared -m ../data/fichera-mixed.mesh
-//               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
+//               mpirun -np 4 ex1p -pa -d ceed-cpu -m ../data/beam-tet.mesh
+//
+// Device simplices sample runs:
+//               mpirun -np 4 ex1p -pa -d gpu -m ../data/inline-tet.mesh
+//               mpirun -np 4 ex1p -pa -d gpu -m ../data/inline-tri.mesh
 //
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Poisson problem
@@ -83,6 +87,9 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
+#ifdef MFEM_USE_CUDSS
+   bool cudss_solver = false;
+#endif
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh",
@@ -102,6 +109,10 @@ int main(int argc, char *argv[])
    args.AddOption(&algebraic_ceed, "-a", "--algebraic",
                   "-no-a", "--no-algebraic",
                   "Use algebraic Ceed solver");
+#endif
+#ifdef MFEM_USE_CUDSS
+   args.AddOption(&cudss_solver, "-cudss", "--cudss-solver", "-no-cudss",
+                  "--no-cudss-solver", "Use the cuDSS Solver.");
 #endif
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
@@ -158,19 +169,20 @@ int main(int argc, char *argv[])
    }
 
    // 7. Define a parallel finite element space on the parallel mesh. Here we
-   //    use continuous Lagrange finite elements of the specified order. If
-   //    order < 1, we instead use an isoparametric/isogeometric space.
+   //    use continuous Lagrange finite elements of the specified order.
+   //    - If order < 1, we instead use an isoparametric/isogeometric space.
+   //    - If the mesh is simplicial and partial assembly is requested,
+   //      we use the positive basis, which supports device execution.
    FiniteElementCollection *fec;
-   bool delete_fec;
+   auto basis_type = (pa && pmesh.IsSimplexMesh()) ?
+                     BasisType::Positive : BasisType::GaussLobatto;
    if (order > 0)
    {
-      fec = new H1_FECollection(order, dim);
-      delete_fec = true;
+      fec = new H1_FECollection(order, dim, basis_type);
    }
    else if (pmesh.GetNodes())
    {
       fec = pmesh.GetNodes()->OwnFEC();
-      delete_fec = false;
       if (myid == 0)
       {
          cout << "Using isoparametric FEs: " << fec->Name() << endl;
@@ -178,8 +190,7 @@ int main(int argc, char *argv[])
    }
    else
    {
-      fec = new H1_FECollection(order = 1, dim);
-      delete_fec = true;
+      fec = new H1_FECollection(order = 1, dim, basis_type);
    }
    ParFiniteElementSpace fespace(&pmesh, fec);
    HYPRE_BigInt size = fespace.GlobalTrueVSize();
@@ -248,33 +259,51 @@ int main(int argc, char *argv[])
    // 13. Solve the linear system A X = B.
    //     * With full assembly, use the BoomerAMG preconditioner from hypre.
    //     * With partial assembly, use Jacobi smoothing, for now.
-   Solver *prec = NULL;
-   if (pa)
+#ifdef MFEM_USE_CUDSS
+   if (!pa && (Device::Allows(Backend::CUDA_MASK) && cudss_solver))
    {
-      if (UsesTensorBasis(fespace))
-      {
-         if (algebraic_ceed)
-         {
-            prec = new ceed::AlgebraicSolver(a, ess_tdof_list);
-         }
-         else
-         {
-            prec = new OperatorJacobiSmoother(a, ess_tdof_list);
-         }
-      }
+      // Solve using a direct solver with cuDSS
+      CuDSSSolver cudss_solver(MPI_COMM_WORLD);
+      cudss_solver.SetMatrixSymType(
+         CuDSSSolver::SYMMETRIC_POSITIVE_DEFINITE);
+      cudss_solver.SetMatrixViewType(CuDSSSolver::UPPER);
+      cudss_solver.SetOperator(*A);
+      cudss_solver.Mult(B, X);
    }
    else
+#endif
    {
-      prec = new HypreBoomerAMG;
+      Solver *prec = NULL;
+      if (pa)
+      {
+         if (UsesTensorBasis(fespace))
+         {
+            if (algebraic_ceed)
+            {
+               prec = new ceed::AlgebraicSolver(a, ess_tdof_list);
+            }
+            else
+            {
+               prec = new OperatorJacobiSmoother(a, ess_tdof_list);
+            }
+         }
+      }
+      else
+      {
+         prec = new HypreBoomerAMG;
+      }
+      CGSolver cg(MPI_COMM_WORLD);
+      cg.SetRelTol(1e-12);
+      cg.SetMaxIter(2000);
+      cg.SetPrintLevel(1);
+      if (prec)
+      {
+         cg.SetPreconditioner(*prec);
+      }
+      cg.SetOperator(*A);
+      cg.Mult(B, X);
+      delete prec;
    }
-   CGSolver cg(MPI_COMM_WORLD);
-   cg.SetRelTol(1e-12);
-   cg.SetMaxIter(2000);
-   cg.SetPrintLevel(1);
-   if (prec) { cg.SetPreconditioner(*prec); }
-   cg.SetOperator(*A);
-   cg.Mult(B, X);
-   delete prec;
 
    // 14. Recover the parallel grid function corresponding to X. This is the
    //     local finite element solution on each processor.
@@ -308,10 +337,7 @@ int main(int argc, char *argv[])
    }
 
    // 17. Free the used memory.
-   if (delete_fec)
-   {
-      delete fec;
-   }
+   if (order > 0) { delete fec; }
 
    return 0;
 }

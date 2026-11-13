@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -534,6 +534,14 @@ private:
     fixed in both directions). This is the wrong thing to do if the
     two boundaries are (close to) parallel at that point.
 
+    Normal contributions from boundary elements with the same attribute are
+    averaged at each node. Contributions from distinct attributes are
+    averaged independently.
+
+    With @a parallel set to true, this function is collective over shared
+    degree-of-freedom groups, and the set in @a constrained_att must be
+    identical on all ranks. Nonconforming spaces are not currently supported.
+
     @param[in] fespace              A vector finite element space
     @param[in] constrained_att      Boundary attributes to constrain
     @param[out] constraint_rowstarts  The rowstarts for separately
@@ -552,7 +560,7 @@ SparseMatrix * BuildNormalConstraints(FiniteElementSpace& fespace,
                                       bool parallel=false);
 
 #ifdef MFEM_USE_MPI
-/// Parallel wrapper for BuildNormalConstraints
+/// Parallel wrapper for BuildNormalConstraints.
 SparseMatrix * ParBuildNormalConstraints(ParFiniteElementSpace& fespace,
                                          Array<int>& constrained_att,
                                          Array<int>& constraint_rowstarts);

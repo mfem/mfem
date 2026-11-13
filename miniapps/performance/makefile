@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -35,6 +35,8 @@ elif [ -z "$${cxx_v##*clang version*}" -o -z "$${cxx_v##*LLVM version*}" ]; then
   cxx_id="clang";
 elif [ -z "$${cxx_v##*icpc*}" ]; then
     cxx_id="icc";
+elif [ -z "$${cxx_v##*oneAPI*}" ]; then
+    cxx_id="icx";
 elif [ -z "$${cxx_v##*IBM XL*}" ]; then
   cxx_id="xlc";
 elif [ -z "$${cxx_v##*pgc++*}" ]; then
@@ -120,6 +122,7 @@ MFEM_PERF_CXXFLAGS_clang += -ffp-contract=fast
 
 # - Intel C++ compiler extra options:
 MFEM_PERF_CXXFLAGS_icc += -xHost
+MFEM_PERF_CXXFLAGS_icx := $(MFEM_PERF_CXXFLAGS_clang)
 
 
 SEQ_MINIAPPS = ex1

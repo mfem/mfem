@@ -302,15 +302,21 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock_r(vishost, visport);
-      socketstream sol_sock_i(vishost, visport);
       sol_sock_r << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_i << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_r.precision(8);
-      sol_sock_i.precision(8);
       sol_sock_r << "solution\n" << *pmesh << u_exact->real()
                  << "window_title 'Exact: Real Part'" << flush;
+      // Make sure all ranks have sent their real solution before initiating
+      // another set of GLVis connections (one from each rank):
+      MPI_Barrier(pmesh->GetComm());
+      socketstream sol_sock_i(vishost, visport);
+      sol_sock_i << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock_i.precision(8);
       sol_sock_i << "solution\n" << *pmesh << u_exact->imag()
                  << "window_title 'Exact: Imaginary Part'" << flush;
+      // Make sure all ranks have sent their imaginary solution before initiating
+      // another set of GLVis connections (one from each rank):
+      MPI_Barrier(pmesh->GetComm());
    }
 
    // 11. Set up the parallel sesquilinear form a(.,.) on the finite element
@@ -534,15 +540,21 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock_r(vishost, visport);
-      socketstream sol_sock_i(vishost, visport);
       sol_sock_r << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_i << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_r.precision(8);
-      sol_sock_i.precision(8);
       sol_sock_r << "solution\n" << *pmesh << u.real()
                  << "window_title 'Solution: Real Part'" << flush;
+      // Make sure all ranks have sent their real solution before initiating
+      // another set of GLVis connections (one from each rank):
+      MPI_Barrier(pmesh->GetComm());
+      socketstream sol_sock_i(vishost, visport);
+      sol_sock_i << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock_i.precision(8);
       sol_sock_i << "solution\n" << *pmesh << u.imag()
                  << "window_title 'Solution: Imaginary Part'" << flush;
+      // Make sure all ranks have sent their imaginary solution before initiating
+      // another set of GLVis connections (one from each rank):
+      MPI_Barrier(pmesh->GetComm());
    }
    if (visualization && exact_sol)
    {
@@ -551,15 +563,21 @@ int main(int argc, char *argv[])
       char vishost[] = "localhost";
       int  visport   = 19916;
       socketstream sol_sock_r(vishost, visport);
-      socketstream sol_sock_i(vishost, visport);
       sol_sock_r << "parallel " << num_procs << " " << myid << "\n";
-      sol_sock_i << "parallel " << num_procs << " " << myid << "\n";
       sol_sock_r.precision(8);
-      sol_sock_i.precision(8);
       sol_sock_r << "solution\n" << *pmesh << u_exact->real()
                  << "window_title 'Error: Real Part'" << flush;
+      // Make sure all ranks have sent their real solution before initiating
+      // another set of GLVis connections (one from each rank):
+      MPI_Barrier(pmesh->GetComm());
+      socketstream sol_sock_i(vishost, visport);
+      sol_sock_i << "parallel " << num_procs << " " << myid << "\n";
+      sol_sock_i.precision(8);
       sol_sock_i << "solution\n" << *pmesh << u_exact->imag()
                  << "window_title 'Error: Imaginary Part'" << flush;
+      // Make sure all ranks have sent their imaginary solution before initiating
+      // another set of GLVis connections (one from each rank):
+      MPI_Barrier(pmesh->GetComm());
    }
    if (visualization)
    {

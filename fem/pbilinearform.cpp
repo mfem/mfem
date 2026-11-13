@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -488,10 +488,16 @@ void ParBilinearForm::FormLinearSystem(
          R.Mult(x, true_X);
 
          FormSystemMatrix(ess_tdof_list, A);
-         ConstrainedOperator *A_constrained;
-         Operator::FormConstrainedSystemOperator(ess_tdof_list, A_constrained);
+
+         std::unique_ptr<ConstrainedOperator> A_constrained([&]()
+         {
+            Operator *op;
+            Operator::FormSystemOperator(ess_tdof_list, op);
+            return dynamic_cast<ConstrainedOperator*>(op);
+         }());
+         MFEM_ASSERT(A_constrained != nullptr, "");
+
          A_constrained->EliminateRHS(true_X, true_B);
-         delete A_constrained;
          R.MultTranspose(true_B, b);
          hybridization->ReduceRHS(true_B, B);
          X.SetSize(B.Size());

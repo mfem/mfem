@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -103,10 +103,10 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
 
             // Verify that the global indices range from 0 to globalN-1.
             {
-               const HYPRE_BigInt localMin = gi.Size() > 0 ? gi.Min() :
-                                             std::numeric_limits<HYPRE_BigInt>::max();
-               const HYPRE_BigInt localMax = gi.Size() > 0 ? gi.Max() :
-                                             std::numeric_limits<HYPRE_BigInt>::min();
+               HYPRE_BigInt localMin = gi.Size() > 0 ? gi.Min() :
+                                       std::numeric_limits<HYPRE_BigInt>::max();
+               HYPRE_BigInt localMax = gi.Size() > 0 ? gi.Max() :
+                                       std::numeric_limits<HYPRE_BigInt>::min();
 
                HYPRE_BigInt globalMin, globalMax;
                MPI_Allreduce(&localMin, &globalMin, 1, HYPRE_MPI_BIG_INT, MPI_MIN,
@@ -119,6 +119,31 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
          }
       }
    }
+}
+
+TEST_CASE("ParMeshSharedFaces", "[Parallel], [ParMesh]")
+{
+   const char *mesh_file = "../../data/fichera-amr.mesh";
+
+   Mesh mesh(mesh_file);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   pmesh.ExchangeFaceNbrData();
+
+   const int nshared = pmesh.GetNSharedFaces();
+   int local_ghosts_nonmatching = 0;
+   for (int sf = 0; sf < nshared; sf++)
+   {
+      const int f = pmesh.GetSharedFace(sf);
+      FaceElementTransformations *ftr =
+         pmesh.GetSharedFaceTransformationsByLocalIndex(f, false);
+      if (f != ftr->ElementNo) { local_ghosts_nonmatching++; }
+   }
+
+   int global_ghosts_nonmatching = 0;
+   MPI_Allreduce(&local_ghosts_nonmatching, &global_ghosts_nonmatching, 1, MPI_INT,
+                 MPI_SUM, pmesh.GetComm());
+
+   REQUIRE(global_ghosts_nonmatching == 0);
 }
 
 namespace simplicial
@@ -196,6 +221,43 @@ TEST_CASE("ParMeshMakeSimplicial", "[Parallel], [ParMesh]")
 
    x -= x_tet;
    REQUIRE(x.Normlinf() == MFEM_Approx(0.0));
+}
+
+TEST_CASE("ParMeshMakeSimplicial interior boundary", "[Parallel], [ParMesh]")
+{
+   if (Mpi::WorldSize() < 2) { return; }
+
+   const int order = GENERATE(1, 2);
+   const int rank = Mpi::WorldRank();
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL,
+                                     true, 2.0, 1.0, false);
+   // Add an interior boundary that points downwards, opposite to the
+   // orientation of the left quad's edge. This is valid for an interior
+   // boundary, even when its adjacent elements belong to different ranks.
+   mesh.AddBdrSegment(4, 1, 5);
+   mesh.FinalizeTopology();
+
+   if (order > 1) { mesh.SetCurvature(order); }
+
+   // Extra ranks have empty partitions.
+   int partitioning[] = {0, 1};
+   ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning);
+   REQUIRE(pmesh.GetNSharedFaces() == (rank < 2 ? 1 : 0));
+
+   ParMesh simplex_mesh = ParMesh::MakeSimplicial(pmesh);
+   REQUIRE(simplex_mesh.GetNE() == (rank < 2 ? 2 : 0));
+   REQUIRE(simplex_mesh.GetNBE() == pmesh.GetNBE());
+   REQUIRE(simplex_mesh.GetNSharedFaces() == (rank < 2 ? 1 : 0));
+   REQUIRE(simplex_mesh.CheckElementOrientation(false) == 0);
+   for (int i = 0; i < simplex_mesh.GetNE(); i++)
+   {
+      REQUIRE(simplex_mesh.GetElementGeometry(i) == Geometry::TRIANGLE);
+   }
+   for (int i = 0; i < simplex_mesh.GetNBE(); i++)
+   {
+      REQUIRE(simplex_mesh.GetBdrAttribute(i) == pmesh.GetBdrAttribute(i));
+   }
 }
 
 #endif // MFEM_USE_MPI

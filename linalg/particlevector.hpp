@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -44,7 +44,7 @@ protected:
    Ordering::Type ordering;
 
    /// Re-allocate + copy memory. See Array::GrowSize.
-   void GrowSize(int min_num_vectors, bool update_data);
+   void GrowSize(int min_num_vectors, bool keep_data);
 
 public:
 

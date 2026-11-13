@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -160,7 +160,7 @@ static void Kernel(bm::State &state){\
    const bool use_cache = state.range(2);\
    ElasticityBench nle(p, side, use_cache);\
    if (nle.dofs > MAX_NDOFS) { state.SkipWithError("MAX_NDOFS"); }\
-   while (state.KeepRunning()) { nle.Kernel(); }\
+   for (auto _ : state) { nle.Kernel(); }\
    bm::Counter::Flags invrt_rate = bm::Counter::kIsIterationInvariantRate;\
    state.counters["MDof"] = bm::Counter(1e-6*nle.dofs, invrt_rate);\
    state.counters["dofs"] = bm::Counter(nle.dofs);\

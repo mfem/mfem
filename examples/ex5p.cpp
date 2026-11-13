@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
 
    // 8. Define the two BlockStructure of the problem.  block_offsets is used
    //    for Vector based on dof (like ParGridFunction or ParLinearForm),
-   //    block_trueOffstes is used for Vector based on trueDof (HypreParVector
+   //    block_trueOffsets is used for Vector based on trueDof (HypreParVector
    //    for the rhs and solution of the linear system).  The offsets computed
    //    here are local to the processor.
    Array<int> block_offsets(3); // number of variables + 1

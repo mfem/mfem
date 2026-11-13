@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,9 +38,24 @@ int DataCollection::create_directory(const std::string &dir_name,
    // create directories recursively
    const char path_delim = '/';
    std::string::size_type pos = 0;
-   int err_flag;
+   int err_flag = 0;
 #ifdef MFEM_USE_MPI
    const ParMesh *pmesh = dynamic_cast<const ParMesh*>(mesh);
+   // In addition to the global root, let the lowest rank on each shared-memory
+   // node create the directory too, so that node-local (non-shared) filesystems
+   // get it on every node rather than only where the global root lives. On a
+   // shared filesystem the extra mkdir() hits EEXIST and is tolerated below.
+   bool node_root = true;
+   if (pmesh)
+   {
+      MPI_Comm node_comm;
+      MPI_Comm_split_type(pmesh->GetComm(), MPI_COMM_TYPE_SHARED, myid,
+                          MPI_INFO_NULL, &node_comm);
+      int node_rank;
+      MPI_Comm_rank(node_comm, &node_rank);
+      node_root = (node_rank == 0);
+      MPI_Comm_free(&node_comm);
+   }
 #endif
 
    do
@@ -52,7 +67,7 @@ int DataCollection::create_directory(const std::string &dir_name,
       err_flag = mkdir(subdir.c_str(), 0777);
       err_flag = (err_flag && (errno != EEXIST)) ? 1 : 0;
 #else
-      if (myid == 0 || pmesh == NULL)
+      if (node_root || pmesh == NULL)
       {
          err_flag = mkdir(subdir.c_str(), 0777);
          err_flag = (err_flag && (errno != EEXIST)) ? 1 : 0;
@@ -64,7 +79,8 @@ int DataCollection::create_directory(const std::string &dir_name,
 #ifdef MFEM_USE_MPI
    if (pmesh)
    {
-      MPI_Bcast(&err_flag, 1, MPI_INT, 0, pmesh->GetComm());
+      MPI_Allreduce(MPI_IN_PLACE, &err_flag, 1, MPI_INT, MPI_MAX,
+                    pmesh->GetComm());
    }
 #endif
 
@@ -430,7 +446,9 @@ void VisItDataCollection::RegisterField(const std::string& name,
    }
 
    DataCollection::RegisterField(name, gf);
-   field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim(), LOD);
+   field_info_map[name] = VisItFieldInfo("nodes", gf->VectorDim(), LOD,
+                                         gf->FESpace()->FEColl()->Name(),
+                                         gf->FESpace()->FEColl()->GetOrder());
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
@@ -449,7 +467,14 @@ void VisItDataCollection::RegisterQField(const std::string& name,
    }
 
    DataCollection::RegisterQField(name, qf);
-   field_info_map[name] = VisItFieldInfo("elements", 1, LOD);
+   // For quadrature functions, use basis pattern:
+   //   QF_{ORDER}_{VDIM}
+   int qf_vdim  = qf->GetVDim();
+   int qf_order = qf->GetSpace()->GetOrder();
+   std::ostringstream oss;
+   oss << "QF_" << qf_order << "_" << qf_vdim;
+   field_info_map[name] = VisItFieldInfo("quadrature", qf->GetVDim(), LOD,
+                                         oss.str(), qf_order);
    visit_levels_of_detail = std::max(visit_levels_of_detail, LOD);
 }
 
@@ -483,6 +508,8 @@ void VisItDataCollection::SaveRootFile()
                            to_padded_string(cycle, pad_digits_cycle) +
                            ".mfem_root";
    std::ofstream root_file(root_name);
+   MFEM_VERIFY(root_file.is_open(),
+               "Failed to open ofstream " << root_name);
    root_file << GetVisItRootString();
    if (!root_file)
    {
@@ -623,7 +650,8 @@ void VisItDataCollection::LoadFields()
          {
             field_map.Register(it->first, new GridFunction(mesh, file), own_data);
          }
-         else if ((it->second).association == "elements")
+         else if ((it->second).association == "elements" || // old style
+                  (it->second).association == "quadrature") // new style
          {
             q_field_map.Register(it->first, new QuadratureFunction(mesh, file), own_data);
          }
@@ -637,7 +665,8 @@ void VisItDataCollection::LoadFields()
                it->first,
                new ParGridFunction(dynamic_cast<ParMesh*>(mesh), file), own_data);
          }
-         else if ((it->second).association == "elements")
+         else if ((it->second).association == "elements" || // old style
+                  (it->second).association == "quadrature") // new style
          {
             q_field_map.Register(it->first, new QuadratureFunction(mesh, file), own_data);
          }
@@ -676,6 +705,8 @@ std::string VisItDataCollection::GetVisItRootString()
       ftags["assoc"] = picojson::value((it->second).association);
       ftags["comps"] = picojson::value(to_string((it->second).num_components));
       ftags["lod"] = picojson::value(to_string((it->second).lod));
+      ftags["basis"] = picojson::value((it->second).basis);
+      ftags["order"] = picojson::value(to_string((it->second).order));
       field["path"] = picojson::value(path_str + it->first + file_ext_format);
       field["tags"] = picojson::value(ftags);
       fields[it->first] = picojson::value(field);
@@ -752,9 +783,31 @@ void VisItDataCollection::ParseVisItRootString(const std::string& json)
            it != fields_obj.end(); ++it)
       {
          picojson::value tags = it->second.get("tags");
+
+         // defaults that allow us to parse older mfem_root files
+         int lod = 1;
+         std::string basis = "";
+         int order = -1;
+
+         if (tags.contains("lod"))
+         {
+            lod = to_int(tags.get("lod").get<std::string>());
+         }
+
+         if (tags.contains("basis"))
+         {
+            basis = tags.get("comps").get<std::string>();
+         }
+
+         if (tags.contains("order"))
+         {
+            order = to_int(tags.get("comps").get<std::string>());
+         }
+
          field_info_map[it->first] =
             VisItFieldInfo(tags.get("assoc").get<std::string>(),
-                           to_int(tags.get("comps").get<std::string>()));
+                           to_int(tags.get("comps").get<std::string>()),
+                           lod, basis, order);
       }
    }
 }
@@ -772,7 +825,7 @@ ParaViewDataCollectionBase::ParaViewDataCollectionBase(
 
 void ParaViewDataCollectionBase::SetLevelsOfDetail(int levels_of_detail_)
 {
-   levels_of_detail = levels_of_detail_;
+   levels_of_detail = std::max(levels_of_detail_, 1);
 }
 
 void ParaViewDataCollectionBase::SetHighOrderOutput(bool high_order_output_)
@@ -942,7 +995,10 @@ void ParaViewDataCollection::Save()
    // Save the local part of the mesh and grid functions fields to the local
    // VTU file. Also save coefficient fields.
    {
-      std::ofstream os(vtu_prefix + GenerateVTUFileName("proc", myid));
+      std::string os_str = vtu_prefix + GenerateVTUFileName("proc", myid);
+      std::ofstream os(os_str);
+      MFEM_VERIFY(os.is_open(),
+                  "Failed to open ofstream " << os_str);
       os.precision(precision);
       SaveDataVTU(os, levels_of_detail);
    }
@@ -954,7 +1010,10 @@ void ParaViewDataCollection::Save()
                   "QuadratureFunction output is not supported for "
                   "ParaViewDataCollection on domain boundary!");
       const std::string &field_name = qfield.first;
-      std::ofstream os(vtu_prefix + GenerateVTUFileName(field_name, myid));
+      std::string os_str = vtu_prefix + GenerateVTUFileName(field_name, myid);
+      std::ofstream os(os_str);
+      MFEM_VERIFY(os.is_open(),
+                  "Failed to open ofstream " << os_str);
       qfield.second->SaveVTU(os, pv_data_format, GetCompressionLevel(), field_name);
    }
 
@@ -965,7 +1024,10 @@ void ParaViewDataCollection::Save()
    {
       // Create the main PVTU file
       {
-         std::ofstream pvtu_out(vtu_prefix + GeneratePVTUFileName("data"));
+         std::string os_str = vtu_prefix + GeneratePVTUFileName("data");
+         std::ofstream pvtu_out(os_str);
+         MFEM_VERIFY(pvtu_out.is_open(),
+                     "Failed to open ofstream " << os_str);
          WritePVTUHeader(pvtu_out);
 
          // Grid function fields and coefficient fields
@@ -1020,8 +1082,10 @@ void ParaViewDataCollection::Save()
          const std::string &q_field_name = q_field.first;
          std::string q_fname = GeneratePVTUPath() + "/"
                                + GeneratePVTUFileName(q_field_name);
-
-         std::ofstream pvtu_out(col_path + "/" + q_fname);
+         std::string os_str = col_path + "/" + q_fname;
+         std::ofstream pvtu_out(os_str);
+         MFEM_VERIFY(pvtu_out.is_open(),
+                     "Failed to open ofstream " << os_str);
          WritePVTUHeader(pvtu_out);
          int vec_dim = q_field.second->GetVDim();
          pvtu_out << "<PPointData>\n";
@@ -1133,12 +1197,14 @@ void ParaViewDataCollection::SaveGFieldVTU(std::ostream &os, int ref_,
    DenseMatrix vval, pmat;
    std::vector<char> buf;
    int vec_dim = it->second->VectorDim();
+   int map_type = it->second->FESpace()->GetTypicalFE()->GetMapType();
    os << "<DataArray type=\"" << GetDataTypeString()
       << "\" Name=\"" << it->first
       << "\" NumberOfComponents=\"" << vec_dim << "\" "
       << VTKComponentLabels(vec_dim) << " "
       << "format=\"" << GetDataFormatString() << "\" >" << '\n';
-   if (vec_dim == 1)
+   if (vec_dim == 1 && (map_type == FiniteElement::VALUE ||
+                        map_type == FiniteElement::INTEGRAL))
    {
       for (int i = 0; i < mesh->GetNE(); i++)
       {

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -745,7 +745,7 @@ void ParSubMesh::BuildSharedEdgesMapping(const int sedges_ct,
             int v0 = parent_to_submesh_vertex_ids_[vert[(1-o)/2]];
             int v1 = parent_to_submesh_vertex_ids_[vert[(1+o)/2]];
 
-            // The orienation of the shared edge relative to the local edge will
+            // The orientation of the shared edge relative to the local edge will
             // be determined by whether v0 < v1 or v1 < v0
             shared_edges.Append(new Segment(v0, v1, 1));
             sedge_ledge.Append(submesh_edge_id);
@@ -781,28 +781,16 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
 
             GetFaceVertices(submesh_face_id, vert);
 
-            int v0 = vert[0];
-            int v1 = vert[1];
-            int v2 = vert[2];
-
-            // See Mesh::GetTriOrientation for info on interpretting "o"
-            switch (o)
+            // Reorder all six possible orientations, including rotations.
+            const int *orientation =
+               Geometry::Constants<Geometry::TRIANGLE>::Orient[o];
+            int shared[3];
+            for (int i = 0; i < 3; i++)
             {
-               case 1:
-                  std::swap(v0,v1);
-                  break;
-               case 3:
-                  std::swap(v2,v0);
-                  break;
-               case 5:
-                  std::swap(v1,v2);
-                  break;
-               default:
-                  // Do nothing
-                  break;
+               shared[orientation[i]] = vert[i];
             }
 
-            shared_trias.Append(Vert3(v0, v1, v2));
+            shared_trias.Append(Vert3(shared[0], shared[1], shared[2]));
             sface_lface.Append(submesh_face_id);
          }
       }
@@ -824,34 +812,17 @@ void ParSubMesh::BuildSharedFacesMapping(const int nstrias,
             Array<int> vert;
             GetFaceVertices(submesh_face_id, vert);
 
-            int v0 = vert[0];
-            int v1 = vert[1];
-            int v2 = vert[2];
-            int v3 = vert[3];
-
-            // See Mesh::GetQuadOrientation for info on interpreting "o"
-            switch (o)
+            // Reorder all eight possible orientations, including rotations.
+            const int *orientation =
+               Geometry::Constants<Geometry::SQUARE>::Orient[o];
+            int shared[4];
+            for (int i = 0; i < 4; i++)
             {
-               case 1:
-                  std::swap(v1,v3);
-                  break;
-               case 3:
-                  std::swap(v0,v1);
-                  std::swap(v2,v3);
-                  break;
-               case 5:
-                  std::swap(v0,v2);
-                  break;
-               case 7:
-                  std::swap(v0,v3);
-                  std::swap(v1,v2);
-                  break;
-               default:
-                  // Do nothing
-                  break;
+               shared[orientation[i]] = vert[i];
             }
 
-            shared_quads.Append(Vert4(v0, v1, v2, v3));
+            shared_quads.Append(Vert4(shared[0], shared[1],
+                                      shared[2], shared[3]));
             sface_lface.Append(submesh_face_id);
          }
       }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,13 +26,12 @@ namespace internal
 {
 
 template <int T_D1D = 0, int T_Q1D = 0>
-static void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
-                                 const Array<real_t> &bt,
-                                 const Array<real_t> &g,
-                                 const Array<real_t> &gt, const real_t sigma,
-                                 const Vector &pa_data, const Vector &x_,
-                                 const Vector &dxdn_, Vector &y_, Vector &dydn_,
-                                 const int d1d = 0, const int q1d = 0)
+void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
+                          const Array<real_t> &bt, const Array<real_t> &g,
+                          const Array<real_t> &gt, const real_t sigma,
+                          const Vector &pa_data, const Vector &x_,
+                          const Vector &dxdn_, Vector &y_, Vector &dydn_,
+                          const int d1d = 0, const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
@@ -200,13 +199,12 @@ static void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
-static void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
-                                 const Array<real_t> &bt,
-                                 const Array<real_t> &g,
-                                 const Array<real_t> &gt, const real_t sigma,
-                                 const Vector &pa_data, const Vector &x_,
-                                 const Vector &dxdn_, Vector &y_, Vector &dydn_,
-                                 const int d1d = 0, const int q1d = 0)
+void PADGDiffusionApply3D(const int NF, const Array<real_t> &b,
+                          const Array<real_t> &bt, const Array<real_t> &g,
+                          const Array<real_t> &gt, const real_t sigma,
+                          const Vector &pa_data, const Vector &x_,
+                          const Vector &dxdn_, Vector &y_, Vector &dydn_,
+                          const int d1d = 0, const int q1d = 0)
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;

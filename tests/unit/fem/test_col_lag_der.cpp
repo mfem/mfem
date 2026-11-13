@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,15 +39,15 @@ TEST_CASE("Collocated Derivative Kernels", "[QuadratureInterpolator]")
 {
    // Add some specializations for the kernels
    // DIM, LAYOUT, PHYS, VDIM, D1D, Q1D
-   QuadratureInterpolator::GradKernels::Specialization
-   <1, QVectorLayout::byNODES, false, 1, 2, 2>::Add();
-   QuadratureInterpolator::GradKernels::Specialization
-   <1, QVectorLayout::byNODES, true, 1, 2, 2>::Add();
+   QuadratureInterpolator::AddGradSpecializations<1, QVectorLayout::byNODES,
+                          false, 1, 2, 2>();
+   QuadratureInterpolator::AddGradSpecializations<1, QVectorLayout::byNODES,
+                          true, 1, 2, 2>();
 
-   QuadratureInterpolator::CollocatedGradKernels::Specialization
-   <1, QVectorLayout::byNODES, false, 1, 2>::Add();
-   QuadratureInterpolator::CollocatedGradKernels::Specialization
-   <1, QVectorLayout::byNODES, true, 1, 2>::Add();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<
+   1, QVectorLayout::byNODES, false, 1, 2>();
+   QuadratureInterpolator::AddCollocatedGradSpecializations<
+   1, QVectorLayout::byNODES, true, 1, 2>();
 
    const auto mesh_fname = GENERATE(
                               "../../data/inline-segment.mesh",
@@ -151,19 +151,29 @@ TEST_CASE("Collocated Derivative Kernels", "[QuadratureInterpolator]")
       auto L = GENERATE(QVectorLayout::byNODES, QVectorLayout::byVDIM);
       auto P = GENERATE(true, false);
 
+      CAPTURE(L, P);
+
       const int nd = maps.ndof;
       const int nq = maps.nqpt;
 
       Vector qp_der(nelem*vdim*nqp*(P ? sdim : dim));
-      GK::Run(dim, L, P, vdim, nd, nq, nelem, maps.B.Read(),
-              maps.G.Read(), geom->J.Read(), evec_values.Read(),
-              qp_der.Write(), sdim, vdim, nd, nq);
+      GK::Run(dim, L, P, vdim, nd, nq, nelem, maps.B.Read(), maps.G.Read(),
+              geom->J.Read(), evec_values.Read(), qp_der.Write(), sdim, vdim,
+              nd, nq);
 
       Vector col_der(nelem*vdim*nqp*(P ? sdim : dim));
       CGK::Run(dim, L, P, vdim, nd, nelem, maps.G.Read(), geom->J.Read(),
                evec_values.Read(), col_der.Write(), sdim, vdim, nd);
 
+      const real_t max_norm = qp_der.Normlinf();
+
       qp_der -= col_der;
-      REQUIRE(qp_der.Normlinf() == MFEM_Approx(0.0, 1e-10, 1e-10));
+
+      const real_t abs_err = qp_der.Normlinf();
+      const real_t rel_err = max_norm > 0_r ?
+                             abs_err/max_norm :
+                             abs_err > 0_r ? mfem::infinity() : 0_r;
+      CAPTURE(rel_err, max_norm);
+      CHECK(rel_err <= 1e-13);
    }
 }

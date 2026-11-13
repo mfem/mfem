@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,9 +18,9 @@
 // This miniapp illustrates the use of an absolute value L(1)-Jacobi smoother.
 // We use a multigrid approach (cf. ex26(p)). The global solver and the coarse
 // level solver are user-selected. The current options are SLI and PCG. The
-// intermediate levels are directy smoothed with the absolute value L(1)-Jacobi
+// intermediate levels are directly smoothed with the absolute value L(1)-Jacobi
 // preconditioner. The systems to solve correspond to a mass matrix, and a
-// difussion system.
+// diffusion system.
 //
 // The preconditioner can be defined at run-time. Similarly, the mesh can be
 // modified by a Kershaw transformation at run-time. Relative tolerance and
@@ -275,7 +275,7 @@ int main(int argc, char *argv[])
    }
 
    // 7. Extract the list of the essential boundary DoFs. We mark all boundary
-   //    attibutes as essential. AbsL1GeometricMultigrid will determine the
+   //    attributes as essential. AbsL1GeometricMultigrid will determine the
    //    DoFs per level.
    Array<int> ess_bdr(mesh->bdr_attributes.Max());
    if (mesh->bdr_attributes.Size()) { ess_bdr = 1; }

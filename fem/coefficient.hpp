@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,6 +30,34 @@ class QuadratureFunction;
 class ParMesh;
 #endif
 
+/// Abstract base class for scalar, vector, and matrix coefficients
+class CoefficientBase
+{
+public:
+   /// @brief Return the first of @a coeff, @a vec_coeff, @a mat_coeff that is
+   /// not null; return nullptr if they are all null.
+   ///
+   /// Many integrators store pointers to all three types of coefficients, e.g.
+   /// Q, VQ, MQ, where at most one of the three may be non-null. This function
+   /// is used to access the non-null one if it exists.
+   static CoefficientBase *Get(class Coefficient *coeff = nullptr,
+                               class VectorCoefficient *vec_coeff = nullptr,
+                               class MatrixCoefficient *mat_coeff = nullptr);
+
+   /// @brief Fill the CoefficientVector @a vec by evaluating the coefficient at
+   /// the quadrature points.
+   virtual void Project(class CoefficientVector &vec);
+
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points.
+   virtual void Project(QuadratureFunction &qf) = 0;
+
+   /// @brief Returns the size of the coefficient (1 for scalars, vdim for
+   /// vectors, width times height for matrices).
+   virtual int GetCoefficientSize() const = 0;
+
+   virtual ~CoefficientBase() = default;
+};
 
 /** @brief Base class Coefficients that optionally depend on space and time.
     These are used by the BilinearFormIntegrator, LinearFormIntegrator, and
@@ -38,7 +66,7 @@ class ParMesh;
     general way to represent functions that don't necessarily belong to a FE
     space, e.g., to project onto GridFunctions to use as initial conditions,
     exact solutions, etc. See, e.g., ex4 or ex22 for these uses. */
-class Coefficient
+class Coefficient : public CoefficientBase
 {
 protected:
    real_t time;
@@ -51,6 +79,11 @@ public:
 
    /// Get the time for time dependent coefficients
    real_t GetTime() { return time; }
+
+   /// Returns dimension of the vector.
+   int GetVDim() const { return 1; }
+
+   int GetCoefficientSize() const override { return GetVDim(); }
 
    /** @brief Evaluate the coefficient in the element described by @a T at the
        point @a ip. */
@@ -72,9 +105,9 @@ public:
       return Eval(T, ip);
    }
 
-   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
-   /// the quadrature points.
-   virtual void Project(QuadratureFunction &qf);
+   using CoefficientBase::Project;
+
+   virtual void Project(QuadratureFunction &qf) override;
 
    virtual ~Coefficient() { }
 };
@@ -93,6 +126,9 @@ public:
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override
    { return (constant); }
+
+   /// Set the CoefficientVector to the constant value.
+   void Project(CoefficientVector &vec) override;
 
    /// Fill the QuadratureFunction @a qf with the constant value.
    void Project(QuadratureFunction &qf) override;
@@ -114,11 +150,10 @@ public:
    /// Construct the constant coefficient using a vector of constants.
    /** @a c should be a vector defined by attributes, so for region with
        attribute @a i @a c[i-1] is the coefficient in that region */
-   PWConstCoefficient(Vector &c)
-   { constants.SetSize(c.Size()); constants=c; }
+   PWConstCoefficient(const Vector &c) { UpdateConstants(c); }
 
    /// Update the constants with vector @a c.
-   void UpdateConstants(Vector &c) { constants.SetSize(c.Size()); constants=c; }
+   void UpdateConstants(const Vector &c) { constants = c; }
 
    /// Return a reference to the i-th constant
    real_t &operator()(int i) { return constants(i-1); }
@@ -132,6 +167,8 @@ public:
    /// Evaluate the coefficient.
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
+
+   using Coefficient::Project;
 
    /// Fill the QuadratureFunction @a qf with the piecewise constant values.
    void Project(QuadratureFunction &qf) override;
@@ -410,6 +447,8 @@ public:
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
 
+   using Coefficient::Project;
+
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points.
    ///
@@ -571,7 +610,7 @@ public:
 };
 
 /// Base class for vector Coefficients that optionally depend on time and space.
-class VectorCoefficient
+class VectorCoefficient : public CoefficientBase
 {
 protected:
    int vdim;
@@ -585,10 +624,12 @@ public:
    virtual void SetTime(real_t t) { time = t; }
 
    /// Get the time for time dependent coefficients
-   real_t GetTime() { return time; }
+   real_t GetTime() const { return time; }
 
    /// Returns dimension of the vector.
-   int GetVDim() { return vdim; }
+   int GetVDim() const { return vdim; }
+
+   int GetCoefficientSize() const override { return GetVDim(); }
 
    /** @brief Evaluate the vector coefficient in the element described by @a T
        at the point @a ip, storing the result in @a V. */
@@ -613,12 +654,14 @@ public:
    virtual void Eval(DenseMatrix &M, ElementTransformation &T,
                      const IntegrationRule &ir);
 
+   using CoefficientBase::Project;
+
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points.
    ///
    /// The @a vdim of the VectorCoefficient should be equal to the @a vdim of
    /// the QuadratureFunction.
-   virtual void Project(QuadratureFunction &qf);
+   virtual void Project(QuadratureFunction &qf) override;
 
    virtual ~VectorCoefficient() { }
 };
@@ -638,6 +681,11 @@ public:
    ///  Evaluate the vector coefficient at @a ip.
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip) override { V = vec; }
+
+   using VectorCoefficient::Project;
+
+   /// Sets the CoefficientVector to the constant (allowing for compression).
+   void Project(CoefficientVector &coeff_vec) override;
 
    /// Return a reference to the constant vector in this class.
    const Vector& GetVec() const { return vec; }
@@ -859,6 +907,8 @@ public:
    void Eval(DenseMatrix &M, ElementTransformation &T,
              const IntegrationRule &ir) override;
 
+   using VectorCoefficient::Project;
+
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points.
    ///
@@ -896,6 +946,8 @@ public:
        M. */
    void Eval(DenseMatrix &M, ElementTransformation &T,
              const IntegrationRule &ir) override;
+
+   using VectorCoefficient::Project;
 
    /// @copydoc VectorCoefficient::Project(QuadratureFunction &)
    void Project(QuadratureFunction &qf) override;
@@ -1053,8 +1105,9 @@ public:
 
 typedef VectorCoefficient DiagonalMatrixCoefficient;
 
-/// Base class for Matrix Coefficients that optionally depend on time and space.
-class MatrixCoefficient
+/// @brief Base class for matrix-valued coefficients that optionally depend on
+/// time and space.
+class MatrixCoefficient : public CoefficientBase
 {
 protected:
    int height, width;
@@ -1085,6 +1138,8 @@ public:
    /// For backward compatibility get the width of the matrix.
    int GetVDim() const { return width; }
 
+   int GetCoefficientSize() const override { return width * height; }
+
    /** @deprecated Use SymmetricMatrixCoefficient instead */
    bool IsSymmetric() const { return symmetric; }
 
@@ -1096,13 +1151,34 @@ public:
    virtual void Eval(DenseMatrix &K, ElementTransformation &T,
                      const IntegrationPoint &ip) = 0;
 
+   using CoefficientBase::Project;
+
+   /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
+   /// the quadrature points.
+   ///
+   /// The @a vdim of the QuadratureFunction should be equal to the height times
+   /// the width of the matrix.
+   ///
+   /// @sa Project(QuadratureFunction&, bool) for the option to transpose the
+   /// coefficient.
+   virtual void Project(QuadratureFunction &qf) override;
+
    /// @brief Fill the QuadratureFunction @a qf by evaluating the coefficient at
    /// the quadrature points. The matrix will be transposed or not according to
    /// the boolean argument @a transpose.
    ///
+   /// The stored entries use the same row/column convention as `Eval()`,
+   /// unless `transpose == true`, in which case `K^T` is stored instead.
+   ///
    /// The @a vdim of the QuadratureFunction should be equal to the height times
    /// the width of the matrix.
-   virtual void Project(QuadratureFunction &qf, bool transpose=false);
+   virtual void Project(QuadratureFunction &qf, bool transpose);
+
+   /// @brief Fill the CoefficientVector @a vec. The matrix will be transposed
+   /// or not according to the boolean argument @a transpose.
+   virtual void Project(CoefficientVector &vec, bool transpose);
+
+   virtual void Project(CoefficientVector &vec) override;
 
    /// (DEPRECATED) Evaluate a symmetric matrix coefficient.
    /** @brief Evaluate the upper triangular entries of the matrix coefficient
@@ -1132,6 +1208,9 @@ public:
    /// Evaluate the matrix coefficient at @a ip.
    void Eval(DenseMatrix &M, ElementTransformation &T,
              const IntegrationPoint &ip) override { M = mat; }
+   using MatrixCoefficient::Project;
+   /// Sets the CoefficientVector to the constant (allowing for compression).
+   void Project(CoefficientVector &vec, bool transpose) override;
    /// Return a reference to the constant matrix.
    const DenseMatrix& GetMatrix() { return mat; }
 };
@@ -1332,8 +1411,8 @@ public:
    /// Get the coefficient located at (i,j) in the matrix.
    Coefficient* GetCoeff (int i, int j) { return Coeff[i*width+j]; }
 
-   /** @brief Set the coefficient located at (i,j) in the matrix.  By default by
-       default this will take ownership of the Coefficient passed in, but this
+   /** @brief Set the coefficient located at (i,j) in the matrix.  By default
+       this will take ownership of the Coefficient passed in, but this
        can be overridden with the @a own parameter. */
    void Set(int i, int j, Coefficient * c, bool own=true);
 
@@ -1456,6 +1535,8 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(real_t t) override;
 
+   using Coefficient::Project;
+
    /// @copydoc Coefficient::Project(QuadratureFunction &)
    void Project(QuadratureFunction &qf) override;
 
@@ -1518,6 +1599,10 @@ public:
    /// The @a vdim of the coefficient should be equal to height*(height+1)/2.
    virtual void ProjectSymmetric(QuadratureFunction &qf);
 
+   using MatrixCoefficient::Project;
+
+   void Project(CoefficientVector &vec, bool transpose) override;
+
    /** @brief Evaluate the matrix coefficient in the element described by @a T
        at the point @a ip, storing the result as a symmetric matrix @a K. */
    /** @note When this method is called, the caller must make sure that the
@@ -1559,7 +1644,9 @@ public:
    /// Evaluate the matrix coefficient at @a ip.
    void Eval(DenseSymmetricMatrix &M, ElementTransformation &T,
              const IntegrationPoint &ip) override { M = mat; }
-
+   using MatrixCoefficient::Project;
+   /// Sets the CoefficientVector to the constant (allowing for compression).
+   void Project(CoefficientVector &vec, bool transpose) override;
    /// Return a reference to the constant matrix.
    const DenseSymmetricMatrix& GetMatrix() { return mat; }
 
@@ -1640,6 +1727,8 @@ public:
    /// Set the time for internally stored coefficients
    void SetTime(real_t t) override;
 
+   using Coefficient::Project;
+
    /// @copydoc Coefficient::Project(QuadratureFunction &)
    void Project(QuadratureFunction &qf) override;
 
@@ -1690,6 +1779,8 @@ public:
 
    /// Set the time for internally stored coefficients
    void SetTime(real_t t) override;
+
+   using Coefficient::Project;
 
    /// @copydoc Coefficient::Project(QuadratureFunction &)
    void Project(QuadratureFunction &qf) override;
@@ -1787,6 +1878,8 @@ public:
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
 
+   using Coefficient::Project;
+
    /// @copydoc Coefficient::Project(QuadratureFunction &)
    void Project(QuadratureFunction &qf) override;
 };
@@ -1869,6 +1962,87 @@ public:
    MatrixCoefficient * GetACoef() const { return a; }
 
    /// Evaluate the trace coefficient at @a ip.
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
+};
+
+/// Scalar coefficient defined as component of a vector coefficient
+class VectorComponentCoefficient : public Coefficient
+{
+private:
+   VectorCoefficient *a = nullptr;
+
+   mutable Vector va;
+   int component;
+
+public:
+   /// Construct with a vector coefficient.
+   VectorComponentCoefficient(VectorCoefficient &A)
+      : a(&A), va(A.GetVDim()), component(0) {};
+
+   /// Construct with a vector coefficient and a component index @a c.
+   VectorComponentCoefficient(VectorCoefficient &A, int c);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t) override;
+
+   /// Reset the vector coefficient
+   void SetACoef(VectorCoefficient &A) { a = &A; }
+
+   /// Return the vector coefficient
+   VectorCoefficient * GetACoef() const { return a; }
+
+   /// Set the component
+   void SetComponent(int c);
+
+   /// Return the component
+   int GetComponent() const { return component; }
+
+   /// Evaluate the component coefficient at @a ip.
+   real_t Eval(ElementTransformation &T,
+               const IntegrationPoint &ip) override;
+};
+
+/// Scalar coefficient defined as component of a matrix coefficient
+class MatrixComponentCoefficient : public Coefficient
+{
+private:
+   MatrixCoefficient *a = nullptr;
+
+   mutable DenseMatrix ma;
+   int row_idx,col_idx;
+
+public:
+   /// Construct with a matrix coefficient.
+   MatrixComponentCoefficient(MatrixCoefficient &A)
+      : a(&A), ma(A.GetHeight(), A.GetWidth()), row_idx(0), col_idx(0) {};
+
+   /// Construct with the matrix coefficient.
+   MatrixComponentCoefficient(MatrixCoefficient &A, int ri, int ci);
+
+   /// Set the time for internally stored coefficients
+   void SetTime(real_t t) override;
+
+   /// Reset the matrix coefficient
+   void SetACoef(MatrixCoefficient &A) { a = &A; }
+
+   /// Return the matrix coefficient
+   MatrixCoefficient * GetACoef() const { return a; }
+
+   /// Reset the index
+   void SetRowIndex(int ri);
+
+   /// Return the index
+   int GetRowIndex() const { return row_idx; }
+
+   /// Reset the index
+   void SetColumnIndex(int ci);
+
+   /// Return the index
+   int GetColumnIndex() const { return col_idx; }
+
+
+   /// Evaluate the component coefficient at @a ip.
    real_t Eval(ElementTransformation &T,
                const IntegrationPoint &ip) override;
 };
@@ -2393,6 +2567,8 @@ public:
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip) override;
 
+   void Project(CoefficientVector &vec) override;
+
    void Project(QuadratureFunction &qf) override;
 
    virtual ~VectorQuadratureFunctionCoefficient() { }
@@ -2413,6 +2589,9 @@ public:
    const QuadratureFunction& GetQuadFunction() const { return QuadF; }
 
    real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override;
+
+   /// Make the CoefficientVector reference the underlying QuadratureFunction.
+   void Project(CoefficientVector &vec) override;
 
    void Project(QuadratureFunction &qf) override;
 
@@ -2438,7 +2617,6 @@ inline int operator&(CoefficientStorage a, CoefficientStorage b)
    return int(a) & int(b);
 }
 
-
 /// @brief Class to represent a coefficient evaluated at quadrature points.
 ///
 /// In the general case, a CoefficientVector is the same as a QuadratureFunction
@@ -2454,7 +2632,8 @@ protected:
    CoefficientStorage storage; ///< Storage optimizations (see CoefficientStorage).
    int vdim; ///< Number of values per quadrature point.
    QuadratureSpaceBase &qs; ///< Associated QuadratureSpaceBase.
-   QuadratureFunction *qf; ///< Internal QuadratureFunction (owned, may be NULL).
+   /// Internal QuadratureFunction (may be null).
+   std::unique_ptr<QuadratureFunction> qf;
 public:
    /// Create an empty CoefficientVector.
    CoefficientVector(QuadratureSpaceBase &qs_,
@@ -2468,36 +2647,16 @@ public:
    CoefficientVector(Coefficient *coeff, QuadratureSpaceBase &qs,
                      CoefficientStorage storage_ = CoefficientStorage::FULL);
 
-   /// @brief Create a CoefficientVector from the given Coefficient and
+   /// @brief Create a CoefficientVector from the given CoefficientBase and
    /// QuadratureSpaceBase.
    ///
    /// @sa CoefficientStorage for a description of @a storage_.
-   CoefficientVector(Coefficient &coeff, QuadratureSpaceBase &qs,
+   CoefficientVector(CoefficientBase &coeff, QuadratureSpaceBase &qs,
                      CoefficientStorage storage_ = CoefficientStorage::FULL);
 
-   /// @brief Create a CoefficientVector from the given VectorCoefficient and
-   /// QuadratureSpaceBase.
-   ///
-   /// @sa CoefficientStorage for a description of @a storage_.
-   CoefficientVector(VectorCoefficient &coeff, QuadratureSpaceBase &qs,
-                     CoefficientStorage storage_ = CoefficientStorage::FULL);
-
-   /// @brief Create a CoefficientVector from the given MatrixCoefficient and
-   /// QuadratureSpaceBase.
-   ///
-   /// @sa CoefficientStorage for a description of @a storage_.
-   CoefficientVector(MatrixCoefficient &coeff, QuadratureSpaceBase &qs,
-                     CoefficientStorage storage_ = CoefficientStorage::FULL);
-
-   /// @brief Evaluate the given Coefficient at the quadrature points defined by
-   /// @ref qs.
-   void Project(Coefficient &coeff);
-
-   /// @brief Evaluate the given VectorCoefficient at the quadrature points
+   /// @brief Evaluate the given CoefficientBase at the quadrature points
    /// defined by @ref qs.
-   ///
-   /// @sa CoefficientVector for a description of the @a compress argument.
-   void Project(VectorCoefficient &coeff);
+   void Project(CoefficientBase &coeff);
 
    /// @brief Evaluate the given MatrixCoefficient at the quadrature points
    /// defined by @ref qs.
@@ -2520,13 +2679,19 @@ public:
    void SetConstant(const Vector &constant);
 
    /// Set this vector to the given constant matrix.
-   void SetConstant(const DenseMatrix &constant);
+   void SetConstant(const DenseMatrix &constant, bool transpose=false);
 
    /// Set this vector to the given constant symmetric matrix.
    void SetConstant(const DenseSymmetricMatrix &constant);
 
    /// Return the number of values per quadrature point.
    int GetVDim() const;
+
+   /// Returns the storage type associated with this CoefficientVector.
+   CoefficientStorage GetStorage() const;
+
+   /// Creates, if needed, the underlying quadrature function and returns it.
+   QuadratureFunction &SetupQuadratureFunction(int vdim_);
 
    ~CoefficientVector();
 };

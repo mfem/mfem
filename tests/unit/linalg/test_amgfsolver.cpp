@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -88,14 +88,11 @@ HypreParMatrix * GetProlongationMatrix(const ParFiniteElementSpace* pfes,
    HYPRE_BigInt glob_ncols = pfes->GlobalTrueVSize();
 
    HYPRE_BigInt * J;
-#ifndef HYPRE_BIGINT
+#if !(defined(HYPRE_BIGINT) || defined(HYPRE_MIXEDINT))
    J = St.GetJ();
 #else
    J = new HYPRE_BigInt[St.NumNonZeroElems()];
-   for (int i = 0; i < St.NumNonZeroElems(); i++)
-   {
-      J[i] = St.GetJ()[i];
-   }
+   std::copy(St.GetJ(), St.GetJ() + St.NumNonZeroElems(), J);
 #endif
    HypreParMatrix * Pt = new HypreParMatrix(pfes->GetComm(), nrows, glob_nrows,
                                             glob_ncols, St.GetI(), J,
@@ -103,7 +100,7 @@ HypreParMatrix * GetProlongationMatrix(const ParFiniteElementSpace* pfes,
 
    HypreParMatrix * P = Pt->Transpose();
    delete Pt;
-#ifdef HYPRE_BIGINT
+#if (defined(HYPRE_BIGINT) || defined(HYPRE_MIXEDINT))
    delete [] J;
 #endif
    return P;

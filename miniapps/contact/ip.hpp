@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -184,7 +184,7 @@ private:
    void GetDxphi(const BlockVector &, real_t, BlockVector &);
 
    /// Evaluate the primal-dual Lagrangian
-   real_t EvalLangrangian(const BlockVector &, const Vector &, const Vector &);
+   real_t EvalLagrangian(const BlockVector &, const Vector &, const Vector &);
 
    /// Gradient of the primal-dual Lagrangian w.r.t. primal variables
    void EvalLagrangianGradient(const BlockVector &, const Vector &, const Vector &,

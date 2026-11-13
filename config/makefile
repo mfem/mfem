@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -42,10 +42,13 @@ GHV_FLAGS = $(MFEM_CXXFLAGS) $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..)
 SMX = $(if $(MFEM_USE_PUMI:NO=),MFEM_USE_SIMMETRIX)
 SMX_PATH = $(PUMI_DIR)/include/gmi_sim.h
 SMX_FILE = $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(SMX_PATH))
-MUMPS = $(MFEM_USE_MUMPS:NO=)
+MUMPS = $(if $(filter YES,$(MFEM_USE_MUMPS) $(MFEM_USE_COMPLEX_MUMPS)),YES,)
 GMV_CXX ?= $(MFEM_CXX)
 GMV = get_mumps_version
-GMV_FLAGS = $(MFEM_CXXFLAGS) $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(MUMPS_OPT))
+GMV_FLAGS = $(MFEM_CXXFLAGS) \
+ $(if $(filter YES,$(MFEM_USE_SINGLE)),-DMFEM_USE_SINGLE) \
+ $(if $(filter YES,$(MFEM_USE_COMPLEX_MUMPS)),-DMFEM_USE_COMPLEX_MUMPS) \
+ $(subst @MFEM_DIR@,$(if $(MFEM_DIR),$(MFEM_DIR),..),$(if $(filter YES,$(MFEM_USE_COMPLEX_MUMPS)),$(COMPLEX_MUMPS_OPT),$(MUMPS_OPT)))
 
 $(GHV): $(SRC)$(GHV).cpp
 	$(call mfem-info, Determining HYPRE version ...)
@@ -103,7 +106,8 @@ config-mk:
 	   eval var=\$$$$ref && \
 	   set -- "$$@" -e "s#@$${ref}@#$${var}#g"; \
 	done && \
-	set -- "$$@" -e 's/@\([^@]*\)@/$$(\1)/g' -e 's/  *$$//g' && \
+	set -- "$$@" -e 's/@\([A-Z][A-Z0-9_]*\)@/$$(\1)/g' && \
+	set -- "$$@" -e 's/  *$$//g' && \
 	set -- "$$@" -e tb -e ba -e ":b" -e 's/^$$//' -e tc -e ba && \
 	set -- "$$@" -e ":c" -e d -e ":a" && \
 	sed "$$@" $(SRC)config.mk.in > $(CONFIG_MK)

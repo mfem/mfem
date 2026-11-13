@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,7 @@
 #include "../../mesh/nurbs.hpp"
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
+#include "bilininteg_diffusion_pa_simplices.hpp"
 
 namespace mfem
 {
@@ -28,6 +29,8 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    else
    {
       if (pa_data.Size() == 0) { AssemblePA(*fespace); }
+      MFEM_VERIFY(maps->mode != DofToQuad::RAGGED_TENSOR,
+                  "AssembleDiagonalPA not implemented for ragged tensor bases");
       const Array<real_t> &B = maps->B;
       const Array<real_t> &G = maps->G;
       const Vector &Dv = pa_data;
@@ -68,6 +71,24 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
       }
 #endif // MFEM_USE_OCCA
 
+      if (fespace->UsesRaggedTensorBasis())
+      {
+         const auto *rmaps = static_cast<const RaggedDofToQuad*>(maps);
+         return ApplySimplexPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
+                                           rmaps->lex_map,
+                                           rmaps->forward_map2d_diff,
+                                           rmaps->inverse_map2d_diff,
+                                           rmaps->forward_map3d_diff,
+                                           rmaps->inverse_map3d_diff,
+                                           rmaps->Ga1,
+                                           rmaps->Ga2,
+                                           rmaps->Ga3,
+                                           rmaps->Ga1t,
+                                           rmaps->Ga2t,
+                                           rmaps->Ga3t,
+                                           Dv, x, y, dofs1D, quad1D);
+      }
+
       ApplyPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric, B, G, Bt,
                           Gt, Dv, x, y, dofs1D, quad1D);
    }
@@ -94,7 +115,8 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
-   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el);
+   const bool stroud = fes.UsesRaggedTensorBasis();
+   const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, stroud);
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -119,13 +141,22 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    dim = mesh->Dimension();
    ne = fes.GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
+   if (stroud)
+   {
+      maps = &el.GetDofToQuad(*ir, DofToQuad::RAGGED_TENSOR);
+   }
+   else
+   {
+      maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
+   }
    const int sdim = mesh->SpaceDimension();
-   maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
 
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::COMPRESSED);
+   // QuadratureSpace expects ir defined in reference simplex for Bernstein
+   // elements with partial assembly
 
    if (MQ) { coeff.ProjectTranspose(*MQ); }
    else if (VQ) { coeff.Project(*VQ); }

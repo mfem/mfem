@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -122,6 +122,59 @@ TEST_CASE("Array stl-interactions", "[Array]")
    for (int i : {0,1,2,3,4})
    {
       CHECK(x[i] == y[i]);
+   }
+}
+
+
+TEST_CASE("Array move assignment to view (MakeRef)", "[Array]")
+{
+   constexpr int n = 5;
+
+   // Helper function that returns an Array by value (rvalue)
+   auto make_sequence_array = [](int n)
+   {
+      Array<int> arr(n);
+      for (int i = 0; i < n; i++)
+      {
+         arr[i] = i + 1;  // 1, 2, 3, ...
+      }
+      return arr;
+   };
+
+   // Create backing storage
+   Array<int> backing1(n), backing2(n);
+   backing1 = 0.0; backing2 = 0.0;
+
+   // Create a view into the backing storage
+   Array<int> view1, view2;
+   view1.MakeRef(backing1);
+   view2.MakeRef(backing2);
+
+   auto seq_array = make_sequence_array(n);
+   view1 = seq_array; // copy assign
+   view2 = std::move(seq_array); // move assign
+
+   CHECK(seq_array.Size() == 0); // seq_array is invalidated by the move
+
+   // Both assignments should be semantically equivalent.
+   for (int i = 0; i < n; i++)
+   {
+      CHECK(backing1[i] == backing2[i]);
+   }
+
+   // Create backing storage as raw array
+   int backing3[n] = {0, 0, 0, 0, 0};
+
+   // Create a view into the backing storage
+   Array<int> view3;
+   view3.MakeRef(backing3, n);
+
+   // Assign from rvalue
+   view3 = std::move(view2);
+
+   for (int i = 0; i < n; i++)
+   {
+      CHECK(backing3[i] == backing1[i]);
    }
 }
 

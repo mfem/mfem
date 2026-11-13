@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -18,7 +18,6 @@
 //
 // Currently supported data collection type options:
 //    visit:                VisItDataCollection (default)
-//    sidre or sidre_hdf5:  SidreDataCollection
 //    json:                 ConduitDataCollection w/ protocol json
 //    conduit_json:         ConduitDataCollection w/ protocol conduit_json
 //    conduit_bin:          ConduitDataCollection w/ protocol conduit_bin
@@ -52,14 +51,6 @@ DataCollection *create_data_collection(const std::string &dc_name,
       dc = new VisItDataCollection(MPI_COMM_WORLD, dc_name);
 #else
       dc = new VisItDataCollection(dc_name);
-#endif
-   }
-   else if ( dc_type == "sidre" || dc_type == "sidre_hdf5")
-   {
-#ifdef MFEM_USE_SIDRE
-      dc = new SidreDataCollection(dc_name);
-#else
-      MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for sidre support.");
 #endif
    }
    else if ( dc_type == "json" ||
@@ -140,7 +131,6 @@ int main(int argc, char *argv[])
    args.AddOption(&src_coll_type, "-st", "--source-type",
                   "Set the source data collection type. Options:\n"
                   "\t   visit:                VisItDataCollection (default)\n"
-                  "\t   sidre or sidre_hdf5:  SidreDataCollection\n"
                   "\t   json:                 ConduitDataCollection w/ protocol json\n"
                   "\t   conduit_json:         ConduitDataCollection w/ protocol conduit_json\n"
                   "\t   conduit_bin:          ConduitDataCollection w/ protocol conduit_bin\n"
@@ -152,7 +142,6 @@ int main(int argc, char *argv[])
    args.AddOption(&out_coll_type, "-ot", "--output-type",
                   "Set the output data collection type. Options:\n"
                   "\t   visit:                VisItDataCollection (default)\n"
-                  "\t   sidre or sidre_hdf5:  SidreDataCollection\n"
                   "\t   json:                 ConduitDataCollection w/ protocol json\n"
                   "\t   conduit_json:         ConduitDataCollection w/ protocol conduit_json\n"
                   "\t   conduit_bin:          ConduitDataCollection w/ protocol conduit_bin\n"
@@ -223,6 +212,17 @@ int main(int argc, char *argv[])
    {
       out_dc->RegisterField(it->first,it->second);
    }
+
+   // loop over all quad funcs in the source dc, and add them to the output dc
+   const DataCollection::QFieldMapType &src_qfields = src_dc->GetQFieldMap();
+
+   for (DataCollection::QFieldMapType::const_iterator it = src_qfields.begin();
+        it != src_qfields.end();
+        ++it)
+   {
+      out_dc->RegisterQField(it->first,it->second);
+   }
+
 
    out_dc->Save();
 
