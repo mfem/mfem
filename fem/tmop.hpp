@@ -14,6 +14,7 @@
 
 #include "../linalg/invariants.hpp"
 #include "nonlininteg.hpp"
+#include "tmop/AnalyticSurface.hpp"
 #include "../linalg/dual.hpp"
 
 namespace mfem
@@ -2065,6 +2066,10 @@ protected:
    Array<int> surf_fit_dof_count;            // Number of dofs per node.
    Array<int> surf_fit_marker_dof_index;     // Indices of nodes to fit.
 
+   // Tangential optimization.
+   AnalyticCompositeSurface *tan_analytic_surf = nullptr;
+   FiniteElementSpace *fes_mesh = nullptr;
+
    DiscreteAdaptTC *discr_tc;
 
    // Parameters for FD-based Gradient & Hessian calculation.
@@ -2150,6 +2155,11 @@ protected:
       mutable bool Jtr_debug_grad;
       mutable Vector E, O, X0, XL, H, C0, LD, H0, MC, ALC,
               ALF, ALFmF0, ALFG, ALFH, ALD;
+      // Temporary E-vectors and nodal derivatives used by analytic-surface
+      // surface parametrization. tan_X is the physical-coordinate state,
+      // tan_R its residual, tan_J/tan_H store the first/second derivatives of
+      // the nodal parameter-to-physical map, and tan_D/tan_C are work vectors.
+      mutable Vector tan_X, tan_R, tan_J, tan_H, tan_D, tan_C;
       mutable bool AL_grads_assembled;
       const DofToQuad *maps;
       const DofToQuad *maps_lim = nullptr;
@@ -2277,6 +2287,26 @@ protected:
    void AddMultGradPA_C0_3D(const Vector&, Vector&) const;
    void AddMultGradPA_AdaptLim_2D(const Vector&, Vector&) const;
    void AddMultGradPA_AdaptLim_3D(const Vector&, Vector&) const;
+
+   // Device kernels for the nodal chain rule used by tangential PA.
+   void TangentialPushForwardPA_2D(const Vector &map_jac,
+                                   const Vector &param,
+                                   Vector &phys) const;
+   void TangentialPullBackPA_2D(const Vector &map_jac,
+                                const Vector &phys,
+                                Vector &param) const;
+   void TangentialPullBackGradPA_2D(const Vector &phys_action,
+                                    const Vector &param_direction,
+                                    Vector &param_action) const;
+   void TangentialPushForwardPA_3D(const Vector &map_jac,
+                                   const Vector &param,
+                                   Vector &phys) const;
+   void TangentialPullBackPA_3D(const Vector &map_jac,
+                                const Vector &phys,
+                                Vector &param) const;
+   void TangentialPullBackGradPA_3D(const Vector &phys_action,
+                                    const Vector &param_direction,
+                                    Vector &param_action) const;
 
    // PA diagonal assemblies - metric term / limiting / adaptive limiting.
    void AssembleDiagonalPA_2D(Vector&) const;
@@ -2507,6 +2537,16 @@ public:
    {
       return surf_fit_gf != NULL || surf_fit_pos != NULL;
    }
+
+   // Tangential movement.
+   void EnableTangentialMovement(AnalyticCompositeSurface &surf,
+                                 FiniteElementSpace &mesh_fes)
+   {
+      tan_analytic_surf = &surf;
+      fes_mesh = &mesh_fes;
+   }
+   const AnalyticCompositeSurface *GetAnalyticSurface() const
+   { return tan_analytic_surf; }
 
    /// Update the original/reference nodes used for limiting.
    void SetLimitingNodes(const GridFunction &n0) { lim_nodes0 = &n0; }
