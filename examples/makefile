@@ -166,6 +166,10 @@ ex41-test-seq: ex41
 	@$(call mfem-test,$<,, Serial example,-tf 1.0)
 ex41p-test-par: ex41p
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-tf 1.0)
+ex42-test-seq: ex42
+	@$(call mfem-test,$<,, Serial example,-r 1 -tf 0.05 -c 0.2 -gp -ldf)
+ex42p-test-par: ex42p
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-r 1 -tf 0.05 -c 0.2 -gp -ldf)
 # Testing: optional tests
 ifeq ($(MFEM_USE_STRUMPACK),YES)
 ex11p-test-strumpack: ex11p
@@ -215,5 +219,6 @@ clean-exec:
 	@rm -f ex23.mesh ex23-*.gf
 	@rm -f ex25.mesh ex25-*.gf ex25p-*.*
 	@rm -f euler-?-final.* euler-?-init.* euler-mesh-final.* euler-mesh.*
+	@rm -f mhd-?-final.* mhd-?-init.* mhd-mesh-final.* mhd-mesh.*
 	@rm -rf ex28_* ex28p_*
 	@rm -rf cond.* cond_mesh.* cond_j.* dsol.* port_mesh.* port_mode.*
