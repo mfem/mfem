@@ -742,6 +742,94 @@ void SparseMatrix::ToDenseMatrix(DenseMatrix & B) const
    }
 }
 
+// Two rows at a time over their common length, then each row's tail. Each row
+// keeps its summation order. Scalar accumulators, since GCC's SLP vectorizer can
+// pack an array of chains and split the fused multiply-add.
+static void AddMultRows2(const int *I, const int *J, const real_t *A,
+                         const real_t *x,
+                         real_t *y, real_t a, int height)
+{
+   int i = 0;
+   for (; i + 2 <= height; i += 2)
+   {
+      const int b0 = I[i], b1 = I[i+1], e0 = b1, e1 = I[i+2];
+      const int len = std::min(e0 - b0, e1 - b1);
+      real_t d0 = 0.0, d1 = 0.0;
+      for (int k = 0; k < len; k++)
+      {
+         d0 += A[b0+k] * x[J[b0+k]];
+         d1 += A[b1+k] * x[J[b1+k]];
+      }
+      for (int j = b0 + len; j < e0; j++) { d0 += A[j] * x[J[j]]; }
+      for (int j = b1 + len; j < e1; j++) { d1 += A[j] * x[J[j]]; }
+      y[i] += a * d0;
+      y[i+1] += a * d1;
+   }
+   for (; i < height; i++)
+   {
+      real_t d = 0.0;
+      const int end = I[i+1];
+      for (int j = I[i]; j < end; j++) { d += A[j] * x[J[j]]; }
+      y[i] += a * d;
+   }
+}
+
+template <bool useFabs>
+static void JacobiRows2(const int *I, const int *J, const real_t *A,
+                        const real_t *b,
+                        const real_t *x0, real_t *x1, real_t sc, int height)
+{
+   auto finish = [&](int i, real_t resi, real_t norm)
+   {
+      if (norm > 0.0)
+      {
+         x1[i] = x0[i] + sc * resi / norm;
+      }
+      else
+      {
+         if (useFabs) { MFEM_ABORT_KERNEL("L1 norm of row is zero."); }
+         else { MFEM_ABORT_KERNEL("sum of row is zero."); }
+      }
+   };
+   int i = 0;
+   for (; i + 2 <= height; i += 2)
+   {
+      const int b0 = I[i], b1 = I[i+1], e0 = b1, e1 = I[i+2];
+      const int len = std::min(e0 - b0, e1 - b1);
+      real_t r0 = b[i], r1 = b[i+1], n0 = 0.0, n1 = 0.0;
+      for (int k = 0; k < len; k++)
+      {
+         const real_t v0 = A[b0+k], v1 = A[b1+k];
+         r0 -= v0 * x0[J[b0+k]];
+         r1 -= v1 * x0[J[b1+k]];
+         n0 += useFabs ? fabs(v0) : v0;
+         n1 += useFabs ? fabs(v1) : v1;
+      }
+      for (int j = b0 + len; j < e0; j++)
+      {
+         r0 -= A[j] * x0[J[j]];
+         n0 += useFabs ? fabs(A[j]) : A[j];
+      }
+      for (int j = b1 + len; j < e1; j++)
+      {
+         r1 -= A[j] * x0[J[j]];
+         n1 += useFabs ? fabs(A[j]) : A[j];
+      }
+      finish(i, r0, n0);
+      finish(i+1, r1, n1);
+   }
+   for (; i < height; i++)
+   {
+      real_t resi = b[i], norm = 0.0;
+      for (int j = I[i]; j < I[i+1]; j++)
+      {
+         resi -= A[j] * x0[J[j]];
+         norm += useFabs ? fabs(A[j]) : A[j];
+      }
+      finish(i, resi, norm);
+   }
+}
+
 void SparseMatrix::Mult(const Vector &x, Vector &y) const
 {
    if (Finalized()) { y.UseDevice(true); }
@@ -909,18 +997,24 @@ void SparseMatrix::AddMult(const Vector &x, Vector &y, const real_t a) const
    }
    else
    {
-      // Native version
-      mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
+      // Native version. With y aliasing x the row order would be visible.
+      if (Device::IsDisabled() && d_y != d_x)
       {
-         real_t d = 0.0;
-         const int end = d_I[i+1];
-         for (int j = d_I[i]; j < end; j++)
+         AddMultRows2(d_I, d_J, d_A, d_x, d_y, a, height);
+      }
+      else
+      {
+         mfem::forall(height, [=] MFEM_HOST_DEVICE (int i)
          {
-            d += d_A[j] * d_x[d_J[j]];
-         }
-         d_y[i] += a * d;
-      });
-
+            real_t d = 0.0;
+            const int end = d_I[i+1];
+            for (int j = d_I[i]; j < end; j++)
+            {
+               d += d_A[j] * d_x[d_J[j]];
+            }
+            d_y[i] += a * d;
+         });
+      }
    }
 
 #else // MFEM_USE_LEGACY_OPENMP
@@ -2730,6 +2824,13 @@ static void JacobiDispatch(const Vector &b, const Vector &x0, Vector &x1,
    const auto Ip = Read(I, height+1, useDevice);
    const auto Jp = Read(J, J.Capacity(), useDevice);
    const auto Ap = Read(A, J.Capacity(), useDevice);
+
+   // x1 == x0 would make the row order visible, so keep the old loop for it
+   if ((!useDevice || Device::IsDisabled()) && x1p != x0p)
+   {
+      JacobiRows2<useFabs>(Ip, Jp, Ap, bp, x0p, x1p, sc, height);
+      return;
+   }
 
    mfem::forall_switch(useDevice, height, [=] MFEM_HOST_DEVICE (int i)
    {
