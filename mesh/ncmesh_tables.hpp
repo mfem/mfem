@@ -154,6 +154,13 @@ static constexpr int tet_corner_face_local[4][4] =
 static constexpr Geometry::Type tet_corner_child_geometries[2] =
 { Geometry::TETRAHEDRON, Geometry::PRISM };
 
+static constexpr int tet_all_faces_quads_deref[4 + 4] =
+{ 0, 1, 2, 3, /**/ 1, 0, 0, 0 };
+static constexpr int tet_all_faces_quads_vertex_local[4] = { 0, 0, 0, 0 };
+static constexpr int tet_all_faces_quads_face_local[4] = { 1, 4, 1, 0 };
+static constexpr Geometry::Type tet_all_faces_quads_child_geometries[4] =
+{ Geometry::CUBE, Geometry::CUBE, Geometry::CUBE, Geometry::CUBE };
+
 static constexpr int hex_deref_table[7][8 + 6] =
 {
    { 0, 1, 1, 0, 0, 1, 1, 0, /**/ 1, 1, 1, 0, 0, 0 }, // 1 - X
@@ -283,7 +290,7 @@ static constexpr NCRefinementPattern quadrilateral_patterns[15] =
       quad_edge_vertex_local[3], quad_edge_face_local[3]
    }
 };
-static constexpr NCRefinementPattern tetrahedron_patterns[15] =
+static constexpr NCRefinementPattern tetrahedron_patterns[16] =
 {
    {}, {2, tet_deref_table[0]}, {2, tet_deref_table[1]}, {},
    {2, tet_deref_table[3]}, {}, {}, {8, tet_deref_table[6]},
@@ -303,6 +310,10 @@ static constexpr NCRefinementPattern tetrahedron_patterns[15] =
    {
       2, tet_corner_deref[3], tet_corner_child_geometries,
       tet_corner_vertex_local[3], tet_corner_face_local[3]
+   },
+   {
+      4, tet_all_faces_quads_deref, tet_all_faces_quads_child_geometries,
+      tet_all_faces_quads_vertex_local, tet_all_faces_quads_face_local
    }
 };
 static constexpr NCRefinementPattern hexahedron_patterns[8] =
