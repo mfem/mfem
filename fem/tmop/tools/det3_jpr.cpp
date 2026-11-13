@@ -80,9 +80,11 @@ real_t TMOPNewtonSolver::MinDetJpr_3D(const FiniteElementSpace *fes,
    RX->Mult(x_0, XE);
    XE += DE;
 
-   const auto maps = fes->GetFE(0)->GetDofToQuad(ir, DofToQuad::TENSOR);
+   const FiniteElement &fe = *fes->GetTypicalFE();
+   const IntegrationRule &irule = GetIntegrationRule(fe);
+   const auto maps = fe.GetDofToQuad(irule, DofToQuad::TENSOR);
    const int NE = fes->GetMesh()->GetNE();
-   const int NQ = ir.GetNPoints();
+   const int NQ = irule.GetNPoints();
 
    const int d = maps.ndof, q = maps.nqpt;
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
