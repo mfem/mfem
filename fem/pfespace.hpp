@@ -437,6 +437,19 @@ public:
                           Array<int> &ess_dofs,
                           int component = -1) const override;
 
+   /** Mark degrees of freedom associated with the entity set with the
+       specified entity type and set index. */
+   void GetEssentialVDofs(EntitySets::EntityType type, int set_index,
+                          Array<int> &ess_vdofs,
+                          int component = -1) const override;
+
+   /** Mark degrees of freedom associated with the entity set with the
+       specified entity type and set index. */
+   void GetEssentialVDofs(EntitySets::EntityType type,
+                          const std::string & set_name,
+                          Array<int> &ess_vdofs,
+                          int component = -1) const override;
+
    /** Get a list of essential true dofs, ess_tdof_list, corresponding to the
        boundary attributes marked in the array bdr_attr_is_ess. */
    void GetEssentialTrueDofs(const Array<int> &bdr_attr_is_ess,
@@ -459,6 +472,19 @@ public:
        face on the exterior of the mesh. */
    void GetExteriorTrueDofs(Array<int> &ext_tdof_list,
                             int component = -1) const override;
+
+   /** Get a list of essential true dofs, ess_tdof_list, corresponding to the
+       entity set specified by the given entity type and set index. */
+   void GetEssentialTrueDofs(EntitySets::EntityType type, int set_index,
+                             Array<int> &ess_tdof_list,
+                             int component = -1) override;
+
+   /** Get a list of essential true dofs, ess_tdof_list, corresponding to the
+       entity set specified by the given entity type and set name. */
+   void GetEssentialTrueDofs(EntitySets::EntityType type,
+                             const std::string & set_name,
+                             Array<int> &ess_tdof_list,
+                             int component = -1) override;
 
    /** @brief Extract the edge degrees of freedom of a boundary "loop" on a
        parallel mesh (see the serial FiniteElementSpace::GetBoundaryLoopEdgeDofs
