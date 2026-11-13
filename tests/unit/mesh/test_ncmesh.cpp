@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <sstream>
 #include <vector>
 namespace mfem
@@ -706,6 +707,27 @@ TEST_CASE("NCMesh geometry-specific face partition relations", "[NCMesh]")
          }
       }
    }
+}
+
+TEST_CASE("NCMesh face partition comparison with a narrow cell", "[NCMesh]")
+{
+   const real_t delta = 32*std::numeric_limits<real_t>::epsilon();
+   const auto quad = [](real_t left, real_t right)
+   {
+      NCFacePartition::Cell cell = {};
+      cell.geometry = Geometry::SQUARE;
+      cell.vertex[0] = {left, 0.0};
+      cell.vertex[1] = {right, 0.0};
+      cell.vertex[2] = {right, 1.0};
+      cell.vertex[3] = {left, 1.0};
+      return cell;
+   };
+   NCFacePartition coarse, fine;
+   coarse.cells.Append(quad(0.0, 1.0));
+   fine.cells.Append(quad(0.0, 1.0-delta));
+   fine.cells.Append(quad(1.0-delta, 1.0));
+   REQUIRE(CompareNCFacePartitions(coarse, fine) ==
+           NCFaceRelation::SecondRefinesFirst);
 }
 
 TEST_CASE("NCMesh three-dimensional face partition relations", "[NCMesh]")

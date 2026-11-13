@@ -15,6 +15,7 @@
 #include "../general/array.hpp"
 #include "../general/globals.hpp"
 #include "../fem/geom.hpp"
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -49,7 +50,6 @@ enum class NCFaceRelation
 inline NCFaceRelation CompareNCFacePartitions(const NCFacePartition &first,
                                               const NCFacePartition &second)
 {
-   const real_t tolerance = 128*std::numeric_limits<real_t>::epsilon();
    const auto num_vertices = [](const NCFacePartition::Cell &cell)
    {
       MFEM_VERIFY(cell.geometry == Geometry::TRIANGLE ||
@@ -63,13 +63,24 @@ inline NCFaceRelation CompareNCFacePartitions(const NCFacePartition &first,
       const int outer_size = num_vertices(outer);
       const int inner_size = num_vertices(inner);
       real_t area = 0.0;
+      real_t min_x = outer.vertex[0].x, max_x = min_x;
+      real_t min_y = outer.vertex[0].y, max_y = min_y;
       for (int i = 0; i < outer_size; i++)
       {
          const auto &a = outer.vertex[i];
          const auto &b = outer.vertex[(i + 1) % outer_size];
-         area += a.x*b.y - a.y*b.x;
+         const auto &origin = outer.vertex[0];
+         area += (a.x-origin.x)*(b.y-origin.y) -
+                 (a.y-origin.y)*(b.x-origin.x);
+         min_x = std::min(min_x, a.x);
+         max_x = std::max(max_x, a.x);
+         min_y = std::min(min_y, a.y);
+         max_y = std::max(max_y, a.y);
       }
-      MFEM_VERIFY(std::abs(area) > tolerance, "Degenerate face partition cell");
+      const real_t scale = (max_x-min_x)*(max_y-min_y);
+      const real_t epsilon = std::numeric_limits<real_t>::epsilon()*scale;
+      MFEM_VERIFY(std::abs(area) > 128*epsilon,
+                  "Degenerate face partition cell");
       const real_t sign = area > 0.0 ? 1.0 : -1.0;
       for (int j = 0; j < inner_size; j++)
       {
@@ -80,7 +91,7 @@ inline NCFaceRelation CompareNCFacePartitions(const NCFacePartition &first,
             const auto &b = outer.vertex[(i + 1) % outer_size];
             const real_t cross = (b.x-a.x)*(p.y-a.y) -
                                  (b.y-a.y)*(p.x-a.x);
-            if (sign*cross < -tolerance) { return false; }
+            if (sign*cross < -16*epsilon) { return false; }
          }
       }
       return true;
