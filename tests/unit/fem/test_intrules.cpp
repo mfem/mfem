@@ -97,6 +97,21 @@ TEST_CASE("Integration rule container with no refinement", "[IntegrationRules]")
 }
 
 
+TEST_CASE("Integration rule ownership", "[IntegrationRules]")
+{
+   IntegrationRules rules;
+   rules.SetOwnRules(0); // the rule is on the stack, so do not delete it
+   IntegrationRule user_rule(3);
+   rules.Set(Geometry::PRISM, 4, user_rule);
+
+   REQUIRE(rules.IsUserSet(Geometry::PRISM, 4));
+   REQUIRE(!rules.IsUserSet(Geometry::PRISM, 5));
+
+   rules.Get(Geometry::TETRAHEDRON, 4);
+   REQUIRE(!rules.IsUserSet(Geometry::TETRAHEDRON, 4));
+}
+
+
 TEST_CASE("Integration rule order initialization", "[IntegrationRules]")
 {
    constexpr int refined = 0;

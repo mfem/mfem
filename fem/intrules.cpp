@@ -1262,9 +1262,35 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
 
    (*ir_array)[Order] = &IntRule;
 
+   user_set_rules.emplace(GeomType, Order);
+
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    omp_unset_lock(&IntRuleLocks[GeomType]);
 #endif
+}
+
+bool IntegrationRules::IsUserSet(int GeomType, int Order) const
+{
+   if (GeomType < Geometry::POINT || GeomType >= Geometry::NUM_GEOMETRIES)
+   {
+      MFEM_ABORT("Unknown type of reference element!");
+   }
+
+   // Match the order normalization in Get().
+   const int order = (GeomType == Geometry::POINT || Order < 0) ? 0 : Order;
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   omp_set_lock(&IntRuleLocks[GeomType]);
+#endif
+
+   const bool is_user_set =
+      user_set_rules.find({GeomType, order}) != user_set_rules.end();
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   omp_unset_lock(&IntRuleLocks[GeomType]);
+#endif
+
+   return is_user_set;
 }
 
 void IntegrationRules::DeleteIntRuleArray(
