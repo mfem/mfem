@@ -110,7 +110,7 @@ public:
    /// @brief Return the Hessian of f_i(x) or nullptr (linear)
    virtual const Operator *ComponentHessian(const MultiVector &x, int i) const;
 
-   /// @brief Return the Hessian of \sum_i \lambda_i f_i(x) or nullptr (linear)
+   /// @brief Return the Hessian of $ \sum_i \lambda_i f_i(x) $ or nullptr (linear)
    ///
    /// Default path is to call ComponentHessian() for each component and return
    /// a WeightedSumOperator. Derived classes can override this function to provide

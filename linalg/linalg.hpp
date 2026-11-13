@@ -52,6 +52,10 @@
 #include "sundials.hpp"
 #endif
 
+#ifdef MFEM_USE_HIOP
+#include "hiop.hpp"
+#endif
+
 #ifdef MFEM_USE_GINKGO
 #include "ginkgo.hpp"
 #endif

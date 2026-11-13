@@ -155,6 +155,13 @@ examples/ginkgo/ex1
 examples/ginkgo/refined.mesh
 examples/ginkgo/sol.gf
 
+examples/hiop/ex9
+examples/hiop/ex9p
+examples/hiop/ex9.mesh
+examples/hiop/ex9-mesh.*
+examples/hiop/ex9-init.*
+examples/hiop/ex9-final.*
+
 examples/petsc/ex[1-69]p
 examples/petsc/ex1[0-1]p
 examples/petsc/mesh.*
