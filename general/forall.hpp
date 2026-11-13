@@ -13,6 +13,7 @@
 #define MFEM_FORALL_HPP
 
 #include "../config/config.hpp"
+#include "../config/tconfig.hpp"
 #include "annotation.hpp"
 #include "error.hpp"
 #include "backends.hpp"
@@ -424,7 +425,7 @@ template <int MAX_THREADS_PER_BLOCK>
 struct RajaCuWrap<1, MAX_THREADS_PER_BLOCK>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaCuWrap1D(N, d_body);
@@ -435,7 +436,7 @@ template <>
 struct RajaCuWrap<2, 0>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaCuWrap2D(N, d_body, X, Y, Z);
@@ -446,7 +447,7 @@ template <int MAX_THREADS_PER_BLOCK>
 struct RajaCuWrap<2, MAX_THREADS_PER_BLOCK>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaCuWrap2DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z);
@@ -457,7 +458,7 @@ template <>
 struct RajaCuWrap<3, 0>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaCuWrap3D(N, d_body, X, Y, Z, G);
@@ -468,7 +469,7 @@ template <int MAX_THREADS_PER_BLOCK>
 struct RajaCuWrap<3, MAX_THREADS_PER_BLOCK>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaCuWrap3DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z, G);
@@ -585,7 +586,7 @@ template <int MAX_THREADS_PER_BLOCK>
 struct RajaHipWrap<1, MAX_THREADS_PER_BLOCK>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaHipWrap1D(N, d_body);
@@ -596,7 +597,7 @@ template <>
 struct RajaHipWrap<2, 0>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaHipWrap2D(N, d_body, X, Y, Z);
@@ -607,7 +608,7 @@ template <int MAX_THREADS_PER_BLOCK>
 struct RajaHipWrap<2, MAX_THREADS_PER_BLOCK>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaHipWrap2DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z);
@@ -618,7 +619,7 @@ template <>
 struct RajaHipWrap<3, 0>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaHipWrap3D(N, d_body, X, Y, Z, G);
@@ -629,7 +630,7 @@ template <int MAX_THREADS_PER_BLOCK>
 struct RajaHipWrap<3, MAX_THREADS_PER_BLOCK>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       RajaHipWrap3DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z, G);
@@ -875,7 +876,7 @@ static void CuKernel3DLaunchBounds(const int N, BODY body)
 }
 
 template <const int BLCK, typename DBODY>
-void CuWrap1D(const int N, DBODY &&d_body)
+MFEM_ALWAYS_INLINE void CuWrap1D(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
    const int GRID = (N+BLCK-1)/BLCK;
@@ -884,7 +885,7 @@ void CuWrap1D(const int N, DBODY &&d_body)
 }
 
 template <typename DBODY>
-void CuWrap2D(const int N, DBODY &&d_body,
+MFEM_ALWAYS_INLINE void CuWrap2D(const int N, DBODY &&d_body,
               const int X, const int Y, const int BZ)
 {
    if (N==0) { return; }
@@ -898,7 +899,7 @@ void CuWrap2D(const int N, DBODY &&d_body,
 }
 
 template <int MAX_THREADS_PER_BLOCK, typename DBODY>
-void CuWrap2DLaunchBounds(const int N, DBODY &&d_body,
+MFEM_ALWAYS_INLINE void CuWrap2DLaunchBounds(const int N, DBODY &&d_body,
                           const int X, const int Y, const int BZ)
 {
    if (N==0) { return; }
@@ -911,7 +912,7 @@ void CuWrap2DLaunchBounds(const int N, DBODY &&d_body,
 }
 
 template <typename DBODY>
-void CuWrap3D(const int N, DBODY &&d_body,
+MFEM_ALWAYS_INLINE void CuWrap3D(const int N, DBODY &&d_body,
               const int X, const int Y, const int Z, const int G)
 {
    if (N==0) { return; }
@@ -922,7 +923,7 @@ void CuWrap3D(const int N, DBODY &&d_body,
 }
 
 template <int MAX_THREADS_PER_BLOCK, typename DBODY>
-void CuWrap3DLaunchBounds(const int N, DBODY &&d_body,
+MFEM_ALWAYS_INLINE void CuWrap3DLaunchBounds(const int N, DBODY &&d_body,
                           const int X, const int Y, const int Z, const int G)
 {
    if (N==0) { return; }
@@ -939,7 +940,7 @@ template <int MAX_THREADS_PER_BLOCK>
 struct CuWrap<1, MAX_THREADS_PER_BLOCK>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       CuWrap1D<MFEM_CUDA_BLOCKS>(N, d_body);
@@ -950,7 +951,7 @@ template <>
 struct CuWrap<2, 0>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       CuWrap2D(N, d_body, X, Y, Z);
@@ -961,7 +962,7 @@ template <int MAX_THREADS_PER_BLOCK>
 struct CuWrap<2, MAX_THREADS_PER_BLOCK>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       static_assert(MAX_THREADS_PER_BLOCK > 0);
@@ -973,7 +974,7 @@ template <>
 struct CuWrap<3, 0>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       CuWrap3D(N, d_body, X, Y, Z, G);
@@ -984,7 +985,7 @@ template <int MAX_THREADS_PER_BLOCK>
 struct CuWrap<3, MAX_THREADS_PER_BLOCK>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       CuWrap3DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z, G);
@@ -1038,7 +1039,7 @@ static void HipKernel3DLaunchBounds(const int N, BODY body)
 }
 
 template <int BLCK = MFEM_HIP_BLOCKS, typename DBODY>
-void HipWrap1D(const int N, DBODY &&d_body)
+MFEM_ALWAYS_INLINE void HipWrap1D(const int N, DBODY &&d_body)
 {
    if (N==0) { return; }
    const int GRID = (N+BLCK-1)/BLCK;
@@ -1047,7 +1048,7 @@ void HipWrap1D(const int N, DBODY &&d_body)
 }
 
 template <typename DBODY>
-void HipWrap2D(const int N, DBODY &&d_body,
+MFEM_ALWAYS_INLINE void HipWrap2D(const int N, DBODY &&d_body,
                const int X, const int Y, const int BZ)
 {
    if (N==0) { return; }
@@ -1059,7 +1060,7 @@ void HipWrap2D(const int N, DBODY &&d_body,
 }
 
 template <int MAX_THREADS_PER_BLOCK, typename DBODY>
-void HipWrap2DLaunchBounds(const int N, DBODY &&d_body,
+MFEM_ALWAYS_INLINE void HipWrap2DLaunchBounds(const int N, DBODY &&d_body,
                            const int X, const int Y, const int BZ)
 {
    if (N==0) { return; }
@@ -1073,7 +1074,7 @@ void HipWrap2DLaunchBounds(const int N, DBODY &&d_body,
 }
 
 template <typename DBODY>
-void HipWrap3D(const int N, DBODY &&d_body,
+MFEM_ALWAYS_INLINE void HipWrap3D(const int N, DBODY &&d_body,
                const int X, const int Y, const int Z, const int G)
 {
    if (N==0) { return; }
@@ -1084,7 +1085,7 @@ void HipWrap3D(const int N, DBODY &&d_body,
 }
 
 template <int MAX_THREADS_PER_BLOCK, typename DBODY>
-void HipWrap3DLaunchBounds(const int N, DBODY &&d_body,
+MFEM_ALWAYS_INLINE void HipWrap3DLaunchBounds(const int N, DBODY &&d_body,
                            const int X, const int Y, const int Z, const int G)
 {
    if (N==0) { return; }
@@ -1102,7 +1103,7 @@ template <int MAX_THREADS_PER_BLOCK>
 struct HipWrap<1, MAX_THREADS_PER_BLOCK>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       HipWrap1D<MFEM_HIP_BLOCKS>(N, d_body);
@@ -1113,7 +1114,7 @@ template <>
 struct HipWrap<2, 0>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       HipWrap2D(N, d_body, X, Y, Z);
@@ -1124,7 +1125,7 @@ template <int MAX_THREADS_PER_BLOCK>
 struct HipWrap<2, MAX_THREADS_PER_BLOCK>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       HipWrap2DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z);
@@ -1135,7 +1136,7 @@ template <>
 struct HipWrap<3, 0>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       HipWrap3D(N, d_body, X, Y, Z, G);
@@ -1146,7 +1147,7 @@ template <int MAX_THREADS_PER_BLOCK>
 struct HipWrap<3, MAX_THREADS_PER_BLOCK>
 {
    template <typename DBODY>
-   static void run(const int N, DBODY &&d_body,
+   static MFEM_ALWAYS_INLINE void run(const int N, DBODY &&d_body,
                    const int X, const int Y, const int Z, const int G)
    {
       HipWrap3DLaunchBounds<MAX_THREADS_PER_BLOCK>(N, d_body, X, Y, Z, G);
@@ -1160,7 +1161,7 @@ struct HipWrap<3, MAX_THREADS_PER_BLOCK>
 /// Forall host & device kernel dispatch
 template <int DIM, int MAX_THREADS_PER_BLOCK = 0, bool use_enzyme = false,
           typename d_lambda, typename h_lambda>
-inline void ForallWrap(const bool use_dev, const int N,
+inline MFEM_ALWAYS_INLINE void ForallWrap(const bool use_dev, const int N,
                        d_lambda &&d_body, h_lambda &&h_body,
                        const int X=0, const int Y=0, const int Z=0,
                        const int G=0)
@@ -1301,7 +1302,7 @@ backend_cpu:
 /// Forall host & device kernel wrappers
 template <int DIM, int MAX_THREADS_PER_BLOCK = 0, bool use_enzyme = false,
           typename lambda>
-inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
+inline MFEM_ALWAYS_INLINE void ForallWrap(const bool use_dev, const int N, lambda &&body,
                        const int X=0, const int Y=0, const int Z=0,
                        const int G=0)
 {
@@ -1320,14 +1321,14 @@ inline void ForallWrap(const bool use_dev, const int N, lambda &&body,
 // forall interfaces
 
 template<bool use_enzyme = false, typename lambda>
-inline void forall(int N, lambda &&body)
+inline MFEM_ALWAYS_INLINE void forall(int N, lambda &&body)
 {
    constexpr int MAX_THREADS_PER_BLOCK = 0;
    ForallWrap<1, MAX_THREADS_PER_BLOCK, use_enzyme>(true, N, body);
 }
 
 template<typename lambda>
-inline void forall(int Nx, int Ny, lambda &&body)
+inline MFEM_ALWAYS_INLINE void forall(int Nx, int Ny, lambda &&body)
 {
    if (Device::Allows(Backend::DEVICE_MASK))
    {
@@ -1363,7 +1364,7 @@ inline void forall(int Nx, int Ny, lambda &&body)
 }
 
 template<typename lambda>
-inline void forall(int Nx, int Ny, int Nz, lambda &&body)
+inline MFEM_ALWAYS_INLINE void forall(int Nx, int Ny, int Nz, lambda &&body)
 {
    if (Device::Allows(Backend::DEVICE_MASK))
    {
@@ -1404,49 +1405,49 @@ inline void forall(int Nx, int Ny, int Nz, lambda &&body)
 }
 
 template<typename lambda>
-inline void forall_switch(bool use_dev, int N, lambda &&body)
+inline MFEM_ALWAYS_INLINE void forall_switch(bool use_dev, int N, lambda &&body)
 {
    ForallWrap<1>(use_dev, N, body);
 }
 
 template<typename lambda>
-inline void forall_2D(int N, int X, int Y, lambda &&body)
+inline MFEM_ALWAYS_INLINE void forall_2D(int N, int X, int Y, lambda &&body)
 {
    ForallWrap<2>(true, N, body, X, Y, 1);
 }
 
 template<int MAX_THREADS_PER_BLOCK, typename lambda>
-inline void forall_2D(int N, int X, int Y, lambda &&body)
+inline MFEM_ALWAYS_INLINE void forall_2D(int N, int X, int Y, lambda &&body)
 {
    ForallWrap<2, MAX_THREADS_PER_BLOCK>(true, N, body, X, Y, 1);
 }
 
 template<typename lambda>
-inline void forall_2D_batch(int N, int X, int Y, int BZ, lambda &&body)
+inline MFEM_ALWAYS_INLINE void forall_2D_batch(int N, int X, int Y, int BZ, lambda &&body)
 {
    ForallWrap<2>(true, N, body, X, Y, BZ);
 }
 
 template<int MAX_THREADS_PER_BLOCK, typename lambda>
-inline void forall_2D_batch(int N, int X, int Y, int BZ, lambda &&body)
+inline MFEM_ALWAYS_INLINE void forall_2D_batch(int N, int X, int Y, int BZ, lambda &&body)
 {
    ForallWrap<2, MAX_THREADS_PER_BLOCK>(true, N, body, X, Y, BZ);
 }
 
 template<typename lambda>
-inline void forall_3D(int N, int X, int Y, int Z, lambda &&body)
+inline MFEM_ALWAYS_INLINE void forall_3D(int N, int X, int Y, int Z, lambda &&body)
 {
    ForallWrap<3>(true, N, body, X, Y, Z, 0);
 }
 
 template<int MAX_THREADS_PER_BLOCK, typename lambda>
-inline void forall_3D(int N, int X, int Y, int Z, lambda &&body)
+inline MFEM_ALWAYS_INLINE void forall_3D(int N, int X, int Y, int Z, lambda &&body)
 {
    ForallWrap<3, MAX_THREADS_PER_BLOCK>(true, N, body, X, Y, Z, 0);
 }
 
 template<typename lambda>
-inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
+inline MFEM_ALWAYS_INLINE void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
 {
    ForallWrap<3>(true, N, body, X, Y, Z, G);
 }
