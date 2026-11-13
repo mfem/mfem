@@ -2011,8 +2011,9 @@ private:
 
    // PA extension
    Vector pa_data;
-   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
-   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const DofToQuad *mapsO;         ///< Not owned. Test DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. Test DOF-to-quad map, closed.
+   const DofToQuad *mapsTrialC;    ///< Not owned. Trial closed map.
    const GeometricFactors *geom;   ///< Not owned
    int dim, ne, dofs1D, quad1D;
    int op_entries;
@@ -2130,10 +2131,13 @@ protected:
 private:
    // PA extension
    Vector pa_data;
-   const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
-   const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const DofToQuad *mapsO;         ///< Not owned. Test DOF-to-quad map, open.
+   const DofToQuad *mapsC;         ///< Not owned. Test DOF-to-quad map, closed.
+   const DofToQuad *mapsTrialO;    ///< Not owned. Trial DOF-to-quad map, open.
+   const DofToQuad *mapsTrialC;    ///< Not owned. Trial closed map.
    const GeometricFactors *geom;   ///< Not owned
-   int dim, ne, dofs1D, quad1D, testType, trialType, coeffDim;
+   int dim, ne, dofs1D, dofs1Dtrial, quad1D, testType, trialType, coeffDim;
+   bool same_basis = false;
 };
 
 /** Class for integrating the bilinear form $a(u,v) := - (Q u, \nabla v)$ in either
