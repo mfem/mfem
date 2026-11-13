@@ -141,6 +141,10 @@ public:
    Array<NonlinearFormIntegrator*> *GetBNFI() { return &bnfi; }
    const Array<NonlinearFormIntegrator*> *GetBNFI() const { return &bnfi; }
 
+   /** @brief Access the boundary attribute markers of the integrators added
+       with AddBoundaryIntegrator() (nullptr: all boundary attributes). */
+   const Array<Array<int>*> *GetBNFI_Marker() const { return &bnfi_marker; }
+
    /// Adds new Interior Face Integrator.
    void AddInteriorFaceIntegrator(NonlinearFormIntegrator *nlfi)
    { fnfi.Append(nlfi); }

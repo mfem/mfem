@@ -91,7 +91,13 @@ public:
 
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
-       used later in the methods AddMultPA(). */
+       used later in the methods AddMultPA().
+
+       For a NonlinearForm boundary integrator (AddBoundaryIntegrator), every
+       E-vector passed to the PA methods below is a boundary-face E-vector of
+       PANonlinearFormExtension::GetBdrFaceRestriction(fes), with ordering
+       GetEVectorOrdering(fes) (NATIVE on simplex MMA spaces), see
+       PANonlinearFormExtension. */
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    /** The result of the partial assembly is stored internally so that it can be

@@ -55,6 +55,36 @@ public:
 };
 
 /// Data and methods for partially-assembled nonlinear forms
+/** Domain integrators (AddDomainIntegrator) act on element E-vectors of the
+    restriction FiniteElementSpace::GetElementRestriction() with the ordering
+    GetEVectorOrdering(fes).
+
+    Boundary integrators (AddBoundaryIntegrator) act on boundary-face
+    E-vectors of the restriction GetBdrFaceRestriction(fes), which uses the
+    @b same ordering GetEVectorOrdering(fes):
+    - tensor (quad/hex) spaces: LEXICOGRAPHIC, as for the elements;
+    - simplex MMA (tri/tet) spaces: NATIVE, as for the elements; each face
+      block holds FiniteElementSpace::GetFaceDofs() in that order, i.e. the
+      native DOFs of fes.GetFaceElement() on the face's own vertex order.
+
+    A boundary E-vector has the layout (face_dofs x vdim x nbf), where nbf =
+    fes.GetNFbyType(FaceType::Boundary) and the faces are numbered as in
+    Mesh::GetBdrFaceAttributes(). Matching quadrature data, in the same face
+    and point order, comes from Mesh::GetFaceGeometricFactors() and
+    FiniteElementSpace::GetFaceQuadratureInterpolator() with
+    FaceType::Boundary; pair the E-vector with the face element's
+    DofToQuad::TENSOR maps on tensor spaces and DofToQuad::FULL maps on
+    simplices. Normals point out of the domain.
+
+    The boundary integrators' PA methods are called as follows:
+    - AssemblePA(fes) in Assemble(),
+    - AddMultPA(x_f, y_f) in Mult(),
+    - AssembleGradPA(x_f, fes) in GetGradient(),
+    - AddMultGradPA(x_f, y_f) in the gradient's Mult(),
+    - AssembleGradDiagonalPA(d_f) in the gradient's AssembleDiagonal(),
+    where every vector is a boundary E-vector. Boundary attribute markers are
+    applied by the extension: an integrator always sees all boundary faces.
+    Every boundary face must be a boundary element, as in LinearForm. */
 class PANonlinearFormExtension : public NonlinearFormExtension
 {
 private:
@@ -92,8 +122,20 @@ protected:
    mutable Vector xe, ye;
    const FiniteElementSpace &fes;
    const Array<NonlinearFormIntegrator*> &dnfi;
+   const Array<NonlinearFormIntegrator*> &bnfi;
    const Operator *elemR; // not owned
+   const FaceRestriction *bdrR = nullptr; // not owned, set if bnfi exist
+   const Array<int> *bdr_face_attributes = nullptr; // not owned
+   mutable Vector bdr_xe, bdr_ye, bdr_tmp;
    mutable Gradient Grad;
+
+   /// Set up #bdrR and the boundary E-vectors when there are bnfi.
+   void SetupBdr();
+
+   /** @brief Add to the boundary E-vector @a y the result of @a apply(integ,
+       out) for every boundary integrator, honoring the attribute markers. */
+   template <typename Apply>
+   void AddBdr(Apply &&apply, Vector &y) const;
 
 public:
    PANonlinearFormExtension(const NonlinearForm *nlf);

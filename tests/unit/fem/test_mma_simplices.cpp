@@ -1895,6 +1895,243 @@ void test_bdr_lf_simplex_mma(const char *filename, int p, bool curved)
    }
 }
 
+/** Test boundary integrator R(u)(v) = int_G (u.n) (u.v) ds, the smooth part
+    of a backflow stabilization. It is nonlinear and normal dependent, so it
+    exercises the face E-vector, the face basis and the face geometric factors
+    of the PANonlinearFormExtension boundary contract together. */
+class BdrNormalConvectionNLFI : public NonlinearFormIntegrator
+{
+   const DofToQuad *maps = nullptr;
+   int dim = 0, nd = 0, nq = 0, nbf = 0;
+   Vector wn; // (nq, dim, nbf): w detJ n at the face points
+   Vector ue; // gradient state, boundary E-vector
+
+public:
+   explicit BdrNormalConvectionNLFI(const IntegrationRule &ir)
+      : NonlinearFormIntegrator(&ir) { }
+
+   using NonlinearFormIntegrator::AssemblePA;
+
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &Tr,
+                              const Vector &elfun, Vector &elvect) override
+   {
+      const int nd_ = el.GetDof(), dim_ = Tr.GetSpaceDim();
+      Vector shape(nd_), nor(dim_), u(dim_);
+      const DenseMatrix U(elfun.GetData(), nd_, dim_);
+      elvect.SetSize(nd_ * dim_);
+      elvect = 0.0;
+      for (const IntegrationPoint &ip : *IntRule)
+      {
+         Tr.SetIntPoint(&ip);
+         CalcOrtho(Tr.Jacobian(), nor);
+         el.CalcShape(ip, shape);
+         U.MultTranspose(shape, u);
+         const real_t un = ip.weight * (u * nor);
+         for (int c = 0; c < dim_; ++c)
+         {
+            for (int d = 0; d < nd_; ++d)
+            {
+               elvect(d + nd_ * c) += un * u(c) * shape(d);
+            }
+         }
+      }
+   }
+
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &Tr,
+                            const Vector &elfun, DenseMatrix &elmat) override
+   {
+      const int nd_ = el.GetDof(), dim_ = Tr.GetSpaceDim();
+      Vector shape(nd_), nor(dim_), u(dim_);
+      const DenseMatrix U(elfun.GetData(), nd_, dim_);
+      elmat.SetSize(nd_ * dim_);
+      elmat = 0.0;
+      for (const IntegrationPoint &ip : *IntRule)
+      {
+         Tr.SetIntPoint(&ip);
+         CalcOrtho(Tr.Jacobian(), nor);
+         el.CalcShape(ip, shape);
+         U.MultTranspose(shape, u);
+         const real_t un = u * nor;
+         for (int c = 0; c < dim_; ++c)
+         {
+            for (int k = 0; k < dim_; ++k)
+            {
+               const real_t a = (c == k) ? un : 0.0;
+               for (int d = 0; d < nd_; ++d)
+               {
+                  for (int e = 0; e < nd_; ++e)
+                  {
+                     elmat(d + nd_ * c, e + nd_ * k) += ip.weight * shape(d) *
+                                                        shape(e) *
+                                                        (nor(k) * u(c) + a);
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   void AssemblePA(const FiniteElementSpace &fes) override
+   {
+      // Contract: boundary E-vectors use GetEVectorOrdering(fes), NATIVE
+      // here, so the face basis is the FULL map of the face element.
+      REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::NATIVE);
+      Mesh &mesh = *fes.GetMesh();
+      dim = mesh.Dimension();
+      maps = &fes.GetFaceElement(0)->GetDofToQuad(*IntRule, DofToQuad::FULL);
+      nd = maps->ndof;
+      nq = maps->nqpt;
+      nbf = fes.GetNFbyType(FaceType::Boundary);
+      REQUIRE(PANonlinearFormExtension::GetBdrFaceRestriction(fes).Height() ==
+              nd * dim * nbf);
+      constexpr int flags = FaceGeometricFactors::DETERMINANTS |
+                            FaceGeometricFactors::NORMALS;
+      const FaceGeometricFactors *geom =
+         mesh.GetFaceGeometricFactors(*IntRule, flags, FaceType::Boundary);
+      wn.SetSize(nq * dim * nbf);
+      const int NQ = nq, DIM = dim, NF = nbf;
+      const auto W = IntRule->GetWeights().Read();
+      const auto detJ = Reshape(geom->detJ.Read(), NQ, NF);
+      const auto N = Reshape(geom->normal.Read(), NQ, DIM, NF);
+      auto WN = Reshape(wn.Write(), NQ, DIM, NF);
+      mfem::forall(NQ * NF, [=] MFEM_HOST_DEVICE (int i)
+      {
+         const int q = i % NQ, f = i / NQ;
+         for (int c = 0; c < DIM; ++c)
+         {
+            WN(q, c, f) = W[q] * detJ(q, f) * N(q, c, f);
+         }
+      });
+   }
+
+   void AddMultPA(const Vector &x, Vector &y) const override
+   { Apply(x, x, y, false); }
+
+   void AssembleGradPA(const Vector &x, const FiniteElementSpace &) override
+   { ue = x; }
+
+   void AddMultGradPA(const Vector &x, Vector &y) const override
+   { Apply(ue, x, y, true); }
+
+   /// y += R(u) if !grad (u == du), else y += R'(u) du.
+   void Apply(const Vector &u, const Vector &du, Vector &y, bool grad) const
+   {
+      const int ND = nd, NQ = nq, DIM = dim, NF = nbf;
+      const auto B = Reshape(maps->B.Read(), NQ, ND);
+      const auto WN = Reshape(wn.Read(), NQ, DIM, NF);
+      const auto U = Reshape(u.Read(), ND, DIM, NF);
+      const auto DU = Reshape(du.Read(), ND, DIM, NF);
+      auto Y = Reshape(y.ReadWrite(), ND, DIM, NF);
+      mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
+      {
+         for (int q = 0; q < NQ; ++q)
+         {
+            real_t uq[3] = {0, 0, 0}, dq[3] = {0, 0, 0}, un = 0, dn = 0;
+            for (int c = 0; c < DIM; ++c)
+            {
+               for (int d = 0; d < ND; ++d)
+               {
+                  uq[c] += B(q, d) * U(d, c, f);
+                  dq[c] += B(q, d) * DU(d, c, f);
+               }
+               un += uq[c] * WN(q, c, f);
+               dn += dq[c] * WN(q, c, f);
+            }
+            for (int c = 0; c < DIM; ++c)
+            {
+               const real_t r = grad ? dn * uq[c] + un * dq[c] : un * uq[c];
+               for (int d = 0; d < ND; ++d) { Y(d, c, f) += B(q, d) * r; }
+            }
+         }
+      });
+   }
+
+   void AssembleGradDiagonalPA(Vector &diag) const override
+   {
+      const int ND = nd, NQ = nq, DIM = dim, NF = nbf;
+      const auto B = Reshape(maps->B.Read(), NQ, ND);
+      const auto WN = Reshape(wn.Read(), NQ, DIM, NF);
+      const auto U = Reshape(ue.Read(), ND, DIM, NF);
+      auto D = Reshape(diag.ReadWrite(), ND, DIM, NF);
+      mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
+      {
+         for (int q = 0; q < NQ; ++q)
+         {
+            real_t uq[3] = {0, 0, 0}, un = 0;
+            for (int c = 0; c < DIM; ++c)
+            {
+               for (int d = 0; d < ND; ++d) { uq[c] += B(q, d) * U(d, c, f); }
+               un += uq[c] * WN(q, c, f);
+            }
+            for (int c = 0; c < DIM; ++c)
+            {
+               const real_t a = WN(q, c, f) * uq[c] + un;
+               for (int d = 0; d < ND; ++d)
+               {
+                  D(d, c, f) += B(q, d) * B(q, d) * a;
+               }
+            }
+         }
+      });
+   }
+};
+
+void test_bdr_nlf_simplex_mma(const char *filename, int p, bool curved,
+                              bool marked)
+{
+   CAPTURE(filename, p, curved, marked);
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   Array<int> bdr_marker;
+   SetAlternateBdrAttributes(mesh, bdr_marker);
+   const int dim = mesh.Dimension();
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+   REQUIRE(UsesSimplexMMA(fes));
+   const IntegrationRule &ir =
+      IntRules.Get(fes.GetBE(0)->GetGeomType(), 3 * p + 4);
+
+   // Domain and boundary integrators together: both sides of the contract.
+   // As for the linear forms, the legacy form gets its own marker copy.
+   Array<int> bdr_marker_fa(bdr_marker);
+   NonlinearForm nlf_fa(&fes), nlf_pa(&fes);
+   nlf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   for (NonlinearForm *nlf : {&nlf_fa, &nlf_pa})
+   {
+      nlf->AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+      Array<int> &marker = (nlf == &nlf_fa) ? bdr_marker_fa : bdr_marker;
+      if (marked)
+      {
+         nlf->AddBoundaryIntegrator(new BdrNormalConvectionNLFI(ir), marker);
+      }
+      else { nlf->AddBoundaryIntegrator(new BdrNormalConvectionNLFI(ir)); }
+   }
+   nlf_pa.Setup();
+
+   GridFunction x(&fes), dx(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(0x71);
+   dx.Randomize(0x72);
+
+   nlf_fa.Mult(x, y_fa);
+   nlf_pa.Mult(x, y_pa);
+   y_pa -= y_fa;
+   RequireSmallRel(y_pa, y_fa);
+
+   Operator &grad_fa = nlf_fa.GetGradient(x);
+   Operator &grad_pa = nlf_pa.GetGradient(x);
+   grad_fa.Mult(dx, y_fa);
+   grad_pa.Mult(dx, y_pa);
+   y_pa -= y_fa;
+   RequireSmallRel(y_pa, y_fa);
+
+   Vector diag_fa(fes.GetVSize()), diag_pa(fes.GetVSize());
+   dynamic_cast<SparseMatrix &>(grad_fa).GetDiag(diag_fa);
+   grad_pa.AssembleDiagonal(diag_pa);
+   diag_pa -= diag_fa;
+   RequireSmallRel(diag_pa, diag_fa);
+}
+
 TEST_CASE("Simplex NATIVE boundary face restriction",
           "[MMA][FaceRestriction][GPU]")
 {
@@ -1932,6 +2169,24 @@ TEST_CASE("Boundary LF Simplices MMA", "[LinearFormExtension][MMA][GPU]")
    {
       test_bdr_lf_simplex_mma("../../data/inline-tet.mesh", p, curved);
       test_bdr_lf_simplex_mma("../../data/beam-tet.mesh", p, curved);
+   }
+}
+
+TEST_CASE("Boundary NLF PA Simplices MMA",
+          "[PartialAssembly][NonlinearPA][MMA][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3);
+   const auto curved = GENERATE(false, true);
+   const auto marked = GENERATE(false, true);
+   SECTION("2D")
+   {
+      test_bdr_nlf_simplex_mma("../../data/inline-tri.mesh", p, curved,
+                               marked);
+   }
+   SECTION("3D")
+   {
+      test_bdr_nlf_simplex_mma("../../data/inline-tet.mesh", p, curved,
+                               marked);
    }
 }
 

@@ -12,6 +12,7 @@
 // Implementations of classes FABilinearFormExtension, EABilinearFormExtension,
 // PABilinearFormExtension and MFBilinearFormExtension.
 
+#include "../general/forall.hpp"
 #include "nonlinearform.hpp"
 #include "ceed/interface/util.hpp"
 
@@ -25,6 +26,7 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
    NonlinearFormExtension(nlf),
    fes(*nlf->FESpace()),
    dnfi(*nlf->GetDNFI()),
+   bnfi(*nlf->GetBNFI()),
    elemR(nullptr),
    Grad(*this)
 {
@@ -48,8 +50,72 @@ const FaceRestriction &PANonlinearFormExtension::GetBdrFaceRestriction(
                                   L2FaceValues::SingleValued);
 }
 
+void PANonlinearFormExtension::SetupBdr()
+{
+   // Integrators are usually added after the extension is created, so this
+   // runs from Assemble() rather than from the constructor.
+   if (bnfi.Size() == 0) { bdrR = nullptr; return; }
+   MFEM_VERIFY(!DeviceCanUseCeed(),
+               "PA boundary integrators are not supported with libCEED");
+   const Mesh &mesh = *fes.GetMesh();
+   MFEM_VERIFY(fes.GetNFbyType(FaceType::Boundary) == fes.GetNBE(),
+               "PA boundary integrators need every boundary face to be a "
+               "boundary element");
+   const int max_attr = mesh.bdr_attributes.Size() ?
+                        mesh.bdr_attributes.Max() : 0;
+   for (const Array<int> *m : *nlf->GetBNFI_Marker())
+   {
+      MFEM_VERIFY(!m || m->Size() == max_attr,
+                  "invalid boundary marker for a PA boundary integrator");
+   }
+
+   bdrR = &GetBdrFaceRestriction(fes);
+   bdr_face_attributes = &mesh.GetBdrFaceAttributes();
+   const MemoryType mt = Device::GetMemoryType();
+   bdr_xe.SetSize(bdrR->Height(), mt);
+   bdr_ye.SetSize(bdrR->Height(), mt);
+   bdr_ye.UseDevice(true);
+   bdr_tmp.SetSize(bdrR->Height(), mt);
+   bdr_tmp.UseDevice(true);
+}
+
+/// y(:,f) += x(:,f) on the faces f whose attribute is marked.
+static void AddMarkedFaces(const Array<int> &marker,
+                           const Array<int> &attributes,
+                           const Vector &x, Vector &y)
+{
+   const int nf = attributes.Size();
+   if (nf == 0) { return; }
+   const int nd = x.Size() / nf; // face_dofs * vdim
+   const auto X = Reshape(x.Read(), nd, nf);
+   const auto M = marker.Read();
+   const auto A = attributes.Read();
+   auto Y = Reshape(y.ReadWrite(), nd, nf);
+   mfem::forall(nd*nf, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int d = i % nd, f = i / nd;
+      const int attr = A[f];
+      if (attr > 0 && M[attr - 1] != 0) { Y(d,f) += X(d,f); }
+   });
+}
+
+template <typename Apply>
+void PANonlinearFormExtension::AddBdr(Apply &&apply, Vector &y) const
+{
+   const Array<Array<int>*> &markers = *nlf->GetBNFI_Marker();
+   for (int i = 0; i < bnfi.Size(); ++i)
+   {
+      if (!markers[i]) { apply(*bnfi[i], y); continue; }
+      bdr_tmp = 0.0;
+      apply(*bnfi[i], bdr_tmp);
+      AddMarkedFaces(*markers[i], *bdr_face_attributes, bdr_tmp, y);
+   }
+}
+
 real_t PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
 {
+   MFEM_VERIFY(bnfi.Size() == 0,
+               "PA energy of boundary integrators is not supported");
    real_t energy = 0.0;
 
    elemR->Mult(x, xe);
@@ -66,7 +132,9 @@ void PANonlinearFormExtension::Assemble()
                nlf->GetBdrFaceIntegrators().Size() == 0,
                "face integrators are not supported yet");
 
+   SetupBdr();
    for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(fes); }
+   for (int i = 0; i < bnfi.Size(); ++i) { bnfi[i]->AssemblePA(fes); }
 }
 
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
@@ -87,6 +155,13 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
          dnfi[i]->AddMultPA(x, y);
       }
    }
+
+   if (!bdrR) { return; }
+   bdrR->Mult(x, bdr_xe);
+   bdr_ye = 0.0;
+   AddBdr([&](const NonlinearFormIntegrator &bi, Vector &out)
+   { bi.AddMultPA(bdr_xe, out); }, bdr_ye);
+   bdrR->AddMultTranspose(bdr_ye, y);
 }
 
 Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
@@ -101,6 +176,7 @@ void PANonlinearFormExtension::Update()
    elemR = fes.GetElementRestriction(GetEVectorOrdering(fes));
    xe.SetSize(elemR->Height());
    ye.SetSize(elemR->Height());
+   SetupBdr();
    Grad.Update();
 }
 
@@ -126,6 +202,13 @@ void PANonlinearFormExtension::Gradient::AssembleGrad(const Vector &g)
    {
       ext.dnfi[i]->AssembleGradPA(ext.xe, ext.fes);
    }
+
+   if (!ext.bdrR) { return; }
+   ext.bdrR->Mult(g, ext.bdr_xe);
+   for (int i = 0; i < ext.bnfi.Size(); ++i)
+   {
+      ext.bnfi[i]->AssembleGradPA(ext.bdr_xe, ext.fes);
+   }
 }
 
 void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
@@ -137,6 +220,13 @@ void PANonlinearFormExtension::Gradient::Mult(const Vector &x, Vector &y) const
       ext.dnfi[i]->AddMultGradPA(ext.xe, ext.ye);
    }
    ext.elemR->MultTranspose(ext.ye, y);
+
+   if (!ext.bdrR) { return; }
+   ext.bdrR->Mult(x, ext.bdr_xe);
+   ext.bdr_ye = 0.0;
+   ext.AddBdr([&](const NonlinearFormIntegrator &bi, Vector &out)
+   { bi.AddMultGradPA(ext.bdr_xe, out); }, ext.bdr_ye);
+   ext.bdrR->AddMultTranspose(ext.bdr_ye, y);
 }
 
 void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const
@@ -149,6 +239,12 @@ void PANonlinearFormExtension::Gradient::AssembleDiagonal(Vector &diag) const
       ext.dnfi[i]->AssembleGradDiagonalPA(ext.ye);
    }
    ext.elemR->MultTranspose(ext.ye, diag);
+
+   if (!ext.bdrR) { return; }
+   ext.bdr_ye = 0.0;
+   ext.AddBdr([](const NonlinearFormIntegrator &bi, Vector &out)
+   { bi.AssembleGradDiagonalPA(out); }, ext.bdr_ye);
+   ext.bdrR->AddMultTranspose(ext.bdr_ye, diag);
 }
 
 void PANonlinearFormExtension::Gradient::Update()
