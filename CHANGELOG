@@ -37,6 +37,11 @@ Linear and nonlinear solvers
   previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
   in a NewtonSolver.
 
+- Fixed SuperLUSolver with a 3D process grid and SuperLU_DIST 9.0 or newer,
+  which crashed when it was destroyed or given a new operator: the factors,
+  which all the process layers hold since SuperLU_DIST 9.0, are now freed on all
+  of them.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new example for solving the biharmonic equation (examples/ex42) based

@@ -291,6 +291,13 @@ SuperLUSolver::~SuperLUSolver()
 
       if (APtr_)
       {
+#if SUPERLU_DIST_MAJOR_VERSION >= 9
+         // All process layers hold the L and U factors (2D distribution of
+         // their part of the elimination tree) and the 3D solve structures
+         SolveFinalize(options, SOLVEstruct);
+         Destroy_LU(APtr_->GetGlobalNumColumns(), &(grid3d->grid2d),
+                    LUstruct);
+#else
          if (grid3d->zscp.Iam == 0)
          {
             // Process layer 0
@@ -304,6 +311,7 @@ SuperLUSolver::~SuperLUSolver()
             DeAllocLlu_3d(APtr_->GetGlobalNumColumns(), LUstruct, grid3d);
             DeAllocGlu_3d(LUstruct);
          }
+#endif
          Destroy_A3d_gathered_on_2d(SOLVEstruct, grid3d);
          ScalePermstructFree(ScalePermstruct);
          LUstructFree(LUstruct);
@@ -543,9 +551,9 @@ void SuperLUSolver::SetOperator(const Operator &op)
             {
                if (grid3d->zscp.Iam == 0)
                {
-                  ZeroLblocks(grid3d->iam, APtr_->GetGlobalNumColumns(),
+                  ZeroLblocks(grid3d->grid2d.iam, APtr_->GetGlobalNumColumns(),
                               &(grid3d->grid2d), LUstruct);
-                  ZeroUblocks(grid3d->iam, APtr_->GetGlobalNumColumns(),
+                  ZeroUblocks(grid3d->grid2d.iam, APtr_->GetGlobalNumColumns(),
                               &(grid3d->grid2d), LUstruct);
                }
             }
@@ -567,6 +575,10 @@ void SuperLUSolver::SetOperator(const Operator &op)
 (SUPERLU_DIST_MAJOR_VERSION == 7 && SUPERLU_DIST_MINOR_VERSION >= 2)
             if (npdep_ > 1)
             {
+#if SUPERLU_DIST_MAJOR_VERSION >= 9
+               Destroy_LU(APtr_->GetGlobalNumColumns(), &(grid3d->grid2d),
+                          LUstruct);
+#else
                if (grid3d->zscp.Iam == 0)
                {
                   Destroy_LU(APtr_->GetGlobalNumColumns(), &(grid3d->grid2d),
@@ -578,6 +590,7 @@ void SuperLUSolver::SetOperator(const Operator &op)
                                 grid3d);
                   DeAllocGlu_3d(LUstruct);
                }
+#endif
             }
             else
 #endif
