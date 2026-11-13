@@ -937,6 +937,45 @@ constexpr auto get_Q1D(const Tuple& fields)
    }, fields);
 }
 
+/// Per-field metadata of the inputs or of the outputs of an integrator,
+/// simplifies the access to the field metadata for the kernels callbacks.
+/// The extents come from the shape (q1d, dim, d1d) of the bases in @a dtq.
+template <size_t N>
+struct FieldMetadata
+{
+   /// Stored DofToQuad maps, E-vector indices, and vector dimensions for each
+   /// field.
+   std::array<DofToQuadMap, N> dtq; ///< 1D basis and gradient
+   std::array<size_t, N> idx;       ///< E-vector slot, SIZE_MAX for Weight
+   std::array<int, N> vdim;
+
+   // d1d and q1d sizes accessor methods
+   MFEM_HOST_DEVICE int d1d(const size_t i) const
+   { return dtq[i].B.GetShape()[DofToQuadMap::Index::DOF]; }
+
+   MFEM_HOST_DEVICE int q1d(const size_t i) const
+   { return dtq[i].B.GetShape()[DofToQuadMap::Index::QP]; }
+
+   // d1d/q1d arrays accessor methods for all fields
+   std::array<int, N> d1ds() const { return get_D1D(dtq); }
+   std::array<int, N> q1ds() const { return get_Q1D(dtq); }
+};
+
+/// FieldMetadata of the field operators @a fops, whose E-vectors are indexed
+/// like @a fds (ctx.infds or ctx.outfds). Sets the dimensions of @a fops.
+template <typename entity_t, typename fops_t>
+FieldMetadata<tuple_size<fops_t>::value>
+MakeFieldMetadata(const IntegratorContext<entity_t> &ctx,
+                  const std::vector<const DofToQuad *> &dtqs, fops_t &fops,
+                  const std::vector<FieldDescriptor> &fds)
+{
+   const auto dtq = create_dtq_maps<entity_t>(
+                       fops, dtqs, create_union_field_map_for_dtq(ctx, fops),
+                       ctx.unionfds, ctx.ir);
+   const auto idx = create_descriptors_to_fields_map<entity_t>(fds, fops);
+   return { dtq, idx, get_vdim(fops) };
+}
+
 
 /// Column of the derivative qp cache that holds the response to component
 /// (j, m) of a dependent input: vdim index j, operator index m.

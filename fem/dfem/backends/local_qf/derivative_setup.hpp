@@ -51,10 +51,7 @@ class DerivativeSetup
    Vector &qp_cache;
    const std::vector<const DofToQuad *> dtqs;
    // inputs: dtq, idx, B, G, d1d, q1d, vdim
-   const std::array<DofToQuadMap, n_inputs> input_dtq;
-   const std::array<size_t, n_inputs> input_idx;
-   const std::array<const real_t *, n_inputs> input_B, input_G;
-   const std::array<int, n_inputs> input_d1d, input_q1d, input_vdim;
+   const FieldMetadata<n_inputs> in_data;
    // Jacobian cache metadata
    const std::array<bool, n_inputs> input_is_dependent;
    const std::array<int, n_inputs> input_size_on_qp;
@@ -79,16 +76,7 @@ public:
                    Vector &qp_cache):
       qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs), ctx(ctx),
       qp_cache(qp_cache), dtqs(make_dtqs(ctx)),
-      input_dtq(create_dtq_maps<entity_t>(
-                   inputs,
-                   dtqs,
-                   create_union_field_map_for_dtq(ctx, inputs),
-                   ctx.unionfds,
-                   ctx.ir)),
-      input_idx(create_input_vector_map(ctx, inputs)),
-      input_B(get_B(input_dtq)), input_G(get_G(input_dtq)),
-      input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
-      input_vdim(get_vdim(inputs)),
+      in_data(MakeFieldMetadata(ctx, dtqs, inputs, ctx.infds)),
       input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
       input_size_on_qp(
          get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs> {})),
@@ -143,7 +131,7 @@ public:
 
    /// Tile size the kernel must be built at: the shared B/G arrays are square
    /// [MQ1][MQ1] but hold a q1d x d1d matrix, so MQ1 must cover both extents.
-   int tile_size() const { return kernel_tile_size(q1d, input_d1d); }
+   int tile_size() const { return kernel_tile_size(q1d, in_data.d1ds()); }
 
    template<typename Backend>
    void run_kernels(const std::vector<Vector *> &xe,
@@ -154,12 +142,7 @@ public:
                    ctx,
                    qfunc,
                    // inputs
-                   input_idx,
-                   input_B,
-                   input_G,
-                   input_vdim,
-                   input_d1d,
-                   input_q1d,
+                   in_data,
                    input_size_on_qp,
                    input_is_dependent,
                    // outputs / cache metadata
@@ -226,13 +209,7 @@ public:
    static void
    derivative_setup_callback(const IntegratorContext<entity_t> &ctx,
                              qfunc_t &qfunc,
-                             // inputs: idx, B, G, vdim, d1d, q1d
-                             const std::array<size_t, n_inputs> &in_idx,
-                             const std::array<const real_t *, n_inputs> in_B,
-                             const std::array<const real_t *, n_inputs> in_G,
-                             const std::array<int, n_inputs> &in_vdim,
-                             const std::array<int, n_inputs> &in_d1d,
-                             const std::array<int, n_inputs> &in_q1d,
+                             const FieldMetadata<n_inputs> &in,
                              const std::array<int, n_inputs> &in_size_on_qp,
                              const std::array<bool, n_inputs> &input_dep,
                              // outputs / cache metadata
@@ -276,8 +253,8 @@ public:
       for_constexpr_host<n_inputs>([&](auto ic)
       {
          constexpr size_t i = ic.value;
-         const size_t k = in_idx[i];
-         const int d = in_d1d[i], q = in_q1d[i], v = in_vdim[i];
+         const size_t k = in.idx[i];
+         const int d = in.d1d(i), q = in.q1d(i), v = in.vdim[i];
          using FOP = tuple_element_t<i, inputs_t>;
          if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
          {
@@ -331,8 +308,8 @@ public:
          {
             constexpr size_t i = ic.value;
             const auto &XE = in_XE[i];
-            const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
-            const real_t *B = in_B[i], *G = in_G[i];
+            const int d = in.d1d(i), q = in.q1d(i), Q1D = q1d;
+            const real_t *B = in.dtq[i].B, *G = in.dtq[i].G;
             auto &rarg = get<i>(rargs);
             using XE_t = decltype(XE);
             using rarg_t = decltype(rarg);
@@ -531,7 +508,7 @@ public:
       },
       ctx.marked_entities.Size(),
       backend_t::thread_blocks(
-         compute_kernel_thread_1d<inputs_t>(q1d, in_d1d)),
+         compute_kernel_thread_1d<inputs_t>(q1d, in.d1ds())),
       0,
       nullptr);
    }

@@ -114,16 +114,9 @@ class DerivativeAction
    const outputs_t outputs;
    const IntegratorContext<entity_t> ctx;
    const std::vector<const DofToQuad *> dtqs;
-   // inputs: dtq, idx, B, G, d1d, q1d, vdim
-   const std::array<DofToQuadMap, n_inputs> input_dtq;
-   const std::array<size_t, n_inputs> input_idx;
-   const std::array<const real_t *, n_inputs> input_B, input_G;
-   const std::array<int, n_inputs> input_d1d, input_q1d, input_vdim;
-   // outputs: dtq, idx, B, G, d1d, q1d, vdim
-   const std::array<DofToQuadMap, n_outputs> output_dtq;
-   const std::array<size_t, n_outputs> output_idx;
-   const std::array<const real_t *, n_outputs> output_B, output_G;
-   const std::array<int, n_outputs> output_d1d, output_q1d, output_vdim;
+   // inputs/outputs: dtq, idx, B, G, d1d, q1d, vdim
+   const FieldMetadata<n_inputs> in_data;
+   const FieldMetadata<n_outputs> out_data;
    // other constants
    const int dim, ne, nq, q1d;
 
@@ -145,28 +138,8 @@ public:
                     outputs_t outputs):
       qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs), ctx(ctx),
       dtqs(make_dtqs(ctx)),
-      // inputs: dtq, idx, B, G, d1d, q1d, vdim
-      input_dtq(create_dtq_maps<entity_t>(
-                   inputs,
-                   dtqs,
-                   create_union_field_map_for_dtq(ctx, inputs),
-                   ctx.unionfds,
-                   ctx.ir)),
-      input_idx(create_input_vector_map(ctx, inputs)),
-      input_B(get_B(input_dtq)), input_G(get_G(input_dtq)),
-      input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
-      input_vdim(get_vdim(inputs)),
-      // outputs: dtq, idx, B, G, d1d, q1d, vdim
-      output_dtq(create_dtq_maps<entity_t>(
-                    outputs,
-                    dtqs,
-                    create_union_field_map_for_dtq(ctx, outputs),
-                    ctx.unionfds,
-                    ctx.ir)),
-      output_idx(create_output_vector_map(ctx, outputs)),
-      output_B(get_B(output_dtq)), output_G(get_G(output_dtq)),
-      output_d1d(get_D1D(output_dtq)), output_q1d(get_Q1D(output_dtq)),
-      output_vdim(get_vdim(outputs)),
+      in_data(MakeFieldMetadata(ctx, dtqs, inputs, ctx.infds)),
+      out_data(MakeFieldMetadata(ctx, dtqs, outputs, ctx.outfds)),
       // other constants
       dim(GetEntityDimension<entity_t>(ctx.mesh)), ne(ctx.nentities),
       nq(ctx.ir.GetNPoints()),
@@ -201,7 +174,8 @@ public:
 
    /// Tile size the kernel must be built at: the shared B/G arrays are square
    /// [MQ1][MQ1] but hold a q1d x d1d matrix, so MQ1 must cover both extents.
-   int tile_size() const { return kernel_tile_size(q1d, input_d1d, output_d1d); }
+   int tile_size() const
+   { return kernel_tile_size(q1d, in_data.d1ds(), out_data.d1ds()); }
 
    template<typename Backend>
    void run_kernels(const std::vector<Vector *> &xe,
@@ -213,19 +187,9 @@ public:
                    ctx,
                    qfunc,
                    // inputs
-                   input_idx,
-                   input_B,
-                   input_G,
-                   input_vdim,
-                   input_d1d,
-                   input_q1d,
+                   in_data,
                    // outputs
-                   output_idx,
-                   output_B,
-                   output_G,
-                   output_vdim,
-                   output_d1d,
-                   output_q1d,
+                   out_data,
                    // input and output vectors
                    xe,
                    ye,
@@ -273,14 +237,8 @@ public:
       std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_inputs> in_XE;
       std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_inputs> in_XE_dir;
       std::array<DeviceTensor<3 + 1 + 1, real_t>, n_outputs> out_YE;
-      std::array<const real_t *, n_inputs> in_B;
-      std::array<const real_t *, n_inputs> in_G;
-      std::array<int, n_inputs> in_d1d;
-      std::array<int, n_inputs> in_q1d;
-      std::array<const real_t *, n_outputs> out_B;
-      std::array<const real_t *, n_outputs> out_G;
-      std::array<int, n_outputs> out_d1d;
-      std::array<int, n_outputs> out_q1d;
+      FieldMetadata<n_inputs> in;
+      FieldMetadata<n_outputs> out;
       std::array<bool, n_inputs> input_dep;
       const int *d_entities;
       int q1d;
@@ -297,14 +255,8 @@ public:
       const auto &in_XE = data.in_XE;
       const auto &in_XE_dir = data.in_XE_dir;
       const auto &out_YE = data.out_YE;
-      const auto &in_B = data.in_B;
-      const auto &in_G = data.in_G;
-      const auto &in_d1d = data.in_d1d;
-      const auto &in_q1d = data.in_q1d;
-      const auto &out_B = data.out_B;
-      const auto &out_G = data.out_G;
-      const auto &out_d1d = data.out_d1d;
-      const auto &out_q1d = data.out_q1d;
+      const auto &in = data.in;
+      const auto &out = data.out;
       const auto &input_dep = data.input_dep;
       MFEM_CONTRACT_VAR(input_dep);
       const int q1d = data.q1d;
@@ -328,8 +280,8 @@ public:
       {
          constexpr size_t i = ic.value;
          const auto &XE = in_XE[i];
-         const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
-         const real_t *B = in_B[i], *G = in_G[i];
+         const int d = in.d1d(i), q = in.q1d(i), Q1D = q1d;
+         const real_t *B = in.dtq[i].B, *G = in.dtq[i].G;
          auto &rarg = get<i>(rargs);
          using FOP = tuple_element_t<i, inputs_t>;
          if constexpr (is_value_fop<FOP>::value)
@@ -369,8 +321,8 @@ public:
                        (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>))
          {
             const auto &XE = in_XE_dir[i];
-            const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
-            const real_t *B = in_B[i], *G = in_G[i];
+            const int d = in.d1d(i), q = in.q1d(i), Q1D = q1d;
+            const real_t *B = in.dtq[i].B, *G = in.dtq[i].G;
             auto &sarg = get<i>(sargs); // shadow argument register
             if constexpr (is_value_fop_v<FOP>)
             {
@@ -604,8 +556,8 @@ public:
       for_constexpr<n_outputs>([&](auto ic)
       {
          constexpr size_t i = ic.value, o = n_inputs + i;
-         const int d = out_d1d[i], q = out_q1d[i];
-         const auto B = out_B[i], G = out_G[i];
+         const int d = out.d1d(i), q = out.q1d(i);
+         const auto B = out.dtq[i].B, G = out.dtq[i].G;
          auto &YE = out_YE[i];
          auto &rarg = get<o>(rargs);
          using FOP = tuple_element_t<i, outputs_t>;
@@ -650,20 +602,8 @@ public:
    static void
    derivative_action_callback(const IntegratorContext<entity_t> &ctx,
                               qfunc_t &qfunc,
-                              // inputs: idx, B, G, vdim, d1d, q1d
-                              const std::array<size_t, n_inputs> &in_idx,
-                              const std::array<const real_t *, n_inputs> in_B,
-                              const std::array<const real_t *, n_inputs> in_G,
-                              const std::array<int, n_inputs> &in_vdim,
-                              const std::array<int, n_inputs> &in_d1d,
-                              const std::array<int, n_inputs> &in_q1d,
-                              // outputs: idx, B, G, vdim, d1d, q1d
-                              const std::array<size_t, n_outputs> &out_idx,
-                              const std::array<const real_t *, n_outputs> out_B,
-                              const std::array<const real_t *, n_outputs> out_G,
-                              const std::array<int, n_outputs> &out_vdim,
-                              const std::array<int, n_outputs> &out_d1d,
-                              const std::array<int, n_outputs> &out_q1d,
+                              const FieldMetadata<n_inputs> &in,
+                              const FieldMetadata<n_outputs> &out,
                               const std::vector<Vector *> &xe,
                               std::vector<Vector *> &ye,
                               const std::array<bool, n_inputs> &input_dep,
@@ -693,8 +633,8 @@ public:
       for_constexpr_host<n_inputs>([&](auto ic)
       {
          constexpr size_t i = ic.value;
-         const size_t k = in_idx[i];
-         const int d = in_d1d[i], q = in_q1d[i], v = in_vdim[i];
+         const size_t k = in.idx[i];
+         const int d = in.d1d(i), q = in.q1d(i), v = in.vdim[i];
          using FOP = tuple_element_t<i, inputs_t>;
          if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
          {
@@ -730,8 +670,8 @@ public:
       for_constexpr_host<n_inputs>([&](auto ic)
       {
          constexpr size_t i = ic.value;
-         const size_t k = in_idx[i];
-         const int d = in_d1d[i], q = in_q1d[i], v = in_vdim[i];
+         const size_t k = in.idx[i];
+         const int d = in.d1d(i), q = in.q1d(i), v = in.vdim[i];
          using FOP = tuple_element_t<i, inputs_t>;
          if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
          {
@@ -777,8 +717,8 @@ public:
       for_constexpr_host<n_outputs>([&](auto ic)
       {
          constexpr size_t i = ic.value;
-         const size_t k = out_idx[i];
-         const int d = out_d1d[i], q = out_q1d[i], v = out_vdim[i];
+         const size_t k = out.idx[i];
+         const int d = out.d1d(i), q = out.q1d(i), v = out.vdim[i];
          using FOP = tuple_element_t<i, outputs_t>;
          if constexpr (is_gradient_fop_v<FOP> || is_value_fop_v<FOP>)
          {
@@ -802,21 +742,16 @@ public:
          in_XE,
          in_XE_dir,
          out_YE,
-         in_B,
-         in_G,
-         in_d1d,
-         in_q1d,
-         out_B,
-         out_G,
-         out_d1d,
-         out_q1d,
+         in,
+         out,
          input_dep,
          ctx.marked_entities.Read(),
          q1d
       };
 
       const auto blocks = backend_t::thread_blocks(
-                             compute_kernel_thread_1d<inputs_t, outputs_t>(q1d, in_d1d, out_d1d));
+                             compute_kernel_thread_1d<inputs_t, outputs_t>(
+                                q1d, in.d1ds(), out.d1ds()));
 
       if (Device::Allows(Backend::CUDA_MASK) ||
           Device::Allows(Backend::HIP_MASK))

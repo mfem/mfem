@@ -71,15 +71,9 @@ class DerivativeApplyTranspose
    const IntegratorContext<entity_t> ctx;
    const Vector &qp_cache; // Jacobian cache from DerivativeSetup
    const std::vector<const DofToQuad *> dtqs;
-   // inputs: dtq, B, G, d1d, q1d, vdim (trial / derivative fields)
-   const std::array<DofToQuadMap, n_inputs> input_dtq;
-   const std::array<const real_t *, n_inputs> input_B, input_G;
-   const std::array<int, n_inputs> input_d1d, input_q1d, input_vdim;
-   // outputs: dtq, idx, B, G, d1d, q1d, vdim (test / cotangent fields)
-   const std::array<DofToQuadMap, n_outputs> output_dtq;
-   const std::array<size_t, n_outputs> output_idx;
-   const std::array<const real_t *, n_outputs> output_B, output_G;
-   const std::array<int, n_outputs> output_d1d, output_q1d, output_vdim;
+   // inputs/outputs: dtq, idx, B, G, d1d, q1d, vdim
+   const FieldMetadata<n_inputs> in_data; // trial / derivative fields
+   const FieldMetadata<n_outputs> out_data; // test / cotangent fields
    // Jacobian cache metadata
    const std::array<bool, n_inputs> input_is_dependent;
    const std::array<int, n_inputs> input_size_on_qp;
@@ -109,30 +103,14 @@ public:
                             outputs_t outputs,
                             const Vector &qp_cache):
       inputs(inputs), outputs(outputs), ctx(ctx), qp_cache(qp_cache),
-      dtqs(make_dtqs(ctx)), input_dtq(create_dtq_maps<entity_t>(
-                                         inputs,
-                                         dtqs,
-                                         create_union_field_map_for_dtq(ctx, inputs),
-                                         ctx.unionfds,
-                                         ctx.ir)),
-      input_B(get_B(input_dtq)), input_G(get_G(input_dtq)),
-      input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
-      input_vdim(get_vdim(inputs)),
-      output_dtq(create_dtq_maps<entity_t>(
-                    outputs,
-                    dtqs,
-                    create_union_field_map_for_dtq(ctx, outputs),
-                    ctx.unionfds,
-                    ctx.ir)),
-      output_idx(create_output_vector_map(ctx, outputs)),
-      output_B(get_B(output_dtq)), output_G(get_G(output_dtq)),
-      output_d1d(get_D1D(output_dtq)), output_q1d(get_Q1D(output_dtq)),
-      output_vdim(get_vdim(outputs)),
+      dtqs(make_dtqs(ctx)),
+      in_data(MakeFieldMetadata(ctx, dtqs, inputs, ctx.infds)),
+      out_data(MakeFieldMetadata(ctx, dtqs, outputs, ctx.outfds)),
       input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
       input_size_on_qp(
          get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs> {})),
                            out_op_dim(compute_out_op_dim(outputs)),
-                           out_offsets(compute_out_offsets(output_vdim, out_op_dim)),
+                           out_offsets(compute_out_offsets(out_data.vdim, out_op_dim)),
                            output_size_on_qp(
                               [&]
    {
@@ -163,7 +141,8 @@ public:
       for_constexpr_host<n_outputs>([&](auto o)
       {
          const int elem_sz = compute_element_dof_sz<entity_t>(
-            ctx.outfds[output_idx[o]], ne, ElementDofOrdering::LEXICOGRAPHIC);
+            ctx.outfds[out_data.idx[o]], ne,
+            ElementDofOrdering::LEXICOGRAPHIC);
          out_elem_dof_size[o] = elem_sz;
          total_dir_e_size += elem_sz;
       });
@@ -174,7 +153,8 @@ public:
 
    /// Tile size the kernel must be built at: the shared B/G arrays are square
    /// [MQ1][MQ1] but hold a q1d x d1d matrix, so MQ1 must cover both extents.
-   int tile_size() const { return kernel_tile_size(q1d, input_d1d, output_d1d); }
+   int tile_size() const
+   { return kernel_tile_size(q1d, in_data.d1ds(), out_data.d1ds()); }
 
    template<typename Backend>
    void run_kernels(std::vector<Vector *> &ye) const
@@ -185,19 +165,11 @@ public:
                    qp_cache,
                    dir_out_e,
                    // inputs (integration target metadata)
-                   input_B,
-                   input_G,
-                   input_vdim,
-                   input_d1d,
-                   input_q1d,
+                   in_data,
                    input_size_on_qp,
                    input_is_dependent,
                    // outputs (direction interpolation metadata)
-                   output_B,
-                   output_G,
-                   output_vdim,
-                   output_d1d,
-                   output_q1d,
+                   out_data,
                    out_op_dim,
                    out_offsets,
                    trial_vdim,
@@ -226,7 +198,7 @@ public:
       int e_offset = 0;
       for_constexpr_host<n_outputs>([&](auto o)
       {
-         const size_t outfd = output_idx[o];
+         const size_t outfd = out_data.idx[o];
          const auto &fd = ctx.outfds[outfd];
          const int l_size = GetVSize(fd);
          // direction_l is concatenated per output field, and several outputs
@@ -267,19 +239,11 @@ public:
       const Vector &qp_cache,
       const Vector &dir_e, // restricted, concatenated output cotangents
       // inputs (integration target metadata)
-      const std::array<const real_t *, n_inputs> in_B,
-      const std::array<const real_t *, n_inputs> in_G,
-      const std::array<int, n_inputs> &in_vdim,
-      const std::array<int, n_inputs> &in_d1d,
-      const std::array<int, n_inputs> &in_q1d,
+      const FieldMetadata<n_inputs> &in,
       const std::array<int, n_inputs> &in_size_on_qp,
       const std::array<bool, n_inputs> &input_dep,
       // outputs (direction interpolation metadata)
-      const std::array<const real_t *, n_outputs> out_B,
-      const std::array<const real_t *, n_outputs> out_G,
-      const std::array<int, n_outputs> &out_vdim,
-      const std::array<int, n_outputs> &out_d1d,
-      const std::array<int, n_outputs> &out_q1d,
+      const FieldMetadata<n_outputs> &out,
       const std::array<int, n_outputs> &out_op_dim,
       const std::array<int, n_outputs> &out_offsets,
       const int trial_vdim,
@@ -310,7 +274,6 @@ public:
       const int ne = ctx.nentities;
       const int nq = ctx.ir.GetNPoints();
       MFEM_CONTRACT_VAR(output_size_on_qp);
-      MFEM_CONTRACT_VAR(in_q1d);
 
       constexpr auto k_dim = [](const int k) { return k * k * (B2D ? 1 : k); };
 
@@ -323,7 +286,7 @@ public:
       for_constexpr_host<n_outputs>([&](auto oc)
       {
          constexpr size_t o = oc.value;
-         const int d = out_d1d[o], q = out_q1d[o], v = out_vdim[o];
+         const int d = out.d1d(o), q = out.q1d(o), v = out.vdim[o];
          using FOP = tuple_element_t<o, outputs_t>;
          if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
          {
@@ -344,8 +307,8 @@ public:
       // --------------------------------------------------
       // DERIVATIVE TRIAL FIELD: ye_XE (accumulates Jᵀ w)
       // --------------------------------------------------
-      const int d_in = in_d1d[deriv_input_idx_ct];
-      const int v_in = in_vdim[deriv_input_idx_ct];
+      const int d_in = in.d1d(deriv_input_idx_ct);
+      const int v_in = in.vdim[deriv_input_idx_ct];
       auto ye_XE = Reshape(
                       ye[deriv_infd_idx]->ReadWrite(), d_in, d_in, B2D ? 1 : d_in, v_in, ne);
 
@@ -379,8 +342,8 @@ public:
             constexpr size_t o = oc.value, ao = n_inputs + o;
             using FOP = tuple_element_t<o, outputs_t>;
             const auto &XE = out_XE_dir[o];
-            const int d = out_d1d[o], q = out_q1d[o], Q1D = q1d;
-            const real_t *B = out_B[o], *G = out_G[o];
+            const int d = out.d1d(o), q = out.q1d(o), Q1D = q1d;
+            const real_t *B = out.dtq[o].B, *G = out.dtq[o].G;
             auto &oarg = get<o>(oargs);
             if constexpr (is_value_fop_v<FOP>)
             {
@@ -512,8 +475,8 @@ public:
          {
             constexpr size_t s = sc.value;
             using FOP = tuple_element_t<s, inputs_t>;
-            const int d = in_d1d[s], q = in_q1d[s], Q1D = q1d;
-            const real_t *B = in_B[s], *G = in_G[s];
+            const int d = in.d1d(s), q = in.q1d(s), Q1D = q1d;
+            const real_t *B = in.dtq[s].B, *G = in.dtq[s].G;
             auto &sarg = get<s>(iargs);
             auto &YE = ye_XE;
             // Only trial slots have a register bank to integrate
@@ -540,7 +503,7 @@ public:
       },
       ctx.marked_entities.Size(),
       backend_t::thread_blocks(compute_kernel_thread_1d<inputs_t, outputs_t>(
-                                  q1d, in_d1d, out_d1d)),
+                                  q1d, in.d1ds(), out.d1ds())),
       0,
       nullptr);
    }
