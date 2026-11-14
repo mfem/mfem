@@ -22,7 +22,7 @@ public:
    using Interval = algoim::Interval<Dimension>;
    using IntervalVector = algoim::uvector<Interval, Dimension>;
 
-   Geometry::Type GetGeometry() const override
+   Geometry::Type GetReferenceGeometry() const override
    { return Dimension == 2 ? Geometry::SQUARE : Geometry::CUBE; }
 
    virtual Interval EvalInterval(const IntervalVector &point) const = 0;

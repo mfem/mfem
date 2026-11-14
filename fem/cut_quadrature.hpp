@@ -73,21 +73,14 @@ class ReferenceLevelSet
 {
 public:
    virtual ~ReferenceLevelSet() = default;
-   virtual Geometry::Type GetGeometry() const = 0;
    int GetDim() const;
+
+   /// Return the MFEM reference-element geometry on which this LS is defined.
+   virtual Geometry::Type GetReferenceGeometry() const = 0;
 
    virtual real_t Eval(const IntegrationPoint &point) const = 0;
    virtual void EvalGradient(const IntegrationPoint &point,
                              Vector &gradient) const = 0;
-
-   /** Return guaranteed bounds on the represented function, or false when
-       unavailable. Bounds on an approximation do not bound its original
-       physical coefficient. Outputs are unspecified on false. The default
-       implementation returns false. */
-   virtual bool GetBounds(real_t &lower, real_t &upper) const;
-
-   /** Default implementation returns nullptr. */
-   virtual const class PolynomialLevelSet *AsPolynomial() const;
 };
 
 /** @brief A supported scalar, VALUE-mapped polynomial finite element and dofs.
@@ -98,8 +91,8 @@ public:
     A positive basis on a pyramid is not automatically a Cartesian polynomial.
 
     Default construction leaves the object uninitialized. Failed Set/Project
-    calls clear it. GetGeometry returns INVALID and AsPolynomial returns nullptr
-    while uninitialized. Evaluation and GetFE require successful initialization.
+    calls clear it. GetReferenceGeometry returns INVALID while uninitialized.
+    Evaluation and GetFE require successful initialization.
     There is no retained Bernstein conversion or element-dependent cache. */
 class PolynomialLevelSet : public ReferenceLevelSet
 {
@@ -137,13 +130,10 @@ public:
    CutQuadratureReport GetBernsteinCoefficients(
       const FiniteElement &bernstein_element, Vector &coefficients) const;
 
-   Geometry::Type GetGeometry() const override;
+   Geometry::Type GetReferenceGeometry() const override;
    real_t Eval(const IntegrationPoint &point) const override;
    void EvalGradient(const IntegrationPoint &point,
                      Vector &gradient) const override;
-   bool GetBounds(real_t &lower, real_t &upper) const override;
-   const PolynomialLevelSet *AsPolynomial() const override;
-
 private:
    const FiniteElement *element = nullptr;
    Vector dofs;
@@ -164,7 +154,7 @@ public:
    FunctionLevelSet(Geometry::Type geometry, ValueFunction value,
                     GradientFunction gradient);
 
-   Geometry::Type GetGeometry() const override { return geometry; }
+   Geometry::Type GetReferenceGeometry() const override { return geometry; }
    real_t Eval(const IntegrationPoint &point) const override;
    void EvalGradient(const IntegrationPoint &point,
                      Vector &result) const override;

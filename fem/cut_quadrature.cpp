@@ -212,9 +212,10 @@ CutQuadratureReport FaceConormal(Geometry::Type geometry, int face, Vector &norm
 }
 
 int ReferenceLevelSet::GetDim() const
-{ return ValidGeometry(GetGeometry()) ? Geometry::Dimension[GetGeometry()] : -1; }
-bool ReferenceLevelSet::GetBounds(real_t &, real_t &) const { return false; }
-const PolynomialLevelSet *ReferenceLevelSet::AsPolynomial() const { return nullptr; }
+{
+   return ValidGeometry(GetReferenceGeometry()) ?
+          Geometry::Dimension[GetReferenceGeometry()] : -1;
+}
 
 CutQuadratureReport PolynomialLevelSet::Set(const FiniteElement &new_element, const Vector &values)
 {
@@ -268,7 +269,7 @@ CutQuadratureReport PolynomialLevelSet::Project(Coefficient &coefficient,
 
 const FiniteElement &PolynomialLevelSet::GetFE() const
 { MFEM_VERIFY(element, "Uninitialized polynomial level set."); return *element; }
-Geometry::Type PolynomialLevelSet::GetGeometry() const
+Geometry::Type PolynomialLevelSet::GetReferenceGeometry() const
 { return element ? element->GetGeomType() : Geometry::INVALID; }
 real_t PolynomialLevelSet::Eval(const IntegrationPoint &point) const
 {
@@ -284,9 +285,6 @@ void PolynomialLevelSet::EvalGradient(const IntegrationPoint &point, Vector &gra
    gradient.SetSize(finite_element.GetDim());
    derivatives.MultTranspose(dofs, gradient);
 }
-const PolynomialLevelSet *PolynomialLevelSet::AsPolynomial() const
-{ return element ? this : nullptr; }
-
 CutQuadratureReport PolynomialLevelSet::GetBernsteinCoefficients(
    const FiniteElement &bernstein_element, Vector &coefficients) const
 {
@@ -294,7 +292,7 @@ CutQuadratureReport PolynomialLevelSet::GetBernsteinCoefficients(
    if (!element) { return Failure(CutQuadratureStatus::InvalidInput, "Uninitialized level set."); }
    if (!SupportedElement(bernstein_element) ||
        !dynamic_cast<const PositiveTensorFiniteElement *>(&bernstein_element) ||
-       bernstein_element.GetGeomType() != GetGeometry() ||
+       bernstein_element.GetGeomType() != GetReferenceGeometry() ||
        bernstein_element.GetOrder() != element->GetOrder())
    { return Failure(CutQuadratureStatus::Unsupported, "Expected the matching native Bernstein space."); }
    if (const auto *positive = dynamic_cast<const PositiveTensorFiniteElement *>(element))
@@ -317,13 +315,6 @@ CutQuadratureReport PolynomialLevelSet::GetBernsteinCoefficients(
       return Failure(CutQuadratureStatus::NumericalFailure, "Bernstein conversion failed.");
    }
    return {};
-}
-
-bool PolynomialLevelSet::GetBounds(real_t &lower, real_t &upper) const
-{
-   if (!element || !dynamic_cast<const PositiveTensorFiniteElement *>(element)) { return false; }
-   lower = dofs.Min(); upper = dofs.Max();
-   return true;
 }
 
 FunctionLevelSet::FunctionLevelSet(Geometry::Type new_geometry, ValueFunction new_value,
@@ -407,7 +398,7 @@ CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
    }
    for (const auto *level_set : level_sets)
    {
-      if (!level_set || level_set->GetGeometry() != geometry)
+      if (!level_set || level_set->GetReferenceGeometry() != geometry)
       { return Failure(CutQuadratureStatus::InvalidInput, "Level-set geometry mismatch."); }
    }
    report = backend.CheckSupport(geometry, level_sets, request);

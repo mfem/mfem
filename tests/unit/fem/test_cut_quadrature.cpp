@@ -146,7 +146,7 @@ TEST_CASE("Polynomial cut level sets preserve coefficients and gradients", "[Cut
       const auto &point = Geometries.GetCenter(geometry);
       REQUIRE(extracted.Eval(point) == MFEM_Approx(coefficient.Eval(identity, point)));
       REQUIRE_FALSE(extracted.Set(field, -1).Succeeded());
-      REQUIRE(extracted.AsPolynomial() == nullptr);
+      REQUIRE_FALSE(extracted.IsInitialized());
    }
 }
 
