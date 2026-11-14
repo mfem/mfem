@@ -23,7 +23,7 @@ void TransposeIntegrator::AssembleEA(const FiniteElementSpace &fes,
       Vector ea_data_tmp(ea_data.Size());
       bfi->AssembleEA(fes, ea_data_tmp, false);
       const int ne = fes.GetNE();
-      const int dofs = fes.GetTypicalFE()->GetDof();
+      const int dofs = fes.GetTypicalFE()->GetDof() * fes.GetVDim();
       auto A = Reshape(ea_data_tmp.Read(), dofs, dofs, ne);
       auto AT = Reshape(ea_data.ReadWrite(), dofs, dofs, ne);
       mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
@@ -42,7 +42,7 @@ void TransposeIntegrator::AssembleEA(const FiniteElementSpace &fes,
    {
       bfi->AssembleEA(fes, ea_data, false);
       const int ne = fes.GetNE();
-      const int dofs = fes.GetTypicalFE()->GetDof();
+      const int dofs = fes.GetTypicalFE()->GetDof() * fes.GetVDim();
       auto A = Reshape(ea_data.ReadWrite(), dofs, dofs, ne);
       mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
       {
@@ -72,7 +72,8 @@ void TransposeIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace& fes,
       Vector ea_data_int_tmp(ea_data_int.Size());
       Vector ea_data_ext_tmp(ea_data_ext.Size());
       bfi->AssembleEAInteriorFaces(fes, ea_data_int_tmp, ea_data_ext_tmp, false);
-      const int faceDofs = fes.GetTypicalTraceElement()->GetDof();
+      const int faceDofs = fes.GetTypicalTraceElement()->GetDof() *
+                           fes.GetVDim();
       auto A_int = Reshape(ea_data_int_tmp.Read(), faceDofs, faceDofs, 2, nf);
       auto A_ext = Reshape(ea_data_ext_tmp.Read(), faceDofs, faceDofs, 2, nf);
       auto AT_int = Reshape(ea_data_int.ReadWrite(), faceDofs, faceDofs, 2, nf);
@@ -98,7 +99,8 @@ void TransposeIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace& fes,
    else
    {
       bfi->AssembleEAInteriorFaces(fes, ea_data_int, ea_data_ext, false);
-      const int faceDofs = fes.GetTypicalTraceElement()->GetDof();
+      const int faceDofs = fes.GetTypicalTraceElement()->GetDof() *
+                           fes.GetVDim();
       auto A_int = Reshape(ea_data_int.ReadWrite(), faceDofs, faceDofs, 2, nf);
       auto A_ext = Reshape(ea_data_ext.ReadWrite(), faceDofs, faceDofs, 2, nf);
       mfem::forall(nf, [=] MFEM_HOST_DEVICE (int f)
@@ -141,7 +143,8 @@ void TransposeIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace& fes,
    {
       Vector ea_data_bdr_tmp(ea_data_bdr.Size());
       bfi->AssembleEABoundaryFaces(fes, ea_data_bdr_tmp, false);
-      const int faceDofs = fes.GetTypicalTraceElement()->GetDof();
+      const int faceDofs = fes.GetTypicalTraceElement()->GetDof() *
+                           fes.GetVDim();
       auto A_bdr = Reshape(ea_data_bdr_tmp.Read(), faceDofs, faceDofs, nf);
       auto AT_bdr = Reshape(ea_data_bdr.ReadWrite(), faceDofs, faceDofs, nf);
       mfem::forall(nf, [=] MFEM_HOST_DEVICE (int f)
@@ -159,7 +162,8 @@ void TransposeIntegrator::AssembleEABoundaryFaces(const FiniteElementSpace& fes,
    else
    {
       bfi->AssembleEABoundaryFaces(fes, ea_data_bdr, false);
-      const int faceDofs = fes.GetTypicalTraceElement()->GetDof();
+      const int faceDofs = fes.GetTypicalTraceElement()->GetDof() *
+                           fes.GetVDim();
       auto A_bdr = Reshape(ea_data_bdr.ReadWrite(), faceDofs, faceDofs, nf);
       mfem::forall(nf, [=] MFEM_HOST_DEVICE (int f)
       {
