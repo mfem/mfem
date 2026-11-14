@@ -424,6 +424,140 @@ TEST_CASE("SubMesh", "[SubMesh]")
    }
 }
 
+TEST_CASE("SubMesh boundary elements order", "[SubMesh]")
+{
+   auto type = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON,
+                        Element::QUADRILATERAL, Element::TRIANGLE);
+   auto attribute = GENERATE(1, 2);
+   auto nonconforming = GENERATE(false, true);
+   auto curved = GENERATE(false, true);
+   CAPTURE(type, attribute, nonconforming, curved);
+   Mesh mesh = RotatedBoundaryElementsMesh(type, nonconforming, curved);
+   auto submesh = SubMesh::CreateFromDomain(mesh, Array<int> {attribute});
+   REQUIRE(CheckSubMeshBoundaryElements(submesh) > 0);
+}
+
+TEST_CASE("SubMesh boundary elements order after refinement", "[SubMesh]")
+{
+   auto type = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON,
+                        Element::QUADRILATERAL, Element::TRIANGLE);
+   auto attribute = GENERATE(1, 2);
+   auto nonconforming = GENERATE(false, true);
+   CAPTURE(type, attribute, nonconforming);
+   Mesh mesh = RotatedBoundaryElementsMesh(type, nonconforming);
+   auto submesh = SubMesh::CreateFromDomain(mesh, Array<int> {attribute});
+   // The same refinement of both meshes. Conforming local refinement would
+   // propagate to the other domain of the parent, so that it is not used.
+   if (nonconforming)
+   {
+      const auto &parent_element_ids = submesh.GetParentElementIDMap();
+      Array<int> elements, parent_elements;
+      for (int i = 0; i < submesh.GetNE(); i += 2)
+      {
+         elements.Append(i);
+         parent_elements.Append(parent_element_ids[i]);
+      }
+      submesh.GeneralRefinement(elements);
+      mesh.GeneralRefinement(parent_elements);
+   }
+   else
+   {
+      submesh.UniformRefinement();
+      mesh.UniformRefinement();
+   }
+   // The maps to the parent are not valid after the refinement: the vertices
+   // are compared by their coordinates.
+   const auto same_vertex = [&submesh, &mesh](int sv, int pv)
+   {
+      const real_t *x = submesh.GetVertex(sv), *px = mesh.GetVertex(pv);
+      bool same = true;
+      for (int d = 0; d < mesh.SpaceDimension(); d++)
+      {
+         same = same && (std::abs(x[d] - px[d]) < 1e-12);
+      }
+      return same;
+   };
+   int nmatched = 0, nrotated = 0, nreflected = 0;
+   for (int i = 0; i < submesh.GetNBE(); i++)
+   {
+      Array<int> sv, pv;
+      submesh.GetBdrElementVertices(i, sv);
+      const int n = sv.Size();
+      bool matched = false;
+      for (int p = 0; !matched && p < mesh.GetNBE(); p++)
+      {
+         mesh.GetBdrElementVertices(p, pv);
+         if (pv.Size() != n) { continue; }
+         for (int k = 0; !matched && k < n; k++)
+         {
+            // A segment has no rotation but the identity.
+            bool rotation = n > 2 || k == 0, reflection = true;
+            for (int j = 0; j < n; j++)
+            {
+               rotation = rotation && same_vertex(sv[(k + j) % n], pv[j]);
+               reflection = reflection &&
+                            same_vertex(sv[(k + n - j) % n], pv[j]);
+            }
+            matched = rotation || reflection;
+            // A boundary of the submesh keeps the orientation of its face, so
+            // that only a reflection on a local interior face is a defect.
+            if (rotation) { nrotated += k != 0; }
+            else if (reflection)
+            {
+               int f, o;
+               submesh.GetBdrElementFace(i, &f, &o);
+               nreflected += submesh.GetFaceInformation(f).IsLocal();
+            }
+         }
+      }
+      nmatched += matched;
+   }
+   CHECK(nmatched == submesh.GetNBE());
+   CHECK(nrotated == 0);
+   CHECK(nreflected == 0);
+}
+
+TEST_CASE("SubMesh boundary elements on the same face", "[SubMesh]")
+{
+   // Two boundary elements of opposite orders on an interior face: each
+   // boundary element of the SubMesh shall have the order of its parent.
+   Mesh mesh = Mesh::MakeCartesian2D(4, 2, Element::QUADRILATERAL);
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      Vector c;
+      mesh.GetElementCenter(i, c);
+      mesh.SetAttribute(i, c(0) < 0.5 ? 1 : 2);
+   }
+   Array<int> fv;
+   for (int f = 0; f < mesh.GetNumFaces(); f++)
+   {
+      mesh.GetFaceVertices(f, fv);
+      if (mesh.GetVertex(fv[0])[0] == 0.25 && mesh.GetVertex(fv[1])[0] == 0.25)
+      {
+         break;
+      }
+   }
+   mesh.AddBdrSegment(fv[0], fv[1], 7);
+   mesh.AddBdrSegment(fv[1], fv[0], 8);
+   mesh.FinalizeTopology();
+   mesh.Finalize(false, true);
+   mesh.SetAttributes();
+   auto submesh = SubMesh::CreateFromDomain(mesh, Array<int> {1});
+   const auto &parent_vertex_ids = submesh.GetParentVertexIDMap();
+   int nchecked = 0;
+   for (int i = 0; i < submesh.GetNBE(); i++)
+   {
+      const int attr = submesh.GetBdrAttribute(i);
+      if (attr != 7 && attr != 8) { continue; }
+      Array<int> v;
+      submesh.GetBdrElementVertices(i, v);
+      CHECK(parent_vertex_ids[v[0]] == fv[attr == 7 ? 0 : 1]);
+      CHECK(parent_vertex_ids[v[1]] == fv[attr == 7 ? 1 : 0]);
+      nchecked++;
+   }
+   CHECK(nchecked == 2);
+}
+
 TEST_CASE("InterfaceTransferSolve", "[SubMesh]")
 {
    // Solve Poisson on a pair of cubes fully coupled, transfer to the interface
