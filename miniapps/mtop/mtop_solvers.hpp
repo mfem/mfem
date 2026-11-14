@@ -16,6 +16,9 @@
 
 #include "mfem.hpp"
 
+#include "../../fem/dfem/doperator.hpp"
+#include "../../fem/dfem/parameterspace.hpp"
+
 using real_t = mfem::real_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -204,6 +207,10 @@ public:
       {
          dtq.nqpt = ir.GetNPoints();
       }
+
+      const Operator* GetB() const override { return nullptr; }
+
+      const Operator* GetBt() const override { return nullptr; }
    };
 
    // creates a list with essential dofs

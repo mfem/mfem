@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_RAJA
    mfem::Device device("raja-gpu");
 #else
-   mfem::Device device("gpu");
+   mfem::Device device(debug_device ? "debug" : "gpu");
 #endif
 
    // Include only tests that are labeled with both CUDA and Parallel.

@@ -451,7 +451,8 @@ DIRS = general linalg linalg/batched linalg/simd mesh mesh/submesh fem \
        fem/ceed/integrators/diffusion fem/ceed/integrators/nlconvection \
        fem/ceed/interface fem/ceed/solvers fem/eltrans fem/fe fem/gslib \
        fem/integ fem/lor fem/moonolith fem/qinterp fem/tmop fem/dfem \
-	   fem/tmop/assemble fem/tmop/metrics fem/tmop/mult fem/tmop/tools
+       fem/dfem/backends fem/dfem/backends/local_qf fem/dfem/backends/global_qf\
+       fem/tmop/assemble fem/tmop/metrics fem/tmop/mult fem/tmop/tools
 
 ifeq ($(MFEM_USE_MOONOLITH),YES)
    MFEM_CXXFLAGS += $(MOONOLITH_CXX_FLAGS)

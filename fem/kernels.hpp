@@ -8,23 +8,16 @@
 // MFEM is free software; you can redistribute it and/or modify it under the
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
-
-#ifndef MFEM_FEM_KERNELS_HPP
-#define MFEM_FEM_KERNELS_HPP
+#pragma once
 
 #include "../config/config.hpp"
+#include "../general/forall.hpp" // for UNROLL
 #include "../linalg/dtensor.hpp"
 #include "../linalg/tensor.hpp"
 
-namespace mfem
-{
-
-namespace kernels
-{
-
 // Experimental helper functions for mfem::forall FEM kernels
 // For the 2D functions, NBZ should be tied to '1' for now
-namespace internal
+namespace mfem::kernels::internal
 {
 
 // Types for tensors mapped to registers
@@ -42,6 +35,18 @@ using v_regs2d_t = mfem::future::tensor<real_t, VDIM, 0, 0>;
 template <int VDIM, int DIM, int N = 0>
 using vd_regs2d_t = mfem::future::tensor<real_t, VDIM, DIM, 0, 0>;
 
+template <int DIM, int N>
+struct regs2d_wrapper: mfem::future::tensor<real_t, 0, 0, DIM> {};
+
+template <int DIM, int N>
+using regs2d_t = regs2d_wrapper<DIM, N>;
+
+template <int VDIM, int DIM, int N>
+struct regs2d_vd_wrapper: mfem::future::tensor<real_t, 0, 0, VDIM, DIM> {};
+
+template <int VDIM, int DIM, int N>
+using regs2d_vd_t = regs2d_vd_wrapper<VDIM, DIM, N>;
+
 template <int N>
 using s_regs3d_t = mfem::future::tensor<real_t, N, 0, 0>;
 
@@ -50,6 +55,18 @@ using v_regs3d_t = mfem::future::tensor<real_t, VDIM, N, 0, 0>;
 
 template <int VDIM, int DIM, int N>
 using vd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, N, 0, 0>;
+
+template <int DIM, int N>
+struct regs3d_wrapper: mfem::future::tensor<real_t, 0, 0, 0, DIM> {};
+
+template <int DIM, int N>
+using regs3d_t = regs3d_wrapper<DIM, N>;
+
+template <int VDIM, int DIM, int N>
+struct regs3d_vd_wrapper: mfem::future::tensor<real_t, 0, 0, 0, VDIM, DIM> {};
+
+template <int VDIM, int DIM, int N>
+using regs3d_vd_t = regs3d_vd_wrapper<VDIM, DIM, N>;
 
 // on GPU, SetMaxOf is a no-op, for minimal register usage
 constexpr int SetMaxOf(int n) { return n; }
@@ -63,6 +80,12 @@ using v_regs2d_t = mfem::future::tensor<real_t, VDIM, N, N>;
 template <int VDIM, int DIM, int N>
 using vd_regs2d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N>;
 
+template <int DIM, int N>
+using regs2d_t = mfem::future::tensor<real_t, N, N, DIM>;
+
+template <int VDIM, int DIM, int N>
+using regs2d_vd_t = mfem::future::tensor<real_t, N, N, VDIM, DIM>;
+
 template <int N>
 using s_regs3d_t = mfem::future::tensor<real_t, N, N, N>;
 
@@ -71,6 +94,12 @@ using v_regs3d_t = mfem::future::tensor<real_t, VDIM, N, N, N>;
 
 template <int VDIM, int DIM, int N>
 using vd_regs3d_t = mfem::future::tensor<real_t, VDIM, DIM, N, N, N>;
+
+template <int DIM, int N>
+using regs3d_t = mfem::future::tensor<real_t, N, N, N, DIM>;
+
+template <int VDIM, int DIM, int N>
+using regs3d_vd_t = mfem::future::tensor<real_t, N, N, N, VDIM, DIM>;
 
 // on CPU, get next multiple of 4, allowing better alignments
 template <int N>
@@ -85,19 +114,22 @@ constexpr int SetMaxOf(int n) { return NextMultipleOf<4>(n); }
 /// Load 2D matrix into shared memory
 template <int MQ1, bool TRANSPOSE = false>
 inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
-                                        const real_t *M, real_t (*N)[MQ1])
+                                        const real_t *M, real_t (*sm)[MQ1])
 {
-   MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+   if (MFEM_THREAD_ID(z) == 0)
    {
-      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
       {
-         if constexpr (TRANSPOSE)
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
-            N[dy][qx] = M[qx * d1d + dy];
-         }
-         else
-         {
-            N[dy][qx] = M[dy * q1d + qx];
+            if constexpr (TRANSPOSE)
+            {
+               sm[dy][qx] = M[qx * d1d + dy];
+            }
+            else
+            {
+               sm[dy][qx] = M[dy * q1d + qx];
+            }
          }
       }
    }
@@ -145,6 +177,49 @@ inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
          MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
          {
             Y[c][dy][dx] = X(dx, dy, c, e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Load 2D input VDIM vector into given register tensor
+/// Version with 3(max DIM) + 1(VDIM) + 1(number of elements)
+template <int VDIM, int MQ1 = 0>
+inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
+                                        const DeviceTensor<5, const real_t> &X,
+                                        v_regs2d_t<VDIM, MQ1> &Y)
+{
+   for (int c = 0; c < VDIM; ++c)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            Y[c][dy][dx] = X(dx, dy, 0, c, e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Load 2D input VDIM vector into given register tensor
+/// Version with 3(max DIM) + 1(VDIM) + 1(number of elements)
+template <int VDIM, int SDIM, int MQ1 = 0>
+inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
+                                        const DeviceTensor<5, const real_t> &X,
+                                        vd_regs2d_t<VDIM, SDIM, MQ1> &Y)
+{
+   for (int c = 0; c < VDIM; ++c)
+   {
+      for (int dd = 0; dd < SDIM; ++dd)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+            {
+               Y[c][dd][dy][dx] = X(dx, dy, 0, c, e);
+            }
          }
       }
    }
@@ -208,6 +283,49 @@ inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
          MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
          {
             Y(dx, dy, c, e) += X(c, dy, dx);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+/// Write 2D scalar into given device tensor
+/// Version with 3(max DIM) + 1(VDIM) + 1(number of elements)
+template <int VDIM, int MQ1 = 0>
+inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
+                                         v_regs2d_t<VDIM, MQ1> &X,
+                                         const DeviceTensor<5, real_t> &Y)
+{
+   for (int c = 0; c < VDIM; ++c)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            Y(dx, dy, 0, c, e) += X[c][dy][dx];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+
+/// Write 2D VDIM vector into given device tensor
+/// Version with 3(max DIM) + 1(VDIM) + 1(number of elements)
+template <int VDIM, int DIM, int MQ1 = 0>
+inline MFEM_HOST_DEVICE void WriteDofs2d(const int e, const int d1d,
+                                         vd_regs2d_t<VDIM, DIM, MQ1> &X,
+                                         const DeviceTensor<5, real_t> &Y)
+{
+   for (int c = 0; c < VDIM; ++c)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx, x, d1d)
+         {
+            real_t y = 0.0;
+            for (int dd = 0; dd < DIM; ++dd) { y += X[c][dd][dy][dx]; }
+            Y(dx, dy, 0, c, e) += y;
          }
       }
    }
@@ -505,6 +623,28 @@ inline MFEM_HOST_DEVICE void Grad2d(const int d1d, const int q1d,
    }
 }
 
+/// 2D scalar-field gradient stored as a value register with SDIM components
+template <int SDIM, int MQ1>
+inline MFEM_HOST_DEVICE void Grad2d(const int d1d, const int q1d,
+                                    real_t (&smem)[MQ1][MQ1],
+                                    const real_t (*B)[MQ1],
+                                    const real_t (*G)[MQ1],
+                                    vd_regs2d_t<1, SDIM, MQ1> &X,
+                                    v_regs2d_t<SDIM, MQ1> &Y)
+{
+   vd_regs2d_t<1, SDIM, MQ1> Z;
+   Grad2d(d1d, q1d, smem, B, G, X, Z);
+   MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+      {
+         MFEM_UNROLL(SDIM)
+         for (int d = 0; d < SDIM; ++d) { Y[d][qy][qx] = Z[0][d][qy][qx]; }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
 /// 2D vector transposed gradient
 template <int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void GradTranspose2d(const int d1d, const int q1d,
@@ -530,6 +670,28 @@ inline MFEM_HOST_DEVICE void GradTranspose2d(const int d1d, const int q1d,
 {
    constexpr bool Transpose = true;
    Grad2d<VDIM, DIM, MQ1, Transpose>(d1d, q1d, smem, B, G, X, Y, c);
+}
+
+/// 2D scalar-field transposed gradient from a value register with SDIM components
+template <int SDIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradTranspose2d(const int d1d, const int q1d,
+                                             real_t (&smem)[MQ1][MQ1],
+                                             const real_t (*B)[MQ1],
+                                             const real_t (*G)[MQ1],
+                                             v_regs2d_t<SDIM, MQ1> &X,
+                                             vd_regs2d_t<1, SDIM, MQ1> &Y)
+{
+   vd_regs2d_t<1, SDIM, MQ1> Z;
+   MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+      {
+         MFEM_UNROLL(SDIM)
+         for (int d = 0; d < SDIM; ++d) { Z[0][d][qy][qx] = X[d][qy][qx]; }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   GradTranspose2d(d1d, q1d, smem, B, G, Z, Y);
 }
 
 /// 3D scalar contraction, X direction
@@ -715,6 +877,34 @@ inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
    }
 }
 
+/// 3D scalar-field gradient stored as a value register with SDIM components
+template <int SDIM, int MQ1>
+inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
+                                    real_t (&smem)[MQ1][MQ1],
+                                    const real_t (*B)[MQ1],
+                                    const real_t (*G)[MQ1],
+                                    vd_regs3d_t<1, SDIM, MQ1> &X,
+                                    v_regs3d_t<SDIM, MQ1> &Y)
+{
+   vd_regs3d_t<1, SDIM, MQ1> Z;
+   Grad3d(d1d, q1d, smem, B, G, X, Z);
+   MFEM_FOREACH_THREAD(qz, z, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            MFEM_UNROLL(SDIM)
+            for (int d = 0; d < SDIM; ++d)
+            {
+               Y[d][qz][qy][qx] = Z[0][d][qz][qy][qx];
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
 /// 3D vector transposed gradient
 template <int VDIM, int DIM, int MQ1>
 inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
@@ -739,6 +929,1629 @@ inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
 {
    Grad3d<VDIM, DIM, MQ1, true>(d1d, q1d, smem, B, G, X, Y, c);
 }
+
+/// 3D scalar-field transposed gradient from a value register with SDIM components
+template <int SDIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
+                                             real_t (&smem)[MQ1][MQ1],
+                                             const real_t (*B)[MQ1],
+                                             const real_t (*G)[MQ1],
+                                             v_regs3d_t<SDIM, MQ1> &X,
+                                             vd_regs3d_t<1, SDIM, MQ1> &Y)
+{
+   vd_regs3d_t<1, SDIM, MQ1> Z;
+   MFEM_FOREACH_THREAD(qz, z, q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+         {
+            MFEM_UNROLL(SDIM)
+            for (int d = 0; d < SDIM; ++d)
+            {
+               Z[0][d][qz][qy][qx] = X[d][qz][qy][qx];
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+   GradTranspose3d(d1d, q1d, smem, B, G, Z, Y);
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+/// Low-order 2D kernels
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
+                                        const DeviceTensor<5, const real_t> &XE,
+                                        real_t (&sm)[MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      {
+         MFEM_UNROLL(DIM)
+         for (int c = 0; c < DIM; ++c)
+         {
+            sm[dy][dx][c] = XE(dx, dy, 0, c, e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d, const int c,
+                                        const DeviceTensor<5, const real_t> &XE,
+                                        real_t (&sm)[MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      {
+         sm[dy][dx][0] = XE(dx, dy, 0, c, e);
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void LoadDofs2d(const int e, const int d1d,
+                                        const DeviceTensor<5, const real_t> &XE,
+                                        real_t (&sm)[MQ1][MQ1][DIM])
+{
+   if constexpr (VDIM == 1)
+   {
+      LoadDofs2d(e, d1d, 0, XE, sm);
+   }
+   else
+   {
+      LoadDofs2d(e, d1d, XE, sm);
+   }
+}
+
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalX2d(const int d1d, const int q1d,
+                                     const real_t (*B)[MQ1],
+                                     const real_t (&sm0)[MQ1][MQ1][DIM],
+                                     real_t (&sm1)[MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      {
+         real_t u = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int dx = 0; dx < d1d; ++dx)
+         {
+            u = std::fma(B[dx][qx], sm0[dy][dx][0], u);
+         }
+         sm1[dy][qx][0] = u;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalY2d(const int d1d, const int q1d,
+                                     const real_t (*B)[MQ1],
+                                     const real_t (&sm1)[MQ1][MQ1][DIM],
+                                     regs2d_t<1,MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      {
+         real_t u = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int dy = 0; dy < d1d; ++dy)
+         {
+            u = std::fma(B[dy][qy], sm1[dy][qx][0], u);
+         }
+         reg[qy][qx][0] = u;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void Eval2d(const int d1d, const int q1d,
+                                    const real_t (*B)[MQ1],
+                                    real_t (&sm0)[MQ1][MQ1][DIM],
+                                    real_t (&sm1)[MQ1][MQ1][DIM],
+                                    regs2d_t<1,MQ1> &reg)
+{
+   EvalX2d<DIM, MQ1>(d1d, q1d, B, sm0, sm1);
+   EvalY2d<DIM, MQ1>(d1d, q1d, B, sm1, reg);
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalX2d(const int d1d, const int q1d,
+                                     const real_t (*B)[MQ1],
+                                     const real_t (&sm0)[MQ1][MQ1][DIM],
+                                     real_t (&sm1)[MQ1][MQ1][DIM],
+                                     regs2d_t<VDIM,MQ1> &)
+{
+   constexpr int NCOMP = (VDIM < DIM) ? VDIM : DIM;
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      {
+         MFEM_UNROLL(NCOMP)
+         for (int c = 0; c < NCOMP; ++c)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int dx = 0; dx < d1d; ++dx)
+            {
+               u = std::fma(B[dx][qx], sm0[dy][dx][c], u);
+            }
+            sm1[dy][qx][c] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalY2d(const int d1d, const int q1d,
+                                     const real_t (*B)[MQ1],
+                                     const real_t (&sm1)[MQ1][MQ1][DIM],
+                                     regs2d_t<VDIM,MQ1> &reg)
+{
+   constexpr int NCOMP = (VDIM < DIM) ? VDIM : DIM;
+   MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      {
+         MFEM_UNROLL(NCOMP)
+         for (int c = 0; c < NCOMP; ++c)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int dy = 0; dy < d1d; ++dy)
+            {
+               u = std::fma(B[dy][qy], sm1[dy][qx][c], u);
+            }
+            reg[qy][qx][c] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void Eval2d(const int d1d, const int q1d,
+                                    const real_t (*B)[MQ1],
+                                    real_t (&sm0)[MQ1][MQ1][DIM],
+                                    real_t (&sm1)[MQ1][MQ1][DIM],
+                                    regs2d_t<VDIM,MQ1> &reg)
+{
+   EvalX2d<VDIM, DIM, MQ1>(d1d, q1d, B, sm0, sm1, reg);
+   EvalY2d<VDIM, DIM, MQ1>(d1d, q1d, B, sm1, reg);
+}
+
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradX2d(const int d1d, const int q1d,
+                                     const real_t (*B)[MQ1],
+                                     const real_t (*G)[MQ1],
+                                     const real_t (&sm0)[MQ1][MQ1][DIM],
+                                     real_t (&sm1)[MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      {
+         real_t u = 0.0, v = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int dx = 0; dx < d1d; ++dx)
+         {
+            const auto x = sm0[dy][dx][0];
+            u = std::fma(B[dx][qx], x, u);
+            v = std::fma(G[dx][qx], x, v);
+         }
+         sm1[dy][qx][0] = u;
+         sm1[dy][qx][1] = v;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradY2d(const int d1d, const int q1d,
+                                     const real_t (*B)[MQ1],
+                                     const real_t (*G)[MQ1],
+                                     const real_t (&sm1)[MQ1][MQ1][DIM],
+                                     regs2d_t<DIM,MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      {
+         real_t u = 0.0, v = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int dy = 0; dy < d1d; ++dy)
+         {
+            u = std::fma(sm1[dy][qx][1], B[dy][qy], u);
+            v = std::fma(sm1[dy][qx][0], G[dy][qy], v);
+         }
+         reg[qy][qx][0] = u;
+         reg[qy][qx][1] = v;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void Grad2d(const int d1d, const int q1d,
+                                    const real_t (*B)[MQ1],
+                                    const real_t (*G)[MQ1],
+                                    real_t (&sm0)[MQ1][MQ1][DIM],
+                                    real_t (&sm1)[MQ1][MQ1][DIM],
+                                    regs2d_t<DIM,MQ1> &reg)
+{
+   GradX2d<DIM, MQ1>(d1d, q1d, B, G, sm0, sm1);
+   GradY2d<DIM, MQ1>(d1d, q1d, B, G, sm1, reg);
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGradY2d(
+   const int d1d, const int q1d, const int c,
+   const real_t (*B)[MQ1],
+   const real_t (*G)[MQ1],
+   const real_t (&sm1)[MQ1][MQ1][DIM],
+   regs2d_vd_t<VDIM, DIM, MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      {
+         real_t u[2] = {0.0, 0.0};
+         MFEM_UNROLL(MQ1)
+         for (int dy = 0; dy < d1d; ++dy)
+         {
+            u[0] = std::fma(sm1[dy][qx][1], B[dy][qy], u[0]);
+            u[1] = std::fma(sm1[dy][qx][0], G[dy][qy], u[1]);
+         }
+         reg[qy][qx][c][0] = u[0];
+         reg[qy][qx][c][1] = u[1];
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGrad2d(const int d1d, const int q1d,
+                                          const int c,
+                                          const real_t (*B)[MQ1],
+                                          const real_t (*G)[MQ1],
+                                          real_t (&sm0)[MQ1][MQ1][DIM],
+                                          real_t (&sm1)[MQ1][MQ1][DIM],
+                                          regs2d_vd_t<VDIM, DIM, MQ1> &reg)
+{
+   GradX2d<DIM, MQ1>(d1d, q1d, B, G, sm0, sm1);
+   VectorGradY2d<VDIM, DIM, MQ1>(d1d, q1d, c, B, G, sm1, reg);
+}
+
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose2dX(const int d1d, const int q1d,
+                                              const real_t (*B)[MQ1],
+                                              regs2d_t<1,MQ1> &reg,
+                                              real_t (&sm1)[MQ1][MQ1][DIM],
+                                              real_t (&sm0)[MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      {
+         sm1[qy][qx][0] = reg[qy][qx][0];
+      }
+   }
+   MFEM_SYNC_THREAD;
+
+   MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      {
+         real_t u = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int qx = 0; qx < q1d; ++qx)
+         {
+            u = std::fma(sm1[qy][qx][0], B[dx][qx], u);
+         }
+         sm0[qy][dx][0] = u;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose2dY(const int d1d, const int q1d,
+                                              const real_t (*B)[MQ1],
+                                              real_t (&sm0)[MQ1][MQ1][DIM],
+                                              regs2d_t<1,MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      {
+         real_t u = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int qy = 0; qy < q1d; ++qy)
+         {
+            u = std::fma(sm0[qy][dx][0], B[dy][qy], u);
+         }
+         reg[dy][dx][0] = u;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int SDIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose2d(const int d1d, const int q1d,
+                                             const real_t (*B)[MQ1],
+                                             regs2d_t<1,MQ1> &reg,
+                                             real_t (&sm1)[MQ1][MQ1][SDIM],
+                                             real_t (&sm0)[MQ1][MQ1][SDIM])
+{
+   EvalTranspose2dX<SDIM, MQ1>(d1d, q1d, B, reg, sm1, sm0);
+   EvalTranspose2dY<SDIM, MQ1>(d1d, q1d, B, sm0, reg);
+}
+
+template<int VDIM, int SDIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose2dX(const int d1d, const int q1d,
+                                              const real_t (*B)[MQ1],
+                                              regs2d_t<VDIM,MQ1> &reg,
+                                              real_t (&sm1)[MQ1][MQ1][SDIM],
+                                              real_t (&sm0)[MQ1][MQ1][SDIM])
+{
+   constexpr int NCOMP = (VDIM < SDIM) ? VDIM : SDIM;
+   MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      {
+         MFEM_UNROLL(NCOMP)
+         for (int c = 0; c < NCOMP; ++c) { sm1[qy][qx][c] = reg[qy][qx][c]; }
+      }
+   }
+   MFEM_SYNC_THREAD;
+
+   MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      {
+         MFEM_UNROLL(NCOMP)
+         for (int c = 0; c < NCOMP; ++c)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qx = 0; qx < q1d; ++qx)
+            {
+               u = std::fma(sm1[qy][qx][c], B[dx][qx], u);
+            }
+            sm0[qy][dx][c] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int VDIM, int SDIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose2dY(const int d1d, const int q1d,
+                                              const real_t (*B)[MQ1],
+                                              real_t (&sm0)[MQ1][MQ1][SDIM],
+                                              regs2d_t<VDIM,MQ1> &reg)
+{
+   constexpr int NCOMP = (VDIM < SDIM) ? VDIM : SDIM;
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      {
+         MFEM_UNROLL(NCOMP)
+         for (int c = 0; c < NCOMP; ++c)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qy = 0; qy < q1d; ++qy)
+            {
+               u = std::fma(sm0[qy][dx][c], B[dy][qy], u);
+            }
+            reg[dy][dx][c] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int VDIM, int SDIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose2d(const int d1d, const int q1d,
+                                             const real_t (*B)[MQ1],
+                                             regs2d_t<VDIM,MQ1> &reg,
+                                             real_t (&sm1)[MQ1][MQ1][SDIM],
+                                             real_t (&sm0)[MQ1][MQ1][SDIM])
+{
+   EvalTranspose2dX<VDIM, SDIM, MQ1>(d1d, q1d, B, reg, sm1, sm0);
+   EvalTranspose2dY<VDIM, SDIM, MQ1>(d1d, q1d, B, sm0, reg);
+}
+
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradTranspose2dY(const int d1d, const int q1d,
+                                              const real_t (*B)[MQ1],
+                                              const real_t (*G)[MQ1],
+                                              regs2d_t<DIM,MQ1> &reg,
+                                              real_t (&sm0)[MQ1][MQ1][DIM],
+                                              real_t (&sm1)[MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      {
+         sm0[qy][qx][0] = reg[qy][qx][0];
+         sm0[qy][qx][1] = reg[qy][qx][1];
+      }
+   }
+   MFEM_SYNC_THREAD;
+
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      {
+         real_t u = 0.0, v = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int qy = 0; qy < q1d; ++qy)
+         {
+            u = std::fma(sm0[qy][qx][0], B[dy][qy], u);
+            v = std::fma(sm0[qy][qx][1], G[dy][qy], v);
+         }
+         sm1[dy][qx][1] = u;
+         sm1[dy][qx][0] = v;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradTranspose2dX(const int d1d, const int q1d,
+                                              const real_t (*B)[MQ1],
+                                              const real_t (*G)[MQ1],
+                                              real_t (&sm1)[MQ1][MQ1][DIM],
+                                              regs2d_t<DIM,MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      {
+         real_t u = 0.0, v = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int qx = 0; qx < q1d; ++qx)
+         {
+            u = std::fma(sm1[dy][qx][0], B[dx][qx], u);
+            v = std::fma(sm1[dy][qx][1], G[dx][qx], v);
+         }
+         reg[dy][dx][0] = u;
+         reg[dy][dx][1] = v;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGradTranspose2dY(
+   const int d1d, const int q1d, const int c,
+   const real_t (*B)[MQ1],
+   const real_t (*G)[MQ1],
+   regs2d_vd_t<VDIM, DIM, MQ1> &reg,
+   real_t (&sm0)[MQ1][MQ1][DIM],
+   real_t (&sm1)[MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      {
+         sm0[qy][qx][0] = reg[qy][qx][c][0];
+         sm0[qy][qx][1] = reg[qy][qx][c][1];
+      }
+   }
+   MFEM_SYNC_THREAD;
+
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+      {
+         real_t u = 0.0, v = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int qy = 0; qy < q1d; ++qy)
+         {
+            u = std::fma(sm0[qy][qx][0], B[dy][qy], u);
+            v = std::fma(sm0[qy][qx][1], G[dy][qy], v);
+         }
+         sm1[dy][qx][1] = u;
+         sm1[dy][qx][0] = v;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGradTranspose2dX(
+   const int d1d, const int q1d, const int c,
+   const real_t (*B)[MQ1],
+   const real_t (*G)[MQ1],
+   real_t (&sm1)[MQ1][MQ1][DIM],
+   regs2d_vd_t<VDIM, DIM, MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      {
+         real_t u = 0.0, v = 0.0;
+         MFEM_UNROLL(MQ1)
+         for (int qx = 0; qx < q1d; ++qx)
+         {
+            u = std::fma(sm1[dy][qx][0], B[dx][qx], u);
+            v = std::fma(sm1[dy][qx][1], G[dx][qx], v);
+         }
+         reg[dy][dx][c][0] = u;
+         reg[dy][dx][c][1] = v;
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradTranspose2d(const int d1d, const int q1d,
+                                             const real_t (*B)[MQ1],
+                                             const real_t (*G)[MQ1],
+                                             regs2d_t<DIM,MQ1> &reg,
+                                             real_t (&sm1)[MQ1][MQ1][DIM],
+                                             real_t (&sm0)[MQ1][MQ1][DIM])
+{
+   GradTranspose2dY<DIM, MQ1>(d1d, q1d, B, G, reg, sm0, sm1);
+   GradTranspose2dX<DIM, MQ1>(d1d, q1d, B, G, sm1, reg);
+}
+
+template <int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGradTranspose2d(const int d1d, const int q1d,
+                                                   const int c,
+                                                   const real_t (*B)[MQ1],
+                                                   const real_t (*G)[MQ1],
+                                                   real_t (&sm0)[MQ1][MQ1][DIM],
+                                                   real_t (&sm1)[MQ1][MQ1][DIM],
+                                                   regs2d_vd_t<VDIM, DIM, MQ1> &reg)
+{
+   VectorGradTranspose2dY<VDIM, DIM, MQ1>(d1d, q1d, c, B, G, reg, sm0, sm1);
+   VectorGradTranspose2dX<VDIM, DIM, MQ1>(d1d, q1d, c, B, G, sm1, reg);
+}
+
+template<int MQ1>
+inline MFEM_HOST_DEVICE void WriteEvalDofs2d(const int d1d,
+                                             const int c, const int e,
+                                             regs2d_t<1,MQ1> &reg,
+                                             const DeviceTensor<5, real_t> &YE)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      {
+         YE(dx, dy, 0, c, e) += reg[dy][dx][0];
+      }
+   }
+}
+
+template<int VDIM, int MQ1>
+inline MFEM_HOST_DEVICE void WriteEvalDofs2d(const int d1d,
+                                             const int c, const int e,
+                                             regs2d_t<VDIM,MQ1> &reg,
+                                             const DeviceTensor<5, real_t> &YE)
+{
+   MFEM_CONTRACT_VAR(c);
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      {
+         MFEM_UNROLL(VDIM)
+         for (int vc = 0; vc < VDIM; ++vc)
+         {
+            YE(dx, dy, 0, vc, e) += reg[dy][dx][vc];
+         }
+      }
+   }
+}
+
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void WriteGradDofs2d(const int d1d,
+                                             const int c, const int e,
+                                             regs2d_t<DIM,MQ1> &reg,
+                                             const DeviceTensor<5, real_t> &YE)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      {
+         const real_t u = reg[dy][dx][0];
+         const real_t v = reg[dy][dx][1];
+         YE(dx, dy, 0, c, e) += (u + v);
+      }
+   }
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void WriteGradDofs2d(const int d1d,
+                                             const int c, const int e,
+                                             regs2d_vd_t<VDIM, DIM, MQ1> &reg,
+                                             const DeviceTensor<5, real_t> &YE)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+      {
+         const real_t u = reg[dy][dx][c][0];
+         const real_t v = reg[dy][dx][c][1];
+         YE(dx, dy, 0, c, e) += (u + v);
+      }
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
+                                        const DeviceTensor<5, const real_t> &XE,
+                                        real_t (&sm)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            MFEM_UNROLL(DIM)
+            for (int c = 0; c < DIM; ++c)
+            {
+               sm[dz][dy][dx][c] = XE(dx, dy, dz, c, e);
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d, const int c,
+                                        const DeviceTensor<5, const real_t> &XE,
+                                        real_t (&sm)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            sm[dz][dy][dx][0] = XE(dx, dy, dz, c, e);
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void LoadDofs3d(const int e, const int d1d,
+                                        const DeviceTensor<5, const real_t> &XE,
+                                        real_t (&sm)[MQ1][MQ1][MQ1][DIM])
+{
+   if constexpr (VDIM == 1)
+   {
+      LoadDofs3d(e, d1d, 0, XE, sm);
+   }
+   else
+   {
+      LoadDofs3d(e, d1d, XE, sm);
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval, 1/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalX(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int dx = 0; dx < d1d; ++dx)
+            {
+               u = std::fma(B[dx][qx], sm0[dz][dy][dx][0], u);
+            }
+            sm1[dz][dy][qx][0] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval, 2/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalY(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int dy = 0; dy < d1d; ++dy)
+            {
+               u = std::fma(B[dy][qy], sm1[dz][dy][qx][0], u);
+            }
+            sm0[dz][qy][qx][0] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval, 3/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalZ(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   regs3d_t<1,MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int dz = 0; dz < d1d; ++dz)
+            {
+               u = std::fma(B[dz][qz], sm0[dz][qy][qx][0], u);
+            }
+            reg[qz][qy][qx][0] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void Eval3d(const int d1d, const int q1d,
+                                    const real_t (*B)[MQ1],
+                                    real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                    real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                    regs3d_t<1,MQ1> &reg)
+{
+   EvalX(d1d, q1d, B, sm0, sm1); // Grad X
+   EvalY(d1d, q1d, B, sm1, sm0); // Grad Y
+   EvalZ(d1d, q1d, B, sm0, reg); // Grad Z
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalX(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                   regs3d_t<VDIM,MQ1> &)
+{
+   static_assert(VDIM <= DIM, "shared value workspace must fit VDIM");
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            MFEM_UNROLL(VDIM)
+            for (int c = 0; c < VDIM; ++c)
+            {
+               real_t u = 0.0;
+               MFEM_UNROLL(MQ1)
+               for (int dx = 0; dx < d1d; ++dx)
+               {
+                  u = std::fma(B[dx][qx], sm0[dz][dy][dx][c], u);
+               }
+               sm1[dz][dy][qx][c] = u;
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalY(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   regs3d_t<VDIM,MQ1> &)
+{
+   static_assert(VDIM <= DIM, "shared value workspace must fit VDIM");
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            MFEM_UNROLL(VDIM)
+            for (int c = 0; c < VDIM; ++c)
+            {
+               real_t u = 0.0;
+               MFEM_UNROLL(MQ1)
+               for (int dy = 0; dy < d1d; ++dy)
+               {
+                  u = std::fma(B[dy][qy], sm1[dz][dy][qx][c], u);
+               }
+               sm0[dz][qy][qx][c] = u;
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalZ(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   regs3d_t<VDIM,MQ1> &reg)
+{
+   static_assert(VDIM <= DIM, "shared value workspace must fit VDIM");
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            MFEM_UNROLL(VDIM)
+            for (int c = 0; c < VDIM; ++c)
+            {
+               real_t u = 0.0;
+               MFEM_UNROLL(MQ1)
+               for (int dz = 0; dz < d1d; ++dz)
+               {
+                  u = std::fma(B[dz][qz], sm0[dz][qy][qx][c], u);
+               }
+               reg[qz][qy][qx][c] = u;
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void Eval3d(const int d1d, const int q1d,
+                                    const real_t (*B)[MQ1],
+                                    real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                    real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                    regs3d_t<VDIM,MQ1> &reg)
+{
+   EvalX<VDIM, DIM, MQ1>(d1d, q1d, B, sm0, sm1, reg);
+   EvalY<VDIM, DIM, MQ1>(d1d, q1d, B, sm1, sm0, reg);
+   EvalZ<VDIM, DIM, MQ1>(d1d, q1d, B, sm0, reg);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Gradient, 1/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradX(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (*G)[MQ1],
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            real_t u = 0.0, v = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int dx = 0; dx < d1d; ++dx)
+            {
+               const auto x = sm0[dz][dy][dx][0];
+               u = std::fma(B[dx][qx], x, u);
+               v = std::fma(G[dx][qx], x, v);
+            }
+            sm1[dz][dy][qx][0] = u;
+            sm1[dz][dy][qx][1] = v;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Gradient, 2/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradY(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (*G)[MQ1],
+                                   const real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                   real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            real_t u = 0.0, v = 0.0, w = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int dy = 0; dy < d1d; ++dy)
+            {
+               u = std::fma(sm1[dz][dy][qx][1], B[dy][qy], u);
+               v = std::fma(sm1[dz][dy][qx][0], G[dy][qy], v);
+               w = std::fma(sm1[dz][dy][qx][0], B[dy][qy], w);
+            }
+            sm0[dz][qy][qx][0] = u;
+            sm0[dz][qy][qx][1] = v;
+            sm0[dz][qy][qx][2] = w;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Gradient, 3/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradZ(const int d1d, const int q1d,
+                                   const real_t (*B)[MQ1],
+                                   const real_t (*G)[MQ1],
+                                   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                   regs3d_t<DIM,MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            real_t u[3] = {0.0, 0.0, 0.0};
+            MFEM_UNROLL(MQ1)
+            for (int dz = 0; dz < d1d; ++dz)
+            {
+               u[0] = std::fma(B[dz][qz], sm0[dz][qy][qx][0], u[0]);
+               u[1] = std::fma(B[dz][qz], sm0[dz][qy][qx][1], u[1]);
+               u[2] = std::fma(G[dz][qz], sm0[dz][qy][qx][2], u[2]);
+            }
+            reg[qz][qy][qx][0] = u[0];
+            reg[qz][qy][qx][1] = u[1];
+            reg[qz][qy][qx][2] = u[2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Vector Gradient, 3/3 only
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGradZ(
+   const int d1d, const int q1d, const int c,
+   const real_t (*B)[MQ1],
+   const real_t (*G)[MQ1],
+   const real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+   regs3d_vd_t<VDIM, DIM, MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            real_t u[3] = {0.0, 0.0, 0.0};
+            MFEM_UNROLL(MQ1)
+            for (int dz = 0; dz < d1d; ++dz)
+            {
+               u[0] = std::fma(B[dz][qz], sm0[dz][qy][qx][0], u[0]);
+               u[1] = std::fma(B[dz][qz], sm0[dz][qy][qx][1], u[1]);
+               u[2] = std::fma(G[dz][qz], sm0[dz][qy][qx][2], u[2]);
+            }
+            reg[qz][qy][qx][c][0] = u[0];
+            reg[qz][qy][qx][c][1] = u[1];
+            reg[qz][qy][qx][c][2] = u[2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D scalar gradient
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void Grad3d(const int d1d, const int q1d,
+                                    const real_t (*B)[MQ1],
+                                    const real_t (*G)[MQ1],
+                                    real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                    real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                    regs3d_t<DIM,MQ1> &reg)
+{
+   GradX(d1d, q1d, B, G, sm0, sm1); // Grad X
+   GradY(d1d, q1d, B, G, sm1, sm0); // Grad Y
+   GradZ(d1d, q1d, B, G, sm0, reg); // Grad Z
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D vector gradient
+template <int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGrad3d(const int d1d, const int q1d,
+                                          const int c,
+                                          const real_t (*B)[MQ1],
+                                          const real_t (*G)[MQ1],
+                                          real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                          real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                          regs3d_vd_t<VDIM, DIM, MQ1> &reg)
+{
+   GradX(d1d, q1d, B, G, sm0, sm1); // Grad X
+   GradY(d1d, q1d, B, G, sm1, sm0); // Grad Y
+   VectorGradZ(d1d, q1d, c, B, G, sm0, reg); // Grad Z
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval Transposed, 1/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose3dX(const int d1d, const int q1d,
+                                              const real_t (*B)[MQ1],
+                                              regs3d_t<1,MQ1> &reg,
+                                              real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                              real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            sm1[qz][qy][qx][0] = reg[qz][qy][qx][0];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qx = 0; qx < q1d; ++qx)
+            {
+               u = std::fma(sm1[qz][qy][qx][0], B[dx][qx], u);
+            }
+            sm0[qz][qy][dx][0] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval Transposed, 2/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose3dY(const int d1d, const int q1d,
+                                              const real_t (*B)[MQ1],
+                                              real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                              real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qy = 0; qy < q1d; ++qy)
+            {
+               u = std::fma(sm0[qz][qy][dx][0], B[dy][qy], u);
+            }
+            sm1[qz][dy][dx][0] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval Transposed, 3/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose3dZ(const int d1d, const int q1d,
+                                              const real_t (*B)[MQ1],
+                                              real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                              regs3d_t<1,MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            real_t u = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < q1d; ++qz)
+            {
+               u = std::fma(sm1[qz][dy][dx][0], B[dz][qz], u);
+            }
+            reg[dz][dy][dx][0] = u;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval Transposed
+template <int SDIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose3d(const int d1d, const int q1d,
+                                             const real_t (*B)[MQ1],
+                                             regs3d_t<1,MQ1> &reg,
+                                             real_t (&sm1)[MQ1][MQ1][MQ1][SDIM],
+                                             real_t (&sm0)[MQ1][MQ1][MQ1][SDIM])
+{
+   EvalTranspose3dX<SDIM, MQ1>(d1d, q1d, B, reg, sm1, sm0); // Eval^T X
+   EvalTranspose3dY(d1d, q1d, B, sm0, sm1); // Eval^T Y
+   EvalTranspose3dZ<SDIM, MQ1>(d1d, q1d, B, sm1, reg); // Eval^T Z
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose3dX(
+   const int d1d, const int q1d,
+   const real_t (*B)[MQ1],
+   regs3d_t<VDIM,MQ1> &reg,
+   real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+   real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+{
+   static_assert(VDIM <= DIM, "shared value workspace must fit VDIM");
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            MFEM_UNROLL(VDIM)
+            for (int c = 0; c < VDIM; ++c)
+            {
+               sm1[qz][qy][qx][c] = reg[qz][qy][qx][c];
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            MFEM_UNROLL(VDIM)
+            for (int c = 0; c < VDIM; ++c)
+            {
+               real_t u = 0.0;
+               MFEM_UNROLL(MQ1)
+               for (int qx = 0; qx < q1d; ++qx)
+               {
+                  u = std::fma(sm1[qz][qy][qx][c], B[dx][qx], u);
+               }
+               sm0[qz][qy][dx][c] = u;
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose3dY(
+   const int d1d, const int q1d,
+   const real_t (*B)[MQ1],
+   real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+   real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+   regs3d_t<VDIM,MQ1> &)
+{
+   static_assert(VDIM <= DIM, "shared value workspace must fit VDIM");
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            MFEM_UNROLL(VDIM)
+            for (int c = 0; c < VDIM; ++c)
+            {
+               real_t u = 0.0;
+               MFEM_UNROLL(MQ1)
+               for (int qy = 0; qy < q1d; ++qy)
+               {
+                  u = std::fma(sm0[qz][qy][dx][c], B[dy][qy], u);
+               }
+               sm1[qz][dy][dx][c] = u;
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose3dZ(
+   const int d1d, const int q1d,
+   const real_t (*B)[MQ1],
+   real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+   regs3d_t<VDIM,MQ1> &reg)
+{
+   static_assert(VDIM <= DIM, "shared value workspace must fit VDIM");
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            MFEM_UNROLL(VDIM)
+            for (int c = 0; c < VDIM; ++c)
+            {
+               real_t u = 0.0;
+               MFEM_UNROLL(MQ1)
+               for (int qz = 0; qz < q1d; ++qz)
+               {
+                  u = std::fma(sm1[qz][dy][dx][c], B[dz][qz], u);
+               }
+               reg[dz][dy][dx][c] = u;
+            }
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose3d(const int d1d, const int q1d,
+                                             const real_t (*B)[MQ1],
+                                             regs3d_t<VDIM,MQ1> &reg,
+                                             real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                             real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+{
+   EvalTranspose3dX<VDIM, DIM, MQ1>(d1d, q1d, B, reg, sm1, sm0);
+   EvalTranspose3dY<VDIM, DIM, MQ1>(d1d, q1d, B, sm0, sm1, reg);
+   EvalTranspose3dZ<VDIM, DIM, MQ1>(d1d, q1d, B, sm1, reg);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Gradient Transposed, 1/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradTranspose3dX(const int d1d, const int q1d,
+                                              const real_t (*B)[MQ1],
+                                              const real_t (*G)[MQ1],
+                                              regs3d_t<DIM,MQ1> &reg,
+                                              real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                              real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+
+{
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            sm1[qz][qy][qx][0] = reg[qz][qy][qx][0];
+            sm1[qz][qy][qx][1] = reg[qz][qy][qx][1];
+            sm1[qz][qy][qx][2] = reg[qz][qy][qx][2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            real_t u = 0.0, v = 0.0, w = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qx = 0; qx < q1d; ++qx)
+            {
+               u = std::fma(sm1[qz][qy][qx][0], G[dx][qx], u);
+               v = std::fma(sm1[qz][qy][qx][1], B[dx][qx], v);
+               w = std::fma(sm1[qz][qy][qx][2], B[dx][qx], w);
+            }
+            sm0[qz][qy][dx][0] = u;
+            sm0[qz][qy][dx][1] = v;
+            sm0[qz][qy][dx][2] = w;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Vector Gradient Transposed, 1/3
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGradTranspose3dX(
+   const int d1d, const int q1d, const int c,
+   const real_t (*B)[MQ1],
+   const real_t (*G)[MQ1],
+   regs3d_vd_t<VDIM, DIM, MQ1> &reg,
+   real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+   real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+
+{
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+         {
+            sm1[qz][qy][qx][0] = reg[qz][qy][qx][c][0];
+            sm1[qz][qy][qx][1] = reg[qz][qy][qx][c][1];
+            sm1[qz][qy][qx][2] = reg[qz][qy][qx][c][2];
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(qy,y,q1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            real_t u = 0.0, v = 0.0, w = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qx = 0; qx < q1d; ++qx)
+            {
+               u = std::fma(sm1[qz][qy][qx][0], G[dx][qx], u);
+               v = std::fma(sm1[qz][qy][qx][1], B[dx][qx], v);
+               w = std::fma(sm1[qz][qy][qx][2], B[dx][qx], w);
+            }
+            sm0[qz][qy][dx][0] = u;
+            sm0[qz][qy][dx][1] = v;
+            sm0[qz][qy][dx][2] = w;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Gradient Transposed, 2/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradTranspose3dY(const int d1d, const int q1d,
+                                              const real_t (*B)[MQ1],
+                                              const real_t (*G)[MQ1],
+                                              real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                              real_t (&sm1)[MQ1][MQ1][MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(qz,z,q1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            real_t u = 0.0, v = 0.0, w = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qy = 0; qy < q1d; ++qy)
+            {
+               u = std::fma(sm0[qz][qy][dx][0], B[dy][qy], u);
+               v = std::fma(sm0[qz][qy][dx][1], G[dy][qy], v);
+               w = std::fma(sm0[qz][qy][dx][2], B[dy][qy], w);
+            }
+            sm1[qz][dy][dx][0] = u;
+            sm1[qz][dy][dx][1] = v;
+            sm1[qz][dy][dx][2] = w;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Gradient Transposed, 3/3
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradTranspose3dZ(const int d1d, const int q1d,
+                                              const real_t (*B)[MQ1],
+                                              const real_t (*G)[MQ1],
+                                              real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                              regs3d_t<DIM,MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            real_t u = 0.0, v = 0.0, w = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < q1d; ++qz)
+            {
+               u = std::fma(sm1[qz][dy][dx][0], B[dz][qz], u);
+               v = std::fma(sm1[qz][dy][dx][1], B[dz][qz], v);
+               w = std::fma(sm1[qz][dy][dx][2], G[dz][qz], w);
+            }
+            reg[dz][dy][dx][0] = u;
+            reg[dz][dy][dx][1] = v;
+            reg[dz][dy][dx][2] = w;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Vector Gradient Transposed, 3/3
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGradTranspose3dZ(
+   const int d1d, const int q1d, const int c,
+   const real_t (*B)[MQ1],
+   const real_t (*G)[MQ1],
+   real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+   regs3d_vd_t<VDIM, DIM, MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            real_t u = 0.0, v = 0.0, w = 0.0;
+            MFEM_UNROLL(MQ1)
+            for (int qz = 0; qz < q1d; ++qz)
+            {
+               u = std::fma(sm1[qz][dy][dx][0], B[dz][qz], u);
+               v = std::fma(sm1[qz][dy][dx][1], B[dz][qz], v);
+               w = std::fma(sm1[qz][dy][dx][2], G[dz][qz], w);
+            }
+            reg[dz][dy][dx][c][0] = u;
+            reg[dz][dy][dx][c][1] = v;
+            reg[dz][dy][dx][c][2] = w;
+         }
+      }
+   }
+   MFEM_SYNC_THREAD;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D scalar gradient transposed
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
+                                             const real_t (*B)[MQ1],
+                                             const real_t (*G)[MQ1],
+                                             regs3d_t<DIM,MQ1> &reg,
+                                             real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                             real_t (&sm0)[MQ1][MQ1][MQ1][DIM])
+{
+   GradTranspose3dX(d1d, q1d, B, G, reg, sm1, sm0); // Grad^T X
+   GradTranspose3dY(d1d, q1d, B, G, sm0, sm1); // Grad^T Y
+   GradTranspose3dZ(d1d, q1d, B, G, sm1, reg); // Grad^T Z
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D vector gradient
+template <int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGradTranspose3d(const int d1d, const int q1d,
+                                                   const int c,
+                                                   const real_t (*B)[MQ1],
+                                                   const real_t (*G)[MQ1],
+                                                   real_t (&sm0)[MQ1][MQ1][MQ1][DIM],
+                                                   real_t (&sm1)[MQ1][MQ1][MQ1][DIM],
+                                                   regs3d_vd_t<VDIM, DIM, MQ1> &reg)
+{
+   VectorGradTranspose3dX(d1d, q1d, c, B, G, reg, sm1, sm0); // Grad X
+   GradTranspose3dY(d1d, q1d, B, G, sm0, sm1); // Grad Y
+   VectorGradTranspose3dZ(d1d, q1d, c, B, G, sm1, reg); // Grad Z
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Eval Write
+template<int MQ1>
+inline MFEM_HOST_DEVICE void WriteEvalDofs3d(const int d1d,
+                                             const int c, const int e,
+                                             regs3d_t<1,MQ1> &reg,
+                                             const DeviceTensor<5, real_t> &YE)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            YE(dx, dy, dz, c, e) += reg[dz][dy][dx][0];
+         }
+      }
+   }
+}
+
+template<int VDIM, int MQ1>
+inline MFEM_HOST_DEVICE void WriteEvalDofs3d(const int d1d,
+                                             const int c, const int e,
+                                             regs3d_t<VDIM,MQ1> &reg,
+                                             const DeviceTensor<5, real_t> &YE)
+{
+   MFEM_CONTRACT_VAR(c);
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            MFEM_UNROLL(VDIM)
+            for (int vc = 0; vc < VDIM; ++vc)
+            {
+               YE(dx, dy, dz, vc, e) += reg[dz][dy][dx][vc];
+            }
+         }
+      }
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Scalar Gradient Write
+template<int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void WriteGradDofs3d(const int d1d,
+                                             const int c, const int e,
+                                             regs3d_t<DIM,MQ1> &reg,
+                                             const DeviceTensor<5, real_t> &YE)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            const real_t u = reg[dz][dy][dx][0];
+            const real_t v = reg[dz][dy][dx][1];
+            const real_t w = reg[dz][dy][dx][2];
+            YE(dx, dy, dz, c, e) += (u + v + w);
+         }
+      }
+   }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// 3D Vector Gradient Write
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void WriteGradDofs3d(const int d1d,
+                                             const int c, const int e,
+                                             regs3d_vd_t<VDIM, DIM, MQ1> &reg,
+                                             const DeviceTensor<5, real_t> &YE)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dz,z,d1d)
+   {
+      MFEM_FOREACH_THREAD_DIRECT(dy,y,d1d)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+         {
+            const real_t u = reg[dz][dy][dx][c][0];
+            const real_t v = reg[dz][dy][dx][c][1];
+            const real_t w = reg[dz][dy][dx][c][2];
+            YE(dx, dy, dz, c, e) += (u + v + w);
+         }
+      }
+   }
+}
+
+
 
 /// Load B1d matrix into shared memory
 template<int MD1, int MQ1>
@@ -2265,10 +4078,4 @@ MFEM_HOST_DEVICE inline void GradXt(const int D1D, const int Q1D,
    }
 }
 
-} // namespace internal
-
-} // namespace kernels
-
-} // namespace mfem
-
-#endif // MFEM_FEM_KERNELS_HPP
+} // namespace internal::kernels::mfem
