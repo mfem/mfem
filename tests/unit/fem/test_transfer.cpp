@@ -870,7 +870,78 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
 }
 
 
+Mesh MakeH1TransferMesh()
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL,
+                                     true, 1.0, 1.0);
+   mesh.EnsureNCMesh();
+   Array<int> refine;
+   refine.Append(0);
+   mesh.GeneralRefinement(refine);
+   return mesh;
+}
+
+void CheckH1L2Projection(FiniteElementSpace &coarse_fes,
+                         FiniteElementSpace &fine_fes)
+{
+   const bool use_ea = GENERATE(false, true);
+   const bool weighted = GENERATE(false, true);
+   CAPTURE(use_ea, weighted);
+   FunctionCoefficient rho([](const Vector &p) { return 1 + p(0) + 2*p(1); });
+   CoefficientWithOrder weight = weighted ? CoefficientWithOrder(rho) : nullptr;
+   L2ProjectionGridTransfer transfer(coarse_fes, fine_fes, weight, weight);
+   L2ProjectionGridTransfer assembled(coarse_fes, fine_fes, weight, weight);
+   transfer.UseEA(use_ea);
+   const Operator &forward = transfer.TrueForwardOperator();
+   Vector x(coarse_fes.GetTrueVSize()), y(fine_fes.GetTrueVSize());
+   Vector expected(y.Size()), round_trip(x.Size());
+
+   x = 1.0;
+   forward.Mult(x, y);
+   y -= 1.0;
+   CHECK(y.Normlinf() < 1e-12);
+
+   x.Randomize(1);
+   forward.Mult(x, y);
+   assembled.TrueForwardOperator().Mult(x, expected);
+   y -= expected;
+   CHECK(y.Normlinf() < 1e-12);
+
+   transfer.TrueBackwardOperator().Mult(expected, round_trip);
+   round_trip -= x;
+   CHECK(round_trip.Normlinf() < 1e-10);
+}
+
+TEST_CASE("H1 L2 projection on a nonconforming mesh", "[Transfer]")
+{
+   Mesh coarse_mesh = MakeH1TransferMesh();
+   Mesh fine_mesh(coarse_mesh);
+   fine_mesh.UniformRefinement();
+   H1_FECollection coarse_fec(2, 2), fine_fec(1, 2);
+   FiniteElementSpace coarse_fes(&coarse_mesh, &coarse_fec);
+   FiniteElementSpace fine_fes(&fine_mesh, &fine_fec);
+   CheckH1L2Projection(coarse_fes, fine_fes);
+}
+
 #ifdef MFEM_USE_MPI
+
+TEST_CASE("Parallel H1 L2 projection on a nonconforming mesh",
+          "[Transfer][Parallel]")
+{
+   if (Mpi::WorldSize() > 4)
+   {
+      SUCCEED("Run with at most four MPI ranks for this small mesh");
+      return;
+   }
+   Mesh mesh = MakeH1TransferMesh();
+   ParMesh coarse_mesh(MPI_COMM_WORLD, mesh);
+   ParMesh fine_mesh(coarse_mesh);
+   fine_mesh.UniformRefinement();
+   H1_FECollection coarse_fec(2, 2), fine_fec(1, 2);
+   ParFiniteElementSpace coarse_fes(&coarse_mesh, &coarse_fec);
+   ParFiniteElementSpace fine_fes(&fine_mesh, &fine_fec);
+   CheckH1L2Projection(coarse_fes, fine_fes);
+}
 
 TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
 {
