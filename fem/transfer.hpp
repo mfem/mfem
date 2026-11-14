@@ -269,7 +269,7 @@ public:
    protected:
       const FiniteElementSpace* fes_ho;
       const FiniteElementSpace* fes_lor;
-      Table* ho2lor;
+      const Table* ho2lor;
       Vector* M_LH_ea;
    public:
       H1SpaceMixedMassOperator(const FiniteElementSpace* fes_ho_,
@@ -458,20 +458,18 @@ public:
       /// is also provided as an Operator by L2Prolongation.
       void ProlongateTranspose(const Vector& x, Vector& y) const override;
 
-      /// Assembles the lumped mass on true dofs and inverts its diagonal.
+      /// Returns the inverse lumped mass diagonal on true dofs.
       void LumpedMassInverse(Vector& ML_inv) const;
 
       void SetRelTol(real_t p_rtol_) override;
       void SetAbsTol(real_t p_atol_) override;
 
    protected:
-      /// Sets up the PCG solver (parameters, operator, and preconditioner).
+      /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();
 
-      /// Computes unscaled local mixed-mass matrices and the inverse lumped
-      /// diagonal assembled on true dofs. The caller scales R after assembly.
-      std::pair<std::unique_ptr<SparseMatrix>,
-          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH(Vector &ML_inv);
+      /// Computes the local mixed mass and inverse lumped mass on true dofs.
+      std::unique_ptr<SparseMatrix> ComputeSparseM_LH(Vector &ML_inv);
 
       /// @brief Recovers vector of tdofs given a vector of dofs and a finite
       /// element space
@@ -503,12 +501,14 @@ public:
 
       CGSolver pcg;
       std::unique_ptr<Solver> precon;
-      // Store the restriction operator R and apply its mass-conservative
-      // left inverse through an iterative solve.
+      // The restriction operator is represented as an Operator R. The
+      // prolongation operator is a dense matrix computed as the inverse of (R^T
+      // M_L R), and hence, is not stored.
+      // If element assembly is enabled
       std::unique_ptr<Operator> R;
-      // Used to compute P = (M_LH^T R)^(-1) M_LH^T
+      // Used to compute P = (RT*M_LH)^(-1) M_LH^T
       std::unique_ptr<Operator> M_LH;
-      // Symmetric matrix R^T M_LH = M_LH^T D_true^(-1) M_LH.
+      // Inverted operator in P = (RT*M_LH)^(-1) M_LH^T. Used to compute P via PCG.
       std::unique_ptr<Operator> RTxM_LH;
       // Inverse lumped mass on scalar true LOR dofs, built via EA.
       std::unique_ptr<Operator> ML_inv_vea;
@@ -521,7 +521,7 @@ public:
       std::unique_ptr<FiniteElementSpace> fes_lor_scalar;
       // Element Assembled mixed mass
       Vector M_LH_ea;
-      // Inverse assembled lumped mass diagonal on true dofs, built via EA.
+      // Inverse lumped mass diagonal on true dofs, built via EA.
       Vector ML_inv_ea;
 
 #ifdef MFEM_USE_MPI
