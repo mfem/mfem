@@ -29,19 +29,91 @@
 namespace mfem
 {
 
-/** Represents the index of an element to refine, plus a refinement type.
-    The refinement type is needed for anisotropic refinement of quads and hexes.
-    Bits 0,1 and 2 of 'ref_type' specify whether the element should be split
-    in the X, Y and Z directions, respectively (Z is ignored for quads). The
-    refinement spacing or scale in each direction is a number in (0,1), with the
-    default 0.5 meaning bisection. This linear scale parameter defines the
-    position of the refinement between the beginning (0) and end (1) of the
-    reference element in each direction. */
+/** Represents the index of an element to refine, plus a refinement pattern.
+    The legacy direction masks X, Y, and Z remain supported. Geometry-specific
+    patterns are represented by Pattern objects, which identify both the parent
+    geometry and a compact pattern ID. This lets different geometries reuse the
+    same ID without making the patterns interchangeable.
+
+    Bits 0, 1, and 2 of a legacy direction mask specify whether the element
+    should be split in the X, Y, and Z directions, respectively (Z is ignored
+    for quads). The refinement spacing or scale in each direction is a number
+    in (0,1), with the default 0.5 meaning bisection. This linear scale
+    parameter defines the position of the refinement between the beginning (0)
+    and end (1) of the reference element in each direction. */
 struct Refinement
 {
+   /** Identifies a refinement pattern for one parent geometry. */
+   struct Pattern
+   {
+      Geometry::Type parent_geometry;
+      char id;
+
+      Geometry::Type GetParentGeometry() const { return parent_geometry; }
+      char GetId() const { return id; }
+   };
+
    int index; ///< Mesh element number
+   /// Legacy direction-mask refinements retained for source compatibility.
    enum : char { X = 1, Y = 2, Z = 4, XY = 3, XZ = 5, YZ = 6, XYZ = 7 };
+
+   /** Existing segment refinement patterns. */
+   struct Segment
+   {
+      static constexpr Pattern BISECTION { Geometry::SEGMENT, X };
+   };
+
+   /** Existing triangle refinement patterns. */
+   struct Triangle
+   {
+      static constexpr Pattern UNIFORM { Geometry::TRIANGLE, XY };
+   };
+
+   /** Existing quadrilateral refinement patterns. */
+   struct Quadrilateral
+   {
+      static constexpr Pattern SPLIT_X { Geometry::SQUARE, X };
+      static constexpr Pattern SPLIT_Y { Geometry::SQUARE, Y };
+      static constexpr Pattern UNIFORM { Geometry::SQUARE, XY };
+   };
+
+   /** Existing tetrahedron refinement patterns. */
+   struct Tetrahedron
+   {
+      static constexpr Pattern UNIFORM { Geometry::TETRAHEDRON, XYZ };
+   };
+
+   /** Existing hexahedron refinement patterns. */
+   struct Hexahedron
+   {
+      static constexpr Pattern SPLIT_X { Geometry::CUBE, X };
+      static constexpr Pattern SPLIT_Y { Geometry::CUBE, Y };
+      static constexpr Pattern SPLIT_Z { Geometry::CUBE, Z };
+      static constexpr Pattern SPLIT_XY { Geometry::CUBE, XY };
+      static constexpr Pattern SPLIT_XZ { Geometry::CUBE, XZ };
+      static constexpr Pattern SPLIT_YZ { Geometry::CUBE, YZ };
+      static constexpr Pattern UNIFORM { Geometry::CUBE, XYZ };
+   };
+
+   /** Existing prism refinement patterns. */
+   struct Prism
+   {
+      static constexpr Pattern TRIANGLE_UNIFORM { Geometry::PRISM, XY };
+      static constexpr Pattern SPLIT_Z { Geometry::PRISM, Z };
+      static constexpr Pattern UNIFORM { Geometry::PRISM, XYZ };
+   };
+
+   /** Existing pyramid refinement pattern. */
+   struct Pyramid
+   {
+      static constexpr Pattern UNIFORM { Geometry::PYRAMID, XYZ };
+   };
+
    using ScaledType = std::pair<char, real_t>;
+   /// Geometry-specific pattern ID, if pattern_geometry is nonzero.
+   char pattern_id;
+   /// Geometry::Type of a geometry-specific pattern, or zero for a legacy mask.
+   char pattern_geometry;
    real_t s[3];  /// Refinement scale in each dimension
    Refinement() = default;
    /// Refinement type XYZ, with scale 0.5.
@@ -50,18 +122,29 @@ struct Refinement
    Refinement(int index, const std::initializer_list<ScaledType> &refs);
    /// Refine element with a single type and scale in all dimensions.
    Refinement(int index, char type, real_t scale = 0.5);
-   /// Return the type as char.
+   /// Refine an element using a geometry-specific pattern.
+   Refinement(int index, const Pattern &pattern, real_t scale = 0.5);
+   /// Return the legacy direction mask or explicit pattern ID as a char.
    char GetType() const;
+   /// True when this refinement was specified with a Pattern object.
+   bool HasPattern() const { return pattern_geometry != 0; }
+   /// Return the parent geometry recorded by the Pattern object.
+   Geometry::Type GetPatternGeometry() const;
    /// Set the element, type, and scale.
    void Set(int element, char type,
             real_t scale = 0.5);  /// Uses @a scale in all dimensions
+   /// Set the element, pattern, and scale.
+   void Set(int element, const Pattern &pattern, real_t scale = 0.5);
    /// Set the type and scale, assuming the element is already set.
    void SetType(char type,
                 real_t scale = 0.5);  /// Uses @a scale in all dimensions
+   /// Set the pattern and scale, assuming the element is already set.
+   void SetType(const Pattern &pattern, real_t scale = 0.5);
    /// Set the scale in the directions for the currently set type.
    void SetScaleForType(const real_t *scale);
 private :
    void SetScale(const ScaledType &ref);
+   void SetPattern(const Pattern &ref, real_t scale);
 };
 
 /// Defines the position of a fine element within a coarse element.

@@ -229,6 +229,77 @@ TEST_CASE("NCMesh 3D Refined Volume", "[NCMesh]")
    REQUIRE(summed_volume == MFEM_Approx(original_volume));
 } // test case
 
+TEST_CASE("NCMesh geometry-specific refinement patterns", "[NCMesh]")
+{
+   SECTION("pattern descriptors")
+   {
+      const std::array<Refinement::Pattern, 17> patterns =
+      {
+         Refinement::Segment::BISECTION,
+         Refinement::Triangle::UNIFORM,
+         Refinement::Quadrilateral::SPLIT_X,
+         Refinement::Quadrilateral::SPLIT_Y,
+         Refinement::Quadrilateral::UNIFORM,
+         Refinement::Tetrahedron::UNIFORM,
+         Refinement::Hexahedron::SPLIT_X,
+         Refinement::Hexahedron::SPLIT_Y,
+         Refinement::Hexahedron::SPLIT_Z,
+         Refinement::Hexahedron::SPLIT_XY,
+         Refinement::Hexahedron::SPLIT_XZ,
+         Refinement::Hexahedron::SPLIT_YZ,
+         Refinement::Hexahedron::UNIFORM,
+         Refinement::Prism::TRIANGLE_UNIFORM,
+         Refinement::Prism::SPLIT_Z,
+         Refinement::Prism::UNIFORM,
+         Refinement::Pyramid::UNIFORM
+      };
+
+      Array<Refinement> refs;
+      for (const Refinement::Pattern &pattern : patterns)
+      {
+         refs.Append(Refinement(0, pattern));
+      }
+      for (int i = 0; i < refs.Size(); i++)
+      {
+         CHECK(refs[i].HasPattern());
+         CHECK(refs[i].GetPatternGeometry() == patterns[i].GetParentGeometry());
+         CHECK(refs[i].GetType() == patterns[i].GetId());
+      }
+
+      Refinement legacy(0, Refinement::X);
+      CHECK_FALSE(legacy.HasPattern());
+   }
+
+   SECTION("quadrilateral pattern")
+   {
+      Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+      mesh.EnsureNCMesh();
+
+      Array<Refinement> ref(1);
+      ref[0].Set(0, Refinement::Quadrilateral::SPLIT_Y, 0.25);
+      CHECK(ref[0].HasPattern());
+      CHECK(ref[0].GetPatternGeometry() == Geometry::SQUARE);
+      CHECK(ref[0].GetType() == Refinement::Y);
+      CHECK(ref[0].s[0] == 0.0);
+      CHECK(ref[0].s[1] == 0.25);
+
+      mesh.GeneralRefinement(ref);
+      REQUIRE(mesh.GetNE() == 2);
+   }
+
+#ifdef MFEM_USE_EXCEPTIONS
+   SECTION("pattern parent geometry is validated")
+   {
+      Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+      mesh.EnsureNCMesh();
+
+      Array<Refinement> ref(1);
+      ref[0].Set(0, Refinement::Triangle::UNIFORM);
+      REQUIRE_THROWS(mesh.GeneralRefinement(ref));
+   }
+#endif
+} // test case
+
 TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
 {
    auto mesh_fname = GENERATE("../../data/ref-tetrahedron.mesh",

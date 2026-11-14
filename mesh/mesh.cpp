@@ -11766,6 +11766,11 @@ void Mesh::GeneralRefinement(const Array<Refinement> &refinements,
    }
    else
    {
+      for (const Refinement &ref : refinements)
+      {
+         MFEM_VERIFY(!ref.HasPattern(),
+                     "Geometry-specific refinement patterns require an NC mesh");
+      }
       Array<int> el_to_refine(refinements.Size());
       for (int i = 0; i < refinements.Size(); i++)
       {

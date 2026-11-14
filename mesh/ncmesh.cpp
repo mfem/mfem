@@ -504,6 +504,8 @@ int NCMesh::Face::GetSingleElement() const
 
 void Refinement::SetScale(const ScaledType &r)
 {
+   MFEM_VERIFY(r.first > 0 && r.first <= XYZ,
+               "A geometry-specific pattern must be passed as Refinement::Pattern");
    switch (r.first)
    {
       case X:
@@ -539,23 +541,25 @@ void Refinement::SetScale(const ScaledType &r)
 
 void Refinement::SetScaleForType(const real_t *scale)
 {
+   MFEM_VERIFY(!HasPattern(),
+               "Cannot change the scale of an explicit refinement pattern");
    for (int i=0; i<3; ++i)
       if (s[i] > real_t{0})
          s[i] = scale[i];
 }
 
 Refinement::Refinement(int index)
-   : index(index)
+   : index(index), pattern_id(0), pattern_geometry(0)
 {
-   for (int i=0; i<3; ++i) { s[i] = 0.0; }
+   for (int i = 0; i < 3; i++) { s[i] = 0.0; }
    // Default case is XYZ type with scale 0.5.
    SetScale(ScaledType(XYZ, 0.5));
 }
 
 Refinement::Refinement(int index, const std::initializer_list<ScaledType> &refs)
-   : index(index)
+   : index(index), pattern_id(0), pattern_geometry(0)
 {
-   for (int i=0; i<3; ++i) { s[i] = 0.0; }
+   for (int i = 0; i < 3; i++) { s[i] = 0.0; }
    if (refs.size() == 0)
    {
       // Default case is XYZ type with scale 0.5.
@@ -571,14 +575,22 @@ Refinement::Refinement(int index, const std::initializer_list<ScaledType> &refs)
 }
 
 Refinement::Refinement(int index, char type, real_t scale)
-   : index(index)
+   : index(index), pattern_id(0), pattern_geometry(0)
 {
-   for (int i=0; i<3; ++i) { s[i] = 0.0; }
+   for (int i = 0; i < 3; i++) { s[i] = 0.0; }
    SetScale(ScaledType(type, scale));
+}
+
+Refinement::Refinement(int index, const Pattern &pattern, real_t scale)
+   : index(index), pattern_id(0), pattern_geometry(0)
+{
+   for (int i = 0; i < 3; i++) { s[i] = 0.0; }
+   SetType(pattern, scale);
 }
 
 char Refinement::GetType() const
 {
+   if (HasPattern()) { return pattern_id; }
    char t{0}; // Set the X, Y or Z bit
    for (int i = 0; i < 3; ++i)
       if (s[i] > real_t{0})
@@ -586,17 +598,62 @@ char Refinement::GetType() const
    return t;
 }
 
+Geometry::Type Refinement::GetPatternGeometry() const
+{
+   MFEM_ASSERT(HasPattern(), "No geometry-specific refinement pattern is set");
+   return static_cast<Geometry::Type>(pattern_geometry);
+}
+
 void Refinement::Set(int element, char type, real_t scale)
 {
    index = element;
+   pattern_id = 0;
+   pattern_geometry = 0;
    for (int i=0; i<3; ++i) { s[i] = 0.0; }
    SetScale(ScaledType(type, scale));
 }
 
+void Refinement::Set(int element, const Pattern &new_pattern, real_t scale)
+{
+   index = element;
+   SetType(new_pattern, scale);
+}
+
 void Refinement::SetType(char type, real_t scale)
 {
+   pattern_id = 0;
+   pattern_geometry = 0;
    for (int i=0; i<3; ++i) { s[i] = 0.0; }
    SetScale(ScaledType(type, scale));
+}
+
+void Refinement::SetType(const Pattern &new_pattern, real_t scale)
+{
+   MFEM_VERIFY(new_pattern.GetParentGeometry() != Geometry::INVALID &&
+               new_pattern.GetId() > 0,
+               "Invalid refinement pattern");
+   pattern_id = 0;
+   pattern_geometry = 0;
+   for (int i = 0; i < 3; i++) { s[i] = 0.0; }
+   SetPattern(new_pattern, scale);
+}
+
+void Refinement::SetPattern(const Pattern &new_pattern, real_t scale)
+{
+   MFEM_VERIFY(new_pattern.GetParentGeometry() > Geometry::POINT &&
+               new_pattern.GetParentGeometry() < Geometry::NUM_GEOMETRIES &&
+               new_pattern.GetId() > 0,
+               "Invalid refinement pattern");
+   pattern_id = new_pattern.GetId();
+   pattern_geometry = static_cast<char>(new_pattern.GetParentGeometry());
+   if (pattern_id <= XYZ)
+   {
+      SetScale(ScaledType(pattern_id, scale));
+   }
+   else
+   {
+      s[0] = scale;
+   }
 }
 
 NCMesh::Element::Element(Geometry::Type geom, int attr)
@@ -1137,6 +1194,11 @@ void NCMesh::RefineElement(const Refinement & ref)
 
    // handle elements that may have been (force-) refined already
    Element &el = elements[elem];
+   if (ref.HasPattern())
+   {
+      MFEM_VERIFY(ref.GetPatternGeometry() == el.Geom(),
+                  "Refinement pattern does not match the parent geometry");
+   }
    if (el.ref_type)
    {
       const char remaining = ref_type & ~el.ref_type;
