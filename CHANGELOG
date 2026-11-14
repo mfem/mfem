@@ -15,6 +15,9 @@ GPU computing
 -------------
 - Fixed RAJA CUDA/HIP element coverage when using a smaller fixed launch grid.
 
+- Fixed the Umpire device memory types, which allocated on the device 0 when
+  the configured device was another one.
+
 Discretization improvements
 ---------------------------
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
