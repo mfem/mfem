@@ -241,8 +241,10 @@ void TestCalcVShape(FiniteElement* fe, ElementTransformation * T, int res)
 TEST_CASE("CalcVShape ND",
           "[ND_SegmentElement]"
           "[ND_TriangleElement]"
+          "[NDPos_TriangleElement]"
           "[ND_QuadrilateralElement]"
           "[ND_TetrahedronElement]"
+          "[NDPos_TetrahedronElement]"
           "[ND_WedgeElement]"
           "[ND_FuentesPyramidElement]"
           "[ND_HexahedronElement]")
@@ -259,6 +261,15 @@ TEST_CASE("CalcVShape ND",
       GetReferenceTransformation(Element::SEGMENT, T);
 
       ND_SegmentElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
+   }
+
+   SECTION("NDPos_TriangleElement")
+   {
+      IsoparametricTransformation T;
+      GetReferenceTransformation(Element::TRIANGLE, T);
+
+      NDPos_TriangleElement fe(order);
       TestCalcVShape(&fe, &T, resolution);
    }
 
@@ -286,6 +297,15 @@ TEST_CASE("CalcVShape ND",
       GetReferenceTransformation(Element::TETRAHEDRON, T);
 
       ND_TetrahedronElement fe(order);
+      TestCalcVShape(&fe, &T, resolution);
+   }
+
+   SECTION("NDPos_TetrahedronElement")
+   {
+      IsoparametricTransformation T;
+      GetReferenceTransformation(Element::TETRAHEDRON, T);
+
+      NDPos_TetrahedronElement fe(order);
       TestCalcVShape(&fe, &T, resolution);
    }
 
