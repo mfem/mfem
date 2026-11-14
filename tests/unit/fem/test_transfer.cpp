@@ -870,299 +870,77 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
 }
 
 
-template <typename InnerProductFunction>
-void CheckH1L2Projection(FiniteElementSpace &coarse_fes,
-                         FiniteElementSpace &fine_fes, int rank,
-                         const InnerProductFunction &inner_product)
+Mesh MakeH1TransferMesh()
 {
-   Mesh &fine_mesh = *fine_fes.GetMesh();
-   auto norm = [&](const Vector &v) { return std::sqrt(inner_product(v, v)); };
-   L2ProjectionGridTransfer transfer(coarse_fes, fine_fes);
-   const bool use_ea = GENERATE(false, true);
-   INFO("element assembly: " << use_ea);
-   transfer.UseEA(use_ea);
-   const Operator &forward = transfer.TrueForwardOperator();
-   const Operator &backward = transfer.TrueBackwardOperator();
-
-   SECTION("Constant input is preserved")
-   {
-      Vector x(coarse_fes.GetTrueVSize());
-      x = 1.0;
-      Vector actual(fine_fes.GetTrueVSize());
-      forward.Mult(x, actual);
-      actual -= 1.0;
-      INFO("constant forward error: " << norm(actual));
-      Vector expected(fine_fes.GetTrueVSize());
-      expected = 1.0;
-      CHECK(norm(actual) < 1e-12 * std::max(real_t(1.0), norm(expected)));
-   }
-
-   SECTION("Weighted transfer preserves a constant")
-   {
-      FunctionCoefficient density([](const Vector &p)
-      {
-         return 1.0 + p(0) + 2*p(1);
-      });
-      L2ProjectionGridTransfer weighted(coarse_fes, fine_fes,
-                                        density, density);
-      weighted.UseEA(use_ea);
-      Vector x(coarse_fes.GetTrueVSize()), y(fine_fes.GetTrueVSize());
-      x = 1.0;
-      weighted.TrueForwardOperator().Mult(x, y);
-      y -= 1.0;
-      Vector expected(fine_fes.GetTrueVSize());
-      expected = 1.0;
-      INFO("weighted constant forward error: " << norm(y));
-      CHECK(norm(y) < 1e-12 * std::max(real_t(1.0), norm(expected)));
-   }
-
-   SECTION("Quadratic input has an analytically integrated answer")
-   {
-      // On each axis-aligned Q1 quadrilateral, integral(phi_i) = area / 4.
-      // The phi_i-weighted mean of x^2 is
-      // vx^2 + 4*vx*(cx-vx)/3 + hx^2/6, where vx is the vertex coordinate,
-      // cx the element center and hx its width. Integrate x^2 + y^2 using
-      // this formula, independently of transfer and mass assembly routines.
-      Vector local_mass(fine_fes.GetVSize()), local_load(fine_fes.GetVSize());
-      local_mass = 0.0;
-      local_load = 0.0;
-      Array<int> dofs, vertices;
-      for (int e = 0; e < fine_mesh.GetNE(); ++e)
-      {
-         fine_fes.GetElementDofs(e, dofs);
-         fine_mesh.GetElementVertices(e, vertices);
-         REQUIRE(dofs.Size() == 4);
-         const real_t weight = fine_mesh.GetElementVolume(e) / 4;
-         real_t cx = 0.0, cy = 0.0;
-         for (int i = 0; i < vertices.Size(); ++i)
-         {
-            const real_t *v = fine_mesh.GetVertex(vertices[i]);
-            cx += v[0] / 4;
-            cy += v[1] / 4;
-         }
-         for (int i = 0; i < dofs.Size(); ++i)
-         {
-            const real_t *v = fine_mesh.GetVertex(vertices[i]);
-            const real_t dx = cx - v[0], dy = cy - v[1];
-            const real_t mean = v[0]*v[0] + v[1]*v[1]
-                                + 4*(v[0]*dx + v[1]*dy)/3
-                                + 2*(dx*dx + dy*dy)/3;
-            local_mass(dofs[i]) += weight;
-            local_load(dofs[i]) += weight * mean;
-         }
-      }
-
-      const Operator *prolongation = fine_fes.GetProlongationMatrix();
-      Vector true_mass(fine_fes.GetTrueVSize());
-      Vector expected(fine_fes.GetTrueVSize());
-      if (prolongation)
-      {
-         prolongation->MultTranspose(local_mass, true_mass);
-         prolongation->MultTranspose(local_load, expected);
-      }
-      else
-      {
-         true_mass = local_mass;
-         expected = local_load;
-      }
-      for (int i = 0; i < expected.Size(); ++i)
-      {
-         expected(i) /= true_mass(i);
-      }
-
-      FunctionCoefficient quadratic([](const Vector &p)
-      {
-         return p(0)*p(0) + p(1)*p(1);
-      });
-      GridFunction field(&coarse_fes);
-      field.ProjectCoefficient(quadratic);
-      Vector x;
-      field.GetTrueDofs(x);
-      Vector actual(fine_fes.GetTrueVSize());
-      forward.Mult(x, actual);
-      actual -= expected;
-      INFO("analytic forward error: " << norm(actual));
-      CHECK(norm(actual) < 1e-12 * std::max(real_t(1.0), norm(expected)));
-   }
-
-   SECTION("Round trip and transpose identities")
-   {
-      Vector x(coarse_fes.GetTrueVSize());
-      Vector y(fine_fes.GetTrueVSize());
-      for (int i = 0; i < x.Size(); ++i)
-      {
-         x(i) = std::sin(real_t(1 + i + 17*rank));
-      }
-      for (int i = 0; i < y.Size(); ++i)
-      {
-         y(i) = std::cos(real_t(1 + i + 13*rank));
-      }
-
-      Vector fx(y.Size()), round_trip(x.Size());
-      forward.Mult(x, fx);
-      backward.Mult(fx, round_trip);
-      round_trip -= x;
-      INFO("round-trip error: " << norm(round_trip));
-      CHECK(norm(round_trip) < 1e-11 * std::max(real_t(1.0), norm(x)));
-
-      Vector fty(x.Size()), by(x.Size()), btx(y.Size());
-      forward.MultTranspose(y, fty);
-      backward.Mult(y, by);
-      backward.MultTranspose(x, btx);
-      const real_t forward_defect = std::abs(
-                                       inner_product(fx, y) -
-                                       inner_product(x, fty));
-      const real_t backward_defect = std::abs(
-                                        inner_product(by, x) -
-                                        inner_product(y, btx));
-      INFO("forward transpose defect: " << forward_defect);
-      INFO("backward transpose defect: " << backward_defect);
-      CHECK(forward_defect < 1e-12 * std::max(real_t(1.0), norm(fx)*norm(y)));
-      // Both backward solves use a 1e-13 stopping tolerance.
-      CHECK(backward_defect < 1e-11 * std::max(real_t(1.0), norm(by)*norm(x)));
-   }
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL,
+                                     true, 1.0, 1.0);
+   mesh.EnsureNCMesh();
+   Array<int> refine;
+   refine.Append(0);
+   mesh.GeneralRefinement(refine);
+   return mesh;
 }
 
-TEST_CASE("H1 L2 projection analytic transfer and operator identities",
-          "[Transfer]")
+void CheckH1L2Projection(FiniteElementSpace &coarse_fes,
+                         FiniteElementSpace &fine_fes)
 {
-   Mesh coarse_mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL,
-                                            true, 1.0, 1.0);
-   const bool nonconforming = GENERATE(false, true);
-   INFO("nonconforming mesh: " << nonconforming);
-   if (nonconforming)
-   {
-      coarse_mesh.EnsureNCMesh();
-      Array<int> refine;
-      refine.Append(0);
-      coarse_mesh.GeneralRefinement(refine);
-   }
+   const bool use_ea = GENERATE(false, true);
+   const bool weighted = GENERATE(false, true);
+   CAPTURE(use_ea, weighted);
+   FunctionCoefficient rho([](const Vector &p) { return 1 + p(0) + 2*p(1); });
+   CoefficientWithOrder weight = weighted ? CoefficientWithOrder(rho) : nullptr;
+   L2ProjectionGridTransfer transfer(coarse_fes, fine_fes, weight, weight);
+   L2ProjectionGridTransfer assembled(coarse_fes, fine_fes, weight, weight);
+   transfer.UseEA(use_ea);
+   const Operator &forward = transfer.TrueForwardOperator();
+   Vector x(coarse_fes.GetTrueVSize()), y(fine_fes.GetTrueVSize());
+   Vector expected(y.Size()), round_trip(x.Size());
+
+   x = 1.0;
+   forward.Mult(x, y);
+   y -= 1.0;
+   CHECK(y.Normlinf() < 1e-12);
+
+   x.Randomize(1);
+   forward.Mult(x, y);
+   assembled.TrueForwardOperator().Mult(x, expected);
+   y -= expected;
+   CHECK(y.Normlinf() < 1e-12);
+
+   transfer.TrueBackwardOperator().Mult(expected, round_trip);
+   round_trip -= x;
+   CHECK(round_trip.Normlinf() < 1e-10);
+}
+
+TEST_CASE("H1 L2 projection on a nonconforming mesh", "[Transfer]")
+{
+   Mesh coarse_mesh = MakeH1TransferMesh();
    Mesh fine_mesh(coarse_mesh);
    fine_mesh.UniformRefinement();
    H1_FECollection coarse_fec(2, 2), fine_fec(1, 2);
    FiniteElementSpace coarse_fes(&coarse_mesh, &coarse_fec);
    FiniteElementSpace fine_fes(&fine_mesh, &fine_fec);
-   CheckH1L2Projection(coarse_fes, fine_fes, 0,
-   [](const Vector &x, const Vector &y) { return x*y; });
+   CheckH1L2Projection(coarse_fes, fine_fes);
 }
 
 #ifdef MFEM_USE_MPI
 
-TEST_CASE("Parallel H1 L2 projection EA agrees with standard",
+TEST_CASE("Parallel H1 L2 projection on a nonconforming mesh",
           "[Transfer][Parallel]")
 {
-   int num_procs;
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   if (num_procs < 2)
+   if (Mpi::WorldSize() > 4)
    {
-      SUCCEED("Run with at least two MPI ranks to exercise shared dofs");
+      SUCCEED("Run with at most four MPI ranks for this small mesh");
       return;
    }
-
-   Mesh mesh = Mesh::MakeCartesian2D(4, 4, Element::QUADRILATERAL,
-                                     true, 1.0, 1.0);
+   Mesh mesh = MakeH1TransferMesh();
    ParMesh coarse_mesh(MPI_COMM_WORLD, mesh);
-   ParMesh fine_mesh(MPI_COMM_WORLD, mesh);
+   ParMesh fine_mesh(coarse_mesh);
    fine_mesh.UniformRefinement();
-
-   H1_FECollection coarse_fec(2, 2);
-   H1_FECollection fine_fec(1, 2);
+   H1_FECollection coarse_fec(2, 2), fine_fec(1, 2);
    ParFiniteElementSpace coarse_fes(&coarse_mesh, &coarse_fec);
    ParFiniteElementSpace fine_fes(&fine_mesh, &fine_fec);
-
-   L2ProjectionGridTransfer standard_transfer(coarse_fes, fine_fes);
-   L2ProjectionGridTransfer ea_transfer(coarse_fes, fine_fes);
-   ea_transfer.UseEA(true);
-
-   Vector coarse_x(coarse_fes.GetTrueVSize());
-   Vector fine_standard(fine_fes.GetTrueVSize());
-   Vector fine_ea(fine_fes.GetTrueVSize());
-   for (int i = 0; i < coarse_x.Size(); ++i)
-   {
-      coarse_x(i) = 1.0 + 0.01 * (i % 19);
-   }
-
-   standard_transfer.TrueForwardOperator().Mult(coarse_x, fine_standard);
-   ea_transfer.TrueForwardOperator().Mult(coarse_x, fine_ea);
-   fine_ea -= fine_standard;
-   const real_t forward_error =
-      std::sqrt(InnerProduct(MPI_COMM_WORLD, fine_ea, fine_ea));
-   const real_t forward_norm =
-      std::sqrt(InnerProduct(MPI_COMM_WORLD, fine_standard, fine_standard));
-   INFO("forward relative error: " << forward_error / forward_norm);
-   CHECK(forward_error < 1e-12 * std::max(real_t(1.0), forward_norm));
-
-   for (int i = 0; i < fine_standard.Size(); ++i)
-   {
-      fine_standard(i) = 1.0 + 0.02 * (i % 23);
-   }
-   Vector coarse_standard(coarse_fes.GetTrueVSize());
-   Vector coarse_ea(coarse_fes.GetTrueVSize());
-   standard_transfer.TrueBackwardOperator().Mult(fine_standard,
-                                                 coarse_standard);
-   ea_transfer.TrueBackwardOperator().Mult(fine_standard, coarse_ea);
-   coarse_ea -= coarse_standard;
-   const real_t backward_error =
-      std::sqrt(InnerProduct(MPI_COMM_WORLD, coarse_ea, coarse_ea));
-   const real_t backward_norm =
-      std::sqrt(InnerProduct(MPI_COMM_WORLD, coarse_standard, coarse_standard));
-   INFO("backward relative error: " << backward_error / backward_norm);
-   // Both backward operators use PCG with 1e-13 stopping tolerances.
-   CHECK(backward_error < 1e-12 * std::max(real_t(1.0), backward_norm));
-}
-
-TEST_CASE("Parallel H1 L2 projection analytic transfer and operator identities",
-          "[Transfer][Parallel]")
-{
-   int num_procs;
-   MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-   if (num_procs != 2 && num_procs != 4)
-   {
-      SUCCEED("Run with two or four MPI ranks for this small mesh");
-      return;
-   }
-
-   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL,
-                                     true, 1.0, 1.0);
-   const bool nonconforming = GENERATE(false, true);
-   INFO("nonconforming mesh: " << nonconforming);
-   if (nonconforming)
-   {
-      mesh.EnsureNCMesh();
-      Array<int> refine;
-      refine.Append(0);
-      mesh.GeneralRefinement(refine);
-   }
-   // Fix the partition so the NC case exercises a globally square mixed
-   // matrix with rectangular local blocks independently of the METIS version.
-   Array<int> partition(mesh.GetNE());
-   for (int e = 0; e < mesh.GetNE(); ++e)
-   {
-      partition[e] = e * num_procs / mesh.GetNE();
-   }
-   ParMesh coarse_mesh(MPI_COMM_WORLD, mesh, partition.GetData());
-   ParMesh fine_mesh(MPI_COMM_WORLD, mesh, partition.GetData());
-   fine_mesh.UniformRefinement();
-
-   H1_FECollection coarse_fec(2, 2);
-   H1_FECollection fine_fec(1, 2);
-   ParFiniteElementSpace coarse_fes(&coarse_mesh, &coarse_fec);
-   ParFiniteElementSpace fine_fes(&fine_mesh, &fine_fec);
-   if (nonconforming)
-   {
-      REQUIRE(coarse_fes.GlobalTrueVSize() == fine_fes.GlobalTrueVSize());
-      int rectangular = coarse_fes.GetTrueVSize() != fine_fes.GetTrueVSize();
-      MPI_Allreduce(MPI_IN_PLACE, &rectangular, 1, MPI_INT, MPI_MAX,
-                    MPI_COMM_WORLD);
-      REQUIRE(rectangular == 1);
-   }
-   int rank;
-   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-   CheckH1L2Projection(coarse_fes, fine_fes, rank,
-                       [](const Vector &x, const Vector &y)
-   {
-      return InnerProduct(MPI_COMM_WORLD, x, y);
-   });
+   CheckH1L2Projection(coarse_fes, fine_fes);
 }
 
 TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
