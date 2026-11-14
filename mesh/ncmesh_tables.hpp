@@ -197,6 +197,26 @@ static constexpr int tet_face_four_face_local[4][4] =
    {1, 2, 0, 3}, {1, 3, 2, 0}
 };
 
+static constexpr int tet_face_pyramid_deref[4][4 + 4] =
+{
+   {0, 0, 1, 2, /**/ 0, 1, 0, 0},
+   {0, 0, 2, 1, /**/ 1, 0, 0, 0},
+   {0, 1, 0, 2, /**/ 1, 0, 0, 0},
+   {0, 2, 1, 0, /**/ 1, 0, 0, 0}
+};
+static constexpr int tet_face_pyramid_vertex_local[4][4] =
+{
+   {4, 0, 3, 2}, {0, 4, 2, 3},
+   {0, 3, 4, 2}, {0, 2, 3, 4}
+};
+static constexpr int tet_face_pyramid_face_local[4][4] =
+{
+   {0, 3, 1, 4}, {3, 0, 4, 1},
+   {3, 1, 0, 4}, {3, 4, 1, 0}
+};
+static constexpr Geometry::Type tet_face_pyramid_child_geometries[3] =
+{ Geometry::PYRAMID, Geometry::PYRAMID, Geometry::PYRAMID };
+
 static constexpr int hex_deref_table[7][8 + 6] =
 {
    { 0, 1, 1, 0, 0, 1, 1, 0, /**/ 1, 1, 1, 0, 0, 0 }, // 1 - X
@@ -326,7 +346,7 @@ static constexpr NCRefinementPattern quadrilateral_patterns[15] =
       quad_edge_vertex_local[3], quad_edge_face_local[3]
    }
 };
-static constexpr NCRefinementPattern tetrahedron_patterns[24] =
+static constexpr NCRefinementPattern tetrahedron_patterns[28] =
 {
    {}, {2, tet_deref_table[0]}, {2, tet_deref_table[1]}, {},
    {2, tet_deref_table[3]}, {}, {}, {8, tet_deref_table[6]},
@@ -382,6 +402,22 @@ static constexpr NCRefinementPattern tetrahedron_patterns[24] =
    {
       4, tet_face_four_deref[3], nullptr,
       tet_face_four_vertex_local[3], tet_face_four_face_local[3]
+   },
+   {
+      3, tet_face_pyramid_deref[0], tet_face_pyramid_child_geometries,
+      tet_face_pyramid_vertex_local[0], tet_face_pyramid_face_local[0]
+   },
+   {
+      3, tet_face_pyramid_deref[1], tet_face_pyramid_child_geometries,
+      tet_face_pyramid_vertex_local[1], tet_face_pyramid_face_local[1]
+   },
+   {
+      3, tet_face_pyramid_deref[2], tet_face_pyramid_child_geometries,
+      tet_face_pyramid_vertex_local[2], tet_face_pyramid_face_local[2]
+   },
+   {
+      3, tet_face_pyramid_deref[3], tet_face_pyramid_child_geometries,
+      tet_face_pyramid_vertex_local[3], tet_face_pyramid_face_local[3]
    }
 };
 static constexpr NCRefinementPattern hexahedron_patterns[8] =

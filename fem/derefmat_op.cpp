@@ -35,6 +35,92 @@ Geometry::Type PointMatrixGeometry(const DenseMatrixStack &pmats, int matrix)
    return Geometry::INVALID;
 }
 
+static bool PyramidReferencePoint(const DenseMatrix &point_matrix,
+                                  const real_t target[3],
+                                  IntegrationPoint &ip)
+{
+   long double point[5][3];
+   for (int i = 0; i < 5; i++)
+   {
+      for (int j = 0; j < 3; j++) { point[i][j] = point_matrix(j, i); }
+   }
+   long double a[3], b[3], c[3];
+   for (int i = 0; i < 3; i++)
+   {
+      a[i] = point[1][i] - point[0][i];
+      b[i] = point[3][i] - point[0][i];
+      c[i] = point[0][i] - point[1][i] + point[2][i] - point[3][i];
+   }
+   const auto cross = [](const long double x[3], const long double y[3],
+                         long double z[3])
+   {
+      z[0] = x[1]*y[2] - x[2]*y[1];
+      z[1] = x[2]*y[0] - x[0]*y[2];
+      z[2] = x[0]*y[1] - x[1]*y[0];
+   };
+   const auto dot = [](const long double x[3], const long double y[3])
+   {
+      return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
+   };
+   constexpr long double tol = MFEM_PRECISION_SWITCH(1.0e-12L, 1.0e-5L);
+   long double apex_distance = 0.0L;
+   for (int i = 0; i < 3; i++)
+   {
+      apex_distance += std::abs(static_cast<long double>(target[i]) - point[4][i]);
+   }
+   if (apex_distance <= tol)
+   {
+      ip.Set3(0.0, 0.0, 1.0);
+      return true;
+   }
+
+   long double r = 0.5L, s = 0.5L, z = 0.5L;
+   for (int iter = 0; iter < 24; iter++)
+   {
+      long double residual[3], jr[3], js[3], jz[3];
+      for (int i = 0; i < 3; i++)
+      {
+         const long double base = point[0][i] + r*a[i] + s*b[i] + r*s*c[i];
+         residual[i] = static_cast<long double>(target[i]) -
+                       ((1.0L - z)*base + z*point[4][i]);
+         jr[i] = (1.0L - z)*(a[i] + s*c[i]);
+         js[i] = (1.0L - z)*(b[i] + r*c[i]);
+         jz[i] = point[4][i] - base;
+      }
+      long double js_cross_jz[3], jz_cross_jr[3], jr_cross_js[3];
+      cross(js, jz, js_cross_jz);
+      cross(jz, jr, jz_cross_jr);
+      cross(jr, js, jr_cross_js);
+      const long double det = dot(jr, js_cross_jz);
+      if (std::abs(det) <= 1.0e-15L) { return false; }
+      const long double dr = dot(residual, js_cross_jz) / det;
+      const long double ds = dot(residual, jz_cross_jr) / det;
+      const long double dz = dot(residual, jr_cross_js) / det;
+      r += dr;
+      s += ds;
+      z += dz;
+      if (std::abs(dr) + std::abs(ds) + std::abs(dz) < 1.0e-16L) { break; }
+   }
+   if (r < -tol || s < -tol || z < -tol || r > 1.0L + tol ||
+       s > 1.0L + tol || z > 1.0L + tol)
+   {
+      return false;
+   }
+   r = std::max(0.0L, std::min(1.0L, r));
+   s = std::max(0.0L, std::min(1.0L, s));
+   z = std::max(0.0L, std::min(1.0L, z));
+   long double residual = 0.0L;
+   for (int i = 0; i < 3; i++)
+   {
+      const long double base = point[0][i] + r*a[i] + s*b[i] + r*s*c[i];
+      residual = std::max(residual, std::abs(static_cast<long double>(target[i]) -
+                                             ((1.0L - z)*base + z*point[4][i])));
+   }
+   if (residual > tol) { return false; }
+   ip.Set3((1.0L - z)*r, (1.0L - z)*s, z);
+   return true;
+}
+
 void GetMixedNodalRestriction(const FiniteElement &coarse_fe,
                               const FiniteElement &fine_fe,
                               Geometry::Type fine_geom,
@@ -51,11 +137,12 @@ void GetMixedNodalRestriction(const FiniteElement &coarse_fe,
    trans.SetIdentityTransformation(fine_geom);
    trans.SetPointMat(point_matrix);
    trans.SetIntPoint(&Geometries.GetCenter(fine_geom));
-   // Quadrilateral, hexahedron, and prism child maps can be non-affine.
-   // Preserve the existing local inverse path for pyramid and simplex children.
+   // Quadrilateral, hexahedron, prism, and pyramid child maps can be non-affine.
+   // Preserve the existing local inverse path only for simplex children.
    const bool use_linear_inverse = (fine_geom != Geometry::SQUARE &&
                                     fine_geom != Geometry::CUBE &&
-                                    fine_geom != Geometry::PRISM) ||
+                                    fine_geom != Geometry::PRISM &&
+                                    fine_geom != Geometry::PYRAMID) ||
                                    trans.OrderJ() == 0;
 
    IntegrationPoint origin;
@@ -80,9 +167,16 @@ void GetMixedNodalRestriction(const FiniteElement &coarse_fe,
       }
       else
       {
-         Vector parent_point(parent_coords, dim);
-         mapped = trans.TransformBack(parent_point, ip) ==
-                  InverseElementTransformation::Inside;
+         if (fine_geom == Geometry::PYRAMID)
+         {
+            mapped = PyramidReferencePoint(point_matrix, parent_coords, ip);
+         }
+         else
+         {
+            Vector parent_point(parent_coords, dim);
+            mapped = trans.TransformBack(parent_point, ip) ==
+                     InverseElementTransformation::Inside;
+         }
       }
       constexpr real_t eps = MFEM_PRECISION_SWITCH(1e-14, 1e-6f);
       if (mapped && Geometries.CheckPoint(fine_geom, ip, eps))

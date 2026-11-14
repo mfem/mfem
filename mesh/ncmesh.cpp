@@ -1780,7 +1780,7 @@ void NCMesh::RefineElement(const Refinement & ref)
           ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId() ||
           ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId() ||
           (ref_type >= Refinement::Tetrahedron::CORNER_0_TET_PRISM.GetId() &&
-           ref_type <= Refinement::Tetrahedron::FACE_3_4_TETS.GetId()))
+           ref_type <= Refinement::Tetrahedron::FACE_3_3_PYRAMIDS.GetId()))
       {
          // The fixed child transforms below require a midpoint split.
          if (ref_type >= Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
@@ -1914,6 +1914,32 @@ void NCMesh::RefineElement(const Refinement & ref)
                                       attr, fa[face], fa[base0], fa[base1], -1);
             child[3] = NewTetrahedron(no[corner], mid01, mid12, mid20,
                                       attr, fa[face], -1, -1, -1);
+         }
+         else if (ref_type >= Refinement::Tetrahedron::FACE_0_3_PYRAMIDS.GetId() &&
+                  ref_type <= Refinement::Tetrahedron::FACE_3_3_PYRAMIDS.GetId())
+         {
+            GI[Geometry::PYRAMID].InitGeom(Geometry::PYRAMID);
+            const int face = ref_type - Refinement::Tetrahedron::FACE_0_3_PYRAMIDS.GetId();
+            const int *vertices = tet_corner_vertex_order[face];
+            const int corner = vertices[0];
+            const int base0 = vertices[1];
+            const int base1 = vertices[2];
+            const int base2 = vertices[3];
+            const int mid01 = GetMidEdgeNode(no[base0], no[base1]);
+            const int mid12 = GetMidEdgeNode(no[base1], no[base2]);
+            const int mid20 = GetMidEdgeNode(no[base2], no[base0]);
+            SetNodeScale(no[base0], no[base1], 0.5);
+            SetNodeScale(no[base1], no[base2], 0.5);
+            SetNodeScale(no[base2], no[base0], 0.5);
+            const int center = GetTriFaceCenterNode(no[base0], no[base1],
+                                                    no[base2]);
+
+            child[0] = NewPyramid(no[base0], mid20, center, mid01, no[corner],
+                                  attr, fa[face], fa[base1], -1, -1, fa[base2]);
+            child[1] = NewPyramid(mid01, center, mid12, no[base1], no[corner],
+                                  attr, fa[face], -1, -1, fa[base0], fa[base2]);
+            child[2] = NewPyramid(center, mid20, no[base2], mid12, no[corner],
+                                  attr, fa[face], -1, fa[base1], fa[base0], -1);
          }
          else
          {
@@ -5067,6 +5093,131 @@ static bool MapExplicitPatternPoint(const DenseMatrix &pm,
                                     bool inverse)
 {
    const long double unit = static_cast<long double>(T_ONE);
+   if (child_geom == Geometry::PYRAMID)
+   {
+      long double point[5][3];
+      for (int i = 0; i < 5; i++)
+      {
+         for (int j = 0; j < 3; j++) { point[i][j] = pm(j, i); }
+      }
+      long double a[3], b[3], c[3];
+      for (int i = 0; i < 3; i++)
+      {
+         a[i] = point[1][i] - point[0][i];
+         b[i] = point[3][i] - point[0][i];
+         c[i] = point[0][i] - point[1][i] + point[2][i] - point[3][i];
+      }
+      const auto cross = [](const long double x[3], const long double y[3],
+                            long double z[3])
+      {
+         z[0] = x[1]*y[2] - x[2]*y[1];
+         z[1] = x[2]*y[0] - x[0]*y[2];
+         z[2] = x[0]*y[1] - x[1]*y[0];
+      };
+      const auto dot = [](const long double x[3], const long double y[3])
+      {
+         return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
+      };
+      const auto transform = [&](long double r, long double s, long double z,
+                                 long double result[3])
+      {
+         const long double q = 1.0L - z;
+         for (int i = 0; i < 3; i++)
+         {
+            const long double base = point[0][i] + r*a[i] + s*b[i] + r*s*c[i];
+            result[i] = q*base + z*point[4][i];
+         }
+      };
+
+      long double x = static_cast<long double>(src[0]) / unit;
+      long double y = static_cast<long double>(src[1]) / unit;
+      long double z = static_cast<long double>(src[2]) / unit;
+      if (inverse)
+      {
+         constexpr long double tol =
+            MFEM_PRECISION_SWITCH(1.0e-12L, 1.0e-5L);
+         const long double target[3] = {x, y, z};
+         long double apex_distance = 0.0L;
+         for (int i = 0; i < 3; i++)
+         {
+            apex_distance += std::abs(target[i] - point[4][i]);
+         }
+         if (apex_distance <= tol)
+         {
+            dst[0] = dst[1] = 0;
+            dst[2] = T_ONE;
+            return true;
+         }
+
+         long double r = 0.5L, s = 0.5L;
+         z = 0.5L;
+         for (int iter = 0; iter < 24; iter++)
+         {
+            long double mapped[3], jr[3], js[3], jz[3], residual[3];
+            transform(r, s, z, mapped);
+            for (int i = 0; i < 3; i++)
+            {
+               const long double base = point[0][i] + r*a[i] + s*b[i] + r*s*c[i];
+               residual[i] = target[i] - mapped[i];
+               jr[i] = (1.0L - z)*(a[i] + s*c[i]);
+               js[i] = (1.0L - z)*(b[i] + r*c[i]);
+               jz[i] = point[4][i] - base;
+            }
+            long double js_cross_jz[3], jz_cross_jr[3], jr_cross_js[3];
+            cross(js, jz, js_cross_jz);
+            cross(jz, jr, jz_cross_jr);
+            cross(jr, js, jr_cross_js);
+            const long double det = dot(jr, js_cross_jz);
+            MFEM_VERIFY(std::abs(det) > 1.0e-15L,
+                        "Degenerate pyramid refinement child");
+            const long double dr = dot(residual, js_cross_jz) / det;
+            const long double ds = dot(residual, jz_cross_jr) / det;
+            const long double dz = dot(residual, jr_cross_js) / det;
+            r += dr;
+            s += ds;
+            z += dz;
+            if (std::abs(dr) + std::abs(ds) + std::abs(dz) < 1.0e-16L)
+            { break; }
+         }
+         if (r < -tol || s < -tol || z < -tol || r > 1.0L + tol ||
+             s > 1.0L + tol || z > 1.0L + tol)
+         { return false; }
+         r = std::max(0.0L, std::min(1.0L, r));
+         s = std::max(0.0L, std::min(1.0L, s));
+         z = std::max(0.0L, std::min(1.0L, z));
+         long double residual = 0.0L;
+         for (int i = 0; i < 3; i++)
+         {
+            const long double base = point[0][i] + r*a[i] + s*b[i] + r*s*c[i];
+            residual = std::max(residual, std::abs(target[i] -
+                                                   ((1.0L - z)*base +
+                                                    z*point[4][i])));
+         }
+         if (residual > tol) { return false; }
+         x = (1.0L - z)*r;
+         y = (1.0L - z)*s;
+      }
+      else if (z < 1.0L)
+      {
+         const long double r = x / (1.0L - z);
+         const long double s = y / (1.0L - z);
+         long double mapped[3];
+         transform(r, s, z, mapped);
+         x = mapped[0];
+         y = mapped[1];
+         z = mapped[2];
+      }
+      else
+      {
+         x = point[4][0];
+         y = point[4][1];
+         z = point[4][2];
+      }
+      dst[0] = std::llround(x*unit);
+      dst[1] = std::llround(y*unit);
+      dst[2] = std::llround(z*unit);
+      return true;
+   }
    if (child_geom == Geometry::TETRAHEDRON)
    {
       long double point[4][3];
@@ -5907,6 +6058,22 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
             { pm = PointMatrix(pm(v[0]), mid20, mid12, pm(v[3])); }
             else if (child == 3)
             { pm = PointMatrix(pm(v[0]), mid01, mid12, mid20); }
+         }
+         else if (ref_type >= Refinement::Tetrahedron::FACE_0_3_PYRAMIDS.GetId() &&
+                  ref_type <= Refinement::Tetrahedron::FACE_3_3_PYRAMIDS.GetId())
+         {
+            const int *v = tet_corner_vertex_order[
+                   ref_type - Refinement::Tetrahedron::FACE_0_3_PYRAMIDS.GetId()];
+            Point mid01(pm(v[1]), pm(v[2]));
+            Point mid12(pm(v[2]), pm(v[3]));
+            Point mid20(pm(v[3]), pm(v[1]));
+            Point center(mid01, pm(v[3]), 1.0/3.0);
+            if (child == 0)
+            { pm = PointMatrix(pm(v[1]), mid20, center, mid01, pm(v[0])); }
+            else if (child == 1)
+            { pm = PointMatrix(mid01, center, mid12, pm(v[2]), pm(v[0])); }
+            else if (child == 2)
+            { pm = PointMatrix(center, mid20, pm(v[3]), mid12, pm(v[0])); }
          }
          else if (ref_type >= Refinement::Tetrahedron::CORNER_0_TET_PRISM.GetId() &&
                   ref_type <= Refinement::Tetrahedron::CORNER_3_TET_PRISM.GetId())
