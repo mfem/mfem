@@ -1133,14 +1133,29 @@ TEST_CASE("Parallel H1 L2 projection analytic transfer and operator identities",
       refine.Append(0);
       mesh.GeneralRefinement(refine);
    }
-   ParMesh coarse_mesh(MPI_COMM_WORLD, mesh);
-   ParMesh fine_mesh(MPI_COMM_WORLD, mesh);
+   // Fix the partition so the NC case exercises a globally square mixed
+   // matrix with rectangular local blocks independently of the METIS version.
+   Array<int> partition(mesh.GetNE());
+   for (int e = 0; e < mesh.GetNE(); ++e)
+   {
+      partition[e] = e * num_procs / mesh.GetNE();
+   }
+   ParMesh coarse_mesh(MPI_COMM_WORLD, mesh, partition.GetData());
+   ParMesh fine_mesh(MPI_COMM_WORLD, mesh, partition.GetData());
    fine_mesh.UniformRefinement();
 
    H1_FECollection coarse_fec(2, 2);
    H1_FECollection fine_fec(1, 2);
    ParFiniteElementSpace coarse_fes(&coarse_mesh, &coarse_fec);
    ParFiniteElementSpace fine_fes(&fine_mesh, &fine_fec);
+   if (nonconforming)
+   {
+      REQUIRE(coarse_fes.GlobalTrueVSize() == fine_fes.GlobalTrueVSize());
+      int rectangular = coarse_fes.GetTrueVSize() != fine_fes.GetTrueVSize();
+      MPI_Allreduce(MPI_IN_PLACE, &rectangular, 1, MPI_INT, MPI_MAX,
+                    MPI_COMM_WORLD);
+      REQUIRE(rectangular == 1);
+   }
    int rank;
    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
    CheckH1L2Projection(coarse_fes, fine_fes, rank,

@@ -1283,10 +1283,27 @@ L2ProjectionGridTransfer::L2ProjectionH1Space::L2ProjectionH1Space(
                                               pfes_ho_scalar->GetDofOffsets(),
                                               static_cast<SparseMatrix*>(M_LH.get()));
 
-   HypreParMatrix *R_mat = RAP(pfes_lor_scalar->Dof_TrueDof_Matrix(),
-                               &R_local, pfes_ho_scalar->Dof_TrueDof_Matrix());
-   HypreParMatrix *M_LH_mat = RAP(pfes_lor_scalar->Dof_TrueDof_Matrix(),
-                                  &M_LH_local, pfes_ho_scalar->Dof_TrueDof_Matrix());
+   HypreParMatrix *R_mat, *M_LH_mat;
+#if MFEM_HYPRE_VERSION < 22500
+   // hypre < 2.25 RAP inserts a local diagonal whenever the global matrix
+   // is square (fixed in hypre PR #581). With hanging nodes, the spaces can have
+   // equal global true-dof counts but different local counts, so those
+   // diagonal column indices can be out of range. Assemble P_lor^T A P_ho
+   // using two products, which also handle rectangular local blocks.
+   std::unique_ptr<HypreParMatrix> P_lor_T(
+      pfes_lor_scalar->Dof_TrueDof_Matrix()->Transpose());
+   std::unique_ptr<HypreParMatrix> R_times_P(
+      ParMult(&R_local, pfes_ho_scalar->Dof_TrueDof_Matrix()));
+   std::unique_ptr<HypreParMatrix> M_LH_times_P(
+      ParMult(&M_LH_local, pfes_ho_scalar->Dof_TrueDof_Matrix()));
+   R_mat = ParMult(P_lor_T.get(), R_times_P.get(), true);
+   M_LH_mat = ParMult(P_lor_T.get(), M_LH_times_P.get(), true);
+#else
+   R_mat = RAP(pfes_lor_scalar->Dof_TrueDof_Matrix(),
+               &R_local, pfes_ho_scalar->Dof_TrueDof_Matrix());
+   M_LH_mat = RAP(pfes_lor_scalar->Dof_TrueDof_Matrix(),
+                  &M_LH_local, pfes_ho_scalar->Dof_TrueDof_Matrix());
+#endif
 
    // R = D_true^(-1) M_LH preserves symmetry of R^T M_LH.
    R_mat->ScaleRows(ML_inv);
