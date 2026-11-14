@@ -315,7 +315,7 @@ NDPosElementRestriction::NDPosElementRestriction(
    MFEM_VERIFY(ndpos_fe != nullptr,
                "NDPos element restriction requires tetrahedral NDPos elements");
    const auto *ndpos_trans = dynamic_cast<const NDPos_DofTransformation*>(
-                               ndpos_fe->GetDofTransformation());
+                                ndpos_fe->GetDofTransformation());
    MFEM_VERIFY(ndpos_trans != nullptr && nfdofs > 0,
                "NDPos element restriction requires dense face transformations");
 
@@ -494,7 +494,7 @@ void NDPosElementRestriction::MultTranspose(const Vector &x, Vector &y) const
 }
 
 void NDPosElementRestriction::AddMultTranspose(const Vector &x, Vector &y,
-                                                const real_t a) const
+                                               const real_t a) const
 {
    MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
    constexpr bool ADD = true;
@@ -522,7 +522,7 @@ void NDPosElementRestriction::BooleanMask(Vector &) const
 }
 
 void NDPosElementRestriction::FillSparseMatrix(const Vector &,
-                                                SparseMatrix &) const
+                                               SparseMatrix &) const
 {
    MFEM_ABORT("Element assembly is not implemented for NDPos restrictions");
 }

@@ -122,7 +122,7 @@ inline void PANDPosHcurlMassApply3D(
          for (int k = scalar_offsets[i]; k < scalar_offsets[i+1]; k++)
          {
             for (int d = 0; d < VDIM; d++)
-            {  
+            {
                const int a1 = scalar_multiindices[3*k];
                const int a2 = scalar_multiindices[1 + 3*k];
                const int a3 = scalar_multiindices[2 + 3*k];
@@ -167,7 +167,7 @@ inline void PANDPosHcurlMassApply3D(
          //
          //    w_ij = \sum_{|\alpha|=p+1} c_ij * (\alpha_i/p * \nabla\lambda_j - \alpha_j/p * \nabla\lambda_i).
          //
-         // The contribution of w_ij to (u,v,w) is thus c_ij * (\alpha_i/p * \nabla\lambda_j - 
+         // The contribution of w_ij to (u,v,w) is thus c_ij * (\alpha_i/p * \nabla\lambda_j -
          // \alpha_j/p * \nabla\lambda_i).
          const int alpha0 = p - a1 - a2 - a3;
          const real_t weight0 = alpha0 * inv_degree;
@@ -382,7 +382,7 @@ inline void PANDPosHcurlMassApply3D(
          }
       }
 
-      // edge (0,1) contributions look like 
+      // edge (0,1) contributions look like
       //    Moment(\lambda_0) * grad(\lambda_1) - Moment(\lambda_1) * grad(\lambda_0) =
       //    Moment(\lambda_0)_x + (Moment(\lambda_1)_x + Moment(\lambda_1)_y + Moment(\lambda_1)_z)
       Y(0,e) += F3_edge[0] + F3_edge[3] + F3_edge[4] + F3_edge[5];

@@ -1655,10 +1655,12 @@ const DofToQuad &NDPos_TetrahedronElement::GetRaggedTensorDofToQuad(
          RaggedDofToQuad *rd2q = static_cast<RaggedDofToQuad*>(d2q);
          rd2q->scalar_offsets.SetSize(ndof3d + 1);
          rd2q->scalar_multiindices.SetSize(3*16*ndof3d);
-         rd2q->scalar_coeffs.SetSize(3*16*ndof3d); // maximum possible size transformation coeffs
+         rd2q->scalar_coeffs.SetSize(
+            3*16*ndof3d); // maximum possible size transformation coeffs
          rd2q->scalar_offsets_curl.SetSize(ndof3d + 1);
          rd2q->scalar_multiindices_curl.SetSize(3*16*ndof3d);
-         rd2q->scalar_coeffs_curl.SetSize(3*16*ndof3d); // maximum possible size transformation coeffs
+         rd2q->scalar_coeffs_curl.SetSize(
+            3*16*ndof3d); // maximum possible size transformation coeffs
          rd2q->Ba1.SetSize(nqpt * ndof);
          // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
          rd2q->Ba2.SetSize(nqpt * basis_dim2d);
@@ -1688,7 +1690,8 @@ const DofToQuad &NDPos_TetrahedronElement::GetRaggedTensorDofToQuad(
          rd2q->inverse_map2d_mass.SetSize(2 * basis_dim2d);
          rd2q->inverse_map3d_mass.SetSize(3 * basis_dim3d);
 
-         const NDPos_TetrahedronElement &nd_fe = static_cast<const NDPos_TetrahedronElement &>(fe);
+         const NDPos_TetrahedronElement &nd_fe =
+            static_cast<const NDPos_TetrahedronElement &>(fe);
 
          // when expressing Bernstein Nedelec basis functions as scalar Bernsteins with vector coefficients,
          // the vector coefficients are transformations of the original scalar coefficients. A given
@@ -1752,8 +1755,8 @@ const DofToQuad &NDPos_TetrahedronElement::GetRaggedTensorDofToQuad(
                   for (int d = 0; d < 3; d++)
                   {
                      rd2q->scalar_coeffs[d + 3*count] = (alpha[i] + 1) *
-                                                    (alpha[k]*grad_lambda_3d[j][d] -
-                                                     alpha[j]*grad_lambda_3d[k][d]);
+                                                        (alpha[k]*grad_lambda_3d[j][d] -
+                                                         alpha[j]*grad_lambda_3d[k][d]);
                      rd2q->scalar_multiindices[d + 3*count] = beta[d + 1];
                   }
                   count++;
@@ -1768,8 +1771,8 @@ const DofToQuad &NDPos_TetrahedronElement::GetRaggedTensorDofToQuad(
                      for (int d = 0; d < 3; d++)
                      {
                         rd2q->scalar_coeffs_curl[d + 3*count_curl] = (ndof-1) * (alpha[i] + 1) *
-                                                           (alpha[k] * tangent_3d[m][j][d] -
-                                                            alpha[j] * tangent_3d[m][k][d]);
+                                                                     (alpha[k] * tangent_3d[m][j][d] -
+                                                                      alpha[j] * tangent_3d[m][k][d]);
                         rd2q->scalar_multiindices_curl[d + 3*count_curl] = beta[d + 1];
                      }
                      count_curl++;
@@ -1805,7 +1808,8 @@ const DofToQuad &NDPos_TetrahedronElement::GetRaggedTensorDofToQuad(
                   if (beta[i] < 0 || beta[l] < 0) { continue; }
                   for (int d = 0; d < 3; d++)
                   {
-                     rd2q->scalar_coeffs_curl[d + 3*count_curl] = (ndof-1) * ndof * tangent_3d[i][l][d];
+                     rd2q->scalar_coeffs_curl[d + 3*count_curl] = (ndof-1) * ndof *
+                                                                  tangent_3d[i][l][d];
                      rd2q->scalar_multiindices_curl[d + 3*count_curl] = beta[d + 1];
                   }
                   count_curl++;
