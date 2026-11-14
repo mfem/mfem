@@ -18,6 +18,7 @@
 #include <map>
 
 #include "ncmesh_tables.hpp"
+#include "ncmesh_face_partition.hpp"
 
 
 namespace
@@ -3984,6 +3985,64 @@ void NCMesh::BuildFaceList()
    for (int i = 0; i < Geometry::NumGeom; i++)
    {
       matrix_maps[i].ExportMatrices(face_list.point_matrices[i]);
+   }
+
+   // Check the mapped slave cells against their master face. Degenerate slave
+   // matrices represent edge constraints, not face cells.
+   for (const Master &master : face_list.masters)
+   {
+      MFEM_VERIFY(master.Geom() == Geometry::TRIANGLE ||
+                  master.Geom() == Geometry::SQUARE,
+                  "Invalid NC master face geometry");
+      NCFacePartition coarse, fine;
+      NCFacePartition::Cell parent = {};
+      parent.geometry = master.Geom();
+      parent.vertex[0] = {0.0, 0.0};
+      parent.vertex[1] = {1.0, 0.0};
+      parent.vertex[2] = master.Geom() == Geometry::TRIANGLE ?
+                         NCFacePartition::Point {0.0, 1.0} :
+                         NCFacePartition::Point {1.0, 1.0};
+      if (master.Geom() == Geometry::SQUARE)
+      { parent.vertex[3] = {0.0, 1.0}; }
+      coarse.cells.Append(parent);
+
+      real_t covered_area = 0.0;
+      for (int i = master.slaves_begin; i < master.slaves_end; i++)
+      {
+         const Slave &slave = face_list.slaves[i];
+         const DenseMatrix &points =
+            *face_list.point_matrices[slave.Geom()][slave.matrix];
+         const int corners = slave.Geom() == Geometry::TRIANGLE ? 3 : 4;
+         MFEM_VERIFY(points.Height() == 2 && points.Width() == corners,
+                     "Invalid NC slave face point matrix");
+         NCFacePartition::Cell cell = {};
+         cell.geometry = slave.Geom();
+         real_t twice_area = 0.0;
+         for (int j = 0; j < corners; j++)
+         {
+            cell.vertex[j] = {points(0, j), points(1, j)};
+            const int next = (j + 1) % corners;
+            twice_area += (points(0, j)-points(0, 0))*
+                          (points(1, next)-points(1, 0)) -
+                          (points(1, j)-points(1, 0))*
+                          (points(0, next)-points(0, 0));
+         }
+         if (twice_area == 0.0) { continue; }
+         covered_area += 0.5*std::abs(twice_area);
+         fine.cells.Append(cell);
+      }
+
+      MFEM_VERIFY(fine.cells.Size() > 0,
+                  "NC master face has no nondegenerate slave faces");
+      const NCFaceRelation relation = CompareNCFacePartitions(coarse, fine);
+      MFEM_VERIFY(relation == NCFaceRelation::SecondRefinesFirst ||
+                  relation == NCFaceRelation::Matching,
+                  "NC slave face lies outside its master face");
+      const real_t parent_area = master.Geom() == Geometry::TRIANGLE ? 0.5 : 1.0;
+      const real_t tolerance =
+         1024*std::numeric_limits<real_t>::epsilon()*parent_area;
+      MFEM_VERIFY(std::abs(covered_area - parent_area) <= tolerance,
+                  "NC slave face areas do not sum to the master face area");
    }
 }
 

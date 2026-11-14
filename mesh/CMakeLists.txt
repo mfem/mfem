@@ -20,6 +20,7 @@ set(SRCS
   mesh_operators.cpp
   mesh_readers.cpp
   ncmesh.cpp
+  ncmesh_face_partition.cpp
   ncnurbs.cpp
   nurbs.cpp
   point.cpp
@@ -49,6 +50,7 @@ set(HDRS
   mesh_headers.hpp
   mesh_operators.hpp
   ncmesh.hpp
+  ncmesh_face_partition.hpp
   ncnurbs.hpp
   nurbs.hpp
   point.hpp
