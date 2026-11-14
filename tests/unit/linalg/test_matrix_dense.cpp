@@ -622,6 +622,268 @@ TEST_CASE("DenseTensor copy", "[DenseMatrix][DenseTensor]")
    }
 }
 
+TEST_CASE("DenseMatrixStack", "[DenseMatrix][DenseMatrixStack]")
+{
+   Array<int> ni{2, 3};
+   Array<int> nj{2, 3};
+   DenseMatrixStack matrices(ni, nj, 2);
+
+   REQUIRE(matrices.SizeK() == 2);
+   REQUIRE(matrices.SizeI(0) == 2);
+   REQUIRE(matrices.SizeJ(1) == 3);
+   REQUIRE(matrices.TotalSize() == 13);
+
+   for (int i = 0; i < matrices.TotalSize(); i++)
+   {
+      matrices.Data()[i] = i + 1;
+   }
+   REQUIRE(matrices(1, 1, 0) == 4.0);
+   REQUIRE(matrices(2, 2, 1) == 13.0);
+   REQUIRE(matrices.HostRead()[12] == 13.0);
+
+   DenseMatrixStack copy;
+   copy = matrices;
+   REQUIRE(copy.Data() != matrices.Data());
+   REQUIRE(copy.SizeI(0) == 2);
+   REQUIRE(copy.SizeJ(1) == 3);
+   REQUIRE(copy(2, 2, 1) == 13.0);
+   matrices(0, 0, 0) = -1.0;
+   REQUIRE(copy(0, 0, 0) == 1.0);
+
+   matrices = 2.0;
+   for (int i = 0; i < matrices.TotalSize(); i++)
+   {
+      REQUIRE(matrices.Data()[i] == 2.0);
+   }
+
+   Array<int> one{1};
+   DenseMatrixStack other(one, one, 1);
+   other(0, 0, 0) = 9.0;
+   matrices.Swap(other);
+   REQUIRE(matrices.SizeK() == 1);
+   REQUIRE(matrices.SizeI(0) == 1);
+   REQUIRE(matrices(0, 0, 0) == 9.0);
+   REQUIRE(other.SizeK() == 2);
+   REQUIRE(other.TotalSize() == 13);
+   REQUIRE(other(2, 2, 1) == 2.0);
+}
+
+TEST_CASE("DenseMatrixStack Swap", "[DenseMatrix][DenseMatrixStack]")
+{
+   Array<int> external_ni{1, 2};
+   Array<int> external_nj{2, 1};
+   real_t external_data[] = {1.0, 2.0, 3.0, 4.0};
+   DenseMatrixStack external(external_data, external_ni, external_nj, 2);
+
+   Array<int> owning_ni{2, 1, 3};
+   Array<int> owning_nj{1, 3, 1};
+   DenseMatrixStack owning(owning_ni, owning_nj, 3);
+   for (int i = 0; i < owning.TotalSize(); i++)
+   {
+      owning.Data()[i] = 10.0 + i;
+   }
+
+   real_t *external_ptr = external.Data();
+   real_t *owning_ptr = owning.Data();
+   external.Swap(owning);
+
+   REQUIRE(external.Data() == owning_ptr);
+   REQUIRE(external.SizeK() == 3);
+   REQUIRE(external.SizeI(0) == 2);
+   REQUIRE(external.SizeJ(1) == 3);
+   REQUIRE(external.SizeI(2) == 3);
+   REQUIRE(external.TotalSize() == 8);
+   REQUIRE(external(0, 0, 0) == 10.0);
+   REQUIRE(external(0, 2, 1) == 14.0);
+   REQUIRE(external(2, 0, 2) == 17.0);
+
+   REQUIRE(owning.Data() == external_ptr);
+   REQUIRE(owning.SizeK() == 2);
+   REQUIRE(owning.SizeI(0) == 1);
+   REQUIRE(owning.SizeJ(0) == 2);
+   REQUIRE(owning.SizeI(1) == 2);
+   REQUIRE(owning.SizeJ(1) == 1);
+   REQUIRE(owning.TotalSize() == 4);
+   REQUIRE(owning(0, 1, 0) == 2.0);
+   REQUIRE(owning(1, 0, 1) == 4.0);
+
+   owning(1, 0, 1) = -1.0;
+   REQUIRE(external_data[3] == -1.0);
+}
+
+TEST_CASE("DenseMatrixStack copy assignment to external data",
+          "[DenseMatrix][DenseMatrixStack]")
+{
+   Array<int> source_ni{2, 1};
+   Array<int> source_nj{1, 2};
+   DenseMatrixStack source(source_ni, source_nj, 2);
+   for (int i = 0; i < source.TotalSize(); i++)
+   {
+      source.Data()[i] = 10.0 + i;
+   }
+
+   Array<int> target_ni{1, 2};
+   Array<int> target_nj{2, 1};
+   real_t target_data[] = {-1.0, -1.0, -1.0, -1.0};
+   DenseMatrixStack target(target_data, target_ni, target_nj, 2);
+   real_t *target_ptr = target.Data();
+
+   target = source;
+
+   REQUIRE(target.Data() == target_ptr);
+   REQUIRE(target.SizeK() == 2);
+   REQUIRE(target.SizeI(0) == 2);
+   REQUIRE(target.SizeJ(0) == 1);
+   REQUIRE(target.SizeI(1) == 1);
+   REQUIRE(target.SizeJ(1) == 2);
+   REQUIRE(target.TotalSize() == 4);
+   REQUIRE(target(0, 0, 0) == 10.0);
+   REQUIRE(target(1, 0, 0) == 11.0);
+   REQUIRE(target(0, 0, 1) == 12.0);
+   REQUIRE(target(0, 1, 1) == 13.0);
+   REQUIRE(target_data[3] == 13.0);
+}
+
+TEST_CASE("DenseMatrixStack Clear", "[DenseMatrix][DenseMatrixStack]")
+{
+   Array<int> ni{2, 1};
+   Array<int> nj{3, 2};
+   DenseMatrixStack matrices(ni, nj, 2);
+   REQUIRE(matrices.MemoryUsage() > 0);
+
+   matrices.Clear();
+
+   REQUIRE(matrices.SizeK() == 0);
+   REQUIRE(matrices.TotalSize() == 0);
+   REQUIRE(matrices.Data() == nullptr);
+   REQUIRE(matrices.MemoryUsage() == 0);
+}
+
+TEST_CASE("DenseMatrixStack move operations", "[DenseMatrix][DenseMatrixStack]")
+{
+   Array<int> ni{2, 1};
+   Array<int> nj{1, 2};
+   DenseMatrixStack source(ni, nj, 2);
+   for (int i = 0; i < source.TotalSize(); i++)
+   {
+      source.Data()[i] = 10.0 + i;
+   }
+
+   DenseMatrixStack constructed(std::move(source));
+   REQUIRE(source.SizeK() == 0);
+   REQUIRE(source.TotalSize() == 0);
+   REQUIRE(constructed.SizeK() == 2);
+   REQUIRE(constructed(1, 0, 0) == 11.0);
+   REQUIRE(constructed(0, 1, 1) == 13.0);
+
+   DenseMatrixStack assigned;
+   assigned = std::move(constructed);
+   REQUIRE(constructed.SizeK() == 0);
+   REQUIRE(constructed.TotalSize() == 0);
+   REQUIRE(assigned.SizeK() == 2);
+   REQUIRE(assigned(1, 0, 0) == 11.0);
+   REQUIRE(assigned(0, 1, 1) == 13.0);
+}
+
+TEST_CASE("DenseMatrixStack external Memory alias",
+          "[DenseMatrix][DenseMatrixStack]")
+{
+   Array<int> ni{1, 2};
+   Array<int> nj{2, 1};
+   Array<real_t> storage{1.0, 2.0, 3.0, 4.0};
+   DenseMatrixStack matrices;
+   matrices.NewMemoryAndSize(storage.GetMemory(), ni, nj, 2, false);
+
+   REQUIRE(matrices.Data() == storage.GetData());
+   REQUIRE(matrices(0, 1, 0) == 2.0);
+   REQUIRE(matrices(1, 0, 1) == 4.0);
+
+   matrices(1, 0, 1) = -1.0;
+   matrices.Clear();
+   REQUIRE(storage[3] == -1.0);
+}
+
+TEST_CASE("DenseMatrixStack AddMult", "[DenseMatrix][DenseMatrixStack]")
+{
+   Array<int> n{2, 3};
+   DenseMatrixStack matrices(n, n, 2);
+   matrices = 0.0;
+   matrices(0, 0, 0) = 1.0;
+   matrices(1, 1, 0) = 2.0;
+   matrices(0, 0, 1) = 3.0;
+   matrices(1, 1, 1) = 4.0;
+   matrices(2, 2, 1) = 5.0;
+
+   Table elem_dof;
+   elem_dof.MakeI(2);
+   elem_dof.AddColumnsInRow(0, 2);
+   elem_dof.AddColumnsInRow(1, 3);
+   elem_dof.MakeJ();
+   const int dofs0[] = {0, 1};
+   const int dofs1[] = {2, 3, 4};
+   elem_dof.AddConnections(0, dofs0, 2);
+   elem_dof.AddConnections(1, dofs1, 3);
+   elem_dof.ShiftUpI();
+
+   Vector x{1.0, 2.0, 3.0, 4.0, 5.0};
+   Vector y(5);
+   y = 0.0;
+   matrices.AddMult(elem_dof, x, y);
+
+   REQUIRE(y(0) == 1.0);
+   REQUIRE(y(1) == 4.0);
+   REQUIRE(y(2) == 9.0);
+   REQUIRE(y(3) == 16.0);
+   REQUIRE(y(4) == 25.0);
+}
+
+TEST_CASE("DenseMatrixStack rectangular AddMult",
+          "[DenseMatrix][DenseMatrixStack]")
+{
+   Array<int> ni{2, 1};
+   Array<int> nj{3, 2};
+   DenseMatrixStack matrices(ni, nj, 2);
+   matrices(0, 0, 0) = 1.0;
+   matrices(1, 0, 0) = 4.0;
+   matrices(0, 1, 0) = 2.0;
+   matrices(1, 1, 0) = 5.0;
+   matrices(0, 2, 0) = 3.0;
+   matrices(1, 2, 0) = 6.0;
+   matrices(0, 0, 1) = 7.0;
+   matrices(0, 1, 1) = 8.0;
+
+   Table domain_dof;
+   domain_dof.MakeI(2);
+   domain_dof.AddColumnsInRow(0, 3);
+   domain_dof.AddColumnsInRow(1, 2);
+   domain_dof.MakeJ();
+   const int domain0[] = {0, 1, 2};
+   const int domain1[] = {3, 4};
+   domain_dof.AddConnections(0, domain0, 3);
+   domain_dof.AddConnections(1, domain1, 2);
+   domain_dof.ShiftUpI();
+
+   Table range_dof;
+   range_dof.MakeI(2);
+   range_dof.AddColumnsInRow(0, 2);
+   range_dof.AddColumnsInRow(1, 1);
+   range_dof.MakeJ();
+   const int range0[] = {5, 6};
+   const int range1[] = {7};
+   range_dof.AddConnections(0, range0, 2);
+   range_dof.AddConnections(1, range1, 1);
+   range_dof.ShiftUpI();
+
+   Vector x{1.0, 2.0, 3.0, 4.0, 5.0};
+   Vector y(8);
+   y = 0.0;
+   matrices.AddMult(domain_dof, x, range_dof, y);
+
+   REQUIRE(y(5) == 14.0);
+   REQUIRE(y(6) == 32.0);
+   REQUIRE(y(7) == 68.0);
+}
+
 TEST_CASE("MatrixInverse", "[DenseMatrix]")
 {
    real_t tol = 1e-10;
