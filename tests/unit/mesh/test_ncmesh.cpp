@@ -332,6 +332,27 @@ TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
 
 #ifdef MFEM_USE_MPI
 
+TEST_CASE("ParNCMesh geometry-specific refinement patterns",
+          "[Parallel], [NCMesh]")
+{
+   if (Mpi::WorldSize() < 2) { return; }
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL);
+   mesh.EnsureNCMesh();
+
+   const int partition[] = {0, 1};
+   ParMesh pmesh(MPI_COMM_WORLD, mesh, partition);
+
+   Array<Refinement> refs;
+   if (Mpi::WorldRank() == 0)
+   {
+      refs.Append(Refinement(0, Refinement::Quadrilateral::SPLIT_Y, 0.25));
+   }
+   pmesh.GeneralRefinement(refs);
+
+   REQUIRE(pmesh.GetGlobalNE() == 3);
+}
+
 // Test case: Verify that a conforming mesh yields the same norm for the
 //            assembled diagonal with PA when using the standard (conforming)
 //            Mesh vs. the corresponding (non-conforming) NCMesh. (note:

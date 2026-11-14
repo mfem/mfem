@@ -71,6 +71,33 @@ static real_t DirectedHexEdgeScale(const int* nodes, const Refinement &ref,
    return 0.0;
 }
 
+Refinement ParNCMesh::NeighborRefinementMessage::GetRefinement(int elem,
+                                                               int index) const
+{
+   const NeighborRefinement &data = values[index];
+   if (data.pattern_geometry)
+   {
+      real_t scale = 0.0;
+      for (int i = 0; i < 3; i++)
+      {
+         if (data.scale[i] != 0.0)
+         {
+            scale = data.scale[i];
+            break;
+         }
+      }
+      const Refinement::Pattern pattern
+      {
+         static_cast<Geometry::Type>(data.pattern_geometry), data.ref_type
+      };
+      return Refinement(elem, pattern, scale);
+   }
+
+   Refinement ref(elem, data.ref_type);
+   ref.SetScaleForType(data.scale);
+   return ref;
+}
+
 ParNCMesh::ParNCMesh(MPI_Comm comm, const NCMesh &ncmesh,
                      const int *partitioning)
    : NCMesh(ncmesh)
@@ -1707,8 +1734,7 @@ bool ParNCMesh::AnisotropicConflict(const Array<Refinement> &refinements,
       // check the ghost refinements
       for (int i = 0; i < msg.Size(); i++)
       {
-         Refinement ghost_ref(msg.elements[i], msg.values[i].ref_type);
-         ghost_ref.SetScaleForType(msg.values[i].scale);
+         Refinement ghost_ref = msg.GetRefinement(msg.elements[i], i);
          CheckRefinement(msg.elements[i], ghost_ref, refinements, elemToRef,
                          conflicts);
       }
@@ -2218,8 +2244,7 @@ void ParNCMesh::Refine(const Array<Refinement> &refinements)
       // do the ghost refinements
       for (int i = 0; i < msg.Size(); i++)
       {
-         Refinement ghost_ref(msg.elements[i], msg.values[i].ref_type);
-         ghost_ref.SetScaleForType(msg.values[i].scale);
+         Refinement ghost_ref = msg.GetRefinement(msg.elements[i], i);
          NCMesh::RefineElement(ghost_ref);
       }
    }

@@ -504,6 +504,7 @@ protected: // implementation
    struct NeighborRefinement
    {
       char ref_type;
+      char pattern_geometry; ///< Zero for a legacy direction mask.
       real_t scale[3];
    };
 
@@ -516,12 +517,15 @@ protected: // implementation
       {
          NeighborRefinement data{};
          data.ref_type = ref.GetType();
+         data.pattern_geometry = ref.HasPattern() ?
+                                 static_cast<char>(ref.GetPatternGeometry()) : 0;
          for (int i = 0; i < 3; i++)
          {
             data.scale[i] = ref.s[i];
          }
          Add(elem, data);
       }
+      Refinement GetRefinement(int elem, int index) const;
       typedef std::map<int, NeighborRefinementMessage> Map;
    };
 
