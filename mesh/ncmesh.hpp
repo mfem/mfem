@@ -47,7 +47,8 @@ namespace mfem
     EDGE_12_2_TETS, EDGE_13_2_TETS, and EDGE_23_2_TETS patterns bisect the
     corresponding edges at their midpoints. The corner patterns produce one
     tetrahedron and one prism. The all-face quadrilateral pattern produces four
-    hexahedra. The face-center patterns produce three tetrahedra. */
+    hexahedra. The face-center patterns produce three tetrahedra; the
+    four-tet face patterns produce four tetrahedra. */
 struct Refinement
 {
    /** Identifies a refinement pattern for one parent geometry. */
@@ -118,6 +119,10 @@ struct Refinement
       static constexpr Pattern FACE_1_CENTER_3_TETS { Geometry::TETRAHEDRON, 17 };
       static constexpr Pattern FACE_2_CENTER_3_TETS { Geometry::TETRAHEDRON, 18 };
       static constexpr Pattern FACE_3_CENTER_3_TETS { Geometry::TETRAHEDRON, 19 };
+      static constexpr Pattern FACE_0_4_TETS { Geometry::TETRAHEDRON, 20 };
+      static constexpr Pattern FACE_1_4_TETS { Geometry::TETRAHEDRON, 21 };
+      static constexpr Pattern FACE_2_4_TETS { Geometry::TETRAHEDRON, 22 };
+      static constexpr Pattern FACE_3_4_TETS { Geometry::TETRAHEDRON, 23 };
       static constexpr Pattern UNIFORM { Geometry::TETRAHEDRON, XYZ };
    };
 

@@ -1780,7 +1780,7 @@ void NCMesh::RefineElement(const Refinement & ref)
           ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId() ||
           ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId() ||
           (ref_type >= Refinement::Tetrahedron::CORNER_0_TET_PRISM.GetId() &&
-           ref_type <= Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId()))
+           ref_type <= Refinement::Tetrahedron::FACE_3_4_TETS.GetId()))
       {
          // The fixed child transforms below require a midpoint split.
          if (ref_type >= Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
@@ -1892,6 +1892,28 @@ void NCMesh::RefineElement(const Refinement & ref)
                                       attr, fa[face], -1, -1, fa[base0]);
             child[2] = NewTetrahedron(no[corner], no[base2], no[base0], center,
                                       attr, fa[face], -1, -1, fa[base1]);
+         }
+         else if (ref_type >= Refinement::Tetrahedron::FACE_0_4_TETS.GetId() &&
+                  ref_type <= Refinement::Tetrahedron::FACE_3_4_TETS.GetId())
+         {
+            const int face = ref_type - Refinement::Tetrahedron::FACE_0_4_TETS.GetId();
+            const int *vertices = tet_corner_vertex_order[face];
+            const int corner = vertices[0];
+            const int base0 = vertices[1];
+            const int base1 = vertices[2];
+            const int base2 = vertices[3];
+            const int mid01 = GetMidEdgeNode(no[base0], no[base1]);
+            const int mid12 = GetMidEdgeNode(no[base1], no[base2]);
+            const int mid20 = GetMidEdgeNode(no[base2], no[base0]);
+
+            child[0] = NewTetrahedron(no[corner], no[base0], mid01, mid20,
+                                      attr, fa[face], -1, fa[base1], fa[base2]);
+            child[1] = NewTetrahedron(no[corner], mid01, no[base1], mid12,
+                                      attr, fa[face], fa[base0], -1, fa[base2]);
+            child[2] = NewTetrahedron(no[corner], mid20, mid12, no[base2],
+                                      attr, fa[face], fa[base0], fa[base1], -1);
+            child[3] = NewTetrahedron(no[corner], mid01, mid12, mid20,
+                                      attr, fa[face], -1, -1, -1);
          }
          else
          {
@@ -5868,6 +5890,23 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
             { pm = PointMatrix(pm(v[0]), pm(v[2]), pm(v[3]), center); }
             else if (child == 2)
             { pm = PointMatrix(pm(v[0]), pm(v[3]), pm(v[1]), center); }
+         }
+         else if (ref_type >= Refinement::Tetrahedron::FACE_0_4_TETS.GetId() &&
+                  ref_type <= Refinement::Tetrahedron::FACE_3_4_TETS.GetId())
+         {
+            const int *v = tet_corner_vertex_order[
+                   ref_type - Refinement::Tetrahedron::FACE_0_4_TETS.GetId()];
+            Point mid01(pm(v[1]), pm(v[2]));
+            Point mid12(pm(v[2]), pm(v[3]));
+            Point mid20(pm(v[3]), pm(v[1]));
+            if (child == 0)
+            { pm = PointMatrix(pm(v[0]), pm(v[1]), mid01, mid20); }
+            else if (child == 1)
+            { pm = PointMatrix(pm(v[0]), mid01, pm(v[2]), mid12); }
+            else if (child == 2)
+            { pm = PointMatrix(pm(v[0]), mid20, mid12, pm(v[3])); }
+            else if (child == 3)
+            { pm = PointMatrix(pm(v[0]), mid01, mid12, mid20); }
          }
          else if (ref_type >= Refinement::Tetrahedron::CORNER_0_TET_PRISM.GetId() &&
                   ref_type <= Refinement::Tetrahedron::CORNER_3_TET_PRISM.GetId())

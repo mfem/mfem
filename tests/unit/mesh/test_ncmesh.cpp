@@ -186,7 +186,7 @@ Refinement TetRefinement(int element, char type)
       return Refinement(element, Refinement::Tetrahedron::EDGE_23_2_TETS);
    }
    if (type >= Refinement::Tetrahedron::CORNER_0_TET_PRISM.GetId() &&
-       type <= Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId())
+       type <= Refinement::Tetrahedron::FACE_3_4_TETS.GetId())
    {
       return Refinement(element, {Geometry::TETRAHEDRON, type});
    }
@@ -1268,7 +1268,11 @@ TEST_CASE("NCMesh explicit tet refinement patterns", "[NCMesh]")
                                           Refinement::Tetrahedron::FACE_0_CENTER_3_TETS,
                                           Refinement::Tetrahedron::FACE_1_CENTER_3_TETS,
                                           Refinement::Tetrahedron::FACE_2_CENTER_3_TETS,
-                                          Refinement::Tetrahedron::FACE_3_CENTER_3_TETS);
+                                          Refinement::Tetrahedron::FACE_3_CENTER_3_TETS,
+                                          Refinement::Tetrahedron::FACE_0_4_TETS,
+                                          Refinement::Tetrahedron::FACE_1_4_TETS,
+                                          Refinement::Tetrahedron::FACE_2_4_TETS,
+                                          Refinement::Tetrahedron::FACE_3_4_TETS);
    const bool nested = GENERATE(false, true);
    const bool scaled = GENERATE(false, true);
    const bool corner_prism =
@@ -1280,6 +1284,10 @@ TEST_CASE("NCMesh explicit tet refinement patterns", "[NCMesh]")
                             Refinement::Tetrahedron::FACE_0_CENTER_3_TETS.GetId() &&
                             pattern.GetId() <=
                             Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId();
+   const bool face_four = pattern.GetId() >=
+                          Refinement::Tetrahedron::FACE_0_4_TETS.GetId() &&
+                          pattern.GetId() <=
+                          Refinement::Tetrahedron::FACE_3_4_TETS.GetId();
    if (all_faces_quads && nested) { return; }
    CAPTURE(pattern.GetId(), nested, scaled);
    Mesh mesh("../../data/ref-tetrahedron.mesh", 1, 1);
@@ -1300,7 +1308,7 @@ TEST_CASE("NCMesh explicit tet refinement patterns", "[NCMesh]")
    REQUIRE(refs[0].GetType() == pattern.GetId());
    mesh.GeneralRefinement(refs);
    REQUIRE(mesh.ncmesh->GetNumElements() ==
-           (all_faces_quads ? 5 : (face_center ? 4 : 3)));
+           (all_faces_quads || face_four ? 5 : (face_center ? 4 : 3)));
    if (nested)
    {
       fes.Update();
@@ -1309,13 +1317,14 @@ TEST_CASE("NCMesh explicit tet refinement patterns", "[NCMesh]")
       mesh.GeneralRefinement(refs);
    }
    REQUIRE(mesh.GetNE() ==
-           (all_faces_quads ? 4 : (nested ? (face_center ? 10 : 9) :
-                                   (face_center ? 3 : 2))));
+           (all_faces_quads || face_four ? (nested ? 11 : 4) :
+            (nested ? (face_center ? 10 : 9) : (face_center ? 3 : 2))));
    const RefinedElementSummary refined = SummarizeRefinedElements(mesh);
    REQUIRE(refined.geometry_counts[Geometry::TETRAHEDRON] ==
            (all_faces_quads ? 0 :
-            (nested ? (face_center ? 10 : (corner_prism ? 8 : 9)) :
-             (face_center ? 3 : (corner_prism ? 1 : 2)))));
+            (face_four ? (nested ? 11 : 4) :
+             (nested ? (face_center ? 10 : (corner_prism ? 8 : 9)) :
+              (face_center ? 3 : (corner_prism ? 1 : 2))))));
    REQUIRE(refined.geometry_counts[Geometry::PRISM] == int(corner_prism));
    REQUIRE(refined.geometry_counts[Geometry::CUBE] == 4*int(all_faces_quads));
    REQUIRE(refined.volume == MFEM_Approx(original_volume));
@@ -1362,7 +1371,11 @@ TEST_CASE("NCMesh anisotropic tet refinements", "[NCMesh]")
                             Refinement::Tetrahedron::FACE_0_CENTER_3_TETS.GetId(),
                             Refinement::Tetrahedron::FACE_1_CENTER_3_TETS.GetId(),
                             Refinement::Tetrahedron::FACE_2_CENTER_3_TETS.GetId(),
-                            Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId());
+                            Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId(),
+                            Refinement::Tetrahedron::FACE_0_4_TETS.GetId(),
+                            Refinement::Tetrahedron::FACE_1_4_TETS.GetId(),
+                            Refinement::Tetrahedron::FACE_2_4_TETS.GetId(),
+                            Refinement::Tetrahedron::FACE_3_4_TETS.GetId());
    CAPTURE(ref_type);
    Mesh mesh("../../data/ref-tetrahedron.mesh", 1, 1);
    const real_t original_volume = mesh.GetElementVolume(0);
@@ -1384,7 +1397,11 @@ TEST_CASE("NCMesh anisotropic tet refinements", "[NCMesh]")
    const bool face_center =
       ref_type >= Refinement::Tetrahedron::FACE_0_CENTER_3_TETS.GetId() &&
       ref_type <= Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId();
-   REQUIRE(mesh.GetNE() == (all_faces_quads ? 4 : (face_center ? 3 : 2)));
+   const bool face_four =
+      ref_type >= Refinement::Tetrahedron::FACE_0_4_TETS.GetId() &&
+      ref_type <= Refinement::Tetrahedron::FACE_3_4_TETS.GetId();
+   REQUIRE(mesh.GetNE() ==
+           (all_faces_quads || face_four ? 4 : (face_center ? 3 : 2)));
    REQUIRE(SummarizeRefinedElements(mesh).volume ==
            MFEM_Approx(original_volume));
    REQUIRE(mesh.CheckElementOrientation(false) == 0);
@@ -1392,7 +1409,8 @@ TEST_CASE("NCMesh anisotropic tet refinements", "[NCMesh]")
    const bool corner_prism =
       ref_type >= Refinement::Tetrahedron::CORNER_0_TET_PRISM.GetId() &&
       ref_type <= Refinement::Tetrahedron::CORNER_3_TET_PRISM.GetId();
-   REQUIRE(mesh.GetNBE() == (all_faces_quads ? 12 : (corner_prism ? 7 : 6)));
+   REQUIRE(mesh.GetNBE() ==
+           (all_faces_quads ? 12 : (face_four ? 10 : (corner_prism ? 7 : 6))));
    fes.Update();
    field.Update();
    GridFunction exact(&fes);
@@ -1403,7 +1421,8 @@ TEST_CASE("NCMesh anisotropic tet refinements", "[NCMesh]")
    std::stringstream serialized;
    mesh.Print(serialized);
    Mesh reloaded(serialized, 1, 1);
-   REQUIRE(reloaded.GetNE() == (all_faces_quads ? 4 : (face_center ? 3 : 2)));
+   REQUIRE(reloaded.GetNE() ==
+           (all_faces_quads || face_four ? 4 : (face_center ? 3 : 2)));
    Vector reload_errors(reloaded.GetNE());
    reload_errors = 0.0;
    REQUIRE(reloaded.DerefineByError(reload_errors, 1.0));
@@ -1451,7 +1470,11 @@ TEST_CASE("NCMesh anisotropic tet L2 derefinement", "[NCMesh]")
                             Refinement::Tetrahedron::FACE_0_CENTER_3_TETS.GetId(),
                             Refinement::Tetrahedron::FACE_1_CENTER_3_TETS.GetId(),
                             Refinement::Tetrahedron::FACE_2_CENTER_3_TETS.GetId(),
-                            Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId());
+                            Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId(),
+                            Refinement::Tetrahedron::FACE_0_4_TETS.GetId(),
+                            Refinement::Tetrahedron::FACE_1_4_TETS.GetId(),
+                            Refinement::Tetrahedron::FACE_2_4_TETS.GetId(),
+                            Refinement::Tetrahedron::FACE_3_4_TETS.GetId());
    const bool nested = GENERATE(false, true);
    const bool variable_order = GENERATE(false, true);
    CAPTURE(ref_type, nested, variable_order);
@@ -1460,6 +1483,9 @@ TEST_CASE("NCMesh anisotropic tet L2 derefinement", "[NCMesh]")
    const bool face_center =
       ref_type >= Refinement::Tetrahedron::FACE_0_CENTER_3_TETS.GetId() &&
       ref_type <= Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId();
+   const bool face_four =
+      ref_type >= Refinement::Tetrahedron::FACE_0_4_TETS.GetId() &&
+      ref_type <= Refinement::Tetrahedron::FACE_3_4_TETS.GetId();
    if (all_faces_quads && nested) { return; }
 
    Mesh mesh("../../data/ref-tetrahedron.mesh", 1, 1);
@@ -1493,8 +1519,8 @@ TEST_CASE("NCMesh anisotropic tet L2 derefinement", "[NCMesh]")
       field.Update();
    }
    REQUIRE(mesh.GetNE() ==
-           (all_faces_quads ? 4 : (nested ? (face_center ? 10 : 9) :
-                                   (face_center ? 3 : 2))));
+           (all_faces_quads || face_four ? (nested ? 11 : 4) :
+            (nested ? (face_center ? 10 : 9) : (face_center ? 3 : 2))));
    for (int i = 0; i < mesh.GetNE(); i++)
    {
       REQUIRE(fes.GetElementOrder(i) == 2 + int(variable_order));
@@ -1535,7 +1561,11 @@ TEST_CASE("NCMesh anisotropic tet shared face", "[NCMesh]")
                             Refinement::Tetrahedron::FACE_0_CENTER_3_TETS.GetId(),
                             Refinement::Tetrahedron::FACE_1_CENTER_3_TETS.GetId(),
                             Refinement::Tetrahedron::FACE_2_CENTER_3_TETS.GetId(),
-                            Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId());
+                            Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId(),
+                            Refinement::Tetrahedron::FACE_0_4_TETS.GetId(),
+                            Refinement::Tetrahedron::FACE_1_4_TETS.GetId(),
+                            Refinement::Tetrahedron::FACE_2_4_TETS.GetId(),
+                            Refinement::Tetrahedron::FACE_3_4_TETS.GetId());
    const int shared_face = GENERATE(1, 2, 3);
    const bool corner_prism =
       ref_type >= Refinement::Tetrahedron::CORNER_0_TET_PRISM.GetId() &&
@@ -1545,6 +1575,9 @@ TEST_CASE("NCMesh anisotropic tet shared face", "[NCMesh]")
    const bool face_center =
       ref_type >= Refinement::Tetrahedron::FACE_0_CENTER_3_TETS.GetId() &&
       ref_type <= Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId();
+   const bool face_four =
+      ref_type >= Refinement::Tetrahedron::FACE_0_4_TETS.GetId() &&
+      ref_type <= Refinement::Tetrahedron::FACE_3_4_TETS.GetId();
    if ((ref_type == Refinement::X && shared_face == 1) ||
        (ref_type == Refinement::Y && shared_face == 2) ||
        (ref_type == Refinement::Z && shared_face == 3) ||
@@ -1561,7 +1594,9 @@ TEST_CASE("NCMesh anisotropic tet shared face", "[NCMesh]")
        (ref_type == Refinement::Tetrahedron::CORNER_3_TET_PRISM.GetId() &&
         shared_face != 1 && shared_face != 2) ||
        (face_center && shared_face !=
-        ref_type - Refinement::Tetrahedron::FACE_0_CENTER_3_TETS.GetId()))
+        ref_type - Refinement::Tetrahedron::FACE_0_CENTER_3_TETS.GetId()) ||
+       (face_four && shared_face !=
+        ref_type - Refinement::Tetrahedron::FACE_0_4_TETS.GetId()))
    { return; }
    CAPTURE(ref_type, shared_face);
    Mesh mesh(3, 5, 2, 0);
@@ -1591,14 +1626,16 @@ TEST_CASE("NCMesh anisotropic tet shared face", "[NCMesh]")
    Array<Refinement> refs(1);
    refs[0] = TetRefinement(0, ref_type);
    mesh.GeneralRefinement(refs);
-   REQUIRE(mesh.GetNE() == (all_faces_quads ? 5 : (face_center ? 4 : 3)));
+   REQUIRE(mesh.GetNE() ==
+           (all_faces_quads || face_four ? 5 : (face_center ? 4 : 3)));
    REQUIRE(SummarizeRefinedElements(mesh).volume ==
            MFEM_Approx(original_volume));
    REQUIRE(mesh.CheckElementOrientation(false) == 0);
    REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
    const auto &faces = mesh.ncmesh->GetFaceList();
    REQUIRE(faces.masters.Size() == 1);
-   REQUIRE(faces.slaves.Size() == (all_faces_quads || face_center ? 3 : 2));
+   REQUIRE(faces.slaves.Size() ==
+           (face_four ? 4 : (all_faces_quads || face_center ? 3 : 2)));
    fes.Update();
    field.Update();
    GridFunction exact(&fes);
@@ -1606,7 +1643,7 @@ TEST_CASE("NCMesh anisotropic tet shared face", "[NCMesh]")
    exact -= field;
    REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
 
-   if (all_faces_quads || face_center) { return; }
+   if (all_faces_quads || face_center || face_four) { return; }
 
    refs[0].Set(0, Refinement::XYZ);
    mesh.GeneralRefinement(refs);
@@ -2425,12 +2462,15 @@ TEST_CASE("ParNCMesh anisotropic tet shared face", "[Parallel][NCMesh]")
                             Refinement::Tetrahedron::CORNER_2_TET_PRISM.GetId(),
                             Refinement::Tetrahedron::CORNER_3_TET_PRISM.GetId(),
                             Refinement::Tetrahedron::ALL_FACES_3_QUADS_4_HEXES.GetId(),
-                            Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId());
+                            Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId(),
+                            Refinement::Tetrahedron::FACE_3_4_TETS.GetId());
    CAPTURE(ref_type);
    const bool all_faces_quads =
       ref_type == Refinement::Tetrahedron::ALL_FACES_3_QUADS_4_HEXES.GetId();
    const bool face_center =
       ref_type == Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId();
+   const bool face_four =
+      ref_type == Refinement::Tetrahedron::FACE_3_4_TETS.GetId();
    Mesh serial_mesh(3, 5, 2, 0);
    serial_mesh.AddVertex(0.0, 0.0, 0.0);
    serial_mesh.AddVertex(1.0, 0.0, 0.0);
@@ -2487,7 +2527,7 @@ TEST_CASE("ParNCMesh anisotropic tet shared face", "[Parallel][NCMesh]")
    }
    mesh.GeneralRefinement(refs);
    REQUIRE(mesh.GetGlobalNE() ==
-           (all_faces_quads ? 5 : (face_center ? 4 : 3)));
+           (all_faces_quads || face_four ? 5 : (face_center ? 4 : 3)));
    REQUIRE(mesh.CheckElementOrientation(false) == 0);
    REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
    fes.Update();
