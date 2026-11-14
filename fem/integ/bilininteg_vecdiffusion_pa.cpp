@@ -131,7 +131,8 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
    MFEM_VERIFY(scalar_coeff + vector_coeff + matrix_coeff == 1, "");
 
    const int pa_size = dim * dim;
-   pa_data.SetSize(nq * pa_size * vdim * (matrix_coeff ? dim : 1) * ne, mt);
+   const int num_channels = matrix_coeff ? vdim * vdim : vdim;
+   pa_data.SetSize(nq * pa_size * num_channels * ne, mt);
 
    if (dim == 2 && sdim == 3)
    {
@@ -141,7 +142,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
       auto D = Reshape(pa_data.Write(), q1d, q1d, pa_size,
-                       vdim * (matrix_coeff ? dim : 1), ne);
+                       num_channels, ne);
 
       mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
@@ -180,7 +181,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto J = Reshape(geom->J.Read(), q1d, q1d, sdim, dim, ne);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, ne);
       auto DE = Reshape(pa_data.Write(), q1d, q1d, pa_size,
-                        vdim * (matrix_coeff ? dim : 1), ne);
+                        num_channels, ne);
       mfem::forall_2D(ne, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
          MFEM_FOREACH_THREAD(qy, y, q1d)
@@ -195,11 +196,11 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                const real_t D0 =  w_detJ * (J12*J12 + J22*J22);
                const real_t D1 = -w_detJ * (J12*J11 + J22*J21);
                const real_t D2 =  w_detJ * (J11*J11 + J21*J21);
-               const int map[4] = {0, 2, 1, 3};
-
                for (int i = 0; i < (matrix_coeff ? cvdim : nc); ++i)
                {
-                  const auto k = matrix_coeff ? map[i] : (vector_coeff ? i : 0);
+                  // Matrix coefficients are stored transposed
+                  const auto k = matrix_coeff ? (i % nc) * nc + i / nc
+                                 : (vector_coeff ? i : 0);
                   const auto Cc = C(k, qx, qy, e);
                   DE(qx, qy, 0, i, e) = D0 * Cc;
                   DE(qx, qy, 1, i, e) = D1 * Cc;
@@ -217,7 +218,7 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       const auto J = Reshape(geom->J.Read(), q1d, q1d, q1d, sdim, dim, ne);
       const auto C = Reshape(coeff.Read(), coeff_vdim, q1d, q1d, q1d, ne);
       auto DE = Reshape(pa_data.Write(), q1d, q1d, q1d, pa_size,
-                        vdim * (matrix_coeff ? dim : 1), ne);
+                        num_channels, ne);
 
       mfem::forall_3D(ne, q1d, q1d, q1d, [=] MFEM_HOST_DEVICE(int e)
       {
@@ -257,11 +258,11 @@ void VectorDiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
                   const real_t D22 = c_detJ * (A21*A21 + A22*A22 + A23*A23); // 2,2
                   const real_t D32 = c_detJ * (A21*A31 + A22*A32 + A23*A33); // 3,2
                   const real_t D33 = c_detJ * (A31*A31 + A32*A32 + A33*A33); // 3,3
-                  const int map[9] = {0, 3, 6, 1, 4, 7, 2, 5, 8};
-
                   for (int i = 0; i < (matrix_coeff ? cvdim : nc); ++i)
                   {
-                     const auto k = matrix_coeff ? map[i] : vector_coeff ? i : 0;
+                     // Matrix coefficients are stored transposed
+                     const auto k = matrix_coeff ? (i % nc) * nc + i / nc
+                                    : vector_coeff ? i : 0;
                      const auto Ck = C(k, qx, qy, qz, e);
                      DE(qx, qy, qz, 0, i, e) = D11 * Ck;
                      DE(qx, qy, qz, 1, i, e) = D21 * Ck;
