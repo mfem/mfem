@@ -16,6 +16,7 @@
 #include "pgridfunc.hpp"
 #include "qspace.hpp"
 #include "fe/face_map_utils.hpp"
+#include "fe/fe_nd.hpp"
 #include "../general/forall.hpp"
 
 #include <climits>
@@ -297,6 +298,233 @@ void ElementRestriction::FillSparseMatrix(const Vector &mat_ea,
    mat.GetMemoryJ().New(nnz, mat.GetMemoryJ().GetMemoryType());
    mat.GetMemoryData().New(nnz, mat.GetMemoryData().GetMemoryType());
    FillJAndData(mat_ea, mat);
+}
+
+NDPosElementRestriction::NDPosElementRestriction(
+   const FiniteElementSpace &f, ElementDofOrdering e_ordering)
+   : ElementRestriction(f, e_ordering),
+     order(f.GetTypicalFE()->GetOrder()),
+     nfdofs(order*(order - 1)),
+     face_orientations(4*ne),
+     face_inverse_transforms(6*nfdofs*nfdofs)
+{
+   MFEM_VERIFY(e_ordering == ElementDofOrdering::NATIVE,
+               "NDPos element restriction requires native ordering");
+   const auto *ndpos_fe =
+      dynamic_cast<const NDPos_TetrahedronElement*>(f.GetTypicalFE());
+   MFEM_VERIFY(ndpos_fe != nullptr,
+               "NDPos element restriction requires tetrahedral NDPos elements");
+   const auto *ndpos_trans = dynamic_cast<const NDPos_DofTransformation*>(
+                               ndpos_fe->GetDofTransformation());
+   MFEM_VERIFY(ndpos_trans != nullptr && nfdofs > 0,
+               "NDPos element restriction requires dense face transformations");
+
+   for (int ori = 0; ori < 6; ori++)
+   {
+      const DenseMatrix &matrix =
+         ndpos_trans->GetFaceInverseTransform(ori);
+      for (int j = 0; j < nfdofs; j++)
+      {
+         for (int i = 0; i < nfdofs; i++)
+         {
+            face_inverse_transforms[i + nfdofs*(j + nfdofs*ori)] =
+               matrix(i,j);
+         }
+      }
+   }
+
+   Array<int> dofs;
+   DofTransformation doftrans;
+   for (int e = 0; e < ne; e++)
+   {
+      f.GetElementDofs(e, dofs, doftrans);
+      const Array<int> &orientations = doftrans.GetFaceOrientations();
+      MFEM_VERIFY(orientations.Size() >= 4,
+                  "NDPos tetrahedron is missing face orientations");
+      for (int face = 0; face < 4; face++)
+      {
+         face_orientations[face + 4*e] = orientations[face];
+      }
+   }
+}
+
+void NDPosElementRestriction::Mult(const Vector &x, Vector &y) const
+{
+   const int nd = dof;
+   const int vd = vdim;
+   const int nfd = nfdofs;
+   const bool t = byvdim;
+   const int face_begin = 6*order;
+   const int face_end = face_begin + 4*nfd;
+   auto d_x = Reshape(x.Read(), t ? vd : ndofs, t ? ndofs : vd);
+   auto d_y = Reshape(y.Write(), nd, vd, ne);
+   auto d_gather_map = gather_map.Read();
+   auto d_orientations = face_orientations.Read();
+   auto d_transforms = face_inverse_transforms.Read();
+
+   mfem::forall(nd*ne, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int d = i % nd;
+      const int e = i / nd;
+      // Only face DOFs need special handling in the NDPos tetrahedral class
+      if (d >= face_begin && d < face_end)
+      {
+         const int face_dof = d - face_begin;
+         const int face = face_dof / nfd;
+         const int row = face_dof % nfd;
+         const int orientation = d_orientations[face + 4*e];
+         const int face_offset = face_begin + face*nfd;
+         for (int c = 0; c < vd; c++)
+         {
+            // When local orientation matches global orientation, the dense
+            // face transformation is the identity
+            if (orientation == 0)
+            {
+               // equivalent to d_gather_map[i]
+               const int gid = d_gather_map[face_offset + row + nd*e];
+               const real_t dof_value = d_x(t ? c : gid, t ? gid : c);
+               d_y(d, c, e) = dof_value;
+               continue;
+            }
+            real_t value = 0.0;
+            // Otherwise, apply the dense face transformation
+            for (int col = 0; col < nfd; col++)
+            {
+               const int sgid = d_gather_map[face_offset + col + nd*e];
+               const bool plus = sgid >= 0;
+               const int gid = plus ? sgid : -1 - sgid;
+               const real_t dof_value = d_x(t ? c : gid, t ? gid : c);
+               const real_t signed_value = plus ? dof_value : -dof_value;
+               value += d_transforms[
+                           row + nfd*(col + nfd*orientation)]*
+                        signed_value;
+            }
+            d_y(d, c, e) = value;
+         }
+      }
+      // Edge and interior DOFs are treated as in ElementRestriction
+      else
+      {
+         const int sgid = d_gather_map[i];
+         const bool plus = sgid >= 0;
+         const int gid = plus ? sgid : -1 - sgid;
+         for (int c = 0; c < vd; c++)
+         {
+            const real_t dof_value = d_x(t ? c : gid, t ? gid : c);
+            d_y(d, c, e) = plus ? dof_value : -dof_value;
+         }
+      }
+   });
+}
+
+template <bool ADD>
+void NDPosElementRestriction::TAddMultTranspose(const Vector &x,
+                                                Vector &y) const
+{
+   const int nd = dof;
+   const int vd = vdim;
+   const int nfd = nfdofs;
+   const bool t = byvdim;
+   const int face_begin = 6*order;
+   const int face_end = face_begin + 4*nfd;
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   auto d_x = Reshape(x.Read(), nd, vd, ne);
+   auto d_y = Reshape(ADD ? y.ReadWrite() : y.Write(),
+                      t ? vd : ndofs, t ? ndofs : vd);
+   auto d_orientations = face_orientations.Read();
+   auto d_transforms = face_inverse_transforms.Read();
+
+   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int offset = d_offsets[i];
+      const int next_offset = d_offsets[i + 1];
+      for (int c = 0; c < vd; c++)
+      {
+         real_t value = 0.0;
+         for (int j = offset; j < next_offset; j++)
+         {
+            // Get the (d,e) index of the contribution
+            const int signed_lid = d_indices[j];
+            const bool plus = signed_lid >= 0;
+            const int lid = plus ? signed_lid : -1 - signed_lid;
+            const int d = lid % nd;
+            const int e = lid / nd;
+            real_t local_value;
+            // Face DOFs use dense transformation
+            if (d >= face_begin && d < face_end)
+            {
+               const int face_dof = d - face_begin;
+               const int face = face_dof / nfd;
+               const int row = face_dof % nfd;
+               const int orientation = d_orientations[face + 4*e];
+               const int face_offset = face_begin + face*nfd;
+               if (orientation == 0)
+               {
+                  local_value = d_x(d, c, e);
+               }
+               else
+               {
+                  local_value = 0.0;
+                  for (int k = 0; k < nfd; k++)
+                  {
+                     local_value += d_transforms[
+                                       k + nfd*(row + nfd*orientation)]*
+                                    d_x(face_offset + k, c, e);
+                  }
+               }
+            }
+            // Edge and interior DOFs use signed permutation
+            else
+            {
+               local_value = d_x(d, c, e);
+            }
+            value += plus ? local_value : -local_value;
+         }
+         if (ADD) { d_y(t ? c : i, t ? i : c) += value; }
+         else { d_y(t ? c : i, t ? i : c) = value; }
+      }
+   });
+}
+
+void NDPosElementRestriction::MultTranspose(const Vector &x, Vector &y) const
+{
+   constexpr bool ADD = false;
+   TAddMultTranspose<ADD>(x, y);
+}
+
+void NDPosElementRestriction::AddMultTranspose(const Vector &x, Vector &y,
+                                                const real_t a) const
+{
+   MFEM_VERIFY(a == 1.0, "General coefficient case is not yet supported!");
+   constexpr bool ADD = true;
+   TAddMultTranspose<ADD>(x, y);
+}
+
+void NDPosElementRestriction::AbsMult(const Vector &, Vector &) const
+{
+   MFEM_ABORT("AbsMult is not defined for dense NDPos transformations");
+}
+
+void NDPosElementRestriction::AbsMultTranspose(const Vector &, Vector &) const
+{
+   MFEM_ABORT("AbsMultTranspose is not defined for dense NDPos transformations");
+}
+
+void NDPosElementRestriction::MultLeftInverse(const Vector &, Vector &) const
+{
+   MFEM_ABORT("MultLeftInverse is not implemented for NDPos restrictions");
+}
+
+void NDPosElementRestriction::BooleanMask(Vector &) const
+{
+   MFEM_ABORT("BooleanMask is not implemented for NDPos restrictions");
+}
+
+void NDPosElementRestriction::FillSparseMatrix(const Vector &,
+                                                SparseMatrix &) const
+{
+   MFEM_ABORT("Element assembly is not implemented for NDPos restrictions");
 }
 
 static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,

@@ -1616,6 +1616,347 @@ NDPos_TetrahedronElement::NDPos_TetrahedronElement(int p)
    interpolation_inverse.Factor(sampling);
 }
 
+const DofToQuad &NDPos_TetrahedronElement::GetRaggedTensorDofToQuad(
+   const FiniteElement &fe, const IntegrationRule &ir,
+   DofToQuad::Mode mode, Array<DofToQuad*> &dof2quad_array)
+{
+   MFEM_VERIFY(mode == DofToQuad::RAGGED_TENSOR, "invalid mode requested");
+   const IntegrationRule &stroud_ir =
+      StroudIntRules.Get(fe.GetGeomType(), ir.GetOrder());
+   MFEM_VERIFY(&ir == &stroud_ir,
+               "partial assembly with Bernstein basis on simplices "
+               "requires an integration rule returned by StroudIntRules");
+
+   DofToQuad *d2q = nullptr;
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   #pragma omp critical (DofToQuad)
+#endif
+   {
+      d2q = DofToQuad::SearchArray(dof2quad_array, ir, mode);
+      if (!d2q)
+      {
+         const int ndof = fe.GetOrder() + 1;
+         const int ndof3d = fe.GetDof();
+         const int basis_dim2d = ndof*(ndof + 1)/2;
+         const int basis_dim3d = ndof*(ndof + 1)*(ndof + 2)/6;
+         const int basis_dim2d_diff = (ndof - 1)*ndof/2;
+         const int basis_dim3d_diff =
+            (ndof - 1)*ndof*(ndof + 1)/6;
+         const int nqpt = static_cast<int>(
+                             floor(pow(ir.GetNPoints(), 1.0/fe.GetDim()) + 0.5));
+
+         d2q = new RaggedDofToQuad;
+         d2q->FE = &fe;
+         d2q->IntRule = &ir;
+         d2q->mode = mode;
+         d2q->ndof = ndof;
+         d2q->nqpt = nqpt;
+
+         RaggedDofToQuad *rd2q = static_cast<RaggedDofToQuad*>(d2q);
+         rd2q->scalar_offsets.SetSize(ndof3d + 1);
+         rd2q->scalar_multiindices.SetSize(3*16*ndof3d);
+         rd2q->scalar_coeffs.SetSize(3*16*ndof3d); // maximum possible size transformation coeffs
+         rd2q->scalar_offsets_curl.SetSize(ndof3d + 1);
+         rd2q->scalar_multiindices_curl.SetSize(3*16*ndof3d);
+         rd2q->scalar_coeffs_curl.SetSize(3*16*ndof3d); // maximum possible size transformation coeffs
+         rd2q->Ba1.SetSize(nqpt * ndof);
+         // second component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         rd2q->Ba2.SetSize(nqpt * basis_dim2d);
+         // third component of ragged tensor basis, technically dof*(dof-1)/2 entries
+         rd2q->Ba3.SetSize(nqpt * basis_dim3d);
+         rd2q->Ba1t.SetSize(nqpt * ndof);
+         rd2q->Ba2t.SetSize(nqpt * basis_dim2d);
+         rd2q->Ba3t.SetSize(nqpt * basis_dim3d);
+         // stores first component of ragged tensor basis with order p-1, for gradients only
+         rd2q->Ga1.SetSize(nqpt * (ndof-1));
+         // stores second component of ragged tensor basis with order p-1
+         rd2q->Ga2.SetSize(nqpt * basis_dim2d_diff);
+         // stores third component of ragged tensor basis with order p-1
+         rd2q->Ga3.SetSize(nqpt * basis_dim3d_diff);
+         rd2q->Ga1t.SetSize(nqpt * (ndof-1));
+         rd2q->Ga2t.SetSize(nqpt * basis_dim2d_diff);
+         rd2q->Ga3t.SetSize(nqpt * basis_dim3d_diff);
+         rd2q->lex_map.SetSize(ndof * ndof * ndof);
+
+         rd2q->forward_map2d_diff.SetSize((ndof-1) * (ndof-1));
+         rd2q->forward_map3d_diff.SetSize((ndof-1) * (ndof-1) * (ndof-1));
+         rd2q->inverse_map2d_diff.SetSize(2 * basis_dim2d_diff);
+         rd2q->inverse_map3d_diff.SetSize(3 * basis_dim3d_diff);
+
+         rd2q->forward_map2d_mass.SetSize(ndof * ndof);
+         rd2q->forward_map3d_mass.SetSize(ndof * ndof * ndof);
+         rd2q->inverse_map2d_mass.SetSize(2 * basis_dim2d);
+         rd2q->inverse_map3d_mass.SetSize(3 * basis_dim3d);
+
+         const NDPos_TetrahedronElement &nd_fe = static_cast<const NDPos_TetrahedronElement &>(fe);
+
+         // when expressing Bernstein Nedelec basis functions as scalar Bernsteins with vector coefficients,
+         // the vector coefficients are transformations of the original scalar coefficients. A given
+         // Bernstein Nedelec basis function can contribute to the vector coefficients of multiple scalar
+         // Bernstein functions:
+         //    \Phi_i = \sum_{\alpha} d_{\alpha} B^{p+1}_{\alpha}.
+         // The vector coefficients d_{\alpha} can be written in the form
+         //    d_{\alpha} = \sum_i c_i * c_{\alpha,i},
+         // where i comes from the set of Bernstein Nedelec basis functions contributing to B^{p+1}_{\alpha}
+         // and c_{\alpha,i} are the transformation coefficients. We precompute these transformation
+         // coefficients for each basis function. Since each basis function can contribute to as few as one
+         // or as many as 16 scalar Bernstein coefficients, we store them using two arrays: scalar_offsets,
+         // which indicates the starting index of the coefficients for each basis function, and scalar_coeffs,
+         // which stores the actual transformation coefficients.
+         int count = 0;
+         int count_curl = 0;
+         for (int basis = 0; basis < ndof3d; basis++)
+         {
+            rd2q->scalar_offsets[basis] = count;
+            rd2q->scalar_offsets_curl[basis] = count_curl;
+            const int alpha[4] = {nd_fe.a0[basis], nd_fe.a1[basis], nd_fe.a2[basis], nd_fe.a3[basis]};
+
+            if (nd_fe.type[basis] == GRADIENT)
+            {
+               // gradient fields can contribute to up 4*4 different scalar Bernstein coefficients
+               // (fewer if any multiindices are invalid).
+               for (int i = 0; i < 4; i++)
+               {
+                  if (alpha[i] == 0) { continue; }
+                  for (int l = 0; l < 4; l++)
+                  {
+                     int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
+                     beta[i]--; beta[l]++;
+                     const real_t coefficient = alpha[l] - (i == l) + 1;
+                     for (int d = 0; d < 3; d++)
+                     {
+                        rd2q->scalar_coeffs[d + 3*count] = coefficient * grad_lambda_3d[i][d];
+
+                        // we only need to store any three components of the multiindex. Since the Bernstein
+                        // H(curl) PA kernels use the same structure as the H1Pos kernels, we MUST store
+                        // beta1, beta2, and beta3, which correspond to \lambda_1, \lambda_2, and \lambda_3,
+                        // respectively, in the scalar Bernstein polynomial.
+                        rd2q->scalar_multiindices[d + 3*count] = beta[d + 1];
+                     }
+                     count++;
+                  }
+               }
+            }
+            else if (nd_fe.type[basis] == FACE_BUBBLE)
+            {
+               // non-gradient face bubbles contribute to exactly three scalar Bernstein coefficients
+               const int vertices[3] = {nd_fe.v0[basis], nd_fe.v1[basis], nd_fe.v2[basis]};
+               for (int s = 0; s < 3; s++)
+               {
+                  const int i = vertices[s];
+                  const int j = vertices[(s + 1)%3];
+                  const int k = vertices[(s + 2)%3];
+                  // transformation coefficients for mapping Bernstein Nedelec basis to scalar Bernstein
+                  int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
+                  beta[i]++;
+                  for (int d = 0; d < 3; d++)
+                  {
+                     rd2q->scalar_coeffs[d + 3*count] = (alpha[i] + 1) *
+                                                    (alpha[k]*grad_lambda_3d[j][d] -
+                                                     alpha[j]*grad_lambda_3d[k][d]);
+                     rd2q->scalar_multiindices[d + 3*count] = beta[d + 1];
+                  }
+                  count++;
+                  // transformation coefficients for mapping curls of Bernstein Nedelec basis to scalar
+                  // Bernstein
+                  for (int q = 0; q < 3; q++)
+                  {
+                     const int m = vertices[q];
+                     beta[0] = alpha[0]; beta[1] = alpha[1]; beta[2] = alpha[2]; beta[3] = alpha[3];
+                     beta[i]++; beta[m]--;
+                     if (beta[m] < 0) { continue; }
+                     for (int d = 0; d < 3; d++)
+                     {
+                        rd2q->scalar_coeffs_curl[d + 3*count_curl] = (ndof-1) * (alpha[i] + 1) *
+                                                           (alpha[k] * tangent_3d[m][j][d] -
+                                                            alpha[j] * tangent_3d[m][k][d]);
+                        rd2q->scalar_multiindices_curl[d + 3*count_curl] = beta[d + 1];
+                     }
+                     count_curl++;
+                  }
+               }
+            }
+            else if (nd_fe.type[basis] == CELL_BUBBLE)
+            {
+               // non-gradient cell bubbles contribute to up to four scalar Bernstein coefficients
+               const int l = nd_fe.ell[basis];
+               // transformation coefficients for mapping Bernstein Nedelec basis to scalar Bernstein
+               for (int i = 0; i < 4; i++)
+               {
+                  if (alpha[i] == 0) { continue; }
+                  int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
+                  beta[i]--;
+                  const real_t coefficient =
+                     (i == l ? ndof : 0) - alpha[l];
+                  for (int d = 0; d < 3; d++)
+                  {
+                     rd2q->scalar_coeffs[d + 3*count] = coefficient*grad_lambda_3d[i][d];
+                     rd2q->scalar_multiindices[d + 3*count] = beta[d + 1];
+                  }
+                  count++;
+               }
+               // transformation coefficients for mapping curls of Bernstein Nedelec basis to scalar
+               // Bernstein
+               for (int i = 0; i < 4; i++)
+               {
+                  if (i == l) { continue; }
+                  int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
+                  beta[i]--; beta[l]--;
+                  if (beta[i] < 0 || beta[l] < 0) { continue; }
+                  for (int d = 0; d < 3; d++)
+                  {
+                     rd2q->scalar_coeffs_curl[d + 3*count_curl] = (ndof-1) * ndof * tangent_3d[i][l][d];
+                     rd2q->scalar_multiindices_curl[d + 3*count_curl] = beta[d + 1];
+                  }
+                  count_curl++;
+               }
+            }
+         }
+         rd2q->scalar_offsets[ndof3d] = count;
+         rd2q->scalar_offsets_curl[ndof3d] = count_curl;
+
+         // after transformation from (vector) Bernstein Nedelec basis to scalar Bernstein basis,
+         // only need to store the 1D Bernstein basis components as in H1Pos_TetrahedronElement.
+         int idx = 0;
+         for (int i = 0; i < ndof-1; i++)
+         {
+            for (int j = 0; j < ndof-i-1; j++)
+            {
+               rd2q->forward_map2d_diff[j + (ndof-1)*i] = idx;
+               rd2q->inverse_map2d_diff[2*idx] = i;
+               rd2q->inverse_map2d_diff[1 + 2*idx] = j;
+               idx++;
+            }
+         }
+
+         idx = 0;
+         for (int k = 0; k < ndof-1; k++)
+         {
+            for (int j = 0; j < ndof-k-1; j++)
+            {
+               for (int i = 0; i < ndof-k-j-1; i++)
+               {
+                  rd2q->forward_map3d_diff[k + (ndof-1)*(j + (ndof-1)*i)] = idx;
+                  rd2q->inverse_map3d_diff[3*idx] = i;
+                  rd2q->inverse_map3d_diff[1 + 3*idx] = j;
+                  rd2q->inverse_map3d_diff[2 + 3*idx] = k;
+                  idx++;
+               }
+            }
+         }
+
+         // forward and inverse maps for multi-index to collapsed 1d index for mass
+         idx = 0;
+         for (int j = 0; j < ndof; j++)
+         {
+            for (int i = 0; i < ndof-j; i++)
+            {
+               rd2q->forward_map2d_mass[j + ndof*i] = idx;
+               rd2q->inverse_map2d_mass[2*idx] = i;
+               rd2q->inverse_map2d_mass[1 + 2*idx] = j;
+               idx++;
+            }
+         }
+
+         idx = 0;
+         for (int k = 0; k < ndof; k++)
+         {
+            for (int j = 0; j < ndof-k; j++)
+            {
+               for (int i = 0; i < ndof-k-j; i++)
+               {
+                  rd2q->forward_map3d_mass[k + ndof*(j + ndof*i)] = idx;
+                  rd2q->inverse_map3d_mass[3*idx] = i;
+                  rd2q->inverse_map3d_mass[1 + 3*idx] = j;
+                  rd2q->inverse_map3d_mass[2 + 3*idx] = k;
+                  idx++;
+               }
+            }
+         }
+
+         const int p = ndof - 1;
+         for (int i = 0; i < ndof; i++)
+         {
+            for (int j = 0; j < ndof-i; j++)
+            {
+               for (int k = 0; k < ndof-i-j; k++)
+               {
+                  const int scalar_dof = ndof*(ndof + 1)*(ndof + 2)/6;
+                  const int tet = (p-k)*(p-k+1)*(p-k+2)/6;
+                  const int tri = (p+1-k-j)*(p+2-k-j)/2;
+                  rd2q->lex_map[k + ndof*(j + ndof*i)] =
+                     scalar_dof - tet - tri + i;
+               }
+            }
+         }
+
+         Vector shape_a1(ndof), shape_a2(ndof * ndof), shape_a3(ndof * ndof * ndof);
+         Vector shape_Ga1(ndof-1), shape_Ga2(ndof-1), shape_Ga3(ndof-1);
+         for (int i = 0; i < nqpt; i++)
+         {
+            // The first 'nqpt' points in the first dimension 'ir' have the same x-coordinates as those
+            // of the 1D rule (ie. (2,0) Gauss-Jacobi rule). The first 'nqpt' points in the second dimension
+            // 'ir' have the same y-coordinates as those of the 1D rule for second dimension (i.e. (1,0)
+            // Gauss-Jacobi rule). The first 'nqpt' points in the third dimension have the same z-coordinates
+            // as those of the 1D rule for the third dimension (i.e. Gauss-Legendre rule). Additionally,
+            // the Bernstein PA algorithms expect evaluation of the component 1D bases at the Stroud nodes
+            // pulled back to the unit cube, so perform the pullback on the fly.
+            const real_t x = ir.IntPoint(i).x;
+            const real_t y = ir.IntPoint(nqpt*i).y / (1.0 - ir.IntPoint(nqpt*i).x);
+            const real_t z = ir.IntPoint(nqpt*nqpt*i).z / (1.0 - ir.IntPoint(
+                                                              nqpt*nqpt*i).x - ir.IntPoint(nqpt*nqpt*i).y);
+            Poly_1D::CalcBernstein(ndof-1, x, shape_a1);
+            Poly_1D::CalcBernstein(ndof-2, x, shape_Ga1);
+            for (int j = 0; j < ndof; j++)
+            {
+               rd2q->Ba1t[i+nqpt*j] = rd2q->Ba1[j+ndof*i] = shape_a1(j);
+               if (j < ndof-1)
+               {
+                  rd2q->Ga1t[i+nqpt*j] = rd2q->Ga1[j+(ndof-1)*i] = shape_Ga1(j);
+                  Poly_1D::CalcBernstein(ndof-2-j, y, shape_Ga2);
+               }
+
+               Poly_1D::CalcBernstein(ndof-1-j, y, shape_a2);
+               for (int k = 0; k < ndof-j; k++)
+               {
+                  const int a_2d_mass = rd2q->forward_map2d_mass[k + ndof*j];
+                  rd2q->Ba2t[i + nqpt*a_2d_mass] = rd2q->Ba2[a_2d_mass + basis_dim2d*i] =
+                                                      shape_a2(
+                                                         k);
+                  if (j < ndof-1 && k < ndof-j-1)
+                  {
+                     const int a_2d_diff = rd2q->forward_map2d_diff[k + (ndof-1)*j];
+                     rd2q->Ga2t[i + nqpt*a_2d_diff] = rd2q->Ga2[a_2d_diff + basis_dim2d_diff*i] =
+                                                         shape_Ga2(k);
+                     Poly_1D::CalcBernstein(ndof-2-j-k, z, shape_Ga3);
+                  }
+
+                  Poly_1D::CalcBernstein(ndof-1-j-k, z, shape_a3);
+                  for (int m = 0; m < ndof-j-k; m++)
+                  {
+                     const int a_3d_mass = rd2q->forward_map3d_mass[m + ndof*(k + ndof*j)];
+                     rd2q->Ba3t[i + nqpt*a_3d_mass] = rd2q->Ba3[a_3d_mass + basis_dim3d*i] =
+                                                         shape_a3(
+                                                            m);
+                     if (j < ndof-1 && k < ndof-j-1 && m < ndof-j-k-1)
+                     {
+                        // // collapsed 1D access
+                        // d2q->Ga3[i + nqpt*(m + d2q->offset3d[k + (ndof-1)*j])] = shape_Ga3(m);
+                        // collapsed 1D access with forward mapping
+                        const int a_3d_diff = rd2q->forward_map3d_diff[m + (ndof-1)*(k + (ndof-1)*j)];
+                        rd2q->Ga3t[i + nqpt*a_3d_diff] = rd2q->Ga3[a_3d_diff + basis_dim3d_diff*i] =
+                                                            shape_Ga3(m);
+                     }
+                  }
+               }
+            }
+         }
+         dof2quad_array.Append(d2q);
+      }
+   }
+   return *d2q;
+}
+
 void NDPos_TetrahedronElement::CalcVShape(const IntegrationPoint &ip,
                                           DenseMatrix &shape) const
 {

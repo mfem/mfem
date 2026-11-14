@@ -2936,9 +2936,11 @@ protected:
    Vector pa_data;
    const DofToQuad *mapsO;         ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
+   const RaggedDofToQuad *mapsR = nullptr; ///< Not owned. Ragged simplex map.
    const GeometricFactors *geom;   ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
+   bool ndpos_simplex = false;
 
 public:
    CurlCurlIntegrator();
@@ -2996,6 +2998,14 @@ public:
 
    /// parameters: dim, d1d, q1d
    MFEM_REGISTER_KERNELS(ApplyPAKernels, ApplyKernelType, (int, int, int));
+
+   using ApplySimplexKernelType =
+      void (*)(const int NE, bool symmetric,
+               const RaggedDofToQuad &maps, const Vector &pa_data,
+               const Vector &x, Vector &y, const int d1d, const int q1d);
+
+   MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType,
+                         (int, int, int));
    /// parameters: dim, d1d, q1d
    MFEM_REGISTER_KERNELS(DiagonalPAKernels, DiagonalKernelType, (int, int, int));
    struct Kernels { Kernels(); };
@@ -3004,6 +3014,12 @@ public:
    {
       ApplyPAKernels::Specialization<DIM, D1D, Q1D>::Add();
       DiagonalPAKernels::Specialization<DIM, D1D, Q1D>::Add();
+   }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSimplexSpecialization()
+   {
+      ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 };
 
@@ -3093,10 +3109,12 @@ protected:
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const DofToQuad *mapsOtest;     ///< Not owned. DOF-to-quad map, open.
    const DofToQuad *mapsCtest;     ///< Not owned. DOF-to-quad map, closed.
+   const RaggedDofToQuad *mapsR = nullptr; ///< Not owned. Ragged simplex map.
    const GeometricFactors *geom;   ///< Not owned
    int dim, ne, nq, dofs1D, dofs1Dtest, quad1D;
    FiniteElement::DerivType trial_fetype, test_fetype;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
+   bool ndpos_simplex = false;
 
 public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
@@ -3139,6 +3157,14 @@ public:
                          (FiniteElement::DerivType, FiniteElement::DerivType,
                           int, int, int, int));
 
+   using ApplySimplexKernelType =
+      void (*)(const int NE, bool symmetric,
+               const RaggedDofToQuad &maps, const Vector &pa_data,
+               const Vector &x, Vector &y, const int d1d, const int q1d);
+
+   MFEM_REGISTER_KERNELS(ApplySimplexPAKernels, ApplySimplexKernelType,
+                         (int, int, int));
+
    struct Kernels { Kernels(); };
 
    template <FiniteElement::DerivType TrialType,
@@ -3148,6 +3174,12 @@ public:
    {
       ApplyPAKernels::Specialization<TrialType, TestType, DIM, TRIAL_D1D,
                      TEST_D1D, Q1D>::Add();
+   }
+
+   template <int DIM, int D1D, int Q1D>
+   static void AddSimplexSpecialization()
+   {
+      ApplySimplexPAKernels::Specialization<DIM,D1D,Q1D>::Add();
    }
 };
 

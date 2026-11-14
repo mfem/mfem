@@ -74,7 +74,7 @@ public:
 
    /// Compute MultTranspose by setting (rather than adding) element
    /// contributions; this is a left inverse of the Mult() operation
-   void MultLeftInverse(const Vector &x, Vector &y) const;
+   virtual void MultLeftInverse(const Vector &x, Vector &y) const;
 
    /// @brief Fills the E-vector y with `boolean` values 0.0 and 1.0 such that each
    /// each entry of the L-vector is uniquely represented in `y`.
@@ -82,10 +82,11 @@ public:
        corresponding L-vector filled with ones. The boolean mask is required to
        emulate SetSubVector and its transpose on GPUs. This method is running on
        the host, since the `processed` array requires a large shared memory. */
-   void BooleanMask(Vector &y) const;
+   virtual void BooleanMask(Vector &y) const;
 
    /// Fill a Sparse Matrix with Element Matrices.
-   void FillSparseMatrix(const Vector &mat_ea, SparseMatrix &mat) const;
+   virtual void FillSparseMatrix(const Vector &mat_ea,
+                                 SparseMatrix &mat) const;
 
    /** Fill the I array of SparseMatrix corresponding to the sparsity pattern
        given by this ElementRestriction. */
@@ -105,6 +106,36 @@ public:
    const Array<int> &Indices() const { return indices; }
    const Array<int> &Offsets() const { return offsets; }
    ///@}
+};
+
+/** @brief Element restriction for tetrahedral Bernstein Nedelec elements with
+    dense face orientation transformations. The construction of face bubble
+    elements in the NDPos_TetrahedronElement class means that mapping from
+    global to local DOFs requires the application of a dense transformation matrix. */
+class NDPosElementRestriction : public ElementRestriction
+{
+private:
+   const int order;
+   const int nfdofs;
+   Array<int> face_orientations;
+   Array<real_t> face_inverse_transforms;
+
+   template <bool ADD>
+   void TAddMultTranspose(const Vector &x, Vector &y) const;
+
+public:
+   NDPosElementRestriction(const FiniteElementSpace &fes,
+                           ElementDofOrdering e_ordering);
+
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override;
+   void AbsMult(const Vector &, Vector &) const override;
+   void AbsMultTranspose(const Vector &, Vector &) const override;
+   void MultLeftInverse(const Vector &, Vector &) const override;
+   void BooleanMask(Vector &) const override;
+   void FillSparseMatrix(const Vector &, SparseMatrix &) const override;
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.

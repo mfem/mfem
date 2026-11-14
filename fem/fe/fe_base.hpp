@@ -172,7 +172,7 @@ public:
       /** @brief Ragged tensor product representation using 1D matrices/tensors
           with dimensions using 1D number of quadrature points and ragged tensor degrees of
           freedom. */
-      /** Used only for partial assembly of the H1 positive basis. The
+      /** Used for partial assembly of positive bases on simplices. The
           size of B is d1d x qnpt x dim. Since different Gauss-Jacobi quadrature rules
           are employed in each dimension, we need to store dim arrays. */
       RAGGED_TENSOR
@@ -269,6 +269,16 @@ public:
 
    Array<int> forward_map2d_mass, forward_map3d_mass;
    Array<int> inverse_map2d_mass, inverse_map3d_mass;
+
+   /** @brief Special structures for storing the transformation coefficients mapping (vector)
+       Bernstein Nedelec basis functions to their scalar Bernstein counterparts.
+    */
+   Array<int> scalar_offsets;
+   Array<int> scalar_multiindices;
+   Array<real_t> scalar_coeffs;
+   Array<int> scalar_offsets_curl;
+   Array<int> scalar_multiindices_curl;
+   Array<real_t> scalar_coeffs_curl;
 };
 
 /// Describes the function space on each element

@@ -372,6 +372,18 @@ class NDPos_TetrahedronElement : public VectorFiniteElement
 public:
    explicit NDPos_TetrahedronElement(int p);
 
+   const DofToQuad &GetDofToQuad(const IntegrationRule &ir,
+                                 DofToQuad::Mode mode) const override
+   {
+      return (mode == DofToQuad::RAGGED_TENSOR) ?
+             GetRaggedTensorDofToQuad(*this, ir, mode, dof2quad_array) :
+             FiniteElement::GetDofToQuad(ir, mode);
+   }
+
+   static const DofToQuad &GetRaggedTensorDofToQuad(
+      const FiniteElement &fe, const IntegrationRule &ir,
+      DofToQuad::Mode mode, Array<DofToQuad*> &dof2quad_array);
+
    void CalcVShape(const IntegrationPoint &ip,
                    DenseMatrix &shape) const override;
    void CalcVShape(ElementTransformation &Trans,

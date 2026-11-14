@@ -1501,7 +1501,16 @@ const ElementRestrictionOperator *FiniteElementSpace::GetElementRestriction(
    // e_ordering == ElementDofOrdering::NATIVE
    if (L2E_nat.Ptr() == NULL)
    {
-      L2E_nat.Reset(new ElementRestriction(*this, e_ordering));
+      const auto *ndpos_tet =
+         dynamic_cast<const NDPos_TetrahedronElement*>(GetTypicalFE());
+      if (ndpos_tet && !ndpos_tet->GetDofTransformation()->IsIdentity())
+      {
+         L2E_nat.Reset(new NDPosElementRestriction(*this, e_ordering));
+      }
+      else
+      {
+         L2E_nat.Reset(new ElementRestriction(*this, e_ordering));
+      }
    }
    return L2E_nat.Is<ElementRestrictionOperator>();
 }

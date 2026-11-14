@@ -380,6 +380,11 @@ protected:
                            int num_faces);
 
 public:
+   const DenseMatrix &GetFaceTransform(int ori) const { return T(ori); }
+
+   const DenseMatrix &GetFaceInverseTransform(int ori) const
+   { return TInv(ori); }
+
    bool IsIdentity() const override { return nfdofs == 0; }
 
    void TransformPrimal(const Array<int> &Fo, real_t *v) const override;

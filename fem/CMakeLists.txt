@@ -197,6 +197,7 @@ set(HDRS
   integ/bilininteg_dgtrace_kernels.hpp
   integ/bilininteg_vecdiffusion_kernels.hpp
   integ/bilininteg_convection_kernels.hpp
+  integ/bilininteg_curlcurl_pa_simplices.hpp
   integ/bilininteg_diffusion_pa_simplices.hpp
   integ/bilininteg_diffusion_kernels.hpp
   integ/bilininteg_elasticity_kernels.hpp
@@ -206,6 +207,7 @@ set(HDRS
   integ/bilininteg_mass_kernels.hpp
   integ/bilininteg_mass_pa_simplices.hpp
   integ/bilininteg_vectorfemass_kernels.hpp
+  integ/bilininteg_vectorfemass_pa_simplices.hpp
   integ/bilininteg_vecdiffusion_pa.hpp
   integ/bilininteg_vecdiv_pa.hpp
   integ/bilininteg_vecmass_pa.hpp

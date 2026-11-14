@@ -11,6 +11,7 @@
 
 #include "../qfunction.hpp"
 #include "bilininteg_hcurl_kernels.hpp"
+#include "bilininteg_curlcurl_pa_simplices.hpp"
 
 namespace mfem
 {
@@ -49,6 +50,28 @@ CurlCurlIntegrator::Kernels::Kernels()
    CurlCurlIntegrator::AddSpecialization<3, 3, 4>();
    CurlCurlIntegrator::AddSpecialization<3, 4, 5>();
    CurlCurlIntegrator::AddSpecialization<3, 5, 6>();
+
+   CurlCurlIntegrator::AddSimplexSpecialization<3,1,1>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,2,2>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,3,3>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,4,4>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,5,5>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,6,6>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,7,7>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,8,8>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,9,9>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,1,2>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,2,3>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,3,4>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,3,6>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,4,5>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,5,6>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,6,7>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,7,8>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,8,9>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,2,4>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,4,6>();
+   CurlCurlIntegrator::AddSimplexSpecialization<3,5,8>();
 }
 
 CurlCurlIntegrator::ApplyKernelType
@@ -97,19 +120,25 @@ CurlCurlIntegrator::DiagonalPAKernels::Fallback(int DIM, int, int)
 
 void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
-   // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement *fel = fes.GetTypicalFE();
 
    const VectorTensorFiniteElement *el =
       dynamic_cast<const VectorTensorFiniteElement*>(fel);
-   MFEM_VERIFY(el != NULL, "Only VectorTensorFiniteElement is supported!");
+   const NDPos_TetrahedronElement *ndpos =
+      dynamic_cast<const NDPos_TetrahedronElement*>(fel);
+   ndpos_simplex = ndpos != nullptr;
+   MFEM_VERIFY(el || ndpos_simplex,
+               "CurlCurlIntegrator PA supports tensor-product Nedelec "
+               "elements or Bernstein form of Nedelec elements on "
+               "tetrahedra");
 
    const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*el, *el,
-                                                     *mesh->GetTypicalElementTransformation());
+      = IntRule ? IntRule : &MassIntegrator::GetRule(
+           *fel, *fel, *mesh->GetTypicalElementTransformation(),
+           ndpos_simplex);
 
-   const int dims = el->GetDim();
+   const int dims = fel->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
    nq = ir->GetNPoints();
@@ -118,12 +147,21 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    ne = fes.GetNE();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
-   mapsC = &el->GetDofToQuad(*ir, DofToQuad::TENSOR);
-   mapsO = &el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
-   dofs1D = mapsC->ndof;
-   quad1D = mapsC->nqpt;
-
-   MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+   if (ndpos_simplex)
+   {
+      mapsR = static_cast<const RaggedDofToQuad*>(
+                 &ndpos->GetDofToQuad(*ir, DofToQuad::RAGGED_TENSOR));
+      dofs1D = mapsR->ndof;
+      quad1D = mapsR->nqpt;
+   }
+   else
+   {
+      mapsC = &el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+      mapsO = &el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+      dofs1D = mapsC->ndof;
+      quad1D = mapsC->nqpt;
+      MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+   }
 
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(qs, CoefficientStorage::SYMMETRIC);
@@ -138,7 +176,7 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int ndata = (dim == 2) ? 1 : (symmetric ? sym_dims : dim*dim);
    pa_data.SetSize(ndata * nq * ne, Device::GetMemoryType());
 
-   if (el->GetDerivType() != mfem::FiniteElement::CURL)
+   if (fel->GetDerivType() != mfem::FiniteElement::CURL)
    {
       MFEM_ABORT("Unknown kernel.");
    }
@@ -157,6 +195,8 @@ void CurlCurlIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
 void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 {
+   MFEM_VERIFY(!ndpos_simplex,
+               "AssembleDiagonalPA is not implemented for NDPos on tetrahedra");
    DiagonalPAKernels::Run(dim, dofs1D, quad1D, dofs1D, quad1D, symmetric, ne,
                           mapsO->B, mapsC->B, mapsO->G, mapsC->G, pa_data,
                           diag);
@@ -164,6 +204,12 @@ void CurlCurlIntegrator::AssembleDiagonalPA(Vector& diag)
 
 void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   if (ndpos_simplex)
+   {
+      ApplySimplexPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
+                                 *mapsR, pa_data, x, y, dofs1D, quad1D);
+      return;
+   }
    ApplyPAKernels::Run(dim, dofs1D, quad1D, dofs1D, quad1D, symmetric, ne,
                        mapsO->B, mapsC->B, mapsO->Bt, mapsC->Bt, mapsC->G,
                        mapsC->Gt, pa_data, x, y, false);
@@ -171,6 +217,8 @@ void CurlCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void CurlCurlIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 {
+   MFEM_VERIFY(!ndpos_simplex,
+               "AddAbsMultPA is not implemented for NDPos on tetrahedra");
    Vector abs_pa_data(pa_data);
    abs_pa_data.Abs();
    auto absO = mapsO->Abs();

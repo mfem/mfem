@@ -11,6 +11,7 @@
 
 #include "../bilininteg.hpp"
 #include "bilininteg_vectorfemass_kernels.hpp"
+#include "bilininteg_vectorfemass_pa_simplices.hpp"
 
 namespace mfem
 {
@@ -69,6 +70,29 @@ VectorFEMassIntegrator::ApplyPAKernels::Fallback(
 
 VectorFEMassIntegrator::Kernels::Kernels()
 {
+   // NDPos H(curl) tetrahedra
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,1,1>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,2,2>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,3,3>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,4,4>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,5,5>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,6,6>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,7,7>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,8,8>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,9,9>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,1,2>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,2,3>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,3,4>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,3,6>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,4,5>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,5,6>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,6,7>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,7,8>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,8,9>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,2,4>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,4,6>();
+   VectorFEMassIntegrator::AddSimplexSpecialization<3,5,8>();
+
    // h(curl), h(curl)
    // Q = P + 1 (3D)
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
@@ -136,23 +160,37 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                         const FiniteElementSpace &test_fes)
 {
-   // Assumes tensor-product elements
    Mesh *mesh = trial_fes.GetMesh();
 
    const FiniteElement *trial_fel = trial_fes.GetTypicalFE();
    const VectorTensorFiniteElement *trial_el =
       dynamic_cast<const VectorTensorFiniteElement*>(trial_fel);
-   MFEM_VERIFY(trial_el != NULL, "Only VectorTensorFiniteElement is supported!");
+   const NDPos_TetrahedronElement *trial_ndpos =
+      dynamic_cast<const NDPos_TetrahedronElement*>(trial_fel);
 
    const FiniteElement *test_fel = test_fes.GetTypicalFE();
    const VectorTensorFiniteElement *test_el =
       dynamic_cast<const VectorTensorFiniteElement*>(test_fel);
-   MFEM_VERIFY(test_el != NULL, "Only VectorTensorFiniteElement is supported!");
+   const NDPos_TetrahedronElement *test_ndpos =
+      dynamic_cast<const NDPos_TetrahedronElement*>(test_fel);
+
+   ndpos_simplex = trial_ndpos && test_ndpos;
+   MFEM_VERIFY((trial_el && test_el) || ndpos_simplex,
+               "VectorFEMassIntegrator PA supports tensor-product vector "
+               "elements or Bernstein form of Nedelec elements on "
+               "tetrahedra");
+   if (ndpos_simplex)
+   {
+      MFEM_VERIFY(trial_fel->GetOrder() == test_fel->GetOrder(),
+                  "NDPos PA requires equal trial and test orders");
+   }
 
    const IntegrationRule *ir
-      = IntRule ? IntRule : &MassIntegrator::GetRule(*trial_el, *trial_el,
-                                                     *mesh->GetTypicalElementTransformation());
-   const int dims = trial_el->GetDim();
+      = IntRule ? IntRule :
+        &MassIntegrator::GetRule(*trial_fel, *test_fel,
+                                 *mesh->GetTypicalElementTransformation(),
+                                 ndpos_simplex);
+   const int dims = trial_fel->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
@@ -164,19 +202,32 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
    MFEM_VERIFY(ne == test_fes.GetNE(),
                "Different meshes for test and trial spaces");
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS);
-   mapsC = &trial_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
-   mapsO = &trial_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
-   dofs1D = mapsC->ndof;
-   quad1D = mapsC->nqpt;
+   if (ndpos_simplex)
+   {
+      mapsR = static_cast<const RaggedDofToQuad*>(
+                 &trial_ndpos->GetDofToQuad(*ir, DofToQuad::RAGGED_TENSOR));
+      dofs1D = mapsR->ndof;
+      dofs1Dtest = dofs1D;
+      quad1D = mapsR->nqpt;
+   }
+   else
+   {
+      mapsC = &trial_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+      mapsO = &trial_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+      dofs1D = mapsC->ndof;
+      quad1D = mapsC->nqpt;
 
-   mapsCtest = &test_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
-   mapsOtest = &test_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
-   dofs1Dtest = mapsCtest->ndof;
+      mapsCtest = &test_el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+      mapsOtest = &test_el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+      dofs1Dtest = mapsCtest->ndof;
 
-   MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+      MFEM_VERIFY(dofs1D == mapsO->ndof + 1 && quad1D == mapsO->nqpt, "");
+   }
 
-   trial_fetype = static_cast<FiniteElement::DerivType>(trial_el->GetDerivType());
-   test_fetype = static_cast<FiniteElement::DerivType>(test_el->GetDerivType());
+   trial_fetype =
+      static_cast<FiniteElement::DerivType>(trial_fel->GetDerivType());
+   test_fetype =
+      static_cast<FiniteElement::DerivType>(test_fel->GetDerivType());
 
    const bool trial_curl = (trial_fetype == mfem::FiniteElement::CURL);
    const bool trial_div = (trial_fetype == mfem::FiniteElement::DIV);
@@ -253,6 +304,8 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
 void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
 {
+   MFEM_VERIFY(!ndpos_simplex,
+               "AssembleDiagonalPA is not implemented for NDPos on tetrahedra");
    if (dim == 3)
    {
       if (trial_fetype == mfem::FiniteElement::CURL && test_fetype == trial_fetype)
@@ -324,6 +377,12 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
 void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    const bool scalar_coeff = !(DQ || MQ);
+   if (ndpos_simplex)
+   {
+      ApplySimplexPAKernels::Run(dim, dofs1D, quad1D, ne, symmetric,
+                                 *mapsR, pa_data, x, y, dofs1D, quad1D);
+      return;
+   }
    ApplyPAKernels::Run(trial_fetype, test_fetype, dim, dofs1D, dofs1Dtest,
                        quad1D, ne, symmetric, scalar_coeff, mapsO->B, mapsC->B,
                        mapsOtest->Bt, mapsCtest->Bt, pa_data, x, y, dofs1D,
@@ -332,6 +391,8 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void VectorFEMassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 {
+   MFEM_VERIFY(!ndpos_simplex,
+               "AddAbsMultPA is not implemented for NDPos on tetrahedra");
    const bool scalar_coeff = !(DQ || MQ);
 
    Vector abs_pa_data(pa_data);
@@ -356,6 +417,8 @@ void VectorFEMassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 void VectorFEMassIntegrator::AddMultTransposePA(const Vector &x,
                                                 Vector &y) const
 {
+   MFEM_VERIFY(!ndpos_simplex,
+               "AddMultTransposePA is not implemented for NDPos on tetrahedra");
    const bool trial_curl = (trial_fetype == mfem::FiniteElement::CURL);
    const bool trial_div = (trial_fetype == mfem::FiniteElement::DIV);
    const bool test_curl = (test_fetype == mfem::FiniteElement::CURL);
