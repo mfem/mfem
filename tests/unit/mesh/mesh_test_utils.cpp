@@ -428,6 +428,26 @@ Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant)
    return mesh;
 }
 
+Mesh CheckerboardMesh(int dim, int n)
+{
+   MFEM_VERIFY(dim == 2 || dim == 3, "Checkerboard meshes must be 2D or 3D.");
+   MFEM_VERIFY(n > 0, "Checkerboard meshes require a positive side length.");
+
+   Mesh mesh = (dim == 2) ?
+               Mesh::MakeCartesian2D(n, n, Element::QUADRILATERAL,
+                                     false, 1.0, 1.0, false) :
+               Mesh::MakeCartesian3D(n, n, n, Element::HEXAHEDRON,
+                                     1.0, 1.0, 1.0, false);
+   for (int el = 0; el < mesh.GetNE(); el++)
+   {
+      const int x = el % n;
+      const int y = (el / n) % n;
+      const int z = el / (n * n);
+      mesh.GetElement(el)->SetAttribute(1 + (x % 2) + (y % 2) + (z % 2));
+   }
+   return mesh;
+}
+
 void RefineSingleAttachedElement(Mesh &mesh, int vattr, int battr,
                                  bool backwards)
 {
