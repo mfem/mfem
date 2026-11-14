@@ -259,14 +259,24 @@ NCMesh::NCMesh(const NCMesh &other)
 void NCMesh::InitGeomFlags()
 {
    Geoms = 0;
-   for (int i = 0; i < root_state.Size(); i++)
+   Iso = true;
+   const int iso_ref_type = (1 << Dim) - 1;
+   for (int i = 0; i < elements.Size(); i++)
    {
-      Geoms |= (1 << elements[i].Geom());
+      if (elements[i].parent != -2)
+      {
+         Geoms |= (1 << elements[i].Geom());
+         if (elements[i].ref_type && elements[i].ref_type != iso_ref_type)
+         {
+            Iso = false;
+         }
+      }
    }
 }
 
 void NCMesh::Update()
 {
+   InitGeomFlags();
    UpdateLeafElements();
    UpdateVertices();
 
@@ -1201,6 +1211,8 @@ void NCMesh::RefineElement(const Refinement & ref)
    }
    if (el.ref_type)
    {
+      MFEM_VERIFY(ref_type < 8 && el.ref_type < 8,
+                  "An explicit refinement pattern requires a leaf element");
       const char remaining = ref_type & ~el.ref_type;
       if (remaining)
       {
@@ -1216,6 +1228,11 @@ void NCMesh::RefineElement(const Refinement & ref)
          }
       }
       return;
+   }
+
+   if (ref_type >= 8)
+   {
+      GetNCRefinementPattern(el.Geom(), ref_type);
    }
 
    /*mfem::out << "Refining element " << elem << " (" << el.node[0] << ", " <<
@@ -1743,77 +1760,124 @@ void NCMesh::RefineElement(const Refinement & ref)
       //     +------------+     *--X
       //    0              1
 
-      ref_type = Refinement::XYZ; // for consistency
-
-      int mid01 = GetMidEdgeNode(no[0], no[1]);
-      int mid12 = GetMidEdgeNode(no[1], no[2]);
-      int mid02 = GetMidEdgeNode(no[2], no[0]);
-
-      int mid03 = GetMidEdgeNode(no[0], no[3]);
-      int mid13 = GetMidEdgeNode(no[1], no[3]);
-      int mid23 = GetMidEdgeNode(no[2], no[3]);
-
-      child[0] = NewTetrahedron(no[0], mid01, mid02, mid03, attr,
-                                -1, fa[1], fa[2], fa[3]);
-
-      child[1] = NewTetrahedron(mid01, no[1], mid12, mid13, attr,
-                                fa[0], -1, fa[2], fa[3]);
-
-      child[2] = NewTetrahedron(mid02, mid12, no[2], mid23, attr,
-                                fa[0], fa[1], -1, fa[3]);
-
-      child[3] = NewTetrahedron(mid03, mid13, mid23, no[3], attr,
-                                fa[0], fa[1], fa[2], -1);
-
-      // There are three ways to split the inner octahedron. A good strategy is
-      // to use the shortest diagonal. At the moment we don't have the geometric
-      // information in this class to determine which diagonal is the shortest,
-      // but it seems that with reasonable shapes of the coarse tets and MFEM's
-      // default tet orientation, always using tet_type == 0 produces stable
-      // refinements. Types 1 and 2 are unused for now.
-      el.tet_type = 0;
-
-      if (el.tet_type == 0) // shortest diagonal mid01--mid23
+      if (ref_type == Refinement::X || ref_type == Refinement::Y ||
+          ref_type == Refinement::Z ||
+          ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
       {
-         child[4] = NewTetrahedron(mid01, mid23, mid02, mid03, attr,
-                                   fa[1], -1, -1, -1);
-
-         child[5] = NewTetrahedron(mid01, mid23, mid03, mid13, attr,
-                                   -1, fa[2], -1, -1);
-
-         child[6] = NewTetrahedron(mid01, mid23, mid13, mid12, attr,
-                                   fa[0], -1, -1, -1);
-
-         child[7] = NewTetrahedron(mid01, mid23, mid12, mid02, attr,
-                                   -1, fa[3], -1, -1);
+         // The fixed child transforms below require a midpoint split.
+         if (ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
+         {
+            MFEM_VERIFY(scale_x == 0.5,
+                        "Tet edge (1,2) bisection requires a midpoint split");
+         }
+         if (ref_type == Refinement::X)
+         {
+            const int mid01 = GetMidEdgeNode(no[0], no[1]);
+            child[0] = NewTetrahedron(no[0], mid01, no[2], no[3], attr,
+                                      -1, fa[1], fa[2], fa[3]);
+            child[1] = NewTetrahedron(mid01, no[1], no[2], no[3], attr,
+                                      fa[0], -1, fa[2], fa[3]);
+         }
+         else if (ref_type == Refinement::Y)
+         {
+            const int mid02 = GetMidEdgeNode(no[0], no[2]);
+            child[0] = NewTetrahedron(no[0], no[1], mid02, no[3], attr,
+                                      -1, fa[1], fa[2], fa[3]);
+            child[1] = NewTetrahedron(mid02, no[1], no[2], no[3], attr,
+                                      fa[0], fa[1], -1, fa[3]);
+         }
+         else if (ref_type == Refinement::Z)
+         {
+            const int mid03 = GetMidEdgeNode(no[0], no[3]);
+            child[0] = NewTetrahedron(no[0], no[1], no[2], mid03, attr,
+                                      -1, fa[1], fa[2], fa[3]);
+            child[1] = NewTetrahedron(mid03, no[1], no[2], no[3], attr,
+                                      fa[0], fa[1], fa[2], -1);
+         }
+         else
+         {
+            const int mid12 = GetMidEdgeNode(no[1], no[2]);
+            child[0] = NewTetrahedron(no[0], no[1], mid12, no[3], attr,
+                                      fa[0], -1, fa[2], fa[3]);
+            child[1] = NewTetrahedron(no[0], mid12, no[2], no[3], attr,
+                                      fa[0], fa[1], -1, fa[3]);
+         }
+         Iso = false;
       }
-      else if (el.tet_type == 1) // shortest diagonal mid12--mid03
+      else
       {
-         child[4] = NewTetrahedron(mid03, mid01, mid02, mid12, attr,
-                                   fa[3], -1, -1, -1);
+         ref_type = Refinement::XYZ; // for consistency
 
-         child[5] = NewTetrahedron(mid03, mid02, mid23, mid12, attr,
-                                   -1, -1, -1, fa[1]);
+         int mid01 = GetMidEdgeNode(no[0], no[1]);
+         int mid12 = GetMidEdgeNode(no[1], no[2]);
+         int mid02 = GetMidEdgeNode(no[2], no[0]);
 
-         child[6] = NewTetrahedron(mid03, mid23, mid13, mid12, attr,
-                                   fa[0], -1, -1, -1);
+         int mid03 = GetMidEdgeNode(no[0], no[3]);
+         int mid13 = GetMidEdgeNode(no[1], no[3]);
+         int mid23 = GetMidEdgeNode(no[2], no[3]);
 
-         child[7] = NewTetrahedron(mid03, mid13, mid01, mid12, attr,
-                                   -1, -1, -1, fa[2]);
-      }
-      else // el.tet_type == 2, shortest diagonal mid02--mid13
-      {
-         child[4] = NewTetrahedron(mid02, mid01, mid13, mid03, attr,
-                                   fa[2], -1, -1, -1);
+         child[0] = NewTetrahedron(no[0], mid01, mid02, mid03, attr,
+                                   -1, fa[1], fa[2], fa[3]);
 
-         child[5] = NewTetrahedron(mid02, mid03, mid13, mid23, attr,
-                                   -1, -1, fa[1], -1);
+         child[1] = NewTetrahedron(mid01, no[1], mid12, mid13, attr,
+                                   fa[0], -1, fa[2], fa[3]);
 
-         child[6] = NewTetrahedron(mid02, mid23, mid13, mid12, attr,
-                                   fa[0], -1, -1, -1);
+         child[2] = NewTetrahedron(mid02, mid12, no[2], mid23, attr,
+                                   fa[0], fa[1], -1, fa[3]);
 
-         child[7] = NewTetrahedron(mid02, mid12, mid13, mid01, attr,
-                                   -1, -1, fa[3], -1);
+         child[3] = NewTetrahedron(mid03, mid13, mid23, no[3], attr,
+                                   fa[0], fa[1], fa[2], -1);
+
+         // There are three ways to split the inner octahedron. A good strategy is
+         // to use the shortest diagonal. At the moment we don't have the geometric
+         // information in this class to determine which diagonal is the shortest,
+         // but it seems that with reasonable shapes of the coarse tets and MFEM's
+         // default tet orientation, always using tet_type == 0 produces stable
+         // refinements. Types 1 and 2 are unused for now.
+         el.tet_type = 0;
+
+         if (el.tet_type == 0) // shortest diagonal mid01--mid23
+         {
+            child[4] = NewTetrahedron(mid01, mid23, mid02, mid03, attr,
+                                      fa[1], -1, -1, -1);
+
+            child[5] = NewTetrahedron(mid01, mid23, mid03, mid13, attr,
+                                      -1, fa[2], -1, -1);
+
+            child[6] = NewTetrahedron(mid01, mid23, mid13, mid12, attr,
+                                      fa[0], -1, -1, -1);
+
+            child[7] = NewTetrahedron(mid01, mid23, mid12, mid02, attr,
+                                      -1, fa[3], -1, -1);
+         }
+         else if (el.tet_type == 1) // shortest diagonal mid12--mid03
+         {
+            child[4] = NewTetrahedron(mid03, mid01, mid02, mid12, attr,
+                                      fa[3], -1, -1, -1);
+
+            child[5] = NewTetrahedron(mid03, mid02, mid23, mid12, attr,
+                                      -1, -1, -1, fa[1]);
+
+            child[6] = NewTetrahedron(mid03, mid23, mid13, mid12, attr,
+                                      fa[0], -1, -1, -1);
+
+            child[7] = NewTetrahedron(mid03, mid13, mid01, mid12, attr,
+                                      -1, -1, -1, fa[2]);
+         }
+         else // el.tet_type == 2, shortest diagonal mid02--mid13
+         {
+            child[4] = NewTetrahedron(mid02, mid01, mid13, mid03, attr,
+                                      fa[2], -1, -1, -1);
+
+            child[5] = NewTetrahedron(mid02, mid03, mid13, mid23, attr,
+                                      -1, -1, fa[1], -1);
+
+            child[6] = NewTetrahedron(mid02, mid23, mid13, mid12, attr,
+                                      fa[0], -1, -1, -1);
+
+            child[7] = NewTetrahedron(mid02, mid12, mid13, mid01, attr,
+                                      -1, -1, fa[3], -1);
+         }
       }
    }
    else if (el.Geom() == Geometry::PYRAMID)
@@ -1877,9 +1941,61 @@ void NCMesh::RefineElement(const Refinement & ref)
    }
    else if (el.Geom() == Geometry::SQUARE)
    {
-      ref_type &= 0x3; // ignore Z bit
+      if (ref_type < 8) { ref_type &= 0x3; } // legacy: ignore Z bit
 
-      if (ref_type == Refinement::X) // X split
+      if (ref_type == Refinement::Quadrilateral::DIAGONAL_02_2_TRIS.GetId())
+      {
+         GI[Geometry::TRIANGLE].InitGeom(Geometry::TRIANGLE);
+         child[0] = NewTriangle(no[0], no[1], no[2],
+                                attr, fa[0], fa[1], -1);
+         child[1] = NewTriangle(no[0], no[2], no[3],
+                                attr, -1, fa[2], fa[3]);
+      }
+      else if (ref_type == Refinement::Quadrilateral::DIAGONAL_13_2_TRIS.GetId())
+      {
+         GI[Geometry::TRIANGLE].InitGeom(Geometry::TRIANGLE);
+         child[0] = NewTriangle(no[0], no[1], no[3],
+                                attr, fa[0], -1, fa[3]);
+         child[1] = NewTriangle(no[1], no[2], no[3],
+                                attr, fa[1], fa[2], -1);
+      }
+      else if (ref_type == Refinement::Quadrilateral::DIAGONALS_4_TRIS.GetId())
+      {
+         GI[Geometry::TRIANGLE].InitGeom(Geometry::TRIANGLE);
+         const int mid01 = GetMidEdgeNode(no[0], no[1]);
+         const int mid23 = GetMidEdgeNode(no[2], no[3]);
+         nodes[mid01].SetScale(0.5);
+         nodes[mid23].SetScale(0.5);
+         const int center = GetMidEdgeNode(mid01, mid23);
+         nodes[center].SetScale(0.5);
+         child[0] = NewTriangle(no[0], no[1], center,
+                                attr, fa[0], -1, -1);
+         child[1] = NewTriangle(no[1], no[2], center,
+                                attr, fa[1], -1, -1);
+         child[2] = NewTriangle(no[2], no[3], center,
+                                attr, fa[2], -1, -1);
+         child[3] = NewTriangle(no[3], no[0], center,
+                                attr, fa[3], -1, -1);
+      }
+      else if (ref_type >= Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId() &&
+               ref_type <= Refinement::Quadrilateral::EDGE_30_3_TRIS.GetId())
+      {
+         GI[Geometry::TRIANGLE].InitGeom(Geometry::TRIANGLE);
+         const int edge = ref_type - Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId();
+         const int v0 = edge;
+         const int v1 = (edge + 1) % 4;
+         const int v2 = (edge + 2) % 4;
+         const int v3 = (edge + 3) % 4;
+         const int mid = GetMidEdgeNode(no[v0], no[v1]);
+         nodes[mid].SetScale(0.5);
+         child[0] = NewTriangle(no[v0], mid, no[v3],
+                                attr, fa[v0], -1, fa[v3]);
+         child[1] = NewTriangle(mid, no[v1], no[v2],
+                                attr, fa[v0], fa[v1], -1);
+         child[2] = NewTriangle(mid, no[v2], no[v3],
+                                attr, -1, fa[v2], -1);
+      }
+      else if (ref_type == Refinement::X) // X split
       {
          const int mid01 = nodes.GetId(no[0], no[1]);
          const int mid23 = nodes.GetId(no[2], no[3]);
@@ -1945,17 +2061,120 @@ void NCMesh::RefineElement(const Refinement & ref)
    }
    else if (el.Geom() == Geometry::TRIANGLE)
    {
-      ref_type = Refinement::XY; // for consistency
+      if (ref_type < 8 && ref_type != Refinement::Z)
+      { ref_type &= Refinement::XY; }
+      if (ref_type == Refinement::Triangle::CORNER_0_TRI_QUAD.GetId())
+      {
+         GI[Geometry::SQUARE].InitGeom(Geometry::SQUARE);
+         const int mid01 = GetMidEdgeNode(no[0], no[1]);
+         const int mid20 = GetMidEdgeNode(no[2], no[0]);
+         nodes[mid01].SetScale(0.5);
+         nodes[mid20].SetScale(0.5);
+         child[0] = NewTriangle(no[0], mid01, mid20,
+                                attr, fa[0], -1, fa[2]);
+         child[1] = NewQuadrilateral(mid01, no[1], no[2], mid20,
+                                     attr, fa[0], fa[1], fa[2], -1);
+      }
+      else if (ref_type == Refinement::Triangle::CORNER_1_TRI_QUAD.GetId())
+      {
+         GI[Geometry::SQUARE].InitGeom(Geometry::SQUARE);
+         const int mid01 = GetMidEdgeNode(no[0], no[1]);
+         const int mid12 = GetMidEdgeNode(no[1], no[2]);
+         nodes[mid01].SetScale(0.5);
+         nodes[mid12].SetScale(0.5);
+         child[0] = NewTriangle(mid01, no[1], mid12,
+                                attr, fa[0], fa[1], -1);
+         child[1] = NewQuadrilateral(no[0], mid01, mid12, no[2],
+                                     attr, fa[0], -1, fa[1], fa[2]);
+      }
+      else if (ref_type == Refinement::Triangle::CORNER_2_TRI_QUAD.GetId())
+      {
+         GI[Geometry::SQUARE].InitGeom(Geometry::SQUARE);
+         const int mid12 = GetMidEdgeNode(no[1], no[2]);
+         const int mid20 = GetMidEdgeNode(no[2], no[0]);
+         nodes[mid12].SetScale(0.5);
+         nodes[mid20].SetScale(0.5);
+         child[0] = NewTriangle(mid12, no[2], mid20,
+                                attr, fa[1], fa[2], -1);
+         child[1] = NewQuadrilateral(no[0], no[1], mid12, mid20,
+                                     attr, fa[0], fa[1], -1, fa[2]);
+      }
+      else if (ref_type == Refinement::Triangle::CENTER_3_TRIS.GetId())
+      {
+         const int mid01 = GetMidEdgeNode(no[0], no[1]);
+         nodes[mid01].SetScale(0.5);
+         const int center = GetMidEdgeNode(mid01, no[2]);
+         SetNodeScale(mid01, no[2], 1.0/3.0);
+         using_scaling = true;
+         child[0] = NewTriangle(no[0], no[1], center,
+                                attr, fa[0], -1, -1);
+         child[1] = NewTriangle(no[1], no[2], center,
+                                attr, fa[1], -1, -1);
+         child[2] = NewTriangle(no[2], no[0], center,
+                                attr, fa[2], -1, -1);
+      }
+      else if (ref_type == Refinement::Triangle::CENTER_3_QUADS.GetId())
+      {
+         GI[Geometry::SQUARE].InitGeom(Geometry::SQUARE);
+         const int mid01 = GetMidEdgeNode(no[0], no[1]);
+         const int mid12 = GetMidEdgeNode(no[1], no[2]);
+         const int mid20 = GetMidEdgeNode(no[2], no[0]);
+         nodes[mid01].SetScale(0.5);
+         nodes[mid12].SetScale(0.5);
+         nodes[mid20].SetScale(0.5);
+         const int center = GetMidEdgeNode(mid01, no[2]);
+         SetNodeScale(mid01, no[2], 1.0/3.0);
+         using_scaling = true;
+         child[0] = NewQuadrilateral(no[0], mid01, center, mid20,
+                                     attr, fa[0], -1, -1, fa[2]);
+         child[1] = NewQuadrilateral(mid01, no[1], mid12, center,
+                                     attr, fa[0], fa[1], -1, -1);
+         child[2] = NewQuadrilateral(center, mid12, no[2], mid20,
+                                     attr, -1, fa[1], fa[2], -1);
+      }
+      else if (ref_type == Refinement::X)
+      {
+         const int mid01 = nodes.GetId(no[0], no[1]);
+         SetNodeScale(no[0], no[1], scale_x);
+         child[0] = NewTriangle(no[0], mid01, no[2],
+                                attr, fa[0], -1, fa[2]);
+         child[1] = NewTriangle(mid01, no[1], no[2],
+                                attr, fa[0], fa[1], -1);
+      }
+      else if (ref_type == Refinement::Y)
+      {
+         const int mid20 = nodes.GetId(no[2], no[0]);
+         SetNodeScale(no[0], no[2], scale_y);
+         child[0] = NewTriangle(no[0], no[1], mid20,
+                                attr, fa[0], -1, fa[2]);
+         child[1] = NewTriangle(mid20, no[1], no[2],
+                                attr, -1, fa[1], fa[2]);
+      }
+      else if (ref_type == Refinement::Z)
+      {
+         const int mid12 = nodes.GetId(no[1], no[2]);
+         SetNodeScale(no[1], no[2], scale_z);
+         child[0] = NewTriangle(no[0], no[1], mid12,
+                                attr, fa[0], fa[1], -1);
+         child[1] = NewTriangle(no[0], mid12, no[2],
+                                attr, -1, fa[1], fa[2]);
+      }
+      else if (ref_type == Refinement::XY)
+      {
+         const int mid01 = nodes.GetId(no[0], no[1]);
+         const int mid12 = nodes.GetId(no[1], no[2]);
+         const int mid20 = nodes.GetId(no[2], no[0]);
 
-      // isotropic split - the only ref_type available for triangles
-      int mid01 = nodes.GetId(no[0], no[1]);
-      int mid12 = nodes.GetId(no[1], no[2]);
-      int mid20 = nodes.GetId(no[2], no[0]);
-
-      child[0] = NewTriangle(no[0], mid01, mid20, attr, fa[0], -1, fa[2]);
-      child[1] = NewTriangle(mid01, no[1], mid12, attr, fa[0], fa[1], -1);
-      child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
-      child[3] = NewTriangle(mid12, mid20, mid01, attr, -1, -1, -1);
+         child[0] = NewTriangle(no[0], mid01, mid20, attr, fa[0], -1, fa[2]);
+         child[1] = NewTriangle(mid01, no[1], mid12, attr, fa[0], fa[1], -1);
+         child[2] = NewTriangle(mid20, mid12, no[2], attr, -1, fa[1], fa[2]);
+         child[3] = NewTriangle(mid12, mid20, mid01, attr, -1, -1, -1);
+      }
+      else
+      {
+         MFEM_ABORT("Invalid triangle refinement type.");
+      }
+      if (ref_type != Refinement::XY) { Iso = false; }
    }
    else if (el.Geom() == Geometry::SEGMENT)
    {
@@ -2059,41 +2278,12 @@ int NCMesh::RetrieveNode(const Element &el, int index)
 {
    if (!el.ref_type) { return el.node[index]; }
 
-   // need to retrieve node from a child element (there is always a child that
-   // inherited the parent's corner under the same index)
-   int ch;
-   switch (el.Geom())
-   {
-      case Geometry::CUBE:
-         ch = el.child[hex_deref_table[el.ref_type - 1][index]];
-         break;
-
-      case Geometry::PRISM:
-         ch = prism_deref_table[el.ref_type - 1][index];
-         MFEM_ASSERT(ch != -1, "");
-         ch = el.child[ch];
-         break;
-
-      case Geometry::PYRAMID:
-         ch = pyramid_deref_table[el.ref_type - 1][index];
-         MFEM_ASSERT(ch != -1, "");
-         ch = el.child[ch];
-         break;
-
-      case Geometry::SQUARE:
-         ch = el.child[quad_deref_table[el.ref_type - 1][index]];
-         break;
-
-      case Geometry::TETRAHEDRON:
-      case Geometry::TRIANGLE:
-         ch = el.child[index];
-         break;
-
-      default:
-         ch = 0; // suppress compiler warning
-         MFEM_ABORT("Unsupported element geometry.");
-   }
-   return RetrieveNode(elements[ch], index);
+   const NCRefinementPattern &pattern =
+      GetNCRefinementPattern(el.Geom(), el.ref_type);
+   MFEM_VERIFY(pattern.deref && pattern.deref[index] >= 0,
+               "Cannot retrieve parent vertex from child");
+   const int child = el.child[pattern.deref[index]];
+   return RetrieveNode(elements[child], pattern.VertexLocal(index));
 }
 
 
@@ -2115,153 +2305,57 @@ void NCMesh::DerefineElement(int elem)
    }
 
    int faces_attribute[MaxElemFaces];
-   int ref_type_key = el.ref_type - 1;
+   const NCRefinementPattern &pattern =
+      GetNCRefinementPattern(el.Geom(), el.ref_type);
+   const int *deref = pattern.deref;
 
    for (int i = 0; i < MaxElemNodes; i++) { el.node[i] = -1; }
 
-   // retrieve original corner nodes and face attributes from the children
-   if (el.Geom() == Geometry::CUBE)
+   // Retrieve parent corners and face attributes using each selected child's
+   // own local numbering. A pattern may have children of different geometries.
+   if (el.Geom() != Geometry::SEGMENT)
    {
-      // Sets corner nodes from children
-      constexpr int nb_cube_childs = 8;
-      for (int i = 0; i < nb_cube_childs; i++)
+      MFEM_VERIFY(deref, "Missing NC derefinement map");
+      const int nv = GI[el.Geom()].nv;
+      const int nf = GI[el.Geom()].nf;
+      for (int i = 0; i < nv; i++)
       {
-         const int child_local_index = hex_deref_table[ref_type_key][i];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         el.node[i] = ch.node[i];
+         const int child_index = deref[i];
+         MFEM_VERIFY(child_index >= 0 && child_index < pattern.num_children,
+                     "Invalid parent vertex child");
+         const Element &ch = elements[child[child_index]];
+         GI[ch.Geom()].InitGeom(ch.Geom());
+         const int local = pattern.VertexLocal(i);
+         MFEM_VERIFY(local >= 0 && local < GI[ch.Geom()].nv,
+                     "Invalid child vertex in derefinement map");
+         el.node[i] = ch.node[local];
       }
-      // Sets faces attributes from childs' faces
-      constexpr int nb_cube_faces = 6;
-      for (int i = 0; i < nb_cube_faces; i++)
+      for (int i = 0; i < nf; i++)
       {
-         const int child_local_index = hex_deref_table[ref_type_key]
-                                       [i + nb_cube_childs];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         const int* fv = GI[el.Geom()].faces[i];
-         faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
-                                         ch.node[fv[2]], ch.node[fv[3]])
-                              ->attribute;
-      }
-   }
-   else if (el.Geom() == Geometry::PRISM)
-   {
-      MFEM_ASSERT(prism_deref_table[ref_type_key][0] != -1,
-                  "invalid prism refinement");
-      constexpr int nb_prism_childs = 6;
-      for (int i = 0; i < nb_prism_childs; i++)
-      {
-         const int child_local_index = prism_deref_table[ref_type_key][i];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         el.node[i] = ch.node[i];
-      }
-      el.node[6] = el.node[7] = -1;
-
-      constexpr int nb_prism_faces = 5;
-      for (int i = 0; i < nb_prism_faces; i++)
-      {
-         const int child_local_index = prism_deref_table[ref_type_key]
-                                       [i + nb_prism_childs];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         const int* fv = GI[el.Geom()].faces[i];
-         faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
-                                         ch.node[fv[2]], ch.node[fv[3]])
-                              ->attribute;
-      }
-   }
-   else if (el.Geom() == Geometry::PYRAMID)
-   {
-      MFEM_ASSERT(pyramid_deref_table[ref_type_key][0] != -1,
-                  "invalid pyramid refinement");
-      constexpr int nb_pyramid_childs = 5;
-      for (int i = 0; i < nb_pyramid_childs; i++)
-      {
-         const int child_local_index = pyramid_deref_table[ref_type_key][i];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         el.node[i] = ch.node[i];
-      }
-      el.node[5] = el.node[6] = el.node[7] = -1;
-
-
-      constexpr int nb_pyramid_faces = 5;
-      for (int i = 0; i < nb_pyramid_faces; i++)
-      {
-         const int child_local_index = pyramid_deref_table[ref_type_key]
-                                       [i + nb_pyramid_childs];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         const int* fv = GI[el.Geom()].faces[i];
-         faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
-                                         ch.node[fv[2]], ch.node[fv[3]])
-                              ->attribute;
-      }
-   }
-   else if (el.Geom() == Geometry::TETRAHEDRON)
-   {
-      for (int i = 0; i < 4; i++)
-      {
-         Element& ch1 = elements[child[i]];
-         Element& ch2 = elements[child[(i+1) & 0x3]];
-         el.node[i] = ch1.node[i];
-         const int* fv = GI[el.Geom()].faces[i];
-         faces_attribute[i] = faces.Find(ch2.node[fv[0]], ch2.node[fv[1]],
-                                         ch2.node[fv[2]], ch2.node[fv[3]])
-                              ->attribute;
-      }
-   }
-   else if (el.Geom() == Geometry::SQUARE)
-   {
-      constexpr int nb_square_childs = 4;
-      for (int i = 0; i < nb_square_childs; i++)
-      {
-         const int child_local_index = quad_deref_table[ref_type_key][i];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         el.node[i] = ch.node[i];
-      }
-      constexpr int nb_square_faces = 4;
-      for (int i = 0; i < nb_square_faces; i++)
-      {
-         const int child_local_index = quad_deref_table[ref_type_key]
-                                       [i + nb_square_childs];
-         const int child_global_index = child[child_local_index];
-         Element &ch = elements[child_global_index];
-         const int* fv = GI[el.Geom()].faces[i];
-         faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
-                                         ch.node[fv[2]], ch.node[fv[3]])
-                              ->attribute;
-      }
-   }
-   else if (el.Geom() == Geometry::TRIANGLE)
-   {
-      constexpr int nb_triangle_childs = 3;
-      for (int i = 0; i < nb_triangle_childs; i++)
-      {
-         Element& ch = elements[child[i]];
-         el.node[i] = ch.node[i];
-         const int* fv = GI[el.Geom()].faces[i];
-         faces_attribute[i] = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
-                                         ch.node[fv[2]], ch.node[fv[3]])
-                              ->attribute;
-      }
-   }
-   else if (el.Geom() == Geometry::SEGMENT)
-   {
-      constexpr int nb_segment_childs = 2;
-      for (int i = 0; i < nb_segment_childs; i++)
-      {
-         int ni = elements[child[i]].node[i];
-         el.node[i] = ni;
-         faces_attribute[i] = faces.Find(ni, ni, ni, ni)->attribute;
+         const int child_index = deref[nv + i];
+         MFEM_VERIFY(child_index >= 0 && child_index < pattern.num_children,
+                     "Invalid parent face child");
+         const Element &ch = elements[child[child_index]];
+         GI[ch.Geom()].InitGeom(ch.Geom());
+         const GeomInfo &child_info = GI[ch.Geom()];
+         const int local = pattern.FaceLocal(i);
+         MFEM_VERIFY(local >= 0 && local < child_info.nf,
+                     "Invalid child face in derefinement map");
+         const int *fv = child_info.faces[local];
+         const Face *face = faces.Find(ch.node[fv[0]], ch.node[fv[1]],
+                                       ch.node[fv[2]], ch.node[fv[3]]);
+         MFEM_VERIFY(face, "Child face missing during derefinement");
+         faces_attribute[i] = face->attribute;
       }
    }
    else
    {
-      MFEM_ABORT("Unsupported element geometry.");
+      for (int i = 0; i < 2; i++)
+      {
+         const int node = elements[child[i]].node[i];
+         el.node[i] = node;
+         faces_attribute[i] = faces.Find(node, node, node, node)->attribute;
+      }
    }
 
    // sign in to all nodes
@@ -2370,9 +2464,6 @@ void NCMesh::CheckDerefinementNCLevel(const Table &deref_table,
 
 void NCMesh::Derefine(const Array<int> &derefs)
 {
-   MFEM_VERIFY(Dim < 3 || Iso,
-               "derefinement of 3D anisotropic meshes not implemented yet.");
-
    InitDerefTransforms();
 
    Array<int> fine_coarse;
@@ -2434,6 +2525,7 @@ void NCMesh::SetDerefMatrixCodes(int parent, Array<int> &fine_coarse)
       {
          int code = (prn.ref_type << 4) | i;
          transforms.embeddings[ch.index].matrix = code;
+         transforms.embeddings[ch.index].geom = prn.Geom();
          fine_coarse[ch.index] = parent;
       }
    }
@@ -3143,23 +3235,33 @@ int NCMesh::QuadFaceSplitType(int v1, int v2, int v3, int v4, real_t & s,
    }
 }
 
-bool NCMesh::TriFaceSplit(int v1, int v2, int v3, int mid[3]) const
+int NCMesh::TriFaceSplitType(int v0, int v1, int v2, int mid[3]) const
 {
-   int e1 = nodes.FindId(v1, v2);
-   if (e1 < 0 || !nodes[e1].HasVertex()) { return false; }
+   const int v[3] = {v0, v1, v2};
+   for (int i = 0; i < 3; i++)
+   {
+      const int node = nodes.FindId(v[i], v[(i+1)%3]);
+      mid[i] = node >= 0 && nodes[node].HasVertex() ? node : -1;
+   }
 
-   int e2 = nodes.FindId(v2, v3);
-   if (e2 < 0 || !nodes[e2].HasVertex()) { return false; }
+   if (mid[0] >= 0 && mid[1] >= 0 && mid[2] >= 0 &&
+       (nodes.FindId(mid[0], mid[1]) >= 0 ||
+        nodes.FindId(mid[1], mid[2]) >= 0 ||
+        nodes.FindId(mid[2], mid[0]) >= 0))
+   {
+      return 7;
+   }
 
-   int e3 = nodes.FindId(v3, v1);
-   if (e3 < 0 || !nodes[e3].HasVertex()) { return false; }
-
-   if (mid) { mid[0] = e1, mid[1] = e2, mid[2] = e3; }
-
-   // This is necessary but not sufficient to determine if a face has been
-   // split. All edges might have been split due to edge attached faces being
-   // refined. Need to check for existence of face made up of midpoints.
-   return true;
+   for (int i = 0; i < 3; i++)
+   {
+      if (mid[i] < 0) { continue; }
+      const int edge = nodes.FindId(mid[i], v[(i+2)%3]);
+      if (edge >= 0 && (nodes[edge].HasEdge() || nodes[edge].HasVertex()))
+      {
+         return 1 << i;
+      }
+   }
+   return 0;
 }
 
 bool contains_node(const std::array<int, 4> &nodes, int n)
@@ -3697,7 +3799,8 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
    }
 
    int mid[3];
-   if (TriFaceSplit(vn0, vn1, vn2, mid))
+   const int split = TriFaceSplitType(vn0, vn1, vn2, mid);
+   if (split == 7)
    {
       Point pmid0(pm(0), pm(1)), pmid1(pm(1), pm(2)), pmid2(pm(2), pm(0));
       TriFaceTraverseResults b[4];
@@ -3736,6 +3839,54 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
          {
             TraverseTetEdge(mid[2], mid[0], pmid2, pmid0, matrix_map);
          }
+      }
+   }
+   else if (split != 0)
+   {
+      TriFaceTraverseResults b[2];
+      Point interior_start, interior_end;
+      int interior_v0, interior_v1;
+      if (split == 1)
+      {
+         Point pmid(pm(0), pm(1));
+         b[0] = TraverseTriFace(vn0, mid[0], vn2,
+                                PointMatrix(pm(0), pmid, pm(2)),
+                                level+1, matrix_map);
+         b[1] = TraverseTriFace(mid[0], vn1, vn2,
+                                PointMatrix(pmid, pm(1), pm(2)),
+                                level+1, matrix_map);
+         interior_v0 = mid[0]; interior_v1 = vn2;
+         interior_start = pmid; interior_end = pm(2);
+      }
+      else if (split == 2)
+      {
+         Point pmid(pm(1), pm(2));
+         b[0] = TraverseTriFace(vn0, vn1, mid[1],
+                                PointMatrix(pm(0), pm(1), pmid),
+                                level+1, matrix_map);
+         b[1] = TraverseTriFace(vn0, mid[1], vn2,
+                                PointMatrix(pm(0), pmid, pm(2)),
+                                level+1, matrix_map);
+         interior_v0 = mid[1]; interior_v1 = vn0;
+         interior_start = pmid; interior_end = pm(0);
+      }
+      else // split == 4
+      {
+         Point pmid(pm(2), pm(0));
+         b[0] = TraverseTriFace(vn0, vn1, mid[2],
+                                PointMatrix(pm(0), pm(1), pmid),
+                                level+1, matrix_map);
+         b[1] = TraverseTriFace(mid[2], vn1, vn2,
+                                PointMatrix(pmid, pm(1), pm(2)),
+                                level+1, matrix_map);
+         interior_v0 = mid[2]; interior_v1 = vn1;
+         interior_start = pmid; interior_end = pm(1);
+      }
+      if (HaveTets() && (IsParallel() || !b[0].unsplit || !b[1].unsplit ||
+                         b[0].ghost_neighbor || b[1].ghost_neighbor))
+      {
+         TraverseTetEdge(interior_v0, interior_v1,
+                         interior_start, interior_end, matrix_map);
       }
    }
    return {false, false};
@@ -4139,7 +4290,8 @@ void NCMesh::CollectEdgeVertices(int v0, int v1, Array<int> &indices)
 void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices)
 {
    int mid[3];
-   if (TriFaceSplit(v0, v1, v2, mid))
+   const int split = TriFaceSplitType(v0, v1, v2, mid);
+   if (split == 7)
    {
       for (int i = 0; i < 3; i++)
       {
@@ -4156,6 +4308,29 @@ void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices)
          CollectEdgeVertices(mid[0], mid[1], indices);
          CollectEdgeVertices(mid[1], mid[2], indices);
          CollectEdgeVertices(mid[2], mid[0], indices);
+      }
+   }
+   else if (split != 0)
+   {
+      const int edge = split == 1 ? 0 : (split == 2 ? 1 : 2);
+      indices.Append(mid[edge]);
+      if (split == 1)
+      {
+         CollectTriFaceVertices(v0, mid[0], v2, indices);
+         CollectTriFaceVertices(mid[0], v1, v2, indices);
+         if (HaveTets()) { CollectEdgeVertices(mid[0], v2, indices); }
+      }
+      else if (split == 2)
+      {
+         CollectTriFaceVertices(v0, v1, mid[1], indices);
+         CollectTriFaceVertices(v0, mid[1], v2, indices);
+         if (HaveTets()) { CollectEdgeVertices(mid[1], v0, indices); }
+      }
+      else
+      {
+         CollectTriFaceVertices(v0, v1, mid[2], indices);
+         CollectTriFaceVertices(mid[2], v1, v2, indices);
+         if (HaveTets()) { CollectEdgeVertices(mid[2], v1, indices); }
       }
    }
 }
@@ -4525,6 +4700,69 @@ void NCMesh::NeighborExpand(const Array<int> &elems,
    }
 }
 
+// Map a point between an explicit triangle/quad parent and one of its mixed
+// children. Quadrilateral children may have bilinear maps, which RefTrf cannot
+// represent.
+static bool MapExplicitPatternPoint(const DenseMatrix &pm,
+                                    Geometry::Type child_geom,
+                                    const RefCoord src[3], RefCoord dst[3],
+                                    bool inverse)
+{
+   const long double unit = static_cast<long double>(T_ONE);
+   const long double x = static_cast<long double>(src[0]) / unit;
+   const long double y = static_cast<long double>(src[1]) / unit;
+   const long double ax = pm(0, 1) - pm(0, 0);
+   const long double ay = pm(1, 1) - pm(1, 0);
+   const int last = child_geom == Geometry::TRIANGLE ? 2 : 3;
+   const long double bx = pm(0, last) - pm(0, 0);
+   const long double by = pm(1, last) - pm(1, 0);
+   const long double cx = child_geom == Geometry::TRIANGLE ? 0.0L :
+                          pm(0, 0) - pm(0, 1) + pm(0, 2) - pm(0, 3);
+   const long double cy = child_geom == Geometry::TRIANGLE ? 0.0L :
+                          pm(1, 0) - pm(1, 1) + pm(1, 2) - pm(1, 3);
+
+   long double u = x, v = y;
+   if (inverse)
+   {
+      u = v = 0.5L;
+      for (int i = 0; i < 16; i++)
+      {
+         const long double dx = x - (pm(0, 0) + u*ax + v*bx + u*v*cx);
+         const long double dy = y - (pm(1, 0) + u*ay + v*by + u*v*cy);
+         const long double j00 = ax + v*cx, j01 = bx + u*cx;
+         const long double j10 = ay + v*cy, j11 = by + u*cy;
+         const long double det = j00*j11 - j01*j10;
+         MFEM_VERIFY(std::abs(det) > 1.0e-15L,
+                     "Degenerate triangle refinement child");
+         const long double du = (dx*j11 - dy*j01) / det;
+         const long double dv = (dy*j00 - dx*j10) / det;
+         u += du;
+         v += dv;
+         if (std::abs(du) + std::abs(dv) < 1.0e-16L) { break; }
+      }
+
+      constexpr long double tol =
+         MFEM_PRECISION_SWITCH(1.0e-12L, 1.0e-5L);
+      if (u < -tol || v < -tol || u > 1.0L + tol ||
+          v > 1.0L + tol ||
+          (child_geom == Geometry::TRIANGLE && u + v > 1.0L + tol))
+      { return false; }
+      u = std::max(0.0L, std::min(1.0L, u));
+      v = std::max(0.0L, std::min(1.0L, v));
+      if (child_geom == Geometry::TRIANGLE && u + v > 1.0L)
+      { v = 1.0L - u; }
+      dst[0] = std::llround(u*unit);
+      dst[1] = std::llround(v*unit);
+   }
+   else
+   {
+      dst[0] = std::llround((pm(0, 0) + u*ax + v*bx + u*v*cx)*unit);
+      dst[1] = std::llround((pm(1, 0) + u*ay + v*by + u*v*cy)*unit);
+   }
+   dst[2] = 0;
+   return true;
+}
+
 int NCMesh::GetVertexRootCoord(int elem, RefCoord coord[3]) const
 {
    while (1)
@@ -4539,9 +4777,21 @@ int NCMesh::GetVertexRootCoord(int elem, RefCoord coord[3]) const
       while (ch < MaxElemChildren && pa.child[ch] != elem) { ch++; }
       MFEM_ASSERT(ch < MaxElemChildren, "internal error");
 
-      MFEM_ASSERT(geom_parent[el.Geom()], "unsupported geometry");
-      const RefTrf &tr = geom_parent[el.Geom()][(int) pa.ref_type][ch];
-      tr.Apply(coord, coord);
+      if ((pa.Geom() == Geometry::TRIANGLE && pa.ref_type >= 8) ||
+          (pa.Geom() == Geometry::SQUARE &&
+           pa.ref_type >= Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId()))
+      {
+         const char path[3] = { pa.ref_type, static_cast<char>(ch), 0 };
+         DenseMatrix pm;
+         GetPointMatrix(pa.Geom(), path, pm);
+         MapExplicitPatternPoint(pm, el.Geom(), coord, coord, false);
+      }
+      else
+      {
+         MFEM_ASSERT(geom_parent[pa.Geom()], "unsupported geometry");
+         const RefTrf &tr = geom_parent[pa.Geom()][(int) pa.ref_type][ch];
+         tr.Apply(coord, coord);
+      }
 
       elem = el.parent;
    }
@@ -4591,10 +4841,25 @@ void NCMesh::CollectIncidentElements(int elem, const RefCoord coord[3],
    RefCoord tcoord[3];
    for (int ch = 0; ch < MaxElemChildren && el.child[ch] >= 0; ch++)
    {
-      const RefTrf &tr = geom_child[el.Geom()][(int) el.ref_type][ch];
-      tr.Apply(coord, tcoord);
-
-      if (RefPointInside(el.Geom(), tcoord))
+      const Geometry::Type child_geom =
+         GetNCRefinementPattern(el.Geom(), el.ref_type).ChildGeometry(el.Geom(), ch);
+      bool inside;
+      if ((el.Geom() == Geometry::TRIANGLE && el.ref_type >= 8) ||
+          (el.Geom() == Geometry::SQUARE &&
+           el.ref_type >= Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId()))
+      {
+         const char path[3] = { el.ref_type, static_cast<char>(ch), 0 };
+         DenseMatrix pm;
+         GetPointMatrix(el.Geom(), path, pm);
+         inside = MapExplicitPatternPoint(pm, child_geom, coord, tcoord, true);
+      }
+      else
+      {
+         const RefTrf &tr = geom_child[el.Geom()][(int) el.ref_type][ch];
+         tr.Apply(coord, tcoord);
+         inside = RefPointInside(child_geom, tcoord);
+      }
+      if (inside)
       {
          CollectIncidentElements(el.child[ch], tcoord, list);
       }
@@ -4684,6 +4949,18 @@ const NCMesh::PointMatrix& NCMesh::GetGeomIdentity(Geometry::Type geom)
          MFEM_ABORT("unsupported geometry " << geom);
          return pm_tri_identity;
    }
+}
+
+int NCMesh::GetPointMatrixNumPoints(Geometry::Type geom,
+                                    const char* ref_path) const
+{
+   while (*ref_path)
+   {
+      const int ref_type = *ref_path++;
+      const int child = *ref_path++;
+      geom = GetNCRefinementPattern(geom, ref_type).ChildGeometry(geom, child);
+   }
+   return GetGeomIdentity(geom).np;
 }
 
 void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
@@ -5034,45 +5311,111 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
       }
       else if (geom == Geometry::TETRAHEDRON)
       {
-         Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2)), mid02(pm(2), pm(0));
-         Point mid03(pm(0), pm(3)), mid13(pm(1), pm(3)), mid23(pm(2), pm(3));
+         if (ref_type == Refinement::X || ref_type == Refinement::Y ||
+             ref_type == Refinement::Z ||
+             ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
+         {
+            const int corner = ref_type == Refinement::X ? 1 :
+                               (ref_type == Refinement::Y ? 2 : 3);
+            Point mid = ref_type == Refinement::Tetrahedron::EDGE_12_2_TETS.GetId() ?
+                        Point(pm(1), pm(2)) : Point(pm(0), pm(corner));
+            if (ref_type == Refinement::X)
+            {
+               if (child == 0) { pm = PointMatrix(pm(0), mid, pm(2), pm(3)); }
+               else if (child == 1) { pm = PointMatrix(mid, pm(1), pm(2), pm(3)); }
+            }
+            else if (ref_type == Refinement::Y)
+            {
+               if (child == 0) { pm = PointMatrix(pm(0), pm(1), mid, pm(3)); }
+               else if (child == 1) { pm = PointMatrix(mid, pm(1), pm(2), pm(3)); }
+            }
+            else if (ref_type == Refinement::Z)
+            {
+               if (child == 0) { pm = PointMatrix(pm(0), pm(1), pm(2), mid); }
+               else if (child == 1) { pm = PointMatrix(mid, pm(1), pm(2), pm(3)); }
+            }
+            else
+            {
+               if (child == 0) { pm = PointMatrix(pm(0), pm(1), mid, pm(3)); }
+               else if (child == 1) { pm = PointMatrix(pm(0), mid, pm(2), pm(3)); }
+            }
+         }
+         else
+         {
+            Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2)), mid02(pm(2), pm(0));
+            Point mid03(pm(0), pm(3)), mid13(pm(1), pm(3)), mid23(pm(2), pm(3));
 
-         if (child == 0)
-         {
-            pm = PointMatrix(pm(0), mid01, mid02, mid03);
-         }
-         else if (child == 1)
-         {
-            pm = PointMatrix(mid01, pm(1), mid12, mid13);
-         }
-         else if (child == 2)
-         {
-            pm = PointMatrix(mid02, mid12, pm(2), mid23);
-         }
-         else if (child == 3)
-         {
-            pm = PointMatrix(mid03, mid13, mid23, pm(3));
-         }
-         else if (child == 4)
-         {
-            pm = PointMatrix(mid01, mid23, mid02, mid03);
-         }
-         else if (child == 5)
-         {
-            pm = PointMatrix(mid01, mid23, mid03, mid13);
-         }
-         else if (child == 6)
-         {
-            pm = PointMatrix(mid01, mid23, mid13, mid12);
-         }
-         else if (child == 7)
-         {
-            pm = PointMatrix(mid01, mid23, mid12, mid02);
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(0), mid01, mid02, mid03);
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(mid01, pm(1), mid12, mid13);
+            }
+            else if (child == 2)
+            {
+               pm = PointMatrix(mid02, mid12, pm(2), mid23);
+            }
+            else if (child == 3)
+            {
+               pm = PointMatrix(mid03, mid13, mid23, pm(3));
+            }
+            else if (child == 4)
+            {
+               pm = PointMatrix(mid01, mid23, mid02, mid03);
+            }
+            else if (child == 5)
+            {
+               pm = PointMatrix(mid01, mid23, mid03, mid13);
+            }
+            else if (child == 6)
+            {
+               pm = PointMatrix(mid01, mid23, mid13, mid12);
+            }
+            else if (child == 7)
+            {
+               pm = PointMatrix(mid01, mid23, mid12, mid02);
+            }
          }
       }
       else if (geom == Geometry::SQUARE)
       {
-         if (ref_type == 1) // X split
+         if (ref_type == Refinement::Quadrilateral::DIAGONAL_02_2_TRIS.GetId())
+         {
+            if (child == 0) { pm = PointMatrix(pm(0), pm(1), pm(2)); }
+            else if (child == 1) { pm = PointMatrix(pm(0), pm(2), pm(3)); }
+         }
+         else if (ref_type == Refinement::Quadrilateral::DIAGONAL_13_2_TRIS.GetId())
+         {
+            if (child == 0) { pm = PointMatrix(pm(0), pm(1), pm(3)); }
+            else if (child == 1) { pm = PointMatrix(pm(1), pm(2), pm(3)); }
+         }
+         else if (ref_type == Refinement::Quadrilateral::DIAGONALS_4_TRIS.GetId())
+         {
+            Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
+            Point center(mid01, mid23);
+            if (child == 0) { pm = PointMatrix(pm(0), pm(1), center); }
+            else if (child == 1) { pm = PointMatrix(pm(1), pm(2), center); }
+            else if (child == 2) { pm = PointMatrix(pm(2), pm(3), center); }
+            else if (child == 3) { pm = PointMatrix(pm(3), pm(0), center); }
+         }
+         else if (ref_type >= Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId() &&
+                  ref_type <= Refinement::Quadrilateral::EDGE_30_3_TRIS.GetId())
+         {
+            const int edge = ref_type - Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId();
+            const int v0 = edge;
+            const int v1 = (edge + 1) % 4;
+            const int v2 = (edge + 2) % 4;
+            const int v3 = (edge + 3) % 4;
+            Point mid(pm(v0), pm(v1));
+            if (child == 0) { pm = PointMatrix(pm(v0), mid, pm(v3)); }
+            else if (child == 1)
+            { pm = PointMatrix(mid, pm(v1), pm(v2)); }
+            else if (child == 2)
+            { pm = PointMatrix(mid, pm(v2), pm(v3)); }
+         }
+         else if (ref_type == 1) // X split
          {
             Point mid01(pm(0), pm(1)), mid23(pm(2), pm(3));
 
@@ -5124,23 +5467,72 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
       }
       else if (geom == Geometry::TRIANGLE)
       {
-         Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2)), mid20(pm(2), pm(0));
-
-         if (child == 0)
+         if (ref_type == Refinement::Triangle::CORNER_0_TRI_QUAD.GetId())
          {
-            pm = PointMatrix(pm(0), mid01, mid20);
+            Point mid01(pm(0), pm(1)), mid20(pm(2), pm(0));
+            if (child == 0) { pm = PointMatrix(pm(0), mid01, mid20); }
+            else if (child == 1)
+            { pm = PointMatrix(mid01, pm(1), pm(2), mid20); }
          }
-         else if (child == 1)
+         else if (ref_type == Refinement::Triangle::CORNER_1_TRI_QUAD.GetId())
          {
-            pm = PointMatrix(mid01, pm(1), mid12);
+            Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
+            if (child == 0) { pm = PointMatrix(mid01, pm(1), mid12); }
+            else if (child == 1)
+            { pm = PointMatrix(pm(0), mid01, mid12, pm(2)); }
          }
-         else if (child == 2)
+         else if (ref_type == Refinement::Triangle::CORNER_2_TRI_QUAD.GetId())
          {
-            pm = PointMatrix(mid20, mid12, pm(2));
+            Point mid12(pm(1), pm(2)), mid20(pm(2), pm(0));
+            if (child == 0) { pm = PointMatrix(mid12, pm(2), mid20); }
+            else if (child == 1)
+            { pm = PointMatrix(pm(0), pm(1), mid12, mid20); }
          }
-         else if (child == 3)
+         else if (ref_type == Refinement::Triangle::CENTER_3_TRIS.GetId())
          {
-            pm = PointMatrix(mid12, mid20, mid01);
+            Point mid01(pm(0), pm(1));
+            Point center(mid01, pm(2), 1.0/3.0);
+            if (child == 0) { pm = PointMatrix(pm(0), pm(1), center); }
+            else if (child == 1) { pm = PointMatrix(pm(1), pm(2), center); }
+            else if (child == 2) { pm = PointMatrix(pm(2), pm(0), center); }
+         }
+         else if (ref_type == Refinement::Triangle::CENTER_3_QUADS.GetId())
+         {
+            Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
+            Point mid20(pm(2), pm(0)), center(mid01, pm(2), 1.0/3.0);
+            if (child == 0)
+            { pm = PointMatrix(pm(0), mid01, center, mid20); }
+            else if (child == 1)
+            { pm = PointMatrix(mid01, pm(1), mid12, center); }
+            else if (child == 2)
+            { pm = PointMatrix(center, mid12, pm(2), mid20); }
+         }
+         else if (ref_type == Refinement::X)
+         {
+            Point mid01(pm(0), pm(1));
+            if (child == 0) { pm = PointMatrix(pm(0), mid01, pm(2)); }
+            else if (child == 1) { pm = PointMatrix(mid01, pm(1), pm(2)); }
+         }
+         else if (ref_type == Refinement::Y)
+         {
+            Point mid20(pm(2), pm(0));
+            if (child == 0) { pm = PointMatrix(pm(0), pm(1), mid20); }
+            else if (child == 1) { pm = PointMatrix(mid20, pm(1), pm(2)); }
+         }
+         else if (ref_type == Refinement::Z)
+         {
+            Point mid12(pm(1), pm(2));
+            if (child == 0) { pm = PointMatrix(pm(0), pm(1), mid12); }
+            else if (child == 1) { pm = PointMatrix(pm(0), mid12, pm(2)); }
+         }
+         else if (ref_type == Refinement::XY)
+         {
+            Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
+            Point mid20(pm(2), pm(0));
+            if (child == 0) { pm = PointMatrix(pm(0), mid01, mid20); }
+            else if (child == 1) { pm = PointMatrix(mid01, pm(1), mid12); }
+            else if (child == 2) { pm = PointMatrix(mid20, mid12, pm(2)); }
+            else if (child == 3) { pm = PointMatrix(mid12, mid20, mid01); }
          }
       }
       else if (geom == Geometry::SEGMENT)
@@ -5156,6 +5548,9 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
             pm = PointMatrix(mid01, pm(1));
          }
       }
+
+      // Later steps in the path use the geometry produced by this child.
+      geom = GetNCRefinementPattern(geom, ref_type).ChildGeometry(geom, child);
    }
 
    // write the points to the matrix
@@ -5243,7 +5638,7 @@ void NCMesh::TraverseRefinements(int elem, int coarse_index,
       Embedding &emb = transforms.embeddings[el.index];
       emb.parent = coarse_index;
       emb.matrix = matrix - 1;
-      emb.geom = el.Geom();
+      emb.geom = elements[coarse_elements[coarse_index]].Geom();
       emb.ghost = IsGhost(el);
    }
    else
@@ -5298,10 +5693,15 @@ const CoarseFineTransformations& NCMesh::GetRefinementTransforms() const
          if (used_geoms & (1 << g))
          {
             Geometry::Type geom = Geometry::Type(g);
-            const PointMatrix &identity = GetGeomIdentity(geom);
+            Array<int> num_points(path_map[g].size());
+            for (const auto &path : path_map[g])
+            {
+               num_points[path.second-1] =
+                  GetPointMatrixNumPoints(geom, path.first.c_str());
+            }
 
             transforms.point_matrices[g]
-            .SetSize(Dim, identity.np, static_cast<int>(path_map[g].size()));
+            .SetSize(Dim, num_points, static_cast<int>(path_map[g].size()));
 
             // calculate the point matrices
             RefPathMap::iterator it;
@@ -5329,10 +5729,12 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms() const
          mat_no[g][0] = 1; // 0 == identity
       }
 
-      // assign numbers to the different matrices used
+      // Include geometries of fine elements that were removed by derefinement.
+      int used_geoms = Geoms;
       for (int i = 0; i < transforms.embeddings.Size(); i++)
       {
          Embedding &emb = transforms.embeddings[i];
+         used_geoms |= 1 << emb.geom;
          int code = emb.matrix; // see SetDerefMatrixCodes()
          if (code)
          {
@@ -5345,13 +5747,25 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms() const
 
       for (int g = 0; g < Geometry::NumGeom; g++)
       {
-         if (Geoms & (1 << g))
+         if (used_geoms & (1 << g))
          {
             Geometry::Type geom = Geometry::Type(g);
-            const PointMatrix &identity = GetGeomIdentity(geom);
+            Array<int> num_points(mat_no[geom].size());
+            for (const auto &entry : mat_no[geom])
+            {
+               char path[3] = { 0, 0, 0 };
+               const int code = entry.first;
+               if (code)
+               {
+                  path[0] = code >> 4;
+                  path[1] = code & 0xf;
+               }
+               num_points[entry.second - 1] =
+                  GetPointMatrixNumPoints(geom, path);
+            }
 
             transforms.point_matrices[geom]
-            .SetSize(Dim, identity.np, static_cast<int>(mat_no[geom].size()));
+            .SetSize(Dim, num_points, static_cast<int>(mat_no[geom].size()));
 
             // calculate point matrices
             for (auto it = mat_no[geom].begin(); it != mat_no[geom].end(); ++it)
@@ -6006,13 +6420,29 @@ int NCMesh::EdgeSplitLevel(int vn1, int vn2) const
 int NCMesh::TriFaceSplitLevel(int vn1, int vn2, int vn3) const
 {
    int mid[3];
-   if (TriFaceSplit(vn1, vn2, vn3, mid) &&
-       faces.FindId(vn1, vn2, vn3) < 0)
+   const int split = TriFaceSplitType(vn1, vn2, vn3, mid);
+   if (split == 7 && faces.FindId(vn1, vn2, vn3) < 0)
    {
       return 1 + max(TriFaceSplitLevel(vn1, mid[0], mid[2]),
                      TriFaceSplitLevel(mid[0], vn2, mid[1]),
                      TriFaceSplitLevel(mid[2], mid[1], vn3),
                      TriFaceSplitLevel(mid[0], mid[1], mid[2]));
+   }
+
+   if (split != 0 && faces.FindId(vn1, vn2, vn3) < 0)
+   {
+      if (split == 1)
+      {
+         return 1 + std::max(TriFaceSplitLevel(vn1, mid[0], vn3),
+                             TriFaceSplitLevel(mid[0], vn2, vn3));
+      }
+      if (split == 2)
+      {
+         return 1 + std::max(TriFaceSplitLevel(vn1, vn2, mid[1]),
+                             TriFaceSplitLevel(vn1, mid[1], vn3));
+      }
+      return 1 + std::max(TriFaceSplitLevel(vn1, vn2, mid[2]),
+                          TriFaceSplitLevel(mid[2], vn2, vn3));
    }
 
    return 0; // not split
@@ -6191,13 +6621,36 @@ void NCMesh::LimitNCLevel(int max_nc_level)
 
 int NCMesh::PrintVertexParents(std::ostream *os) const
 {
+   // A vertex can depend on intermediate nodes that are not mesh vertices.
+   // Include their complete parent chain so the hierarchy can be reloaded.
+   Array<char> required(nodes.NumIds());
+   required = 0;
+   Array<int> stack;
+   for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
+   {
+      if (node->HasVertex()) { stack.Append(node.index()); }
+   }
+   while (stack.Size())
+   {
+      const int id = stack.Last();
+      stack.DeleteLast();
+      if (required[id]) { continue; }
+      required[id] = 1;
+      const Node &node = nodes[id];
+      if (node.p1 != node.p2)
+      {
+         stack.Append(node.p1);
+         stack.Append(node.p2);
+      }
+   }
+
    if (!os)
    {
-      // count vertex nodes with parents
+      // count vertices and intermediate nodes with parents
       int nv = 0;
       for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
       {
-         if (node->HasVertex() && node->p1 != node->p2) { nv++; }
+         if (required[node.index()] && node->p1 != node->p2) { nv++; }
       }
       return nv;
    }
@@ -6207,11 +6660,8 @@ int NCMesh::PrintVertexParents(std::ostream *os) const
       bool uniform_scaling = true;  // Check whether all nodes have scale 0.5
       for (auto node = nodes.cbegin(); node != nodes.cend(); ++node)
       {
-         if (node->HasVertex() && node->p1 != node->p2)
+         if (required[node.index()] && node->p1 != node->p2)
          {
-            MFEM_ASSERT(nodes[node->p1].HasVertex(), "");
-            MFEM_ASSERT(nodes[node->p2].HasVertex(), "");
-
             (*os) << node.index() << " " << node->p1 << " " << node->p2;
             if (node->GetScale() != 0.5) { uniform_scaling = false; }
             if (using_scaling) { (*os) << " " << node->GetScale(); }
@@ -6228,26 +6678,38 @@ void NCMesh::LoadVertexParents(std::istream &input)
 {
    int nv;
    input >> nv;
-   while (nv--)
+   MFEM_VERIFY(input && nv >= 0, "Invalid vertex parent count");
+   Array<int> ids(nv), parent1(nv), parent2(nv);
+   Array<real_t> scales(nv);
+   for (int i = 0; i < nv; i++)
    {
-      int id, p1, p2;
       real_t s{0.5};
-      input >> id >> p1 >> p2;
+      input >> ids[i] >> parent1[i] >> parent2[i];
       if (using_scaling) { input >> s; }
       MFEM_VERIFY(input, "problem reading vertex parents.");
+      MFEM_VERIFY(ids[i] >= 0 && parent1[i] >= 0 && parent2[i] >= 0,
+                  "Invalid vertex parent index");
+      scales[i] = s;
+      // Intermediate parent nodes need not appear in any leaf element.
+      nodes.Alloc(ids[i], ids[i], ids[i]);
+   }
 
-      MFEM_VERIFY(nodes.IdExists(id), "vertex " << id << " not found.");
-      MFEM_VERIFY(nodes.IdExists(p1), "parent " << p1 << " not found.");
-      MFEM_VERIFY(nodes.IdExists(p2), "parent " << p2 << " not found.");
+   for (int i = 0; i < nv; i++)
+   {
+      MFEM_VERIFY(nodes.IdExists(parent1[i]), "parent " << parent1[i]
+                  << " not found.");
+      MFEM_VERIFY(nodes.IdExists(parent2[i]), "parent " << parent2[i]
+                  << " not found.");
 
-      int check = nodes.FindId(p1, p2);
-      MFEM_VERIFY(check < 0, "parents (" << p1 << ", " << p2 << ") already "
+      int check = nodes.FindId(parent1[i], parent2[i]);
+      MFEM_VERIFY(check < 0, "parents (" << parent1[i] << ", "
+                  << parent2[i] << ") already "
                   "assigned to node " << check);
 
       // assign new parents for the node
-      nodes.Reparent(id, p1, p2);
+      nodes.Reparent(ids[i], parent1[i], parent2[i]);
 
-      nodes[id].SetScale(s);
+      nodes[ids[i]].SetScale(scales[i]);
    }
 }
 
@@ -6435,9 +6897,24 @@ bool NCMesh::ZeroRootStates() const
 void NCMesh::Print(std::ostream &os, const std::string &comments,
                    bool nurbs) const
 {
+   bool extended_patterns = false;
+   for (const Element &el : elements)
+   {
+      if (el.parent != -2 && el.ref_type >= 8)
+      {
+         extended_patterns = true;
+         break;
+      }
+   }
+
    if (nurbs)
    {
       os << "MFEM NURBS NC-patch mesh v1.0\n\n";
+   }
+   else if (extended_patterns)
+   {
+      os << (using_scaling ? "MFEM NC mesh v1.3\n\n" :
+             "MFEM NC mesh v1.2\n\n");
    }
    else if (using_scaling)
    {
@@ -6479,9 +6956,12 @@ void NCMesh::Print(std::ostream &os, const std::string &comments,
       if (el.parent == -2) { os << "-1\n"; continue; } // unused element
 
       os << int(el.geom) << " " << int(el.ref_type);
-      for (int j = 0; j < MaxElemNodes && el.node[j] >= 0; j++)
+      const int count = el.ref_type ?
+                        GetNCRefinementPattern(el.Geom(), el.ref_type).num_children :
+                        GI[el.Geom()].nv;
+      for (int j = 0; j < count; j++)
       {
-         os << " " << el.node[j];
+         os << " " << (el.ref_type ? el.child[j] : el.node[j]);
       }
       os << "\n";
    }
@@ -6589,7 +7069,7 @@ int NCMesh::CountTopLevelNodes() const
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    : spaceDim(0), MyRank(0), Iso(true), Legacy(false),
-     using_scaling(version == 11)
+     using_scaling(version == 11 || version == 13)
 {
    is_nc = 1;
    if (version == 1) // old MFEM mesh v1.1 format
@@ -6599,7 +7079,7 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
       return;
    }
 
-   MFEM_ASSERT(version == 10 || version == 11, "");
+   MFEM_ASSERT(version >= 10 && version <= 13, "");
    std::string ident;
    int count;
 
@@ -6658,12 +7138,16 @@ NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
          GI[geom].InitGeom(type);
 
          input >> ref_type;
-         MFEM_VERIFY(ref_type >= 0 && ref_type < 8, "");
+         MFEM_VERIFY(ref_type >= 0 && ref_type <
+                     nc_refinement_pattern_counts[type],
+                     "Invalid NC refinement pattern " << ref_type);
          el.ref_type = ref_type;
 
          if (ref_type) // refined element
          {
-            for (int j = 0; j < ref_type_num_children[ref_type]; j++)
+            const int num_children =
+               GetNCRefinementPattern(type, ref_type).num_children;
+            for (int j = 0; j < num_children; j++)
             {
                input >> el.child[j];
             }
@@ -6812,11 +7296,17 @@ void NCMesh::LoadCoarseElements(std::istream &input)
 
       if (Dim == 3 && ref_type != 7) { iso = false; }
 
-      // load child IDs and make parent-child links
-      int nch = ref_type_num_children[ref_type];
-      for (int i = 0, id; i < nch; i++)
+      // In the legacy coarse_elements section the parent geometry is not
+      // stored. Its first child has the same geometry for all legacy patterns.
+      int id;
+      input >> id;
+      MFEM_VERIFY(id >= 0 && id < elements.Size(),
+                  "Invalid first child of coarse element");
+      Geometry::Type geom = elements[id].Geom();
+      const int nch = GetNCRefinementPattern(geom, ref_type).num_children;
+      for (int i = 0; i < nch; i++)
       {
-         input >> id;
+         if (i) { input >> id; }
          MFEM_VERIFY(id >= 0, "");
          MFEM_VERIFY(id < elements.Size(),
                      "coarse element cannot be referenced before it is "

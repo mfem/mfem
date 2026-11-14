@@ -40,7 +40,11 @@ namespace mfem
     for quads). The refinement spacing or scale in each direction is a number
     in (0,1), with the default 0.5 meaning bisection. This linear scale
     parameter defines the position of the refinement between the beginning (0)
-    and end (1) of the reference element in each direction. */
+    and end (1) of the reference element in each direction. For triangles, X,
+    Y, and Z bisect edges (0,1), (0,2), and (1,2), respectively; XY produces
+    four triangles. For tetrahedra, X, Y, and Z bisect edges (0,1), (0,2),
+    and (0,3), respectively; combinations produce the isotropic split. The
+    EDGE_12_2_TETS pattern bisects edge (1,2) at its midpoint. */
 struct Refinement
 {
    /** Identifies a refinement pattern for one parent geometry. */
@@ -49,8 +53,8 @@ struct Refinement
       Geometry::Type parent_geometry;
       char id;
 
-      Geometry::Type GetParentGeometry() const { return parent_geometry; }
-      char GetId() const { return id; }
+      constexpr Geometry::Type GetParentGeometry() const { return parent_geometry; }
+      constexpr char GetId() const { return id; }
    };
 
    int index; ///< Mesh element number
@@ -66,7 +70,15 @@ struct Refinement
    /** Existing triangle refinement patterns. */
    struct Triangle
    {
+      static constexpr Pattern EDGE_01_2_TRIS { Geometry::TRIANGLE, X };
+      static constexpr Pattern EDGE_02_2_TRIS { Geometry::TRIANGLE, Y };
+      static constexpr Pattern EDGE_12_2_TRIS { Geometry::TRIANGLE, Z };
       static constexpr Pattern UNIFORM { Geometry::TRIANGLE, XY };
+      static constexpr Pattern CORNER_0_TRI_QUAD { Geometry::TRIANGLE, 8 };
+      static constexpr Pattern CORNER_1_TRI_QUAD { Geometry::TRIANGLE, 9 };
+      static constexpr Pattern CORNER_2_TRI_QUAD { Geometry::TRIANGLE, 10 };
+      static constexpr Pattern CENTER_3_TRIS { Geometry::TRIANGLE, 11 };
+      static constexpr Pattern CENTER_3_QUADS { Geometry::TRIANGLE, 12 };
    };
 
    /** Existing quadrilateral refinement patterns. */
@@ -75,11 +87,22 @@ struct Refinement
       static constexpr Pattern SPLIT_X { Geometry::SQUARE, X };
       static constexpr Pattern SPLIT_Y { Geometry::SQUARE, Y };
       static constexpr Pattern UNIFORM { Geometry::SQUARE, XY };
+      static constexpr Pattern DIAGONAL_02_2_TRIS { Geometry::SQUARE, 8 };
+      static constexpr Pattern DIAGONAL_13_2_TRIS { Geometry::SQUARE, 9 };
+      static constexpr Pattern DIAGONALS_4_TRIS { Geometry::SQUARE, 10 };
+      static constexpr Pattern EDGE_01_3_TRIS { Geometry::SQUARE, 11 };
+      static constexpr Pattern EDGE_12_3_TRIS { Geometry::SQUARE, 12 };
+      static constexpr Pattern EDGE_23_3_TRIS { Geometry::SQUARE, 13 };
+      static constexpr Pattern EDGE_30_3_TRIS { Geometry::SQUARE, 14 };
    };
 
    /** Existing tetrahedron refinement patterns. */
    struct Tetrahedron
    {
+      static constexpr Pattern EDGE_01_2_TETS { Geometry::TETRAHEDRON, X };
+      static constexpr Pattern EDGE_02_2_TETS { Geometry::TETRAHEDRON, Y };
+      static constexpr Pattern EDGE_03_2_TETS { Geometry::TETRAHEDRON, Z };
+      static constexpr Pattern EDGE_12_2_TETS { Geometry::TETRAHEDRON, 8 };
       static constexpr Pattern UNIFORM { Geometry::TETRAHEDRON, XYZ };
    };
 
@@ -609,7 +632,7 @@ public:
    void SetAttribute(int i, int attr)
    { elements[leaf_elements[i]].attribute = attr; }
 
-   /** I/O: Print the mesh in "MFEM NC mesh v1.0" format. If @a comments is
+   /** I/O: Print the mesh in the appropriate "MFEM NC mesh" format. If @a comments is
        non-empty, it will be printed after the first line of the file, and each
        line should begin with '#'. */
    void Print(std::ostream &out, const std::string &comments = "",
@@ -673,7 +696,7 @@ protected: // implementation
    int Dim, spaceDim; ///< dimensions of the elements and the vertex coordinates
    int MyRank; ///< used in parallel, or when loading a parallel file in serial
    bool Iso; ///< true if the mesh only contains isotropic refinements
-   int Geoms; ///< bit mask of element geometries present, see InitGeomFlags()
+   int Geoms; ///< bit mask of active element geometries, see InitGeomFlags()
    bool Legacy; ///< true if the mesh was loaded from the legacy v1.1 format
 
 
@@ -744,7 +767,7 @@ protected: // implementation
    struct Element
    {
       char geom;     ///< Geometry::Type of the element (char for storage only)
-      char ref_type; ///< bit mask of X,Y,Z refinements (bits 0,1,2 respectively)
+      char ref_type; ///< Geometry-specific pattern ID; IDs 1-7 are legacy masks
       char tet_type; ///< tetrahedron split type, currently always 0
       char flag;     ///< generic flag/marker, can be used by algorithms
       int index;     ///< element number in the Mesh, -1 if refined
@@ -919,8 +942,8 @@ protected:
        Mesh::GetGeckoElementOrdering. */
    void InitRootState(int root_count);
 
-   /** Compute the Geometry::Type present in the root elements (coarse elements)
-       and set @a Geoms bitmask accordingly. */
+   /** Update the geometry and isotropic-refinement flags from the active
+       element hierarchy. */
    void InitGeomFlags();
 
    /// Return true if the mesh contains prism elements.
@@ -1022,33 +1045,15 @@ protected:
    int QuadFaceSplitType(int n1, int n2, int n3, int n4, real_t & s,
                          int mid[5] = NULL /*optional output of mid-edge nodes*/) const;
 
-   /**
-    * @brief Given a tri face defined by three vertices, establish whether the
-    * edges that make up this face have been split, and if so optionally return
-    * the midpoints.
-    * @details This is a necessary condition for this face to have been split,
-    * but is not sufficient. Consider a triangle attached to three refined
-    * triangles, in this scenario all edges can be split but this face not be
-    * split. In this case, it is necessary to check if there is a face made up
-    * of the returned midpoint nodes.
-    *
-    * @param n1 The first node defining the face
-    * @param n2 The second node defining the face
-    * @param n3 The third node defining the face
-    * @param mid optional return of the edge mid points.
-    * @return true Splits for all edges have been found
-    * @return false
-    */
-   bool TriFaceSplit(int n1, int n2, int n3, int mid[3] = NULL) const;
+   /// Return 1, 2, or 4 for a bisected edge, 7 for an isotropic split, or 0.
+   /// The returned midpoints correspond to edges (n1,n2), (n2,n3), (n3,n1).
+   int TriFaceSplitType(int n1, int n2, int n3, int mid[3]) const;
 
    /**
     * @brief Determine if a Triangle face is a master face
-    * @details This check requires looking for the edges making up the triangle
-    * being split, if nodes exist at their midpoints, and there are vertices at
-    * them, this implies the face COULD be split. To determine if it is, we then
-    * check whether these midpoints have all been connected, this is required to
-    * discriminate between an internal master face surrounded by nonconformal
-    * refinements and a conformal boundary face surrounded by refinements.
+    * @details A split edge alone does not imply that the face is split. Check
+    * for the interior edge of a bisection or the midpoint connections of an
+    * isotropic split.
     *
     * @param n1 The first node defining the face
     * @param n2 The second node defining the face
@@ -1059,11 +1064,7 @@ protected:
    inline bool TriFaceIsMaster(int n1, int n2, int n3) const
    {
       int mid[3];
-      return !(!TriFaceSplit(n1, n2, n3, mid) // The edges aren't split
-               // OR none of the midpoints are connected.
-               || (nodes.FindId(mid[0], mid[1]) < 0 &&
-                   nodes.FindId(mid[0], mid[2]) < 0 &&
-                   nodes.FindId(mid[1], mid[2]) < 0));
+      return TriFaceSplitType(n1, n2, n3, mid) != 0;
    }
 
    /**
@@ -1331,6 +1332,9 @@ protected:
    static PointMatrix pm_hex_identity;
 
    static const PointMatrix& GetGeomIdentity(Geometry::Type geom);
+
+   int GetPointMatrixNumPoints(Geometry::Type geom,
+                               const char* ref_path) const;
 
    void GetPointMatrix(Geometry::Type geom, const char* ref_path,
                        DenseMatrix& matrix) const;

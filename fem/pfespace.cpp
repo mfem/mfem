@@ -140,10 +140,15 @@ void ParFiniteElementSpace::CommunicateGhostOrder()
    MFEM_VERIFY(variableOrder && Nonconforming(),
                "Variable-order space requires a nonconforming mesh.");
 
-   // Check whether h-refinement was done.
+   // Update element orders when the mesh changes its refinement level.
    const bool href = mesh->GetLastOperation() == Mesh::REFINE &&
                      mesh->GetSequence() != mesh_sequence;
-   if (href && mesh->GetSequence() != mesh_sequence + 1)
+   const bool deref = mesh->GetLastOperation() == Mesh::DEREFINE &&
+                      mesh->GetSequence() != mesh_sequence;
+   const bool rebalance = mesh->GetLastOperation() == Mesh::REBALANCE &&
+                          mesh->GetSequence() != mesh_sequence;
+   if ((href || deref || rebalance) &&
+       mesh->GetSequence() != mesh_sequence + 1)
    {
       MFEM_ABORT("Error in update sequence. Space needs to be updated after "
                  "each mesh modification.");
@@ -151,8 +156,46 @@ void ParFiniteElementSpace::CommunicateGhostOrder()
 
    if (href)
    {
-      // Update elems_pref and elem_orders
       FiniteElementSpace::UpdateElementOrders();
+   }
+   else if (deref)
+   {
+      const CoarseFineTransformations &dtrans =
+         pncmesh->GetDerefinementTransforms();
+      const Array<int> &old_ranks = pncmesh->GetDerefineOldRanks();
+      Array<char> new_orders(mesh->GetNE());
+      new_orders = -1;
+      MFEM_VERIFY(dtrans.embeddings.Size() >= elem_order.Size(),
+                  "Missing old element embeddings for derefinement orders.");
+      for (int k = 0; k < elem_order.Size(); k++)
+      {
+         const int parent = dtrans.embeddings[k].parent;
+         if (old_ranks[k] == MyRank && parent >= 0 &&
+             parent < new_orders.Size())
+         {
+            if (new_orders[parent] < 0)
+            {
+               new_orders[parent] = elem_order[k];
+            }
+            else
+            {
+               MFEM_VERIFY(new_orders[parent] == elem_order[k],
+                           "Children have different element orders.");
+            }
+         }
+      }
+      for (int i = 0; i < new_orders.Size(); i++)
+      {
+         MFEM_VERIFY(new_orders[i] >= 0,
+                     "Missing local child order for coarse element " << i);
+      }
+      mfem::Swap(elem_order, new_orders);
+   }
+   else if (rebalance)
+   {
+      Array<char> new_orders;
+      pncmesh->ExchangeRebalanceElementOrders(elem_order, new_orders);
+      mfem::Swap(elem_order, new_orders);
    }
 
    int local_orders_changed = orders_changed;
@@ -161,7 +204,8 @@ void ParFiniteElementSpace::CommunicateGhostOrder()
    MPI_Allreduce(&local_orders_changed, &global_orders_changed, 1, MPI_INT,
                  MPI_MAX, MyComm);
 
-   if ((global_orders_changed == 0 && !href) || NRanks == 1)
+   if ((global_orders_changed == 0 && !href && !deref && !rebalance) ||
+       NRanks == 1)
    {
       return;
    }
@@ -176,6 +220,23 @@ void ParFiniteElementSpace::CommunicateGhostOrder()
    }
 
    pncmesh->CommunicateGhostData(localOrders, ghost_orders);
+   Array<int> current_ghosts;
+   pncmesh->GetGhostElements(current_ghosts);
+   std::set<unsigned int> received_ghosts;
+   for (const auto &entry : ghost_orders)
+   {
+      received_ghosts.insert(entry.element);
+   }
+   MFEM_VERIFY(received_ghosts.size() == static_cast<size_t>
+               (current_ghosts.Size()) &&
+               ghost_orders.Size() == current_ghosts.Size(),
+               "Ghost element orders do not match the current ghost layer.");
+   for (int ghost : current_ghosts)
+   {
+      MFEM_VERIFY(received_ghosts.count(ghost) == 1,
+                  "Missing order for ghost element " << ghost
+                  << " on rank " << MyRank);
+   }
 }
 
 void ParFiniteElementSpace::Construct()
@@ -3373,9 +3434,9 @@ void NeighborRowMessage::Decode(int rank)
             const int fo = pncmesh->GetFaceOrientation(id.index);
             if (varOrder)
             {
-               MFEM_ASSERT(geom == Geometry::SQUARE,
-                           "Only quadrilateral faces are supported in "
-                           "variable-order spaces");
+               MFEM_ASSERT(geom == Geometry::SQUARE ||
+                           geom == Geometry::TRIANGLE,
+                           "Unsupported face geometry in variable-order space");
 
                int order = -1;
                bool found = false;
@@ -3701,22 +3762,26 @@ bool ParFiniteElementSpace::OrderPropagation(
       }
    }
 
-   // Send messages
-   NeighborOrderMessage::IsendAll(send_msg, MyComm);
+   // Count incoming messages before probing: a barrier alone does not ensure
+   // that every nonblocking order message has arrived.
+   Array<int> send_flags(NRanks), recv_flags(NRanks);
+   send_flags = 0;
+   for (const auto &entry : send_msg) { send_flags[entry.first] = 1; }
+   MPI_Alltoall(send_flags.GetData(), 1, MPI_INT,
+                recv_flags.GetData(), 1, MPI_INT, MyComm);
 
-   MPI_Barrier(MyComm); // This barrier is necessary for hp-refinement
-
-   NeighborOrderMessage recv_msg;
-   recv_msg.SetNCMesh(pncmesh);
-
-   // Check for and receive incoming messages
-   int rank, size;
-   while (NeighborOrderMessage::IProbe(rank, size, MyComm))
+   NeighborOrderMessage::Map recv_msg;
+   for (int rank = 0; rank < NRanks; rank++)
    {
-      // Note that Recv calls Decode(rank), setting msgs in recv_msg.
-      recv_msg.Recv(rank, size, MyComm);
+      if (recv_flags[rank]) { recv_msg[rank].SetNCMesh(pncmesh); }
+   }
 
-      for (const auto &ri : recv_msg.GetMsgs())
+   NeighborOrderMessage::IsendAll(send_msg, MyComm);
+   NeighborOrderMessage::RecvAll(recv_msg, MyComm);
+
+   for (const auto &entry : recv_msg)
+   {
+      for (const auto &ri : entry.second.GetMsgs())
       {
          const VarOrderBits mask = (VarOrderBits(1) << ri.order);
          if (ri.entity == 1)
@@ -3742,13 +3807,6 @@ bool ParFiniteElementSpace::OrderPropagation(
             MFEM_ABORT("Invalid entity type");
          }
       }
-   }
-
-   // Clean up possible remaining messages in the queue to avoid receiving them
-   // erroneously in the next run
-   while (NeighborOrderMessage::IProbe(rank, size, MyComm))
-   {
-      recv_msg.RecvDrop(rank, size, MyComm);
    }
 
    // Make sure we can discard all send buffers
@@ -3851,15 +3909,6 @@ void ParFiniteElementSpace::SetTDOF2LDOFinfo(int ntdofs, int vdim_factor,
          Array<int> dofs;
          const int order0 = GetEntityDofs(entity, idx, dofs, geom, 0);
 
-         int numVert = 2;  // Edge case
-         if (entity == 2)  // Face case
-         {
-            Array<int> verts;
-            pmesh->GetFaceVertices(idx, verts);
-            numVert = verts.Size();
-            MFEM_VERIFY(numVert == 4, "Only quadrilateral faces are supported");
-         }
-
          // Interior DOFs start at index idof0
          const int idof0 = GetNumBorderDofs(geom, order0);
          const int minOrder = entity == 1 ? edge_min_nghb_order[idx] :
@@ -3926,8 +3975,8 @@ void ParFiniteElementSpace
 
       if (tdi == 0)  // Update I for a new entity
       {
-         // Only square faces are supported currently
-         const Geometry::Type geom = edge ? Geometry::SEGMENT : Geometry::SQUARE;
+         const Geometry::Type geom = edge ? Geometry::SEGMENT :
+                                     pmesh->GetFaceGeometry(index);
 
          const FiniteElement *feT = fec->FiniteElementForGeometry(geom);
          const FiniteElement *feL = fec->FiniteElementForGeometry(geom);
@@ -3940,6 +3989,9 @@ void ParFiniteElementSpace
             for (int var=0; ; ++var)
             {
                const int order_var = GetEdgeOrder(index, var);
+               MFEM_VERIFY(order_var >= 0,
+                           "Missing edge order " << minOrder << " on edge "
+                           << index);
                if (order_var == minOrder)
                {
                   GetEdgeDofs(index, ldofs, var);
@@ -3954,6 +4006,10 @@ void ParFiniteElementSpace
             for (int var=0; ; ++var)
             {
                const int order_var = GetFaceOrder(index, var);
+               MFEM_VERIFY(order_var >= 0,
+                           "Missing face order " << minOrder << " on face "
+                           << index << " (" << pmesh->GetFaceGeometry(index)
+                           << ")");
                if (order_var == minOrder)
                {
                   GetFaceDofs(index, ldofs, var);
@@ -3977,6 +4033,7 @@ void ParFiniteElementSpace
          switch (geom)
          {
             case Geometry::SQUARE:   T.SetFE(&QuadrilateralFE); break;
+            case Geometry::TRIANGLE: T.SetFE(&TriangleFE); break;
             case Geometry::SEGMENT:  T.SetFE(&SegmentFE); break;
             default: MFEM_ABORT("unsupported geometry");
          }
@@ -4347,8 +4404,11 @@ int ParFiniteElementSpace
          for (int dof = 0; dof < ndofs; dof++)
          {
             const bool owned = (dof_owner[dof] == 0);
+            // A variable-order slave row can be formed here once its master
+            // rows are ready, even if another rank owns the slave entity.
             if (!finalized[dof]
-                && (owned || intermediate[dof])
+                && (owned || intermediate[dof] ||
+                    (H1var && deps.RowSize(dof) > 0))
                 && DofFinalizable(dof, finalized, deps))
             {
                const int* dep_col = deps.GetRowColumns(dof);
@@ -5287,7 +5347,15 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
    // In the variable-order case, we call CommunicateGhostOrder whether h-
    // or p-refinement is done.
-   if (variableOrder) { CommunicateGhostOrder(); }
+   if (variableOrder)
+   {
+      CommunicateGhostOrder();
+      MFEM_VERIFY(elem_order.Size() == mesh->GetNE(),
+                  "Element orders do not match the parallel mesh after operation "
+                  << mesh->GetLastOperation() << " on rank " << MyRank << ": "
+                  << elem_order.Size() << " orders for " << mesh->GetNE()
+                  << " elements.");
+   }
 
    FiniteElementSpace::Construct();
    Construct();

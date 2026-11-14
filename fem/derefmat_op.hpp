@@ -21,6 +21,24 @@ namespace mfem
 
 /// \cond DO_NOT_DOCUMENT
 
+namespace internal
+{
+Geometry::Type PointMatrixGeometry(const DenseMatrixStack &pmats, int matrix);
+
+void GetMixedNodalRestriction(const FiniteElement &coarse_fe,
+                              const FiniteElement &fine_fe,
+                              Geometry::Type fine_geom,
+                              const DenseMatrix &point_matrix,
+                              DenseMatrix &restriction);
+
+void GetMixedL2Restriction(const FiniteElement &coarse_fe,
+                           const FiniteElement &fine_fe,
+                           Geometry::Type fine_geom,
+                           const DenseMatrix &point_matrix,
+                           ElementTransformation &coarse_trans,
+                           DenseMatrix &restriction);
+}
+
 struct DerefineMatrixOp : public Operator
 {
    FiniteElementSpace *fespace;

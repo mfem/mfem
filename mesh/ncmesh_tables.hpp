@@ -15,8 +15,6 @@
 namespace mfem
 {
 
-static constexpr int ref_type_num_children[8] = { 0, 2, 2, 4, 2, 4, 4, 8 };
-
 // derefinement tables
 // The first n numbers in each line are the refined elements that contain
 // the vertices of the parent element.  The next m numbers in each line
@@ -29,6 +27,98 @@ static constexpr int quad_deref_table[3][4 + 4] =
    { 0, 0, 1, 1, /**/ 0, 0, 1, 1 }, // 2 - Y
    { 0, 1, 2, 3, /**/ 1, 1, 3, 3 }  // 3 - iso
 };
+
+// For mixed-child patterns, each parent vertex/face also needs a local index
+// in the child selected by the derefinement table.
+static constexpr int quad_diag_02_deref[4 + 4] =
+{ 0, 0, 0, 1, /**/ 0, 0, 1, 1 };
+static constexpr int quad_diag_02_vertex_local[4] = { 0, 1, 2, 2 };
+static constexpr int quad_diag_02_face_local[4] = { 0, 1, 1, 2 };
+
+static constexpr int quad_diag_13_deref[4 + 4] =
+{ 0, 0, 1, 1, /**/ 0, 1, 1, 0 };
+static constexpr int quad_diag_13_vertex_local[4] = { 0, 1, 1, 2 };
+static constexpr int quad_diag_13_face_local[4] = { 0, 0, 1, 2 };
+
+static constexpr int quad_diag_both_deref[4 + 4] =
+{ 0, 1, 2, 3, /**/ 0, 1, 2, 3 };
+static constexpr int quad_diag_both_local[4] = { 0, 0, 0, 0 };
+static constexpr Geometry::Type quad_two_triangle_children[2] =
+{ Geometry::TRIANGLE, Geometry::TRIANGLE };
+static constexpr Geometry::Type quad_four_triangle_children[4] =
+{
+   Geometry::TRIANGLE, Geometry::TRIANGLE,
+   Geometry::TRIANGLE, Geometry::TRIANGLE
+};
+static constexpr Geometry::Type quad_three_triangle_children[3] =
+{ Geometry::TRIANGLE, Geometry::TRIANGLE, Geometry::TRIANGLE };
+
+// Edge i is bisected. Child 0 contains vertex i, child 1 contains vertex
+// i+1, and child 2 contains the opposite parent edge (indices modulo four).
+static constexpr int quad_edge_deref[4][4 + 4] =
+{
+   {0, 1, 1, 0, /**/ 0, 1, 2, 0},
+   {0, 0, 1, 1, /**/ 0, 0, 1, 2},
+   {1, 0, 0, 1, /**/ 2, 0, 0, 1},
+   {1, 1, 0, 0, /**/ 1, 2, 0, 0}
+};
+static constexpr int quad_edge_vertex_local[4][4] =
+{
+   {0, 1, 2, 2}, {2, 0, 1, 2},
+   {2, 2, 0, 1}, {1, 2, 2, 0}
+};
+static constexpr int quad_edge_face_local[4][4] =
+{
+   {0, 1, 1, 2}, {2, 0, 1, 1},
+   {1, 2, 0, 1}, {1, 1, 2, 0}
+};
+
+static constexpr int tri_deref_table[4][3 + 3] =
+{
+   { 0, 1, 0, /**/ 0, 1, 0 }, // 1 - X
+   { 0, 0, 1, /**/ 0, 1, 1 }, // 2 - Y
+   { 0, 1, 2, /**/ 0, 1, 2 }, // 3 - iso
+   { 0, 0, 1, /**/ 0, 0, 1 }  // 4 - Z
+};
+
+static constexpr int tri_corner_0_quad_deref[3 + 3] =
+{ 0, 1, 1, /**/ 0, 1, 0 };
+static constexpr int tri_corner_0_quad_vertex_local[3] = { 0, 1, 2 };
+static constexpr int tri_corner_0_quad_face_local[3] = { 0, 1, 2 };
+
+static constexpr int tri_corner_1_quad_deref[3 + 3] =
+{ 1, 0, 1, /**/ 0, 0, 1 };
+static constexpr int tri_corner_1_quad_vertex_local[3] = { 0, 1, 3 };
+static constexpr int tri_corner_1_quad_face_local[3] = { 0, 1, 3 };
+
+static constexpr int tri_corner_2_quad_deref[3 + 3] =
+{ 1, 1, 0, /**/ 1, 0, 0 };
+static constexpr int tri_corner_2_quad_vertex_local[3] = { 0, 1, 1 };
+static constexpr int tri_corner_2_quad_face_local[3] = { 0, 0, 1 };
+
+static constexpr int tri_center_deref[3 + 3] =
+{ 0, 1, 2, /**/ 0, 1, 2 };
+static constexpr int tri_center_tris_local[3] = { 0, 0, 0 };
+static constexpr int tri_center_quads_vertex_local[3] = { 0, 1, 2 };
+static constexpr int tri_center_quads_face_local[3] = { 0, 1, 2 };
+static constexpr Geometry::Type tri_corner_quad_children[2] =
+{ Geometry::TRIANGLE, Geometry::SQUARE };
+static constexpr Geometry::Type tri_three_quad_children[3] =
+{ Geometry::SQUARE, Geometry::SQUARE, Geometry::SQUARE };
+
+static constexpr int tet_deref_table[7][4 + 4] =
+{
+   { 0, 1, 0, 0, /**/ 1, 0, 0, 0 }, // 1 - X, edge (0,1)
+   { 0, 0, 1, 0, /**/ 1, 0, 0, 0 }, // 2 - Y, edge (0,2)
+   {-1,-1,-1,-1, /**/ -1,-1,-1,-1 }, // 3 - unsupported
+   { 0, 0, 0, 1, /**/ 1, 0, 0, 0 }, // 4 - Z, edge (0,3)
+   {-1,-1,-1,-1, /**/ -1,-1,-1,-1 }, // 5 - unsupported
+   {-1,-1,-1,-1, /**/ -1,-1,-1,-1 }, // 6 - unsupported
+   { 0, 1, 2, 3, /**/ 1, 2, 3, 0 }  // 7 - isotropic
+};
+
+static constexpr int tet_edge12_deref[4 + 4] =
+{ 0, 0, 1, 0, /**/ 0, 1, 0, 0 };
 
 static constexpr int hex_deref_table[7][8 + 6] =
 {
@@ -62,6 +152,155 @@ static constexpr int pyramid_deref_table[7][5 + 5] =
    {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 6
    { 0, 1, 2, 3, 5, /**/  0, 5, 5, 5, 5 }  // 7 - iso
 };
+
+// A pattern ID is interpreted together with the geometry of its parent.
+// IDs 1-7 retain their existing meanings, including the X/Y/Z bit masks for
+// quadrilaterals and hexahedra. New geometry-specific patterns can use IDs 8+.
+// The derefinement map contains one child index per parent vertex, followed by
+// one child index per parent face. Segment derefinement is handled directly.
+struct NCRefinementPattern
+{
+   int num_children;
+   const int *deref;
+   const Geometry::Type *child_geometries = nullptr;
+   const int *vertex_local = nullptr;
+   const int *face_local = nullptr;
+
+   Geometry::Type ChildGeometry(Geometry::Type parent, int child) const
+   {
+      MFEM_ASSERT(child >= 0 && child < num_children, "Invalid child index");
+      return child_geometries ? child_geometries[child] : parent;
+   }
+
+   int VertexLocal(int vertex) const
+   { return vertex_local ? vertex_local[vertex] : vertex; }
+
+   int FaceLocal(int face) const
+   { return face_local ? face_local[face] : face; }
+};
+
+static constexpr Geometry::Type pyramid_child_geometries[10] =
+{
+   Geometry::PYRAMID, Geometry::PYRAMID, Geometry::PYRAMID,
+   Geometry::PYRAMID, Geometry::PYRAMID, Geometry::PYRAMID,
+   Geometry::TETRAHEDRON, Geometry::TETRAHEDRON,
+   Geometry::TETRAHEDRON, Geometry::TETRAHEDRON
+};
+
+static constexpr NCRefinementPattern segment_patterns[8] =
+{
+   {}, {2, nullptr}, {}, {}, {}, {}, {}, {}
+};
+static constexpr NCRefinementPattern triangle_patterns[13] =
+{
+   {}, {2, tri_deref_table[0]}, {2, tri_deref_table[1]},
+   {4, tri_deref_table[2]}, {2, tri_deref_table[3]}, {}, {}, {},
+   {
+      2, tri_corner_0_quad_deref, tri_corner_quad_children,
+      tri_corner_0_quad_vertex_local, tri_corner_0_quad_face_local
+   },
+   {
+      2, tri_corner_1_quad_deref, tri_corner_quad_children,
+      tri_corner_1_quad_vertex_local, tri_corner_1_quad_face_local
+   },
+   {
+      2, tri_corner_2_quad_deref, tri_corner_quad_children,
+      tri_corner_2_quad_vertex_local, tri_corner_2_quad_face_local
+   },
+   {
+      3, tri_center_deref, nullptr,
+      tri_center_tris_local, tri_center_tris_local
+   },
+   {
+      3, tri_center_deref, tri_three_quad_children,
+      tri_center_quads_vertex_local, tri_center_quads_face_local
+   }
+};
+static constexpr NCRefinementPattern quadrilateral_patterns[15] =
+{
+   {}, {2, quad_deref_table[0]}, {2, quad_deref_table[1]},
+   {4, quad_deref_table[2]}, {}, {}, {}, {},
+   {
+      2, quad_diag_02_deref, quad_two_triangle_children,
+      quad_diag_02_vertex_local, quad_diag_02_face_local
+   },
+   {
+      2, quad_diag_13_deref, quad_two_triangle_children,
+      quad_diag_13_vertex_local, quad_diag_13_face_local
+   },
+   {
+      4, quad_diag_both_deref, quad_four_triangle_children,
+      quad_diag_both_local, quad_diag_both_local
+   },
+   {
+      3, quad_edge_deref[0], quad_three_triangle_children,
+      quad_edge_vertex_local[0], quad_edge_face_local[0]
+   },
+   {
+      3, quad_edge_deref[1], quad_three_triangle_children,
+      quad_edge_vertex_local[1], quad_edge_face_local[1]
+   },
+   {
+      3, quad_edge_deref[2], quad_three_triangle_children,
+      quad_edge_vertex_local[2], quad_edge_face_local[2]
+   },
+   {
+      3, quad_edge_deref[3], quad_three_triangle_children,
+      quad_edge_vertex_local[3], quad_edge_face_local[3]
+   }
+};
+static constexpr NCRefinementPattern tetrahedron_patterns[9] =
+{
+   {}, {2, tet_deref_table[0]}, {2, tet_deref_table[1]}, {},
+   {2, tet_deref_table[3]}, {}, {}, {8, tet_deref_table[6]},
+   {2, tet_edge12_deref}
+};
+static constexpr NCRefinementPattern hexahedron_patterns[8] =
+{
+   {}, {2, hex_deref_table[0]}, {2, hex_deref_table[1]},
+   {4, hex_deref_table[2]}, {2, hex_deref_table[3]},
+   {4, hex_deref_table[4]}, {4, hex_deref_table[5]},
+   {8, hex_deref_table[6]}
+};
+static constexpr NCRefinementPattern prism_patterns[8] =
+{
+   {}, {}, {}, {4, prism_deref_table[2]},
+   {2, prism_deref_table[3]}, {}, {}, {8, prism_deref_table[6]}
+};
+static constexpr NCRefinementPattern pyramid_patterns[8] =
+{
+   {}, {}, {}, {}, {}, {}, {},
+   {10, pyramid_deref_table[6], pyramid_child_geometries}
+};
+
+static const NCRefinementPattern *const
+nc_refinement_patterns[Geometry::NumGeom] =
+{
+   nullptr, segment_patterns, triangle_patterns, quadrilateral_patterns,
+   tetrahedron_patterns, hexahedron_patterns, prism_patterns, pyramid_patterns
+};
+
+static constexpr int nc_refinement_pattern_counts[Geometry::NumGeom] =
+{
+   0, sizeof(segment_patterns) / sizeof(segment_patterns[0]),
+   sizeof(triangle_patterns) / sizeof(triangle_patterns[0]),
+   sizeof(quadrilateral_patterns) / sizeof(quadrilateral_patterns[0]),
+   sizeof(tetrahedron_patterns) / sizeof(tetrahedron_patterns[0]),
+   sizeof(hexahedron_patterns) / sizeof(hexahedron_patterns[0]),
+   sizeof(prism_patterns) / sizeof(prism_patterns[0]),
+   sizeof(pyramid_patterns) / sizeof(pyramid_patterns[0])
+};
+
+static const NCRefinementPattern &GetNCRefinementPattern(Geometry::Type geom,
+                                                         int id)
+{
+   MFEM_VERIFY(geom >= 0 && geom < Geometry::NumGeom &&
+               nc_refinement_patterns[geom] != nullptr && id > 0 &&
+               id < nc_refinement_pattern_counts[geom] &&
+               nc_refinement_patterns[geom][id].num_children > 0,
+               "Invalid NC refinement pattern " << id << " for geometry " << geom);
+   return nc_refinement_patterns[geom][id];
+}
 
 // child ordering tables
 
@@ -174,17 +413,19 @@ static const RefPoint* geom_corners[8] =
    pyramid_corners
 };
 
-// reference domain transform: 3 scales, 3 translations
+// reference domain transform: 3 scales, 3 translations, and optional
+// off-diagonal terms for triangle bisections
 struct RefTrf
 {
    RefCoord s[3], t[3];
+   RefCoord xy = 0, yx = 0;
 
    void Apply(const RefCoord src[3], RefCoord dst[3]) const
    {
-      for (int i = 0; i < 3; i++)
-      {
-         dst[i] = (src[i]*s[i] >> 1) + t[i];
-      }
+      const RefCoord x = src[0], y = src[1], z = src[2];
+      dst[0] = ((x*s[0] + y*xy) >> 1) + t[0];
+      dst[1] = ((y*s[1] + x*yx) >> 1) + t[1];
+      dst[2] = (z*s[2] >> 1) + t[2];
    }
 };
 
@@ -228,20 +469,68 @@ static constexpr RefTrf quad_child_rt3[4] =
    { {S_TWO, S_TWO, 0}, {     0, -T_ONE, 0} }
 };
 
-static const RefTrf* quad_parent[4] =
+// Diagonal (0,2): (0,1,2) and (0,2,3).
+static constexpr RefTrf quad_parent_rt8[2] =
+{
+   { {S_ONE, S_ONE, 0}, {0, 0, 0}, S_ONE, 0 },
+   { {S_ONE, S_ONE, 0}, {0, 0, 0}, 0, S_ONE }
+};
+static constexpr RefTrf quad_child_rt8[2] =
+{
+   { {S_ONE, S_ONE, 0}, {0, 0, 0}, -S_ONE, 0 },
+   { {S_ONE, S_ONE, 0}, {0, 0, 0}, 0, -S_ONE }
+};
+
+// Diagonal (1,3): (0,1,3) and (1,2,3).
+static constexpr RefTrf quad_parent_rt9[2] =
+{
+   { {S_ONE, S_ONE, 0}, {0, 0, 0} },
+   { {0, S_ONE, 0}, {T_ONE, 0, 0}, -S_ONE, S_ONE }
+};
+static constexpr RefTrf quad_child_rt9[2] =
+{
+   { {S_ONE, S_ONE, 0}, {0, 0, 0} },
+   { {S_ONE, 0, 0}, {-T_ONE, T_ONE, 0}, S_ONE, -S_ONE }
+};
+
+// Both diagonals, with a new vertex at (1/2,1/2).
+static constexpr RefTrf quad_parent_rt10[4] =
+{
+   { { S_ONE,  S_HALF, 0}, {0, 0, 0},  S_HALF, 0 },
+   { {     0,  S_HALF, 0}, {T_ONE, 0, 0}, -S_HALF,  S_ONE },
+   { {-S_ONE, -S_HALF, 0}, {T_ONE, T_ONE, 0}, -S_HALF, 0 },
+   { {     0, -S_HALF, 0}, {0, T_ONE, 0}, S_HALF, -S_ONE }
+};
+static constexpr RefTrf quad_child_rt10[4] =
+{
+   { { S_ONE,  S_TWO, 0}, {0, 0, 0}, -S_ONE, 0 },
+   { { S_ONE,      0, 0}, {-T_ONE, T_TWO, 0}, S_ONE, -S_TWO },
+   { {-S_ONE,      0, 0}, {0, T_TWO, 0}, S_ONE, -S_TWO },
+   { {-S_ONE,      0, 0}, {T_ONE, 0, 0}, -S_ONE, S_TWO }
+};
+
+static const RefTrf* quad_parent[11] =
 {
    NULL,
    quad_parent_rt1,
    quad_parent_rt2,
-   quad_parent_rt3
+   quad_parent_rt3,
+   NULL, NULL, NULL, NULL,
+   quad_parent_rt8,
+   quad_parent_rt9,
+   quad_parent_rt10
 };
 
-static const RefTrf* quad_child[4] =
+static const RefTrf* quad_child[11] =
 {
    NULL,
    quad_child_rt1,
    quad_child_rt2,
-   quad_child_rt3
+   quad_child_rt3,
+   NULL, NULL, NULL, NULL,
+   quad_child_rt8,
+   quad_child_rt9,
+   quad_child_rt10
 };
 
 static constexpr RefTrf hex_parent_rt1[2] =
@@ -376,6 +665,32 @@ static const RefTrf* hex_child[8] =
    hex_child_rt7
 };
 
+// X, Y, and Z bisect edges (0,1), (0,2), and (1,2), respectively.
+// Shears map the bisection children onto the reference triangle.
+static constexpr RefTrf tri_parent_rt1[2] =
+{
+   { {S_HALF, S_ONE, 0}, {     0, 0, 0} },
+   { {S_HALF, S_ONE, 0}, {T_HALF, 0, 0}, -S_HALF, 0 }
+};
+
+static constexpr RefTrf tri_child_rt1[2] =
+{
+   { {S_TWO, S_ONE, 0}, {     0, 0, 0} },
+   { {S_TWO, S_ONE, 0}, {-T_ONE, 0, 0}, S_ONE, 0 }
+};
+
+static constexpr RefTrf tri_parent_rt2[2] =
+{
+   { {S_ONE, S_HALF, 0}, {0,      0, 0} },
+   { {S_ONE, S_HALF, 0}, {0, T_HALF, 0}, 0, -S_HALF }
+};
+
+static constexpr RefTrf tri_child_rt2[2] =
+{
+   { {S_ONE, S_TWO, 0}, {0,      0, 0} },
+   { {S_ONE, S_TWO, 0}, {0, -T_ONE, 0}, 0, S_ONE }
+};
+
 static constexpr RefTrf tri_parent_rt3[4] =
 {
    { { S_HALF,  S_HALF, 0}, {     0,      0, 0} },
@@ -392,16 +707,30 @@ static constexpr RefTrf tri_child_rt3[4] =
    { {-S_TWO, -S_TWO, 0}, { T_ONE,  T_ONE, 0} }
 };
 
-static const RefTrf* tri_parent[4] =
+static constexpr RefTrf tri_parent_rt4[2] =
 {
-   NULL, NULL, NULL,
-   tri_parent_rt3
+   { {S_ONE, S_HALF, 0}, {0, 0, 0}, S_HALF, 0 },
+   { {S_HALF, S_ONE, 0}, {0, 0, 0}, 0, S_HALF }
 };
 
-static const RefTrf* tri_child[4] =
+static constexpr RefTrf tri_child_rt4[2] =
 {
-   NULL, NULL, NULL,
-   tri_child_rt3
+   { {S_ONE, S_TWO, 0}, {0, 0, 0}, -S_ONE, 0 },
+   { {S_TWO, S_ONE, 0}, {0, 0, 0}, 0, -S_ONE }
+};
+
+static const RefTrf* tri_parent[8] =
+{
+   NULL, tri_parent_rt1, tri_parent_rt2,
+   tri_parent_rt3, tri_parent_rt4,
+   NULL, NULL, NULL
+};
+
+static const RefTrf* tri_child[8] =
+{
+   NULL, tri_child_rt1, tri_child_rt2,
+   tri_child_rt3, tri_child_rt4,
+   NULL, NULL, NULL
 };
 
 static constexpr RefTrf prism_parent_rt3[4] =
