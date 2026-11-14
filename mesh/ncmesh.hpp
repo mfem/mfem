@@ -49,7 +49,8 @@ namespace mfem
     tetrahedron and one prism. The all-face quadrilateral pattern produces four
     hexahedra. The face-center patterns produce three tetrahedra; the
     four-tet face patterns produce four tetrahedra. The face-to-pyramid
-    patterns produce three pyramids. */
+    patterns produce three pyramids. The face-corner patterns produce one
+    tetrahedron and one pyramid. */
 struct Refinement
 {
    /** Identifies a refinement pattern for one parent geometry. */
@@ -128,6 +129,18 @@ struct Refinement
       static constexpr Pattern FACE_1_3_PYRAMIDS { Geometry::TETRAHEDRON, 25 };
       static constexpr Pattern FACE_2_3_PYRAMIDS { Geometry::TETRAHEDRON, 26 };
       static constexpr Pattern FACE_3_3_PYRAMIDS { Geometry::TETRAHEDRON, 27 };
+      static constexpr Pattern FACE_0_CORNER_0_TET_PYRAMID { Geometry::TETRAHEDRON, 28 };
+      static constexpr Pattern FACE_0_CORNER_1_TET_PYRAMID { Geometry::TETRAHEDRON, 29 };
+      static constexpr Pattern FACE_0_CORNER_2_TET_PYRAMID { Geometry::TETRAHEDRON, 30 };
+      static constexpr Pattern FACE_1_CORNER_0_TET_PYRAMID { Geometry::TETRAHEDRON, 31 };
+      static constexpr Pattern FACE_1_CORNER_1_TET_PYRAMID { Geometry::TETRAHEDRON, 32 };
+      static constexpr Pattern FACE_1_CORNER_2_TET_PYRAMID { Geometry::TETRAHEDRON, 33 };
+      static constexpr Pattern FACE_2_CORNER_0_TET_PYRAMID { Geometry::TETRAHEDRON, 34 };
+      static constexpr Pattern FACE_2_CORNER_1_TET_PYRAMID { Geometry::TETRAHEDRON, 35 };
+      static constexpr Pattern FACE_2_CORNER_2_TET_PYRAMID { Geometry::TETRAHEDRON, 36 };
+      static constexpr Pattern FACE_3_CORNER_0_TET_PYRAMID { Geometry::TETRAHEDRON, 37 };
+      static constexpr Pattern FACE_3_CORNER_1_TET_PYRAMID { Geometry::TETRAHEDRON, 38 };
+      static constexpr Pattern FACE_3_CORNER_2_TET_PYRAMID { Geometry::TETRAHEDRON, 39 };
       static constexpr Pattern UNIFORM { Geometry::TETRAHEDRON, XYZ };
    };
 
