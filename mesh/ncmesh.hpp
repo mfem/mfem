@@ -47,7 +47,7 @@ namespace mfem
     EDGE_12_2_TETS, EDGE_13_2_TETS, and EDGE_23_2_TETS patterns bisect the
     corresponding edges at their midpoints. The corner patterns produce one
     tetrahedron and one prism. The all-face quadrilateral pattern produces four
-    hexahedra. */
+    hexahedra. The face-center patterns produce three tetrahedra. */
 struct Refinement
 {
    /** Identifies a refinement pattern for one parent geometry. */
@@ -114,6 +114,10 @@ struct Refinement
       static constexpr Pattern CORNER_3_TET_PRISM { Geometry::TETRAHEDRON, 14 };
       static constexpr Pattern ALL_FACES_3_QUADS_4_HEXES
       { Geometry::TETRAHEDRON, 15 };
+      static constexpr Pattern FACE_0_CENTER_3_TETS { Geometry::TETRAHEDRON, 16 };
+      static constexpr Pattern FACE_1_CENTER_3_TETS { Geometry::TETRAHEDRON, 17 };
+      static constexpr Pattern FACE_2_CENTER_3_TETS { Geometry::TETRAHEDRON, 18 };
+      static constexpr Pattern FACE_3_CENTER_3_TETS { Geometry::TETRAHEDRON, 19 };
       static constexpr Pattern UNIFORM { Geometry::TETRAHEDRON, XYZ };
    };
 
@@ -1057,9 +1061,9 @@ protected:
                          int mid[5] = NULL /*optional output of mid-edge nodes*/) const;
 
    /// Return 1, 2, or 4 for a bisected edge, 7 for an isotropic split,
-   /// 8, 16, or 32 for a corner triangle/quad split, 64 for three quads
-   /// around a face center, or 0. The returned midpoints correspond to edges
-   /// (n1,n2), (n2,n3), (n3,n1).
+   /// 8, 16, or 32 for a corner triangle/quad split, 64 for three quads or
+   /// 128 for three triangles around a face center, or 0. The returned
+   /// midpoints correspond to edges (n1,n2), (n2,n3), (n3,n1).
    int TriFaceSplitType(int n1, int n2, int n3, int mid[3]) const;
    int FindTriFaceCenterNode(int n0, int n1, int n2,
                              const int mid[3]) const;

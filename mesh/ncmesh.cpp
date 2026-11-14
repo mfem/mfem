@@ -1780,7 +1780,7 @@ void NCMesh::RefineElement(const Refinement & ref)
           ref_type == Refinement::Tetrahedron::EDGE_13_2_TETS.GetId() ||
           ref_type == Refinement::Tetrahedron::EDGE_23_2_TETS.GetId() ||
           (ref_type >= Refinement::Tetrahedron::CORNER_0_TET_PRISM.GetId() &&
-           ref_type <= Refinement::Tetrahedron::ALL_FACES_3_QUADS_4_HEXES.GetId()))
+           ref_type <= Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId()))
       {
          // The fixed child transforms below require a midpoint split.
          if (ref_type >= Refinement::Tetrahedron::EDGE_12_2_TETS.GetId())
@@ -1872,6 +1872,26 @@ void NCMesh::RefineElement(const Refinement & ref)
             child[3] = NewHexahedron(no[3], mid13, face013, mid03,
                                      mid23, face123, center, face023, attr,
                                      fa[2], fa[0], -1, -1, fa[1], -1);
+         }
+         else if (ref_type >= Refinement::Tetrahedron::FACE_0_CENTER_3_TETS.GetId() &&
+                  ref_type <= Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId())
+         {
+            const int face =
+               ref_type - Refinement::Tetrahedron::FACE_0_CENTER_3_TETS.GetId();
+            const int *vertices = tet_corner_vertex_order[face];
+            const int corner = vertices[0];
+            const int base0 = vertices[1];
+            const int base1 = vertices[2];
+            const int base2 = vertices[3];
+            const int center = GetTriFaceCenterNode(no[base0], no[base1],
+                                                    no[base2]);
+
+            child[0] = NewTetrahedron(no[corner], no[base0], no[base1], center,
+                                      attr, fa[face], -1, -1, fa[base2]);
+            child[1] = NewTetrahedron(no[corner], no[base1], no[base2], center,
+                                      attr, fa[face], -1, -1, fa[base0]);
+            child[2] = NewTetrahedron(no[corner], no[base2], no[base0], center,
+                                      attr, fa[face], -1, -1, fa[base1]);
          }
          else
          {
@@ -3335,6 +3355,11 @@ int NCMesh::TriFaceSplitType(int v0, int v1, int v2, int mid[3]) const
       return 64;
    }
 
+   if (FindTriFaceCenterNode(v0, v1, v2, mid) >= 0)
+   {
+      return 128;
+   }
+
    if (mid[0] >= 0 && mid[1] >= 0 && mid[2] >= 0 &&
        (nodes.FindId(mid[0], mid[1]) >= 0 ||
         nodes.FindId(mid[1], mid[2]) >= 0 ||
@@ -3371,11 +3396,31 @@ int NCMesh::FindTriFaceCenterNode(int v0, int v1, int v2,
                                   const int mid[3]) const
 {
    const int vertex[3] = {v0, v1, v2};
+   int sorted[3] = {v0, v1, v2};
+   std::sort(sorted, sorted + 3);
+   constexpr real_t tol = MFEM_PRECISION_SWITCH(1.0e-12, 1.0e-5);
    for (int i = 0; i < 3; i++)
    {
-      if (mid[i] < 0) { continue; }
-      const int center = nodes.FindId(mid[i], vertex[(i+2)%3]);
-      if (center >= 0 && nodes[center].HasVertex()) { return center; }
+      // A TRI_CENTER_3_TRIS split creates the face center through an
+      // intermediate edge node that is not itself a leaf vertex.  Look up
+      // the raw node here rather than relying only on TriFaceSplitType's
+      // leaf-vertex midpoint output.
+      const int midpoint = mid[i] >= 0 ? mid[i] :
+                           nodes.FindId(vertex[i], vertex[(i+1)%3]);
+      if (midpoint < 0) { continue; }
+      const int p0 = vertex[i], p1 = vertex[(i+1)%3];
+      if (std::min(p0, p1) != sorted[0] || std::max(p0, p1) != sorted[1] ||
+          std::abs(nodes[midpoint].GetScale() - 0.5) > tol)
+      {
+         continue;
+      }
+      const int center = nodes.FindId(midpoint, vertex[(i+2)%3]);
+      if (center >= 0 && nodes[center].HasVertex() &&
+          std::abs(GetScale(nodes[center].GetScale(),
+                            midpoint > vertex[(i+2)%3]) - 1.0/3.0) <= tol)
+      {
+         return center;
+      }
    }
    return -1;
 }
@@ -4011,6 +4056,23 @@ NCMesh::TriFaceTraverseResults NCMesh::TraverseTriFace(int vn0, int vn1,
                        PointMatrix(pcenter, pmid1, pm(2), pmid2),
                        level+1, dummy, quad_matrix_map);
    }
+   else if (split == 128)
+   {
+      const int center = FindTriFaceCenterNode(vn0, vn1, vn2, mid);
+      MFEM_ASSERT(center >= 0, "Triangle face center not found");
+      Point pmid(pm(0), pm(1)), pcenter(pmid, pm(2), 1.0/3.0);
+      TraverseTriFace(vn0, vn1, center,
+                      PointMatrix(pm(0), pm(1), pcenter),
+                      level+1, matrix_map, quad_matrix_map);
+      TraverseTriFace(vn1, vn2, center,
+                      PointMatrix(pm(1), pm(2), pcenter),
+                      level+1, matrix_map, quad_matrix_map);
+      TraverseTriFace(vn2, vn0, center,
+                      PointMatrix(pm(2), pm(0), pcenter),
+                      level+1, matrix_map, quad_matrix_map);
+      // The child faces constrain the radial edges. Degenerate edge-face
+      // relations here would also constrain the original face vertices.
+   }
    else if (split != 0)
    {
       TriFaceTraverseResults b[2];
@@ -4569,6 +4631,21 @@ void NCMesh::CollectTriFaceVertices(int v0, int v1, int v2, Array<int> &indices)
       CollectQuadFaceVertices(mid[0], v1, mid[1], center, indices);
       CollectQuadFaceVertices(center, mid[1], v2, mid[2], indices);
    }
+   else if (split == 128)
+   {
+      const int center = FindTriFaceCenterNode(v0, v1, v2, mid);
+      MFEM_ASSERT(center >= 0, "Triangle face center not found");
+      indices.Append(center);
+      CollectTriFaceVertices(v0, v1, center, indices);
+      CollectTriFaceVertices(v1, v2, center, indices);
+      CollectTriFaceVertices(v2, v0, center, indices);
+      if (HaveTets())
+      {
+         CollectEdgeVertices(v0, center, indices);
+         CollectEdgeVertices(v1, center, indices);
+         CollectEdgeVertices(v2, center, indices);
+      }
+   }
    else if (split != 0)
    {
       const int edge = split == 1 ? 0 : (split == 2 ? 1 : 2);
@@ -4968,6 +5045,82 @@ static bool MapExplicitPatternPoint(const DenseMatrix &pm,
                                     bool inverse)
 {
    const long double unit = static_cast<long double>(T_ONE);
+   if (child_geom == Geometry::TETRAHEDRON)
+   {
+      long double point[4][3];
+      for (int i = 0; i < 4; i++)
+      {
+         for (int j = 0; j < 3; j++) { point[i][j] = pm(j, i); }
+      }
+      long double a[3], b[3], c[3];
+      for (int i = 0; i < 3; i++)
+      {
+         a[i] = point[1][i] - point[0][i];
+         b[i] = point[2][i] - point[0][i];
+         c[i] = point[3][i] - point[0][i];
+      }
+      const auto cross = [](const long double x[3], const long double y[3],
+                            long double z[3])
+      {
+         z[0] = x[1]*y[2] - x[2]*y[1];
+         z[1] = x[2]*y[0] - x[0]*y[2];
+         z[2] = x[0]*y[1] - x[1]*y[0];
+      };
+      const auto dot = [](const long double x[3], const long double y[3])
+      {
+         return x[0]*y[0] + x[1]*y[1] + x[2]*y[2];
+      };
+
+      long double u = static_cast<long double>(src[0]) / unit;
+      long double v = static_cast<long double>(src[1]) / unit;
+      long double w = static_cast<long double>(src[2]) / unit;
+      if (inverse)
+      {
+         const long double target[3] = {u - point[0][0], v - point[0][1],
+                                        w - point[0][2]
+                                       };
+         long double b_cross_c[3], c_cross_a[3], a_cross_b[3];
+         cross(b, c, b_cross_c);
+         cross(c, a, c_cross_a);
+         cross(a, b, a_cross_b);
+         const long double det = dot(a, b_cross_c);
+         MFEM_VERIFY(std::abs(det) > 1.0e-15L,
+                     "Degenerate tetrahedron refinement child");
+         u = dot(target, b_cross_c) / det;
+         v = dot(target, c_cross_a) / det;
+         w = dot(target, a_cross_b) / det;
+         constexpr long double tol =
+            MFEM_PRECISION_SWITCH(1.0e-12L, 1.0e-5L);
+         if (u < -tol || v < -tol || w < -tol || u + v + w > 1.0L + tol)
+         { return false; }
+         u = std::max(0.0L, u);
+         v = std::max(0.0L, v);
+         w = std::max(0.0L, w);
+         const long double sum = u + v + w;
+         if (sum > 1.0L)
+         {
+            u /= sum;
+            v /= sum;
+            w /= sum;
+         }
+      }
+      else
+      {
+         const long double mapped[3] =
+         {
+            point[0][0] + u*a[0] + v*b[0] + w*c[0],
+            point[0][1] + u*a[1] + v*b[1] + w*c[1],
+            point[0][2] + u*a[2] + v*b[2] + w*c[2]
+         };
+         u = mapped[0];
+         v = mapped[1];
+         w = mapped[2];
+      }
+      dst[0] = std::llround(u*unit);
+      dst[1] = std::llround(v*unit);
+      dst[2] = std::llround(w*unit);
+      return true;
+   }
    if (child_geom == Geometry::CUBE)
    {
       long double point[8][3];
@@ -5701,6 +5854,20 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
                pm = PointMatrix(pm(3), mid13, face013, mid03,
                                 mid23, face123, center, face023);
             }
+         }
+         else if (ref_type >= Refinement::Tetrahedron::FACE_0_CENTER_3_TETS.GetId() &&
+                  ref_type <= Refinement::Tetrahedron::FACE_3_CENTER_3_TETS.GetId())
+         {
+            const int *v = tet_corner_vertex_order[
+                   ref_type - Refinement::Tetrahedron::FACE_0_CENTER_3_TETS.GetId()];
+            Point midpoint(pm(v[1]), pm(v[2]));
+            Point center(midpoint, pm(v[3]), 1.0/3.0);
+            if (child == 0)
+            { pm = PointMatrix(pm(v[0]), pm(v[1]), pm(v[2]), center); }
+            else if (child == 1)
+            { pm = PointMatrix(pm(v[0]), pm(v[2]), pm(v[3]), center); }
+            else if (child == 2)
+            { pm = PointMatrix(pm(v[0]), pm(v[3]), pm(v[1]), center); }
          }
          else if (ref_type >= Refinement::Tetrahedron::CORNER_0_TET_PRISM.GetId() &&
                   ref_type <= Refinement::Tetrahedron::CORNER_3_TET_PRISM.GetId())
@@ -6866,6 +7033,15 @@ int NCMesh::TriFaceSplitLevel(int vn1, int vn2, int vn3) const
       return 1 + max(QuadFaceSplitLevel(vn1, mid[0], center, mid[2]),
                      QuadFaceSplitLevel(mid[0], vn2, mid[1], center),
                      QuadFaceSplitLevel(center, mid[1], vn3, mid[2]));
+   }
+
+   if (split == 128 && faces.FindId(vn1, vn2, vn3) < 0)
+   {
+      const int center = FindTriFaceCenterNode(vn1, vn2, vn3, mid);
+      MFEM_ASSERT(center >= 0, "Triangle face center not found");
+      return 1 + max(TriFaceSplitLevel(vn1, vn2, center),
+                     TriFaceSplitLevel(vn2, vn3, center),
+                     TriFaceSplitLevel(vn3, vn1, center));
    }
 
    if (split != 0 && faces.FindId(vn1, vn2, vn3) < 0)

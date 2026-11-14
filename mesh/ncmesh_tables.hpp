@@ -161,6 +161,24 @@ static constexpr int tet_all_faces_quads_face_local[4] = { 1, 4, 1, 0 };
 static constexpr Geometry::Type tet_all_faces_quads_child_geometries[4] =
 { Geometry::CUBE, Geometry::CUBE, Geometry::CUBE, Geometry::CUBE };
 
+static constexpr int tet_face_center_deref[4][4 + 4] =
+{
+   {0, 0, 0, 1, /**/ 0, 1, 2, 0},
+   {0, 0, 1, 0, /**/ 1, 0, 0, 2},
+   {0, 0, 0, 1, /**/ 1, 2, 0, 0},
+   {0, 1, 0, 0, /**/ 1, 0, 2, 0}
+};
+static constexpr int tet_face_center_vertex_local[4][4] =
+{
+   {0, 1, 2, 2}, {1, 0, 2, 2},
+   {1, 2, 0, 2}, {1, 2, 2, 0}
+};
+static constexpr int tet_face_center_face_local[4][4] =
+{
+   {0, 3, 3, 3}, {3, 0, 3, 3},
+   {3, 3, 0, 3}, {3, 3, 3, 0}
+};
+
 static constexpr int hex_deref_table[7][8 + 6] =
 {
    { 0, 1, 1, 0, 0, 1, 1, 0, /**/ 1, 1, 1, 0, 0, 0 }, // 1 - X
@@ -290,7 +308,7 @@ static constexpr NCRefinementPattern quadrilateral_patterns[15] =
       quad_edge_vertex_local[3], quad_edge_face_local[3]
    }
 };
-static constexpr NCRefinementPattern tetrahedron_patterns[16] =
+static constexpr NCRefinementPattern tetrahedron_patterns[20] =
 {
    {}, {2, tet_deref_table[0]}, {2, tet_deref_table[1]}, {},
    {2, tet_deref_table[3]}, {}, {}, {8, tet_deref_table[6]},
@@ -314,6 +332,22 @@ static constexpr NCRefinementPattern tetrahedron_patterns[16] =
    {
       4, tet_all_faces_quads_deref, tet_all_faces_quads_child_geometries,
       tet_all_faces_quads_vertex_local, tet_all_faces_quads_face_local
+   },
+   {
+      3, tet_face_center_deref[0], nullptr,
+      tet_face_center_vertex_local[0], tet_face_center_face_local[0]
+   },
+   {
+      3, tet_face_center_deref[1], nullptr,
+      tet_face_center_vertex_local[1], tet_face_center_face_local[1]
+   },
+   {
+      3, tet_face_center_deref[2], nullptr,
+      tet_face_center_vertex_local[2], tet_face_center_face_local[2]
+   },
+   {
+      3, tet_face_center_deref[3], nullptr,
+      tet_face_center_vertex_local[3], tet_face_center_face_local[3]
    }
 };
 static constexpr NCRefinementPattern hexahedron_patterns[8] =
