@@ -367,6 +367,30 @@ void PABilinearFormExtension::Assemble()
    }
 }
 
+// Add marked element or face contributions.
+static void AddWithMarkers_(
+   const int ne,
+   const int nd,
+   const Vector &x,
+   const Array<int> &markers,
+   const Array<int> &attributes,
+   Vector &y)
+{
+   const auto d_x = Reshape(x.Read(), nd, ne);
+   const auto d_m = Reshape(markers.Read(), markers.Size());
+   const auto d_attr = Reshape(attributes.Read(), ne);
+   auto d_y = Reshape(y.ReadWrite(), nd, ne);
+   mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int attr = d_attr[e];
+      if (attr <= 0 || d_m[attr - 1] == 0) { return; }
+      for (int i = 0; i < nd; ++i)
+      {
+         d_y(i, e) += d_x(i, e);
+      }
+   });
+}
+
 void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
@@ -376,26 +400,21 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
                                              const Array<int> &attributes,
                                              Vector &d)
    {
-      integ.AssembleDiagonalPA(d);
-      if (markers)
+      if (!markers)
       {
-         const int ne = attributes.Size();
-         const int nd = d.Size() / ne;
-         const auto d_attr = Reshape(attributes.Read(), ne);
-         const auto d_m = Reshape(markers->Read(), markers->Size());
-         auto d_d = Reshape(d.ReadWrite(), nd, ne);
-         mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
-         {
-            const int attr = d_attr[e];
-            if (attr <= 0 || d_m[attr - 1] == 0)
-            {
-               for (int i = 0; i < nd; ++i)
-               {
-                  d_d(i, e) = 0.0;
-               }
-            }
-         });
+         integ.AssembleDiagonalPA(d);
+         return;
       }
+      if (attributes.Size() == 0) { return; }
+      // Apply markers to this integrator's contribution, preserving the
+      // diagonal contributions accumulated by earlier integrators.
+      tmp_evec.SetSize(d.Size());
+      tmp_evec.UseDevice(true);
+      tmp_evec = 0.0;
+      integ.AssembleDiagonalPA(tmp_evec);
+      const int ne = attributes.Size();
+      const int nd = d.Size() / ne;
+      AddWithMarkers_(ne, nd, tmp_evec, *markers, attributes, d);
    };
 
    const int iSz = integrators.Size();
@@ -748,31 +767,6 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    }
 }
 
-// Compute kernels for PABilinearFormExtension::AddMultWithMarkers.
-// Cannot be in member function with non-public visibility.
-static void AddWithMarkers_(
-   const int ne,
-   const int nd,
-   const Vector &x,
-   const Array<int> &markers,
-   const Array<int> &attributes,
-   Vector &y)
-{
-   const auto d_x = Reshape(x.Read(), nd, ne);
-   const auto d_m = Reshape(markers.Read(), markers.Size());
-   const auto d_attr = Reshape(attributes.Read(), ne);
-   auto d_y = Reshape(y.ReadWrite(), nd, ne);
-   mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
-   {
-      const int attr = d_attr[e];
-      if (attr <= 0 || d_m[attr - 1] == 0) { return; }
-      for (int i = 0; i < nd; ++i)
-      {
-         d_y(i, e) += d_x(i, e);
-      }
-   });
-}
-
 void PABilinearFormExtension::AddMultNormalDerivativesWithMarkers(
    const BilinearFormIntegrator &integ,
    const Vector &x,
@@ -942,7 +936,7 @@ void EABilinearFormExtension::Assemble()
          else
          {
             ea_data_tmp.SetSize(ea_data_bdr.Size());
-            bdr_integs[i]->AssembleEABoundary(*a->FESpace(), ea_data_tmp, add);
+            bdr_integs[i]->AssembleEABoundary(*a->FESpace(), ea_data_tmp, false);
             add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
                              *bdr_face_attributes, add);
          }
@@ -991,7 +985,7 @@ void EABilinearFormExtension::Assemble()
             ea_data_tmp.SetSize(ea_data_bdr.Size());
             bdr_face_integs[i]->AssembleEABoundaryFaces(*a->FESpace(),
                                                         ea_data_tmp,
-                                                        add);
+                                                        false);
             add_with_markers(ea_data_tmp, ea_data_bdr, nf_bdr, *markers,
                              *bdr_face_attributes, add);
          }
