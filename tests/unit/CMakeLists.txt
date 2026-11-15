@@ -158,6 +158,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_vecdiv.cpp
   fem/test_pa_simplices.cpp
   fem/test_mma_forms.cpp
+  fem/test_mma_qpoint.cpp
   fem/test_mma_simplices.cpp
   fem/test_mma_tensors.cpp
   fem/test_particleset.cpp
