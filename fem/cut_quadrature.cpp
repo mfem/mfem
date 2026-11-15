@@ -335,40 +335,42 @@ CutQuadratureGenerator::CutQuadratureGenerator(const CutQuadratureBackend &imple
    : backend(implementation) { }
 
 CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
-   const CutQuadratureRequest &request, CutQuadrature &out) const try
+   const CutDomain &domain, int order, CutQuadrature &out,
+   const IntegrationRule *fixed_points) const try
 {
    out.Clear();
-   auto report = request.domain.Validate(geometry);
+   auto report = domain.Validate(geometry);
    if (!report.Succeeded()) { return report; }
-   if (request.order < 0) { return Failure(CutQuadratureStatus::InvalidInput, "Negative quadrature order."); }
-   if (request.fixed_points)
+   if (order < 0)
+   { return Failure(CutQuadratureStatus::InvalidInput, "Negative quadrature order."); }
+   if (fixed_points)
    {
-      if (request.domain.Codimension() || !request.fixed_points->GetNPoints())
+      if (domain.Codimension() || !fixed_points->GetNPoints())
       { return Failure(CutQuadratureStatus::InvalidInput, "Invalid prescribed volume nodes."); }
-      for (int index = 0; index < request.fixed_points->GetNPoints(); ++index)
+      for (int index = 0; index < fixed_points->GetNPoints(); ++index)
       {
-         if (!ValidPoint(geometry, request.fixed_points->IntPoint(index)))
+         if (!ValidPoint(geometry, fixed_points->IntPoint(index)))
          { return Failure(CutQuadratureStatus::InvalidInput, "Invalid prescribed node."); }
       }
    }
-   report = backend.CheckSupport(geometry, request);
+   report = backend.CheckSupport(geometry, domain, order, fixed_points);
    if (!report.Succeeded()) { return report; }
-   report = backend.Generate(geometry, request, out.rule, out.region);
+   report = backend.Generate(geometry, domain, order, out.rule, out.region,
+                             fixed_points);
    if (!report.Succeeded()) { out.Clear(); return report; }
    auto fail = [&](CutQuadratureStatus status, const char *message)
    { out.Clear(); return Failure(status, message); };
    if ((out.region != CutRegion::Full && out.region != CutRegion::Empty &&
         out.region != CutRegion::Cut) ||
-       (out.region == CutRegion::Full && request.domain.Codimension() > 0))
+       (out.region == CutRegion::Full && domain.Codimension() > 0))
    { return fail(CutQuadratureStatus::NumericalFailure, "Invalid backend region."); }
-   if (request.fixed_points &&
-       out.GetNPoints() != request.fixed_points->GetNPoints())
+   if (fixed_points && out.GetNPoints() != fixed_points->GetNPoints())
    { return fail(CutQuadratureStatus::NumericalFailure, "Backend changed prescribed nodes."); }
    out.geometry = geometry;
-   out.codimension = request.domain.Codimension();
-   out.rule.SetOrder(request.order);
+   out.codimension = domain.Codimension();
+   out.rule.SetOrder(order);
    const int dimension = Geometry::Dimension[geometry];
-   const int codimension = request.domain.Codimension();
+   const int codimension = domain.Codimension();
    const int count = out.GetNPoints();
    if (codimension) { out.conormals.SetSize(dimension, codimension, count); out.conormals = 0.; }
    for (int index = 0; index < count; ++index)
@@ -378,9 +380,9 @@ CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
       if (!std::isfinite(point.weight) || !ValidPoint(geometry, point) ||
           (out.region == CutRegion::Empty && point.weight != 0))
       { return fail(CutQuadratureStatus::NumericalFailure, "Invalid quadrature node."); }
-      if (request.fixed_points)
+      if (fixed_points)
       {
-         const auto &prescribed = request.fixed_points->IntPoint(index);
+         const auto &prescribed = fixed_points->IntPoint(index);
          if (point.x != prescribed.x ||
              (dimension > 1 && point.y != prescribed.y) ||
              (dimension > 2 && point.z != prescribed.z))
@@ -390,9 +392,9 @@ CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
       DenseMatrix normals(dimension, codimension);
       Vector normal(dimension);
       int column = 0;
-      for (int constraint = 0; constraint < request.domain.NumConstraints(); ++constraint)
+      for (int constraint = 0; constraint < domain.NumConstraints(); ++constraint)
       {
-         const auto &condition = request.domain.GetConstraint(constraint);
+         const auto &condition = domain.GetConstraint(constraint);
          if (condition.sign != CutDomain::LevelSetSign::Zero) { continue; }
          condition.level_set.get().EvalGradient(point, normal);
          if (normal.Size() != dimension || !FiniteVector(normal) || normal.Norml2() == 0)
@@ -517,12 +519,13 @@ catch (const std::exception &error)
 }
 
 CutQuadratureReport CutQuadratureGenerator::Generate(ElementTransformation &transformation,
-   const CutQuadratureRequest &request, const CutMappingOptions &mapping,
-   MappedCutQuadrature &out) const
+   const CutDomain &domain, int order, const CutMappingOptions &mapping,
+   MappedCutQuadrature &out, const IntegrationRule *fixed_points) const
 {
    out.Clear();
    CutQuadrature reference;
-   auto report = Generate(transformation.GetGeometryType(), request, reference);
+   auto report = Generate(transformation.GetGeometryType(), domain, order,
+                          reference, fixed_points);
    if (!report.Succeeded()) { return report; }
    auto mapped = MapCutQuadrature(transformation, reference, mapping, out);
    return mapped.Succeeded() ? report : mapped;

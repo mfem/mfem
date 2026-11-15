@@ -26,12 +26,12 @@ public:
    IntegrationRule rule;
    CutQuadratureStatus status = CutQuadratureStatus::Success;
    std::string Name() const override { return "test"; }
-   CutQuadratureReport CheckSupport(Geometry::Type,
-                                   const CutQuadratureRequest &) const override
+   CutQuadratureReport CheckSupport(Geometry::Type, const CutDomain &, int,
+                                   const IntegrationRule *) const override
    { return {}; }
-   CutQuadratureReport Generate(Geometry::Type,
-                               const CutQuadratureRequest &, IntegrationRule &output,
-                               CutRegion &region) const override
+   CutQuadratureReport Generate(Geometry::Type, const CutDomain &, int,
+                               IntegrationRule &output, CutRegion &region,
+                               const IntegrationRule *) const override
    {
       output = rule;
       region = CutRegion::Cut;
@@ -190,21 +190,20 @@ TEST_CASE("Cut generator clears failures and supports simplex conormals", "[CutQ
                              [](const IntegrationPoint &point) { return point.x - 0.25; },
                              [](const IntegrationPoint &, Vector &normal)
    { normal = 0.; normal(0) = 1; });
-   CutQuadratureRequest request;
-   request.domain = CutDomain::Surface(level_set);
+   const auto domain = CutDomain::Surface(level_set);
    CutQuadrature output;
-   REQUIRE(generator.Generate(Geometry::TRIANGLE, request, output).Succeeded());
+   REQUIRE(generator.Generate(Geometry::TRIANGLE, domain, 2, output).Succeeded());
    REQUIRE(output.conormals(0)(0, 0) == MFEM_Approx(1));
    backend.status = CutQuadratureStatus::NumericalFailure;
-   REQUIRE_FALSE(generator.Generate(Geometry::TRIANGLE, request, output).Succeeded());
+   REQUIRE_FALSE(generator.Generate(Geometry::TRIANGLE, domain, 2, output).Succeeded());
    REQUIRE(output.GetNPoints() == 0);
    REQUIRE(output.geometry == Geometry::INVALID);
    REQUIRE(output.region == CutRegion::Unknown);
    backend.status = CutQuadratureStatus::Success;
    backend.rule.IntPoint(0).x = 1.1;
-   REQUIRE_FALSE(generator.Generate(Geometry::TRIANGLE, request, output).Succeeded());
+   REQUIRE_FALSE(generator.Generate(Geometry::TRIANGLE, domain, 2, output).Succeeded());
    backend.rule.IntPoint(0).x = std::numeric_limits<real_t>::quiet_NaN();
-   REQUIRE_FALSE(generator.Generate(Geometry::TRIANGLE, request, output).Succeeded());
+   REQUIRE_FALSE(generator.Generate(Geometry::TRIANGLE, domain, 2, output).Succeeded());
 }
 
 TEST_CASE("Cut generator reports gradient exceptions and clears outputs", "[CutQuadrature]")
@@ -223,11 +222,10 @@ TEST_CASE("Cut generator reports gradient exceptions and clears outputs", "[CutQ
       { throw std::runtime_error("gradient callback failed"); }
       normal = 0.; normal(1) = 1;
    });
-   CutQuadratureRequest request;
-   request.domain = CutDomain::Surface(level_set);
+   const auto domain = CutDomain::Surface(level_set);
    CutQuadrature output;
    CutQuadratureReport report;
-   REQUIRE_NOTHROW(report = generator.Generate(Geometry::SQUARE, request, output));
+   REQUIRE_NOTHROW(report = generator.Generate(Geometry::SQUARE, domain, 2, output));
    REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
    REQUIRE(report.message == "gradient callback failed");
    REQUIRE(output.GetNPoints() == 0);
@@ -239,12 +237,12 @@ TEST_CASE("Cut generator reports gradient exceptions and clears outputs", "[CutQ
    IsoparametricTransformation identity;
    identity.SetIdentityTransformation(Geometry::SQUARE);
    MappedCutQuadrature mapped;
-   REQUIRE_NOTHROW(report = generator.Generate(identity, request, {}, mapped));
+   REQUIRE_NOTHROW(report = generator.Generate(identity, domain, 2, {}, mapped));
    REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
    REQUIRE(mapped.GetNPoints() == 0);
    REQUIRE(mapped.region == CutRegion::Unknown);
    throw_gradient = false;
-   REQUIRE(generator.Generate(Geometry::SQUARE, request, output).Succeeded());
+   REQUIRE(generator.Generate(Geometry::SQUARE, domain, 2, output).Succeeded());
    REQUIRE(output.GetNPoints() == 2);
 }
 
@@ -313,10 +311,9 @@ TEST_CASE("Cut mapping clears transformation exceptions and restores state", "[C
       [](const IntegrationPoint &point) { return point.y - 0.5; },
       [](const IntegrationPoint &, Vector &normal)
    { normal = 0.; normal(1) = 1; });
-   CutQuadratureRequest request;
-   request.domain = CutDomain::Surface(level_set);
+   const auto domain = CutDomain::Surface(level_set);
    CutQuadrature reference;
-   REQUIRE(generator.Generate(Geometry::SQUARE, request, reference).Succeeded());
+   REQUIRE(generator.Generate(Geometry::SQUARE, domain, 2, reference).Succeeded());
    CutMappingOptions options;
    options.weight_type = CutWeightType::Physical;
    options.data = CQ_PHYSICAL_POINTS | CQ_PHYSICAL_CONORMALS | CQ_MEASURE_SCALING;
@@ -332,7 +329,7 @@ TEST_CASE("Cut mapping clears transformation exceptions and restores state", "[C
             MappedCutQuadrature mapped;
             auto generate = [&]()
             {
-               return composed ? generator.Generate(transformation, request,
+               return composed ? generator.Generate(transformation, domain, 2,
                                                      options, mapped) :
                       MapCutQuadrature(transformation, reference, options, mapped);
             };
@@ -581,16 +578,14 @@ TEST_CASE("ALGOIM cut phases and planes on tensor cells", "[CutQuadrature]")
          real_t phase_sum = 0;
          for (int domain = 0; domain < 3; ++domain)
          {
-            CutQuadratureRequest request;
-            request.order = 6;
-            request.domain = domain == 0 ? CutDomain::Positive(level_set) :
-                             (domain == 1 ? CutDomain::Negative(level_set) :
-                              CutDomain::Surface(level_set));
+            const auto cut_domain = domain == 0 ? CutDomain::Positive(level_set) :
+                                    (domain == 1 ? CutDomain::Negative(level_set) :
+                                     CutDomain::Surface(level_set));
             CutQuadrature output;
-            auto report = generator.Generate(geometry, request, output);
+            auto report = generator.Generate(geometry, cut_domain, 6, output);
             INFO(report.message);
             REQUIRE(report.Succeeded());
-            REQUIRE(output.rule.GetOrder() == request.order);
+            REQUIRE(output.rule.GetOrder() == 6);
             REQUIRE(Measure(output.rule) == MFEM_Approx(domain == 0 ? 0.63 :
                                                        (domain == 1 ? 0.37 : 1.0)));
             if (domain < 2) { phase_sum += Measure(output.rule); }
@@ -613,38 +608,31 @@ TEST_CASE("ALGOIM classifies constants and rejects unsupported requests", "[CutQ
    const auto &element = *collection.FiniteElementForGeometry(Geometry::SQUARE);
    Vector values(1);
    PolynomialLevelSet level_set;
-   CutQuadratureRequest request;
    CutQuadrature output;
    for (real_t value : {-1., 0., 1.})
    {
       values = value;
       REQUIRE(level_set.Set(element, values).Succeeded());
-      request.domain = CutDomain::Positive(level_set);
-      REQUIRE(generator.Generate(Geometry::SQUARE, request, output).Succeeded());
+      const auto positive = CutDomain::Positive(level_set);
+      REQUIRE(generator.Generate(Geometry::SQUARE, positive, 2, output).Succeeded());
       REQUIRE(Measure(output.rule) == MFEM_Approx(value > 0 ? 1 : 0));
       REQUIRE(output.region == (value > 0 ? CutRegion::Full : CutRegion::Empty));
-      request.domain = CutDomain::Surface(level_set);
-      auto report = generator.Generate(Geometry::SQUARE, request, output);
+      const auto surface = CutDomain::Surface(level_set);
+      auto report = generator.Generate(Geometry::SQUARE, surface, 2, output);
       REQUIRE(report.status == (value == 0 ? CutQuadratureStatus::DegenerateGeometry :
                                 CutQuadratureStatus::Success));
       REQUIRE(output.GetNPoints() == 0);
    }
-   request.domain = CutDomain::Positive(level_set);
-   request.order = -1;
-   REQUIRE(generator.Generate(Geometry::SQUARE, request, output).status ==
+   const auto positive = CutDomain::Positive(level_set);
+   REQUIRE(generator.Generate(Geometry::SQUARE, positive, -1, output).status ==
            CutQuadratureStatus::InvalidInput);
-   request.order = 1000;
-   REQUIRE(generator.Generate(Geometry::SQUARE, request, output).status ==
+   REQUIRE(generator.Generate(Geometry::SQUARE, positive, 1000, output).status ==
            CutQuadratureStatus::Unsupported);
-   request.order = 4;
    IntegrationRule fixed(1);
    fixed.IntPoint(0).Set2(0.2, 0.3);
-   request.fixed_points = &fixed;
-   REQUIRE(generator.Generate(Geometry::SQUARE, request, output).status ==
+   REQUIRE(generator.Generate(Geometry::SQUARE, positive, 4, output, &fixed).status ==
            CutQuadratureStatus::Unsupported);
-   request.fixed_points = nullptr;
-   request.domain = CutDomain();
-   REQUIRE(generator.Generate(Geometry::TRIANGLE, request, output).status ==
+   REQUIRE(generator.Generate(Geometry::TRIANGLE, CutDomain(), 2, output).status ==
            CutQuadratureStatus::Unsupported);
    REQUIRE(output.GetNPoints() == 0);
    REQUIRE(CreateCutQuadratureBackend("moment") == nullptr);
@@ -683,12 +671,10 @@ TEST_CASE("ALGOIM curved interfaces converge", "[CutQuadrature]")
             const int high_order = name == "algoim-general" ? 18 : 28;
             for (int order : {4, high_order})
             {
-               CutQuadratureRequest request;
-               request.order = order;
-               request.domain = surface ? CutDomain::Surface(level_set) :
-                                CutDomain::Positive(level_set);
+               const auto domain = surface ? CutDomain::Surface(level_set) :
+                                   CutDomain::Positive(level_set);
                CutQuadrature output;
-               auto report = generator.Generate(geometry, request, output);
+               auto report = generator.Generate(geometry, domain, order, output);
                INFO(report.message);
                REQUIRE(report.Succeeded());
                const real_t exact = dimension == 2 ?
@@ -733,8 +719,6 @@ struct SineLevelSet
 TEST_CASE("General ALGOIM integrates interval-capable analytic functions", "[CutQuadrature]")
 {
    AlgoimFunctionLevelSet<2, SineLevelSet> level_set(SineLevelSet{});
-   CutQuadratureRequest request;
-   request.order = 12;
    const auto saved = algoim::Interval<2>::delta();
    algoim::Interval<2>::delta() = 0.123;
    for (const char *name : {"algoim-general", "algoim"})
@@ -746,9 +730,9 @@ TEST_CASE("General ALGOIM integrates interval-capable analytic functions", "[Cut
       real_t phases = 0;
       for (bool positive : {false, true})
       {
-         request.domain = positive ? CutDomain::Positive(level_set) :
-                          CutDomain::Negative(level_set);
-         auto report = generator.Generate(Geometry::SQUARE, request, output);
+         const auto domain = positive ? CutDomain::Positive(level_set) :
+                             CutDomain::Negative(level_set);
+         auto report = generator.Generate(Geometry::SQUARE, domain, 12, output);
          INFO(report.message);
          REQUIRE(report.Succeeded());
          const real_t expected = positive ? std::cos(1.0) : 1 - std::cos(1.0);
@@ -757,8 +741,8 @@ TEST_CASE("General ALGOIM integrates interval-capable analytic functions", "[Cut
          REQUIRE(algoim::Interval<2>::delta(0) == 0.123);
       }
       REQUIRE(phases == MFEM_Approx(1));
-      request.domain = CutDomain::Surface(level_set);
-      REQUIRE(generator.Generate(Geometry::SQUARE, request, output).Succeeded());
+      const auto surface = CutDomain::Surface(level_set);
+      REQUIRE(generator.Generate(Geometry::SQUARE, surface, 12, output).Succeeded());
       real_t exact_surface = 0;
       const auto &line = IntRules.Get(Geometry::SEGMENT, 60);
       for (int index = 0; index < line.GetNPoints(); ++index)
@@ -772,18 +756,15 @@ TEST_CASE("General ALGOIM integrates interval-capable analytic functions", "[Cut
          REQUIRE(std::abs(level_set.Eval(output.rule.IntPoint(index))) < 1e-12);
          REQUIRE(output.conormals(index)(1, 0) > 0);
       }
-      request.order = 20;
-      REQUIRE(generator.Generate(Geometry::SQUARE, request, output).status ==
+      REQUIRE(generator.Generate(Geometry::SQUARE, surface, 20, output).status ==
               CutQuadratureStatus::Unsupported);
       REQUIRE(output.GetNPoints() == 0);
-      request.order = 12;
       AlgoimFunctionLevelSet<2, SineLevelSet> failing(SineLevelSet{true});
-      request.domain = CutDomain::Surface(failing);
-      REQUIRE(generator.Generate(Geometry::SQUARE, request, output).status ==
+      const auto failing_surface = CutDomain::Surface(failing);
+      REQUIRE(generator.Generate(Geometry::SQUARE, failing_surface, 12, output).status ==
               CutQuadratureStatus::NumericalFailure);
       REQUIRE(output.GetNPoints() == 0);
       REQUIRE(algoim::Interval<2>::delta(1) == 0.123);
-      request.domain = CutDomain::Surface(level_set);
    }
    algoim::Interval<2>::delta() = saved;
 }
@@ -801,26 +782,23 @@ TEST_CASE("ALGOIM dispatch depends on configured capabilities and active inputs"
    FunctionLevelSet callback(Geometry::SQUARE,
       [](const IntegrationPoint &point) { return point.x - 0.3; },
       [](const IntegrationPoint &, Vector &gradient) { gradient = 0.; gradient(0) = 1; });
-   CutQuadratureRequest request;
-   request.domain = CutDomain::Positive(level_set);
-   request.order = 20;
-   REQUIRE(general->CheckSupport(Geometry::SQUARE, request).status ==
+   auto domain = CutDomain::Positive(level_set);
+   REQUIRE(general->CheckSupport(Geometry::SQUARE, domain, 20).status ==
            CutQuadratureStatus::Unsupported);
 #ifdef MFEM_USE_LAPACKE
    REQUIRE(polynomial != nullptr);
-   REQUIRE(automatic->CheckSupport(Geometry::SQUARE, request).Succeeded());
+   REQUIRE(automatic->CheckSupport(Geometry::SQUARE, domain, 20).Succeeded());
 #else
    REQUIRE(polynomial == nullptr);
-   REQUIRE(automatic->CheckSupport(Geometry::SQUARE, request).status ==
+   REQUIRE(automatic->CheckSupport(Geometry::SQUARE, domain, 20).status ==
            CutQuadratureStatus::Unsupported);
 #endif
-   request.order = 6;
-   request.domain = CutDomain::Positive(callback);
-   REQUIRE(automatic->CheckSupport(Geometry::SQUARE, request).status ==
+   domain = CutDomain::Positive(callback);
+   REQUIRE(automatic->CheckSupport(Geometry::SQUARE, domain, 6).status ==
            CutQuadratureStatus::Unsupported);
-   request.domain = CutDomain::Positive(level_set);
-   request.domain.Add(callback, CutDomain::LevelSetSign::Positive);
-   REQUIRE(general->CheckSupport(Geometry::SQUARE, request).status ==
+   domain = CutDomain::Positive(level_set);
+   domain.Add(callback, CutDomain::LevelSetSign::Positive);
+   REQUIRE(general->CheckSupport(Geometry::SQUARE, domain, 6).status ==
            CutQuadratureStatus::Unsupported);
 }
 
@@ -839,25 +817,23 @@ TEST_CASE("General ALGOIM evaluates tensor polynomials independently of LAPACKE"
          PolynomialLevelSet level_set;
          REQUIRE(level_set.Project(coefficient, identity,
                  *collection.FiniteElementForGeometry(geometry)).Succeeded());
-         CutQuadratureRequest request;
-         request.order = 12;
-         request.domain = CutDomain::Negative(level_set);
          auto general = CreateCutQuadratureBackend("algoim-general");
          CutQuadratureGenerator generator(*general);
          CutQuadrature output;
-         auto report = generator.Generate(geometry, request, output);
+         const auto negative = CutDomain::Negative(level_set);
+         auto report = generator.Generate(geometry, negative, 12, output);
          INFO(report.message);
          REQUIRE(report.Succeeded());
          REQUIRE(Measure(output.rule) == MFEM_Approx(1.0/3.0));
-         request.domain = CutDomain::Surface(level_set);
-         REQUIRE(generator.Generate(geometry, request, output).Succeeded());
+         const auto surface = CutDomain::Surface(level_set);
+         REQUIRE(generator.Generate(geometry, surface, 12, output).Succeeded());
          const real_t exact = 0.5*std::sqrt(1.64) + std::asinh(0.8)/1.6;
          REQUIRE(Measure(output.rule) == MFEM_Approx(exact));
 #ifdef MFEM_USE_LAPACKE
          auto polynomial = CreateCutQuadratureBackend("algoim-polynomial");
          CutQuadratureGenerator other(*polynomial);
          CutQuadrature compared;
-         REQUIRE(other.Generate(geometry, request, compared).Succeeded());
+         REQUIRE(other.Generate(geometry, surface, 12, compared).Succeeded());
          REQUIRE(Measure(compared.rule) == MFEM_Approx(Measure(output.rule)));
 #endif
       }
@@ -895,13 +871,12 @@ TEST_CASE("Polynomial ALGOIM simplifies equivalent sign constraints", "[CutQuadr
             for (bool contradictory : {false, true})
             {
                const bool negative_second = (factor > 0) != contradictory;
-               CutQuadratureRequest request;
-               request.order = 8;
-               request.domain = CutDomain::Negative(first).Add(second, negative_second ?
-                               CutDomain::LevelSetSign::Negative :
-                               CutDomain::LevelSetSign::Positive);
+               const auto domain = CutDomain::Negative(first).Add(
+                                      second, negative_second ?
+                                      CutDomain::LevelSetSign::Negative :
+                                      CutDomain::LevelSetSign::Positive);
                CutQuadrature output;
-               auto report = generator.Generate(geometry, request, output);
+               auto report = generator.Generate(geometry, domain, 8, output);
                INFO(report.message);
                REQUIRE(report.Succeeded());
                REQUIRE(Measure(output.rule) == MFEM_Approx(contradictory ? 0 : expected));
@@ -909,7 +884,7 @@ TEST_CASE("Polynomial ALGOIM simplifies equivalent sign constraints", "[CutQuadr
                {
                   REQUIRE(output.region == CutRegion::Empty);
                   REQUIRE(output.GetNPoints() == 0);
-                  REQUIRE(output.rule.GetOrder() == request.order);
+                  REQUIRE(output.rule.GetOrder() == 8);
                }
                else
                {
@@ -945,12 +920,10 @@ TEST_CASE("Polynomial ALGOIM keeps nearby sign constraints distinct", "[CutQuadr
    REQUIRE(second.Set(element, coefficients).Succeeded());
    auto backend = CreateCutQuadratureBackend("algoim-polynomial");
    CutQuadratureGenerator generator(*backend);
-   CutQuadratureRequest request;
-   request.order = 8;
-   request.domain = CutDomain::Positive(first).Add(
-                       second, CutDomain::LevelSetSign::Negative);
+   const auto domain = CutDomain::Positive(first).Add(
+                          second, CutDomain::LevelSetSign::Negative);
    CutQuadrature output;
-   auto report = generator.Generate(Geometry::SQUARE, request, output);
+   auto report = generator.Generate(Geometry::SQUARE, domain, 8, output);
    INFO(report.message);
    REQUIRE(report.Succeeded());
    REQUIRE(output.region == CutRegion::Cut);
@@ -959,7 +932,7 @@ TEST_CASE("Polynomial ALGOIM keeps nearby sign constraints distinct", "[CutQuadr
    coefficients += width;
    coefficients -= 1e-15;
    REQUIRE(second.Set(element, coefficients).Succeeded());
-   report = generator.Generate(Geometry::SQUARE, request, output);
+   report = generator.Generate(Geometry::SQUARE, domain, 8, output);
    REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
    REQUIRE(output.region == CutRegion::Unknown);
    REQUIRE(output.GetNPoints() == 0);
@@ -997,18 +970,16 @@ TEST_CASE("Polynomial ALGOIM rejects unresolved nearly proportional constraints"
          {
             auto backend = CreateCutQuadratureBackend(name);
             CutQuadratureGenerator generator(*backend);
-            CutQuadratureRequest request;
-            request.order = 8;
-            request.domain = CutDomain::Negative(first);
+            auto domain = CutDomain::Negative(first);
             CutQuadrature output;
-            REQUIRE(generator.Generate(geometry, request, output).Succeeded());
+            REQUIRE(generator.Generate(geometry, domain, 8, output).Succeeded());
             REQUIRE(Measure(output.rule) == MFEM_Approx(first_degree == 2 ? 0.6 : 0.1215));
             for (auto sign : {CutDomain::LevelSetSign::Negative,
                               CutDomain::LevelSetSign::Positive})
             {
-               request.domain = CutDomain::Negative(first).Add(second, sign);
-               REQUIRE(backend->CheckSupport(geometry, request).Succeeded());
-               auto report = generator.Generate(geometry, request, output);
+               domain = CutDomain::Negative(first).Add(second, sign);
+               REQUIRE(backend->CheckSupport(geometry, domain, 8).Succeeded());
+               auto report = generator.Generate(geometry, domain, 8, output);
                REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
                REQUIRE(report.message.find("Nearly proportional") != std::string::npos);
                REQUIRE(output.geometry == Geometry::INVALID);
@@ -1018,7 +989,7 @@ TEST_CASE("Polynomial ALGOIM rejects unresolved nearly proportional constraints"
                REQUIRE(output.conormals.SizeK() == 0);
                IntegrationRule rule(1);
                CutRegion region = CutRegion::Full;
-               report = backend->Generate(geometry, request, rule, region);
+               report = backend->Generate(geometry, domain, 8, rule, region);
                REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
                REQUIRE(region == CutRegion::Unknown);
                REQUIRE(rule.GetNPoints() == 0);
@@ -1062,15 +1033,13 @@ TEST_CASE("Polynomial ALGOIM partitions two level sets and preserves moments", "
                   const auto second_sign = positive_second ?
                                            CutDomain::LevelSetSign::Positive :
                                            CutDomain::LevelSetSign::Negative;
-                  CutQuadratureRequest request;
-                  request.order = 6;
-                  request.domain = CutDomain();
+                  CutDomain domain;
                   if (reverse)
-                  { request.domain.Add(second, second_sign).Add(first, first_sign); }
+                  { domain.Add(second, second_sign).Add(first, first_sign); }
                   else
-                  { request.domain.Add(first, first_sign).Add(second, second_sign); }
+                  { domain.Add(first, first_sign).Add(second, second_sign); }
                   CutQuadrature output;
-                  auto report = generator.Generate(geometry, request, output);
+                  auto report = generator.Generate(geometry, domain, 6, output);
                   INFO(report.message);
                   REQUIRE(report.Succeeded());
                   const real_t measure = (positive_first ? 0.7 : 0.3) * (positive_second ? 0.6 : 0.4);
@@ -1090,17 +1059,19 @@ TEST_CASE("Polynomial ALGOIM partitions two level sets and preserves moments", "
                }
             REQUIRE(total == MFEM_Approx(1));
          }
-         CutQuadratureRequest request;
-         request.domain = CutDomain::Surface(first).Add(
-                             second, CutDomain::LevelSetSign::Zero);
-         REQUIRE(backend->CheckSupport(geometry, request).status == CutQuadratureStatus::Unsupported);
-         request.domain = CutDomain::Surface(first).Add(
-                             second, CutDomain::LevelSetSign::Positive);
-         REQUIRE(backend->CheckSupport(geometry, request).status == CutQuadratureStatus::Unsupported);
-         request.domain = CutDomain::Positive(first)
-                          .Add(second, CutDomain::LevelSetSign::Positive)
-                          .Add(third, CutDomain::LevelSetSign::Positive);
-         REQUIRE(backend->CheckSupport(geometry, request).status == CutQuadratureStatus::Unsupported);
+         auto domain = CutDomain::Surface(first).Add(
+                          second, CutDomain::LevelSetSign::Zero);
+         REQUIRE(backend->CheckSupport(geometry, domain, 2).status ==
+                 CutQuadratureStatus::Unsupported);
+         domain = CutDomain::Surface(first).Add(
+                     second, CutDomain::LevelSetSign::Positive);
+         REQUIRE(backend->CheckSupport(geometry, domain, 2).status ==
+                 CutQuadratureStatus::Unsupported);
+         domain = CutDomain::Positive(first)
+                  .Add(second, CutDomain::LevelSetSign::Positive)
+                  .Add(third, CutDomain::LevelSetSign::Positive);
+         REQUIRE(backend->CheckSupport(geometry, domain, 2).status ==
+                 CutQuadratureStatus::Unsupported);
       }
    }
 }
@@ -1128,12 +1099,10 @@ TEST_CASE("Polynomial ALGOIM handles empty, oblique and curved intersections", "
       PolynomialLevelSet first, second;
       REQUIRE(first.Project(first_coefficient, identity, element).Succeeded());
       REQUIRE(second.Project(second_coefficient, identity, element).Succeeded());
-      CutQuadratureRequest request;
-      request.order = 28;
-      request.domain = CutDomain::Positive(first).Add(
-                          second, CutDomain::LevelSetSign::Positive);
+      const auto domain = CutDomain::Positive(first).Add(
+                             second, CutDomain::LevelSetSign::Positive);
       CutQuadrature output;
-      auto report = generator.Generate(Geometry::SQUARE, request, output);
+      auto report = generator.Generate(Geometry::SQUARE, domain, 28, output);
       INFO(report.message);
       REQUIRE(report.Succeeded());
       const real_t expected[] = {0, 0.52, std::acos(-1.0)*0.32*0.32/2, 0.6, 0};
@@ -1141,8 +1110,7 @@ TEST_CASE("Polynomial ALGOIM handles empty, oblique and curved intersections", "
       REQUIRE(error < (shape == 2 ? 1e-5 : 1e-12));
       if (shape == 2)
       {
-         request.order = 4;
-         REQUIRE(generator.Generate(Geometry::SQUARE, request, output).Succeeded());
+         REQUIRE(generator.Generate(Geometry::SQUARE, domain, 4, output).Succeeded());
          REQUIRE(error < std::abs(Measure(output.rule)-expected[shape]));
       }
    }
@@ -1163,12 +1131,10 @@ TEST_CASE("Polynomial ALGOIM intersects genuinely three-dimensional cuts", "[Cut
    PolynomialLevelSet first, second;
    REQUIRE(first.Project(first_coefficient, identity, element).Succeeded());
    REQUIRE(second.Project(second_coefficient, identity, element).Succeeded());
-   CutQuadratureRequest request;
-   request.order = 10;
-   request.domain = CutDomain::Negative(first).Add(
-                       second, CutDomain::LevelSetSign::Positive);
+   const auto domain = CutDomain::Negative(first).Add(
+                          second, CutDomain::LevelSetSign::Positive);
    CutQuadrature output;
-   auto report = generator.Generate(Geometry::CUBE, request, output);
+   auto report = generator.Generate(Geometry::CUBE, domain, 10, output);
    INFO(report.message);
    REQUIRE(report.Succeeded());
    REQUIRE(Measure(output.rule) == MFEM_Approx(5.0/36.0));

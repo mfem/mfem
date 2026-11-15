@@ -65,13 +65,11 @@ int main(int argc, char *argv[])
       if (!report.Succeeded()) { cerr << report.message << '\n'; return 2; }
       for (int surface = 0; surface < 2; ++surface)
       {
-         CutQuadratureRequest request;
-         request.order = order;
-         request.domain = surface ? CutDomain::Surface(level_set) :
-                          CutDomain::Positive(level_set);
+         const auto domain = surface ? CutDomain::Surface(level_set) :
+                             CutDomain::Positive(level_set);
          MappedCutQuadrature quadrature;
          report = generator.Generate(*mesh.GetElementTransformation(element),
-                                     request, mapping, quadrature);
+                                     domain, order, mapping, quadrature);
          if (!report.Succeeded()) { cerr << report.message << '\n'; return 2; }
          for (int index = 0; index < quadrature.rule.GetNPoints(); ++index)
          {

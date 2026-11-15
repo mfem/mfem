@@ -100,14 +100,12 @@ int main(int argc, char *argv[])
       { report = second_level_set.Project(second_coefficient, transformation, *finite_element); }
       for (int surface = 0; surface < (shape == 3 ? 1 : 2) && report.Succeeded(); ++surface)
       {
-         CutQuadratureRequest request;
-         request.order = order;
-         request.domain = surface ? CutDomain::Surface(level_set) :
-                          CutDomain::Positive(level_set);
+         auto domain = surface ? CutDomain::Surface(level_set) :
+                       CutDomain::Positive(level_set);
          if (shape == 3)
-         { request.domain.Add(second_level_set, CutDomain::LevelSetSign::Positive); }
+         { domain.Add(second_level_set, CutDomain::LevelSetSign::Positive); }
          MappedCutQuadrature quadrature;
-         report = generator.Generate(transformation, request, mapping, quadrature);
+         report = generator.Generate(transformation, domain, order, mapping, quadrature);
          for (int index = 0; index < quadrature.rule.GetNPoints(); ++index)
          { measures[surface] += quadrature.rule.IntPoint(index).weight; }
       }

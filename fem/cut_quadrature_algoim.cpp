@@ -323,14 +323,14 @@ bool SupportsAlgoimIntervals(const ReferenceLevelSet &level_set)
 }
 
 CutQuadratureReport GenerateAlgoimGeneral(
-   Geometry::Type geometry, const CutQuadratureRequest &request,
+   Geometry::Type geometry, const CutDomain &domain, int order,
    IntegrationRule &rule, CutRegion &region)
 {
-   const auto &constraint = request.domain.GetConstraint(0);
+   const auto &constraint = domain.GetConstraint(0);
    const auto &level_set = constraint.level_set.get();
    return geometry == Geometry::SQUARE ?
-          ComputeGeneral<2>(level_set, constraint.sign, request.order, rule, region) :
-          ComputeGeneral<3>(level_set, constraint.sign, request.order, rule, region);
+          ComputeGeneral<2>(level_set, constraint.sign, order, rule, region) :
+          ComputeGeneral<3>(level_set, constraint.sign, order, rule, region);
 }
 
 #ifdef MFEM_USE_LAPACKE
@@ -384,7 +384,7 @@ template <int Dimension>
 CutQuadratureReport ComputePolynomialRule(
    const std::vector<AlgoimPolynomial> &data,
    const std::vector<CutDomain::LevelSetSign> &signs,
-   const CutQuadratureRequest &request, IntegrationRule &rule, CutRegion &region)
+   const CutDomain &domain, int order, IntegrationRule &rule, CutRegion &region)
 {
    if constexpr (Dimension == 3)
    {
@@ -418,9 +418,10 @@ CutQuadratureReport ComputePolynomialRule(
             reduced.push_back(std::move(slice));
          }
          IntegrationRule plane;
-         auto report = ComputePolynomialRule<2>(reduced, signs, request, plane, region);
+         auto report = ComputePolynomialRule<2>(reduced, signs, domain, order,
+                                                plane, region);
          if (!report.Succeeded()) { return report; }
-         const auto &line = IntRules.Get(Geometry::SEGMENT, request.order);
+         const auto &line = IntRules.Get(Geometry::SEGMENT, order);
          if (plane.GetNPoints() > std::numeric_limits<int>::max() / line.GetNPoints())
          { return {CutQuadratureStatus::NumericalFailure, "Too many extruded ALGOIM nodes."}; }
          rule.SetSize(plane.GetNPoints() * line.GetNPoints());
@@ -484,15 +485,15 @@ CutQuadratureReport ComputePolynomialRule(
    static_assert(algoim::GaussQuad::p_max >= 100 &&
                  algoim::TanhSinhQuadrature::n_max >= 100,
                  "Update the polynomial ALGOIM order limit.");
-   if (request.domain.Codimension())
+   if (domain.Codimension())
    {
-      quadrature->integrate_surf(algoim::AutoMixed, request.order / 2 + 1,
+      quadrature->integrate_surf(algoim::AutoMixed, order / 2 + 1,
          [&](const auto &coordinates, real_t weight, const auto &)
          { append(coordinates, weight); });
    }
    else
    {
-      quadrature->integrate(algoim::AutoMixed, request.order / 2 + 1,
+      quadrature->integrate(algoim::AutoMixed, order / 2 + 1,
          [&](const auto &coordinates, real_t weight)
          {
             for (size_t index = 0; index < polynomials.size(); ++index)
@@ -516,14 +517,14 @@ CutQuadratureReport ComputePolynomialRule(
 }
 
 CutQuadratureReport GenerateAlgoimPolynomial(
-   Geometry::Type geometry, const CutQuadratureRequest &request,
+   Geometry::Type geometry, const CutDomain &domain, int order,
    IntegrationRule &rule, CutRegion &region)
 {
    std::vector<AlgoimPolynomial> data;
    std::vector<CutDomain::LevelSetSign> signs;
-   for (int index = 0; index < request.domain.NumConstraints(); ++index)
+   for (int index = 0; index < domain.NumConstraints(); ++index)
    {
-      const auto &constraint = request.domain.GetConstraint(index);
+      const auto &constraint = domain.GetConstraint(index);
       AlgoimPolynomial polynomial;
       const auto *source = dynamic_cast<const PolynomialLevelSet *>(
                               &constraint.level_set.get());
@@ -565,10 +566,10 @@ CutQuadratureReport GenerateAlgoimPolynomial(
       signs.push_back(constraint.sign);
    }
    if (data.empty())
-   { rule = IntRules.Get(geometry, request.order); region = CutRegion::Full; return {}; }
+   { rule = IntRules.Get(geometry, order); region = CutRegion::Full; return {}; }
    return geometry == Geometry::SQUARE ?
-          ComputePolynomialRule<2>(data, signs, request, rule, region) :
-          ComputePolynomialRule<3>(data, signs, request, rule, region);
+          ComputePolynomialRule<2>(data, signs, domain, order, rule, region) :
+          ComputePolynomialRule<3>(data, signs, domain, order, rule, region);
 }
 #endif
 
@@ -586,29 +587,30 @@ public:
    }
 
    CutQuadratureReport CheckSupport(
-      Geometry::Type geometry, const CutQuadratureRequest &request) const override
+      Geometry::Type geometry, const CutDomain &domain, int order,
+      const IntegrationRule *fixed_points) const override
    {
-      auto report = request.domain.Validate(geometry);
+      auto report = domain.Validate(geometry);
       if (!report.Succeeded()) { return report; }
-      if (request.order < 0)
+      if (order < 0)
       { return {CutQuadratureStatus::InvalidInput, "Negative quadrature order."}; }
       if (geometry != Geometry::SQUARE && geometry != Geometry::CUBE)
       { return {CutQuadratureStatus::Unsupported, "ALGOIM supports quads and hexes."}; }
-      if (request.fixed_points)
+      if (fixed_points)
       { return {CutQuadratureStatus::Unsupported, "Unsupported ALGOIM prescribed nodes."}; }
-      const int count = request.domain.NumConstraints();
-      const bool polynomial = UsePolynomial(request);
+      const int count = domain.NumConstraints();
+      const bool polynomial = UsePolynomial(domain);
       if (polynomial)
       {
 #ifndef MFEM_USE_LAPACKE
          return {CutQuadratureStatus::Unsupported, "Polynomial ALGOIM requires LAPACKE."};
 #else
-         if (count > 2 || (count > 1 && request.domain.Codimension()))
+         if (count > 2 || (count > 1 && domain.Codimension()))
          { return {CutQuadratureStatus::Unsupported, "Polynomial ALGOIM supports two signs or one surface."}; }
          for (int index = 0; index < count; ++index)
          {
             if (!dynamic_cast<const PolynomialLevelSet *>(
-                   &request.domain.GetConstraint(index).level_set.get()))
+                   &domain.GetConstraint(index).level_set.get()))
             { return {CutQuadratureStatus::Unsupported, "Polynomial ALGOIM requires polynomial inputs."}; }
          }
 #endif
@@ -618,31 +620,32 @@ public:
          if (count > 1)
          { return {CutQuadratureStatus::Unsupported, "General ALGOIM supports one active level set."}; }
          if (count && !SupportsAlgoimIntervals(
-                request.domain.GetConstraint(0).level_set.get()))
+                domain.GetConstraint(0).level_set.get()))
          { return {CutQuadratureStatus::Unsupported, "General ALGOIM requires interval-capable inputs."}; }
       }
-      if (request.order / 2 + 1 > (polynomial ? 100 : 10))
+      if (order / 2 + 1 > (polynomial ? 100 : 10))
       { return {CutQuadratureStatus::Unsupported, "Quadrature order exceeds the selected ALGOIM limit."}; }
       return {};
    }
 
    CutQuadratureReport Generate(
-      Geometry::Type geometry, const CutQuadratureRequest &request,
-      IntegrationRule &rule, CutRegion &region) const override
+      Geometry::Type geometry, const CutDomain &domain, int order,
+      IntegrationRule &rule, CutRegion &region,
+      const IntegrationRule *fixed_points) const override
    {
       rule.SetSize(0); rule.SetOrder(-1); region = CutRegion::Unknown;
-      auto report = CheckSupport(geometry, request);
+      auto report = CheckSupport(geometry, domain, order, fixed_points);
       if (!report.Succeeded()) { return report; }
       try
       {
-         if (!request.domain.NumConstraints())
-         { rule = IntRules.Get(geometry, request.order); region = CutRegion::Full; }
+         if (!domain.NumConstraints())
+         { rule = IntRules.Get(geometry, order); region = CutRegion::Full; }
 #ifdef MFEM_USE_LAPACKE
-         else if (UsePolynomial(request))
-         { report = GenerateAlgoimPolynomial(geometry, request, rule, region); }
+         else if (UsePolynomial(domain))
+         { report = GenerateAlgoimPolynomial(geometry, domain, order, rule, region); }
 #endif
          else
-         { report = GenerateAlgoimGeneral(geometry, request, rule, region); }
+         { report = GenerateAlgoimGeneral(geometry, domain, order, rule, region); }
       }
       catch (const std::exception &error)
       { report = {CutQuadratureStatus::NumericalFailure, error.what()}; }
@@ -663,7 +666,7 @@ public:
       { rule.SetSize(0); rule.SetOrder(-1); region = CutRegion::Unknown; }
       else
       {
-         rule.SetOrder(request.order);
+         rule.SetOrder(order);
          for (int index = 0; index < rule.GetNPoints(); ++index)
          { rule.IntPoint(index).index = index; }
       }
@@ -673,15 +676,15 @@ public:
 private:
    Algorithm algorithm;
 
-   bool UsePolynomial(const CutQuadratureRequest &request) const
+   bool UsePolynomial(const CutDomain &domain) const
    {
       if (algorithm != Algorithm::Automatic)
       { return algorithm == Algorithm::Polynomial; }
 #ifdef MFEM_USE_LAPACKE
-      for (int index = 0; index < request.domain.NumConstraints(); ++index)
+      for (int index = 0; index < domain.NumConstraints(); ++index)
       {
          if (!dynamic_cast<const PolynomialLevelSet *>(
-                &request.domain.GetConstraint(index).level_set.get()))
+                &domain.GetConstraint(index).level_set.get()))
          { return false; }
       }
       return true;

@@ -150,12 +150,13 @@ private:
 class FunctionLevelSet : public ReferenceLevelSet
 {
 public:
-   using ValueFunction = std::function<real_t(const IntegrationPoint &)>;
+   using ValueFunction =
+      std::function<real_t(const IntegrationPoint &)>;
    using GradientFunction =
       std::function<void(const IntegrationPoint &, Vector &)>;
 
-   FunctionLevelSet(Geometry::Type geometry, ValueFunction value,
-                    GradientFunction gradient);
+   FunctionLevelSet(Geometry::Type geometry,
+                    ValueFunction value, GradientFunction gradient);
 
    Geometry::Type GetReferenceGeometry() const override { return geometry; }
    real_t Eval(const IntegrationPoint &point) const override;
@@ -217,33 +218,6 @@ private:
    std::vector<Constraint> constraints;
 };
 
-/** @brief One integration request, independent of physical weight conventions.
-
-    order is a nonnegative nominal MFEM integration order, not a certificate of
-    exactness on curved domains. Backends document how it selects their fitting
-    degree or underlying quadrature parameters. Successful output rules set
-    IntegrationRule::GetOrder() to this nominal order.
-
-    With fixed_points == nullptr, every nonzero-weight point must lie in the
-    closure of the requested domain, within the backend's geometric tolerance.
-    In particular, surface points lie on the interface, including for moment
-    fitting. Signed weights are permitted; positivity is not guaranteed.
-
-    Non-null fixed_points requests weight fitting on exactly those coordinates,
-    in that order. Its input weights are ignored; points are borrowed only for
-    this call and must be in the closed reference element. This initial API
-    permits fixed points only for full-dimensional volume domains. Unsupported
-    backends return Unsupported rather than replacing the points. Full and
-    empty cells preserve the same point layout;
-    empty-cell weights are all zero. Output point indices are 0, ..., npoints-1.
-    An empty prescribed point set is invalid. */
-struct CutQuadratureRequest
-{
-   CutDomain domain;
-   int order = 2;
-   const IntegrationRule *fixed_points = nullptr;
-};
-
 /** Relation to the reference element.
 
     Full means the domain covers the reference element up to a set of zero
@@ -291,10 +265,11 @@ struct CutQuadrature
     regularity or convergence certificate. Generate must also reject invalid
     or unsupported input when called directly, without CheckSupport.
 
-    Generate handles empty, full, and cut domains, including fixed-point
-    layouts. It fills rule and region; it never normalizes or maps weights.
-    On failure it clears rule and sets region to Unknown. The implementation
-    must distinguish degenerate geometry from an ordinary zero-measure domain. */
+    Generate handles empty, full, and cut domains. Nonzero-weight nodes must
+    lie in the domain closure; surface nodes lie on the interface, and weights
+    may be signed. A fixed-point layout must preserve its coordinates and order,
+    using zero weights for an empty domain. On failure Generate clears the rule
+    and sets the region to Unknown. */
 class CutQuadratureBackend
 {
 public:
@@ -303,12 +278,14 @@ public:
 
    virtual CutQuadratureReport CheckSupport(
       Geometry::Type geometry,
-      const CutQuadratureRequest &request) const = 0;
+      const CutDomain &domain, int order,
+      const IntegrationRule *fixed_points = nullptr) const = 0;
 
    virtual CutQuadratureReport Generate(
       Geometry::Type geometry,
-      const CutQuadratureRequest &request,
-      IntegrationRule &rule, CutRegion &region) const = 0;
+      const CutDomain &domain, int order,
+      IntegrationRule &rule, CutRegion &region,
+      const IntegrationRule *fixed_points = nullptr) const = 0;
 };
 
 /** Construct a compiled-in backend with its default configuration.
@@ -418,18 +395,24 @@ public:
    explicit CutQuadratureGenerator(const CutQuadratureBackend &backend);
    const CutQuadratureBackend &GetBackend() const { return backend; }
 
+   /** Generate a reference rule of nominal MFEM integration @a order; this is
+       not an exactness guarantee on curved domains. Non-null @a fixed_points
+       supplies borrowed coordinates for full-dimensional weight fitting; its
+       weights are ignored, and backends may report this mode as unsupported. */
    CutQuadratureReport Generate(
       Geometry::Type geometry,
-      const CutQuadratureRequest &request, CutQuadrature &out) const;
+      const CutDomain &domain, int order, CutQuadrature &out,
+      const IntegrationRule *fixed_points = nullptr) const;
 
    /** Convenience composition of reference generation and MapCutQuadrature.
        Inputs are already pulled back/projected for this element. Geometry is
-       taken from transformation, never from a duplicate request field.
-       Successful reports preserve the reference-generation diagnostics. */
+       taken from the transformation. Successful reports preserve the
+       reference-generation diagnostics. */
    CutQuadratureReport Generate(
       ElementTransformation &transformation,
-      const CutQuadratureRequest &request,
-      const CutMappingOptions &mapping, MappedCutQuadrature &out) const;
+      const CutDomain &domain, int order, const CutMappingOptions &mapping,
+      MappedCutQuadrature &out,
+      const IntegrationRule *fixed_points = nullptr) const;
 
 private:
    const CutQuadratureBackend &backend;
