@@ -41,6 +41,7 @@
 //               lor-transfer -lref 5 -o 4 -lo 0 -p 1
 //               lor-transfer -lref 5 -o 4 -lo 3 -p 2
 //               lor-transfer -lref 5 -o 4 -lo 0 -p 3
+//               lor-transfer -m ../../data/amr-quad.mesh -h1 -o 2 -lref 2 -p 0 -ea -no-vis
 
 #include "mfem.hpp"
 #include <fstream>

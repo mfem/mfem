@@ -269,7 +269,7 @@ public:
    protected:
       const FiniteElementSpace* fes_ho;
       const FiniteElementSpace* fes_lor;
-      Table* ho2lor;
+      const Table* ho2lor;
       Vector* M_LH_ea;
    public:
       H1SpaceMixedMassOperator(const FiniteElementSpace* fes_ho_,
@@ -458,7 +458,7 @@ public:
       /// is also provided as an Operator by L2Prolongation.
       void ProlongateTranspose(const Vector& x, Vector& y) const override;
 
-      /// Returns the inverse of an on-rank lumped mass matrix
+      /// Returns the inverse lumped mass diagonal on true dofs.
       void LumpedMassInverse(Vector& ML_inv) const;
 
       void SetRelTol(real_t p_rtol_) override;
@@ -468,10 +468,8 @@ public:
       /// Sets up the PCG solver (sets parameters, operator, and preconditioner)
       void SetupPCG();
 
-      /// @brief Computes on-rank R and M_LH matrices. If true, computes mixed mass and/or
-      /// inverse lumped mass matrix error when compared to device implementation.
-      std::pair<std::unique_ptr<SparseMatrix>,
-          std::unique_ptr<SparseMatrix>> ComputeSparseRAndM_LH();
+      /// Computes the local mixed mass and inverse lumped mass on true dofs.
+      std::unique_ptr<SparseMatrix> ComputeSparseM_LH(Vector &ML_inv);
 
       /// @brief Recovers vector of tdofs given a vector of dofs and a finite
       /// element space
@@ -512,8 +510,7 @@ public:
       std::unique_ptr<Operator> M_LH;
       // Inverted operator in P = (RT*M_LH)^(-1) M_LH^T. Used to compute P via PCG.
       std::unique_ptr<Operator> RTxM_LH;
-      // Lumped M_L inverse operator built via EA. Wrapped with restriction maps
-      // to multiply with scalar TDof LOR vectors.
+      // Inverse lumped mass on scalar true LOR dofs, built via EA.
       std::unique_ptr<Operator> ML_inv_vea;
       // LDof Mixed mass operator built via EA. Wrapped with restriction maps to send
       // scalar LDof HO vectors to LDof LOR vectors.
@@ -524,13 +521,12 @@ public:
       std::unique_ptr<FiniteElementSpace> fes_lor_scalar;
       // Element Assembled mixed mass
       Vector M_LH_ea;
-      // Element Assembled lumped M_L inverse built via EA. Stores diagonal as a Ldof vector.
+      // Inverse lumped mass diagonal on true dofs, built via EA.
       Vector ML_inv_ea;
 
 #ifdef MFEM_USE_MPI
       std::unique_ptr<ParFiniteElementSpace> pfes_ho_scalar;
       std::unique_ptr<ParFiniteElementSpace> pfes_lor_scalar;
-      Vector RML_inv;
 #endif
 
       friend class L2ProjectionL2Space;

@@ -41,6 +41,7 @@
 //               plor-transfer -lref 4 -o 4 -lo 0 -p 1
 //               plor-transfer -lref 4 -o 4 -lo 2 -p 2
 //               plor-transfer -lref 4 -o 4 -lo 0 -p 3
+//               plor-transfer -m ../../data/amr-quad.mesh -h1 -o 2 -lref 2 -p 0 -ea -no-vis
 
 #include "mfem.hpp"
 #include <fstream>
