@@ -343,6 +343,15 @@ TEST_CASE("Simplex QPoint interpolation", "[MMA][GPU]")
    }
 }
 
+// With 64 components, one P3 tetrahedron needs about 170 KB of shared memory
+// for the value, gradient and Hessian planes, more than a CUDA block may
+// use: Mult() then takes the SimplexInterp (dense forall) fallback instead
+// of the batched GEMM kernel. The host paths are the same as above.
+TEST_CASE("Simplex QPoint shared-memory fallback", "[MMA][GPU]")
+{
+   test_qpoint_interpolation("../../data/inline-tet.mesh", 3, 64);
+}
+
 TEST_CASE("Simplex QPoint contractions and diagonals", "[MMA][GPU]")
 {
    const auto p = GENERATE(1, 2, 3);

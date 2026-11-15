@@ -18,6 +18,40 @@
 namespace mfem
 {
 
+/** InvJ = J^{-1} and WDetJ = w det(J) at the points, layouts (NQ, DIM, DIM,
+    NE) and (NQ, NE). A file-static kernel function, as in the rest of the
+    library: nvcc does not accept an extended __host__ __device__ lambda in
+    a constructor, whose address cannot be taken. */
+static void InverseJacobians(const int dim, const int nq, const int ne,
+                             const Array<real_t> &w, const Vector &J,
+                             const Vector &DetJ, Vector &InvJ, Vector &WDetJ)
+{
+   InvJ.SetSize(J.Size());
+   WDetJ.SetSize(DetJ.Size());
+   const int D = dim, NQ = nq;
+   const auto W = w.Read();
+   const auto Jq = Reshape(J.Read(), nq, dim, dim, ne);
+   const auto dJ = Reshape(DetJ.Read(), nq, ne);
+   auto Ji = Reshape(InvJ.Write(), nq, dim, dim, ne);
+   auto WD = Reshape(WDetJ.Write(), nq, ne);
+   mfem::forall(nq * ne, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int q = idx % NQ, e = idx / NQ;
+      real_t A[9], Ai[9];
+      for (int j = 0; j < D; ++j)
+      {
+         for (int i = 0; i < D; ++i) { A[i + D * j] = Jq(q, i, j, e); }
+      }
+      if (D == 2) { kernels::CalcInverse<2>(A, Ai); }
+      else { kernels::CalcInverse<3>(A, Ai); }
+      for (int j = 0; j < D; ++j)
+      {
+         for (int i = 0; i < D; ++i) { Ji(q, i, j, e) = Ai[i + D * j]; }
+      }
+      WD(q, e) = W[q] * dJ(q, e);
+   });
+}
+
 SimplexQPoint::SimplexQPoint(const FiniteElementSpace &fes,
                              const IntegrationRule &ir)
 {
@@ -78,31 +112,7 @@ SimplexQPoint::SimplexQPoint(const FiniteElementSpace &fes,
    for (Vector *v : {&J, &InvJ, &DetJ, &WDetJ}) { v->UseDevice(true); }
    J = geom->J;
    DetJ = geom->detJ;
-   InvJ.SetSize(J.Size());
-   WDetJ.SetSize(DetJ.Size());
-
-   const int D = dim, NQ = nq;
-   const auto W = ir.GetWeights().Read();
-   const auto Jq = Reshape(J.Read(), nq, dim, dim, ne);
-   const auto dJ = Reshape(DetJ.Read(), nq, ne);
-   auto Ji = Reshape(InvJ.Write(), nq, dim, dim, ne);
-   auto WD = Reshape(WDetJ.Write(), nq, ne);
-   mfem::forall(nq * ne, [=] MFEM_HOST_DEVICE (int idx)
-   {
-      const int q = idx % NQ, e = idx / NQ;
-      real_t A[9], Ai[9];
-      for (int j = 0; j < D; ++j)
-      {
-         for (int i = 0; i < D; ++i) { A[i + D * j] = Jq(q, i, j, e); }
-      }
-      if (D == 2) { kernels::CalcInverse<2>(A, Ai); }
-      else { kernels::CalcInverse<3>(A, Ai); }
-      for (int j = 0; j < D; ++j)
-      {
-         for (int i = 0; i < D; ++i) { Ji(q, i, j, e) = Ai[i + D * j]; }
-      }
-      WD(q, e) = W[q] * dJ(q, e);
-   });
+   InverseJacobians(dim, nq, ne, ir.GetWeights(), J, DetJ, InvJ, WDetJ);
 }
 
 bool SimplexQPoint::IsAffine(const Mesh &mesh)

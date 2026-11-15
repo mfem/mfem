@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "vector.hpp"
+#include "mode/lapack.hpp"
 
 namespace mfem
 {
@@ -132,6 +133,56 @@ void SimplexAdjSetup(Mesh &mesh, const IntegrationRule &ir,
       D(q, 6, e) = s * C13;
       D(q, 7, e) = s * C23;
       D(q, 8, e) = s * C33;
+   });
+}
+
+void SimplexInterp(const int rows, const int ldp, const int nd,
+                   const int ncol, const Array<real_t> &P,
+                   const Vector &x, Vector &u)
+{
+   if (ncol <= 0) { return; }
+#ifdef MFEM_USE_LAPACK
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      lapack::Gemm('N', 'N', rows, ncol, nd, real_t(1), P.HostRead(), ldp,
+                   x.HostRead(), nd, real_t(0), u.HostWrite(), rows);
+      return;
+   }
+#endif
+   const real_t *Pm = P.Read();
+   const auto X = Reshape(x.Read(), nd, ncol);
+   auto U = Reshape(u.Write(), rows, ncol);
+   mfem::forall(rows * ncol, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int r = idx % rows, col = idx / rows;
+      real_t s = 0.0;
+      for (int i = 0; i < nd; ++i) { s += Pm[r + ldp * i] * X(i, col); }
+      U(r, col) = s;
+   });
+}
+
+void SimplexScatterAdd(const int rows, const int ldp, const int nd,
+                       const int ncol, const Array<real_t> &P,
+                       const Vector &v, Vector &y)
+{
+   if (ncol <= 0) { return; }
+#ifdef MFEM_USE_LAPACK
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      lapack::Gemm('T', 'N', nd, ncol, rows, real_t(1), P.HostRead(), ldp,
+                   v.HostRead(), rows, real_t(1), y.HostReadWrite(), nd);
+      return;
+   }
+#endif
+   const real_t *Pm = P.Read();
+   const auto V = Reshape(v.Read(), rows, ncol);
+   auto Y = Reshape(y.ReadWrite(), nd, ncol);
+   mfem::forall(nd * ncol, [=] MFEM_HOST_DEVICE (int idx)
+   {
+      const int i = idx % nd, col = idx / nd;
+      real_t s = 0.0;
+      for (int r = 0; r < rows; ++r) { s += Pm[r + ldp * i] * V(r, col); }
+      Y(i, col) += s;
    });
 }
 

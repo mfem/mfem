@@ -29,7 +29,6 @@
 */
 
 #include "mma.hpp"
-#include "mode/lapack.hpp"
 
 namespace mfem
 {
@@ -78,57 +77,26 @@ void SimplexVectorBasis(const FiniteElementSpace &fes,
 void SimplexAdjSetup(Mesh &mesh, const IntegrationRule &ir,
                      const Vector &c, const bool inv_det, Vector &d);
 
+/* The two dense kernels below are defined out of line, in vector.cpp, on
+   purpose. nvcc wraps an extended MFEM_HOST_DEVICE lambda in a type named
+   after its enclosing function, and keeps the wrapper's copy and call
+   function pointers in TU-local (anonymous namespace) statics that are set
+   only when that TU builds the lambda. An inline enclosing function, used
+   from several TUs, gives the same wrapper type everywhere, so the linker
+   keeps one weak CuWrap1D for it, which reads the statics of the TU it came
+   from: called from any other TU, it jumps to a null pointer. With a single
+   definition, all callers share one lambda, one launcher and one set of
+   statics. */
+
 /** U(r, col) = sum_i P(r, i) X(i, col); P is (ldp x nd), r < rows. */
-inline void SimplexInterp(const int rows, const int ldp, const int nd,
-                          const int ncol, const Array<real_t> &P,
-                          const Vector &x, Vector &u)
-{
-   if (ncol <= 0) { return; }
-#ifdef MFEM_USE_LAPACK
-   if (!Device::Allows(Backend::DEVICE_MASK))
-   {
-      lapack::Gemm('N', 'N', rows, ncol, nd, real_t(1), P.HostRead(), ldp,
-                   x.HostRead(), nd, real_t(0), u.HostWrite(), rows);
-      return;
-   }
-#endif
-   const real_t *Pm = P.Read();
-   const auto X = Reshape(x.Read(), nd, ncol);
-   auto U = Reshape(u.Write(), rows, ncol);
-   mfem::forall(rows * ncol, [=] MFEM_HOST_DEVICE (int idx)
-   {
-      const int r = idx % rows, col = idx / rows;
-      real_t s = 0.0;
-      for (int i = 0; i < nd; ++i) { s += Pm[r + ldp * i] * X(i, col); }
-      U(r, col) = s;
-   });
-}
+void SimplexInterp(const int rows, const int ldp, const int nd,
+                   const int ncol, const Array<real_t> &P,
+                   const Vector &x, Vector &u);
 
 /** Y(i, col) += sum_r P(r, i) V(r, col); P is (ldp x nd), r < rows. */
-inline void SimplexScatterAdd(const int rows, const int ldp, const int nd,
-                              const int ncol, const Array<real_t> &P,
-                              const Vector &v, Vector &y)
-{
-   if (ncol <= 0) { return; }
-#ifdef MFEM_USE_LAPACK
-   if (!Device::Allows(Backend::DEVICE_MASK))
-   {
-      lapack::Gemm('T', 'N', nd, ncol, rows, real_t(1), P.HostRead(), ldp,
-                   v.HostRead(), rows, real_t(1), y.HostReadWrite(), nd);
-      return;
-   }
-#endif
-   const real_t *Pm = P.Read();
-   const auto V = Reshape(v.Read(), rows, ncol);
-   auto Y = Reshape(y.ReadWrite(), nd, ncol);
-   mfem::forall(nd * ncol, [=] MFEM_HOST_DEVICE (int idx)
-   {
-      const int i = idx % nd, col = idx / nd;
-      real_t s = 0.0;
-      for (int r = 0; r < rows; ++r) { s += Pm[r + ldp * i] * V(r, col); }
-      Y(i, col) += s;
-   });
-}
+void SimplexScatterAdd(const int rows, const int ldp, const int nd,
+                       const int ncol, const Array<real_t> &P,
+                       const Vector &v, Vector &y);
 
 /** One side of a batched vector product: basis P (ldp x nd, first rows
     rows used) acting on nc E-vector components per element. */
