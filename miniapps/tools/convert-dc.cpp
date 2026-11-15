@@ -139,6 +139,8 @@ int main(int argc, char *argv[])
    const char *out_coll_type = "visit";
    int out_pad_digits_cycle = -1;
    int out_pad_digits_rank = -1;
+   int pv_lod = -1;
+   bool pv_hoo = true;
 
    OptionsParser args(argc, argv);
    args.AddOption(&src_coll_name, "-s", "--source-root-prefix",
@@ -181,6 +183,15 @@ int main(int argc, char *argv[])
                   "\t   fms_hdf5:             FMSDataCollection w/ protocol hdf5\n"
                   "\t   paraview:             ParaViewDataCollection\n"
                   "\t   paraview_hdf5:        ParaViewHDFDataCollection");
+   args.AddOption(&pv_lod, "-pvlod", "--paraview-levels-of-detail",
+                  "(For ParaView output only) Levels of detail to set for "
+                  "the output data collection. If -1, use max order among "
+                  "mesh and field(s).");
+   args.AddOption(&pv_hoo, "-pvhoo", "--paraview-high-order-output",
+                  "-pvloo", "--paraview-low-order-output",
+                  "(For ParaView output only) Enable or disable high-order "
+                  "output for the output data collection.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -254,6 +265,32 @@ int main(int argc, char *argv[])
       out_dc->RegisterQField(it->first,it->second);
    }
 
+   // if this is a ParaView DC, apply command line args
+   if (ParaViewDataCollectionBase *pvdc =
+          dynamic_cast<ParaViewDataCollectionBase*>(out_dc))
+   {
+      if (pv_lod < 0)
+      {
+         // Determine max order of mesh nodes + fields
+         const FiniteElementSpace *nodal_fes =
+            out_dc->GetMesh()->GetNodalFESpace();
+         int max_order = nodal_fes ? nodal_fes->GetMaxElementOrder() : 1;
+         const DataCollection::FieldMapType &out_fields = out_dc->GetFieldMap();
+         for (DataCollection::FieldMapType::const_iterator it = out_fields.begin();
+              it != out_fields.end();
+              ++it)
+         {
+            max_order = std::max(max_order,
+                                 it->second->FESpace()->GetMaxElementOrder());
+         }
+         pvdc->SetLevelsOfDetail(max_order);
+      }
+      else
+      {
+         pvdc->SetLevelsOfDetail(pv_lod);
+      }
+      pvdc->SetHighOrderOutput(pv_hoo);
+   }
 
    out_dc->Save();
 
