@@ -44,8 +44,13 @@ namespace mfem
 
 #ifdef MFEM_USE_SINGLE
 typedef float real_t;
+// Macro to simplify the selection of different values, e.g. tolerances, based
+// on the selected build-time precision, double or single. The first parameter
+// is the value for double precision, the second -- for single.
+#define MFEM_PRECISION_SWITCH(dbl,flt) (flt)
 #elif defined MFEM_USE_DOUBLE
 typedef double real_t;
+#define MFEM_PRECISION_SWITCH(dbl,flt) (dbl)
 #else
 #error "Either DOUBLE or SINGLE precision must be specified"
 #endif
@@ -139,6 +144,9 @@ constexpr real_t operator""_r(unsigned long long v)
 #endif
 #ifdef MFEM_USE_MUMPS
 #error Building with MUMPS (MFEM_USE_MUMPS=YES) requires MPI (MFEM_USE_MPI=YES)
+#endif
+#ifdef MFEM_USE_COMPLEX_MUMPS
+#error Building with COMPLEX_MUMPS (MFEM_USE_COMPLEX_MUMPS=YES) requires MPI (MFEM_USE_MPI=YES)
 #endif
 #ifdef MFEM_USE_STRUMPACK
 #error Building with STRUMPACK (MFEM_USE_STRUMPACK=YES) requires MPI (MFEM_USE_MPI=YES)
