@@ -15,7 +15,6 @@
 #define MFEM_CUT_QUADRATURE
 
 #include "../config/config.hpp"
-#include "../general/array.hpp"
 #include "../linalg/densemat.hpp"
 #include "intrules.hpp"
 #include "eltrans.hpp"
@@ -169,41 +168,50 @@ private:
    GradientFunction gradient;
 };
 
-enum class LevelSetSign : signed char { Negative = -1, Zero = 0, Positive = 1 };
+/** @brief An intersection of level-set sign constraints on one reference
+    element.
 
-/** @brief An intersection of sign constraints inside a reference element.
-
-    Negative and Positive mean strict inequalities; Zero means equality.
-    The default-constructed domain is the whole element. Codimension counts
-    Zero constraints. It is only the nominal codimension: Zero gradients must
-    be independent on the requested manifold. Coincident interfaces,
-    tangential intersections, and identically zero equality constraints require
-    explicit handling or a DegenerateGeometry result; they are not ordinary
-    empty cuts.
-
-    Validation rejects invalid indices, repeated constraints on the same level
-    set, and codimension greater than element dimension. Regular
-    zero-dimensional intersections use counting measure. */
+    A default-constructed domain is the whole element. The domain borrows its
+    level sets, which must outlive every operation using it. */
 class CutDomain
 {
 public:
+   /// Sign condition imposed on a level set; Positive and Negative are strict.
+   enum class LevelSetSign: signed char {Negative = -1, Zero = 0, Positive = 1};
+
+   /// One borrowed level set and the sign condition imposed on it.
    struct Constraint
    {
-      int level_set;
+      std::reference_wrapper<const ReferenceLevelSet> level_set;
       LevelSetSign sign;
    };
 
-   static CutDomain Positive(int level_set = 0);
-   static CutDomain Negative(int level_set = 0);
-   static CutDomain Surface(int level_set = 0);
+   /// Construct the domain where @a level_set is strictly positive.
+   static CutDomain Positive(const ReferenceLevelSet &level_set);
 
-   CutDomain &Add(int level_set, LevelSetSign sign);
+   /// Construct the domain where @a level_set is strictly negative.
+   static CutDomain Negative(const ReferenceLevelSet &level_set);
 
+   /// Construct the surface where @a level_set is zero.
+   static CutDomain Surface(const ReferenceLevelSet &level_set);
+
+   /// Intersect this domain with another sign constraint and return `*this`.
+   CutDomain &Add(const ReferenceLevelSet &level_set, LevelSetSign sign);
+
+   /// Return the number of sign constraints in this domain.
    int NumConstraints() const;
+
+   /// Return constraint @a index, throwing if the index is out of range.
    const Constraint &GetConstraint(int index) const;
+
+   /// Return the nominal codimension: the number of zero constraints.
+   /// Regular zero-dimensional intersections use counting measure.
    int Codimension() const;
-   CutQuadratureReport Validate(Geometry::Type geometry,
-                                int num_level_sets) const;
+
+   /// Validate signs, reference geometries, uniqueness, and codimension.
+   /// This doesn't test whether equality gradients are nonzero and independent;
+   /// generation reports such cases as DegenerateGeometry.
+   CutQuadratureReport Validate(Geometry::Type geometry) const;
 
 private:
    std::vector<Constraint> constraints;
@@ -231,7 +239,7 @@ private:
     An empty prescribed point set is invalid. */
 struct CutQuadratureRequest
 {
-   CutDomain domain = CutDomain::Positive();
+   CutDomain domain;
    int order = 2;
    const IntegrationRule *fixed_points = nullptr;
 };
@@ -248,7 +256,8 @@ enum class CutRegion { Unknown, Empty, Full, Cut };
 
     Weights always integrate reference measure. All coordinates are in the
     parent element. The generator fills this object using backend-produced
-    points, weights, and region, then supplies geometry, domain, and conormals.
+    points, weights, and region, then supplies geometry, codimension, and
+    conormals.
 
     conormals has dimensions dim x codimension x npoints. For each Zero
     constraint its column is grad(phi)/|grad(phi)|, toward phi > 0, in constraint
@@ -258,11 +267,11 @@ enum class CutRegion { Unknown, Empty, Full, Cut };
     For codimension zero the tensor is empty.
 
     The object owns its data and retains no references to the input level sets.
-    Clear resets geometry, domain, region, rule, and conormals. */
+    Clear resets geometry, codimension, region, rule, and conormals. */
 struct CutQuadrature
 {
    Geometry::Type geometry = Geometry::INVALID;
-   CutDomain domain;
+   int codimension = 0;
    CutRegion region = CutRegion::Unknown;
    IntegrationRule rule;
    DenseTensor conormals;
@@ -294,12 +303,10 @@ public:
 
    virtual CutQuadratureReport CheckSupport(
       Geometry::Type geometry,
-      const Array<const ReferenceLevelSet *> &level_sets,
       const CutQuadratureRequest &request) const = 0;
 
    virtual CutQuadratureReport Generate(
       Geometry::Type geometry,
-      const Array<const ReferenceLevelSet *> &level_sets,
       const CutQuadratureRequest &request,
       IntegrationRule &rule, CutRegion &region) const = 0;
 };
@@ -398,8 +405,8 @@ CutQuadratureReport MapCutQuadrature(
     The backend must outlive this object. Each call validates inputs, invokes
     the backend, and evaluates reference conormals at active manifold nodes.
     There are no full/empty shortcuts that replace a prescribed node layout.
-    Failures clear out. Every referenced level set must be non-null, initialized
-    when applicable, and defined on the supplied reference geometry.
+    Failures clear out. Every referenced level set must be initialized when
+    applicable and defined on the supplied reference geometry.
 
     Concurrent calls require distinct outputs, transformations, and any
     non-reentrant level-set/finite-element evaluation state. Const methods do
@@ -413,7 +420,6 @@ public:
 
    CutQuadratureReport Generate(
       Geometry::Type geometry,
-      const Array<const ReferenceLevelSet *> &level_sets,
       const CutQuadratureRequest &request, CutQuadrature &out) const;
 
    /** Convenience composition of reference generation and MapCutQuadrature.
@@ -422,7 +428,6 @@ public:
        Successful reports preserve the reference-generation diagnostics. */
    CutQuadratureReport Generate(
       ElementTransformation &transformation,
-      const Array<const ReferenceLevelSet *> &level_sets,
       const CutQuadratureRequest &request,
       const CutMappingOptions &mapping, MappedCutQuadrature &out) const;
 

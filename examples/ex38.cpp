@@ -63,16 +63,15 @@ int main(int argc, char *argv[])
       PolynomialLevelSet level_set;
       auto report = level_set.Set(field, element);
       if (!report.Succeeded()) { cerr << report.message << '\n'; return 2; }
-      Array<const ReferenceLevelSet *> level_sets(1);
-      level_sets[0] = &level_set;
       for (int surface = 0; surface < 2; ++surface)
       {
          CutQuadratureRequest request;
          request.order = order;
-         request.domain = surface ? CutDomain::Surface() : CutDomain::Positive();
+         request.domain = surface ? CutDomain::Surface(level_set) :
+                          CutDomain::Positive(level_set);
          MappedCutQuadrature quadrature;
          report = generator.Generate(*mesh.GetElementTransformation(element),
-                                     level_sets, request, mapping, quadrature);
+                                     request, mapping, quadrature);
          if (!report.Succeeded()) { cerr << report.message << '\n'; return 2; }
          for (int index = 0; index < quadrature.rule.GetNPoints(); ++index)
          {

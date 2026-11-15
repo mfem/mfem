@@ -98,18 +98,16 @@ int main(int argc, char *argv[])
       auto report = level_set.Project(coefficient, transformation, *finite_element);
       if (shape == 3 && report.Succeeded())
       { report = second_level_set.Project(second_coefficient, transformation, *finite_element); }
-      Array<const ReferenceLevelSet *> level_sets(shape == 3 ? 2 : 1);
-      level_sets[0] = &level_set;
-      if (shape == 3) { level_sets[1] = &second_level_set; }
       for (int surface = 0; surface < (shape == 3 ? 1 : 2) && report.Succeeded(); ++surface)
       {
          CutQuadratureRequest request;
          request.order = order;
-         request.domain = surface ? CutDomain::Surface() : CutDomain::Positive();
-         if (shape == 3) { request.domain.Add(1, LevelSetSign::Positive); }
+         request.domain = surface ? CutDomain::Surface(level_set) :
+                          CutDomain::Positive(level_set);
+         if (shape == 3)
+         { request.domain.Add(second_level_set, CutDomain::LevelSetSign::Positive); }
          MappedCutQuadrature quadrature;
-         report = generator.Generate(transformation, level_sets, request,
-                                     mapping, quadrature);
+         report = generator.Generate(transformation, request, mapping, quadrature);
          for (int index = 0; index < quadrature.rule.GetNPoints(); ++index)
          { measures[surface] += quadrature.rule.IntPoint(index).weight; }
       }

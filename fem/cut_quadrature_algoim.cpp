@@ -25,7 +25,8 @@ struct AlgoimPolynomial
    std::array<std::vector<real_t>, 3> derivatives;
 
    CutQuadratureReport Set(const PolynomialLevelSet &level_set);
-   CutQuadratureReport Classify(LevelSetSign sign, CutRegion &region) const;
+   CutQuadratureReport Classify(CutDomain::LevelSetSign sign,
+                                CutRegion &region) const;
 
    template <typename Scalar>
    Scalar Evaluate(const Scalar *point, int derivative = -1) const
@@ -92,12 +93,12 @@ CutQuadratureReport AlgoimPolynomial::Set(const PolynomialLevelSet &level_set)
 }
 
 CutQuadratureReport AlgoimPolynomial::Classify(
-   LevelSetSign sign, CutRegion &region) const
+   CutDomain::LevelSetSign sign, CutRegion &region) const
 {
    region = CutRegion::Cut;
    const auto bounds = std::minmax_element(coefficients.begin(), coefficients.end());
    const real_t lower = *bounds.first, upper = *bounds.second;
-   const bool surface = sign == LevelSetSign::Zero;
+   const bool surface = sign == CutDomain::LevelSetSign::Zero;
    if (lower == 0 && upper == 0)
    {
       if (surface)
@@ -124,11 +125,11 @@ CutQuadratureReport AlgoimPolynomial::Classify(
          stride *= extent;
       }
    }
-   else if ((sign == LevelSetSign::Positive && lower >= 0) ||
-            (sign == LevelSetSign::Negative && upper <= 0))
+   else if ((sign == CutDomain::LevelSetSign::Positive && lower >= 0) ||
+            (sign == CutDomain::LevelSetSign::Negative && upper <= 0))
    { region = CutRegion::Full; }
-   else if ((sign == LevelSetSign::Positive && upper <= 0) ||
-            (sign == LevelSetSign::Negative && lower >= 0))
+   else if ((sign == CutDomain::LevelSetSign::Positive && upper <= 0) ||
+            (sign == CutDomain::LevelSetSign::Negative && lower >= 0))
    { region = CutRegion::Empty; }
    return {};
 }
@@ -233,7 +234,7 @@ struct GeneralFunction
 
 template <int Dimension>
 CutQuadratureReport ComputeGeneral(
-   const ReferenceLevelSet &level_set, LevelSetSign sign, int order,
+   const ReferenceLevelSet &level_set, CutDomain::LevelSetSign sign, int order,
    IntegrationRule &rule, CutRegion &region)
 {
    IntervalGuard<Dimension> guard;
@@ -249,7 +250,7 @@ CutQuadratureReport ComputeGeneral(
    }
    GeneralFunction<Dimension> function{
       level_set, source ? &polynomial : nullptr,
-      sign == LevelSetSign::Positive ? -1.0 : 1.0};
+      sign == CutDomain::LevelSetSign::Positive ? -1.0 : 1.0};
    if (!source)
    {
       using Interval = algoim::Interval<Dimension>;
@@ -267,15 +268,15 @@ CutQuadratureReport ComputeGeneral(
       { return {CutQuadratureStatus::NumericalFailure, "Invalid interval bounds."}; }
       if (value.alpha == 0 && deviation == 0)
       {
-         if (sign == LevelSetSign::Zero)
+         if (sign == CutDomain::LevelSetSign::Zero)
          { return {CutQuadratureStatus::DegenerateGeometry, "Identically zero equality constraint."}; }
          region = CutRegion::Empty;
       }
       else if (value.alpha - deviation > 0)
       { region = CutRegion::Empty; }
       else if (value.alpha + deviation < 0)
-      { region = sign == LevelSetSign::Zero ? CutRegion::Empty : CutRegion::Full; }
-      if (sign == LevelSetSign::Zero && region == CutRegion::Cut)
+      { region = sign == CutDomain::LevelSetSign::Zero ? CutRegion::Empty : CutRegion::Full; }
+      if (sign == CutDomain::LevelSetSign::Zero && region == CutRegion::Cut)
       {
          for (int axis = 0; axis < Dimension; ++axis)
          {
@@ -296,7 +297,8 @@ CutQuadratureReport ComputeGeneral(
    { rule = IntRules.Get(level_set.GetReferenceGeometry(), order); return {}; }
    const auto quadrature = algoim::quadGen<Dimension>(
       function, algoim::HyperRectangle<real_t, Dimension>(0.0, 1.0),
-      sign == LevelSetSign::Zero ? Dimension : -1, -1, order / 2 + 1);
+      sign == CutDomain::LevelSetSign::Zero ? Dimension : -1, -1,
+      order / 2 + 1);
    if (quadrature.nodes.size() > size_t(std::numeric_limits<int>::max()))
    { return {CutQuadratureStatus::NumericalFailure, "Too many ALGOIM nodes."}; }
    rule.SetSize(static_cast<int>(quadrature.nodes.size()));
@@ -321,11 +323,11 @@ bool SupportsAlgoimIntervals(const ReferenceLevelSet &level_set)
 }
 
 CutQuadratureReport GenerateAlgoimGeneral(
-   Geometry::Type geometry, const Array<const ReferenceLevelSet *> &level_sets,
-   const CutQuadratureRequest &request, IntegrationRule &rule, CutRegion &region)
+   Geometry::Type geometry, const CutQuadratureRequest &request,
+   IntegrationRule &rule, CutRegion &region)
 {
    const auto &constraint = request.domain.GetConstraint(0);
-   const auto &level_set = *level_sets[constraint.level_set];
+   const auto &level_set = constraint.level_set.get();
    return geometry == Geometry::SQUARE ?
           ComputeGeneral<2>(level_set, constraint.sign, request.order, rule, region) :
           ComputeGeneral<3>(level_set, constraint.sign, request.order, rule, region);
@@ -380,7 +382,8 @@ bool NearlyProportional(const AlgoimPolynomial &first,
 
 template <int Dimension>
 CutQuadratureReport ComputePolynomialRule(
-   const std::vector<AlgoimPolynomial> &data, const std::vector<LevelSetSign> &signs,
+   const std::vector<AlgoimPolynomial> &data,
+   const std::vector<CutDomain::LevelSetSign> &signs,
    const CutQuadratureRequest &request, IntegrationRule &rule, CutRegion &region)
 {
    if constexpr (Dimension == 3)
@@ -496,8 +499,8 @@ CutQuadratureReport ComputePolynomialRule(
             {
                const real_t value = algoim::bernstein::evalBernsteinPoly(
                                        *polynomials[index], coordinates);
-               if ((signs[index] == LevelSetSign::Positive && value <= 0) ||
-                   (signs[index] == LevelSetSign::Negative && value >= 0))
+               if ((signs[index] == CutDomain::LevelSetSign::Positive && value <= 0) ||
+                   (signs[index] == CutDomain::LevelSetSign::Negative && value >= 0))
                { return; }
             }
             append(coordinates, weight);
@@ -513,17 +516,17 @@ CutQuadratureReport ComputePolynomialRule(
 }
 
 CutQuadratureReport GenerateAlgoimPolynomial(
-   Geometry::Type geometry, const Array<const ReferenceLevelSet *> &level_sets,
-   const CutQuadratureRequest &request, IntegrationRule &rule, CutRegion &region)
+   Geometry::Type geometry, const CutQuadratureRequest &request,
+   IntegrationRule &rule, CutRegion &region)
 {
    std::vector<AlgoimPolynomial> data;
-   std::vector<LevelSetSign> signs;
+   std::vector<CutDomain::LevelSetSign> signs;
    for (int index = 0; index < request.domain.NumConstraints(); ++index)
    {
       const auto &constraint = request.domain.GetConstraint(index);
       AlgoimPolynomial polynomial;
       const auto *source = dynamic_cast<const PolynomialLevelSet *>(
-                              level_sets[constraint.level_set]);
+                              &constraint.level_set.get());
       if (!source)
       { return {CutQuadratureStatus::Unsupported, "Polynomial ALGOIM requires polynomial inputs."}; }
       auto report = polynomial.Set(*source);
@@ -583,24 +586,18 @@ public:
    }
 
    CutQuadratureReport CheckSupport(
-      Geometry::Type geometry, const Array<const ReferenceLevelSet *> &level_sets,
-      const CutQuadratureRequest &request) const override
+      Geometry::Type geometry, const CutQuadratureRequest &request) const override
    {
-      auto report = request.domain.Validate(geometry, level_sets.Size());
+      auto report = request.domain.Validate(geometry);
       if (!report.Succeeded()) { return report; }
       if (request.order < 0)
       { return {CutQuadratureStatus::InvalidInput, "Negative quadrature order."}; }
-      for (const auto *level_set : level_sets)
-      {
-         if (!level_set || level_set->GetReferenceGeometry() != geometry)
-         { return {CutQuadratureStatus::InvalidInput, "Invalid level-set geometry."}; }
-      }
       if (geometry != Geometry::SQUARE && geometry != Geometry::CUBE)
       { return {CutQuadratureStatus::Unsupported, "ALGOIM supports quads and hexes."}; }
       if (request.fixed_points)
       { return {CutQuadratureStatus::Unsupported, "Unsupported ALGOIM prescribed nodes."}; }
       const int count = request.domain.NumConstraints();
-      const bool polynomial = UsePolynomial(level_sets, request);
+      const bool polynomial = UsePolynomial(request);
       if (polynomial)
       {
 #ifndef MFEM_USE_LAPACKE
@@ -611,7 +608,7 @@ public:
          for (int index = 0; index < count; ++index)
          {
             if (!dynamic_cast<const PolynomialLevelSet *>(
-                   level_sets[request.domain.GetConstraint(index).level_set]))
+                   &request.domain.GetConstraint(index).level_set.get()))
             { return {CutQuadratureStatus::Unsupported, "Polynomial ALGOIM requires polynomial inputs."}; }
          }
 #endif
@@ -621,7 +618,7 @@ public:
          if (count > 1)
          { return {CutQuadratureStatus::Unsupported, "General ALGOIM supports one active level set."}; }
          if (count && !SupportsAlgoimIntervals(
-                *level_sets[request.domain.GetConstraint(0).level_set]))
+                request.domain.GetConstraint(0).level_set.get()))
          { return {CutQuadratureStatus::Unsupported, "General ALGOIM requires interval-capable inputs."}; }
       }
       if (request.order / 2 + 1 > (polynomial ? 100 : 10))
@@ -630,23 +627,22 @@ public:
    }
 
    CutQuadratureReport Generate(
-      Geometry::Type geometry, const Array<const ReferenceLevelSet *> &level_sets,
-      const CutQuadratureRequest &request, IntegrationRule &rule,
-      CutRegion &region) const override
+      Geometry::Type geometry, const CutQuadratureRequest &request,
+      IntegrationRule &rule, CutRegion &region) const override
    {
       rule.SetSize(0); rule.SetOrder(-1); region = CutRegion::Unknown;
-      auto report = CheckSupport(geometry, level_sets, request);
+      auto report = CheckSupport(geometry, request);
       if (!report.Succeeded()) { return report; }
       try
       {
          if (!request.domain.NumConstraints())
          { rule = IntRules.Get(geometry, request.order); region = CutRegion::Full; }
 #ifdef MFEM_USE_LAPACKE
-         else if (UsePolynomial(level_sets, request))
-         { report = GenerateAlgoimPolynomial(geometry, level_sets, request, rule, region); }
+         else if (UsePolynomial(request))
+         { report = GenerateAlgoimPolynomial(geometry, request, rule, region); }
 #endif
          else
-         { report = GenerateAlgoimGeneral(geometry, level_sets, request, rule, region); }
+         { report = GenerateAlgoimGeneral(geometry, request, rule, region); }
       }
       catch (const std::exception &error)
       { report = {CutQuadratureStatus::NumericalFailure, error.what()}; }
@@ -677,8 +673,7 @@ public:
 private:
    Algorithm algorithm;
 
-   bool UsePolynomial(const Array<const ReferenceLevelSet *> &level_sets,
-                      const CutQuadratureRequest &request) const
+   bool UsePolynomial(const CutQuadratureRequest &request) const
    {
       if (algorithm != Algorithm::Automatic)
       { return algorithm == Algorithm::Polynomial; }
@@ -686,7 +681,7 @@ private:
       for (int index = 0; index < request.domain.NumConstraints(); ++index)
       {
          if (!dynamic_cast<const PolynomialLevelSet *>(
-                level_sets[request.domain.GetConstraint(index).level_set]))
+                &request.domain.GetConstraint(index).level_set.get()))
          { return false; }
       }
       return true;

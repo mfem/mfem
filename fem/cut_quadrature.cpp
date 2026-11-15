@@ -279,45 +279,50 @@ real_t FunctionLevelSet::Eval(const IntegrationPoint &point) const { return valu
 void FunctionLevelSet::EvalGradient(const IntegrationPoint &point, Vector &result) const
 { result.SetSize(GetDim()); gradient(point, result); }
 
-CutDomain CutDomain::Positive(int level_set)
+CutDomain CutDomain::Positive(const ReferenceLevelSet &level_set)
 { CutDomain domain; return domain.Add(level_set, LevelSetSign::Positive); }
-CutDomain CutDomain::Negative(int level_set)
+CutDomain CutDomain::Negative(const ReferenceLevelSet &level_set)
 { CutDomain domain; return domain.Add(level_set, LevelSetSign::Negative); }
-CutDomain CutDomain::Surface(int level_set)
+CutDomain CutDomain::Surface(const ReferenceLevelSet &level_set)
 { CutDomain domain; return domain.Add(level_set, LevelSetSign::Zero); }
-CutDomain &CutDomain::Add(int level_set, LevelSetSign sign)
+CutDomain &CutDomain::Add(const ReferenceLevelSet &level_set, LevelSetSign sign)
 { constraints.push_back({level_set, sign}); return *this; }
 int CutDomain::NumConstraints() const { return static_cast<int>(constraints.size()); }
 const CutDomain::Constraint &CutDomain::GetConstraint(int index) const { return constraints.at(index); }
 int CutDomain::Codimension() const
 {
    int result = 0;
-   for (const auto &constraint : constraints) { result += constraint.sign == LevelSetSign::Zero; }
+   for (const auto &constraint : constraints)
+   { result += constraint.sign == LevelSetSign::Zero; }
    return result;
 }
-CutQuadratureReport CutDomain::Validate(Geometry::Type geometry, int count) const
+CutQuadratureReport CutDomain::Validate(Geometry::Type geometry) const
 {
-   if (!ValidGeometry(geometry) || count < 0)
+   if (!ValidGeometry(geometry))
    { return Failure(CutQuadratureStatus::InvalidInput, "Invalid geometry."); }
    if (Codimension() > Geometry::Dimension[geometry])
    { return Failure(CutQuadratureStatus::InvalidInput, "Invalid codimension."); }
-   std::vector<bool> used(count, false);
-   for (const auto &constraint : constraints)
+   for (int index = 0; index < NumConstraints(); ++index)
    {
-      if (constraint.level_set < 0 || constraint.level_set >= count ||
-          (constraint.sign != LevelSetSign::Positive && constraint.sign != LevelSetSign::Negative &&
-           constraint.sign != LevelSetSign::Zero))
+      const auto &constraint = constraints[index];
+      if (constraint.sign != LevelSetSign::Positive &&
+          constraint.sign != LevelSetSign::Negative &&
+          constraint.sign != LevelSetSign::Zero)
       { return Failure(CutQuadratureStatus::InvalidInput, "Invalid level-set constraint."); }
-      if (used[constraint.level_set])
-      { return Failure(CutQuadratureStatus::InvalidInput, "Repeated level-set constraint."); }
-      used[constraint.level_set] = true;
+      if (constraint.level_set.get().GetReferenceGeometry() != geometry)
+      { return Failure(CutQuadratureStatus::InvalidInput, "Level-set geometry mismatch."); }
+      for (int previous = 0; previous < index; ++previous)
+      {
+         if (&constraints[previous].level_set.get() == &constraint.level_set.get())
+         { return Failure(CutQuadratureStatus::InvalidInput, "Repeated level-set constraint."); }
+      }
    }
    return {};
 }
 
 void CutQuadrature::Clear()
 {
-   geometry = Geometry::INVALID; domain = CutDomain(); region = CutRegion::Unknown;
+   geometry = Geometry::INVALID; codimension = 0; region = CutRegion::Unknown;
    rule.SetSize(0); rule.SetOrder(-1); conormals.SetSize(0, 0, 0);
 }
 void MappedCutQuadrature::Clear()
@@ -330,11 +335,10 @@ CutQuadratureGenerator::CutQuadratureGenerator(const CutQuadratureBackend &imple
    : backend(implementation) { }
 
 CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
-   const Array<const ReferenceLevelSet *> &level_sets,
    const CutQuadratureRequest &request, CutQuadrature &out) const try
 {
    out.Clear();
-   auto report = request.domain.Validate(geometry, level_sets.Size());
+   auto report = request.domain.Validate(geometry);
    if (!report.Succeeded()) { return report; }
    if (request.order < 0) { return Failure(CutQuadratureStatus::InvalidInput, "Negative quadrature order."); }
    if (request.fixed_points)
@@ -347,14 +351,9 @@ CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
          { return Failure(CutQuadratureStatus::InvalidInput, "Invalid prescribed node."); }
       }
    }
-   for (const auto *level_set : level_sets)
-   {
-      if (!level_set || level_set->GetReferenceGeometry() != geometry)
-      { return Failure(CutQuadratureStatus::InvalidInput, "Level-set geometry mismatch."); }
-   }
-   report = backend.CheckSupport(geometry, level_sets, request);
+   report = backend.CheckSupport(geometry, request);
    if (!report.Succeeded()) { return report; }
-   report = backend.Generate(geometry, level_sets, request, out.rule, out.region);
+   report = backend.Generate(geometry, request, out.rule, out.region);
    if (!report.Succeeded()) { out.Clear(); return report; }
    auto fail = [&](CutQuadratureStatus status, const char *message)
    { out.Clear(); return Failure(status, message); };
@@ -365,7 +364,9 @@ CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
    if (request.fixed_points &&
        out.GetNPoints() != request.fixed_points->GetNPoints())
    { return fail(CutQuadratureStatus::NumericalFailure, "Backend changed prescribed nodes."); }
-   out.geometry = geometry; out.domain = request.domain; out.rule.SetOrder(request.order);
+   out.geometry = geometry;
+   out.codimension = request.domain.Codimension();
+   out.rule.SetOrder(request.order);
    const int dimension = Geometry::Dimension[geometry];
    const int codimension = request.domain.Codimension();
    const int count = out.GetNPoints();
@@ -392,8 +393,8 @@ CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
       for (int constraint = 0; constraint < request.domain.NumConstraints(); ++constraint)
       {
          const auto &condition = request.domain.GetConstraint(constraint);
-         if (condition.sign != LevelSetSign::Zero) { continue; }
-         level_sets[condition.level_set]->EvalGradient(point, normal);
+         if (condition.sign != CutDomain::LevelSetSign::Zero) { continue; }
+         condition.level_set.get().EvalGradient(point, normal);
          if (normal.Size() != dimension || !FiniteVector(normal) || normal.Norml2() == 0)
          { return fail(CutQuadratureStatus::DegenerateGeometry, "Singular level-set gradient."); }
          normal /= normal.Norml2(); normals.SetCol(column++, normal);
@@ -422,9 +423,10 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
    { return Failure(CutQuadratureStatus::InvalidInput, "Invalid mapping request."); }
    const int dimension = Geometry::Dimension[reference.geometry];
    const int space_dimension = transformation.GetSpaceDim();
-   const int codimension = reference.domain.Codimension();
+   const int codimension = reference.codimension;
    const int count = reference.GetNPoints();
-   if (dimension < 1 || space_dimension < dimension || codimension > dimension ||
+   if (dimension < 1 || space_dimension < dimension || codimension < 0 ||
+       codimension > dimension ||
        (codimension && (reference.conormals.SizeI() != dimension ||
                        reference.conormals.SizeJ() != codimension || reference.conormals.SizeK() != count)))
    { return Failure(CutQuadratureStatus::InvalidInput, "Invalid reference conormal dimensions."); }
@@ -515,12 +517,12 @@ catch (const std::exception &error)
 }
 
 CutQuadratureReport CutQuadratureGenerator::Generate(ElementTransformation &transformation,
-   const Array<const ReferenceLevelSet *> &level_sets, const CutQuadratureRequest &request,
-   const CutMappingOptions &mapping, MappedCutQuadrature &out) const
+   const CutQuadratureRequest &request, const CutMappingOptions &mapping,
+   MappedCutQuadrature &out) const
 {
    out.Clear();
    CutQuadrature reference;
-   auto report = Generate(transformation.GetGeometryType(), level_sets, request, reference);
+   auto report = Generate(transformation.GetGeometryType(), request, reference);
    if (!report.Succeeded()) { return report; }
    auto mapped = MapCutQuadrature(transformation, reference, mapping, out);
    return mapped.Succeeded() ? report : mapped;
