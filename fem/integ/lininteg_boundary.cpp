@@ -21,9 +21,10 @@ namespace mfem
 /// Boundary load multiplying the test function at a quadrature point.
 enum class BdrLoad
 {
-   Value,     ///< f v, scalar f           (BoundaryLFIntegrator)
-   NormalDot, ///< (g.n) v, vector g       (BoundaryNormalLFIntegrator)
-   NormalFlux ///< f (n.v), vdim = dim     (VectorBoundaryFluxLFIntegrator)
+   Value,      ///< f v, scalar f          (BoundaryLFIntegrator)
+   NormalDot,  ///< (g.n) v, vector g      (BoundaryNormalLFIntegrator)
+   NormalFlux, ///< f (n.v), vdim = dim    (VectorBoundaryFluxLFIntegrator)
+   VectorValue ///< g.v, g of size vdim    (VectorBoundaryLFIntegrator)
 };
 
 template<int T_D1D = 0, int T_Q1D = 0>
@@ -41,7 +42,9 @@ static void BLFEvalAssemble2D(const int vdim, const int nbe, const int d,
    const auto N = Reshape(n, q, 2, nbe);
    const auto W = Reshape(weights, q);
    const bool normals = load == BdrLoad::NormalDot;
-   const int cvdim = normals ? 2 : 1;
+   // Vector loads: component c of v is tested with component c of g
+   const bool vector = load == BdrLoad::VectorValue;
+   const int cvdim = normals ? 2 : vector ? vdim : 1;
    const bool cst = coeff.Size() == cvdim;
    const auto C = cst ? Reshape(F,cvdim,1,1) : Reshape(F,cvdim,q,nbe);
    auto Y = Reshape(y, d, vdim, nbe);
@@ -68,7 +71,8 @@ static void BLFEvalAssemble2D(const int vdim, const int nbe, const int d,
             }
             else
             {
-               coeff_val = cst ? C(0,0,0) : C(0,qx,e);
+               const int cc = vector ? c : 0;
+               coeff_val = cst ? C(cc,0,0) : C(cc,qx,e);
             }
             QQ[qx] = scale * W(qx) * coeff_val * detJ(qx,e);
          }
@@ -97,7 +101,8 @@ static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
    const auto N = Reshape(n, q, q, 3, nbe);
    const auto W = Reshape(weights, q, q);
    const bool normals = load == BdrLoad::NormalDot;
-   const int cvdim = normals ? 3 : 1;
+   const bool vector = load == BdrLoad::VectorValue;
+   const int cvdim = normals ? 3 : vector ? vdim : 1;
    const bool cst = coeff.Size() == cvdim;
    const auto C = cst ? Reshape(F,cvdim,1,1,1) : Reshape(F,cvdim,q,q,nbe);
    auto Y = Reshape(y, d, d, vdim, nbe);
@@ -136,7 +141,8 @@ static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
                }
                else
                {
-                  coeff_val = cst ? C(0,0,0,0) : C(0,x,y,e);
+                  const int cc = vector ? c : 0;
+                  coeff_val = cst ? C(cc,0,0,0) : C(cc,x,y,e);
                }
                QQ(y,x) = scale * W(x,y) * coeff_val * detJ(x,y,e);
             }
@@ -184,7 +190,8 @@ static void BLFEvalAssembleSimplex(const int vdim, const int nbf,
 {
    const bool normals = load == BdrLoad::NormalDot;
    const bool flux = load == BdrLoad::NormalFlux;
-   const int cvdim = normals ? sdim : 1;
+   const bool vector = load == BdrLoad::VectorValue;
+   const int cvdim = normals ? sdim : vector ? vdim : 1;
    const bool cst = coeff.Size() == cvdim;
    const auto F = coeff.Read();
    const auto C = cst ? Reshape(F, cvdim, 1, 1) : Reshape(F, cvdim, q, nbf);
@@ -212,7 +219,11 @@ static void BLFEvalAssembleSimplex(const int vdim, const int nbf,
                   coeff_val += (cst ? C(cd,0,0) : C(cd,k,f)) * N(k,cd,f);
                }
             }
-            else { coeff_val = cst ? C(0,0,0) : C(0,k,f); }
+            else
+            {
+               const int cc = vector ? c : 0;
+               coeff_val = cst ? C(cc,0,0) : C(cc,k,f);
+            }
             if (flux) { coeff_val *= N(k,c,f); }
             u += B(k,dof) * W(k) * coeff_val * detJ(k,f);
          }
@@ -234,7 +245,10 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
    const FiniteElement &el = *fes.GetTypicalBE();
    const MemoryType mt = Device::GetDeviceMemoryType();
    int flags = FaceGeometricFactors::DETERMINANTS;
-   if (load != BdrLoad::Value) { flags |= FaceGeometricFactors::NORMALS; }
+   if (load == BdrLoad::NormalDot || load == BdrLoad::NormalFlux)
+   {
+      flags |= FaceGeometricFactors::NORMALS;
+   }
    const FaceGeometricFactors *geom = mesh.GetFaceGeometricFactors(
                                          ir, flags, FaceType::Boundary, mt);
    MFEM_VERIFY(load != BdrLoad::NormalFlux || fes.GetVDim() == dim,
@@ -322,6 +336,26 @@ void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
    FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
    BLFEvalAssemble(fes, ir, markers, coeff, BdrLoad::NormalDot, 1.0, b);
+}
+
+void VectorBoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
+                                                const Array<int> &markers,
+                                                Vector &b)
+{
+   if (fes.GetNBE() == 0) { return; }
+   // Component c of the load g tests component c of v: one per space vdim.
+   MFEM_VERIFY(Q.GetVDim() == fes.GetVDim(), "VectorBoundaryLFIntegrator: "
+               "the coefficient and the space must have the same vdim");
+   const FiniteElement &fe = *fes.GetTypicalBE();
+   // Same default rule as AssembleRHSElementVect(): order 2p.
+   const Geometry::Type gtype = fe.GetGeomType();
+   const IntegrationRule &ir =
+      IntRule ? *IntRule : IntRules.Get(gtype, 2 * fe.GetOrder());
+   Mesh &mesh = *fes.GetMesh();
+
+   FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+   BLFEvalAssemble(fes, ir, markers, coeff, BdrLoad::VectorValue, 1.0, b);
 }
 
 /// Tensor (quadrilateral/hexahedron) VectorBoundaryFluxLFIntegrator assembly,

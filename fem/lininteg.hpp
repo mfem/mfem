@@ -367,6 +367,13 @@ public:
    /// Constructs a boundary integrator with a given VectorCoefficient QG
    VectorBoundaryLFIntegrator(VectorCoefficient &QG) : Q(QG) { }
 
+   bool SupportsDevice() const override { return true; }
+
+   /// Method defining assembly on device
+   void AssembleDevice(const FiniteElementSpace &fes,
+                       const Array<int> &markers,
+                       Vector &b) override;
+
    /** Given a particular boundary Finite Element and a transformation (Tr)
        computes the element boundary vector, elvect. */
    void AssembleRHSElementVect(const FiniteElement &el,

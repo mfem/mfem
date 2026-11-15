@@ -1837,6 +1837,38 @@ real_t SimplexBdrLoad(const Vector &x)
    return 1.0 + std::sin(2.0 * x(0)) + 0.5 * x(1) * x(1);
 }
 
+/// Device (fast) vs legacy assembly of the boundary load built by @a make,
+/// on the boundary attributes of @a marker, or everywhere if it is null.
+template <typename Make>
+void CompareBdrLoad(FiniteElementSpace &fes, Make make, Array<int> *marker)
+{
+   CAPTURE(fes.GetVDim(), fes.GetOrdering(), marker != nullptr);
+   // The device form reads its marker on the device: give the legacy form
+   // its own copy, legacy assembly indexes markers on the host.
+   Array<int> marker_std;
+   LinearForm lf_dev(&fes), lf_std(&fes);
+   if (marker)
+   {
+      marker_std = *marker;
+      lf_dev.AddBoundaryIntegrator(make(), *marker);
+      lf_std.AddBoundaryIntegrator(make(), marker_std);
+   }
+   else
+   {
+      lf_dev.AddBoundaryIntegrator(make());
+      lf_std.AddBoundaryIntegrator(make());
+   }
+   REQUIRE(lf_dev.SupportsDevice());
+   lf_dev.UseFastAssembly(true);
+   lf_dev.Assemble();
+   lf_std.UseFastAssembly(false);
+   lf_std.Assemble();
+   REQUIRE(lf_std.Norml2() > 0.0);
+   Vector diff(lf_std);
+   diff -= lf_dev;
+   RequireSmallRel(diff, lf_std);
+}
+
 void test_bdr_lf_simplex_mma(const char *filename, int p, bool curved)
 {
    CAPTURE(filename, p, curved);
@@ -1853,45 +1885,136 @@ void test_bdr_lf_simplex_mma(const char *filename, int p, bool curved)
    FunctionCoefficient f(SimplexBdrLoad);
    VectorFunctionCoefficient g(dim, fvec_dim);
 
-   // The device form reads its marker on the device: give the legacy form
-   // its own copy, legacy assembly indexes markers on the host.
-   Array<int> bdr_marker_std(bdr_marker);
-   auto compare = [&](FiniteElementSpace &fes, auto make, bool marked)
-   {
-      CAPTURE(fes.GetVDim(), fes.GetOrdering(), marked);
-      LinearForm lf_dev(&fes), lf_std(&fes);
-      if (marked)
-      {
-         lf_dev.AddBoundaryIntegrator(make(), bdr_marker);
-         lf_std.AddBoundaryIntegrator(make(), bdr_marker_std);
-      }
-      else
-      {
-         lf_dev.AddBoundaryIntegrator(make());
-         lf_std.AddBoundaryIntegrator(make());
-      }
-      REQUIRE(lf_dev.SupportsDevice());
-      lf_dev.UseFastAssembly(true);
-      lf_dev.Assemble();
-      lf_std.UseFastAssembly(false);
-      lf_std.Assemble();
-      REQUIRE(lf_std.Norml2() > 0.0);
-      Vector diff(lf_std);
-      diff -= lf_dev;
-      RequireSmallRel(diff, lf_std);
-   };
-
    for (bool marked : {false, true})
    {
-      compare(sfes, [&] { return new BoundaryLFIntegrator(f); }, marked);
-      compare(sfes, [&] { return new BoundaryNormalLFIntegrator(g); }, marked);
+      Array<int> *marker = marked ? &bdr_marker : nullptr;
+      CompareBdrLoad(sfes, [&] { return new BoundaryLFIntegrator(f); },
+                     marker);
+      CompareBdrLoad(sfes, [&] { return new BoundaryNormalLFIntegrator(g); },
+                     marker);
       for (FiniteElementSpace *vfes : {&vfes_n, &vfes_v})
       {
-         compare(*vfes, [&] { return new VectorBoundaryFluxLFIntegrator(f); },
-                 marked);
-         compare(*vfes, [&]
-         { return new VectorBoundaryFluxLFIntegrator(f, -0.7); }, marked);
+         CompareBdrLoad(*vfes, [&]
+         { return new VectorBoundaryFluxLFIntegrator(f); }, marker);
+         CompareBdrLoad(*vfes, [&]
+         { return new VectorBoundaryFluxLFIntegrator(f, -0.7); }, marker);
+         // <g, v>, the traction load, with the default order 2p rule
+         CompareBdrLoad(*vfes, [&]
+         { return new VectorBoundaryLFIntegrator(g); }, marker);
       }
+   }
+}
+
+/// VectorBoundaryLFIntegrator on quadrilateral/hexahedral meshes: the tensor
+/// counterpart (BLFEvalAssemble2D/3D) of the simplex <g, v> load above.
+void test_vector_bdr_lf_tensor(const char *filename, int p, bool curved)
+{
+   CAPTURE(filename, p, curved);
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   Array<int> bdr_marker;
+   SetAlternateBdrAttributes(mesh, bdr_marker);
+   const int dim = mesh.Dimension();
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace vfes_n(&mesh, &fec, dim, Ordering::byNODES);
+   FiniteElementSpace vfes_v(&mesh, &fec, dim, Ordering::byVDIM);
+   REQUIRE(UsesTensorBasis(vfes_n));
+
+   VectorFunctionCoefficient g(dim, fvec_dim);
+   Vector g0(dim);
+   for (int c = 0; c < dim; ++c) { g0(c) = 1.0 - 0.5 * c; }
+   VectorConstantCoefficient gc(g0);
+   for (bool marked : {false, true})
+   {
+      Array<int> *marker = marked ? &bdr_marker : nullptr;
+      for (FiniteElementSpace *vfes : {&vfes_n, &vfes_v})
+      {
+         CompareBdrLoad(*vfes, [&]
+         { return new VectorBoundaryLFIntegrator(g); }, marker);
+         CompareBdrLoad(*vfes, [&]
+         { return new VectorBoundaryLFIntegrator(gc); }, marker);
+      }
+   }
+}
+
+/** A boundary load f v defined outside the library, as iFSI's traction
+    integrator is: the legacy path delegates to BoundaryLFIntegrator while
+    AssembleDevice() is its own kernel, written only against the simplex
+    contract documented in LinearForm::SupportsDevice(): a NATIVE face
+    E-vector (nd, nbf), the DofToQuad::FULL face basis and the simplex
+    FaceGeometricFactors, all in the IntegrationRule point order. */
+class ExternalBdrLFIntegrator : public LinearFormIntegrator
+{
+   Coefficient &Q;
+   BoundaryLFIntegrator legacy;
+
+public:
+   ExternalBdrLFIntegrator(Coefficient &q, const IntegrationRule &ir)
+      : LinearFormIntegrator(&ir), Q(q), legacy(q) { legacy.SetIntRule(&ir); }
+
+   bool SupportsDevice() const override { return true; }
+
+   void AssembleDevice(const FiniteElementSpace &fes,
+                       const Array<int> &markers, Vector &b) override
+   {
+      MFEM_VERIFY(!UsesTensorBasis(fes), "simplex only");
+      MFEM_VERIFY(fes.GetVDim() == 1, "scalar only");
+      Mesh &mesh = *fes.GetMesh();
+      const IntegrationRule &ir = *IntRule;
+      const DofToQuad &maps =
+         fes.GetTypicalBE()->GetDofToQuad(ir, DofToQuad::FULL);
+      constexpr int flags = FaceGeometricFactors::DETERMINANTS;
+      const FaceGeometricFactors *geom =
+         mesh.GetFaceGeometricFactors(ir, flags, FaceType::Boundary);
+      FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
+      CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
+
+      const int nd = maps.ndof, nq = maps.nqpt;
+      const int nbf = mesh.GetNFbyType(FaceType::Boundary);
+      const auto M = markers.Read();
+      const auto B = Reshape(maps.B.Read(), nq, nd);
+      const auto W = ir.GetWeights().Read();
+      const auto detJ = Reshape(geom->detJ.Read(), nq, nbf);
+      const auto C = Reshape(coeff.Read(), nq, nbf);
+      auto Y = Reshape(b.ReadWrite(), nd, nbf);
+      mfem::forall(nbf * nd, [=] MFEM_HOST_DEVICE (int i)
+      {
+         const int d = i % nd, f = i / nd;
+         if (M[f] == 0) { return; }
+         real_t u = 0.0;
+         for (int k = 0; k < nq; ++k)
+         {
+            u += B(k, d) * W[k] * C(k, f) * detJ(k, f);
+         }
+         Y(d, f) += u;
+      });
+   }
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override
+   {
+      legacy.AssembleRHSElementVect(el, Tr, elvect);
+   }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+void test_external_bdr_lf_simplex(const char *filename, int p, bool curved)
+{
+   CAPTURE(filename, p, curved);
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   Array<int> bdr_marker;
+   SetAlternateBdrAttributes(mesh, bdr_marker);
+   H1_FECollection fec(p, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+   REQUIRE(UsesSimplexMMA(fes));
+   const IntegrationRule &ir =
+      IntRules.Get(fes.GetBE(0)->GetGeomType(), 2 * p);
+   FunctionCoefficient f(SimplexBdrLoad);
+   for (Array<int> *marker : {(Array<int>*) nullptr, &bdr_marker})
+   {
+      CompareBdrLoad(fes, [&] { return new ExternalBdrLFIntegrator(f, ir); },
+                     marker);
    }
 }
 
@@ -2169,6 +2292,37 @@ TEST_CASE("Boundary LF Simplices MMA", "[LinearFormExtension][MMA][GPU]")
    {
       test_bdr_lf_simplex_mma("../../data/inline-tet.mesh", p, curved);
       test_bdr_lf_simplex_mma("../../data/beam-tet.mesh", p, curved);
+   }
+}
+
+TEST_CASE("Vector Boundary LF Tensor MMA", "[LinearFormExtension][MMA][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3);
+   const auto curved = GENERATE(false, true);
+   SECTION("2D")
+   {
+      test_vector_bdr_lf_tensor("../../data/inline-quad.mesh", p, curved);
+      test_vector_bdr_lf_tensor("../../data/star.mesh", p, curved);
+   }
+   SECTION("3D")
+   {
+      test_vector_bdr_lf_tensor("../../data/inline-hex.mesh", p, curved);
+      test_vector_bdr_lf_tensor("../../data/fichera.mesh", p, curved);
+   }
+}
+
+TEST_CASE("External Boundary LF Simplices MMA",
+          "[LinearFormExtension][MMA][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3);
+   const auto curved = GENERATE(false, true);
+   SECTION("2D")
+   {
+      test_external_bdr_lf_simplex("../../data/inline-tri.mesh", p, curved);
+   }
+   SECTION("3D")
+   {
+      test_external_bdr_lf_simplex("../../data/inline-tet.mesh", p, curved);
    }
 }
 

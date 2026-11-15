@@ -159,21 +159,21 @@ bool LinearForm::SupportsDevice() const
 
    // Simplex boundary loads: H1 only, through the NATIVE face restriction and
    // the simplex FaceGeometricFactors (continuous mesh nodes are needed).
+   // As in the tensor case above, any boundary integrator whose
+   // SupportsDevice() is true is accepted: this is the extension point for
+   // integrators defined outside the library. On simplices, AssembleDevice()
+   // must then handle
+   //  - a NATIVE face E-vector of layout (nd, vdim, nbf), nd being the number
+   //    of DOFs of the face element (see ConformingFaceRestriction),
+   //  - the DofToQuad::FULL basis of the face element (no tensor structure),
+   //  - the simplex FaceGeometricFactors, in the IntegrationRule point order.
+   // BLFEvalAssembleSimplex in fem/integ/lininteg_boundary.cpp is the
+   // reference implementation.
    if (boundary_integs.Size() > 0)
    {
       if (!UsesSimplexMMA(*fes)) { return false; }
       const GridFunction *nodes = mesh.GetNodes();
       if (nodes && nodes->FESpace()->IsDGSpace()) { return false; }
-      for (int k = 0; k < boundary_integs.Size(); ++k)
-      {
-         const LinearFormIntegrator *lfi = boundary_integs[k];
-         if (!dynamic_cast<const BoundaryLFIntegrator*>(lfi) &&
-             !dynamic_cast<const BoundaryNormalLFIntegrator*>(lfi) &&
-             !dynamic_cast<const VectorBoundaryFluxLFIntegrator*>(lfi))
-         {
-            return false;
-         }
-      }
    }
 
    // Simplices can use MMA (H1, H(curl), H(div); boundary loads H1 only)
