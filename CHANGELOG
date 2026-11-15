@@ -44,9 +44,15 @@ Meshing improvements
 
 Linear and nonlinear solvers
 ----------------------------
+- Fixed the AmgX resource shared by the AmgXSolver instances, which used the
+  configuration and the communicator of the first instance after its
+  destruction, and the creation of several serial AmgXSolver instances, which
+  initialized AmgX again.
+
 - Fixed HypreParaSails::SetOperator, which read the communicator of the
   previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
   in a NewtonSolver.
+
 - Fixed the PETSc wrappers on GPUs when the device memory type is an Umpire
   one (the default when MFEM is built with Umpire): the vectors given to PETSc
   were host vectors while the PETSc matrices and preconditioners computed on
