@@ -163,52 +163,6 @@ void SolveUpperTranspose(const DenseMatrix &triangular,
    }
 }
 
-CutQuadratureReport FaceConormal(Geometry::Type geometry, int face, Vector &normal)
-{
-   const int dimension = Geometry::Dimension[geometry];
-   normal.SetSize(dimension);
-   normal = 0.;
-   if (dimension == 1) { normal(0) = face == 0 ? -1 : 1; return {}; }
-   const int *indices = nullptr;
-   switch (geometry)
-   {
-      case Geometry::TRIANGLE:
-         indices = Geometry::Constants<Geometry::TRIANGLE>::Edges[face]; break;
-      case Geometry::SQUARE:
-         indices = Geometry::Constants<Geometry::SQUARE>::Edges[face]; break;
-      case Geometry::TETRAHEDRON:
-         indices = Geometry::Constants<Geometry::TETRAHEDRON>::FaceVert[face]; break;
-      case Geometry::CUBE:
-         indices = Geometry::Constants<Geometry::CUBE>::FaceVert[face]; break;
-      case Geometry::PRISM:
-         indices = Geometry::Constants<Geometry::PRISM>::FaceVert[face]; break;
-      case Geometry::PYRAMID:
-         indices = Geometry::Constants<Geometry::PYRAMID>::FaceVert[face]; break;
-      default:
-         return Failure(CutQuadratureStatus::InvalidInput, "Invalid facet geometry.");
-   }
-   const IntegrationRule &points = *Geometries.GetVertices(geometry);
-   Vector origin(dimension), first(dimension), second(dimension), center(dimension);
-   points.IntPoint(indices[0]).Get(origin.GetData(), dimension);
-   points.IntPoint(indices[1]).Get(first.GetData(), dimension);
-   first -= origin;
-   if (dimension == 2) { normal(0) = first(1); normal(1) = -first(0); }
-   else
-   {
-      points.IntPoint(indices[2]).Get(second.GetData(), dimension);
-      second -= origin;
-      normal(0) = first(1)*second(2) - first(2)*second(1);
-      normal(1) = first(2)*second(0) - first(0)*second(2);
-      normal(2) = first(0)*second(1) - first(1)*second(0);
-   }
-   Geometries.GetCenter(geometry).Get(center.GetData(), dimension);
-   center -= origin;
-   if (normal * center > 0) { normal *= -1; }
-   const real_t norm = normal.Norml2();
-   if (norm == 0) { return Failure(CutQuadratureStatus::DegenerateGeometry, "Invalid reference facet."); }
-   normal /= norm;
-   return {};
-}
 }
 
 int ReferenceLevelSet::GetDim() const
@@ -333,21 +287,20 @@ CutDomain CutDomain::Surface(int level_set)
 { CutDomain domain; return domain.Add(level_set, LevelSetSign::Zero); }
 CutDomain &CutDomain::Add(int level_set, LevelSetSign sign)
 { constraints.push_back({level_set, sign}); return *this; }
-CutDomain &CutDomain::OnFace(int new_face) { face = new_face; return *this; }
 int CutDomain::NumConstraints() const { return static_cast<int>(constraints.size()); }
 const CutDomain::Constraint &CutDomain::GetConstraint(int index) const { return constraints.at(index); }
 int CutDomain::Codimension() const
 {
-   int result = face >= 0 ? 1 : 0;
+   int result = 0;
    for (const auto &constraint : constraints) { result += constraint.sign == LevelSetSign::Zero; }
    return result;
 }
 CutQuadratureReport CutDomain::Validate(Geometry::Type geometry, int count) const
 {
-   if (!ValidGeometry(geometry) || count < 0 || face < -1)
-   { return Failure(CutQuadratureStatus::InvalidInput, "Invalid geometry or facet."); }
-   if (face >= Geometry::NumBdrArray[geometry] || Codimension() > Geometry::Dimension[geometry])
-   { return Failure(CutQuadratureStatus::InvalidInput, "Invalid facet or codimension."); }
+   if (!ValidGeometry(geometry) || count < 0)
+   { return Failure(CutQuadratureStatus::InvalidInput, "Invalid geometry."); }
+   if (Codimension() > Geometry::Dimension[geometry])
+   { return Failure(CutQuadratureStatus::InvalidInput, "Invalid codimension."); }
    std::vector<bool> used(count, false);
    for (const auto &constraint : constraints)
    {
@@ -407,8 +360,7 @@ CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
    { out.Clear(); return Failure(status, message); };
    if ((out.region != CutRegion::Full && out.region != CutRegion::Empty &&
         out.region != CutRegion::Cut) ||
-       (out.region == CutRegion::Full &&
-        request.domain.Codimension() > (request.domain.GetFace() >= 0 ? 1 : 0)))
+       (out.region == CutRegion::Full && request.domain.Codimension() > 0))
    { return fail(CutQuadratureStatus::NumericalFailure, "Invalid backend region."); }
    if (request.fixed_points &&
        out.GetNPoints() != request.fixed_points->GetNPoints())
@@ -445,12 +397,6 @@ CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
          if (normal.Size() != dimension || !FiniteVector(normal) || normal.Norml2() == 0)
          { return fail(CutQuadratureStatus::DegenerateGeometry, "Singular level-set gradient."); }
          normal /= normal.Norml2(); normals.SetCol(column++, normal);
-      }
-      if (request.domain.GetFace() >= 0)
-      {
-         auto face_report = FaceConormal(geometry, request.domain.GetFace(), normal);
-         if (!face_report.Succeeded()) { out.Clear(); return face_report; }
-         normals.SetCol(column, normal);
       }
       if (!FullRank(normals))
       { return fail(CutQuadratureStatus::DegenerateGeometry, "Dependent conormals."); }

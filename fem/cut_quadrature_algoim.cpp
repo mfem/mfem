@@ -597,8 +597,8 @@ public:
       }
       if (geometry != Geometry::SQUARE && geometry != Geometry::CUBE)
       { return {CutQuadratureStatus::Unsupported, "ALGOIM supports quads and hexes."}; }
-      if (request.domain.GetFace() >= 0 || request.fixed_points)
-      { return {CutQuadratureStatus::Unsupported, "Unsupported ALGOIM facet or prescribed nodes."}; }
+      if (request.fixed_points)
+      { return {CutQuadratureStatus::Unsupported, "Unsupported ALGOIM prescribed nodes."}; }
       const int count = request.domain.NumConstraints();
       const bool polynomial = UsePolynomial(level_sets, request);
       if (polynomial)

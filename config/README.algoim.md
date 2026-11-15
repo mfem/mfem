@@ -69,7 +69,7 @@ rule and tensors it with a one-dimensional rule. Independence is checked at
 coefficient-roundoff scale; this avoids an upstream degree-reduction assertion
 for extruded multi-polynomial geometries without modifying the dependency.
 Mixed equality/inequality requests, two equality constraints, more than two
-constraints, facets, simplices, and prescribed nodes remain unsupported.
+constraints, simplices, and prescribed nodes remain unsupported.
 In particular, a codimension-two intersection is not a union of two surfaces.
 
 `PolynomialLevelSet` works with both algorithms. The general path performs

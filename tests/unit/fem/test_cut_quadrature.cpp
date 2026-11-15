@@ -80,9 +80,6 @@ TEST_CASE("Cut domain validation is geometry independent", "[CutQuadrature]")
                          Geometry::SQUARE, Geometry::CUBE, Geometry::PRISM})
    {
       REQUIRE(CutDomain::Surface().Validate(geometry, 1).Succeeded());
-      REQUIRE(CutDomain().OnFace(0).Validate(geometry, 0).Succeeded());
-      REQUIRE_FALSE(CutDomain().OnFace(Geometry::NumBdrArray[geometry])
-                    .Validate(geometry, 0).Succeeded());
    }
    REQUIRE_FALSE(CutDomain::Surface(0).Add(0, LevelSetSign::Zero)
                  .Validate(Geometry::CUBE, 1).Succeeded());
@@ -204,10 +201,6 @@ TEST_CASE("Cut generator clears failures and supports simplex conormals", "[CutQ
    REQUIRE_FALSE(generator.Generate(Geometry::TRIANGLE, level_sets, request, output).Succeeded());
    backend.rule.IntPoint(0).x = std::numeric_limits<real_t>::quiet_NaN();
    REQUIRE_FALSE(generator.Generate(Geometry::TRIANGLE, level_sets, request, output).Succeeded());
-   backend.rule.IntPoint(0).Set2w(0.5, 0, 1);
-   request.domain = CutDomain().OnFace(0);
-   REQUIRE(generator.Generate(Geometry::TRIANGLE, level_sets, request, output).Succeeded());
-   REQUIRE(output.conormals(0)(1, 0) == MFEM_Approx(-1));
 }
 
 TEST_CASE("Cut generator reports gradient exceptions and clears outputs", "[CutQuadrature]")
@@ -656,9 +649,6 @@ TEST_CASE("ALGOIM classifies constants and rejects unsupported requests", "[CutQ
    REQUIRE(generator.Generate(Geometry::SQUARE, level_sets, request, output).status ==
            CutQuadratureStatus::Unsupported);
    request.fixed_points = nullptr;
-   request.domain.OnFace(0);
-   REQUIRE(generator.Generate(Geometry::SQUARE, level_sets, request, output).status ==
-           CutQuadratureStatus::Unsupported);
    request.domain = CutDomain();
    Array<const ReferenceLevelSet *> none;
    REQUIRE(generator.Generate(Geometry::TRIANGLE, none, request, output).status ==

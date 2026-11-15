@@ -171,24 +171,19 @@ private:
 
 enum class LevelSetSign : signed char { Negative = -1, Zero = 0, Positive = 1 };
 
-/** @brief An intersection of sign constraints inside an element or local face.
+/** @brief An intersection of sign constraints inside a reference element.
 
     Negative and Positive mean strict inequalities; Zero means equality.
-    The default-constructed domain is the whole element. OnFace restricts the
-    carrier to a codimension-one facet: a vertex in 1D, an edge in 2D, or a
-    face in 3D, using MFEM's corresponding local entity numbering. In particular,
-    triangles use their three edges, not Element::GetNFaces(). All quadrature
-    coordinates remain parent-element coordinates, including facet rules.
-
-    Codimension counts Zero constraints plus a face restriction. It is only
-    the nominal codimension: Zero gradients and the face conormal must be
-    independent on the requested manifold. Coincident interfaces, tangential
-    intersections, and identically zero equality constraints require explicit
-    handling or a DegenerateGeometry result; they are not ordinary empty cuts.
+    The default-constructed domain is the whole element. Codimension counts
+    Zero constraints. It is only the nominal codimension: Zero gradients must
+    be independent on the requested manifold. Coincident interfaces,
+    tangential intersections, and identically zero equality constraints require
+    explicit handling or a DegenerateGeometry result; they are not ordinary
+    empty cuts.
 
     Validation rejects invalid indices, repeated constraints on the same level
-    set, invalid face numbers, and codimension greater than element dimension.
-    Regular zero-dimensional intersections use counting measure. */
+    set, and codimension greater than element dimension. Regular
+    zero-dimensional intersections use counting measure. */
 class CutDomain
 {
 public:
@@ -203,18 +198,15 @@ public:
    static CutDomain Surface(int level_set = 0);
 
    CutDomain &Add(int level_set, LevelSetSign sign);
-   CutDomain &OnFace(int face);
 
    int NumConstraints() const;
    const Constraint &GetConstraint(int index) const;
-   int GetFace() const { return face; }
    int Codimension() const;
    CutQuadratureReport Validate(Geometry::Type geometry,
                                 int num_level_sets) const;
 
 private:
    std::vector<Constraint> constraints;
-   int face = -1;
 };
 
 /** @brief One integration request, independent of physical weight conventions.
@@ -232,9 +224,9 @@ private:
     Non-null fixed_points requests weight fitting on exactly those coordinates,
     in that order. Its input weights are ignored; points are borrowed only for
     this call and must be in the closed reference element. This initial API
-    permits fixed points only for full-dimensional volume domains, with no
-    face restriction. Unsupported backends return Unsupported rather than
-    replacing the points. Full and empty cells preserve the same point layout;
+    permits fixed points only for full-dimensional volume domains. Unsupported
+    backends return Unsupported rather than replacing the points. Full and
+    empty cells preserve the same point layout;
     empty-cell weights are all zero. Output point indices are 0, ..., npoints-1.
     An empty prescribed point set is invalid. */
 struct CutQuadratureRequest
@@ -244,11 +236,11 @@ struct CutQuadratureRequest
    const IntegrationRule *fixed_points = nullptr;
 };
 
-/** Relation to the carrier: the whole element, or the requested face.
+/** Relation to the reference element.
 
-    Full means the domain covers the carrier up to a set of zero measure and
-    applies only without equality constraints. Empty means zero measure in
-    the requested manifold dimension, not necessarily an empty set.
+    Full means the domain covers the reference element up to a set of zero
+    measure and applies only without equality constraints. Empty means zero
+    measure in the requested manifold dimension, not necessarily an empty set.
     Unknown is the uninitialized/failed state, never a successful result. */
 enum class CutRegion { Unknown, Empty, Full, Cut };
 
@@ -260,8 +252,8 @@ enum class CutRegion { Unknown, Empty, Full, Cut };
 
     conormals has dimensions dim x codimension x npoints. For each Zero
     constraint its column is grad(phi)/|grad(phi)|, toward phi > 0, in constraint
-    order. The outward reference face conormal is last. Columns are unit but
-    need not be orthogonal. They are intrinsic conormals, not ambient normals.
+    order. Columns are unit but need not be orthogonal. They are intrinsic
+    conormals, not ambient normals.
     Columns at zero-weight nodes are zero and must not be used for geometry.
     For codimension zero the tensor is empty.
 
