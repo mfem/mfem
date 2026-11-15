@@ -116,7 +116,7 @@ TEST_CASE("Navier component Dirichlet BCs", "[Parallel][Navier]")
       real_t t = 0.0;
       solver.Step(t, dt, 0);
 
-      VectorConstantCoefficient u_ex(Vector({t, 0.0, 0.0}));
+      VectorConstantCoefficient u_ex(Vector({t, 0_r, 0_r}));
       REQUIRE(t == MFEM_Approx(dt));
       REQUIRE(solver.GetCurrentVelocity()->ComputeL2Error(u_ex) < 1e-7);
       REQUIRE(solver.GetCurrentPressure()->ComputeL2Error(zero) < 1e-5);
@@ -154,7 +154,7 @@ TEST_CASE("Navier component Dirichlet BCs", "[Parallel][Navier]")
       {
          solver.Step(t, dt, step);
 
-         VectorConstantCoefficient u_ex(Vector({t, 0.0, 0.0}));
+         VectorConstantCoefficient u_ex(Vector({t, 0_r, 0_r}));
          REQUIRE(t == MFEM_Approx((step + 1) * dt));
          REQUIRE(solver.GetCurrentVelocity()->ComputeL2Error(u_ex) < 1e-7);
          REQUIRE(solver.GetCurrentPressure()->ComputeL2Error(zero) < 1e-5);
@@ -199,9 +199,9 @@ TEST_CASE("Component boundary projection", "[Parallel][Navier]")
       const real_t uy = u_gf(fes.DofToVDof(i, 1));
       const real_t uz = u_gf(fes.DofToVDof(i, 2));
 
-      loc_err = std::max(loc_err, std::abs(ux - 2.0));
-      loc_err = std::max(loc_err, std::abs(uy - (on_y ? 7.0 : 3.0)));
-      loc_err = std::max(loc_err, std::abs(uz - (on_top ? 9.0 : 4.0)));
+      loc_err = std::max(loc_err, std::abs(ux - 2_r));
+      loc_err = std::max(loc_err, std::abs(uy - (on_y ? 7_r : 3_r)));
+      loc_err = std::max(loc_err, std::abs(uz - (on_top ? 9_r : 4_r)));
    }
 
    real_t glob_err = 0.0;
