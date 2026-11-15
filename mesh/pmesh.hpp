@@ -405,10 +405,16 @@ public:
    int GetMyRank() const { return MyRank; }
 
    /** Map a global element number to a local element number. If the global
-       element is not on this processor, return -1. */
+       element is not on this processor, return -1.
+       @note The first element-numbering query after construction or a mesh
+       topology change computes offsets collectively on GetComm(). Call
+       GetGlobalElementIndices() on all ranks, including empty ranks, before
+       making rank-local queries. Indices can change after refinement,
+       derefinement, or rebalance; they are not persistent element identities. */
    int GetLocalElementNum(long long global_element_num) const;
 
    /// Map a local element number to a global element number.
+   /// See GetLocalElementNum() for collective initialization and index lifetime.
    long long GetGlobalElementNum(int local_element_num) const;
 
    /** The following functions define global indices for all local vertices,
@@ -422,6 +428,7 @@ public:
    /// AMR meshes are not supported.
    void GetGlobalFaceIndices(Array<HYPRE_BigInt> &gi) const;
    /// AMR meshes are supported.
+   /// Collective initialization of numbering after each mesh topology change.
    void GetGlobalElementIndices(Array<HYPRE_BigInt> &gi) const;
 
    /// @brief Populate a marker array identifying exterior faces
@@ -798,12 +805,18 @@ public:
    /** Write the mesh to the stream 'out' on Process 0 as a serial mesh. The
        output mesh does not have any duplication of vertices/nodes at processor
        boundaries. If @a comments is non-empty, it will be printed after the
-       first line of the file, and each line should begin with '#'. */
+       first line of the file, and each line should begin with '#'.
+       @note Collective on GetComm(): all ranks must call, even though only
+       rank 0 writes output. Nonconforming and NURBS meshes are unsupported. */
    void PrintAsSerial(std::ostream &out = mfem::out,
                       const std::string &comments = "") const;
 
    /** Returns a Serial mesh on MPI rank @a save_rank that does not have any
-       duplication of vertices/nodes at processor boundaries. */
+       duplication of vertices/nodes at processor boundaries.
+       @note Collective on GetComm(): all ranks must call with the same
+       @a save_rank. Other ranks receive an empty Mesh. Nonconforming and NURBS
+       meshes are unsupported. Call on all ranks, then use the result only on
+       @a save_rank; do not put this call inside a rank-only branch. */
    Mesh GetSerialMesh(int save_rank) const;
 
    /// Save the mesh as a single file (using ParMesh::PrintAsOne). The given
