@@ -30,11 +30,12 @@
 //   mpirun -np 4 navier_windtunnel -o 2 -rs 1 -dt 1e-2 -tf 2.0 -profile 0 -u0 1.0
 //
 //   Logarithmic profile:
-//   mpirun -np 4 navier_windtunnel -o 2 -rs 1 -dt 5e-3 -tf 2.0
-//          -profile 2 -ustar 0.3 -z0 0.01 -href 0.4 --visualization
+//   mpirun -np 4 navier_windtunnel -o 2 -rs 1 -dt 5e-3 -tf 2.0 -profile 2
+//          -ustar 0.3 -z0 0.01 -href 0.4 --visualization
 
 #include "navier_solver.hpp"
-#include <fstream>
+#include <algorithm>
+#include <cmath>
 
 using namespace mfem;
 using namespace navier;
@@ -114,7 +115,7 @@ void logarithmic(const Vector &x, real_t t, Vector &u)
    u(1) = 0.0;
    u(2) = 0.0;
 }
-} // END OF INLET PROFILE NAMESPACE
+} // namespace InletProfile
 
 int main(int argc, char *argv[])
 {
@@ -166,16 +167,6 @@ int main(int argc, char *argv[])
                   "Friction velocity for log profile");
    args.Parse();
 
-   // Specific comparison checks on parameters
-   if (ctx.inlet_profile_type < 0 || ctx.inlet_profile_type > 2)
-   {
-      MFEM_WARNING("Inlet profile should be 0, 1, or 2. Using default profile (Constant).");
-   }
-   if (ctx.power_alpha < 0.1 || ctx.power_alpha > 0.4)
-   {
-      MFEM_WARNING("Power law exponent outside of (0.1, 0.4).");
-   }
-
    if (!args.Good())
    {
       if (Mpi::Root())
@@ -184,6 +175,21 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+
+   if (ctx.inlet_profile_type < 0 || ctx.inlet_profile_type > 2)
+   {
+      if (Mpi::Root())
+      {
+         MFEM_WARNING("Inlet profile should be 0, 1, or 2. Using default profile (Constant).");
+      }
+      ctx.inlet_profile_type = 0;
+   }
+   if (ctx.inlet_profile_type == 1 &&
+       (ctx.power_alpha < 0.1 || ctx.power_alpha > 0.4) && Mpi::Root())
+   {
+      MFEM_WARNING("Power law exponent outside of (0.1, 0.4).");
+   }
+
    if (Mpi::Root())
    {
       args.PrintOptions(mfem::out);
@@ -205,7 +211,6 @@ int main(int argc, char *argv[])
       std::cout << "Number of boundary attributes: " << mesh.bdr_attributes.Max() <<
                 std::endl;
 
-      // Print boundary attribute assignments for verification
       std::cout << "\nBoundary attribute assignments:" << std::endl;
       std::cout << "  Bottom (z=0): attr 1" << std::endl;
       std::cout << "  Front (y=0):  attr 2" << std::endl;
@@ -267,10 +272,7 @@ int main(int argc, char *argv[])
       case 0: inlet_profile = InletProfile::constant; break;
       case 1: inlet_profile = InletProfile::power_law; break;
       case 2: inlet_profile = InletProfile::logarithmic; break;
-      default:
-         MFEM_WARNING("Invalid inlet profile type. Using default profile (Constant).");
-         inlet_profile = InletProfile::constant;
-         break;
+      default: inlet_profile = InletProfile::constant; break;
    }
    flowsolver.AddVelDirichletBC(inlet_profile, attr_inlet);
 
@@ -283,8 +285,8 @@ int main(int argc, char *argv[])
 
    flowsolver.Setup(dt);
 
-   ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();;
-   ParGridFunction *p_gf = flowsolver.GetCurrentPressure();;
+   ParGridFunction *u_gf = flowsolver.GetCurrentVelocity();
+   ParGridFunction *p_gf = flowsolver.GetCurrentPressure();
 
    if (Mpi::Root())
    {
@@ -300,6 +302,7 @@ int main(int argc, char *argv[])
    pvdc.SetTime(t);
    pvdc.RegisterField("velocity", u_gf);
    pvdc.RegisterField("pressure", p_gf);
+   pvdc.Save();
 
    for (int step = 0; !last_step; ++step)
    {
@@ -310,18 +313,24 @@ int main(int argc, char *argv[])
 
       flowsolver.Step(t, dt, step);
 
-      pvdc.SetCycle(step);
-      pvdc.SetTime(t);
-      pvdc.Save();
-
-      real_t cfl = flowsolver.ComputeCFL(*u_gf, dt);
-      real_t max_vel = u_gf->Max();
-
-      if (Mpi::Root() && step % 10 == 0)
+      if ((step + 1) % 10 == 0 || last_step)
       {
-         printf("%5d %8.3f %8.2E %8.2E %11.4E\n",
-                step, t, dt, cfl, max_vel);
-         fflush(stdout);
+         pvdc.SetCycle(step + 1);
+         pvdc.SetTime(t);
+         pvdc.Save();
+      }
+
+      if (step % 10 == 0)
+      {
+         real_t cfl = flowsolver.ComputeCFL(*u_gf, dt);
+         real_t max_vel = GlobalLpNorm(infinity(), u_gf->Normlinf(),
+                                       pmesh->GetComm());
+         if (Mpi::Root())
+         {
+            printf("%5d %8.3f %8.2E %8.2E %11.4E\n",
+                   step, t, dt, cfl, max_vel);
+            fflush(stdout);
+         }
       }
    }
 

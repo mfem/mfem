@@ -463,6 +463,7 @@ tests/unit/ceed_tests
 tests/unit/debug_device_tests
 tests/unit/parallel_in_serial.mesh
 tests/unit/parallel_in_serial.gf
+tests/unit/navier_solver_tests
 
 # Benchmark binaries
 tests/benchmarks/bench_ceed

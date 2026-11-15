@@ -194,6 +194,7 @@ set(UNIT_TESTS_SRCS
   # This list can be updated using (in bash):
   #    for d in miniapps ceed; do ls -1 $d/*.cpp; done
   # miniapps/test_debug_device.cpp
+  # miniapps/test_navier_solver.cpp
   # miniapps/test_sedov.cpp
   # miniapps/test_tmop_pa.cpp
   # ceed/test_ceed.cpp
@@ -555,3 +556,41 @@ add_dependencies(debug_device_tests copy_miniapps_multidomain_data)
 add_dependencies(debug_device_tests copy_miniapps_nurbs_data)
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} debug_device_tests)
 add_test(NAME debug_device_tests COMMAND debug_device_tests)
+
+#-----------------------------------------------------------
+# Navier Tests (PARALLEL)
+#-----------------------------------------------------------
+if (MFEM_USE_MPI)
+    set(NAVIER_SOLVER_TEST_SRCS
+        punit_test_main.cpp
+        miniapps/test_navier_solver.cpp
+        ${MFEM_SOURCE_DIR}/miniapps/fluids/navier/navier_solver.cpp)
+
+    if (MFEM_USE_CUDA)
+        set_property(SOURCE ${NAVIER_SOLVER_TEST_SRCS}
+                     PROPERTY LANGUAGE CUDA)
+    endif()
+
+    if (MFEM_USE_HIP)
+        set_property(SOURCE ${NAVIER_SOLVER_TEST_SRCS}
+                     PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
+    endif()
+
+    mfem_add_executable(navier_solver_tests ${NAVIER_SOLVER_TEST_SRCS})
+
+    target_include_directories(navier_solver_tests PRIVATE
+        ${MFEM_SOURCE_DIR}/miniapps/fluids/navier)
+
+    target_link_libraries(navier_solver_tests mfem)
+    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} navier_solver_tests)
+
+    if (MFEM_USE_DOUBLE)
+        foreach(np 1 ${MFEM_MPI_NP})
+            add_test(NAME navier_solver_tests_np=${np}
+                COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
+                ${MPIEXEC_PREFLAGS}
+                $<TARGET_FILE:navier_solver_tests>
+                ${MPIEXEC_POSTFLAGS})
+        endforeach()
+    endif()
+endif()
