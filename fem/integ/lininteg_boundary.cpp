@@ -159,10 +159,9 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
                             const bool normals,
                             Vector &y)
 {
-   if (fes.GetNBE() == 0) { return; }
    Mesh &mesh = *fes.GetMesh();
    const int dim = mesh.Dimension();
-   const FiniteElement &el = *fes.GetBE(0);
+   const FiniteElement &el = *fes.GetTypicalBE();
    const MemoryType mt = Device::GetDeviceMemoryType();
    const DofToQuad &maps = el.GetDofToQuad(ir, DofToQuad::TENSOR);
    const int d = maps.ndof, q = maps.nqpt;
@@ -215,8 +214,7 @@ void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                           const Array<int> &markers,
                                           Vector &b)
 {
-   if (fes.GetNBE() == 0) { return; }
-   const FiniteElement &fe = *fes.GetBE(0);
+   const FiniteElement &fe = *fes.GetTypicalBE();
    const int qorder = oa * fe.GetOrder() + ob;
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
@@ -231,8 +229,7 @@ void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                                 const Array<int> &markers,
                                                 Vector &b)
 {
-   if (fes.GetNBE() == 0) { return; }
-   const FiniteElement &fe = *fes.GetBE(0);
+   const FiniteElement &fe = *fes.GetTypicalBE();
    const int qorder = oa * fe.GetOrder() + ob;
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
