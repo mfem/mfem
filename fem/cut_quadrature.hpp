@@ -72,15 +72,19 @@ struct CutQuadratureReport
 class ReferenceLevelSet
 {
 public:
-   virtual ~ReferenceLevelSet() = default;
    int GetDim() const;
 
    /// Return the MFEM reference-element geometry on which this LS is defined.
    virtual Geometry::Type GetReferenceGeometry() const = 0;
 
+   /// Value of the LS at an IntegrationPoint.
    virtual real_t Eval(const IntegrationPoint &point) const = 0;
+
+   /// Gradient of the LS at an IntegrationPoint.
    virtual void EvalGradient(const IntegrationPoint &point,
                              Vector &gradient) const = 0;
+
+   virtual ~ReferenceLevelSet() = default;
 };
 
 /** @brief A supported scalar, VALUE-mapped polynomial finite element and dofs.
@@ -197,7 +201,6 @@ public:
    static CutDomain Positive(int level_set = 0);
    static CutDomain Negative(int level_set = 0);
    static CutDomain Surface(int level_set = 0);
-   static CutDomain Intersection(int first_level_set, int second_level_set);
 
    CutDomain &Add(int level_set, LevelSetSign sign);
    CutDomain &OnFace(int face);

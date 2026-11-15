@@ -84,9 +84,11 @@ TEST_CASE("Cut domain validation is geometry independent", "[CutQuadrature]")
       REQUIRE_FALSE(CutDomain().OnFace(Geometry::NumBdrArray[geometry])
                     .Validate(geometry, 0).Succeeded());
    }
-   REQUIRE_FALSE(CutDomain::Intersection(0, 0).Validate(Geometry::CUBE, 1).Succeeded());
+   REQUIRE_FALSE(CutDomain::Surface(0).Add(0, LevelSetSign::Zero)
+                 .Validate(Geometry::CUBE, 1).Succeeded());
    REQUIRE_FALSE(CutDomain::Surface(1).Validate(Geometry::SQUARE, 1).Succeeded());
-   REQUIRE_FALSE(CutDomain::Intersection(0, 1).Validate(Geometry::SEGMENT, 2).Succeeded());
+   REQUIRE_FALSE(CutDomain::Surface(0).Add(1, LevelSetSign::Zero)
+                 .Validate(Geometry::SEGMENT, 2).Succeeded());
    REQUIRE_FALSE(CutDomain().Validate(Geometry::INVALID, 0).Succeeded());
 }
 
@@ -449,7 +451,7 @@ TEST_CASE("Cut mapping handles curved maps and intersecting surfaces", "[CutQuad
    REQUIRE(Measure(mapped.rule) == MFEM_Approx(1.25));
 
    reference.geometry = Geometry::CUBE;
-   reference.domain = CutDomain::Intersection(0, 1);
+   reference.domain = CutDomain::Surface(0).Add(1, LevelSetSign::Zero);
    reference.rule.IntPoint(0).Set3w(0.2, 0.3, 0.5, 1);
    reference.conormals.SetSize(3, 2, 1);
    reference.conormals = 0.;
@@ -1113,7 +1115,7 @@ TEST_CASE("Polynomial ALGOIM partitions two level sets and preserves moments", "
             REQUIRE(total == MFEM_Approx(1));
          }
          CutQuadratureRequest request;
-         request.domain = CutDomain::Intersection(1, 2);
+         request.domain = CutDomain::Surface(1).Add(2, LevelSetSign::Zero);
          REQUIRE(backend->CheckSupport(geometry, level_sets, request).status == CutQuadratureStatus::Unsupported);
          request.domain = CutDomain::Surface(1).Add(2, LevelSetSign::Positive);
          REQUIRE(backend->CheckSupport(geometry, level_sets, request).status == CutQuadratureStatus::Unsupported);

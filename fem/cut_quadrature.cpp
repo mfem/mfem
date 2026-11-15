@@ -331,8 +331,6 @@ CutDomain CutDomain::Negative(int level_set)
 { CutDomain domain; return domain.Add(level_set, LevelSetSign::Negative); }
 CutDomain CutDomain::Surface(int level_set)
 { CutDomain domain; return domain.Add(level_set, LevelSetSign::Zero); }
-CutDomain CutDomain::Intersection(int first, int second)
-{ CutDomain domain = Surface(first); return domain.Add(second, LevelSetSign::Zero); }
 CutDomain &CutDomain::Add(int level_set, LevelSetSign sign)
 { constraints.push_back({level_set, sign}); return *this; }
 CutDomain &CutDomain::OnFace(int new_face) { face = new_face; return *this; }
