@@ -373,20 +373,89 @@ TEST_CASE("Simplex QPoint metric vertex permutations", "[MMA][GPU]")
    test_qpoint_metric_permutations(3);
 }
 
+/** SimplexQPoint of a P2 space with 3 components on the same straight
+    elements, described by the vertices of @a lin and by the high-order nodes
+    of @a ho: same geometric factors, metric and interpolation. */
+void RequireSameQPoint(Mesh &lin, Mesh &ho)
+{
+   const int p = 2, vdim = 3, dim = lin.Dimension();
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace fes_lin(&lin, &fec, vdim), fes_ho(&ho, &fec, vdim);
+   const IntegrationRule &ir =
+      IntRules.Get(lin.GetTypicalElementGeometry(), 2 * p + 1);
+   SimplexQPoint qa(fes_lin, ir), qb(fes_ho, ir);
+   RequireClose(qb.GetJ(), qa.GetJ());
+   RequireClose(qb.GetInvJ(), qa.GetInvJ());
+   RequireClose(qb.GetDetJ(), qa.GetDetJ());
+   RequireClose(qb.GetWeightDetJ(), qa.GetWeightDetJ());
+   Vector Ga, Gb;
+   qa.Metric(Ga);
+   qb.Metric(Gb);
+   RequireClose(Gb, Ga);
+
+   const unsigned all = SimplexQPoint::VALUES | SimplexQPoint::GRADIENTS |
+                        SimplexQPoint::LAPLACIANS;
+   Vector xe(qa.NumDofs() * vdim * qa.NumElements());
+   xe.Randomize(0x5eed);
+   Vector ua, dua, lapa, ub, dub, lapb;
+   qa.Mult(xe, all, ua, dua, lapa);
+   qb.Mult(xe, all, ub, dub, lapb);
+   RequireClose(ub, ua);
+   RequireClose(dub, dua);
+   RequireClose(lapb, lapa);
+   Vector ya(xe.Size()), yb(xe.Size());
+   ya = 0.0;
+   yb = 0.0;
+   qa.AddMultTranspose(ua, dua, ya);
+   qb.AddMultTranspose(ua, dua, yb);
+   RequireClose(yb, ya);
+}
+
 TEST_CASE("Simplex QPoint affine meshes only", "[MMA][GPU]")
 {
-   Mesh mesh("../../data/inline-tet.mesh");
-   REQUIRE(SimplexQPoint::IsAffine(mesh));
-   mesh.SetCurvature(1);
-   REQUIRE(SimplexQPoint::IsAffine(mesh));
-   mesh.SetCurvature(2);
-   REQUIRE_FALSE(SimplexQPoint::IsAffine(mesh));
+   const char *filename =
+      GENERATE("../../data/inline-tri.mesh", "../../data/inline-tet.mesh");
+   const auto order = GENERATE(2, 3);
+   CAPTURE(filename, order);
+   Mesh lin = MakeAffineMesh(filename);
+   const int dim = lin.Dimension();
+   REQUIRE(SimplexQPoint::IsAffine(lin));
+
+   SECTION("SetCurvature, then a curving map")
+   {
+      Mesh ho(lin);
+      ho.SetCurvature(1);
+      REQUIRE(SimplexQPoint::IsAffine(ho));
+      ho.SetCurvature(order); // nodes on the straight elements
+      REQUIRE(SimplexQPoint::IsAffine(ho));
+      RequireSameQPoint(lin, ho);
+
+      ho.Transform([](const Vector &x, Vector &y)
+      {
+         y = x;
+         y(0) += 0.05 * std::sin(M_PI * x(1));
+         y(1) += 0.05 * x(0) * x(0);
+      });
+      REQUIRE_FALSE(SimplexQPoint::IsAffine(ho));
 #ifdef MFEM_USE_EXCEPTIONS
-   H1_FECollection fec(2, 3);
-   FiniteElementSpace fes(&mesh, &fec);
-   const IntegrationRule &ir = IntRules.Get(Geometry::TETRAHEDRON, 4);
-   REQUIRE_THROWS(SimplexQPoint(fes, ir));
+      H1_FECollection fec(2, dim);
+      FiniteElementSpace fes(&ho, &fec);
+      const IntegrationRule &ir =
+         IntRules.Get(ho.GetTypicalElementGeometry(), 4);
+      REQUIRE_THROWS(SimplexQPoint(fes, ir));
 #endif
+   }
+
+   SECTION("SetNodalFESpace, byNODES vector space")
+   {
+      Mesh ho(lin);
+      H1_FECollection nfec(order, dim);
+      FiniteElementSpace vfes(&ho, &nfec, dim, Ordering::byNODES);
+      ho.SetNodalFESpace(&vfes);
+      REQUIRE(ho.GetNodes()->FESpace()->GetOrdering() == Ordering::byNODES);
+      REQUIRE(SimplexQPoint::IsAffine(ho));
+      RequireSameQPoint(lin, ho);
+   }
 }
 
 } // namespace simplex_qpoint

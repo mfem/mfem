@@ -14,6 +14,7 @@
 #include "../../../linalg/kernels.hpp"
 
 #include <cmath>
+#include <limits>
 
 namespace mfem
 {
@@ -73,9 +74,8 @@ SimplexQPoint::SimplexQPoint(const FiniteElementSpace &fes,
    // Affine elements only, otherwise dxi/dx varies in the element and the
    // Laplacian would need its derivatives.
    MFEM_VERIFY(IsAffine(mesh), "SimplexQPoint: affine simplices only, the "
-               "mesh nodes are of order "
-               << mesh.GetNodes()->FESpace()->GetMaxElementOrder()
-               << " (curved or high-order mesh)");
+               "order " << mesh.GetNodes()->FESpace()->GetMaxElementOrder()
+               << " mesh nodes describe curved elements");
    mesh.EnsureNodes(); // for GetGeometricFactors
 
    // Reference tables: B and G from DofToQuad::FULL, H from CalcHessian,
@@ -115,10 +115,128 @@ SimplexQPoint::SimplexQPoint(const FiniteElementSpace &fes,
    InverseJacobians(dim, nq, ne, ir.GetWeights(), J, DetJ, InvJ, WDetJ);
 }
 
+/** True if the mesh nodes, the E-vector @a x (ND, DIM, NE) of the typical
+    element @a el, describe an affine map in every element. The map x(xi)
+    = sum_j phi_j(xi) X_j is affine iff it equals its P1 interpolant
+    sum_v lambda_v(xi) x(xi_v) (xi_v the reference vertices, lambda_v the
+    barycentric coordinates) at the ND nodes xi_i of @a el, a unisolvent set
+    for its polynomial space, i.e. iff r = A X vanishes with
+
+      A(i,j) = phi_j(xi_i) - sum_v lambda_v(xi_i) phi_j(xi_v).
+
+    Element e is affine when max_i |r_i| <= rtol s_e. The scale s_e is the
+    largest of the distances between two vertices of e (its size) and of the
+    vertex norms: nodes are only known to roundoff relative to their
+    magnitude, which may exceed the element size far from the origin. */
+static bool NodesAreAffine(const FiniteElement &el, const Vector &x,
+                           const int ne, const real_t rtol)
+{
+   const int dim = el.GetDim(), nd = el.GetDof(), nv = dim + 1;
+   const IntegrationRule &nodes = el.GetNodes();
+   const IntegrationRule &verts = *Geometries.GetVertices(el.GetGeomType());
+   // Rows 0 to nd-1: A; rows nd to nd+nv-1: phi_j(xi_v), the vertices.
+   Vector Ah((nd + nv) * nd), phi(nd);
+   auto A = Reshape(Ah.HostWrite(), nd + nv, nd);
+   for (int v = 0; v < nv; ++v)
+   {
+      el.CalcShape(verts.IntPoint(v), phi);
+      for (int j = 0; j < nd; ++j) { A(nd + v, j) = phi(j); }
+   }
+   for (int i = 0; i < nd; ++i)
+   {
+      const IntegrationPoint &ip = nodes.IntPoint(i);
+      // vertex 0 at the origin, vertex v at the v-th unit vector
+      const real_t z = (dim == 3) ? ip.z : real_t(0);
+      const real_t lambda[4] = {1 - ip.x - ip.y - z, ip.x, ip.y, z};
+      el.CalcShape(ip, phi);
+      for (int j = 0; j < nd; ++j)
+      {
+         real_t s = phi(j);
+         for (int v = 0; v < nv; ++v) { s -= lambda[v] * A(nd + v, j); }
+         A(i, j) = s;
+      }
+   }
+
+   Vector bad(ne);
+   bad.UseDevice(true);
+   const int D = dim, ND = nd, NV = nv;
+   const real_t tol2 = rtol * rtol;
+   const auto Ad = Reshape(Ah.Read(), nd + nv, nd);
+   const auto X = Reshape(x.Read(), nd, dim, ne);
+   auto B = bad.Write();
+   mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+   {
+      real_t xv[4][3]; // vertex coordinates
+      for (int v = 0; v < NV; ++v)
+      {
+         for (int c = 0; c < D; ++c)
+         {
+            real_t s = 0.0;
+            for (int j = 0; j < ND; ++j) { s += Ad(ND + v, j) * X(j, c, e); }
+            xv[v][c] = s;
+         }
+      }
+      real_t s2 = 0.0; // s_e^2
+      for (int v = 0; v < NV; ++v)
+      {
+         real_t n2 = 0.0;
+         for (int c = 0; c < D; ++c) { n2 += xv[v][c] * xv[v][c]; }
+         s2 = fmax(s2, n2);
+         for (int w = v + 1; w < NV; ++w)
+         {
+            real_t d2 = 0.0;
+            for (int c = 0; c < D; ++c)
+            {
+               d2 += (xv[v][c] - xv[w][c]) * (xv[v][c] - xv[w][c]);
+            }
+            s2 = fmax(s2, d2);
+         }
+      }
+      real_t r2 = 0.0;
+      for (int i = 0; i < ND; ++i)
+      {
+         real_t ri2 = 0.0;
+         for (int c = 0; c < D; ++c)
+         {
+            real_t s = 0.0;
+            for (int j = 0; j < ND; ++j) { s += Ad(i, j) * X(j, c, e); }
+            ri2 += s * s;
+         }
+         r2 = fmax(r2, ri2);
+      }
+      // written so that a NaN counts as non-affine
+      B[e] = (r2 <= tol2 * s2) ? 0.0 : 1.0;
+   });
+   return bad.Max() == 0.0;
+}
+
 bool SimplexQPoint::IsAffine(const Mesh &mesh)
 {
    const GridFunction *nodes = mesh.GetNodes();
-   return !nodes || nodes->FESpace()->GetMaxElementOrder() == 1;
+   if (!nodes || nodes->FESpace()->GetMaxElementOrder() == 1) { return true; }
+
+   // High-order nodes, e.g. SetCurvature(2) or SetNodalFESpace() on a P2
+   // space: affine if every element is straight, i.e. its nodes are the P1
+   // interpolant of its vertices.
+   const FiniteElementSpace &nfes = *nodes->FESpace();
+   const int dim = mesh.Dimension(), ne = mesh.GetNE();
+   if (ne == 0) { return true; }
+   if (nfes.GetNURBSext() || nfes.IsVariableOrder() ||
+       mesh.GetNumGeometries(dim) != 1 || nfes.GetVDim() != dim ||
+       mesh.SpaceDimension() != dim) { return false; }
+   const FiniteElement &el = *nfes.GetTypicalFE();
+   const Geometry::Type geom = el.GetGeomType();
+   if (geom != Geometry::TRIANGLE && geom != Geometry::TETRAHEDRON)
+   {
+      return false;
+   }
+   const Operator *R =
+      nfes.GetElementRestriction(ElementDofOrdering::NATIVE);
+   Vector x(R->Height());
+   x.UseDevice(true);
+   R->Mult(*nodes, x);
+   const real_t rtol = 1e3 * std::numeric_limits<real_t>::epsilon();
+   return NodesAreAffine(el, x, ne, rtol);
 }
 
 void SimplexQPoint::Metric(Vector &G) const

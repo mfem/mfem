@@ -41,7 +41,8 @@
       Lap u  = tr(InvJ^T H_ref InvJ) = sum_{a,b} H_ref(a,b) (InvJ InvJ^T)(a,b)
     per component, the off-diagonal entries of the symmetric storage counting
     twice. This matches FiniteElement::CalcPhysLinLaplacian. Meshes with
-    curved or high-order nodes are rejected at construction.
+    curved nodes are rejected at construction; high-order nodes that
+    describe straight elements are accepted (see IsAffine()).
 
     ## Engine
     Interpolation is one dense product U = P X with the stacked reference
@@ -85,12 +86,22 @@ public:
 
    /** @brief Set up the reference tables and the geometric factors of @a fes
        at @a ir. The mesh nodes are created if missing (Mesh::EnsureNodes);
-       they must be of order 1, i.e. the elements affine. */
+       the elements must be affine, see IsAffine(). */
    SimplexQPoint(const FiniteElementSpace &fes, const IntegrationRule &ir);
 
-   /** @brief True if the elements of @a mesh are affine: no mesh nodes (the
-       vertices only) or mesh nodes of order 1. Curved or high-order nodes,
-       even if they happen to describe straight elements, are not. */
+   /** @brief True if the (local) elements of @a mesh are affine: no mesh
+       nodes (the vertices only), mesh nodes of order 1, or higher-order
+       nodes on a single simplex type that are, in every element, the P1
+       interpolant of the element vertices, e.g. after SetCurvature(2) or
+       SetNodalFESpace() on a straight mesh.
+
+       The check is geometric, independent of any quadrature rule, and runs
+       on the device: element e is affine when its nodes are at most
+       1000 epsilon s_e away from their P1 interpolant, epsilon the machine
+       epsilon of real_t and s_e the larger of the element size (largest
+       distance between two vertices) and of the vertex norms, the scale of
+       the roundoff in the nodes. Projected straight nodes, about epsilon
+       s_e off, pass; curved elements do not. */
    static bool IsAffine(const Mesh &mesh);
 
    int Dim() const { return dim; }
