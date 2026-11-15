@@ -18,6 +18,10 @@
 #include "pgridfunc.hpp"
 #include "fe/face_map_utils.hpp"
 #include "ceed/interface/util.hpp"
+#include "../mesh/submesh/submesh_utils.hpp"
+#ifdef MFEM_USE_MPI
+#include "../mesh/submesh/psubmesh.hpp"
+#endif
 
 namespace mfem
 {
@@ -1719,6 +1723,172 @@ const Operator *MixedBilinearFormExtension::GetOutputRestriction() const
    return a->GetOutputRestriction();
 }
 
+static bool IsSubMesh(const Mesh *sub, const Mesh *parent)
+{
+   if (SubMesh::IsSubMesh(sub, parent))
+   {
+      return true;
+   }
+#ifdef MFEM_USE_MPI
+   if (ParSubMesh::IsParSubMesh(sub, parent))
+   {
+      return true;
+   }
+#endif
+   return false;
+}
+
+static void GetSubMeshParentVdofMap(const FiniteElementSpace &submesh_fes,
+                                    const FiniteElementSpace &parent_fes,
+                                    Array<int> &sub_to_parent_vdof_map)
+{
+   const Mesh *sub = submesh_fes.GetMesh();
+   const Mesh *parent = parent_fes.GetMesh();
+
+   if (SubMesh::IsSubMesh(sub, parent))
+   {
+      const SubMesh *submesh = static_cast<const SubMesh *>(sub);
+      SubMeshUtils::BuildVdofToVdofMap(submesh_fes,
+                                       parent_fes,
+                                       submesh->GetFrom(),
+                                       submesh->GetParentElementIDMap(),
+                                       sub_to_parent_vdof_map);
+      return;
+   }
+#ifdef MFEM_USE_MPI
+   if (ParSubMesh::IsParSubMesh(sub, parent))
+   {
+      const ParSubMesh *submesh = static_cast<const ParSubMesh *>(sub);
+      SubMeshUtils::BuildVdofToVdofMap(submesh_fes,
+                                       parent_fes,
+                                       submesh->GetFrom(),
+                                       submesh->GetParentElementIDMap(),
+                                       sub_to_parent_vdof_map);
+      return;
+   }
+#endif
+   MFEM_ABORT("the space mesh is not a SubMesh of the parent space mesh");
+}
+
+internal::SubMeshRestrictedSpace::SubMeshRestrictedSpace(
+   const FiniteElementSpace &trial_fes, const FiniteElementSpace &test_fes)
+{
+   Mesh *trial_mesh = trial_fes.GetMesh();
+   Mesh *test_mesh = test_fes.GetMesh();
+
+   trial_on_submesh = IsSubMesh(trial_mesh, test_mesh);
+   MFEM_VERIFY(trial_on_submesh || IsSubMesh(test_mesh, trial_mesh),
+               "MixedBilinearForm::Assemble requires trial and test spaces "
+               "on the same mesh, or the trial space on a direct SubMesh "
+               "of the test space");
+
+   // The FE space already defined on the submesh can be used directly.  The
+   // other space is restricted by constructing an equivalent FE space on the
+   // shared submesh.
+   const FiniteElementSpace &parent_fes = trial_on_submesh ? test_fes :
+                                          trial_fes;
+   Mesh *submesh = trial_on_submesh ? trial_mesh : test_mesh;
+   fes.reset(new FiniteElementSpace(submesh, parent_fes.FEColl(),
+                                    parent_fes.GetVDim(),
+                                    parent_fes.GetOrdering()));
+   GetSubMeshParentVdofMap(*fes, parent_fes, vdof_map);
+}
+
+SubMeshElementRestriction::SubMeshElementRestriction(
+   const Operator &sub_restrict, const Array<int> &vdof_map, int parent_vsize)
+   : Operator(sub_restrict.Height(), parent_vsize),
+     sub_restrict(sub_restrict),
+     vdof_map(vdof_map)
+{
+   MFEM_VERIFY(sub_restrict.Width() == vdof_map.Size(),
+               "element restriction and vdof map sizes do not match");
+   sub_vec.UseDevice(true);
+   sub_vec.SetSize(vdof_map.Size(), Device::GetMemoryType());
+}
+
+void SubMeshElementRestriction::Gather(const Vector &x, Vector &y,
+                                       bool use_abs) const
+{
+   const bool abs = use_abs;
+   const auto d_map = vdof_map.Read();
+   const auto d_x = x.Read();
+   auto d_y = y.Write();
+   mfem::forall(vdof_map.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int j = d_map[i];
+      if (j >= 0) { d_y[i] = d_x[j]; }
+      else { d_y[i] = abs ? d_x[-1-j] : -d_x[-1-j]; }
+   });
+}
+
+void SubMeshElementRestriction::ScatterAdd(const Vector &x, Vector &y,
+                                           real_t a, bool use_abs) const
+{
+   // The vdof map is one-to-one, so there are no write conflicts.
+   const bool abs = use_abs;
+   const auto d_map = vdof_map.Read();
+   const auto d_x = x.Read();
+   auto d_y = y.ReadWrite();
+   mfem::forall(vdof_map.Size(), [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int j = d_map[i];
+      if (j >= 0) { d_y[j] += a*d_x[i]; }
+      else { d_y[-1-j] += (abs ? a : -a)*d_x[i]; }
+   });
+}
+
+void SubMeshElementRestriction::Mult(const Vector &x, Vector &y) const
+{
+   Gather(x, sub_vec, false);
+   sub_restrict.Mult(sub_vec, y);
+}
+
+void SubMeshElementRestriction::MultTranspose(const Vector &x,
+                                              Vector &y) const
+{
+   y.UseDevice(true);
+   y = 0.0;
+   AddMultTranspose(x, y);
+}
+
+void SubMeshElementRestriction::AddMultTranspose(const Vector &x, Vector &y,
+                                                 const real_t a) const
+{
+   sub_restrict.MultTranspose(x, sub_vec);
+   ScatterAdd(sub_vec, y, a, false);
+}
+
+void SubMeshElementRestriction::AbsMult(const Vector &x, Vector &y) const
+{
+   Gather(x, sub_vec, true);
+   // As in PAMixedBilinearFormExtension::AssembleDiagonal_ADAt, only an
+   // ElementRestriction applies orientation signs.
+   if (dynamic_cast<const ElementRestriction*>(&sub_restrict))
+   {
+      sub_restrict.AbsMult(sub_vec, y);
+   }
+   else
+   {
+      sub_restrict.Mult(sub_vec, y);
+   }
+}
+
+void SubMeshElementRestriction::AbsMultTranspose(const Vector &x,
+                                                 Vector &y) const
+{
+   if (dynamic_cast<const ElementRestriction*>(&sub_restrict))
+   {
+      sub_restrict.AbsMultTranspose(x, sub_vec);
+   }
+   else
+   {
+      sub_restrict.MultTranspose(x, sub_vec);
+   }
+   y.UseDevice(true);
+   y = 0.0;
+   ScatterAdd(sub_vec, y, 1.0, true);
+}
+
 // Data and methods for partially-assembled bilinear forms
 
 PAMixedBilinearFormExtension::PAMixedBilinearFormExtension(
@@ -1754,10 +1924,42 @@ void PAMixedBilinearFormExtension::Update()
    test_fes  = a->TestFESpace();
    height = test_fes->GetVSize();
    width = trial_fes->GetVSize();
+
+   submesh_elem_restrict.reset();
+   submesh_space.reset();
+   if (trial_fes->GetMesh() != test_fes->GetMesh())
+   {
+      // One space is on a SubMesh of the other space's mesh.  The integrators
+      // are assembled on the SubMesh, with the parent-mesh space replaced by
+      // its copy on the SubMesh.
+      submesh_space.reset(
+         new internal::SubMeshRestrictedSpace(*trial_fes, *test_fes));
+      if (submesh_space->trial_on_submesh)
+      {
+         test_fes = submesh_space->fes.get();
+      }
+      else
+      {
+         trial_fes = submesh_space->fes.get();
+      }
+   }
+
    elem_restrict_trial = trial_fes->GetElementRestriction(
                             ElementDofOrdering::LEXICOGRAPHIC);
    elem_restrict_test  =  test_fes->GetElementRestriction(
                              ElementDofOrdering::LEXICOGRAPHIC);
+   if (submesh_space)
+   {
+      // Map from the parent-mesh space before restricting to the elements.
+      const bool trial_on_submesh = submesh_space->trial_on_submesh;
+      const Operator *&parent_restrict =
+         trial_on_submesh ? elem_restrict_test : elem_restrict_trial;
+      MFEM_VERIFY(parent_restrict, "an element restriction is required");
+      submesh_elem_restrict.reset(new SubMeshElementRestriction(
+                                     *parent_restrict, submesh_space->vdof_map,
+                                     trial_on_submesh ? height : width));
+      parent_restrict = submesh_elem_restrict.get();
+   }
    if (elem_restrict_trial)
    {
       localTrial.UseDevice(true);
@@ -1898,6 +2100,14 @@ void PAMixedBilinearFormExtension::AddMultTranspose(const Vector &x, Vector &y,
    }
 }
 
+// Element restrictions that apply orientation signs, so that AbsMult() and
+// AbsMultTranspose() differ from Mult() and MultTranspose().
+static bool HasSignedRestriction(const Operator *elem_restrict)
+{
+   return dynamic_cast<const ElementRestriction*>(elem_restrict) ||
+          dynamic_cast<const SubMeshElementRestriction*>(elem_restrict);
+}
+
 void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
                                                          Vector &diag) const
 {
@@ -1907,11 +2117,9 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
 
    if (elem_restrict_trial)
    {
-      const ElementRestriction* H1elem_restrict_trial =
-         dynamic_cast<const ElementRestriction*>(elem_restrict_trial);
-      if (H1elem_restrict_trial)
+      if (HasSignedRestriction(elem_restrict_trial))
       {
-         H1elem_restrict_trial->AbsMult(D, localTrial);
+         elem_restrict_trial->AbsMult(D, localTrial);
       }
       else
       {
@@ -1933,11 +2141,9 @@ void PAMixedBilinearFormExtension::AssembleDiagonal_ADAt(const Vector &D,
             integrators[i]->AssembleDiagonalPA_ADAt(D, localTest);
          }
       }
-      const ElementRestriction* H1elem_restrict_test =
-         dynamic_cast<const ElementRestriction*>(elem_restrict_test);
-      if (H1elem_restrict_test)
+      if (HasSignedRestriction(elem_restrict_test))
       {
-         H1elem_restrict_test->AbsMultTranspose(localTest, diag);
+         elem_restrict_test->AbsMultTranspose(localTest, diag);
       }
       else
       {
@@ -1977,6 +2183,8 @@ const
 
 void PADiscreteLinearOperatorExtension::Assemble()
 {
+   MFEM_VERIFY(!submesh_space, "Partial assembly of DiscreteLinearOperator "
+               "does not support spaces on a SubMesh and its parent mesh yet.");
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
