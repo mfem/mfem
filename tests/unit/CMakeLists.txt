@@ -175,6 +175,7 @@ set(UNIT_TESTS_SRCS
   fem/test_transfer.cpp
   fem/test_var_order.cpp
   fem/test_white_noise.cpp
+  fem/test_white_noise_pa.cpp
   fem/specializations/test_diffusion_integ.cpp
   fem/specializations/test_mass_integ.cpp
   fem/specializations/test_convection_integ.cpp
