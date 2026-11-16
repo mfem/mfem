@@ -20,6 +20,12 @@ GPU computing
 
 Discretization improvements
 ---------------------------
+- Fixed H1 transfer in L2ProjectionGridTransfer on non-conforming meshes in
+  serial and parallel. The fully assembled operator now applies inverse lumped
+  mass scaling after true-DOF assembly. Element assembly now handles hanging-node
+  constraints and refined-element mappings correctly, including for
+  coefficient-weighted transfer.
+
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
