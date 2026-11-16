@@ -14908,6 +14908,9 @@ Mesh &MeshPart::GetMesh()
 
    mesh->FinalizeTopology(/* generate_bdr: */ false);
 
+   mesh->attribute_sets.attr_sets = attribute_sets;
+   mesh->bdr_attribute_sets.attr_sets = bdr_attribute_sets;
+
    return *mesh;
 }
 
@@ -14945,17 +14948,70 @@ public:
       : NCMesh(ncmesh)
    { }
 
+   // Refresh root coordinates using the source vertex order. Return false if
+   // the current vertices require nodal geometry rather than root coordinates.
+   bool UpdateCoordinates(const Mesh &mesh,
+                          const Array<int> &global_vertex_node_ids)
+   {
+      Array<int> node_to_vertex(nodes.NumIds());
+      node_to_vertex = -1;
+      for (int i = 0; i < global_vertex_node_ids.Size(); i++)
+      {
+         const int id = global_vertex_node_ids[i];
+         if (id < 0) { continue; } // unused vertices in legacy meshes
+         node_to_vertex[id] = i;
+         const Node &node = nodes[id];
+         if (node.p1 == node.p2)
+         {
+            for (int d = 0; d < mesh.SpaceDimension(); d++)
+            {
+               coordinates[3*id + d] = mesh.GetVertex(i)[d];
+            }
+         }
+      }
+
+      const real_t tol = 64*std::numeric_limits<real_t>::epsilon();
+      for (int i = 0; i < global_vertex_node_ids.Size(); i++)
+      {
+         const int id = global_vertex_node_ids[i];
+         if (id < 0) { continue; }
+         const Node &node = nodes[id];
+         if (node.p1 == node.p2) { continue; }
+         const int p1 = node_to_vertex[node.p1];
+         const int p2 = node_to_vertex[node.p2];
+         MFEM_ASSERT(p1 >= 0 && p2 >= 0, "missing parent vertex");
+         for (int d = 0; d < mesh.SpaceDimension(); d++)
+         {
+            const real_t actual = mesh.GetVertex(i)[d];
+            const real_t expected = (1.0 - node.GetScale())*mesh.GetVertex(p1)[d]
+                                    + node.GetScale()*mesh.GetVertex(p2)[d];
+            if (std::abs(actual - expected) >
+                tol*std::max(real_t(1.0), std::max(std::abs(actual),
+                                                   std::abs(expected))))
+            {
+               return false;
+            }
+         }
+      }
+      return true;
+   }
+
    void SelectPart(int part_id, const Array<int> &partitioning,
+                   const Array<int> &global_leaf_elements,
                    Array<int> &owned_global_elem_ids)
    {
       MFEM_ASSERT(leaf_elements.Size() == partitioning.Size(),
                   "invalid partitioning size");
+      MFEM_ASSERT(global_leaf_elements.Size() == partitioning.Size(),
+                  "invalid global element mapping");
 
       Array<int> elem_to_global(elements.Size());
       elem_to_global = -1;
-      for (int i = 0; i < leaf_elements.Size(); i++)
+      // A legacy mesh retains file element order, while the NCMesh copy uses
+      // tree order. Partitioning and nodal data refer to the source mesh order.
+      for (int i = 0; i < global_leaf_elements.Size(); i++)
       {
-         const int elem = leaf_elements[i];
+         const int elem = global_leaf_elements[i];
          elem_to_global[elem] = i;
          elements[elem].rank = partitioning[i];
       }
@@ -14965,7 +15021,7 @@ public:
       Array<char> owned_set(leaf_elements.Size());
       for (int i = 0; i < leaf_elements.Size(); i++)
       {
-         owned_set[i] = (partitioning[i] == part_id);
+         owned_set[i] = (elements[leaf_elements[i]].rank == part_id);
       }
 
       Array<char> ghost_set;
@@ -15591,9 +15647,26 @@ void MeshPartitioner::PrintPart(int part_id, std::ostream &os) const
       MFEM_VERIFY(mesh.ncmesh, "missing NCMesh.");
 
       NCMeshPartWriter part_ncmesh(*mesh.ncmesh);
+      const GridFunction *global_nodes = mesh.GetNodes();
+      std::unique_ptr<FiniteElementCollection> linear_fec;
+      std::unique_ptr<FiniteElementSpace> linear_fes;
+      std::unique_ptr<GridFunction> linear_nodes;
+      if (!global_nodes &&
+          !part_ncmesh.UpdateCoordinates(mesh, mesh.ncmesh->vertex_nodeId))
+      {
+         // Root coordinates cannot describe every moved refinement vertex.
+         // Preserve the live linear geometry without modifying the source mesh.
+         linear_fec.reset(new H1_FECollection(1, mesh.Dimension()));
+         linear_fes.reset(new FiniteElementSpace(&mesh, linear_fec.get(),
+                                                 mesh.SpaceDimension()));
+         linear_nodes.reset(new GridFunction(linear_fes.get()));
+         mesh.GetNodes(*linear_nodes);
+         global_nodes = linear_nodes.get();
+      }
       Array<int> owned_global_elem_ids;
-      part_ncmesh.SelectPart(part_id, partitioning, owned_global_elem_ids);
-      if (mesh.GetNodes())
+      part_ncmesh.SelectPart(part_id, partitioning, mesh.ncmesh->leaf_elements,
+                             owned_global_elem_ids);
+      if (global_nodes)
       {
          part_ncmesh.DropCoordinates();
       }
@@ -15602,16 +15675,16 @@ void MeshPartitioner::PrintPart(int part_id, std::ostream &os) const
                              mesh.bdr_attribute_sets.SetsExist();
       part_ncmesh.Print(os, "", false, set_names);
 
-      if (mesh.GetNodes())
+      if (global_nodes)
       {
          Mesh part_mesh(part_ncmesh);
          FiniteElementSpace nodal_fes(&part_mesh,
-                                      mesh.GetNodes()->FESpace()->FEColl(),
-                                      mesh.GetNodes()->VectorDim(),
-                                      mesh.GetNodes()->FESpace()->GetOrdering());
+                                      global_nodes->FESpace()->FEColl(),
+                                      global_nodes->VectorDim(),
+                                      global_nodes->FESpace()->GetOrdering());
          std::unique_ptr<GridFunction> local_nodes =
             ExtractElementwiseGridFunction(owned_global_elem_ids,
-                                           *mesh.GetNodes(),
+                                           *global_nodes,
                                            nodal_fes);
          os << "\n# mesh curvature GridFunction";
          os << "\nnodes\n";

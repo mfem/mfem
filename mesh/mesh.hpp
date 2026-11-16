@@ -2544,8 +2544,9 @@ public:
    bool Conforming() const;
    bool Nonconforming() const { return !Conforming(); }
 
-   /** Designate this mesh for output as "NC mesh v1.1", meaning it is
-       nonconforming with nonuniform refinement spacings. */
+   /** Force output in a scaled NC mesh format (v1.1 or newer), even for
+       midpoint refinement. Nonuniform refinement spacings are detected
+       automatically during NC mesh serialization. */
    void SetScaledNCMesh()
    {
       ncmesh->using_scaling = true;

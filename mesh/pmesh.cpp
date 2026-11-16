@@ -7138,7 +7138,7 @@ static ParMesh DistributeMesh(MPI_Comm comm, Mesh &m, const int* partitioning,
 {
    int nprocs;
    MPI_Comm_size(comm, &nprocs);
-   if (nprocs == 1)
+   if (nprocs == 1 && m.Conforming())
    {
       auto res = ParMesh(comm, m);
       m.Clear();
@@ -7184,7 +7184,12 @@ static ParMesh DistributeMesh(MPI_Comm comm, Mesh &m, int part_method,
    MPI_Comm_size(comm, &nprocs);
    if (nprocs == 1)
    {
-      return ParMesh(comm, m);
+      // Avoid requiring METIS for a single part, but use the NC serializer so
+      // legacy file element order is mapped correctly when transferring nodes.
+      Array<int> partitioning(m.GetNE());
+      partitioning = 0;
+      return DistributeMesh(comm, m, partitioning.GetData(), generate_edges,
+                            refine, fix_orientation);
    }
    std::stringstream local_ser;
 

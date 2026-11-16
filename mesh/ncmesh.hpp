@@ -526,7 +526,8 @@ public:
 
    /** I/O: Print the mesh in the MFEM NC mesh format. When
        @a attribute_sets is true, use v1.2, which supports named attribute
-       sets. If @a comments is non-empty, it will be printed after the first
+       sets. Nonuniform refinement scales automatically select v1.1 or newer.
+       If @a comments is non-empty, it will be printed after the first
        line of the file, and each line should begin with '#'. */
    void Print(std::ostream &out, const std::string &comments = "",
               bool nurbs=false, bool attribute_sets=false) const;
@@ -575,6 +576,7 @@ public:
 protected: // non-public interface for the Mesh class
 
    friend class Mesh;
+   friend class MeshPartitioner;
 
    /// Fill Mesh::{vertices,elements,boundary} for the current finest level.
    void GetMeshComponents(Mesh &mesh) const;
@@ -1361,8 +1363,8 @@ protected:
 
    // I/O
 
-   /// Print the "vertex_parents" section of the mesh file.
-   int PrintVertexParents(std::ostream *out) const;
+   /// Print vertex parents, including scales when required by the output format.
+   int PrintVertexParents(std::ostream *out, bool scaled) const;
    /// Load the vertex parent hierarchy from a mesh file.
    void LoadVertexParents(std::istream &input);
 

@@ -6104,7 +6104,7 @@ void NCMesh::LimitNCLevel(int max_nc_level)
 
 //// I/O ///////////////////////////////////////////////////////////////////////
 
-int NCMesh::PrintVertexParents(std::ostream *os) const
+int NCMesh::PrintVertexParents(std::ostream *os, bool scaled) const
 {
    if (!os)
    {
@@ -6129,11 +6129,11 @@ int NCMesh::PrintVertexParents(std::ostream *os) const
 
             (*os) << node.index() << " " << node->p1 << " " << node->p2;
             if (node->GetScale() != 0.5) { uniform_scaling = false; }
-            if (using_scaling) { (*os) << " " << node->GetScale(); }
+            if (scaled) { (*os) << " " << node->GetScale(); }
             (*os) << "\n";
          }
       }
-      MFEM_VERIFY(using_scaling || uniform_scaling, "NCMesh has nonuniform "
+      MFEM_VERIFY(scaled || uniform_scaling, "NCMesh has nonuniform "
                   "scaling. Call Mesh::SetScaledNCMesh first.");
       return 0;
    }
@@ -6350,6 +6350,21 @@ bool NCMesh::ZeroRootStates() const
 void NCMesh::Print(std::ostream &os, const std::string &comments,
                    bool nurbs, bool attribute_sets) const
 {
+   // The output version determines whether every vertex-parent row includes a
+   // scale. Detect non-midpoint refinement without changing the in-memory mesh.
+   bool scaled = using_scaling || attribute_sets;
+   if (!nurbs && !scaled)
+   {
+      for (const auto &node : nodes)
+      {
+         if (node.HasVertex() && node.p1 != node.p2 && node.GetScale() != 0.5)
+         {
+            scaled = true;
+            break;
+         }
+      }
+   }
+
    if (nurbs)
    {
       os << "MFEM NURBS NC-patch mesh v1.0\n\n";
@@ -6358,7 +6373,7 @@ void NCMesh::Print(std::ostream &os, const std::string &comments,
    {
       os << "MFEM NC mesh v1.2\n\n";
    }
-   else if (using_scaling)
+   else if (scaled)
    {
       os << "MFEM NC mesh v1.1\n\n";
    }
@@ -6414,13 +6429,13 @@ void NCMesh::Print(std::ostream &os, const std::string &comments,
       PrintBoundary(&os);
    }
 
-   int nvp = PrintVertexParents(NULL);
+   int nvp = PrintVertexParents(NULL, scaled);
    if (nvp)
    {
       os << "\n# vert_id p1 p2";
       os << "\nvertex_parents\n" << nvp << "\n";
 
-      PrintVertexParents(&os);
+      PrintVertexParents(&os, scaled);
    }
 
    if (!ZeroRootStates()) // root_state section is optional

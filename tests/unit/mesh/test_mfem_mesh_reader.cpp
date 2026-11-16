@@ -117,10 +117,17 @@ TEST_CASE("MFEM NC mesh v1.2 named attributes", "[Mesh]")
 
    Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL);
    mesh.EnsureNCMesh();
+   const real_t scale = GENERATE(0.5, 0.3);
+   const bool curved = GENERATE(false, true);
+   Array<Refinement> refs(1);
+   refs[0] = Refinement(0, Refinement::XY, scale);
+   mesh.GeneralRefinement(refs);
+   if (curved) { mesh.SetCurvature(2); }
    mesh.attribute_sets.CreateAttributeSet("materials").Append(1);
    mesh.bdr_attribute_sets.CreateAttributeSet("walls").Append(1);
 
    std::stringstream output;
+   output.precision(17);
    mesh.Print(output);
    REQUIRE(output.str().rfind("MFEM NC mesh v1.2", 0) == 0);
 
@@ -130,4 +137,76 @@ TEST_CASE("MFEM NC mesh v1.2 named attributes", "[Mesh]")
    REQUIRE(loaded.bdr_attribute_sets.AttributeSetExists("walls"));
    REQUIRE(loaded.attribute_sets.GetAttributeSet("materials").Size() == 1);
    REQUIRE(loaded.bdr_attribute_sets.GetAttributeSet("walls").Size() == 1);
+   REQUIRE(loaded.GetNE() == mesh.GetNE());
+   Vector vertices, loaded_vertices;
+   mesh.GetVertices(vertices);
+   loaded.GetVertices(loaded_vertices);
+   REQUIRE(vertices.Size() == loaded_vertices.Size());
+   vertices -= loaded_vertices;
+   REQUIRE(vertices.Normlinf() < 1e-14);
+}
+
+TEST_CASE("MFEM NC mesh automatically serializes refinement scales", "[Mesh]")
+{
+   const real_t scale = GENERATE(0.5, 0.3);
+   const bool force_scaled = GENERATE(false, true);
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL);
+   mesh.EnsureNCMesh();
+   Array<Refinement> refs(1);
+   refs[0] = Refinement(0, Refinement::XY, scale);
+   mesh.GeneralRefinement(refs);
+   if (force_scaled) { mesh.SetScaledNCMesh(); }
+
+   std::stringstream output;
+   output.precision(17);
+   mesh.Print(output);
+   const char *version = (force_scaled || scale != 0.5) ?
+                         "MFEM NC mesh v1.1" : "MFEM NC mesh v1.0";
+   REQUIRE(output.str().rfind(version, 0) == 0);
+
+   Mesh loaded(output);
+   REQUIRE(loaded.GetNE() == mesh.GetNE());
+   Vector vertices, loaded_vertices;
+   mesh.GetVertices(vertices);
+   loaded.GetVertices(loaded_vertices);
+   REQUIRE(vertices.Size() == loaded_vertices.Size());
+   vertices -= loaded_vertices;
+   REQUIRE(vertices.Normlinf() < 1e-14);
+}
+
+TEST_CASE("MeshPart preserves named sets in its constructed mesh", "[Mesh]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL);
+   mesh.attribute_sets.CreateAttributeSet("materials").Append(1);
+   mesh.attribute_sets.AddToAttributeSet("materials", 2);
+   mesh.bdr_attribute_sets.CreateAttributeSet("walls").Append(1);
+   mesh.bdr_attribute_sets.AddToAttributeSet("walls", 3);
+   if (GENERATE(false, true)) { mesh.SetCurvature(2); }
+
+   int partition[] = {0, 1};
+   MeshPartitioner partitioner(mesh, 2, partition);
+   MeshPart part;
+   for (int i = 0; i < 2; i++)
+   {
+      partitioner.ExtractPart(i, part);
+      Mesh &local = part.GetMesh();
+      std::stringstream output;
+      part.Print(output);
+      Mesh loaded(output);
+      for (Mesh *result : {&local, &loaded})
+      {
+         REQUIRE(result->attribute_sets.AttributeSetExists("materials"));
+         const Array<int> &materials =
+            result->attribute_sets.GetAttributeSet("materials");
+         REQUIRE(materials.Size() == 2);
+         REQUIRE(materials[0] == 1);
+         REQUIRE(materials[1] == 2);
+         REQUIRE(result->bdr_attribute_sets.AttributeSetExists("walls"));
+         const Array<int> &walls =
+            result->bdr_attribute_sets.GetAttributeSet("walls");
+         REQUIRE(walls.Size() == 2);
+         REQUIRE(walls[0] == 1);
+         REQUIRE(walls[1] == 3);
+      }
+   }
 }

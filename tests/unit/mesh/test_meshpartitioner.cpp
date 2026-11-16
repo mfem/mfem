@@ -245,7 +245,6 @@ TEST_CASE("MakeFromSerial preserves serialized mesh metadata",
       Array<Refinement> ref(1);
       ref[0] = Refinement(0, Refinement::XY, 0.3);
       smesh.GeneralRefinement(ref);
-      smesh.SetScaledNCMesh();
       smesh.attribute_sets.CreateAttributeSet("material").Append(1);
       smesh.bdr_attribute_sets.CreateAttributeSet("boundary").Append(1);
       smesh.Print(input);
@@ -279,6 +278,167 @@ TEST_CASE("MakeFromSerial supports empty curved parts",
    REQUIRE(pmesh.GetNodes());
    REQUIRE(pmesh.GetNodes()->VectorDim() == 2);
    if (rank != 0) { REQUIRE(pmesh.GetNE() == 0); }
+}
+
+TEST_CASE("MakeFromSerial handles in-memory NC refinement scales",
+          "[Mesh] [MeshPartitioner] [Parallel]")
+{
+   const int rank = Mpi::WorldRank();
+   const int nprocs = Mpi::WorldSize();
+   const real_t scale = GENERATE(0.5, 0.3);
+   const bool named = GENERATE(false, true);
+   const bool curved = GENERATE(false, true);
+   CAPTURE(rank, scale, named, curved);
+
+   Mesh mesh = Mesh::MakeCartesian2D(std::max(2, nprocs), 1,
+                                     Element::QUADRILATERAL);
+   mesh.EnsureNCMesh();
+   Array<Refinement> refs(1);
+   refs[0] = Refinement(0, Refinement::XY, scale);
+   mesh.GeneralRefinement(refs);
+   if (named)
+   {
+      mesh.attribute_sets.CreateAttributeSet("material").Append(1);
+      mesh.bdr_attribute_sets.CreateAttributeSet("boundary").Append(1);
+   }
+   if (curved) { mesh.SetCurvature(2); }
+
+   std::vector<int> partition(mesh.GetNE());
+   for (int i = 0; i < mesh.GetNE(); i++) { partition[i] = i % nprocs; }
+   Mesh smesh;
+   if (rank == 0) { smesh = Mesh(mesh); }
+
+   ParMesh expected(MPI_COMM_WORLD, mesh, partition.data());
+   ParMesh distributed = ParMesh::MakeFromSerial(MPI_COMM_WORLD, smesh,
+                                                 partition.data());
+   REQUIRE(smesh.GetNE() == 0);
+   ComparePMeshes(expected, distributed);
+   if (named)
+   {
+      REQUIRE(distributed.attribute_sets.AttributeSetExists("material"));
+      REQUIRE(distributed.bdr_attribute_sets.AttributeSetExists("boundary"));
+   }
+
+   std::stringstream output;
+   output.precision(17);
+   distributed.ParPrint(output);
+   ParMesh loaded(MPI_COMM_WORLD, output);
+   ComparePMeshes(distributed, loaded);
+}
+
+TEST_CASE("MakeFromSerial preserves moved linear NC geometry",
+          "[Mesh] [MeshPartitioner] [Parallel]")
+{
+   const int rank = Mpi::WorldRank();
+   const int nprocs = Mpi::WorldSize();
+   const bool three_dimensional = GENERATE(false, true);
+   const bool nonlinear = GENERATE(false, true);
+   CAPTURE(rank, three_dimensional, nonlinear);
+
+   Mesh mesh = three_dimensional ?
+               Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON) :
+               Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   mesh.EnsureNCMesh();
+   if (nonlinear)
+   {
+      // All leaves are refined so the nonlinear move has no hanging interfaces.
+      mesh.UniformRefinement();
+   }
+   else
+   {
+      Array<Refinement> refs(1);
+      refs[0] = Refinement(0, three_dimensional ? Refinement::XYZ :
+                           Refinement::XY, 0.3);
+      mesh.GeneralRefinement(refs);
+   }
+   mesh.Transform([nonlinear](const Vector &x, Vector &y)
+   {
+      for (int d = 0; d < x.Size(); d++)
+      {
+         y[d] = (1.2 + 0.1*d)*x[d] + 5.0 + 2.0*d;
+      }
+      if (nonlinear) { y[0] += 0.1*x[0]*x[0]; }
+   });
+   for (int i = 0; i < mesh.GetNE(); i++) { mesh.SetAttribute(i, i + 1); }
+
+   auto check_geometry = [&](Mesh &result)
+   {
+      REQUIRE(bool(result.GetNodes()) == nonlinear);
+      for (int i = 0; i < result.GetNE(); i++)
+      {
+         const int global_id = result.GetAttribute(i) - 1;
+         const IntegrationPoint &center =
+            Geometries.GetCenter(result.GetElementGeometry(i));
+         Vector expected, actual;
+         mesh.GetElementTransformation(global_id)->Transform(center, expected);
+         result.GetElementTransformation(i)->Transform(center, actual);
+         actual -= expected;
+         REQUIRE(actual.Normlinf() < 1e-12);
+      }
+   };
+
+   std::vector<int> partition(mesh.GetNE());
+   for (int i = 0; i < mesh.GetNE(); i++) { partition[i] = i % nprocs; }
+   Vector original_vertices;
+   mesh.GetVertices(original_vertices);
+   MeshPartitioner partitioner(mesh, nprocs, partition.data());
+   std::stringstream output;
+   output.precision(17);
+   partitioner.PrintPart(rank, output);
+   Mesh loaded(output, 1, 0);
+   check_geometry(loaded);
+   REQUIRE(!mesh.GetNodes());
+   Vector vertices;
+   mesh.GetVertices(vertices);
+   vertices -= original_vertices;
+   REQUIRE(vertices.Normlinf() == 0.0);
+
+   Mesh smesh;
+   if (rank == 0) { smesh = Mesh(mesh); }
+   ParMesh distributed = ParMesh::MakeFromSerial(MPI_COMM_WORLD, smesh,
+                                                 partition.data());
+   REQUIRE(smesh.GetNE() == 0);
+   check_geometry(distributed);
+}
+
+TEST_CASE("MakeFromSerial preserves legacy NC element ownership and geometry",
+          "[Mesh] [MeshPartitioner] [Parallel]")
+{
+   const int rank = Mpi::WorldRank();
+   const int nprocs = Mpi::WorldSize();
+   const bool curved = GENERATE(false, true);
+   CAPTURE(rank, curved);
+
+   Mesh smesh;
+   int partition[] = {0, 0, nprocs > 1 ? 1 : 0};
+   if (rank == 0)
+   {
+      smesh = Mesh("data/legacy-nc-element-order.mesh", 1, 0);
+      REQUIRE(smesh.GetAttribute(0) == 20);
+      REQUIRE(smesh.GetAttribute(1) == 10);
+      REQUIRE(smesh.GetAttribute(2) == 30);
+      if (curved) { smesh.SetCurvature(2); }
+   }
+
+   ParMesh distributed = ParMesh::MakeFromSerial(MPI_COMM_WORLD, smesh,
+                                                 partition);
+   const int expected_ne = nprocs == 1 ? 3 :
+                           (rank == 0 ? 2 : (rank == 1 ? 1 : 0));
+   REQUIRE(distributed.GetNE() == expected_ne);
+   for (int i = 0; i < distributed.GetNE(); i++)
+   {
+      const int attr = distributed.GetAttribute(i);
+      if (nprocs == 1) { REQUIRE((attr == 10 || attr == 20 || attr == 30)); }
+      else if (rank == 0) { REQUIRE((attr == 10 || attr == 20)); }
+      else { REQUIRE(attr == 30); }
+
+      Vector center;
+      distributed.GetElementTransformation(i)->Transform(
+         Geometries.GetCenter(Geometry::SEGMENT), center);
+      const real_t expected_center = attr == 10 ? 0.25 :
+                                     (attr == 20 ? 0.75 : 1.5);
+      REQUIRE(center[0] == MFEM_Approx(expected_center));
+   }
 }
 
 TEST_CASE("MakeFromSerial prunes anisotropic 3D NC parts",
