@@ -502,15 +502,16 @@ namespace detail
 template <typename T>
 struct is_tensor_array : std::false_type {};
 
-template <typename scalar_t, int... Dims>
-struct is_tensor_array<tensor_array<scalar_t, Dims...>> : std::true_type {};
+template <typename scalar_t, int ndims, int... Dims>
+struct is_tensor_array<tensor_ndarray<scalar_t, ndims, Dims...>> :
+                                                                 std::true_type {};
 
 template <typename T>
 struct is_tensor_array_mut : std::false_type {};
 
-template <typename scalar_t, int... Dims>
-struct is_tensor_array_mut<tensor_array<scalar_t, Dims...>> :
-                                                            std::bool_constant<!std::is_const_v<scalar_t>> {};
+template <typename scalar_t, int ndims, int... Dims>
+struct is_tensor_array_mut<tensor_ndarray<scalar_t, ndims, Dims...>> :
+                                                                     std::bool_constant<!std::is_const_v<scalar_t>> {};
 
 
 template <typename ndarray_t>
@@ -595,6 +596,67 @@ decltype(auto) make_tensor_array(ptr_scalar_t *ptr,
    if (layout) { set_layout(a, *layout); }
    else        { set_layout_default(a); }
    return a;
+}
+
+/// Number of dynamic (array) dimensions of a quadrature function argument
+/// type: tensor_array has one, tensor_ndarray<scalar_t, 2, ...> has two.
+template <typename T>
+struct qf_array_rank;
+
+template <typename scalar_t, int... sizes>
+struct qf_array_rank<tensor<scalar_t, sizes...>>
+{
+   static constexpr std::size_t value = 1;
+};
+
+template <typename scalar_t, int ndims, int... sizes>
+struct qf_array_rank<tensor_ndarray<scalar_t, ndims, sizes...>>
+{
+   static constexpr std::size_t value = ndims;
+};
+
+/// @brief Create the quadrature function view of a Q-vector block.
+///
+/// @a nscalars is the number of entries in the block, @a gnqp the number of
+/// quadrature points it spans.
+///
+/// - A tensor_array (one dynamic dimension) gets the dynamic size {gnqp}; its
+///   per point size is fixed by its tensor sizes.
+/// - A tensor_ndarray with two dynamic dimensions gets the dynamic sizes
+///   {n, gnqp}, with n = nscalars / (gnqp * tensor size). This allows a per
+///   point extent that is only known at runtime, e.g. the vdim of a field. In
+///   the default layout the tensor components are fastest, then n, then the
+///   quadrature point, matching the byVDIM Q-vector layout.
+template <typename T, typename ptr_scalar_t>
+decltype(auto) make_qf_tensor_array(ptr_scalar_t *ptr,
+                                    const std::vector<int>* layout,
+                                    const int gnqp,
+                                    const int nscalars)
+{
+   constexpr std::size_t rank = qf_array_rank<T>::value;
+   static_assert(rank == 1 || rank == 2,
+                 "quadrature function arguments support one or two dynamic "
+                 "dimensions");
+   if constexpr (rank == 1)
+   {
+      MFEM_CONTRACT_VAR(nscalars);
+      return make_tensor_array<T>(ptr, layout, gnqp);
+   }
+   else
+   {
+      using array_t = typename tensor_array_traits<T>::template array_type<1>;
+      constexpr int tsize = []
+      {
+         int p = 1;
+         for (auto sz : array_t::tensor_sizes_array()) { p *= static_cast<int>(sz); }
+         return p;
+      }();
+      const int extent = (gnqp > 0) ? nscalars / (gnqp * tsize) : 0;
+      MFEM_ASSERT(extent * gnqp * tsize == nscalars,
+                  "Q-vector block of size " << nscalars << " is not a multiple"
+                  " of " << gnqp << " points times tensor size " << tsize);
+      return make_tensor_array<T>(ptr, layout, extent, gnqp);
+   }
 }
 
 template <typename qfunc_t, typename inputs_t, typename outputs_t>
@@ -767,12 +829,13 @@ decltype(auto) make_native_dual_input(
       pack_dual_from_primal_shadow(
          xq.GetBlock(I).Read(), shadow_xq.GetBlock(I).Read(),
          native_dual_vector_w(dual_storage), sz, active);
-      return make_tensor_array<decay_t>(
-                native_dual_vector_rw(dual_storage), &layout, gnqp);
+      return make_qf_tensor_array<decay_t>(
+                native_dual_vector_rw(dual_storage), &layout, gnqp, sz);
    }
    else
    {
-      return make_tensor_array<decay_t>(xq.GetBlock(I).Read(), &layout, gnqp);
+      return make_qf_tensor_array<decay_t>(xq.GetBlock(I).Read(), &layout,
+                                           gnqp, xq.GetBlock(I).Size());
    }
 }
 
@@ -787,13 +850,13 @@ decltype(auto) make_native_dual_output(
    {
       const int sz = yq.GetBlock(O).Size();
       ensure_native_dual_vector(dual_storage, sz);
-      return make_tensor_array<decay_t>(
-                native_dual_vector_w(dual_storage), &layout, gnqp);
+      return make_qf_tensor_array<decay_t>(
+                native_dual_vector_w(dual_storage), &layout, gnqp, sz);
    }
    else
    {
-      return make_tensor_array<decay_t>(yq.GetBlock(O).ReadWrite(), &layout,
-                                        gnqp);
+      return make_qf_tensor_array<decay_t>(yq.GetBlock(O).ReadWrite(), &layout,
+                                           gnqp, yq.GetBlock(O).Size());
    }
 }
 
@@ -914,15 +977,17 @@ inline void call_qfunc(
 
       auto inputs =
          std::make_tuple(
-            make_tensor_array<qf_param_decay_t<
+            make_qf_tensor_array<qf_param_decay_t<
             typename tuple_element<Is, qf_param_ts>::type>>(
-               xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
+               xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp,
+               xq.GetBlock(Is).Size())...);
 
       auto outputs =
          std::make_tuple(
-            make_tensor_array<qf_param_decay_t<
+            make_qf_tensor_array<qf_param_decay_t<
             typename tuple_element<ninputs + Os, qf_param_ts>::type>>(
-               yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
+               yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp,
+               yq.GetBlock(Os).Size())...);
 
       std::apply([&](auto &&...args) { qfunc(args...); },
       std::tuple_cat(inputs, outputs));
@@ -1075,27 +1140,31 @@ inline void enzyme_fwddiff(
    static_assert(activity_map.size() == ninputs, "activity map size mismatch");
 
    auto inputs = std::make_tuple(
-                    make_tensor_array<std::remove_cv_t<std::remove_reference_t<
+                    make_qf_tensor_array<std::remove_cv_t<std::remove_reference_t<
                     typename tuple_element<Is, qf_param_ts>::type>>>(
-                       xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
+                       xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp,
+                       xq.GetBlock(Is).Size())...);
 
    auto shadows = std::make_tuple(
-                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<
+                     make_qf_tensor_array<std::remove_cv_t<std::remove_reference_t<
                      typename tuple_element<Is, qf_param_ts>::type>>>(
-                        shadow_xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
+                        shadow_xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp,
+                        shadow_xq.GetBlock(Is).Size())...);
 
    ((primal_storage[Os].UseDevice(true)), ...);
    ((primal_storage[Os].SetSize(yq.GetBlock(Os).Size())), ...);
 
    auto primals_out = std::make_tuple(
-                         make_tensor_array<std::remove_cv_t<std::remove_reference_t<
+                         make_qf_tensor_array<std::remove_cv_t<std::remove_reference_t<
                          typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
-                            primal_storage[Os].Write(), &out_layouts[Os], gnqp)...);
+                            primal_storage[Os].Write(), &out_layouts[Os], gnqp,
+                            primal_storage[Os].Size())...);
 
    auto derivs_out = std::make_tuple(
-                        make_tensor_array<std::remove_cv_t<std::remove_reference_t<
+                        make_qf_tensor_array<std::remove_cv_t<std::remove_reference_t<
                         typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
-                           yq.GetBlock(Os).Write(), &out_layouts[Os], gnqp)...);
+                           yq.GetBlock(Os).Write(), &out_layouts[Os], gnqp,
+                           yq.GetBlock(Os).Size())...);
 
    using wrapper_fn_t = qf_return_t (*)(
                            qfunc_t &,
