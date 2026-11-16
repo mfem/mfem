@@ -69,7 +69,9 @@
 #include "../../linalg/tensor_arrays.hpp"
 
 #include <array>
+#include <cmath>
 #include <iomanip>
+#include <limits>
 
 using namespace mfem;
 using namespace mfem::future;
@@ -161,19 +163,19 @@ private:
 
       void Mult(const Vector &x, Vector &y) const override
       {
-         const int K = s.K, np = s.nparam, nqp = s.nqp;
+         const int ns = s.K, np = s.nparam, nq = s.nqp;
          const auto off = s.map.offsets.Read();
          const auto xr = x.Read();
          auto yw = y.Write();
-         mfem::forall(nqp * s.map.NumElements(), [=] MFEM_HOST_DEVICE(int qe)
+         mfem::forall(nq * s.map.NumElements(), [=] MFEM_HOST_DEVICE(int qe)
          {
-            const int e = qe / nqp;
+            const int e = qe / nq;
             const int begin = off[e], count = off[e + 1] - begin;
-            for (int slot = 0; slot < K; slot++)
+            for (int slot = 0; slot < ns; slot++)
             {
                for (int c = 0; c < np; c++)
                {
-                  yw[c + np * (slot + K * qe)] =
+                  yw[c + np * (slot + ns * qe)] =
                      (slot < count) ? xr[c + np * (begin + slot)] : 0.0;
                }
             }
@@ -196,7 +198,7 @@ private:
 
       void Mult(const Vector &x, Vector &y) const override
       {
-         const int K = s.K, np = s.nparam, nqp = s.nqp;
+         const int ns = s.K, np = s.nparam, nq = s.nqp;
          const auto off = s.map.offsets.Read();
          const auto elem = s.map.entry_elem.Read();
          const auto xr = x.Read();
@@ -207,9 +209,9 @@ private:
             for (int c = 0; c < np; c++)
             {
                real_t sum = 0.0;
-               for (int q = 0; q < nqp; q++)
+               for (int q = 0; q < nq; q++)
                {
-                  sum += xr[c + np * (slot + K * (q + nqp * e))];
+                  sum += xr[c + np * (slot + ns * (q + nq * e))];
                }
                yw[c + np * i] = sum;
             }
@@ -262,15 +264,15 @@ private:
 
       void Mult(const Vector &, Vector &y) const override
       {
-         const int K = s.K, nqp = s.nqp;
+         const int ns = s.K, nq = s.nqp;
          const auto off = s.map.offsets.Read();
          auto yw = y.Write();
-         mfem::forall(nqp * s.map.NumElements(), [=] MFEM_HOST_DEVICE(int qe)
+         mfem::forall(nq * s.map.NumElements(), [=] MFEM_HOST_DEVICE(int qe)
          {
-            const int e = qe / nqp, count = off[e + 1] - off[e];
-            for (int slot = 0; slot < K; slot++)
+            const int e = qe / nq, count = off[e + 1] - off[e];
+            for (int slot = 0; slot < ns; slot++)
             {
-               yw[slot + K * qe] = (slot < count) ? 1.0 : 0.0;
+               yw[slot + ns * qe] = (slot < count) ? 1.0 : 0.0;
             }
          });
       }
@@ -386,10 +388,14 @@ int main(int argc, char *argv[])
    const int myid = Mpi::WorldRank();
    Hypre::Init();
 
+   // Round-off scale of real_t, which is float in single precision builds.
+   // The finite difference step and the check tolerances derive from it.
+   const real_t eps = std::numeric_limits<real_t>::epsilon();
+
    int nmat = 5;
    int order = 2;
    int refinements = 2;
-   real_t fd_eps = 1e-6;
+   real_t fd_eps = std::cbrt(eps); // balances truncation and round-off
 
    OptionsParser args(argc, argv);
    args.AddOption(&nmat, "-nm", "--num-materials", "Number of materials.");
@@ -488,16 +494,21 @@ int main(int argc, char *argv[])
                (1.0 + 0.3 * std::sin(2.0 * M_PI * c(0)) * std::cos(M_PI * c(1)));
    }
 
+   // Exact identities hold up to round-off, central differences up to about
+   // eps^(2/3) with the step above.
+   const real_t tol_exact = 1e3 * eps;
+   const real_t tol_fd = 1e3 * std::cbrt(eps * eps);
+
    const int n = u_fes.GetTrueVSize();
    bool pass = true;
-   auto report = [&](const std::string &what, real_t err, real_t tol)
+   auto report = [&](const std::string &what, real_t error, real_t tol)
    {
-      const bool ok = err <= tol;
+      const bool ok = error <= tol;
       pass = pass && ok;
       if (myid == 0)
       {
          std::cout << std::left << std::setw(44) << what << std::right
-                   << std::scientific << std::setprecision(3) << err
+                   << std::scientific << std::setprecision(3) << error
                    << (ok ? "  ok" : "  FAIL") << std::defaultfloat << "\n";
       }
    };
@@ -506,8 +517,8 @@ int main(int argc, char *argv[])
    using state_t = std::array<Vector, 2>;
    auto residual = [&](const state_t &st, Vector &r)
    {
-      MultiVector out{r};
-      R.Mult(MultiVector{st[U], st[RHO], x, mask}, out);
+      MultiVector res{r};
+      R.Mult(MultiVector{st[U], st[RHO], x, mask}, res);
    };
    const state_t state{u, rho};
 
@@ -527,7 +538,7 @@ int main(int argc, char *argv[])
       r -= r_ref;
       report("|R - R_ref| / |R_ref|",
              std::sqrt(InnerProduct(comm, r, r) /
-                       InnerProduct(comm, r_ref, r_ref)), 1e-12);
+                       InnerProduct(comm, r_ref, r_ref)), tol_exact);
    }
 
    // 2) JVP vs FD and VJP vs JVP for each derivative.
@@ -565,7 +576,7 @@ int main(int argc, char *argv[])
       diff -= fd;
       report(std::string("|dR/d") + names[id] + " d - FD| / |FD|",
              std::sqrt(InnerProduct(comm, diff, diff) /
-                       InnerProduct(comm, fd, fd)), 1e-6);
+                       InnerProduct(comm, fd, fd)), tol_fd);
 
       // VJP
       Vector JTl(width);
@@ -577,7 +588,7 @@ int main(int argc, char *argv[])
       const real_t rhs = InnerProduct(comm, JTl, d);
       report(std::string("|<l, dR/d") + names[id] + " d> - <dR/d" +
              names[id] + "^T l, d>| / |.|",
-             std::abs(lhs - rhs) / std::abs(lhs), 1e-12);
+             std::abs(lhs - rhs) / std::abs(lhs), tol_exact);
    }
 
    if (myid == 0) { std::cout << (pass ? "\nPASSED" : "\nFAILED") << std::endl; }

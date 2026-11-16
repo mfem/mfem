@@ -52,6 +52,11 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 %-test-seq: %
 	@$(call mfem-test,$<,, Serial example)
 
+# Testing: Specific execution options. dfem-runtime-materials has no
+# visualization, so it is run without -no-vis.
+dfem-runtime-materials-test-par: dfem-runtime-materials
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-nm 13 -r 1,SKIP-NO-VIS)
+
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
 # Generate an error message if the MFEM library is not built and exit
