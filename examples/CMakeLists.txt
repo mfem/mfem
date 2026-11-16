@@ -151,6 +151,33 @@ if (MFEM_ENABLE_TESTING)
     endif()
   endforeach()
 
+  foreach(NOISE_MODE cholesky quadrature ordinary)
+    set(NOISE_OPTIONS -m ${PROJECT_SOURCE_DIR}/data/inline-quad.mesh
+      -o 1 -no-vis)
+    if (NOISE_MODE STREQUAL "ordinary")
+      list(APPEND NOISE_OPTIONS -rhs quadrature -no-frhs)
+    else()
+      list(APPEND NOISE_OPTIONS -rhs ${NOISE_MODE})
+    endif()
+    set(NOISE_TEST ex1_white_noise_${NOISE_MODE}_ser)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${NOISE_TEST})
+    add_test(NAME ${NOISE_TEST} COMMAND ex1 ${NOISE_OPTIONS})
+    set_tests_properties(${NOISE_TEST} PROPERTIES
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${NOISE_TEST}
+      LABELS "white-noise;examples" TIMEOUT 180)
+    if (MFEM_USE_MPI)
+      set(NOISE_TEST ex1_white_noise_${NOISE_MODE}_np=${MFEM_MPI_NP})
+      file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${NOISE_TEST})
+      add_test(NAME ${NOISE_TEST}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:ex1p> ${NOISE_OPTIONS}
+        ${MPIEXEC_POSTFLAGS})
+      set_tests_properties(${NOISE_TEST} PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${NOISE_TEST}
+        LABELS "white-noise;examples" TIMEOUT 180)
+    endif()
+  endforeach()
+
   # Add CUDA/HIP tests.
   set(DEVICE_EXAMPLES
       # serial examples with device support:
