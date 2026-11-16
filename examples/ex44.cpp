@@ -44,13 +44,13 @@ int main(int argc, char *argv[])
    // 1. Parse command-line options.
    int order = 1;
    int ref_levels = 0;
-   int max_iterations = 20;
    real_t alpha = 1;
    real_t tol = 1e-6;
    bool visualization = false;
 
-   const real_t lambda = 1.0;
-   const real_t mu = 1.0;
+   int max_iterations = 20;
+   int newton_iterations = 10;
+   real_t increment_u = 0.1;
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
@@ -59,6 +59,8 @@ int main(int argc, char *argv[])
                   "Number of uniform mesh refinements.");
    args.AddOption(&max_iterations, "-i", "--iterations",
                   "Maximum number of iterations.");
+   args.AddOption(&newton_iterations, "-ni", "--newton_iters",
+                  "Maximum number of newton solver iterations.");
    args.AddOption(&alpha, "-a", "--alpha",
                   "Alpha parameter for boundary condition.");
    args.AddOption(&tol, "-tol", "--tolerance",
@@ -71,6 +73,10 @@ int main(int argc, char *argv[])
    {
       args.PrintUsage(cout);
       return 1;
+   }
+   if (order < 1)
+   {
+      mfem::err << "Require order >= 1" << endl;
    }
    args.PrintOptions(cout);
 
@@ -86,7 +92,7 @@ int main(int argc, char *argv[])
    }
 
    // 4. Interpolate the geometry after refinement to control geometry error.
-   int curvature_order = max(order, 2);
+   int curvature_order = max(order+1, 2);
    mesh.SetCurvature(curvature_order);
 
    // 5a. Mark the outer surface of the wheel as the contact boundary.
@@ -97,9 +103,9 @@ int main(int argc, char *argv[])
    SubMesh contact_mesh(SubMesh::CreateFromBoundary(mesh, contact_attr));
    const int sub_dim = contact_mesh.Dimension();
 
-   // 6. Define finite elements spaces for the solutions.
+   // 6. Define finite element spaces for the solutions.
    H1_FECollection H1fec(order+1, dim);
-   FiniteElementSpace H1fes(&mesh, &H1fec, dim);
+   FiniteElementSpace H1fes(&mesh, &H1fec, dim, Ordering::byVDIM);
 
    L2_FECollection L2fec(order-1, sub_dim);
    FiniteElementSpace L2fes(&contact_mesh, &L2fec, 1);
@@ -118,10 +124,7 @@ int main(int argc, char *argv[])
    offsets[2] = L2fes.GetVSize();
    offsets.PartialSum();
 
-   BlockVector x(offsets), rhs(offsets);
-   x = 0.0; rhs = 0.0;
-
-   // 7. Determine the list of essential boundary dofs.
+   // 7. Determine the list of essential boundary DOFs.
    Array<int> ess_bdr_x(mesh.bdr_attributes.Max());
    Array<int> ess_bdr_y(mesh.bdr_attributes.Max());
 
@@ -131,68 +134,95 @@ int main(int argc, char *argv[])
    H1fes.GetEssentialTrueDofs(ess_bdr_x, tmp, 0); ess_tdof_list.Append(tmp);
    H1fes.GetEssentialTrueDofs(ess_bdr_y, tmp, 1); ess_tdof_list.Append(tmp);
 
-   Array<int> col_markers(H1fes.GetTrueVSize());
+   Array<int> col_markers(H1fes.GetVSize());
    col_markers = 0;
-   for (int i=0; i<ess_tdof_list.Size(); i++)
+   for (int i = 0; i < ess_tdof_list.Size(); i++)
    {
       col_markers[ess_tdof_list[i]] = 1;
    }
 
-   // 8. Set up the coefficients.
-   Vector f(dim);
-   f = 0.0; f(dim-1) = -0.1;
-
-   Vector n_tilde(dim);
-   n_tilde = 0.0; n_tilde(dim-1) = -1.0;
-
-   VectorConstantCoefficient f_coeff(f);
-   VectorConstantCoefficient n_tilde_c(n_tilde);
-   ConstantCoefficient one(1.0);
-   Vector zero_vec(dim);  zero_vec = 0.0;
-   VectorConstantCoefficient zero(zero_vec);
-
-   // 9. Initialize the solutions.
-   GridFunction u_gf, delta_psi_gf;
-   u_gf.MakeRef(&H1fes,x,offsets[0]);
-   delta_psi_gf.MakeRef(&L2fes,x,offsets[1]);
-   delta_psi_gf = 0.0;
-
+   // 8. Allocate grid functions and block vectors.
+   GridFunction u_gf;                     // displacement
    GridFunction u_old_gf(&H1fes);
+   GridFunction psi_gf(&L2fes);           // latent variable
    GridFunction psi_old_gf(&L2fes);
-   GridFunction psi_gf(&L2fes);
+   GridFunction kappa_gf;                 // dual variable
 
    u_old_gf = 0.0;
    psi_old_gf = 0.0;
 
+   // The solution x holds vectors with the layout [u; κ].
+   // The residual and correction have layouts [R_u; R_κ] and [δu; δκ].
+   BlockVector x(offsets), residual(offsets), delta(offsets);
+   x = 0.0;
+   u_gf.MakeRef(&H1fes, x.GetBlock(0), 0);
+   kappa_gf.MakeRef(&L2fes, x.GetBlock(1), 0);
+
+   // 9. Set up variables and coefficients.
+   const real_t lambda = 1.0, mu = 1.0;   // Lamé constants
+
+   Vector f(dim);
+   f = 0.0; f(dim-1) = -0.5;              // body force
+
+   Vector n_tilde(dim);
+   n_tilde = 0.0; n_tilde(dim-1) = -1.0;  // contact normal
+
+   ConstantCoefficient one(1.0);
+   Vector zero_vec(dim); zero_vec = 0.0;
+   VectorConstantCoefficient zero(zero_vec);
+
+   // Force, contact normal, and gap coefficients.
+   VectorConstantCoefficient f_coeff(f);
+   VectorConstantCoefficient n_tilde_c(n_tilde);
+   FunctionCoefficient gap_cf(GapFunction);
+
+   // 10. Initialize displacement, latent variable, and the Newton state.
    VectorFunctionCoefficient init_u_c(dim, InitialGuess);
    u_gf.ProjectCoefficient(init_u_c);
    u_old_gf = u_gf;
 
-   // Create temporary trace grid function for computing initial psi
-   H1_FECollection *trace_fec; FiniteElementSpace *trace_fes;
-   trace_fec = new H1_FECollection(order+1, sub_dim);
-   trace_fes = new FiniteElementSpace(&contact_mesh, trace_fec, dim);
+   // Create a temporary trace grid function to project the initial ψ
+   // using ψ = -ln(ϕ - u·ñ).
+   {
+      H1_FECollection trace_fec(order+1, sub_dim);
+      FiniteElementSpace trace_fes(&contact_mesh, &trace_fec, dim,
+                                   H1fes.GetOrdering());
 
-   GridFunction u_trace_gf(trace_fes);
-   contact_mesh.Transfer(u_gf, u_trace_gf);
+      GridFunction u_trace_gf(&trace_fes);
+      contact_mesh.Transfer(u_gf, u_trace_gf);
 
-   GridFunctionCoefficient psi_cf(&psi_gf);
-   VectorGridFunctionCoefficient u_trace_cf(&u_trace_gf);
+      VectorGridFunctionCoefficient u_trace_cf(&u_trace_gf);
 
-   FunctionCoefficient gap_cf(GapFunction);
-   InnerProductCoefficient udotn(u_trace_cf, n_tilde_c);
-   TransformedCoefficient psi_init_cf(&gap_cf, &udotn, LogarithmicFunction);
-   psi_gf.ProjectCoefficient(psi_init_cf);
-   psi_old_gf = psi_gf;
+      InnerProductCoefficient udotn(u_trace_cf, n_tilde_c);
+      TransformedCoefficient psi_init_cf(&gap_cf, &udotn, LogarithmicFunction);
+      psi_gf.ProjectCoefficient(psi_init_cf);
+      psi_old_gf = psi_gf;
+   }
 
-   delete trace_fes;
-   delete trace_fec;
+   // 11. Each Newton step solves the linearized saddle point system:
+   //             | K    -B^T | | δu |   | -R_u |
+   //             | B     M   | | δκ | = | -R_κ |.
+   //     K is the elasticity stiffness matrix, B is the normal-trace coupling,
+   //     and M is the boundary mass matrix weighted by α exp(-ψ).
 
-   // 10. Set up linear and bilinear forms.
+   // 11a. Define contact quadrature and assemble linear forms.
+   const IntegrationRule &ir = IntRules.Get(
+                                  contact_mesh.GetTypicalElementGeometry(), 2*(order + 1));
+
+   // Assemble (f,v).
    LinearForm b_force(&H1fes);
    b_force.AddDomainIntegrator(new VectorDomainLFIntegrator(f_coeff));
    b_force.Assemble();
 
+   // Assemble (exp(-ψ) - ϕ, q)_Γ, reassemble whenever ψ changes.
+   GridFunctionCoefficient psi_cf(&psi_gf);
+   TransformedCoefficient exp_neg_psi(&psi_cf, ExponentialFunction);
+   SumCoefficient exp_minus_gap(exp_neg_psi, gap_cf, 1.0, -1.0);
+   LinearForm b1(&L2fes);
+   b1.AddDomainIntegrator(new DomainLFIntegrator(exp_minus_gap, &ir));
+
+   // 11b. Assemble the fixed bilinear forms and set up the block Jacobian.
+   // Assemble K, the matrix of the elasticity bilinear form a(u,v).
    BilinearForm a00(&H1fes);
    a00.AddDomainIntegrator(new ElasticityIntegrator(one, lambda, mu));
    a00.Assemble();
@@ -200,6 +230,7 @@ int main(int argc, char *argv[])
    SparseMatrix &A00 = a00.SpMat();
    A00.EliminateBC(ess_tdof_list, mfem::Operator::DIAG_ONE);
 
+   // Assemble B from (u·ñ, q)_Γ, coupling the parent and boundary spaces.
    ParentToSubMixedBilinearForm a10(&H1fes, &L2fes);
    a10.AddBoundaryDomainIntegrator(new MixedFormIntegrator(n_tilde_c, dim));
    a10.Assemble();
@@ -207,48 +238,88 @@ int main(int argc, char *argv[])
    SparseMatrix &A10 = a10.SpMat();
    A10.EliminateCols(col_markers);
 
+   // Store B^T.
    SparseMatrix *A01 = Transpose(A10);
 
+   // Newton Jacobian: J = [ K  -B^T; B  M ].
+   // M = α A11, where A11 is the mass matrix weighted by exp(-ψ).
+   // A11 is assembled inside the Newton loop.
    BlockOperator A(offsets);
    A.SetBlock(0,0,&A00);
    A.SetBlock(1,0,&A10);
-   A.SetBlock(0,1,A01);
+   A.SetBlock(0,1,A01,-1.0);
 
-   // 11. Set up GLVis visualization.
+   // 12. Construct the block preconditioner P = [ K  0; B  S ].
+   // Approximate the Schur complement by S = M + B D^(-1) B^T, D = diag(K).
+
+   // Build the constant blocks.
+   Vector A00_diag(A00.Height());
+   A00.GetDiag(A00_diag);
+
+   SparseMatrix *BDinvBt;
+   {
+      Vector A00_diag_inv(A00_diag.Size());
+      for (int i = 0; i < A00_diag.Size(); i++)
+      {
+         A00_diag_inv(i) = 1.0 / A00_diag(i);
+      }
+      SparseMatrix DinvBt(*A01);
+      DinvBt.ScaleRows(A00_diag_inv);
+      BDinvBt = Mult(A10, DinvBt);
+   }
+
+   // Construct the fixed Gauss-Seidel approximation P00 ≈ K^(-1).
+   GSSmoother *P00 = new GSSmoother(A00);
+   P00->iterative_mode = false;
+
+   // Approximate the action of P^(-1) using P00, P11, and B.
+   BlockLowerTriangularPreconditioner prec(offsets);
+   prec.SetDiagonalBlock(0,P00);
+   prec.SetBlock(1,0,&A10);
+
+   // 13. Configure the linear solver.
+   GMRESSolver gmres;
+   gmres.SetRelTol(1e-8);
+   gmres.SetKDim(200);
+   gmres.SetPrintLevel(0);
+   gmres.SetMaxIter(2000);
+   gmres.SetPreconditioner(prec);
+   gmres.SetOperator(A);
+
+   // 14. Set up GLVis visualization.
    char vishost[] = "localhost";
    int  visport   = 19916;
 
-   socketstream sol_sock;
+   socketstream displacement_sock, pressure_sock;
+
+   GridFunction pressure_gf(&L2fes);      // contact pressure p = -κ
+   pressure_gf = kappa_gf;
+   pressure_gf *= -1.0;
 
    // Visualize the initial solution.
    if (visualization)
    {
-      sol_sock.open(vishost, visport);
-      sol_sock.precision(8);
+      displacement_sock.open(vishost, visport);
+      displacement_sock.precision(8);
 
-      sol_sock << "solution\n" << mesh << u_gf
-               << "window_title 'Displacement u'\n"
-               << "window_size 600 600\n"
-               << "keys aacb\n" << std::flush;
+      displacement_sock << "solution\n" << mesh << u_gf
+                        << "window_title 'Displacement u'\n"
+                        << "window_geometry 0 0 600 500\n"
+                        << "keys aacb\n" << flush;
+
+      pressure_sock.open(vishost, visport);
+      pressure_sock.precision(8);
+
+      pressure_sock << "solution\n" << contact_mesh << pressure_gf
+                    << "window_title 'Contact pressure'\n"
+                    << "window_geometry 620 0 600 500\n"
+                    << "keys aac\n" << flush;
    }
 
-   //  12. Iterate
-   int newton_iterations = 10;
-   real_t increment_u = 0.1;
-
-   // Define GMRES solver for the linearized system
-   GMRESSolver gmres;
-   gmres.SetRelTol(1e-8);
-   gmres.SetKDim(500);
-   gmres.SetPrintLevel(0);
-   gmres.SetMaxIter(20000);
-
-   // Extract the diagonal of A00 for preconditioning.
-   Vector A00_diag_base(A00.Height());
-   A00.GetDiag(A00_diag_base);
-
+   // 15. Perform proximal iterations, with an inner Newton solve.
    for (int k = 0; k < max_iterations; k++)
    {
+      // Store the previous displacement to measure the update.
       GridFunction u_tmp(&H1fes);
       u_tmp = u_old_gf;
 
@@ -257,99 +328,89 @@ int main(int argc, char *argv[])
 
       for (int j = 0; j < newton_iterations; j++)
       {
-         // Define coefficients
-         TransformedCoefficient exp_psi(&psi_cf, ExponentialFunction);
-         SumCoefficient gap_minus_exp_psi(gap_cf, exp_psi, 1.0, -1.0);
+         // Keep ψ_old fixed and recover ψ = ψ_old - ακ.
+         psi_gf = psi_old_gf;
+         psi_gf.Add(-alpha, kappa_gf);
 
-         LinearForm b0,b1;
-         b0.Update(&H1fes,rhs.GetBlock(0),0);
-         b1.Update(&L2fes,rhs.GetBlock(1),0);
+         // Assemble the nonlinear residual at the current (u, κ).
+         // R_u = K u - B^T κ - f.
+         A00.Mult(u_gf, residual.GetBlock(0));
+         A01->AddMult(kappa_gf, residual.GetBlock(0), -1.0);
+         residual.GetBlock(0) -= b_force;
+         for (int i = 0; i < ess_tdof_list.Size(); i++)
+         {
+            const int tdof = ess_tdof_list[i];
+            residual.GetBlock(0)[tdof] = u_gf[tdof];
+         }
 
-         // Assemble b_force = (f, v) and set b0 = alpha * b_force
-         b0.Set(alpha, b_force);
-
-         // Add the mixed term to the rhs.
-         A01->AddMult(psi_old_gf, b0, 1.0);
-         A01->AddMult(psi_gf, b0, -1.0);
-
-         b1.AddDomainIntegrator(new DomainLFIntegrator(gap_minus_exp_psi));
+         // Reassemble the nonlinear boundary linearform.
+         // R_κ = B u + assemble_Γ(exp(-ψ) - ϕ).
          b1.Assemble();
+         residual.GetBlock(1) = b1;
+         A10.AddMult(u_gf, residual.GetBlock(1));
 
+         // Reassemble the ψ-dependent bilinear form and Jacobian block.
+         // M = α A11, with A11 the mass matrix weighted by exp(-ψ).
          BilinearForm a11(&L2fes);
-         a11.AddDomainIntegrator(new MassIntegrator(exp_psi));
+         a11.AddDomainIntegrator(new MassIntegrator(exp_neg_psi, &ir));
          a11.Assemble();
          a11.Finalize();
          SparseMatrix &A11 = a11.SpMat();
+         A.SetBlock(1,1,&A11,alpha);
 
-         A.SetBlockCoef(0,0,alpha);
-         A.SetBlock(1,1,&A11);
-         A.SetBlockCoef(1,1,-1.0);
+         // Construct S = M + B D^(-1) B^T for the current Newton iterate.
+         SparseMatrix *S = Add(alpha, A11, 1.0, *BDinvBt);
 
-         // Construct a block lower-triangular preconditioner, with
-         // K = alpha*A00, M = A10, and H = A11:
-         // P =   [ K                       0           ]
-         //       [ M           -H - M diag(K)^(-1) M^T ]
-         Vector A00_diag(A00_diag_base);
-         A00_diag *= alpha;
-         SparseMatrix KinvMt(*A01);
-         for (int i=0; i<A00_diag.Size(); i++)
          {
-            KinvMt.ScaleRow(i, 1.0/A00_diag(i));
+            // Construct the Gauss-Seidel approximation P11 ≈ S^(-1).
+            GSSmoother P11(*S);
+            P11.iterative_mode = false;
+
+            prec.SetDiagonalBlock(1,&P11);
+
+            // Solve J (δu, δκ) = -R, then update both unknowns.
+            residual *= -1.0;
+            delta = 0.0;
+            gmres.Mult(residual, delta);
+            int num_iter = gmres.GetNumIterations();
+            mfem::out << "\tLinear solver iterations: " << num_iter << endl;
+            x += delta;
          }
-         SparseMatrix *MKinvMt = Mult(A10, KinvMt);
-         SparseMatrix *S = Add(-1.0, A11, -1.0, *MKinvMt);
 
-         GSSmoother P00(A00);
-         ScaledOperator P00_scaled(&P00, 1.0 / alpha);
-         GSSmoother P11(*S);
-         P00.iterative_mode = false;
-         P11.iterative_mode = false;
-
-         BlockLowerTriangularPreconditioner prec(offsets);
-         prec.SetDiagonalBlock(0, &P00_scaled);
-         prec.SetDiagonalBlock(1, &P11);
-         prec.SetBlock(1, 0, &A10);
-
-         gmres.SetPreconditioner(prec);
-         gmres.SetOperator(A);
-         gmres.Mult(rhs, x);
-         int num_iter = gmres.GetNumIterations();
-         mfem::out << "\tLinear solver iterations: " << num_iter << endl;
-
-         delete MKinvMt;
          delete S;
 
-         u_gf.MakeRef(&H1fes, x.GetBlock(0), 0);
-         delta_psi_gf.MakeRef(&L2fes, x.GetBlock(1), 0);
+         psi_gf = psi_old_gf;
+         psi_gf.Add(-alpha, kappa_gf);
 
+         // Check the displacement update for Newton convergence.
          u_tmp -= u_gf;
          real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
          u_tmp = u_gf;
 
-         real_t gamma = 1.0;
-         delta_psi_gf *= gamma;
-         psi_gf += delta_psi_gf;
-
-         mfem::out << "\tNewton iteration: " << j+1;
-         mfem::out << ", Newton_update_size = " << Newton_update_size << endl;
+         mfem::out << "\tNewton iteration: " << j+1
+                   << ", Newton_update_size = " << Newton_update_size << endl;
 
          if (Newton_update_size < increment_u)
          {
             break;
          }
-
       }
 
+      // update visualization
       if (visualization)
       {
-         sol_sock << "solution\n" << mesh << u_gf << std::flush;
+         displacement_sock << "solution\n" << mesh << u_gf << flush;
+
+         pressure_gf = kappa_gf; pressure_gf *= -1.0;
+         pressure_sock << "solution\n" << contact_mesh << pressure_gf << flush;
       }
 
+      // Check outer convergence and advance the proximal iterate.
       u_tmp = u_gf;
       u_tmp -= u_old_gf;
       increment_u = u_tmp.ComputeL2Error(zero);
 
-      mfem::out << "Increment (|| uₕ - uₕ_prvs||) = " << increment_u << endl;
+      mfem::out << "Increment (|| uₕ - uₕ_prvs ||) = " << increment_u << endl;
 
       u_old_gf = u_gf;
       psi_old_gf = psi_gf;
@@ -362,6 +423,9 @@ int main(int argc, char *argv[])
 
    }
 
+   // 16. Release the pointers.
+   delete P00;
+   delete BDinvBt;
    delete A01;
 
    return 0;

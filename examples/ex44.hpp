@@ -19,10 +19,10 @@ real_t ExponentialFunction(real_t c1)
    return std::max(min_val, std::min(max_val, exp(-c1)));
 }
 
-/// @brief Evaluate the gap function.
+/// @brief Evaluate the gap function ϕ.
 real_t GapFunction(const Vector &x)
 {
-   const real_t plane_g = -0.1;
+   const real_t plane_g = 0.0;
 
    const int dim = x.Size();
    return x(dim-1) - plane_g;
@@ -32,7 +32,7 @@ real_t GapFunction(const Vector &x)
 void InitialGuess(const Vector &x, Vector &u)
 {
    const int dim = x.Size();
-   const real_t disp = -0.1;
+   const real_t disp = 0.0;
 
    u = 0.0;
    u(dim-1) = disp;
