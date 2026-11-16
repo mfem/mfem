@@ -123,12 +123,17 @@ currently supports nominal orders 0--19, following the documented upstream
 limit of 10 points; polynomial quadrature supports 0--199. Orders are nominal,
 not certificates of exactness on curved domains, and are never silently reduced.
 
-Reference weights and conormals belong to `CutQuadrature`; physical/integrator
-weights belong to `MappedCutQuadrature`. Conormals point toward increasing
+Reference weights and conormals belong to `CutQuadrature` and are not modified
+by mapping. `CutQuadratureMapping` optionally supplies physical points,
+physical conormals, and the physical-to-reference cut-measure ratio `mu`; a
+caller that needs physical weights multiplies the reference weights by `mu`.
+For full-dimensional domains `mu` is the element-volume scaling. For lower-
+dimensional cuts it is the tangential scaling, which depends on the reference
+conormals and is generally not `det(J)`. Conormals point toward increasing
 original level-set values, even when the general algorithm negates a function
 to integrate its positive phase. Positive-phase outward normals have the
 opposite sign. Mapping supports embedded elements through the metric and
-Nanson factor. Integrator weights use the parent element's measure.
+Nanson factor.
 
 Known zero equality constraints, coincident facets, singular gradients at
 returned nodes, and singular mappings are checked. This does not globally

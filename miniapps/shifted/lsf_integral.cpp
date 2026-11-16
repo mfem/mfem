@@ -84,8 +84,6 @@ int main(int argc, char *argv[])
    { return point(1) - real_t(0.4); });
    L2_FECollection collection(degree, dimension);
    CutQuadratureGenerator generator(*backend);
-   CutMappingOptions mapping;
-   mapping.weight_type = CutWeightType::Physical;
    real_t measures[2] = {0, 0};
    int failed = 0;
    string message;
@@ -104,10 +102,25 @@ int main(int argc, char *argv[])
                        CutDomain::Positive(level_set);
          if (shape == 3)
          { domain.Add(second_level_set, CutDomain::LevelSetSign::Positive); }
-         MappedCutQuadrature quadrature;
-         report = generator.Generate(transformation, domain, order, mapping, quadrature);
-         for (int index = 0; index < quadrature.rule.GetNPoints(); ++index)
-         { measures[surface] += quadrature.rule.IntPoint(index).weight; }
+         CutQuadrature quadrature;
+         report = generator.Generate(transformation.GetGeometryType(), domain,
+                                     order, quadrature);
+         CutQuadratureMapping mapping;
+         if (report.Succeeded())
+         {
+            report = MapCutQuadrature(
+                        transformation, quadrature,
+                        CutQuadratureMapping::MEASURE_SCALING, mapping);
+         }
+         for (int index = 0;
+              report.Succeeded() && index < quadrature.rule.GetNPoints();
+              ++index)
+         {
+            const real_t physical_weight =
+               quadrature.rule.IntPoint(index).weight *
+               mapping.measure_scaling(index);
+            measures[surface] += physical_weight;
+         }
       }
       if (!report.Succeeded()) { failed = 1; message = report.message; }
    }

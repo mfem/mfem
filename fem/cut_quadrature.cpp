@@ -325,11 +325,9 @@ void CutQuadrature::Clear()
    geometry = Geometry::INVALID; codimension = 0; region = Region::Unknown;
    rule.SetSize(0); rule.SetOrder(-1); conormals.SetSize(0, 0, 0);
 }
-void MappedCutQuadrature::Clear()
+void CutQuadratureMapping::Clear()
 {
-   region = CutQuadrature::Region::Unknown;
-   weight_type = CutWeightType::Reference;
-   rule.SetSize(0); rule.SetOrder(-1); physical_points.SetSize(0);
+   physical_points.SetSize(0);
    physical_conormals.SetSize(0, 0, 0); measure_scaling.SetSize(0);
 }
 CutQuadratureGenerator::CutQuadratureGenerator(const CutQuadratureBackend &implementation)
@@ -416,14 +414,16 @@ catch (const std::exception &error)
 }
 
 CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
-   const CutQuadrature &reference, const CutMappingOptions &options, MappedCutQuadrature &out) try
+   const CutQuadrature &reference, int requested_data,
+   CutQuadratureMapping &out) try
 {
    out.Clear();
+   const int valid_data = CutQuadratureMapping::PHYSICAL_POINTS |
+                          CutQuadratureMapping::PHYSICAL_CONORMALS |
+                          CutQuadratureMapping::MEASURE_SCALING;
    if (!ValidGeometry(reference.geometry) || reference.geometry != transformation.GetGeometryType() ||
        reference.region == CutQuadrature::Region::Unknown ||
-       (options.data & ~(CQ_PHYSICAL_POINTS | CQ_PHYSICAL_CONORMALS | CQ_MEASURE_SCALING)) ||
-       (options.weight_type != CutWeightType::Reference && options.weight_type != CutWeightType::Physical &&
-        options.weight_type != CutWeightType::Integrator))
+       (requested_data & ~valid_data))
    { return Failure(CutQuadratureStatus::InvalidInput, "Invalid mapping request."); }
    const int dimension = Geometry::Dimension[reference.geometry];
    const int space_dimension = transformation.GetSpaceDim();
@@ -435,11 +435,12 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
                        reference.conormals.SizeJ() != codimension || reference.conormals.SizeK() != count)))
    { return Failure(CutQuadratureStatus::InvalidInput, "Invalid reference conormal dimensions."); }
    PointGuard guard(transformation);
-   out.rule = reference.rule; out.region = reference.region; out.weight_type = options.weight_type;
-   if (options.data & CQ_PHYSICAL_POINTS) { out.physical_points.SetSize(space_dimension, count); }
-   if ((options.data & CQ_PHYSICAL_CONORMALS) && codimension)
+   if (requested_data & CutQuadratureMapping::PHYSICAL_POINTS)
+   { out.physical_points.SetSize(space_dimension, count); }
+   if ((requested_data & CutQuadratureMapping::PHYSICAL_CONORMALS) && codimension)
    { out.physical_conormals.SetSize(space_dimension, codimension, count); out.physical_conormals = 0.; }
-   if (options.data & CQ_MEASURE_SCALING) { out.measure_scaling.SetSize(count); out.measure_scaling = 0.; }
+   if (requested_data & CutQuadratureMapping::MEASURE_SCALING)
+   { out.measure_scaling.SetSize(count); out.measure_scaling = 0.; }
    auto fail = [&](CutQuadratureStatus status, const char *message)
    { out.Clear(); return Failure(status, message); };
    for (int index = 0; index < count; ++index)
@@ -447,7 +448,7 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
       const auto &point = reference.rule.IntPoint(index);
       if (!std::isfinite(point.weight) || !ValidPoint(reference.geometry, point))
       { return fail(CutQuadratureStatus::InvalidInput, "Invalid reference node or weight."); }
-      if (options.data & CQ_PHYSICAL_POINTS)
+      if (requested_data & CutQuadratureMapping::PHYSICAL_POINTS)
       {
          Vector physical(space_dimension);
          transformation.Transform(point, physical);
@@ -456,6 +457,11 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
          out.physical_points.SetCol(index, physical);
       }
       if (point.weight == 0) { continue; }
+      const bool map_conormals =
+         codimension && (requested_data & CutQuadratureMapping::PHYSICAL_CONORMALS);
+      if (!(requested_data & CutQuadratureMapping::MEASURE_SCALING) &&
+          !map_conormals)
+      { continue; }
       transformation.SetIntPoint(&point);
       const DenseMatrix &jacobian = transformation.Jacobian();
       DenseMatrix mapping_basis, mapping_upper;
@@ -481,7 +487,7 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
          if (!FactorQR(dual, dual_basis, dual_upper, dual_measure))
          { return fail(CutQuadratureStatus::DegenerateGeometry, "Dependent physical conormals."); }
          scaling = codimension == dimension ? 1 : physical_volume * dual_measure;
-         if (options.data & CQ_PHYSICAL_CONORMALS)
+         if (map_conormals)
          {
             DenseMatrix original_dual;
             DenseMatrix physical(space_dimension, codimension);
@@ -500,17 +506,8 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
       }
       if (!(scaling > 0) || !std::isfinite(scaling))
       { return fail(CutQuadratureStatus::NumericalFailure, "Invalid manifold measure."); }
-      if (options.data & CQ_MEASURE_SCALING) { out.measure_scaling(index) = scaling; }
-      if (options.weight_type == CutWeightType::Physical) { out.rule.IntPoint(index).weight *= scaling; }
-      else if (options.weight_type == CutWeightType::Integrator)
-      {
-         const real_t parent_weight = transformation.Weight();
-         if (parent_weight == 0 || !std::isfinite(parent_weight))
-         { return fail(CutQuadratureStatus::DegenerateGeometry, "Invalid integrator measure."); }
-         out.rule.IntPoint(index).weight *= scaling / parent_weight;
-      }
-      if (!std::isfinite(out.rule.IntPoint(index).weight))
-      { return fail(CutQuadratureStatus::NumericalFailure, "Nonfinite mapped weight."); }
+      if (requested_data & CutQuadratureMapping::MEASURE_SCALING)
+      { out.measure_scaling(index) = scaling; }
    }
    return {};
 }
@@ -518,19 +515,6 @@ catch (const std::exception &error)
 {
    out.Clear();
    return Failure(CutQuadratureStatus::NumericalFailure, error.what());
-}
-
-CutQuadratureReport CutQuadratureGenerator::Generate(ElementTransformation &transformation,
-   const CutDomain &domain, int order, const CutMappingOptions &mapping,
-   MappedCutQuadrature &out, const IntegrationRule *fixed_points) const
-{
-   out.Clear();
-   CutQuadrature reference;
-   auto report = Generate(transformation.GetGeometryType(), domain, order,
-                          reference, fixed_points);
-   if (!report.Succeeded()) { return report; }
-   auto mapped = MapCutQuadrature(transformation, reference, mapping, out);
-   return mapped.Succeeded() ? report : mapped;
 }
 
 #ifndef MFEM_USE_ALGOIM

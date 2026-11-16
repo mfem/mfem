@@ -4,7 +4,7 @@
 
     Level sets describe one reference element. Backends construct reference
     rules; the generator supplies reference geometry data; a separate mapping
-    operation supplies physical weights and data. There are no batch methods,
+    operation supplies physical geometric data. There are no batch methods,
     mesh caches, version counters, or persistent level-set sources.
 
     This API replaces
@@ -218,9 +218,8 @@ private:
    std::vector<Constraint> constraints;
 };
 
-/** @brief Result of cut-quadrature generation on a reference element.
-
-    This object owns its data and retains no references to the level sets. */
+/// Result of cut-quadrature generation on a reference element.
+/// This object owns its data and retains no references to the level sets.
 struct CutQuadrature
 {
    /** Relation to the reference element.
@@ -256,9 +255,8 @@ struct CutQuadrature
    void Clear();
 };
 
-/** @brief Interface for cut-quadrature generation on a reference element.
-
-    A backend retains no input references or element-dependent state. */
+/// Interface for cut-quadrature generation on a reference element.
+/// A backend retains no input references or element-dependent state.
 class CutQuadratureBackend
 {
 public:
@@ -289,82 +287,58 @@ public:
 
 /// Construct a compiled-in backend by name.
 /// Returns nullptr if the name is unknown or the backend is unavailable.
-std::unique_ptr<CutQuadratureBackend> CreateCutQuadratureBackend(
-   const std::string &name);
+std::unique_ptr<CutQuadratureBackend>
+   CreateCutQuadratureBackend(const std::string &name);
 
-/** With measure ratio mu and volume factor volume = Tr.Weight():
-
-    Reference:  weight = reference_weight
-    Physical:   weight = reference_weight * mu
-    Integrator: weight = reference_weight * mu / volume
-
-    Integrator weights are for element integrators whose measure factor is
-    that of this same parent transformation. They are not directly usable as
-    face-coordinate rules in FaceElementTransformations-based integrators.
-    The measure ratio mu is positive, while volume retains the sign of
-    Tr.Weight(), including for orientation-reversing square mappings.
-    Weight conversion alone does not turn volume operators into intrinsic
-    surface differential operators. */
-enum class CutWeightType { Reference, Physical, Integrator };
-
-enum CutQuadratureData : int
+/// Physical geometric data evaluated at cut-quadrature points.
+struct CutQuadratureMapping
 {
-   CQ_RULE = 0,
-   CQ_PHYSICAL_POINTS = 1 << 0,
-   CQ_PHYSICAL_CONORMALS = 1 << 1,
-   CQ_MEASURE_SCALING = 1 << 2
-};
+   /// Optional data computed by MapCutQuadrature and stored in this struct.
+   enum Data : int
+   {
+      NONE = 0,
+      PHYSICAL_POINTS = 1 << 0,
+      PHYSICAL_CONORMALS = 1 << 1,
+      MEASURE_SCALING = 1 << 2
+   };
 
-struct CutMappingOptions
-{
-   CutWeightType weight_type = CutWeightType::Integrator;
-   int data = CQ_RULE;
-};
-
-/** @brief A mapped copy; reference quadrature weights remain untouched.
-
-    rule still uses parent reference coordinates, with weights in weight_type.
-    Optional arrays are populated only when requested: physical_points is
-    sdim x npoints, physical_conormals is sdim x codimension x npoints, and
-    measure_scaling has npoints entries. Unrequested arrays are empty.
-    Conormals and scaling at zero-weight nodes are zero and not geometric data.
-    Point coordinates may still be mapped there. Clear resets all fields. */
-struct MappedCutQuadrature
-{
-   CutQuadrature::Region region = CutQuadrature::Region::Unknown;
-   CutWeightType weight_type = CutWeightType::Reference;
-   IntegrationRule rule;
+   /// Physical point coordinates, stored as sdim x npoints.
    DenseMatrix physical_points;
+
+   /// Physical unit conormals, stored as sdim x codimension x npoints.
    DenseTensor physical_conormals;
+
+   /// Ratio mu of physical to reference cut-manifold measure at each point.
+   /// For a full-dimensional domain mu is the element-volume scaling.
+   /// For a lower-dimensional cut it is the tangential scaling and depends on
+   /// the reference conormals; it is generally not det(J).
    Vector measure_scaling;
 
-   int GetNPoints() const { return rule.GetNPoints(); }
+   /// Clear all computed data.
    void Clear();
 };
 
-/** @brief Map a reference rule without recomputing its level sets.
+/** @brief Compute physical geometric data without modifying the reference rule.
 
-    The input is immutable and its type contains reference weights only, so
-    repeated calls cannot accidentally transform already mapped weights.
-    Geometry must match transformation.GetGeometryType(). The caller ensures
-    that the reference rule describes the intended domain for this mapping;
-    a moved mesh may require reprojection and rule regeneration first.
+    CutQuadrature's geometry must match transformation.GetGeometryType().
+    Note that a moved mesh may require reprojection and rule regeneration first.
 
     For J = dT/dxi, G = J^T J, and reference conormal matrix N:
        mu = sqrt(det(G)) * sqrt(det(N^T G^{-1} N) / det(N^T N)).
     For codimension zero mu = sqrt(det(G)), including embedded elements; for
-    square mappings this is abs(Tr.Weight()), not the signed integrator factor.
+    square mappings this is abs(det(J)).
     Physical conormals are the normalized columns of J G^{-1} N.
     J and the active conormals must have full column rank; singular cases
-    return DegenerateGeometry. There are no gradient evaluations at
-    zero-weight nodes. On failure out is cleared, never partly usable.
+    return DegenerateGeometry. Conormals and scaling at zero-weight nodes are
+    zero and are not geometric data. Physical positions may still be mapped
+    there. On failure out is cleared, never partly usable.
     Standard exceptions from mapping evaluation return NumericalFailure.
 
-    Mapping generally does not preserve reference polynomial exactness.
     The transformation's current integration point is restored on return. */
-CutQuadratureReport MapCutQuadrature(
-   ElementTransformation &transformation, const CutQuadrature &reference,
-   const CutMappingOptions &options, MappedCutQuadrature &out);
+CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
+                                     const CutQuadrature &reference,
+                                     int requested_data,
+                                     CutQuadratureMapping &out);
 
 /** @brief Single-element front end borrowing a backend, not a mesh or source.
 
@@ -391,16 +365,6 @@ public:
    CutQuadratureReport Generate(
       Geometry::Type geometry,
       const CutDomain &domain, int order, CutQuadrature &out,
-      const IntegrationRule *fixed_points = nullptr) const;
-
-   /** Convenience composition of reference generation and MapCutQuadrature.
-       Inputs are already pulled back/projected for this element. Geometry is
-       taken from the transformation. Successful reports preserve the
-       reference-generation diagnostics. */
-   CutQuadratureReport Generate(
-      ElementTransformation &transformation,
-      const CutDomain &domain, int order, const CutMappingOptions &mapping,
-      MappedCutQuadrature &out,
       const IntegrationRule *fixed_points = nullptr) const;
 
 private:

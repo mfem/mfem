@@ -55,11 +55,10 @@ int main(int argc, char *argv[])
    GridFunction field(&space);
    field.ProjectCoefficient(coefficient);
    CutQuadratureGenerator generator(*backend);
-   CutMappingOptions mapping;
-   mapping.weight_type = CutWeightType::Physical;
    real_t volume = 0, area = 0;
    for (int element = 0; element < mesh.GetNE(); ++element)
    {
+      auto &transformation = *mesh.GetElementTransformation(element);
       PolynomialLevelSet level_set;
       auto report = level_set.Set(field, element);
       if (!report.Succeeded()) { cerr << report.message << '\n'; return 2; }
@@ -67,13 +66,23 @@ int main(int argc, char *argv[])
       {
          const auto domain = surface ? CutDomain::Surface(level_set) :
                              CutDomain::Positive(level_set);
-         MappedCutQuadrature quadrature;
-         report = generator.Generate(*mesh.GetElementTransformation(element),
-                                     domain, order, mapping, quadrature);
+         CutQuadrature quadrature;
+         report = generator.Generate(transformation.GetGeometryType(), domain,
+                                     order, quadrature);
+         CutQuadratureMapping mapping;
+         if (report.Succeeded())
+         {
+            report = MapCutQuadrature(
+                        transformation, quadrature,
+                        CutQuadratureMapping::MEASURE_SCALING, mapping);
+         }
          if (!report.Succeeded()) { cerr << report.message << '\n'; return 2; }
          for (int index = 0; index < quadrature.rule.GetNPoints(); ++index)
          {
-            (surface ? area : volume) += quadrature.rule.IntPoint(index).weight;
+            const real_t physical_weight =
+               quadrature.rule.IntPoint(index).weight *
+               mapping.measure_scaling(index);
+            (surface ? area : volume) += physical_weight;
          }
       }
    }

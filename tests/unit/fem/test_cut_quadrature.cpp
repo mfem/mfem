@@ -236,13 +236,6 @@ TEST_CASE("Cut generator reports gradient exceptions and clears outputs", "[CutQ
    REQUIRE(output.region == CutQuadrature::Region::Unknown);
    REQUIRE(output.conormals.SizeK() == 0);
 
-   IsoparametricTransformation identity;
-   identity.SetIdentityTransformation(Geometry::SQUARE);
-   MappedCutQuadrature mapped;
-   REQUIRE_NOTHROW(report = generator.Generate(identity, domain, 2, {}, mapped));
-   REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
-   REQUIRE(mapped.GetNPoints() == 0);
-   REQUIRE(mapped.region == CutQuadrature::Region::Unknown);
    throw_gradient = false;
    REQUIRE(generator.Generate(Geometry::SQUARE, domain, 2, output).Succeeded());
    REQUIRE(output.GetNPoints() == 2);
@@ -271,35 +264,36 @@ TEST_CASE("Cut mapping uses generalized Nanson scaling and preserves state", "[C
       points(2, vertex) = 4*vertices.IntPoint(vertex).y;
    }
    transformation.SetPointMat(points);
-   for (auto type : {CutWeightType::Reference, CutWeightType::Physical,
-                     CutWeightType::Integrator})
-   {
-      CutMappingOptions options;
-      options.weight_type = type;
-      options.data = CQ_PHYSICAL_POINTS | CQ_PHYSICAL_CONORMALS | CQ_MEASURE_SCALING;
-      MappedCutQuadrature mapped;
-      REQUIRE(transformation.GetIntPointPointer() == nullptr);
-      REQUIRE(MapCutQuadrature(transformation, reference, options, mapped).Succeeded());
-      REQUIRE(transformation.GetIntPointPointer() == nullptr);
-      REQUIRE(mapped.measure_scaling(0) == MFEM_Approx(5));
-      REQUIRE(mapped.physical_points(2, 0) == MFEM_Approx(2));
-      REQUIRE(mapped.physical_conormals(0)(0, 0) == MFEM_Approx(1));
-      const real_t expected = type == CutWeightType::Reference ? 1 :
-                              (type == CutWeightType::Physical ? 5 : 0.5);
-      REQUIRE(Measure(mapped.rule) == MFEM_Approx(expected));
-      REQUIRE(Measure(reference.rule) == MFEM_Approx(1));
-   }
+   const int data = CutQuadratureMapping::PHYSICAL_POINTS |
+                    CutQuadratureMapping::PHYSICAL_CONORMALS |
+                    CutQuadratureMapping::MEASURE_SCALING;
+   CutQuadratureMapping mapped;
+   REQUIRE(transformation.GetIntPointPointer() == nullptr);
+   REQUIRE(MapCutQuadrature(transformation, reference, data, mapped).Succeeded());
+   REQUIRE(transformation.GetIntPointPointer() == nullptr);
+   REQUIRE(mapped.measure_scaling(0) == MFEM_Approx(5));
+   REQUIRE(mapped.physical_points(2, 0) == MFEM_Approx(2));
+   REQUIRE(mapped.physical_conormals(0)(0, 0) == MFEM_Approx(1));
+   REQUIRE(reference.rule.IntPoint(0).weight == MFEM_Approx(1));
+   REQUIRE(reference.rule.IntPoint(0).weight * mapped.measure_scaling(0) ==
+           MFEM_Approx(5));
    const IntegrationPoint &saved = Geometries.GetCenter(Geometry::SQUARE);
    transformation.SetIntPoint(&saved);
-   MappedCutQuadrature mapped;
-   REQUIRE(MapCutQuadrature(transformation, reference, {}, mapped).Succeeded());
+   REQUIRE(MapCutQuadrature(transformation, reference,
+                            CutQuadratureMapping::MEASURE_SCALING,
+                            mapped).Succeeded());
    REQUIRE(transformation.GetIntPointPointer() == &saved);
    points = 0.;
    transformation.SetPointMat(points);
-   REQUIRE_FALSE(MapCutQuadrature(transformation, reference, {}, mapped).Succeeded());
-   REQUIRE(mapped.rule.GetNPoints() == 0);
+   REQUIRE_FALSE(MapCutQuadrature(transformation, reference,
+                                 CutQuadratureMapping::MEASURE_SCALING,
+                                 mapped).Succeeded());
+   REQUIRE(mapped.measure_scaling.Size() == 0);
    reference.rule.IntPoint(0).weight = 0;
-   REQUIRE(MapCutQuadrature(transformation, reference, {}, mapped).Succeeded());
+   REQUIRE(MapCutQuadrature(transformation, reference,
+                            CutQuadratureMapping::MEASURE_SCALING,
+                            mapped).Succeeded());
+   REQUIRE(mapped.measure_scaling(0) == 0);
 }
 
 TEST_CASE("Cut mapping clears transformation exceptions and restores state", "[CutQuadrature]")
@@ -316,49 +310,40 @@ TEST_CASE("Cut mapping clears transformation exceptions and restores state", "[C
    const auto domain = CutDomain::Surface(level_set);
    CutQuadrature reference;
    REQUIRE(generator.Generate(Geometry::SQUARE, domain, 2, reference).Succeeded());
-   CutMappingOptions options;
-   options.weight_type = CutWeightType::Physical;
-   options.data = CQ_PHYSICAL_POINTS | CQ_PHYSICAL_CONORMALS | CQ_MEASURE_SCALING;
+   const int data = CutQuadratureMapping::PHYSICAL_POINTS |
+                    CutQuadratureMapping::PHYSICAL_CONORMALS |
+                    CutQuadratureMapping::MEASURE_SCALING;
    for (bool jacobian : {false, true})
       for (bool saved_point : {false, true})
-         for (bool composed : {false, true})
-         {
-            ThrowingCutTransformation transformation(jacobian);
-            transformation.GetPointMat() *= 2;
-            const IntegrationPoint *saved = saved_point ?
-               &Geometries.GetCenter(Geometry::SQUARE) : nullptr;
-            transformation.SetIntPoint(saved);
-            MappedCutQuadrature mapped;
-            auto generate = [&]()
-            {
-               return composed ? generator.Generate(transformation, domain, 2,
-                                                     options, mapped) :
-                      MapCutQuadrature(transformation, reference, options, mapped);
-            };
-            REQUIRE(generate().Succeeded());
-            REQUIRE(mapped.GetNPoints() == 2);
-            transformation.fail = true;
-            CutQuadratureReport report;
-            REQUIRE_NOTHROW(report = generate());
-            REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
-            REQUIRE(report.message == (jacobian ? "Requested Jacobian failure." :
-                                       "Requested transform failure."));
-            REQUIRE(transformation.GetIntPointPointer() == saved);
-            REQUIRE(mapped.region == CutQuadrature::Region::Unknown);
-            REQUIRE(mapped.weight_type == CutWeightType::Reference);
-            REQUIRE(mapped.GetNPoints() == 0);
-            REQUIRE(mapped.rule.GetOrder() == -1);
-            REQUIRE(mapped.physical_points.Height() == 0);
-            REQUIRE(mapped.physical_points.Width() == 0);
-            REQUIRE(mapped.physical_conormals.SizeI() == 0);
-            REQUIRE(mapped.physical_conormals.SizeJ() == 0);
-            REQUIRE(mapped.physical_conormals.SizeK() == 0);
-            REQUIRE(mapped.measure_scaling.Size() == 0);
-            REQUIRE(Measure(reference.rule) == MFEM_Approx(1));
-         }
+      {
+         ThrowingCutTransformation transformation(jacobian);
+         transformation.GetPointMat() *= 2;
+         const IntegrationPoint *saved = saved_point ?
+            &Geometries.GetCenter(Geometry::SQUARE) : nullptr;
+         transformation.SetIntPoint(saved);
+         CutQuadratureMapping mapped;
+         REQUIRE(MapCutQuadrature(transformation, reference, data,
+                                  mapped).Succeeded());
+         REQUIRE(mapped.physical_points.Width() == 2);
+         transformation.fail = true;
+         CutQuadratureReport report;
+         REQUIRE_NOTHROW(report = MapCutQuadrature(
+                                      transformation, reference, data, mapped));
+         REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
+         REQUIRE(report.message == (jacobian ? "Requested Jacobian failure." :
+                                    "Requested transform failure."));
+         REQUIRE(transformation.GetIntPointPointer() == saved);
+         REQUIRE(mapped.physical_points.Height() == 0);
+         REQUIRE(mapped.physical_points.Width() == 0);
+         REQUIRE(mapped.physical_conormals.SizeI() == 0);
+         REQUIRE(mapped.physical_conormals.SizeJ() == 0);
+         REQUIRE(mapped.physical_conormals.SizeK() == 0);
+         REQUIRE(mapped.measure_scaling.Size() == 0);
+         REQUIRE(Measure(reference.rule) == MFEM_Approx(1));
+      }
 }
 
-TEST_CASE("Cut integrator weights preserve physical measure under reflections", "[CutQuadrature]")
+TEST_CASE("Cut measure scaling is positive under reflections", "[CutQuadrature]")
 {
    for (int dimension : {2, 3})
       for (bool embedded : {false, true})
@@ -396,21 +381,16 @@ TEST_CASE("Cut integrator weights preserve physical measure under reflections", 
             transformation.SetIntPoint(&reference.rule.IntPoint(0));
             const real_t parent_weight = transformation.Weight();
             REQUIRE((parent_weight > 0) == embedded);
-            CutMappingOptions options;
-            options.data = CQ_MEASURE_SCALING | CQ_PHYSICAL_CONORMALS;
-            options.weight_type = CutWeightType::Physical;
-            MappedCutQuadrature physical, integrator;
-            REQUIRE(MapCutQuadrature(transformation, reference, options, physical).Succeeded());
-            options.weight_type = CutWeightType::Integrator;
-            REQUIRE(MapCutQuadrature(transformation, reference, options, integrator).Succeeded());
+            const int data = CutQuadratureMapping::MEASURE_SCALING |
+                             CutQuadratureMapping::PHYSICAL_CONORMALS;
+            CutQuadratureMapping mapped;
+            REQUIRE(MapCutQuadrature(transformation, reference, data,
+                                     mapped).Succeeded());
             const real_t scaling = std::abs(parent_weight) / (codimension ? 2 : 1);
-            REQUIRE(physical.rule.IntPoint(0).weight == MFEM_Approx(0.7 * scaling));
-            REQUIRE(integrator.rule.IntPoint(0).weight * transformation.Weight() ==
-                    MFEM_Approx(physical.rule.IntPoint(0).weight));
-            REQUIRE(integrator.measure_scaling(0) == MFEM_Approx(scaling));
+            REQUIRE(mapped.measure_scaling(0) == MFEM_Approx(scaling));
             REQUIRE(Measure(reference.rule) == MFEM_Approx(0.7));
             if (codimension)
-            { REQUIRE(integrator.physical_conormals(0)(0, 0) == MFEM_Approx(-1)); }
+            { REQUIRE(mapped.physical_conormals(0)(0, 0) == MFEM_Approx(-1)); }
             REQUIRE(transformation.GetIntPointPointer() == &reference.rule.IntPoint(0));
             transformation.SetIntPoint(nullptr);
          }
@@ -434,11 +414,12 @@ TEST_CASE("Cut mapping handles curved maps and intersecting surfaces", "[CutQuad
    for (int vertex = 0; vertex < points.Width(); ++vertex)
    { points(1, vertex) *= 1 + points(0, vertex); }
    transformation.SetPointMat(points);
-   CutMappingOptions options;
-   options.weight_type = CutWeightType::Physical;
-   MappedCutQuadrature mapped;
-   REQUIRE(MapCutQuadrature(transformation, reference, options, mapped).Succeeded());
-   REQUIRE(Measure(mapped.rule) == MFEM_Approx(1.25));
+   CutQuadratureMapping mapped;
+   REQUIRE(MapCutQuadrature(transformation, reference,
+                            CutQuadratureMapping::MEASURE_SCALING,
+                            mapped).Succeeded());
+   REQUIRE(reference.rule.IntPoint(0).weight * mapped.measure_scaling(0) ==
+           MFEM_Approx(1.25));
 
    reference.geometry = Geometry::CUBE;
    reference.codimension = 2;
@@ -453,13 +434,18 @@ TEST_CASE("Cut mapping handles curved maps and intersecting surfaces", "[CutQuad
       for (int axis = 0; axis < 3; ++axis)
       { points(axis, vertex) *= axis + 2; }
    transformation.SetPointMat(points);
-   REQUIRE(MapCutQuadrature(transformation, reference, options, mapped).Succeeded());
-   REQUIRE(Measure(mapped.rule) == MFEM_Approx(4));
+   REQUIRE(MapCutQuadrature(transformation, reference,
+                            CutQuadratureMapping::MEASURE_SCALING,
+                            mapped).Succeeded());
+   REQUIRE(reference.rule.IntPoint(0).weight * mapped.measure_scaling(0) ==
+           MFEM_Approx(4));
    reference.conormals(0)(1, 1) = 0;
    reference.conormals(0)(0, 1) = 1;
-   REQUIRE(MapCutQuadrature(transformation, reference, options, mapped).status ==
+   REQUIRE(MapCutQuadrature(transformation, reference,
+                            CutQuadratureMapping::MEASURE_SCALING,
+                            mapped).status ==
            CutQuadratureStatus::DegenerateGeometry);
-   REQUIRE(mapped.GetNPoints() == 0);
+   REQUIRE(mapped.measure_scaling.Size() == 0);
 }
 
 TEST_CASE("Cut mapping remains stable on sheared and embedded elements", "[CutQuadrature]")
@@ -519,40 +505,32 @@ TEST_CASE("Cut mapping remains stable on sheared and embedded elements", "[CutQu
             const real_t measure = codimension == 0 ? volume :
                                    (codimension == 1 ? std::hypot(1.0, height) * extrusion :
                                     (codimension == dimension ? 1 : extrusion));
-            for (auto type : {CutWeightType::Reference, CutWeightType::Physical,
-                              CutWeightType::Integrator})
+            const int data = CutQuadratureMapping::PHYSICAL_CONORMALS |
+                             CutQuadratureMapping::MEASURE_SCALING;
+            CutQuadratureMapping mapped;
+            auto report = MapCutQuadrature(transformation, reference, data,
+                                           mapped);
+            INFO(report.message);
+            REQUIRE(report.Succeeded());
+            REQUIRE(transformation.GetIntPointPointer() == &center);
+            REQUIRE(mapped.measure_scaling(0) / measure == MFEM_Approx(1));
+            REQUIRE(reference.rule.IntPoint(0).weight == MFEM_Approx(1));
+            for (int column = 0; column < codimension; ++column)
             {
-               CutMappingOptions options;
-               options.weight_type = type;
-               options.data = CQ_PHYSICAL_CONORMALS | CQ_MEASURE_SCALING;
-               MappedCutQuadrature mapped;
-               auto report = MapCutQuadrature(transformation, reference, options, mapped);
-               INFO(report.message);
-               REQUIRE(report.Succeeded());
-               REQUIRE(transformation.GetIntPointPointer() == &center);
-               REQUIRE(mapped.measure_scaling(0) / measure == MFEM_Approx(1));
-               const real_t expected = type == CutWeightType::Reference ? 1 :
-                                       (type == CutWeightType::Physical ? measure : measure / volume);
-               REQUIRE(Measure(mapped.rule) / expected == MFEM_Approx(1));
-               if (type == CutWeightType::Integrator)
-               { REQUIRE(Measure(mapped.rule) * transformation.Weight() / measure == MFEM_Approx(1)); }
-               for (int column = 0; column < codimension; ++column)
+               Vector normal(space_dimension), expected_normal(space_dimension);
+               mapped.physical_conormals(0).GetColumn(column, normal);
+               expected_normal = 0.;
+               if (column == 0)
                {
-                  Vector normal(space_dimension), expected_normal(space_dimension);
-                  mapped.physical_conormals(0).GetColumn(column, normal);
-                  expected_normal = 0.;
-                  if (column == 0)
-                  {
-                     expected_normal(0) = thickness;
-                     expected_normal(1) = embedded ? -0.2 : -1;
-                     if (embedded) { expected_normal(2) = -0.4; }
-                  }
-                  else { expected_normal(column == 1 ? 0 : column) = 1; }
-                  expected_normal /= expected_normal.Norml2();
-                  REQUIRE(normal.Norml2() == MFEM_Approx(1));
-                  normal -= expected_normal;
-                  REQUIRE(normal.Norml2() < 1e-12);
+                  expected_normal(0) = thickness;
+                  expected_normal(1) = embedded ? -0.2 : -1;
+                  if (embedded) { expected_normal(2) = -0.4; }
                }
+               else { expected_normal(column == 1 ? 0 : column) = 1; }
+               expected_normal /= expected_normal.Norml2();
+               REQUIRE(normal.Norml2() == MFEM_Approx(1));
+               normal -= expected_normal;
+               REQUIRE(normal.Norml2() < 1e-12);
             }
          }
       }
