@@ -209,7 +209,7 @@ public:
    std::size_t get_dynamic_offset(
       const std::array<std::size_t,rank()> &is) const
    {
-      if constexpr (total_dims > 0) { MFEM_ENZYME_DEVICE_INTEGER(strides); }
+      if constexpr (total_dims > 0) { MFEM_ENZYME_INTEGER(strides); }
       std::size_t dynamic_offset = 0;
       for (std::size_t d = 0; d < ndims; d++)
       {
@@ -225,7 +225,7 @@ public:
    std::size_t get_static_offset(
       const std::array<std::size_t,tensor_rank()> &js) const
    {
-      if constexpr (total_dims > 0) { MFEM_ENZYME_DEVICE_INTEGER(strides); }
+      if constexpr (total_dims > 0) { MFEM_ENZYME_INTEGER(strides); }
       std::size_t static_offset = 0;
       if constexpr (tensor_dims > 0)
       {
@@ -254,6 +254,12 @@ public:
          ::mfem::future::apply(result, js) =
             data[dynamic_offset + get_static_offset(js)];
       });
+      // A plain copy (e.g. out(q) = J(q)) has no arithmetic from which Enzyme
+      // can deduce the element type of the local tensor.
+      if constexpr (std::is_same_v<std::remove_cv_t<scalar_t>, real_t>)
+      {
+         MFEM_ENZYME_REAL(result);
+      }
       return result;
    }
 
