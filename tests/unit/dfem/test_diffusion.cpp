@@ -89,7 +89,7 @@ struct GlobalDiffusion
                       tensor_array<const real_t> &w,
                       tensor_array<dscalar_t, DIM> &dvdxi) const
       {
-         mfem::forall(w.size(), [=] MFEM_HOST_DEVICE(int q)
+         mfem::forall<UseEnzyme>(w.size(), [=] MFEM_HOST_DEVICE(int q)
          {
             const auto invJ = inv(J(q));
             dvdxi(q) = (dudxi(q) * invJ) * transpose(invJ) * det(J(q)) * w(q);
@@ -110,7 +110,7 @@ struct GlobalVectorDiffusion
                       tensor_array<const real_t> &w,
                       tensor_array<dscalar_t, DIM, DIM> &dvdxi) const
       {
-         mfem::forall(w.size(), [=] MFEM_HOST_DEVICE(int q)
+         mfem::forall<UseEnzyme>(w.size(), [=] MFEM_HOST_DEVICE(int q)
          {
             const auto invJ = inv(J(q));
             dvdxi(q) = (dudxi(q) * invJ) * transpose(invJ) * det(J(q)) * w(q);
@@ -682,15 +682,12 @@ TEST_CASE("dFEM Diffusion 1D", "[Parallel][dFEM][GPU]")
    const auto meshs = { "../../data/inline-segment.mesh" };
    const auto extra = { "../../data/periodic-segment.mesh" };
    SECTION("LocalQF") { diffusion<1>(GenAll(meshs, extra), p); }
-#ifndef MFEM_USE_CUDA_OR_HIP
    SECTION("GlobalQF") { diffusion_globalqf<1>(GenAll(meshs, extra), p); }
-#endif
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Diffusion GlobalQF cache 2D", "[Parallel][dFEM]")
 {
-#ifndef MFEM_USE_CUDA_OR_HIP
    {
       const auto p = GenAll({1}, {2, 3});
       const auto meshs = { "../../data/inline-quad.mesh" };
@@ -698,13 +695,11 @@ TEST_CASE("dFEM Diffusion GlobalQF cache 2D", "[Parallel][dFEM]")
       SECTION("Scalar") { diffusion_globalqf<2>(GenAll(meshs, extra), p); }
       SECTION("Vector") { diffusion_globalqf<2, 2>(GenAll(meshs, extra), p); }
    }
-#endif
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Diffusion GlobalQF cache 3D", "[Parallel][dFEM]")
 {
-#ifndef MFEM_USE_CUDA_OR_HIP
    {
       const auto p = GenAll({1}, {2, 3});
       const auto meshs = { "../../data/inline-hex.mesh" };
@@ -712,7 +707,6 @@ TEST_CASE("dFEM Diffusion GlobalQF cache 3D", "[Parallel][dFEM]")
       SECTION("Scalar") { diffusion_globalqf<3>(GenAll(meshs, extra), p); }
       SECTION("Vector") { diffusion_globalqf<3, 3>(GenAll(meshs, extra), p); }
    }
-#endif
 }
 
 // ────────────────────────────────────────────────────────────────────────────

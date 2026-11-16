@@ -37,12 +37,10 @@ template <int DIM> struct global_mf_mass_qf
                    tensor_array<const real_t> &w,
                    tensor_array<dscalar_t> &v) const
    {
-      // Enzyme requires extra support to handle:
-      // mfem::forall(u.size(), [=] MFEM_HOST_DEVICE (int q)
-      for (size_t q = 0; q < u.size(); ++q)
+      mfem::forall<UseEnzyme>(u.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          v(q) = (dscalar_t)(u(q)) * w(q) * det(J(q));
-      }
+      });
    }
 };
 
@@ -112,13 +110,10 @@ void mass_action(const char *filename, int p)
 
    ParBilinearForm blf(&pfes);
    // Add two mass integrators as we use both local and global QF backends
-   // If GPU is enabled, we only add the local QF backend
    blf.AddDomainIntegrator(new MassIntegrator(one, ir));
-#ifndef MFEM_USE_CUDA_OR_HIP
    {
       blf.AddDomainIntegrator(new MassIntegrator(one, ir));
    }
-#endif
    blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    blf.Assemble();
 
@@ -148,13 +143,11 @@ void mass_action(const char *filename, int p)
       dop.AddDomainIntegrator<LocalQFBackend>(
          local_qfn, IT {}, OT {}, *ir, all_domain_attr);
 
-#ifndef MFEM_USE_CUDA_OR_HIP
       {
          global_mf_mass_qf<DIM> global_qfn;
          dop.AddDomainIntegrator<GlobalQFBackend>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr);
       }
-#endif
 
       MultiVector MX{X, N}, MZ{Z};
       dop.Mult(MX, MZ);
@@ -180,13 +173,11 @@ void mass_action(const char *filename, int p)
       dop.AddDomainIntegrator<LocalQFBackend, kernels>(
          local_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
 
-#ifndef MFEM_USE_CUDA_OR_HIP
       {
          global_mf_mass_qf<DIM> global_qfn;
          dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
       }
-#endif
 
       MultiVector MX{X, N}, MZ{Z}, MdZ{dZ};
 
@@ -228,13 +219,11 @@ void mass_action(const char *filename, int p)
       dop.AddDomainIntegrator<LocalQFBackend, kernels>(
          local_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
 
-#ifndef MFEM_USE_CUDA_OR_HIP
       {
          global_mf_mass_qf<DIM> global_qfn;
          dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
       }
-#endif
 
       pfes.GetRestrictionMatrix()->Mult(x, X);
 
