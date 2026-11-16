@@ -780,7 +780,15 @@ DGTraceIntegrator::ApplyKernelType DGTraceIntegrator::ApplyPATKernels::Kernel()
    }
    else if constexpr (DIM == 3)
    {
-      return internal::SmemPADGTraceApplyTranspose3D<D1D, Q1D>;
+      // match the forward pass, which already puts two faces in a block here
+      if constexpr (D1D == 3 || D1D == 4)
+      {
+         return internal::SmemPADGTraceApplyTranspose3D<D1D, Q1D, 2>;
+      }
+      else
+      {
+         return internal::SmemPADGTraceApplyTranspose3D<D1D, Q1D>;
+      }
    }
    MFEM_ABORT("");
 }
