@@ -125,14 +125,11 @@ int main(int argc, char *argv[])
    offsets.PartialSum();
 
    // 7. Determine the list of essential boundary DOFs.
-   Array<int> ess_bdr_x(mesh.bdr_attributes.Max());
-   Array<int> ess_bdr_y(mesh.bdr_attributes.Max());
+   Array<int> ess_bdr(mesh.bdr_attributes.Max());
+   ess_bdr = 0; ess_bdr[3] = 1;
 
-   ess_bdr_x = 1; ess_bdr_y = 1;
-
-   Array<int> ess_tdof_list, tmp;
-   H1fes.GetEssentialTrueDofs(ess_bdr_x, tmp, 0); ess_tdof_list.Append(tmp);
-   H1fes.GetEssentialTrueDofs(ess_bdr_y, tmp, 1); ess_tdof_list.Append(tmp);
+   Array<int> ess_tdof_list;
+   H1fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
    Array<int> col_markers(H1fes.GetVSize());
    col_markers = 0;
@@ -140,6 +137,15 @@ int main(int argc, char *argv[])
    {
       col_markers[ess_tdof_list[i]] = 1;
    }
+
+   // Prescribe the displacement on the inner surface of the wheel.
+   Vector g(dim);
+   g = 0.0; g[dim - 1] = -0.1;
+   VectorConstantCoefficient g_coeff(g);
+
+   GridFunction disp_lift(&H1fes);
+   disp_lift = 0.0;
+   disp_lift.ProjectBdrCoefficient(g_coeff, ess_bdr);
 
    // 8. Allocate grid functions and block vectors.
    GridFunction u_gf;                     // displacement
@@ -162,7 +168,7 @@ int main(int argc, char *argv[])
    const real_t lambda = 1.0, mu = 1.0;   // Lamé constants
 
    Vector f(dim);
-   f = 0.0; f(dim-1) = -0.5;              // body force
+   f = 0.0; f(dim-1) = -0.1;              // body force
 
    Vector n_tilde(dim);
    n_tilde = 0.0; n_tilde(dim-1) = -1.0;  // contact normal
@@ -179,6 +185,7 @@ int main(int argc, char *argv[])
    // 10. Initialize displacement, latent variable, and the Newton state.
    VectorFunctionCoefficient init_u_c(dim, InitialGuess);
    u_gf.ProjectCoefficient(init_u_c);
+   u_gf.ProjectBdrCoefficient(g_coeff, ess_bdr);
    u_old_gf = u_gf;
 
    // Create a temporary trace grid function to project the initial ψ
@@ -228,6 +235,8 @@ int main(int argc, char *argv[])
    a00.Assemble();
    a00.Finalize();
    SparseMatrix &A00 = a00.SpMat();
+   Vector disp_lift_elast(H1fes.GetVSize());
+   A00.Mult(disp_lift, disp_lift_elast);
    A00.EliminateBC(ess_tdof_list, mfem::Operator::DIAG_ONE);
 
    // Assemble B from (u·ñ, q)_Γ, coupling the parent and boundary spaces.
@@ -236,6 +245,8 @@ int main(int argc, char *argv[])
    a10.Assemble();
    a10.Finalize();
    SparseMatrix &A10 = a10.SpMat();
+   Vector disp_lift_contact(L2fes.GetVSize());
+   A10.Mult(disp_lift, disp_lift_contact);
    A10.EliminateCols(col_markers);
 
    // Store B^T.
@@ -335,18 +346,20 @@ int main(int argc, char *argv[])
          // Assemble the nonlinear residual at the current (u, κ).
          // R_u = K u - B^T κ - f.
          A00.Mult(u_gf, residual.GetBlock(0));
+         residual.GetBlock(0) += disp_lift_elast;
          A01->AddMult(kappa_gf, residual.GetBlock(0), -1.0);
          residual.GetBlock(0) -= b_force;
          for (int i = 0; i < ess_tdof_list.Size(); i++)
          {
             const int tdof = ess_tdof_list[i];
-            residual.GetBlock(0)[tdof] = u_gf[tdof];
+            residual.GetBlock(0)[tdof] = u_gf[tdof] - disp_lift[tdof];
          }
 
          // Reassemble the nonlinear boundary linearform.
          // R_κ = B u + assemble_Γ(exp(-ψ) - ϕ).
          b1.Assemble();
          residual.GetBlock(1) = b1;
+         residual.GetBlock(1) += disp_lift_contact;
          A10.AddMult(u_gf, residual.GetBlock(1));
 
          // Reassemble the ψ-dependent bilinear form and Jacobian block.
