@@ -5546,6 +5546,9 @@ void ParFiniteElementSpace::Update(bool want_transform)
    Table* old_elem_dof = NULL;
    Table* old_elem_fos = NULL;
    int old_ndofs = 0;
+   // P is built collectively (Dof_TrueDof_Matrix()): whether the space has one
+   // is the same on all the ranks.
+   const bool had_P = (P != NULL);
 
    // save old DOF table
    if (want_transform)
@@ -5625,6 +5628,12 @@ void ParFiniteElementSpace::Update(bool want_transform)
       delete old_elem_dof;
       delete old_elem_fos;
    }
+
+   // A grid function updated with the space refreshes its cached true vector
+   // (GridFunction::Update()) on the ranks where it was not empty, and the
+   // first use of a conforming P builds it, collectively: build it now, on all
+   // the ranks, if the space had one.
+   if (had_P && Conforming()) { Dof_TrueDof_Matrix(); }
 }
 
 void ParFiniteElementSpace::PRefineAndUpdate(const Array<pRefinement> & refs,
