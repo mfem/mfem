@@ -31,14 +31,15 @@ struct LocalQFBackend
     * @param args The arguments to the action.
     * @return The action.
     */
-   template<typename qfunc_t, typename inputs_t, typename outputs_t>
+   template<typename entity_t,
+            typename qfunc_t, typename inputs_t, typename outputs_t>
    static auto MakeAction(
-      const IntegratorContext &ctx,
+      const IntegratorContext<entity_t> &ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs)
    {
-      return LocalQFImpl::Action<qfunc_t, inputs_t, outputs_t>(
+      return LocalQFImpl::Action<qfunc_t, inputs_t, outputs_t, entity_t>(
                 ctx, qfunc, inputs, outputs);
    }
 
@@ -50,75 +51,81 @@ struct LocalQFBackend
     * @param args The arguments to the derivative action.
     * @return The derivative action.
     */
-   template<int id, typename qfunc_t, typename inputs_t, typename outputs_t>
+   template<int id, typename entity_t,
+            typename qfunc_t, typename inputs_t, typename outputs_t>
    static auto MakeDerivativeAction(
-      const IntegratorContext &ctx,
+      const IntegratorContext<entity_t> &ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs)
    {
-      return LocalQFImpl::DerivativeAction<id, qfunc_t, inputs_t, outputs_t>(
+      return LocalQFImpl::DerivativeAction<id, qfunc_t, inputs_t, outputs_t,
+             entity_t>(
                 ctx, qfunc, inputs, outputs);
    }
 
    template<
       int derivative_id,
+      typename entity_t,
       typename qfunc_t,
       typename inputs_t,
       typename outputs_t>
    static auto MakeDerivativeSetup(
-      const IntegratorContext &ctx,
+      const IntegratorContext<entity_t> &ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
       Vector &qp_cache)
    {
       return LocalQFImpl::DerivativeSetup<
-             derivative_id, qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs,
-                                                          outputs, qp_cache);
+             derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(ctx, qfunc, inputs,
+                                                                    outputs, qp_cache);
    }
 
    template<
       int derivative_id,
+      typename entity_t,
       typename qfunc_t,
       typename inputs_t,
       typename outputs_t>
    static auto MakeDerivativeApply(
-      const IntegratorContext &ctx,
+      const IntegratorContext<entity_t> &ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
       const Vector &qp_cache)
    {
       return LocalQFImpl::DerivativeApply<
-             derivative_id, qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs,
-                                                          outputs, qp_cache);
+             derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(ctx, qfunc, inputs,
+                                                                    outputs, qp_cache);
    }
 
    template<
       int derivative_id,
+      typename entity_t,
       typename qfunc_t,
       typename inputs_t,
       typename outputs_t>
    static auto MakeDerivativeApplyTranspose(
-      const IntegratorContext &ctx,
+      const IntegratorContext<entity_t> &ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
       const Vector &qp_cache)
    {
       return LocalQFImpl::DerivativeApplyTranspose<
-             derivative_id, qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs,
-                                                          outputs, qp_cache);
+             derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(ctx, qfunc, inputs,
+                                                                    outputs, qp_cache);
    }
 
    template<
       int derivative_id,
+      typename entity_t,
       typename qfunc_t,
       typename inputs_t,
       typename outputs_t>
    static auto MakeDerivativeAssemble(
-      const IntegratorContext &ctx,
+      const IntegratorContext<entity_t> &ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
@@ -126,18 +133,19 @@ struct LocalQFBackend
       std::shared_ptr<const OutputFieldGroups<outputs_t>> output_groups)
    {
       return LocalQFImpl::DerivativeAssemble<
-             derivative_id, qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs,
-                                                          outputs, qp_cache,
-                                                          output_groups);
+             derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(ctx, qfunc, inputs,
+                                                                    outputs, qp_cache,
+                                                                    output_groups);
    }
 
    template<
       int derivative_id,
+      typename entity_t,
       typename qfunc_t,
       typename inputs_t,
       typename outputs_t>
    static auto MakeDerivativeAssembleDiagonal(
-      const IntegratorContext &ctx,
+      const IntegratorContext<entity_t> &ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
@@ -145,17 +153,18 @@ struct LocalQFBackend
       std::shared_ptr<const OutputFieldGroups<outputs_t>> output_groups)
    {
       return LocalQFImpl::DerivativeAssembleDiagonal<
-             derivative_id, qfunc_t, inputs_t, outputs_t>(ctx, qfunc, inputs,
-                                                          outputs, qp_cache,
-                                                          output_groups);
+             derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(ctx, qfunc, inputs,
+                                                                    outputs, qp_cache,
+                                                                    output_groups);
    }
 };
 
 // ────────────────────────────────────────────────────────────────────────────
-template<int DIM, int Q1D, typename QT, typename IT, typename OT>
+template<int DIM, int Q1D, typename QT, typename IT, typename OT,
+         typename ET>
 inline void AddAction()
 {
-   using ker = LocalQFImpl::Action<QT, IT, OT>;
+   using ker = LocalQFImpl::Action<QT, IT, OT, ET>;
    if constexpr (Q1D <= 8)
    {
       ker::ActionLO::template Specialization<DIM, Q1D>::Add();
@@ -167,10 +176,11 @@ inline void AddAction()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT>
+template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT,
+         typename ET>
 inline void AddDerivativeAction()
 {
-   using ker = LocalQFImpl::DerivativeAction<DID, QT, IT, OT>;
+   using ker = LocalQFImpl::DerivativeAction<DID, QT, IT, OT, ET>;
    if constexpr (Q1D <= 8)
    {
       ker::DerivativeActionLO::template Specialization<DIM, Q1D>::Add();
@@ -182,10 +192,11 @@ inline void AddDerivativeAction()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT>
+template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT,
+         typename ET>
 inline void AddDerivativeSetup()
 {
-   using ker = LocalQFImpl::DerivativeSetup<DID, QT, IT, OT>;
+   using ker = LocalQFImpl::DerivativeSetup<DID, QT, IT, OT, ET>;
    if constexpr (Q1D <= 8)
    {
       ker::DerivativeSetupLO::template Specialization<DIM, Q1D>::Add();
@@ -197,10 +208,11 @@ inline void AddDerivativeSetup()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT>
+template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT,
+         typename ET>
 inline void AddDerivativeApply()
 {
-   using ker = LocalQFImpl::DerivativeApply<DID, QT, IT, OT>;
+   using ker = LocalQFImpl::DerivativeApply<DID, QT, IT, OT, ET>;
    if constexpr (Q1D <= 8)
    {
       ker::DerivativeApplyLO::template Specialization<DIM, Q1D>::Add();
@@ -212,10 +224,11 @@ inline void AddDerivativeApply()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT>
+template<int DIM, int Q1D, int DID, typename QT, typename IT, typename OT,
+         typename ET>
 inline void AddDerivativeApplyTranspose()
 {
-   using ker = LocalQFImpl::DerivativeApplyTranspose<DID, QT, IT, OT>;
+   using ker = LocalQFImpl::DerivativeApplyTranspose<DID, QT, IT, OT, ET>;
    if constexpr (Q1D <= 8)
    {
       ker::DerivativeApplyTransposeLO::template Specialization<DIM, Q1D>::Add();
@@ -229,30 +242,31 @@ inline void AddDerivativeApplyTranspose()
 // ────────────────────────────────────────────────────────────────────────────
 // Apply the same DericativeKernel selection to the specializations
 template<int DIM, int Q1D, typename QT, typename IT, typename OT,
+         typename ET,
          typename derivative_ids_t = std::index_sequence<>,
          DerivativeKernels kernels = DerivativeKernels::All>
 inline void AddLocalSpecializations()
 {
-   AddAction<DIM, Q1D, QT, IT, OT>();
+   AddAction<DIM, Q1D, QT, IT, OT, ET>();
 
    for_constexpr_host([&](auto i)
    {
       using derivative_id = decltype(i);
       if constexpr (HasAllKernels(kernels, DerivativeKernels::Action))
       {
-         AddDerivativeAction<DIM, Q1D, derivative_id::value, QT, IT, OT>();
+         AddDerivativeAction<DIM, Q1D, derivative_id::value, QT, IT, OT, ET>();
       }
       if constexpr (NeedsQpCache(kernels))
       {
-         AddDerivativeSetup<DIM, Q1D, derivative_id::value, QT, IT, OT>();
+         AddDerivativeSetup<DIM, Q1D, derivative_id::value, QT, IT, OT, ET>();
       }
       if constexpr (HasAllKernels(kernels, DerivativeKernels::Apply))
       {
-         AddDerivativeApply<DIM, Q1D, derivative_id::value, QT, IT, OT>();
+         AddDerivativeApply<DIM, Q1D, derivative_id::value, QT, IT, OT, ET>();
       }
       if constexpr (HasAllKernels(kernels, DerivativeKernels::ApplyTranspose))
       {
-         AddDerivativeApplyTranspose<DIM, Q1D, derivative_id::value, QT, IT, OT>();
+         AddDerivativeApplyTranspose<DIM, Q1D, derivative_id::value, QT, IT, OT, ET>();
       }
    }, derivative_ids_t{});
 }

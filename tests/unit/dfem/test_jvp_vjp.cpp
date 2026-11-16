@@ -168,7 +168,8 @@ void TestJvpVjp(const char *filename, int p)
    local_qf<DIM> q_lfn{};
    F.AddDomainIntegrator<LocalQFBackend, kernels>(
       q_lfn, IT{}, OT{}, *ir, all_domain_attr, DT{});
-   AddLocalSpecializations<DIM, 3, LQT, IT, OT, DT, kernels>();
+   AddLocalSpecializations<DIM, 3, LQT, IT, OT, Entity::Element, DT,
+                           kernels>();
 
    VerifyJvpVjp<DIM>(F, fes, *nodes);
 }

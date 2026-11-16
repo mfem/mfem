@@ -23,7 +23,8 @@ namespace mfem::future::LocalQFImpl
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 class DerivativeSetup
 {
    static constexpr auto inout_tuple =
@@ -46,20 +47,11 @@ class DerivativeSetup
    qfunc_t qfunc;
    const inputs_t inputs;
    const outputs_t outputs;
-   const IntegratorContext ctx;
+   const IntegratorContext<entity_t> ctx;
    Vector &qp_cache;
-   const std::vector<const DofToQuad *> dtqs;
    // inputs: dtq, idx, B, G, d1d, q1d, vdim
-   const std::array<DofToQuadMap, n_inputs> input_dtq;
-   const std::array<size_t, n_inputs> input_idx;
-   const std::array<const real_t *, n_inputs> input_B, input_G;
-   const std::array<int, n_inputs> input_d1d, input_q1d, input_vdim;
+   const FieldMetadata<n_inputs> in_data;
    // Jacobian cache metadata
-   const std::array<bool, n_inputs> input_is_dependent;
-   const std::array<int, n_inputs> input_size_on_qp;
-   const std::array<int, n_outputs> out_vdim;
-   const std::array<int, n_outputs> out_op_dim;
-   const std::array<int, n_outputs> out_offsets;
    const int output_size_on_qp;
    const int trial_vdim;
    const int total_trial_op_dim;
@@ -71,29 +63,16 @@ public:
    //////////////////////////////////////////////////////////////////
    DerivativeSetup() = delete;
 
-   DerivativeSetup(IntegratorContext ctx,
+   DerivativeSetup(IntegratorContext<entity_t> ctx,
                    qfunc_t qfunc,
                    inputs_t inputs,
                    outputs_t outputs,
                    Vector &qp_cache):
       qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs), ctx(ctx),
-      qp_cache(qp_cache), dtqs(make_dtqs(ctx)),
-      input_dtq(create_dtq_maps<Entity::Element>(
-                   inputs,
-                   dtqs,
-                   create_union_field_map_for_dtq(ctx, inputs),
-                   ctx.unionfds,
-                   ctx.ir)),
-      input_idx(create_input_vector_map(ctx, inputs)),
-      input_B(get_B(input_dtq)), input_G(get_G(input_dtq)),
-      input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
-      input_vdim(get_vdim(inputs)),
-      input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
-      input_size_on_qp(
-         get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs> {})),
-                           out_vdim(get_vdim(outputs)), out_op_dim(compute_out_op_dim(outputs)),
-                           out_offsets(compute_out_offsets(out_vdim, out_op_dim)), output_size_on_qp(
-                              [&]
+      qp_cache(qp_cache),
+      in_data(MakeFieldMetadata(ctx, inputs, ctx.infds)),
+      output_size_on_qp(
+         [&]
    {
       int s = 0;
       for_constexpr_host<n_outputs>([&](auto o)
@@ -102,13 +81,18 @@ public:
    }()),
    trial_vdim(compute_trial_vdim(inputs, derivative_id)),
    total_trial_op_dim(compute_total_trial_op_dim(
-                         inputs, input_is_dependent, input_size_on_qp)),
+                         inputs,
+                         compute_input_is_dependent(inputs, derivative_id),
+                         get_input_size_on_qp(
+                            inputs, std::make_index_sequence<n_inputs> {}))),
    residual_size_on_qp(output_size_on_qp * trial_vdim * total_trial_op_dim),
-   dim(ctx.mesh.Dimension()), ne(ctx.nentities), nq(ctx.ir.GetNPoints()),
+   dim(GetEntityDimension<entity_t>(ctx.mesh)), ne(ctx.nentities),
+   nq(ctx.ir.GetNPoints()),
    q1d(tensor_1d_size(nq, dim))
    {
-      MFEM_ASSERT(ctx.unionfds.size() == nfields,
-                  "LocalQFBackend: unionfds size mismatch");
+      MFEM_ASSERT(nfields <= ctx.unionfds.size(),
+                  "LocalQFBackend: the q-function uses more fields than the "
+                  "operator has");
 
       qp_cache.SetSize(ne * nq * residual_size_on_qp);
       qp_cache.UseDevice(true);
@@ -117,7 +101,7 @@ public:
    //////////////////////////////////////////////////////////////////
    void operator()(const std::vector<Vector *> &xe)
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
 
       // Quadrature index is fastest-varying so that adjacent threads (one per
       // quadrature point) touch adjacent addresses.
@@ -140,7 +124,7 @@ public:
 
    /// Tile size the kernel must be built at: the shared B/G arrays are square
    /// [MQ1][MQ1] but hold a q1d x d1d matrix, so MQ1 must cover both extents.
-   int tile_size() const { return kernel_tile_size(q1d, input_d1d); }
+   int tile_size() const { return kernel_tile_size(q1d, in_data.d1ds()); }
 
    template<typename Backend>
    void run_kernels(const std::vector<Vector *> &xe,
@@ -151,26 +135,14 @@ public:
                    ctx,
                    qfunc,
                    // inputs
-                   input_idx,
-                   input_B,
-                   input_G,
-                   input_vdim,
-                   input_d1d,
-                   input_q1d,
-                   input_size_on_qp,
-                   input_is_dependent,
+                   in_data,
                    // outputs / cache metadata
-                   out_vdim,
-                   out_op_dim,
-                   out_offsets,
                    trial_vdim,
                    total_trial_op_dim,
-                   residual_size_on_qp,
                    // vectors
                    xe,
                    cache_tensor,
                    // fallback arguments
-                   dim,
                    q1d);
    }
 
@@ -221,91 +193,40 @@ public:
    //////////////////////////////////////////////////////////////////
    template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
    static void
-   derivative_setup_callback(const IntegratorContext &ctx,
+   derivative_setup_callback(const IntegratorContext<entity_t> &ctx,
                              qfunc_t &qfunc,
-                             // inputs: idx, B, G, vdim, d1d, q1d
-                             const std::array<size_t, n_inputs> &in_idx,
-                             const std::array<const real_t *, n_inputs> in_B,
-                             const std::array<const real_t *, n_inputs> in_G,
-                             const std::array<int, n_inputs> &in_vdim,
-                             const std::array<int, n_inputs> &in_d1d,
-                             const std::array<int, n_inputs> &in_q1d,
-                             const std::array<int, n_inputs> &in_size_on_qp,
-                             const std::array<bool, n_inputs> &input_dep,
+                             const FieldMetadata<n_inputs> &in,
                              // outputs / cache metadata
-                             const std::array<int, n_outputs> &out_vdim,
-                             const std::array<int, n_outputs> &out_op_dim,
-                             const std::array<int, n_outputs> &out_offsets,
                              const int trial_vdim,
                              const int total_trial_op_dim,
-                             const int residual_size_on_qp,
                              const std::vector<Vector *> &xe,
                              DeviceTensor<3, real_t> &cache_tensor,
                              // fallback arguments
-                             const int dim,
                              const int q1d)
    {
-      MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
-      if (ctx.attr.Size() == 0) { return; }
+      MFEM_VERIFY(backend_t::DIM == GetEntityDimension<entity_t>(ctx.mesh),
+                  "Dimension mismatch");
+      if (ctx.marked_entities.Size() == 0) { return; }
 
-      MFEM_CONTRACT_VAR(in_size_on_qp);
-      MFEM_CONTRACT_VAR(input_dep);
-      MFEM_CONTRACT_VAR(out_vdim);
-      MFEM_CONTRACT_VAR(out_op_dim);
-      MFEM_CONTRACT_VAR(out_offsets);
       MFEM_VERIFY(Layout::StaticCacheColumns() == trial_vdim * total_trial_op_dim,
                   "DerivativeSetup: derivative cache row width mismatch");
 
-      static constexpr auto B2D = backend_t::DIM == 2;
+      static constexpr int DIM = backend_t::DIM;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
       static constexpr auto MTPB = backend_t::MAX_THREADS_PER_BLOCK();
 
-      const int ne = ctx.nentities;
-      MFEM_CONTRACT_VAR(residual_size_on_qp);
-
-      constexpr auto k_dim = [](const int k) { return k * k * (B2D ? 1 : k); };
 
       // --------------------------------------------------
       // INPUTS: XE, 3(max DIM) + 1(VDIM) + 1(number of elements)
       // --------------------------------------------------
-      std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_inputs> in_XE;
-      for_constexpr_host<n_inputs>([&](auto ic)
-      {
-         constexpr size_t i = ic.value;
-         const size_t k = in_idx[i];
-         const int d = in_d1d[i], q = in_q1d[i], v = in_vdim[i];
-         using FOP = tuple_element_t<i, inputs_t>;
-         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
-         {
-            MFEM_VERIFY(xe[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
-            in_XE[i] = Reshape(xe[k]->Read(), d, d, B2D ? 1 : d, v, ne);
-         }
-         else if constexpr (is_identity_fop_v<FOP>)
-         {
-            MFEM_VERIFY(xe[k]->Size() == k_dim(q) * v * ne, "Size mismatch");
-            in_XE[i] = Reshape(xe[k]->Read(), v, q, q, B2D ? 1 : q, ne);
-         }
-         else if constexpr (is_weight_fop_v<FOP>)
-         {
-            MFEM_VERIFY(ctx.ir.GetNPoints() == k_dim(q1d),
-                        "tensor-product IR expected");
-            in_XE[i] = Reshape(
-                          ctx.ir.GetWeights().Read(), q1d, q1d, B2D ? 1 : q1d, 1, 1);
-         }
-         else
-         {
-            static_assert(false, "Unsupported");
-         }
-      });
+      const auto in_XE = InputViews<DIM, inputs_t>(ctx, xe, in);
 
-      const auto d_attr = ctx.attr.Read();
-      const bool has_attr = ctx.attr.Size() > 0;
-      const auto d_elem_attr = ctx.elem_attr->Read();
+      const int *d_entities = ctx.marked_entities.Read();
 
       dfem::forall<MTPB>(
-         [=] MFEM_HOST_DEVICE(const int e, void *) MFEM_FORCE_INLINE
+         [=] MFEM_HOST_DEVICE(const int ek, void *) MFEM_FORCE_INLINE
       {
-         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+         const int e = d_entities[ek];
 
          MFEM_CONTRACT_VAR(qfunc);
          MFEM_CONTRACT_VAR(cache_tensor);
@@ -322,34 +243,9 @@ public:
          for_constexpr<n_inputs>([&](auto ic)
          {
             constexpr size_t i = ic.value;
-            const auto &XE = in_XE[i];
-            const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
-            const real_t *B = in_B[i], *G = in_G[i];
-            auto &rarg = get<i>(rargs);
-            using XE_t = decltype(XE);
-            using rarg_t = decltype(rarg);
             using FOP = tuple_element_t<i, inputs_t>;
-            if constexpr (is_value_fop<FOP>::value)
-            {
-               backend_t::template LoadValue<rarg_t, XE_t>(
-                  smem, e, d, q, Q1D, B, XE, rarg);
-            }
-            else if constexpr (is_gradient_fop_v<FOP>)
-            {
-               constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
-               using FieldParamT =
-                  typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
-               backend_t::template LoadGradient<RNK, rarg_t, XE_t, FieldParamT>(
-                  smem, e, d, q, q1d, B, G, XE, rarg);
-            }
-            else if constexpr (is_weight_fop_v<FOP> || is_identity_fop_v<FOP>)
-            {
-               // qp values are read directly from in_XE / IR
-            }
-            else
-            {
-               static_assert(false, "Unsupported");
-            }
+            LoadField<backend_t, qfunc_t, i, FOP>(
+               smem, e, q1d, in.dtq[i], in_XE[i], get<i>(rargs));
          });
          MFEM_SYNC_THREAD;
 
@@ -363,9 +259,9 @@ public:
          // Warning: no 'DIRECT' on the 'Z' direction,
          // as one backend may need to iterate over it.
          // -----------------------------------------------
-         MFEM_FOREACH_THREAD(qz, z, (B2D ? 1 : q1d))
+         MFEM_FOREACH_THREAD_BATCHED(qz, z, nz<DIM>(q1d), backend_t::BATCH)
          {
-            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, ny<DIM>(q1d))
             {
                MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                {
@@ -387,6 +283,10 @@ public:
                      else if constexpr (is_weight_fop_v<FOP>)
                      {
                         parg = XE(qx, qy, qz, 0, 0);
+                     }
+                     else if constexpr (is_orientation_fop_v<FOP>)
+                     {
+                        parg = XE(0, 0, 0, 0, e);
                      }
                      else if constexpr (is_value_fop_v<FOP> ||
                                         is_gradient_fop_v<FOP>)
@@ -461,6 +361,10 @@ public:
                      {
                         qarg = XE(qx, qy, qz, 0, 0);
                      }
+                     else if constexpr (is_orientation_fop_v<FOP>)
+                     {
+                        qarg = XE(0, 0, 0, 0, e);
+                     }
                      else if constexpr (is_value_fop_v<FOP> ||
                                         is_gradient_fop_v<FOP>)
                      {
@@ -512,9 +416,9 @@ public:
             }
          }
       },
-      ne,
+      ctx.marked_entities.Size(),
       backend_t::thread_blocks(
-         compute_kernel_thread_1d<inputs_t>(q1d, in_d1d)),
+         compute_kernel_thread_1d<inputs_t>(q1d, in.d1ds()), backend_t::BATCH),
       0,
       nullptr);
    }
@@ -532,15 +436,18 @@ public:
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
-inline typename DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
+inline typename
+DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 SetupKernelType
-DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeSetupLO::Kernel()
 {
-   static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
-   using setup_t = DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   static_assert(DIM >= 1 && DIM <= 3 && Q1D <= 8);
+   using setup_t =
+      DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return setup_t::template derivative_setup_callback<
              LocalQFLOBackend<DIM, Q1D>>;
 }
@@ -548,13 +455,16 @@ DerivativeSetupLO::Kernel()
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
-inline typename DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
+         typename outputs_t,
+         typename entity_t>
+inline typename
+DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 SetupKernelType
-DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeSetupLO::Fallback(int dim, int q1d)
 {
-   using setup_t = DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using setup_t =
+      DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    using DerivativeSetupLO = typename setup_t::DerivativeSetupLO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
    return DispatchLOKernelByDim<DerivativeSetupLO, QFDIM>(dim, q1d);
@@ -563,14 +473,17 @@ DerivativeSetupLO::Fallback(int dim, int q1d)
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
-inline typename DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
+inline typename
+DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 SetupKernelType
-DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeSetupHO::Kernel()
 {
-   using setup_t = DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using setup_t =
+      DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return setup_t::template derivative_setup_callback<LocalQFHOBackend<DIM, Q1D>,
                                                       Q1D>;
 }
@@ -578,13 +491,16 @@ DerivativeSetupHO::Kernel()
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
-inline typename DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
+         typename outputs_t,
+         typename entity_t>
+inline typename
+DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 SetupKernelType
-DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeSetupHO::Fallback(int dim, int q1d)
 {
-   using setup_t = DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using setup_t =
+      DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    using DerivativeSetupHO = typename setup_t::DerivativeSetupHO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
    return DispatchHOKernelByDim<DerivativeSetupHO, QFDIM>(dim, q1d);

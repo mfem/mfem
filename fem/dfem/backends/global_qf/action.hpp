@@ -25,12 +25,14 @@ template<
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t,
+   typename entity_t,
    size_t ninputs = tuple_size<inputs_t>::value,
    size_t noutputs = tuple_size<outputs_t>::value>
 struct Action
 {
+
    Action(
-      IntegratorContext ctx,
+      IntegratorContext<entity_t> ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs) :
@@ -45,14 +47,16 @@ struct Action
       check_consistency(inputs, input_to_infd, ctx.infds);
       check_consistency(outputs, output_to_outfd, ctx.outfds);
 
-      create_fieldbases(inputs, input_to_infd, ctx.infds, ctx.ir, input_bases);
-      create_fieldbases(outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
+      create_fieldbases<entity_t>(inputs, input_to_infd, ctx.infds, ctx,
+                                  input_bases);
+      create_fieldbases<entity_t>(outputs, output_to_outfd, ctx.outfds, ctx,
+                                  output_bases);
 
       create_qlayouts(inputs, ctx.in_qlayouts, input_qlayouts);
       create_qlayouts(outputs, ctx.out_qlayouts, output_qlayouts);
 
       const int nqp = ctx.ir.GetNPoints();
-      gnqp = nqp * ctx.nentities;
+      gnqp = nqp * ctx.marked_entities.Size();
 
       // prepare xq and yq BlockVectors
       xq_offsets.SetSize(ninputs + 1);
@@ -60,7 +64,8 @@ struct Action
       constexpr_for<0, ninputs>([&](auto i)
       {
          const auto input = get<i>(inputs);
-         xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.nentities;
+         xq_offsets[i + 1] =
+            nqp * input.size_on_qp * ctx.marked_entities.Size();
       });
       xq_offsets.PartialSum();
 
@@ -69,7 +74,8 @@ struct Action
       constexpr_for<0, noutputs>([&](auto i)
       {
          const auto output = get<i>(outputs);
-         yq_offsets[i + 1] = nqp * output.size_on_qp * ctx.nentities;
+         yq_offsets[i + 1] =
+            nqp * output.size_on_qp * ctx.marked_entities.Size();
       });
       yq_offsets.PartialSum();
    }
@@ -81,16 +87,7 @@ struct Action
       if (buffers_ready) { return; }
       InitBlockVector(xq, xq_offsets);
       InitBlockVector(yq, yq_offsets);
-
-      constexpr_for<0, ninputs>([&](auto i)
-      {
-         using input_t = std::decay_t<decltype(get<i>(inputs))>;
-         if constexpr (is_weight_fop<input_t>::value)
-         {
-            Vector empty;
-            input_bases[i].forward(empty, xq.GetBlock(i));
-         }
-      });
+      fill_constant_inputs<inputs_t>(input_bases, xq);
       buffers_ready = true;
    }
 
@@ -98,21 +95,11 @@ struct Action
       const std::vector<Vector *> &xe,
       std::vector<Vector *> &ye) const
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
       InitBuffers();
 
       // E -> Q
-      constexpr auto interpolate_input = []
-      {
-         std::array<bool, ninputs> result {};
-         constexpr_for<0, ninputs>([&](auto i)
-         {
-            using input_t = std::decay_t<decltype(get<i>(inputs_t {}))>;
-            result[i] = !is_weight_fop<input_t>::value;
-         });
-         return result;
-      }();
-      interpolate(input_to_infd, input_bases, xe, xq, interpolate_input);
+      interpolate(input_to_infd, input_bases, xe, xq, interpolated_inputs);
 
       // Q -> Q
       static_assert(
@@ -129,9 +116,11 @@ struct Action
       integrate(output_to_outfd, output_bases, yq, ye);
    }
 
-   IntegratorContext ctx;
+   IntegratorContext<entity_t> ctx;
    qfunc_t qfunc;
    inputs_t inputs;
+   /// The inputs interpolated on every call, the others are constant.
+   static constexpr auto interpolated_inputs = varying_inputs<inputs_t>();
    outputs_t outputs;
 
    std::array<size_t, ninputs> input_to_infd;

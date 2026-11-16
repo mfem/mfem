@@ -74,7 +74,13 @@ namespace lok
 template<int DIM, typename Reg>
 MFEM_HOST_DEVICE inline auto &at(Reg &reg, int qx, int qy, int qz)
 {
-   if constexpr (DIM == 2)
+   if constexpr (DIM == 1)
+   {
+      MFEM_CONTRACT_VAR(qy);
+      MFEM_CONTRACT_VAR(qz);
+      return reg[qx];
+   }
+   else if constexpr (DIM == 2)
    {
       MFEM_CONTRACT_VAR(qz);
       return reg[qy][qx];
@@ -455,17 +461,33 @@ template<int T_DIM, int MQ1, bool LOOP_Z = false>
 struct lo_ker_backend
 {
    static constexpr int DIM = T_DIM;
-   static_assert(DIM == 2 || DIM == 3);
+   static_assert(DIM >= 1 && DIM <= 3);
+
+   /// Entities per thread block: a 1D block batches the entities of its z
+   /// threads, up to 128 threads; 2D and 3D blocks hold one entity.
+   static constexpr int BATCH = (DIM == 1 && MQ1 < 128) ? 128 / MQ1 : 1;
+
+   /// Shared-memory slot of the entity of the calling thread.
+   static MFEM_HOST_DEVICE MFEM_FORCE_INLINE int slot()
+   { return (DIM == 1) ? MFEM_THREAD_ID(z) : 0; }
 
    template<int VDIM>
-   using qreg_t = std::conditional_t<(DIM == 2),
+   using qreg_t = pick_byDIM<DIM,
+         ker::regs1d_t<VDIM, MQ1>,
          ker::regs2d_t<VDIM, MQ1>,
          ker::regs3d_t<VDIM, MQ1>>;
 
    template<int VDIM, int SDIM>
-   using qreg_vd_t = std::conditional_t<(DIM == 2),
+   using qreg_vd_t = pick_byDIM<DIM,
+         ker::regs1d_vd_t<VDIM, SDIM, MQ1>,
          ker::regs2d_vd_t<VDIM, SDIM, MQ1>,
          ker::regs3d_vd_t<VDIM, SDIM, MQ1>>;
+
+   struct Shared1d
+   {
+      real_t M[BATCH][MQ1][DIM];
+      real_t B[MQ1][MQ1], G[MQ1][MQ1];
+   };
 
    struct Shared2d
    {
@@ -479,7 +501,7 @@ struct lo_ker_backend
       real_t B[MQ1][MQ1], G[MQ1][MQ1];
    };
 
-   using Shared = std::conditional_t<(DIM == 2), Shared2d, Shared3d>;
+   using Shared = pick_byDIM<DIM, Shared1d, Shared2d, Shared3d>;
 
    template<typename FieldParamT, typename ArgRegT, typename XE_T>
    static MFEM_HOST_DEVICE void load_value(Shared &s,
@@ -492,22 +514,88 @@ struct lo_ker_backend
    {
       ker::LoadMatrix(d, q, B, s.B);
       using field_t = std::remove_cv_t<std::remove_reference_t<FieldParamT>>;
-      constexpr int VDIM = qf_value_vdim_v<field_t>;
-      if constexpr (DIM == 2)
+      load_byVDIM<qf_value_vdim_v<field_t>>(s, e, d, q, XE, rarg);
+   }
+
+   /// Load the dofs of a Value field with @a VDIM components and interpolate
+   /// them to the quadrature points, in @a rarg.
+   template<int VDIM, typename ArgRegT, typename XE_T>
+   static MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   void load_byVDIM(Shared &s, const int e, const int d, const int q,
+                    const XE_T &XE, ArgRegT &rarg)
+   {
+      if constexpr (VDIM == 1 || VDIM == DIM)
       {
-         ker::LoadDofs2d<VDIM, DIM, MQ1>(e, d, XE, s.M[0]);
-         ker::Eval2d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
-      }
-      else
-      {
-         ker::LoadDofs3d<VDIM, DIM, MQ1>(e, d, XE, s.M[0]);
-         if constexpr (LOOP_Z)
+         if constexpr (DIM == 1)
          {
-            loz::Eval3d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
+            ker::LoadDofs1d(e, d, 0, XE, s.M[slot()]);
+            ker::Eval1d(d, q, s.B, s.M[slot()], rarg);
+         }
+         else if constexpr (DIM == 2)
+         {
+            ker::LoadDofs2d<VDIM, DIM, MQ1>(e, d, XE, s.M[0]);
+            ker::Eval2d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
          }
          else
          {
-            ker::Eval3d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
+            ker::LoadDofs3d<VDIM, DIM, MQ1>(e, d, XE, s.M[0]);
+            if constexpr (LOOP_Z)
+            {
+               loz::Eval3d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
+            }
+            else
+            {
+               ker::Eval3d<VDIM, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rarg);
+            }
+         }
+      }
+      else
+      {
+         // Handle the case where VDIM is not 1 or DIM by interpolating one component at a time.
+
+         // Register to hold the interpolated component at the quadrature points.
+         qreg_t<1> rc;
+
+         // Loop over each component of the vector field.
+         for (int c = 0; c < VDIM; ++c)
+         {
+            // Load and interpolate the c-th component of the vector field.
+            if constexpr (DIM == 1)
+            {
+               ker::LoadDofs1d(e, d, c, XE, s.M[slot()]);
+               ker::Eval1d(d, q, s.B, s.M[slot()], rc);
+            }
+            else if constexpr (DIM == 2)
+            {
+               ker::LoadDofs2d(e, d, c, XE, s.M[0]);
+               ker::Eval2d<1, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rc);
+            }
+            else
+            {
+               ker::LoadDofs3d(e, d, c, XE, s.M[0]);
+               if constexpr (LOOP_Z)
+               {
+                  loz::Eval3d<1, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rc);
+               }
+               else
+               {
+                  ker::Eval3d<1, DIM, MQ1>(d, q, s.B, s.M[0], s.M[1], rc);
+               }
+            }
+
+            // Copy the interpolated component from the register to the corresponding
+            // component in the output at the quadrature points.
+            MFEM_FOREACH_THREAD_BATCHED(qz, z, nz<DIM>(q), BATCH)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qy, y, ny<DIM>(q))
+               {
+                  MFEM_FOREACH_THREAD_DIRECT(qx, x, q)
+                  {
+                     lok::at<DIM>(rarg, qx, qy, qz)[c] =
+                        lok::at<DIM>(rc, qx, qy, qz)[0];
+                  }
+               }
+            }
          }
       }
    }
@@ -533,7 +621,12 @@ struct lo_ker_backend
          static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[0];
          if constexpr (SDIM == DIM)
          {
-            if constexpr (DIM == 2)
+            if constexpr (DIM == 1)
+            {
+               ker::LoadDofs1d(e, d, 0, XE, s.M[slot()]);
+               ker::Eval1d(d, q, s.G, s.M[slot()], rarg);
+            }
+            else if constexpr (DIM == 2)
             {
                ker::LoadDofs2d(e, d, 0, XE, s.M[0]);
                ker::Grad2d(d, q, s.B, s.G, s.M[0], s.M[1], rarg);
@@ -560,7 +653,12 @@ struct lo_ker_backend
          {
             for (int c = 0; c < VDIM; ++c)
             {
-               if constexpr (DIM == 2)
+               if constexpr (DIM == 1)
+               {
+                  ker::LoadDofs1d(e, d, c, XE, s.M[slot()]);
+                  ker::VectorGrad1d(d, q, c, s.G, s.M[slot()], rarg);
+               }
+               else if constexpr (DIM == 2)
                {
                   ker::LoadDofs2d(e, d, c, XE, s.M[0]);
                   ker::VectorGrad2d(d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
@@ -594,16 +692,73 @@ struct lo_ker_backend
    {
       ker::LoadMatrix(d, q, B, s.B);
       using field_t = std::remove_cv_t<std::remove_reference_t<ArgRegT>>;
-      constexpr int VDIM = qf_value_vdim_v<field_t>;
-      if constexpr (DIM == 2)
+      /// See NOTE in load_value_byVDIM for why this is needed.
+      write_byVDIM<qf_value_vdim_v<field_t>>(s, e, d, q, YE, rarg);
+   }
+
+   /// Integrate the quadrature point values @a rarg of a Value field with
+   /// @a VDIM components against the basis and add them to its dofs in @a YE.
+   template<int VDIM, typename ArgRegT, typename YE_T>
+   static MFEM_HOST_DEVICE MFEM_FORCE_INLINE
+   void write_byVDIM(Shared &s, const int e, const int d, const int q,
+                     const YE_T &YE, ArgRegT &rarg)
+   {
+      if constexpr (VDIM == 1 || VDIM == DIM)
       {
-         ker::EvalTranspose2d<VDIM, DIM, MQ1>(d, q, s.B, rarg, s.M[1], s.M[0]);
-         ker::WriteEvalDofs2d<VDIM, MQ1>(d, 0, e, rarg, YE);
+         if constexpr (DIM == 1)
+         {
+            ker::EvalTranspose1d(d, q, s.B, rarg, s.M[slot()]);
+            ker::WriteEvalDofs1d(d, 0, e, rarg, YE);
+         }
+         else if constexpr (DIM == 2)
+         {
+            ker::EvalTranspose2d<VDIM, DIM, MQ1>(
+               d, q, s.B, rarg, s.M[1], s.M[0]);
+            ker::WriteEvalDofs2d<VDIM, MQ1>(d, 0, e, rarg, YE);
+         }
+         else
+         {
+            ker::EvalTranspose3d<VDIM, DIM, MQ1>(
+               d, q, s.B, rarg, s.M[1], s.M[0]);
+            ker::WriteEvalDofs3d<VDIM, MQ1>(d, 0, e, rarg, YE);
+         }
       }
       else
       {
-         ker::EvalTranspose3d<VDIM, DIM, MQ1>(d, q, s.B, rarg, s.M[1], s.M[0]);
-         ker::WriteEvalDofs3d<VDIM, MQ1>(d, 0, e, rarg, YE);
+         // One component at a time, as in load_byVDIM().
+         qreg_t<1> rc;
+         for (int c = 0; c < VDIM; ++c)
+         {
+            // Copy the c-th component of the vector field to the register rc.
+            MFEM_FOREACH_THREAD_BATCHED(qz, z, nz<DIM>(q), BATCH)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qy, y, ny<DIM>(q))
+               {
+                  MFEM_FOREACH_THREAD_DIRECT(qx, x, q)
+                  {
+                     lok::at<DIM>(rc, qx, qy, qz)[0] =
+                        lok::at<DIM>(rarg, qx, qy, qz)[c];
+                  }
+               }
+            }
+
+            // Evaluate the transpose of the basis for the single component and write its dofs.
+            if constexpr (DIM == 1)
+            {
+               ker::EvalTranspose1d(d, q, s.B, rc, s.M[slot()]);
+               ker::WriteEvalDofs1d(d, c, e, rc, YE);
+            }
+            else if constexpr (DIM == 2)
+            {
+               ker::EvalTranspose2d<1, DIM, MQ1>(d, q, s.B, rc, s.M[1], s.M[0]);
+               ker::WriteEvalDofs2d<MQ1>(d, c, e, rc, YE);
+            }
+            else
+            {
+               ker::EvalTranspose3d<1, DIM, MQ1>(d, q, s.B, rc, s.M[1], s.M[0]);
+               ker::WriteEvalDofs3d<MQ1>(d, c, e, rc, YE);
+            }
+         }
       }
    }
 
@@ -628,7 +783,12 @@ struct lo_ker_backend
          static constexpr int SDIM = qf_param_shape<FieldParamT>::extents[0];
          if constexpr (SDIM == DIM)
          {
-            if constexpr (DIM == 2)
+            if constexpr (DIM == 1)
+            {
+               ker::EvalTranspose1d(d, q, s.G, rarg, s.M[slot()]);
+               ker::WriteEvalDofs1d(d, 0, e, rarg, YE);
+            }
+            else if constexpr (DIM == 2)
             {
                ker::GradTranspose2d(d, q, s.B, s.G, rarg, s.M[1], s.M[0]);
                ker::WriteGradDofs2d(d, 0, e, rarg, YE);
@@ -648,7 +808,12 @@ struct lo_ker_backend
          {
             for (int c = 0; c < VDIM; ++c)
             {
-               if constexpr (DIM == 2)
+               if constexpr (DIM == 1)
+               {
+                  ker::VectorGradTranspose1d(d, q, c, s.G, rarg, s.M[slot()]);
+                  ker::WriteGradDofs1d(d, c, e, rarg, YE);
+               }
+               else if constexpr (DIM == 2)
                {
                   ker::VectorGradTranspose2d(
                      d, q, c, s.B, s.G, s.M[0], s.M[1], rarg);
@@ -677,22 +842,29 @@ struct LocalQFLOBackend
    // ─────────────────────────────────────────────────────
    static constexpr int DIM = T_DIM, MQ1 = T_Q1D, Q1D = T_Q1D;
    static constexpr int ZTHREADS = T_ZTHREADS;
-   static_assert(DIM == 2 || DIM == 3);
+   static_assert(DIM >= 1 && DIM <= 3);
    static_assert(ZTHREADS > 0 && ZTHREADS <= Q1D);
 
    // ─────────────────────────────────────────────────────
-   static inline ThreadBlocks thread_blocks(const int q1d)
+   using backend_t = lo_ker_backend<DIM, Q1D, (DIM == 3 && ZTHREADS < Q1D)>;
+
+   // ─────────────────────────────────────────────────────
+   static constexpr int BATCH = backend_t::BATCH;
+
+   // ─────────────────────────────────────────────────────
+   /// Threads of a block over @a batch <= BATCH entities: @a q1d per axis of
+   /// the entity, plus one z thread per entity of a 1D batch.
+   static inline ThreadBlocks thread_blocks(const int q1d, const int batch = 1)
    {
       MFEM_ASSERT(q1d <= Q1D, "q1d must be <= " << Q1D);
-      return { q1d, q1d, (DIM == 2) ? 1 : std::min(q1d, ZTHREADS) };
+      MFEM_ASSERT(batch >= 1 && batch <= BATCH, "batch must be <= " << BATCH);
+      return { q1d, (DIM > 1) ? q1d : 1,
+               (DIM > 2) ? std::min(q1d, ZTHREADS) : batch, batch };
    }
 
    // ─────────────────────────────────────────────────────
    static inline constexpr int MAX_THREADS_PER_BLOCK()
-   { return Q1D * Q1D * ((DIM == 2) ? 1 : ZTHREADS); }
-
-   // ─────────────────────────────────────────────────────
-   using backend_t = lo_ker_backend<DIM, Q1D, (DIM == 3 && ZTHREADS < Q1D)>;
+   { return Q1D * ((DIM > 1) ? Q1D : 1) * ((DIM > 2) ? ZTHREADS : BATCH); }
 
    // ─────────────────────────────────────────────────────
    using Shared = typename backend_t::Shared;
@@ -760,7 +932,7 @@ struct LocalQFLOBackend
          }
          MFEM_SYNC_THREAD;
       }
-      else
+      else if constexpr (DIM == 2)
       {
          // reduce qy → dy : s0[0][dy][qx]
          MFEM_FOREACH_THREAD(dy, y, num_dof_1d)
@@ -786,6 +958,20 @@ struct LocalQFLOBackend
                u += wt(0, qx, dx) * wi(0, qx, dx) * s0[0][dy][qx];
             }
             add_y(dx, dy, 0, u);
+         }
+         MFEM_SYNC_THREAD;
+      }
+      else
+      {
+         // reduce qx → dx : Y(dx,0,0)
+         MFEM_FOREACH_THREAD(dx, x, num_dof_1d)
+         {
+            real_t u = 0.0;
+            for (int qx = 0; qx < q1d; qx++)
+            {
+               u += wt(0, qx, dx) * wi(0, qx, dx) * cache(qx);
+            }
+            add_y(dx, 0, 0, u);
          }
          MFEM_SYNC_THREAD;
       }
@@ -1096,46 +1282,51 @@ DispatchLOKernelByQ1D(int q1d)
 {
    MFEM_VERIFY(q1d >= 2 && q1d <= MQ1,
                "Unsupported LO quadrature order: " << q1d);
-   switch (q1d)
+   // 1D: one point per thread, a single kernel serves every q1d <= MQ1
+   if constexpr (DIM == 1) { return LOKernelTable::template Kernel<1, MQ1>(); }
+   else
    {
-      case 2: return LOKernelTable::template Kernel<DIM, 2>();
-      case 3:
-         if constexpr (MQ1 >= 3)
-         {
-            return LOKernelTable::template Kernel<DIM, 3>();
-         }
-         break;
-      case 4:
-         if constexpr (MQ1 >= 4)
-         {
-            return LOKernelTable::template Kernel<DIM, 4>();
-         }
-         break;
-      case 5:
-         if constexpr (MQ1 >= 5)
-         {
-            return LOKernelTable::template Kernel<DIM, 5>();
-         }
-         break;
-      case 6:
-         if constexpr (MQ1 >= 6)
-         {
-            return LOKernelTable::template Kernel<DIM, 6>();
-         }
-         break;
-      case 7:
-         if constexpr (MQ1 >= 7)
-         {
-            return LOKernelTable::template Kernel<DIM, 7>();
-         }
-         break;
-      case 8:
-         if constexpr (MQ1 >= 8)
-         {
-            return LOKernelTable::template Kernel<DIM, 8>();
-         }
-         break;
-      default: return nullptr;
+      switch (q1d)
+      {
+         case 2: return LOKernelTable::template Kernel<DIM, 2>();
+         case 3:
+            if constexpr (MQ1 >= 3)
+            {
+               return LOKernelTable::template Kernel<DIM, 3>();
+            }
+            break;
+         case 4:
+            if constexpr (MQ1 >= 4)
+            {
+               return LOKernelTable::template Kernel<DIM, 4>();
+            }
+            break;
+         case 5:
+            if constexpr (MQ1 >= 5)
+            {
+               return LOKernelTable::template Kernel<DIM, 5>();
+            }
+            break;
+         case 6:
+            if constexpr (MQ1 >= 6)
+            {
+               return LOKernelTable::template Kernel<DIM, 6>();
+            }
+            break;
+         case 7:
+            if constexpr (MQ1 >= 7)
+            {
+               return LOKernelTable::template Kernel<DIM, 7>();
+            }
+            break;
+         case 8:
+            if constexpr (MQ1 >= 8)
+            {
+               return LOKernelTable::template Kernel<DIM, 8>();
+            }
+            break;
+         default: return nullptr;
+      }
    }
    return nullptr;
 }
@@ -1144,13 +1335,13 @@ DispatchLOKernelByQ1D(int q1d)
 ///
 /// QFDIM is deduced at compile-time from the q-function signature.
 /// If it is not possible to deduce the dimension (QFDIM=0), we fallback
-/// to the original runtime dispatching, which means we emit both 2D and 3D
+/// to the original runtime dispatching, which means we emit the 1D, 2D and 3D
 /// branches.
 template <typename LOKernelTable, int QFDIM, int MQ1 = LocalQFLOBackendMQ1()>
 inline typename LOKernelTable::KernelSignature
 DispatchLOKernelByDim(int dim, int q1d)
 {
-   if constexpr (QFDIM == 2 || QFDIM == 3)
+   if constexpr (QFDIM >= 1 && QFDIM <= 3)
    {
       MFEM_VERIFY(dim == QFDIM,
                   "mesh dimension " << dim << " does not match the " << QFDIM
@@ -1161,6 +1352,10 @@ DispatchLOKernelByDim(int dim, int q1d)
    {
       // Couldn't deduce the dimension from the q-function signature,
       // we fall back to original runtime dispatching.
+      if (dim == 1)
+      {
+         return DispatchLOKernelByQ1D<LOKernelTable, 1, MQ1>(q1d);
+      }
       if (dim == 2)
       {
          return DispatchLOKernelByQ1D<LOKernelTable, 2, MQ1>(q1d);

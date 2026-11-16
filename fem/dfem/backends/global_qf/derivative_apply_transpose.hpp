@@ -23,6 +23,7 @@ namespace mfem::future::GlobalQFImpl
 // nvcc does not allow extended host/device lambdas inside generic lambdas.
 static inline void contract_cache_transpose(const int gnqp_local,
                                             const int num_qp_local,
+                                            const int *d_entities,
                                             const int res_sz,
                                             const int ncols_local,
                                             const int tv_o,
@@ -41,7 +42,7 @@ static inline void contract_cache_transpose(const int gnqp_local,
       // read adjacent addresses for a fixed cache_idx.
       const int cache_base =
          (gq % num_qp_local) +
-         num_qp_local * res_sz * (gq / num_qp_local);
+         num_qp_local * res_sz * d_entities[gq / num_qp_local];
 
       for (int i = 0; i < tv_o; ++i)
       {
@@ -69,41 +70,36 @@ template<
    int derivative_id,
    typename qfunc_t,
    typename inputs_t,
-   typename outputs_t>
+   typename outputs_t,
+   typename entity_t>
 struct DerivativeApplyTranspose
 {
+
    static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
 
    DerivativeApplyTranspose(
-      IntegratorContext ctx,
+      IntegratorContext<entity_t> ctx,
       qfunc_t /*qfunc*/,
       inputs_t inputs,
       outputs_t outputs,
       const Vector &qp_cache):
       ctx(ctx), inputs(std::move(inputs)), outputs(std::move(outputs)),
-      qp_cache(qp_cache), dir_out_l(n_outputs), dir_out_e(n_outputs)
+      qp_cache(qp_cache)
    {
       create_fop_to_fd(this->inputs, ctx.infds, input_to_infd);
       create_fop_to_fd(this->outputs, ctx.outfds, output_to_outfd);
 
-      // The field of each output, repeated when outputs share a field, so the
-      // restriction below gives one E-vector per output.
-      for (size_t o = 0; o < n_outputs; o++)
-      {
-         out_fds.push_back(ctx.outfds[output_to_outfd[o]]);
-      }
-
       check_consistency(this->inputs, input_to_infd, ctx.infds);
       check_consistency(this->outputs, output_to_outfd, ctx.outfds);
 
-      create_fieldbases(
-         this->inputs, input_to_infd, ctx.infds, ctx.ir, input_bases);
-      create_fieldbases(
-         this->outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
+      create_fieldbases<entity_t>(
+         this->inputs, input_to_infd, ctx.infds, ctx, input_bases);
+      create_fieldbases<entity_t>(
+         this->outputs, output_to_outfd, ctx.outfds, ctx, output_bases);
 
       const int nqp = ctx.ir.GetNPoints();
-      const int ne = ctx.nentities;
+      const int ne = ctx.marked_entities.Size();
       num_qp = nqp;
       gnqp = nqp * ne;
 
@@ -160,7 +156,7 @@ struct DerivativeApplyTranspose
       const Vector *direction_l,
       std::vector<Vector *> &ye) const
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
 
       MFEM_ASSERT(direction_l != nullptr,
                   "Global DerivativeApplyTranspose: direction vector is null");
@@ -182,6 +178,8 @@ struct DerivativeApplyTranspose
       const int gnqp_local = gnqp;
       const int num_qp_local = num_qp;
       const int ncols_local = trial_vdim * total_trial_op_dim;
+      // The cache is indexed by entity, see DerivativeSetup.
+      const int *d_entities = ctx.marked_entities.Read();
 
       constexpr_for<0, n_outputs>([&](auto o)
       {
@@ -206,7 +204,7 @@ struct DerivativeApplyTranspose
             const int size_s = get<s>(inputs).size_on_qp;
             real_t *res_s = result_q_local.GetBlock(s.value).ReadWrite();
 
-            contract_cache_transpose(gnqp_local, num_qp_local, res_sz,
+            contract_cache_transpose(gnqp_local, num_qp_local, d_entities, res_sz,
                                      ncols_local, tv_o, to_o, out_base, size_o,
                                      dir_o, c_offset, size_s, cache_ptr, res_s);
             c_offset += size_s;
@@ -225,14 +223,13 @@ struct DerivativeApplyTranspose
    }
 
 private:
-   IntegratorContext ctx;
+   IntegratorContext<entity_t> ctx;
    inputs_t inputs;
    outputs_t outputs;
    const Vector &qp_cache;
 
    std::array<size_t, n_inputs> input_to_infd;
    std::array<size_t, n_outputs> output_to_outfd;
-   std::vector<FieldDescriptor> out_fds;
 
    std::array<FieldBasis, n_inputs> input_bases;
    std::array<FieldBasis, n_outputs> output_bases;
@@ -250,9 +247,8 @@ private:
    // Pre-allocated owning storage for output cotangent temporaries
    mutable std::array<Vector, n_outputs> dir_out_l_owned;
    mutable std::array<Vector, n_outputs> dir_out_e_owned;
-   mutable std::vector<Vector *> dir_out_l;
-   mutable std::vector<Vector *> dir_out_e;
-   mutable RestrictionCache<Entity::Element> out_rcache;
+   mutable std::array<RestrictionCache, n_outputs> out_rcaches =
+      MakeRestrictionCaches<n_outputs>(EntityTraits<entity_t>::restriction);
 
    int residual_size_on_qp = 0;
    int trial_vdim = 0;
@@ -277,18 +273,16 @@ private:
 
          dir_out_l_owned[i] =
             Vector(*const_cast<Vector *>(direction_l), l_offset, l_size);
-         dir_out_e_owned[i].SetSize(0);
          dir_out_e_owned[i].UseDevice(true);
-
-         dir_out_l[i] = &dir_out_l_owned[i];
-         dir_out_e[i] = &dir_out_e_owned[i];
+         // One E-vector per output, also when outputs share a field.
+         restriction(fd, out_rcaches[i], dir_out_l_owned[i],
+                     dir_out_e_owned[i], ElementDofOrdering::LEXICOGRAPHIC);
       });
-
-      restriction(out_fds, out_rcache, dir_out_l, dir_out_e);
 
       constexpr_for<0, n_outputs>([&](auto i)
       {
-         output_bases[i.value].forward(*dir_out_e[i], dir_q.GetBlock(i.value));
+         output_bases[i.value].forward(dir_out_e_owned[i],
+                                       dir_q.GetBlock(i.value));
       });
       dir_q.SyncToBlocks();
    }

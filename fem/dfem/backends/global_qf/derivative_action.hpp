@@ -22,14 +22,16 @@ template<
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t,
+   typename entity_t,
    size_t ninputs = tuple_size<inputs_t>::value,
    size_t noutputs = tuple_size<outputs_t>::value>
 struct DerivativeAction
 {
+
    using qfunc_shadow_t = detail::qfunc_shadow_t<qfunc_t>;
 
    DerivativeAction(
-      IntegratorContext ctx,
+      IntegratorContext<entity_t> ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs):
@@ -43,22 +45,24 @@ struct DerivativeAction
       check_consistency(inputs, input_to_infd, ctx.infds);
       check_consistency(outputs, output_to_outfd, ctx.outfds);
 
-      create_fieldbases(inputs, input_to_infd, ctx.infds, ctx.ir, input_bases);
-      create_fieldbases(
-         outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
+      create_fieldbases<entity_t>(inputs, input_to_infd, ctx.infds, ctx,
+                                  input_bases);
+      create_fieldbases<entity_t>(outputs, output_to_outfd, ctx.outfds, ctx,
+                                  output_bases);
 
       create_qlayouts(inputs, ctx.in_qlayouts, input_qlayouts);
       create_qlayouts(outputs, ctx.out_qlayouts, output_qlayouts);
 
       const int nqp = ctx.ir.GetNPoints();
-      gnqp = nqp * ctx.nentities;
+      gnqp = nqp * ctx.marked_entities.Size();
 
       xq_offsets.SetSize(ninputs + 1);
       xq_offsets[0] = 0;
       constexpr_for<0, ninputs>([&](auto i)
       {
          const auto input = get<i>(inputs);
-         xq_offsets[i + 1] = nqp * input.size_on_qp * ctx.nentities;
+         xq_offsets[i + 1] =
+            nqp * input.size_on_qp * ctx.marked_entities.Size();
       });
       xq_offsets.PartialSum();
 
@@ -67,7 +71,8 @@ struct DerivativeAction
       constexpr_for<0, noutputs>([&](auto i)
       {
          const auto output = get<i>(outputs);
-         yq_offsets[i + 1] = nqp * output.size_on_qp * ctx.nentities;
+         yq_offsets[i + 1] =
+            nqp * output.size_on_qp * ctx.marked_entities.Size();
       });
       yq_offsets.PartialSum();
 
@@ -91,12 +96,8 @@ struct DerivativeAction
       InitBlockVector(xq, xq_offsets);
       InitBlockVector(yq, yq_offsets);
       InitBlockVector(shadow_xq, shadow_xq_offsets);
-
-      constexpr_for<0, noutputs>([&](auto i)
-      {
-         primal_output_storage[i].UseDevice(true);
-         primal_output_storage[i].SetSize(yq.GetBlock(i).Size());
-      });
+      fill_constant_inputs<inputs_t>(input_bases, xq);
+      InitFromBlocks(primal_output_storage, yq);
       buffers_ready = true;
    }
 
@@ -105,11 +106,11 @@ struct DerivativeAction
       const Vector *de,
       std::vector<Vector *> &ye)
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
       InitBuffers();
 
       // E -> Q
-      interpolate(input_to_infd, input_bases, xe, xq);
+      interpolate(input_to_infd, input_bases, xe, xq, interpolated_inputs);
 
       constexpr auto input_active =
          detail::make_activity_map<derivative_id>(inputs_t{});
@@ -167,10 +168,12 @@ struct DerivativeAction
       integrate(output_to_outfd, output_bases, yq, ye);
    }
 
-   IntegratorContext ctx;
+   IntegratorContext<entity_t> ctx;
    qfunc_t qfunc;
    qfunc_shadow_t qfunc_shadow;
    inputs_t inputs;
+   /// The inputs interpolated on every call, the others are constant.
+   static constexpr auto interpolated_inputs = varying_inputs<inputs_t>();
    outputs_t outputs;
 
    std::array<size_t, ninputs> input_to_infd;
@@ -193,7 +196,10 @@ struct DerivativeAction
    FieldDescriptor direction_fd;
    ElementDofOrdering dof_ordering = ElementDofOrdering::LEXICOGRAPHIC;
    mutable Vector direction_e;
-   mutable RestrictionCache<Entity::Element> direction_rcache;
+   mutable RestrictionCache direction_rcache
+   {
+      EntityTraits<entity_t>::restriction
+   };
 };
 
 } // namespace mfem::future::GlobalQFImpl

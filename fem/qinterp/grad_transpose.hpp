@@ -37,19 +37,23 @@ static void DerivativesTranspose1D(const int NE,
                                    const int sdim,
                                    const int vdim,
                                    const int d1d,
-                                   const int q1d)
+                                   const int q1d,
+                                   const Array<int> *elist = nullptr)
 {
+   const int NM = elist ? elist->Size() : NE; // entities processed
+   const int *d_elist = elist ? elist->Read() : nullptr;
    MFEM_CONTRACT_VAR(b_);
    const int SDIM = GRAD_PHYS ? sdim : 1;
    const auto g = Reshape(g_, q1d, d1d);
    const auto j = Reshape(j_, q1d, SDIM, NE);
    const auto q = Q_LAYOUT == QVectorLayout::byNODES ?
-                  Reshape(q_, q1d, vdim, SDIM, NE):
-                  Reshape(q_, vdim, SDIM, q1d, NE);
+                  Reshape(q_, q1d, vdim, SDIM, NM):
+                  Reshape(q_, vdim, SDIM, q1d, NM);
    auto e = Reshape(e_, d1d, vdim, NE);
 
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int el)
+   mfem::forall(NM, [=] MFEM_HOST_DEVICE (int el)
    {
+      const int ex = d_elist ? d_elist[el] : el;
       for (int c = 0; c < vdim; c++)
       {
          for (int d = 0; d < d1d; d++)
@@ -69,17 +73,18 @@ static void DerivativesTranspose1D(const int NE,
                real_t du = dq[0];
                if (GRAD_PHYS)
                {
-                  if (SDIM == 1) { du = dq[0] / j(qx, 0, el); }
+                  if (SDIM == 1) { du = dq[0] / j(qx, 0, ex); }
                   else if (SDIM == 2)
                   {
-                     const real_t Jloc[2] = {j(qx,0,el), j(qx,1,el)};
+                     const real_t Jloc[2] = {j(qx,0,ex), j(qx,1,ex)};
                      real_t Jinv[3];
                      kernels::CalcLeftInverse<2,1>(Jloc, Jinv);
                      du = Jinv[0]*dq[0] + Jinv[1]*dq[1];
                   }
                   else // SDIM == 3
                   {
-                     const real_t Jloc[3] = {j(qx,0,el), j(qx,1,el), j(qx,2,el)};
+                     const real_t Jloc[3] =
+                     {j(qx,0,ex), j(qx,1,ex), j(qx,2,ex)};
                      real_t Jinv[3];
                      kernels::CalcLeftInverse<3,1>(Jloc, Jinv);
                      du = Jinv[0]*dq[0] + Jinv[1]*dq[1] + Jinv[2]*dq[2];
@@ -89,7 +94,7 @@ static void DerivativesTranspose1D(const int NE,
                // Accumulate contribution (transpose of G matrix)
                u += g(qx, d) * du;
             }
-            e(d, c, el) += u;
+            e(d, c, ex) += u;
          }
       }
    });
@@ -107,8 +112,11 @@ static void DerivativesTranspose2D(const int NE,
                                    const int sdim = 2,
                                    const int vdim = 0,
                                    const int d1d = 0,
-                                   const int q1d = 0)
+                                   const int q1d = 0,
+                                   const Array<int> *elist = nullptr)
 {
+   const int NM = elist ? elist->Size() : NE; // entities processed
+   const int *d_elist = elist ? elist->Read() : nullptr;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -119,12 +127,13 @@ static void DerivativesTranspose2D(const int NE,
    const auto g = Reshape(g_, Q1D, D1D);
    const auto j = Reshape(j_, Q1D, Q1D, SDIM, 2, NE);
    const auto q = Q_LAYOUT == QVectorLayout::byNODES ?
-                  Reshape(q_, Q1D, Q1D, VDIM, SDIM, NE):
-                  Reshape(q_, VDIM, SDIM, Q1D, Q1D, NE);
+                  Reshape(q_, Q1D, Q1D, VDIM, SDIM, NM):
+                  Reshape(q_, VDIM, SDIM, Q1D, Q1D, NM);
    auto e = Reshape(e_, D1D, D1D, VDIM, NE);
 
-   mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int el)
+   mfem::forall_2D_batch(NM, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int el)
    {
+      const int ex = d_elist ? d_elist[el] : el;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -168,10 +177,10 @@ static void DerivativesTranspose2D(const int NE,
                   if (SDIM == 2)
                   {
                      real_t Jloc[4], Jinv[4];
-                     Jloc[0] = j(qx,qy,0,0,el);
-                     Jloc[1] = j(qx,qy,1,0,el);
-                     Jloc[2] = j(qx,qy,0,1,el);
-                     Jloc[3] = j(qx,qy,1,1,el);
+                     Jloc[0] = j(qx,qy,0,0,ex);
+                     Jloc[1] = j(qx,qy,1,0,ex);
+                     Jloc[2] = j(qx,qy,0,1,ex);
+                     Jloc[3] = j(qx,qy,1,1,ex);
                      kernels::CalcInverse<2>(Jloc, Jinv);
                      const real_t U = Jinv[0]*dq[0] + Jinv[2]*dq[1];
                      const real_t V = Jinv[1]*dq[0] + Jinv[3]*dq[1];
@@ -181,12 +190,12 @@ static void DerivativesTranspose2D(const int NE,
                   else // SDIM == 3
                   {
                      real_t Jloc[6], Jinv[6];
-                     Jloc[0] = j(qx,qy,0,0,el);
-                     Jloc[1] = j(qx,qy,1,0,el);
-                     Jloc[2] = j(qx,qy,2,0,el);
-                     Jloc[3] = j(qx,qy,0,1,el);
-                     Jloc[4] = j(qx,qy,1,1,el);
-                     Jloc[5] = j(qx,qy,2,1,el);
+                     Jloc[0] = j(qx,qy,0,0,ex);
+                     Jloc[1] = j(qx,qy,1,0,ex);
+                     Jloc[2] = j(qx,qy,2,0,ex);
+                     Jloc[3] = j(qx,qy,0,1,ex);
+                     Jloc[4] = j(qx,qy,1,1,ex);
+                     Jloc[5] = j(qx,qy,2,1,ex);
                      kernels::CalcLeftInverse<3,2>(Jloc, Jinv);
                      const real_t U = Jinv[0]*dq[0] + Jinv[2]*dq[1] + Jinv[4]*dq[2];
                      const real_t V = Jinv[1]*dq[0] + Jinv[3]*dq[1] + Jinv[5]*dq[2];
@@ -236,7 +245,7 @@ static void DerivativesTranspose2D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               e(dx,dy,c,el) += DD(dx,dy);
+               e(dx,dy,c,ex) += DD(dx,dy);
             }
          }
          MFEM_SYNC_THREAD;
@@ -261,10 +270,10 @@ static void DerivativesTranspose2D(const int NE,
                   if (SDIM == 2)
                   {
                      real_t Jloc[4], Jinv[4];
-                     Jloc[0] = j(qx,qy,0,0,el);
-                     Jloc[1] = j(qx,qy,1,0,el);
-                     Jloc[2] = j(qx,qy,0,1,el);
-                     Jloc[3] = j(qx,qy,1,1,el);
+                     Jloc[0] = j(qx,qy,0,0,ex);
+                     Jloc[1] = j(qx,qy,1,0,ex);
+                     Jloc[2] = j(qx,qy,0,1,ex);
+                     Jloc[3] = j(qx,qy,1,1,ex);
                      kernels::CalcInverse<2>(Jloc, Jinv);
                      const real_t U = Jinv[0]*dq[0] + Jinv[2]*dq[1];
                      const real_t V = Jinv[1]*dq[0] + Jinv[3]*dq[1];
@@ -274,12 +283,12 @@ static void DerivativesTranspose2D(const int NE,
                   else // SDIM == 3
                   {
                      real_t Jloc[6], Jinv[6];
-                     Jloc[0] = j(qx,qy,0,0,el);
-                     Jloc[1] = j(qx,qy,1,0,el);
-                     Jloc[2] = j(qx,qy,2,0,el);
-                     Jloc[3] = j(qx,qy,0,1,el);
-                     Jloc[4] = j(qx,qy,1,1,el);
-                     Jloc[5] = j(qx,qy,2,1,el);
+                     Jloc[0] = j(qx,qy,0,0,ex);
+                     Jloc[1] = j(qx,qy,1,0,ex);
+                     Jloc[2] = j(qx,qy,2,0,ex);
+                     Jloc[3] = j(qx,qy,0,1,ex);
+                     Jloc[4] = j(qx,qy,1,1,ex);
+                     Jloc[5] = j(qx,qy,2,1,ex);
                      kernels::CalcLeftInverse<3,2>(Jloc, Jinv);
                      const real_t U = Jinv[0]*dq[0] + Jinv[2]*dq[1] + Jinv[4]*dq[2];
                      const real_t V = Jinv[1]*dq[0] + Jinv[3]*dq[1] + Jinv[5]*dq[2];
@@ -329,7 +338,7 @@ static void DerivativesTranspose2D(const int NE,
          {
             MFEM_FOREACH_THREAD(dx,x,D1D)
             {
-               e(dx,dy,c,el) += DD(dx,dy);
+               e(dx,dy,c,ex) += DD(dx,dy);
             }
          }
          MFEM_SYNC_THREAD;
@@ -348,8 +357,11 @@ static void DerivativesTranspose3D(const int NE,
                                    const int sdim = 3,
                                    const int vdim = 0,
                                    const int d1d = 0,
-                                   const int q1d = 0)
+                                   const int q1d = 0,
+                                   const Array<int> *elist = nullptr)
 {
+   const int NM = elist ? elist->Size() : NE; // entities processed
+   const int *d_elist = elist ? elist->Read() : nullptr;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -358,16 +370,17 @@ static void DerivativesTranspose3D(const int NE,
    const auto g = Reshape(g_, Q1D, D1D);
    const auto j = Reshape(j_, Q1D, Q1D, Q1D, 3, 3, NE);
    const auto q = Q_LAYOUT == QVectorLayout::byNODES ?
-                  Reshape(q_, Q1D, Q1D, Q1D, VDIM, 3, NE):
-                  Reshape(q_, VDIM, 3, Q1D, Q1D, Q1D, NE);
+                  Reshape(q_, Q1D, Q1D, Q1D, VDIM, 3, NM):
+                  Reshape(q_, VDIM, 3, Q1D, Q1D, Q1D, NM);
    auto e = Reshape(e_, D1D, D1D, D1D, VDIM, NE);
 
    if constexpr (Q_LAYOUT == QVectorLayout::byVDIM && !GRAD_PHYS &&
                  T_VDIM == 1 && T_D1D > 0 && T_Q1D > 0 && T_Q1D <= 6)
    {
-      mfem::forall_3D(NE, Q1D, Q1D, Q1D,
+      mfem::forall_3D(NM, Q1D, Q1D, Q1D,
                       [=] MFEM_HOST_DEVICE(int el)
       {
+         const int ex = d_elist ? d_elist[el] : el;
          constexpr int MD1 = T_D1D;
          constexpr int MQ1 = T_Q1D;
 
@@ -446,7 +459,7 @@ static void DerivativesTranspose3D(const int NE,
                      value += G(dx,qx) * QDD0(qx,dy,dz) +
                               b_x * (QDD1(qx,dy,dz) + QDD2(qx,dy,dz));
                   }
-                  e(dx,dy,dz,0,el) += value;
+                  e(dx,dy,dz,0,ex) += value;
                }
             }
          }
@@ -454,8 +467,9 @@ static void DerivativesTranspose3D(const int NE,
       return;
    }
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int el)
+   mfem::forall_3D(NM, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int el)
    {
+      const int ex = d_elist ? d_elist[el] : el;
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -505,7 +519,7 @@ static void DerivativesTranspose3D(const int NE,
                      {
                         for (int row = 0; row < 3; row++)
                         {
-                           Jloc[row+3*col] = j(qx,qy,qz,row,col,el);
+                           Jloc[row+3*col] = j(qx,qy,qz,row,col,ex);
                         }
                      }
                      kernels::CalcInverse<3>(Jloc, Jinv);
@@ -581,7 +595,7 @@ static void DerivativesTranspose3D(const int NE,
             {
                MFEM_FOREACH_THREAD(dx,x,D1D)
                {
-                  e(dx,dy,dz,c,el) += DDD(dx,dy,dz);
+                  e(dx,dy,dz,c,ex) += DDD(dx,dy,dz);
                }
             }
          }
@@ -616,7 +630,7 @@ static void DerivativesTranspose3D(const int NE,
                      {
                         for (int row = 0; row < 3; row++)
                         {
-                           Jloc[row+3*col] = j(qx,qy,qz,row,col,el);
+                           Jloc[row+3*col] = j(qx,qy,qz,row,col,ex);
                         }
                      }
                      kernels::CalcInverse<3>(Jloc, Jinv);
@@ -692,7 +706,7 @@ static void DerivativesTranspose3D(const int NE,
             {
                MFEM_FOREACH_THREAD(dx,x,D1D)
                {
-                  e(dx,dy,dz,c,el) += DDD(dx,dy,dz);
+                  e(dx,dy,dz,c,ex) += DDD(dx,dy,dz);
                }
             }
          }
@@ -727,7 +741,7 @@ static void DerivativesTranspose3D(const int NE,
                      {
                         for (int row = 0; row < 3; row++)
                         {
-                           Jloc[row+3*col] = j(qx,qy,qz,row,col,el);
+                           Jloc[row+3*col] = j(qx,qy,qz,row,col,ex);
                         }
                      }
                      kernels::CalcInverse<3>(Jloc, Jinv);
@@ -803,7 +817,7 @@ static void DerivativesTranspose3D(const int NE,
             {
                MFEM_FOREACH_THREAD(dx,x,D1D)
                {
-                  e(dx,dy,dz,c,el) += DDD(dx,dy,dz);
+                  e(dx,dy,dz,c,ex) += DDD(dx,dy,dz);
                }
             }
          }

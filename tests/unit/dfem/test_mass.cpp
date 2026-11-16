@@ -37,12 +37,10 @@ template <int DIM> struct global_mf_mass_qf
                    tensor_array<const real_t> &w,
                    tensor_array<dscalar_t> &v) const
    {
-      // Enzyme requires extra support to handle:
-      // mfem::forall(u.size(), [=] MFEM_HOST_DEVICE (int q)
-      for (size_t q = 0; q < u.size(); ++q)
+      mfem::forall<UseEnzyme>(u.size(), [=] MFEM_HOST_DEVICE (int q)
       {
          v(q) = (dscalar_t)(u(q)) * w(q) * det(J(q));
-      }
+      });
    }
 };
 
@@ -112,13 +110,10 @@ void mass_action(const char *filename, int p)
 
    ParBilinearForm blf(&pfes);
    // Add two mass integrators as we use both local and global QF backends
-   // If GPU is enabled, we only add the local QF backend
    blf.AddDomainIntegrator(new MassIntegrator(one, ir));
-#ifndef MFEM_USE_CUDA_OR_HIP
    {
       blf.AddDomainIntegrator(new MassIntegrator(one, ir));
    }
-#endif
    blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
    blf.Assemble();
 
@@ -148,13 +143,11 @@ void mass_action(const char *filename, int p)
       dop.AddDomainIntegrator<LocalQFBackend>(
          local_qfn, IT {}, OT {}, *ir, all_domain_attr);
 
-#ifndef MFEM_USE_CUDA_OR_HIP
       {
          global_mf_mass_qf<DIM> global_qfn;
          dop.AddDomainIntegrator<GlobalQFBackend>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr);
       }
-#endif
 
       MultiVector MX{X, N}, MZ{Z};
       dop.Mult(MX, MZ);
@@ -180,13 +173,11 @@ void mass_action(const char *filename, int p)
       dop.AddDomainIntegrator<LocalQFBackend, kernels>(
          local_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
 
-#ifndef MFEM_USE_CUDA_OR_HIP
       {
          global_mf_mass_qf<DIM> global_qfn;
          dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
       }
-#endif
 
       MultiVector MX{X, N}, MZ{Z}, MdZ{dZ};
 
@@ -228,13 +219,11 @@ void mass_action(const char *filename, int p)
       dop.AddDomainIntegrator<LocalQFBackend, kernels>(
          local_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
 
-#ifndef MFEM_USE_CUDA_OR_HIP
       {
          global_mf_mass_qf<DIM> global_qfn;
          dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
             global_qfn, IT {}, OT {}, *ir, all_domain_attr, DT {});
       }
-#endif
 
       pfes.GetRestrictionMatrix()->Mult(x, X);
 
@@ -251,76 +240,6 @@ void mass_action(const char *filename, int p)
       y.SetFromTrueDofs(Y);
       REQUIRE(y.ComputeMaxError(zero) == MFEM_Approx(0.0));
    }
-
-   // Test boundary
-#if 0 // TODO: Boundary tests
-   // This ensures that we're not trying to test on fully periodic meshes
-   if (!((std::string("../../data/periodic-square.mesh").compare(filename) == 0) ||
-         (std::string("../../data/periodic-cube.mesh").compare(filename) == 0)))
-   {
-      constexpr int BDIM = DIM - 1;
-      SECTION("boundary")
-      {
-         Array<int> all_bdr_attr;
-         if (pmesh.bdr_attributes.Size() > 0)
-         {
-            all_bdr_attr.SetSize(pmesh.bdr_attributes.Max());
-            all_bdr_attr = 1;
-         }
-
-         ParBilinearForm blf(&pfes);
-         blf.AddBoundaryIntegrator(new MassIntegrator(one, ir));
-         blf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
-         blf.Assemble();
-         blf.Mult(x, y);
-         pfes.GetProlongationMatrix()->MultTranspose(y, Y);
-
-         static constexpr int U = 0, Coords = 1;
-         const auto in_fds = std::vector<FieldDescriptor> {{ U, &pfes }, { Coords, mfes }};
-         const auto out_fds = std::vector<FieldDescriptor> {{ U, &pfes }};
-         DifferentiableOperator dop(in_fds, out_fds, pmesh);
-         const auto mf_mass_qf =
-            [] MFEM_HOST_DEVICE(const dscalar_t &u,
-                                const tensor<real_t, DIM, BDIM> &J,
-                                const real_t &w,
-                                dscalar_t& v)
-         {
-            v = u * weight(J) * w;
-         };
-
-         auto derivatives = std::integer_sequence<size_t, U> {};
-         constexpr auto kernels = DerivativeKernels::Action;
-         dop.AddBoundaryIntegrator<QFBackend, kernels>(
-            mf_mass_qf,
-            tuple{ Value<U>{}, Gradient<Coords>{}, Weight{} },
-            tuple{ Value<U>{} },
-            *ir, all_bdr_attr, derivatives);
-
-         pfes.GetRestrictionMatrix()->Mult(x, X);
-
-         Vector N;
-         nodes->GetTrueDofs(N);
-         MultiVector MX{X, N}, MZ{Z};
-         dop.Mult(MX, MZ);
-
-         Y -= MZ[0];
-         real_t norm_g, norm_l = Y.Normlinf();
-         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-         REQUIRE(norm_g == MFEM_Approx(0.0));
-
-         nodes->GetTrueDofs(N);
-         auto dRdU = dop.GetDerivative(U, MX);
-         dRdU->Mult(MX[0], MZ);
-
-         pfes.GetProlongationMatrix()->MultTranspose(y, Y);
-         Y -= Z;
-         norm_l = Y.Normlinf();
-         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
-         REQUIRE(norm_g == MFEM_Approx(0.0));
-         MPI_Barrier(MPI_COMM_WORLD);
-      }
-   }
-#endif // TODO: Boundary tests
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -513,6 +432,23 @@ void mass_mat_mixed(const char* filename, int p)
       TestSameMatrices(*Adfem, *Amfem);
       delete Amfem;
       delete Adfem;
+   }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+TEST_CASE("dFEM Mass 1D", "[Parallel][dFEM][GPU]")
+{
+   // p = 9 exceeds the LO tile and runs the HO kernels
+   const auto p = GenAll({1, 9}, {2, 3});
+   const auto meshs = { "../../data/inline-segment.mesh" };
+   const auto extra = { "../../data/periodic-segment.mesh" };
+   SECTION("Scalar Mass")
+   {
+      mass_action<1>(GenAll(meshs, extra), p);
+   }
+   SECTION("Scalar Mass Mixed")
+   {
+      mass_mat_mixed<1>(GenAll(meshs, extra), p);
    }
 }
 

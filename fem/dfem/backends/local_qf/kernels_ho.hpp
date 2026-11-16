@@ -15,6 +15,7 @@ namespace ker = mfem::kernels::internal;
 
 #include "../../util.hpp" // for ThreadBlocks
 #include "util.hpp"
+#include "kernels_lo.hpp" // for the 1D backend
 
 namespace mfem::future
 {
@@ -284,12 +285,12 @@ struct ho_ker_backend
    static_assert(DIM == 2 || DIM == 3);
 
    template<int VDIM>
-   using val_reg_t = std::conditional_t<(DIM == 2),
+   using val_reg_t = pick_byDIM<DIM, void,
          ker::v_regs2d_t<VDIM, MQ1>,
          ker::v_regs3d_t<VDIM, MQ1>>;
 
    template<int VDIM, int SDIM>
-   using del_reg_t = std::conditional_t<(DIM == 2),
+   using del_reg_t = pick_byDIM<DIM, void,
          ker::vd_regs2d_t<VDIM, SDIM, MQ1>,
          ker::vd_regs3d_t<VDIM, SDIM, MQ1>>;
 
@@ -419,9 +420,14 @@ struct LocalQFHOBackend
    static_assert(DIM == 2 || DIM == 3);
 
    // ─────────────────────────────────────────────────────
-   static inline ThreadBlocks thread_blocks(const int q1d)
+   static constexpr int BATCH = 1;
+
+   // ─────────────────────────────────────────────────────
+   static inline ThreadBlocks thread_blocks(const int q1d, const int batch = 1)
    {
       MFEM_ASSERT(q1d <= Q1D, "q1d must be <= " << Q1D);
+      MFEM_ASSERT(batch == 1, "HO blocks hold a single entity");
+      MFEM_CONTRACT_VAR(batch);
       return { q1d, q1d, 1 };
    }
 
@@ -790,6 +796,10 @@ struct LocalQFHOBackend
    }
 };
 
+/// In 1D the LO and HO layouts coincide (one quadrature point per thread).
+template<int Q1D>
+struct LocalQFHOBackend<1, Q1D> : LocalQFLOBackend<1, Q1D> {};
+
 /// @brief Dispatch to a compile-time HO kernel with MQ1 >= runtime @a q1d.
 template <typename HOKernelTable, int DIM, int MQ1 = LocalQFHOBackendMQ1()>
 inline typename HOKernelTable::KernelSignature
@@ -797,18 +807,23 @@ DispatchHOKernelByQ1D(int q1d)
 {
    MFEM_VERIFY(q1d >= 2 && q1d <= MQ1,
                "Unsupported HO quadrature order: " << q1d);
-   if (q1d <= 8) { return HOKernelTable::template Kernel<DIM, 8>(); }
-   if constexpr (MQ1 > 8)
+   // 1D: one point per thread, a single kernel serves every q1d <= MQ1
+   if constexpr (DIM == 1) { return HOKernelTable::template Kernel<1, MQ1>(); }
+   else
    {
-      if (q1d <= 10) { return HOKernelTable::template Kernel<DIM, 10>(); }
-   }
-   if constexpr (MQ1 > 10)
-   {
-      if (q1d <= 12) { return HOKernelTable::template Kernel<DIM, 12>(); }
-   }
-   if constexpr (MQ1 > 12)
-   {
-      return HOKernelTable::template Kernel<DIM, 16>();
+      if (q1d <= 8) { return HOKernelTable::template Kernel<DIM, 8>(); }
+      if constexpr (MQ1 > 8)
+      {
+         if (q1d <= 10) { return HOKernelTable::template Kernel<DIM, 10>(); }
+      }
+      if constexpr (MQ1 > 10)
+      {
+         if (q1d <= 12) { return HOKernelTable::template Kernel<DIM, 12>(); }
+      }
+      if constexpr (MQ1 > 12)
+      {
+         return HOKernelTable::template Kernel<DIM, 16>();
+      }
    }
    return nullptr;
 }
@@ -817,13 +832,13 @@ DispatchHOKernelByQ1D(int q1d)
 ///
 /// QFDIM is deduced at compile-time from the q-function signature.
 /// If it is not possible to deduce the dimension (QFDIM=0), we fallback
-/// to the original runtime dispatching, which means we emit both 2D and 3D
+/// to the original runtime dispatching, which means we emit the 1D, 2D and 3D
 /// branches.
 template <typename HOKernelTable, int QFDIM, int MQ1 = LocalQFHOBackendMQ1()>
 inline typename HOKernelTable::KernelSignature
 DispatchHOKernelByDim(int dim, int q1d)
 {
-   if constexpr (QFDIM == 2 || QFDIM == 3)
+   if constexpr (QFDIM >= 1 && QFDIM <= 3)
    {
       MFEM_VERIFY(dim == QFDIM,
                   "mesh dimension " << dim << " does not match the " << QFDIM
@@ -834,6 +849,10 @@ DispatchHOKernelByDim(int dim, int q1d)
    {
       // Couldn't deduce the dimension from the q-function signature,
       // we fall back to original runtime dispatching.
+      if (dim == 1)
+      {
+         return DispatchHOKernelByQ1D<HOKernelTable, 1, MQ1>(q1d);
+      }
       if (dim == 2)
       {
          return DispatchHOKernelByQ1D<HOKernelTable, 2, MQ1>(q1d);

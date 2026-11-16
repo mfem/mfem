@@ -132,20 +132,31 @@ public:
        evaluation mode: if tensor-product evaluations are enabled, then
        tensor-product elements, must use the ElementDofOrdering::LEXICOGRAPHIC
        layout; otherwise -- ElementDofOrdering::NATIVE layout. See
-       FiniteElementSpace::GetElementRestriction(). */
+       FiniteElementSpace::GetElementRestriction().
+
+       If @a elist is not null, only the elements it lists are interpolated:
+       @a e_vec still holds all the elements of the space, while the
+       quadrature point vectors hold only the listed ones, in the order of
+       @a elist. This is supported for tensor-product evaluations of the
+       VALUES, PHYSICAL_VALUES, DERIVATIVES and PHYSICAL_DERIVATIVES flags. */
    void Mult(const Vector &e_vec, unsigned eval_flags,
-             Vector &q_val, Vector &q_der, Vector &q_det) const;
+             Vector &q_val, Vector &q_der, Vector &q_det,
+             const Array<int> *elist = nullptr) const;
 
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
-   void Values(const Vector &e_vec, Vector &q_val) const;
+   /// See Mult() for @a elist.
+   void Values(const Vector &e_vec, Vector &q_val,
+               const Array<int> *elist = nullptr) const;
 
    /// @brief Interpolate the physical values of the E-vector @a e_vec at
    /// quadrature points.
    void PhysValues(const Vector &e_vec, Vector &q_val) const;
 
    /** @brief Interpolate the derivatives (with respect to reference
-       coordinates) of the E-vector @a e_vec at quadrature points. */
-   void Derivatives(const Vector &e_vec, Vector &q_der) const;
+       coordinates) of the E-vector @a e_vec at quadrature points. See Mult()
+       for @a elist. */
+   void Derivatives(const Vector &e_vec, Vector &q_der,
+                    const Array<int> *elist = nullptr) const;
 
    /** @brief Interpolate the derivatives in physical space of the E-vector
        @a e_vec at quadrature points. */
@@ -156,23 +167,28 @@ public:
    void Determinants(const Vector &e_vec, Vector &q_det) const;
 
    /// Perform the transpose operation of Mult(). (TODO)
+   /// See Mult() for @a elist.
    void AddMultTranspose(unsigned eval_flags, const Vector &q_val,
-                         const Vector &q_der, Vector &e_vec) const;
+                         const Vector &q_der, Vector &e_vec,
+                         const Array<int> *elist = nullptr) const;
 
    /// @brief Returns true if the given finite element space is supported by
    /// QuadratureInterpolator.
    static bool SupportsFESpace(const FiniteElementSpace &fespace);
 
    // value map types
+   // The tensor kernels below take the element list of Mult() as their last
+   // argument; ne is always the number of elements of the E-vector.
    using TensorEvalKernelType = void (*)(const int ne, const real_t *B,
                                          const real_t *e_vec, real_t *q_val,
                                          const int vdim, const int nd,
-                                         const int nq);
+                                         const int nq, const Array<int> *elist);
    using GradKernelType = void (*)(const int ne, const real_t *B,
                                    const real_t *G, const real_t *J,
                                    const real_t *e_vec, real_t *q_der,
                                    const int s_dim, const int v_dim,
-                                   const int nd, const int nq);
+                                   const int nd, const int nq,
+                                   const Array<int> *elist);
    using CollocatedGradKernelType = void (*)(const int ne, const real_t *G,
                                              const real_t *J,
                                              const real_t *e_vec, real_t *q_der,
@@ -194,7 +210,8 @@ public:
                                             const real_t *detJ,
                                             const real_t *e_vec, real_t *q_val,
                                             const int vdim, const int nd,
-                                            const int nq);
+                                            const int nq,
+                                            const Array<int> *elist);
    using IntEvalKernelType =
       void (*)(const int NE, const int vdim, const QVectorLayout q_layout,
                const real_t *detJ, const GeometricFactors *geom,
@@ -206,11 +223,13 @@ public:
               const real_t *, real_t *, const int, const int);
    using TensorEvalTransposeKernelType = void(*)(const int, const real_t *,
                                                  const real_t *,
-                                                 real_t *, const int, const int, const int);
+                                                 real_t *, const int, const int, const int,
+                                                 const Array<int> *);
    using GradTransposeKernelType = void(*)(const int, const real_t *,
                                            const real_t *, const real_t *,
                                            const real_t *, real_t *,
-                                           const int, const int, const int, const int);
+                                           const int, const int, const int, const int,
+                                           const Array<int> *);
 
    // value-type mapping
    MFEM_REGISTER_KERNELS(TensorEvalKernels, TensorEvalKernelType,
