@@ -597,7 +597,7 @@ DerivativeKernelType
 DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeActionLO::Kernel()
 {
-   static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
+   static_assert(DIM >= 1 && DIM <= 3 && Q1D <= 8);
    using derivative_action_t =
       DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return derivative_action_t::template derivative_action_callback<

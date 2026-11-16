@@ -409,7 +409,7 @@ ApplyKernelType
 DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeApplyLO::Kernel()
 {
-   static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
+   static_assert(DIM >= 1 && DIM <= 3 && Q1D <= 8);
    using apply_t =
       DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return apply_t::template derivative_apply_callback<

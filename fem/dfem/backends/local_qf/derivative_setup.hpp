@@ -445,7 +445,7 @@ SetupKernelType
 DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeSetupLO::Kernel()
 {
-   static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
+   static_assert(DIM >= 1 && DIM <= 3 && Q1D <= 8);
    using setup_t =
       DerivativeSetup<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return setup_t::template derivative_setup_callback<

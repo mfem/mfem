@@ -32,8 +32,8 @@ namespace detail
 template<int DIM>
 MFEM_HOST_DEVICE inline int tensor_idx(int x, int y, int z, int N)
 {
-   static_assert(DIM == 2 || DIM == 3);
-   if constexpr (DIM == 2) { assert(z == 0); }
+   static_assert(DIM >= 1 && DIM <= 3);
+   if constexpr (DIM < 3) { assert(z == 0); }
    return x + N * (y + N * z);
 }
 
@@ -47,8 +47,9 @@ trial_basis_weight_value(const DeviceTensor<3, const real_t> &B,
                          const int Jy,
                          const int Jz)
 {
-   static_assert(DIM == 2 || DIM == 3);
-   return B(qx, 0, Jx) * B(qy, 0, Jy) * ((DIM == 3) ? B(qz, 0, Jz) : 1.0);
+   static_assert(DIM >= 1 && DIM <= 3);
+   return B(qx, 0, Jx) * ((DIM > 1) ? B(qy, 0, Jy) : 1.0) *
+          ((DIM > 2) ? B(qz, 0, Jz) : 1.0);
 }
 
 template<int DIM>
@@ -65,7 +66,12 @@ trial_basis_weight_gradient(const DeviceTensor<3, const real_t> &B,
 {
    const auto Gx = G(qx, 0, Jx), Gy = G(qy, 0, Jy);
    const auto Bx = B(qx, 0, Jx), By = B(qy, 0, Jy);
-   if constexpr (DIM == 2)
+   if constexpr (DIM == 1)
+   {
+      MFEM_CONTRACT_VAR(m & qz & Jz);
+      return Gx;
+   }
+   else if constexpr (DIM == 2)
    {
       MFEM_CONTRACT_VAR(qz & Jz);
       return (m == 0) ? Gx * By : Bx * Gy;
@@ -104,7 +110,23 @@ map_quadrature_data_to_fields(DeviceTensor<2, real_t> &y,
       MFEM_CONTRACT_VAR(test_dim);
       const int f_vdim = f_slab ? 1 : vdim;
 
-      if constexpr (DIM == 2)
+      if constexpr (DIM == 1)
+      {
+         const auto fqp = Reshape(&f(0, 0, 0), f_vdim, test_dim, q1d);
+         auto yd = Reshape(&y(0, 0), d1d, vdim);
+         for (int vd = vd_begin; vd < vd_end; vd++)
+         {
+            const int fi = f_slab ? 0 : vd;
+            MFEM_FOREACH_THREAD(dx, x, d1d)
+            {
+               real_t u = 0.0;
+               for (int qx = 0; qx < q1d; qx++) { u += B(qx, 0, dx) * fqp(fi, 0, qx); }
+               yd(dx, vd) += u;
+            }
+            MFEM_SYNC_THREAD;
+         }
+      }
+      else if constexpr (DIM == 2)
       {
          const auto fqp = Reshape(&f(0, 0, 0), f_vdim, test_dim, q1d, q1d);
          auto yd = Reshape(&y(0, 0), d1d, d1d, vdim);
@@ -157,7 +179,23 @@ map_quadrature_data_to_fields(DeviceTensor<2, real_t> &y,
       const int test_dim = output.size_on_qp / vdim;
       const int f_vdim = f_slab ? 1 : vdim;
 
-      if constexpr (DIM == 2)
+      if constexpr (DIM == 1)
+      {
+         const auto fqp = Reshape(&f(0, 0, 0), f_vdim, test_dim, q1d);
+         auto yd = Reshape(&y(0, 0), d1d, vdim);
+         for (int vd = vd_begin; vd < vd_end; vd++)
+         {
+            const int fi = f_slab ? 0 : vd;
+            MFEM_FOREACH_THREAD(dx, x, d1d)
+            {
+               real_t u = 0.0;
+               for (int qx = 0; qx < q1d; qx++) { u += G(qx, 0, dx) * fqp(fi, 0, qx); }
+               yd(dx, vd) += u;
+            }
+            MFEM_SYNC_THREAD;
+         }
+      }
+      else if constexpr (DIM == 2)
       {
          const auto fqp = Reshape(&f(0, 0, 0), f_vdim, test_dim, q1d, q1d);
          auto yd = Reshape(&y(0, 0), d1d, d1d, vdim);
@@ -413,7 +451,7 @@ void assemble_element_mat_sumfact(
 
    for (int Jz = 0; Jz < nz<DIM>(num_trial_dof_1d); Jz++)
    {
-      for (int Jy = 0; Jy < num_trial_dof_1d; Jy++)
+      for (int Jy = 0; Jy < ny<DIM>(num_trial_dof_1d); Jy++)
       {
          for (int Jx = 0; Jx < num_trial_dof_1d; Jx++)
          {
@@ -625,7 +663,8 @@ public:
    {
       const Element::Type etype =
          Element::TypeFromGeometry(ctx_in.mesh.GetTypicalElementGeometry());
-      return (etype == Element::QUADRILATERAL || etype == Element::HEXAHEDRON);
+      return (etype == Element::SEGMENT || etype == Element::QUADRILATERAL ||
+              etype == Element::HEXAHEDRON);
    }()),
    dtqs(
       [&]
@@ -770,10 +809,10 @@ public:
          group_assemblable.end();
       if (!any_assemblable) { return; }
 
-      if (!(use_sum_factorization && (dim == 2 || dim == 3)))
+      if (!(use_sum_factorization && dim >= 1 && dim <= 3))
       {
          MFEM_ABORT("DerivativeAssemble optimized path is implemented "
-                    "for tensor-product 2D/3D elements only");
+                    "for tensor-product elements only");
       }
 
       MFEM_VERIFY(trial_fes != nullptr,
@@ -1014,7 +1053,7 @@ AssembleKernelType
 DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeAssembleHO::Kernel()
 {
-   static_assert(DIM == 2 || DIM == 3);
+   static_assert(DIM >= 1 && DIM <= 3);
    using assemble_t =
       DerivativeAssemble<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return assemble_t::template derivative_assemble_callback<
@@ -1038,7 +1077,13 @@ DerivativeAssembleHO::Fallback(int dim, int q1d)
    // We don't route thru DispatchHOKernelByDim() as for other callbacks
    // since this kernel caps 3D at MQ1 = 8 but leaves 2D on the default.
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
-   if constexpr (QFDIM == 2)
+   if constexpr (QFDIM == 1)
+   {
+      MFEM_VERIFY(dim == 1, "mesh dimension " << dim << " does not match the "
+                  "1D q-function signature this integrator was built from");
+      return DispatchHOKernelByQ1D<DerivativeAssembleHO, 1>(q1d);
+   }
+   else if constexpr (QFDIM == 2)
    {
       MFEM_VERIFY(dim == 2, "mesh dimension " << dim << " does not match the "
                   "2D q-function signature this integrator was built from");
@@ -1052,6 +1097,10 @@ DerivativeAssembleHO::Fallback(int dim, int q1d)
    }
    else
    {
+      if (dim == 1)
+      {
+         return DispatchHOKernelByQ1D<DerivativeAssembleHO, 1>(q1d);
+      }
       if (dim == 2)
       {
          return DispatchHOKernelByQ1D<DerivativeAssembleHO, 2>(q1d);

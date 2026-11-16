@@ -434,7 +434,7 @@ inline typename DerivativeApplyTranspose<derivative_id,
        DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
        DerivativeApplyTransposeLO::Kernel()
 {
-   static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
+   static_assert(DIM >= 1 && DIM <= 3 && Q1D <= 8);
    using transpose_t =
       DerivativeApplyTranspose<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return transpose_t::template derivative_apply_transpose_callback<

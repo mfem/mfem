@@ -91,7 +91,8 @@ public:
    {
       const Element::Type etype =
          Element::TypeFromGeometry(ctx_in.mesh.GetTypicalElementGeometry());
-      return (etype == Element::QUADRILATERAL || etype == Element::HEXAHEDRON);
+      return (etype == Element::SEGMENT || etype == Element::QUADRILATERAL ||
+              etype == Element::HEXAHEDRON);
    }()),
    dtqs(
       [&]
@@ -291,10 +292,10 @@ public:
       if (g < 0 || !group_has_diagonal[g]) { return; }
       if (ctx.marked_entities.Size() == 0) { return; }
 
-      if (!(use_sum_factorization && (dim == 2 || dim == 3)))
+      if (!(use_sum_factorization && dim >= 1 && dim <= 3))
       {
          MFEM_ABORT("DerivativeAssembleDiagonal optimized path is implemented "
-                    "for tensor-product 2D/3D elements only");
+                    "for tensor-product elements only");
       }
       MFEM_VERIFY(group_num_test_dof_1d[g] == num_trial_dof_1d,
                   "DerivativeAssembleDiagonal requires matching tensor dofs");
@@ -385,18 +386,19 @@ public:
 
          // Backend-owned shared scratch for the sum-factorized contraction.
          MFEM_SHARED typename backend_t::Shared s_diag;
+         const int ny_dof = ny<DIM>(num_test_dof_1d);
          const int nz_dof = nz<DIM>(num_test_dof_1d);
 
          for (int vd = 0; vd < test_vdim; vd++)
          {
             auto Y = Reshape(&Ye(vd * num_test_dof, e),
                              num_test_dof_1d,
-                             num_test_dof_1d,
+                             ny_dof,
                              nz_dof);
 
             MFEM_FOREACH_THREAD(dz_t, z, nz_dof)
             {
-               MFEM_FOREACH_THREAD_DIRECT(dy_t, y, num_test_dof_1d)
+               MFEM_FOREACH_THREAD_DIRECT(dy_t, y, ny_dof)
                {
                   MFEM_FOREACH_THREAD_DIRECT(dx_t, x, num_test_dof_1d)
                   { Y(dx_t, dy_t, dz_t) = 0.0; }
@@ -524,7 +526,7 @@ inline typename DerivativeAssembleDiagonal<derivative_id,
        DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
        DerivativeAssembleDiagonalLO::Kernel()
 {
-   static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
+   static_assert(DIM >= 1 && DIM <= 3 && Q1D <= 8);
    using diag_t =
       DerivativeAssembleDiagonal<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return diag_t::template derivative_assemble_diagonal_callback<
