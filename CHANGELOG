@@ -39,6 +39,11 @@ Meshing improvements
   of essential boundaries were not essential, and on serial meshes, those of
   all interior boundaries were.
 
+- Fixed reading Gmsh meshes with curved pyramids (orders 2 to 9) and periodic
+  Gmsh meshes with pyramids: their nodes were copied dof by dof into pyramid
+  elements that have more dofs than Gmsh nodes and no lexicographic ordering,
+  which gave wrong geometry or read past the end of the node list (crashes).
+
 Linear and nonlinear solvers
 ----------------------------
 - Fixed HypreParaSails::SetOperator, which read the communicator of the

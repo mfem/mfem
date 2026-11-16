@@ -508,6 +508,61 @@ static void HOPyramidMapping(int order, int *map)
    }
 }
 
+/// Index of the node (@a i, @a j, @a k), i.e. the point (i/p, j/p, k/p), of the
+/// uniform pyramid lattice of order @a p in the ordering of HOPyramidMapping.
+static int PyramidLatticeIndex(int i, int j, int k, int p)
+{
+   int offset = 0;
+   for (int kk = 0; kk < k; kk++) { offset += (p - kk + 1) * (p - kk + 1); }
+   return offset + j * (p - k + 1) + i;
+}
+
+/// @brief Return the matrix that maps the nodes of a Gmsh pyramid of order
+/// @a p to the dofs of the pyramid element @a fe of the nodal space.
+///
+/// The nodes of the Gmsh pyramid of order @a p are the points of the uniform
+/// pyramid lattice. The pyramid elements of MFEM have no lexicographic
+/// ordering, and the default H1 pyramid (Fuentes) does not have one dof per
+/// lattice point (15 dofs against 14 Gmsh nodes at order 2), so the Gmsh nodes
+/// cannot be copied dof by dof as for the other geometries. Instead, they are
+/// interpolated with the nodal Bergot pyramid of order @a p on closed uniform
+/// points, whose nodes are the lattice points, and the interpolant is
+/// evaluated at the nodes of @a fe.
+///
+/// Entry (i, l) of the returned matrix is the weight of the l-th lattice node,
+/// in the ordering of HOPyramidMapping, in the i-th dof of @a fe.
+static DenseMatrix PyramidNodeInterpolation(const FiniteElement &fe, int p)
+{
+   H1_BergotPyramidElement lagrange(p, BasisType::ClosedUniform);
+   const int nl = lagrange.GetDof();
+   // Lattice index (ordering of HOPyramidMapping) of each Bergot node
+   Array<int> lattice_index(nl);
+   const IntegrationRule &lagrange_nodes = lagrange.GetNodes();
+   for (int l = 0; l < nl; l++)
+   {
+      const IntegrationPoint &ip = lagrange_nodes.IntPoint(l);
+      const int i = static_cast<int>(std::round(ip.x * p));
+      const int j = static_cast<int>(std::round(ip.y * p));
+      const int k = static_cast<int>(std::round(ip.z * p));
+      MFEM_VERIFY(k >= 0 && k <= p && i >= 0 && i <= p - k && j >= 0 &&
+                  j <= p - k && std::abs(ip.x * p - i) < 1e-12 &&
+                  std::abs(ip.y * p - j) < 1e-12 &&
+                  std::abs(ip.z * p - k) < 1e-12,
+                  "Bergot pyramid node " << l << " is not a lattice point");
+      lattice_index[l] = PyramidLatticeIndex(i, j, k, p);
+   }
+   const IntegrationRule &fe_nodes = fe.GetNodes();
+   const int n = fe_nodes.GetNPoints();
+   DenseMatrix interp(n, nl);
+   Vector shape(nl);
+   for (int i = 0; i < n; i++)
+   {
+      lagrange.CalcShape(fe_nodes.IntPoint(i), shape);
+      for (int l = 0; l < nl; l++) { interp(i, lattice_index[l]) = shape(l); }
+   }
+   return interp;
+}
+
 /// Number of nodes in an element of type @a geom with order @a order.
 static int NumNodesInElement(Geometry::Type geom, int order)
 {
@@ -1282,18 +1337,44 @@ public:
          nodes_gf->MakeOwner(fec);
          mesh.SetNodalGridFunction(nodes_gf, true);
          Array<int> vdofs;
+         DenseMatrix pyr_interp; // Gmsh nodes to dofs, for pyramids
          for (int e = 0; e < mesh.NumOfElements; ++e)
          {
             const FiniteElement *fe = fes->GetFE(e);
             auto *nfe = dynamic_cast<const NodalFiniteElement*>(fe);
             MFEM_ASSERT(nfe, "Invalid FE");
-            const Array<int> &lex = nfe->GetLexicographicOrdering();
             fes->GetElementVDofs(e, vdofs);
             const int n = vdofs.Size() / mesh.spaceDim;
+            const vector<int> &el_nodes = ho_el_nodes[mesh.Dim][e];
+            if (fe->GetGeomType() == Geometry::PYRAMID)
+            {
+               // All pyramids share the same element
+               if (pyr_interp.Height() == 0)
+               {
+                  pyr_interp = PyramidNodeInterpolation(*fe, mesh_order);
+               }
+               MFEM_VERIFY(pyr_interp.Height() == n &&
+                           pyr_interp.Width() == int(el_nodes.size()),
+                           "Invalid Gmsh pyramid");
+               for (int i = 0; i < n; ++i)
+               {
+                  for (int d = 0; d < mesh.spaceDim; ++d)
+                  {
+                     real_t x = 0.0;
+                     for (int l = 0; l < pyr_interp.Width(); ++l)
+                     {
+                        x += pyr_interp(i, l) * ho_vertices[el_nodes[l]](d);
+                     }
+                     (*nodes_gf)[vdofs[i + d*n]] = x;
+                  }
+               }
+               continue;
+            }
+            const Array<int> &lex = nfe->GetLexicographicOrdering();
             for (int i = 0; i < n; ++i)
             {
                const int ii = lex.IsEmpty() ? i : lex[i];
-               Vertex v = ho_vertices[ho_el_nodes[mesh.Dim][e][i]];
+               Vertex v = ho_vertices[el_nodes[i]];
                for (int d = 0; d < mesh.spaceDim; ++d)
                {
                   (*nodes_gf)[vdofs[ii + d*n]] = v(d);
