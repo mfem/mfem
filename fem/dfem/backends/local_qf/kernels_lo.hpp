@@ -468,7 +468,8 @@ struct lo_ker_backend
    static constexpr int BATCH = (DIM == 1 && MQ1 < 128) ? 128 / MQ1 : 1;
 
    /// Shared-memory slot of the entity of the calling thread.
-   static MFEM_HOST_DEVICE int slot() { return (DIM == 1) ? MFEM_THREAD_ID(z) : 0; }
+   static MFEM_HOST_DEVICE MFEM_FORCE_INLINE int slot()
+   { return (DIM == 1) ? MFEM_THREAD_ID(z) : 0; }
 
    template<int VDIM>
    using qreg_t = pick_byDIM<DIM,
