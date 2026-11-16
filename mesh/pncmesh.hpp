@@ -46,9 +46,9 @@ namespace mfem
  *  seen by the rest of MFEM as they are skipped when a Mesh is created from
  *  the NCMesh.
  *
- *  The processor that owns a vertex, edge or a face (and in turn its DOFs) is
- *  currently defined to be the one with the lowest rank in the group of
- *  processors that share the entity.
+ *  Edges, faces, and non-hanging vertices use the lowest sharing rank as owner.
+ *  A hanging vertex uses the lowest-ranked owner of a constraining slave
+ *  edge or face containing it.
  *
  *  Vertices, edges and faces that are not owned by this ('MyRank') processor
  *  are ghosts, and are numbered after all real vertices/edges/faces, i.e.,
@@ -153,6 +153,10 @@ public:
 
    using GroupId = short;
    using CommGroup = std::vector<int>;
+
+   /// ID of the group containing only this rank, i.e., groups[SelfGroupId] =
+   /// { MyRank }.
+   static constexpr GroupId SelfGroupId = 0;
 
    /// Return vertex/edge/face ('entity' == 0/1/2, resp.) owner.
    GroupId GetEntityOwnerId(int entity, int index)
@@ -308,7 +312,7 @@ protected: // implementation
    using GroupList = std::vector<CommGroup>;
    using GroupMap = std::map<CommGroup, GroupId>;
 
-   GroupList groups;  // comm group list; NOTE: groups[0] = { MyRank }
+   GroupList groups;  // comm group list; NOTE: groups[SelfGroupId] = {MyRank}
    GroupMap group_id; // search index over groups
 
    // owner rank for each vertex, edge and face (encoded as singleton group)
