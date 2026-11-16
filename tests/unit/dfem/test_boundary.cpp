@@ -118,8 +118,6 @@ template <int DIM, int VDIM> struct global_bdr_vector_mass_qf
 // Boundary integrators of a scalar H1 space, alone and with domain integrators,
 // against the legacy forms.
 
-// TODO: Boundaries of 2D meshes are 1D, which the LocalQF
-// kernels do not support yet, so only 3D meshes are tested.
 template <int DIM>
 void bdr_mass(const char *filename, int p)
 {
@@ -673,17 +671,23 @@ void bdr_mass_spaces(const char *filename, int p)
 // divergence theorem:
 //    ∫_∂Ω (F·n) v ds = ∫_Ω div(F) v + F·∇v dx.
 
-// Field: F(x) = [xy + 1, y - z^2, x + 2z], div(F) = y + 3
+// Field: F(x) = [xy + 1, y - z^2, x + 2z], div(F) = y + 3 in 3D,
+//        F(x) = [xy + 1, 2y - x^2],      div(F) = y + 2 in 2D,
 // used for the MFEM coefficient and by the dFEM qfunctions
 MFEM_HOST_DEVICE inline tensor<real_t, 3> FluxField(const tensor<real_t, 3> &x)
 {
    return {x[0]*x[1] + 1.0, x[1] - x[2]*x[2], x[0] + 2.0*x[2]};
 }
 
-struct global_bdr_flux_qf
+MFEM_HOST_DEVICE inline tensor<real_t, 2> FluxField(const tensor<real_t, 2> &x)
 {
-   void operator()(tensor_array<const real_t, 3> &x,
-                   tensor_array<const real_t, 3, 2> &J,
+   return {x[0]*x[1] + 1.0, 2.0*x[1] - x[0]*x[0]};
+}
+
+template <int DIM> struct global_bdr_flux_qf
+{
+   void operator()(tensor_array<const real_t, DIM> &x,
+                   tensor_array<const real_t, DIM, DIM - 1> &J,
                    tensor_array<const real_t> &w,
                    tensor_array<const real_t> &s,
                    tensor_array<real_t> &v) const
@@ -696,13 +700,14 @@ struct global_bdr_flux_qf
    }
 };
 
+template <int DIM>
 void bdr_normal_flux(const char *filename, int p)
 {
-   CAPTURE(filename, p);
+   CAPTURE(filename, DIM, p);
 
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
-   MFEM_VERIFY(pmesh.Dimension() == 3, "Mesh dimension mismatch");
+   MFEM_VERIFY(pmesh.Dimension() == DIM, "Mesh dimension mismatch");
    smesh.Clear();
 
    int bdr_elements_are_faces =
@@ -718,7 +723,7 @@ void bdr_normal_flux(const char *filename, int p)
    Vector N;
    nodes->GetTrueDofs(N);
 
-   H1_FECollection fec(p, 3);
+   H1_FECollection fec(p, DIM);
    ParFiniteElementSpace pfes(&pmesh, &fec);
 
    // F is quadratic, so both sides are integrated exactly on affine meshes.
@@ -732,11 +737,13 @@ void bdr_normal_flux(const char *filename, int p)
    // Right-hand side of the divergence theorem, with F from FluxField()
    auto f_coef = [](const Vector &x, Vector &f)
    {
-      const auto fx = FluxField({x(0), x(1), x(2)});
-      for (int i = 0; i < 3; i++) { f(i) = fx[i]; }
+      tensor<real_t, DIM> xt;
+      for (int i = 0; i < DIM; i++) { xt[i] = x(i); }
+      const auto fx = FluxField(xt);
+      for (int i = 0; i < DIM; i++) { f(i) = fx[i]; }
    };
-   VectorFunctionCoefficient F_coeff(3, f_coef);
-   FunctionCoefficient divF_coeff([](const Vector &x) { return x(1) + 3.0; });
+   VectorFunctionCoefficient F_coeff(DIM, f_coef);
+   FunctionCoefficient divF_coeff([](const Vector &x) { return x(1) + DIM; });
 
    ParLinearForm b(&pfes);
    b.AddDomainIntegrator(new DomainLFIntegrator(divF_coeff, ir));
@@ -767,8 +774,8 @@ void bdr_normal_flux(const char *filename, int p)
 
    SECTION("LocalQF")
    {
-      auto qf = [] MFEM_HOST_DEVICE(const tensor<real_t, 3> &x,
-                                    const tensor<real_t, 3, 2> &J,
+      auto qf = [] MFEM_HOST_DEVICE(const tensor<real_t, DIM> &x,
+                                    const tensor<real_t, DIM, DIM - 1> &J,
                                     const real_t &w,
                                     const real_t &orient,
                                     real_t &v)
@@ -783,7 +790,7 @@ void bdr_normal_flux(const char *filename, int p)
 
    SECTION("GlobalQF")
    {
-      global_bdr_flux_qf qf;
+      global_bdr_flux_qf<DIM> qf;
       DifferentiableOperator dop(in_fds, out_fds, pmesh);
       dop.AddBoundaryIntegrator<GlobalQFBackend>(
          qf, IT{}, OT{}, *bdr_ir, all_bdr_attr);
@@ -792,12 +799,41 @@ void bdr_normal_flux(const char *filename, int p)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+TEST_CASE("dFEM Boundary Normal 2D", "[Parallel][dFEM][GPU]")
+{
+   const auto p = GenAll({1}, {2, 3});
+   const auto meshs = { "../../data/inline-quad.mesh" };
+   const auto extra = { "../../data/star.mesh" };
+   bdr_normal_flux<2>(GenAll(meshs, extra), p);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Boundary Normal 3D", "[Parallel][dFEM][GPU]")
 {
    const auto p = GenAll({1}, {2, 3});
    const auto meshs = { "../../data/inline-hex.mesh" };
    const auto extra = { "../../data/fichera.mesh" };
-   bdr_normal_flux(GenAll(meshs, extra), p);
+   bdr_normal_flux<3>(GenAll(meshs, extra), p);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+TEST_CASE("dFEM Boundary Mass 2D", "[Parallel][dFEM][GPU]")
+{
+   const auto p = GenAll({1}, {2, 3});
+   const auto meshs = { "../../data/inline-quad.mesh" };
+   const auto extra = { "../../data/star.mesh",
+                        "../../data/star-q3.mesh",
+                        "../../data/rt-2d-q3.mesh",
+                        "../../data/periodic-square.mesh"
+                      };
+   SECTION("Scalar Mass")
+   {
+      bdr_mass<2>(GenAll(meshs, extra), p);
+   }
+   SECTION("Spaces")
+   {
+      bdr_mass_spaces<2>(GenAll(meshs, extra), p);
+   }
 }
 
 // ────────────────────────────────────────────────────────────────────────────

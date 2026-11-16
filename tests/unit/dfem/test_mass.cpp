@@ -447,6 +447,23 @@ void mass_mat_mixed(const char* filename, int p)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+TEST_CASE("dFEM Mass 1D", "[Parallel][dFEM][GPU]")
+{
+   // p = 9 exceeds the LO tile and runs the HO kernels
+   const auto p = GenAll({1, 9}, {2, 3});
+   const auto meshs = { "../../data/inline-segment.mesh" };
+   const auto extra = { "../../data/periodic-segment.mesh" };
+   SECTION("Scalar Mass")
+   {
+      mass_action<1>(GenAll(meshs, extra), p);
+   }
+   SECTION("Scalar Mass Mixed")
+   {
+      mass_mat_mixed<1>(GenAll(meshs, extra), p);
+   }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Mass 2D", "[Parallel][dFEM][GPU]")
 {
    const auto p = GenAll({1}, {2, 3});

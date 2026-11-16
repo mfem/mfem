@@ -193,9 +193,11 @@ void diffusion(const char *filename, int p)
       xtvec.Randomize(1);
       x.SetFromTrueDofs(xtvec);
 
+      // The legacy diffusion has no 1D element assembly
       ParBilinearForm blf_fa(&pfes);
       blf_fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
-      blf_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+      blf_fa.SetAssemblyLevel(DIM > 1 ? AssemblyLevel::FULL :
+                              AssemblyLevel::LEGACY);
       blf_fa.Assemble();
       blf_fa.Finalize();
 
@@ -372,7 +374,8 @@ void diffusion(const char *filename, int p)
          dRdU->AssembleDiagonal(dfem_diagonal);
 
          Vector mfem_diagonal(pfes.GetTrueVSize());
-         blf_fa.AssembleDiagonal(mfem_diagonal);
+         std::unique_ptr<HypreParMatrix> A(blf_fa.ParallelAssemble());
+         A->AssembleDiagonal(mfem_diagonal);
 
          REQUIRE(MaxError(mfem_diagonal, dfem_diagonal, pmesh.GetComm()) ==
                  MFEM_Approx(0.0));
@@ -572,13 +575,15 @@ void diffusion_globalqf(const char *filename, int p)
    xtvec.Randomize(1);
    x.SetFromTrueDofs(xtvec);
 
-   // VectorDiffusionIntegrator has no element assembly, so the vector
-   // reference is assembled LEGACY; both levels give the same SpMat.
+   // VectorDiffusionIntegrator, and DiffusionIntegrator in 1D, have no element
+   // assembly, so these references are assembled LEGACY; both levels give the
+   // same SpMat.
    ParBilinearForm blf_fa(&pfes);
    if constexpr (VDIM == 1)
    {
       blf_fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
-      blf_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+      blf_fa.SetAssemblyLevel(DIM > 1 ? AssemblyLevel::FULL :
+                              AssemblyLevel::LEGACY);
    }
    else
    {
@@ -659,18 +664,27 @@ void diffusion_globalqf(const char *filename, int p)
    {
       Vector dfem_diag(pfes.GetTrueVSize()), mfem_diag(pfes.GetTrueVSize());
       dRdU->AssembleDiagonal(dfem_diag);
-      if constexpr (VDIM == 1) { blf_fa.AssembleDiagonal(mfem_diag); }
-      else
-      {
-         // A LEGACY form has no extension for diagonal in case of vector-valued problems.
-         std::unique_ptr<HypreParMatrix> A(blf_fa.ParallelAssemble());
-         A->AssembleDiagonal(mfem_diag);
-      }
+      // A LEGACY form has no extension for the diagonal
+      std::unique_ptr<HypreParMatrix> A(blf_fa.ParallelAssemble());
+      A->AssembleDiagonal(mfem_diag);
       REQUIRE(MaxError(mfem_diag, dfem_diag, pmesh.GetComm()) ==
               MFEM_Approx(0.0));
    }
 
    MPI_Barrier(MPI_COMM_WORLD);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+TEST_CASE("dFEM Diffusion 1D", "[Parallel][dFEM][GPU]")
+{
+   // p = 9 exceeds the LO tile and runs the HO kernels
+   const auto p = GenAll({1, 9}, {2, 3});
+   const auto meshs = { "../../data/inline-segment.mesh" };
+   const auto extra = { "../../data/periodic-segment.mesh" };
+   SECTION("LocalQF") { diffusion<1>(GenAll(meshs, extra), p); }
+#ifndef MFEM_USE_CUDA_OR_HIP
+   SECTION("GlobalQF") { diffusion_globalqf<1>(GenAll(meshs, extra), p); }
+#endif
 }
 
 // ────────────────────────────────────────────────────────────────────────────
