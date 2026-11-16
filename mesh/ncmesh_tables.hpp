@@ -274,6 +274,28 @@ static constexpr int prism_deref_table[7][6 + 5] =
    { 0, 1, 2, 4, 5, 6, /**/  0, 5, 0, 5, 0 }  // 7 - iso
 };
 
+static constexpr int prism_triangle_edge_deref[3][6 + 5] =
+{
+   {0, 1, 0, 0, 1, 0, /**/ 0, 0, 0, 1, 0},
+   {0, 0, 1, 0, 0, 1, /**/ 0, 0, 0, 1, 1},
+   {0, 0, 1, 0, 0, 1, /**/ 0, 0, 0, 0, 1}
+};
+static constexpr int prism_triangle_center_deref[6 + 5] =
+{ 0, 0, 1, 0, 0, 1, /**/ 0, 0, 0, 1, 2 };
+static constexpr int prism_triangle_center_vertex_local[6] =
+{ 0, 1, 1, 3, 4, 4 };
+static constexpr int prism_triangle_center_face_local[5] =
+{ 0, 1, 2, 2, 2 };
+
+static constexpr int prism_triangle_edge_z_deref[3][6 + 5] =
+{
+   {0, 1, 0, 2, 3, 2, /**/ 0, 2, 0, 1, 0},
+   {0, 0, 1, 2, 2, 3, /**/ 0, 2, 0, 1, 0},
+   {0, 0, 1, 2, 2, 3, /**/ 0, 2, 0, 0, 1}
+};
+static constexpr int prism_triangle_center_z_deref[6 + 5] =
+{ 0, 0, 1, 3, 3, 4, /**/ 0, 3, 0, 1, 2 };
+
 static constexpr int pyramid_deref_table[7][5 + 5] =
 {
    {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 1
@@ -510,10 +532,24 @@ static constexpr NCRefinementPattern hexahedron_patterns[8] =
    {4, hex_deref_table[4]}, {4, hex_deref_table[5]},
    {8, hex_deref_table[6]}
 };
-static constexpr NCRefinementPattern prism_patterns[8] =
+static constexpr NCRefinementPattern prism_patterns[16] =
 {
    {}, {}, {}, {4, prism_deref_table[2]},
-   {2, prism_deref_table[3]}, {}, {}, {8, prism_deref_table[6]}
+   {2, prism_deref_table[3]}, {}, {}, {8, prism_deref_table[6]},
+   {2, prism_triangle_edge_deref[0]},
+   {2, prism_triangle_edge_deref[1]},
+   {2, prism_triangle_edge_deref[2]},
+   {
+      3, prism_triangle_center_deref, nullptr,
+      prism_triangle_center_vertex_local, prism_triangle_center_face_local
+   },
+   {4, prism_triangle_edge_z_deref[0]},
+   {4, prism_triangle_edge_z_deref[1]},
+   {4, prism_triangle_edge_z_deref[2]},
+   {
+      6, prism_triangle_center_z_deref, nullptr,
+      prism_triangle_center_vertex_local, prism_triangle_center_face_local
+   }
 };
 static constexpr NCRefinementPattern pyramid_patterns[8] =
 {

@@ -1650,7 +1650,144 @@ void NCMesh::RefineElement(const Refinement & ref)
       //     +---------+           *--X
       //    0           1
 
-      if (ref_type < 4) // XY refinement (split in 4 wedges)
+      if (ref_type >= Refinement::Prism::TRIANGLE_EDGE_01_2_PRISMS.GetId() &&
+          ref_type <= Refinement::Prism::TRIANGLE_CENTER_Z_6_PRISMS.GetId())
+      {
+         const bool split_z =
+            ref_type >= Refinement::Prism::TRIANGLE_EDGE_01_Z_4_PRISMS.GetId();
+         const int base_type = split_z ? ref_type - 4 : ref_type;
+         const int base_children =
+            base_type == Refinement::Prism::TRIANGLE_CENTER_3_PRISMS.GetId() ?
+            3 : 2;
+         int next_base_child = 0;
+         const auto vertical_midpoint = [&](int bottom, int top)
+         {
+            const int midpoint = GetMidEdgeNode(bottom, top);
+            SetNodeScale(bottom, top, 0.5);
+            return midpoint;
+         };
+         const auto add_wedge_pair = [&](int b0, int b1, int b2,
+                                         int t0, int t1, int t2,
+                                         int side0, int side1, int side2)
+         {
+            const int base_child = next_base_child++;
+            if (!split_z)
+            {
+               child[base_child] = NewWedge(b0, b1, b2, t0, t1, t2, attr,
+                                            fa[0], fa[1], side0, side1, side2);
+               return;
+            }
+            const int m0 = vertical_midpoint(b0, t0);
+            const int m1 = vertical_midpoint(b1, t1);
+            const int m2 = vertical_midpoint(b2, t2);
+            child[base_child] = NewWedge(b0, b1, b2, m0, m1, m2, attr,
+                                         fa[0], -1, side0, side1, side2);
+            child[base_child + base_children] =
+               NewWedge(m0, m1, m2, t0, t1, t2, attr,
+                        -1, fa[1], side0, side1, side2);
+         };
+
+         if (base_type == Refinement::Prism::TRIANGLE_EDGE_01_2_PRISMS.GetId())
+         {
+            const int mid01 = GetMidEdgeNode(no[0], no[1]);
+            const int mid34 = GetMidEdgeNode(no[3], no[4]);
+            SetNodeScale(no[0], no[1], 0.5);
+            SetNodeScale(no[3], no[4], 0.5);
+            add_wedge_pair(no[0], mid01, no[2], no[3], mid34, no[5],
+                           fa[2], -1, fa[4]);
+            add_wedge_pair(mid01, no[1], no[2], mid34, no[4], no[5],
+                           fa[2], fa[3], -1);
+            if (split_z)
+            {
+               const int mid03 = GetMidEdgeNode(no[0], no[3]);
+               const int mid14 = GetMidEdgeNode(no[1], no[4]);
+               const int mid25 = GetMidEdgeNode(no[2], no[5]);
+               SetNodeScale(no[0], no[3], 0.5);
+               SetNodeScale(no[1], no[4], 0.5);
+               SetNodeScale(no[2], no[5], 0.5);
+               CheckIsoFace(no[0], no[1], no[4], no[3], mid01, mid14,
+                            mid34, mid03, GetMidFaceNode(mid01, mid14, mid34, mid03));
+               CheckAnisoFace(no[1], no[2], no[5], no[4], mid14, mid25);
+               CheckAnisoFace(no[2], no[0], no[3], no[5], mid25, mid03);
+            }
+            else { CheckAnisoFace(no[0], no[1], no[4], no[3], mid01, mid34); }
+         }
+         else if (base_type == Refinement::Prism::TRIANGLE_EDGE_02_2_PRISMS.GetId())
+         {
+            const int mid20 = GetMidEdgeNode(no[2], no[0]);
+            const int mid53 = GetMidEdgeNode(no[5], no[3]);
+            SetNodeScale(no[2], no[0], 0.5);
+            SetNodeScale(no[5], no[3], 0.5);
+            add_wedge_pair(no[0], no[1], mid20, no[3], no[4], mid53,
+                           fa[2], -1, fa[4]);
+            add_wedge_pair(mid20, no[1], no[2], mid53, no[4], no[5],
+                           -1, fa[3], fa[4]);
+            if (split_z)
+            {
+               const int mid03 = GetMidEdgeNode(no[0], no[3]);
+               const int mid14 = GetMidEdgeNode(no[1], no[4]);
+               const int mid25 = GetMidEdgeNode(no[2], no[5]);
+               SetNodeScale(no[0], no[3], 0.5);
+               SetNodeScale(no[1], no[4], 0.5);
+               SetNodeScale(no[2], no[5], 0.5);
+               CheckAnisoFace(no[0], no[1], no[4], no[3], mid03, mid14);
+               CheckAnisoFace(no[1], no[2], no[5], no[4], mid14, mid25);
+               CheckIsoFace(no[2], no[0], no[3], no[5], mid20, mid03,
+                            mid53, mid25, GetMidFaceNode(mid20, mid03, mid53, mid25));
+            }
+            else { CheckAnisoFace(no[2], no[0], no[3], no[5], mid20, mid53); }
+         }
+         else if (base_type == Refinement::Prism::TRIANGLE_EDGE_12_2_PRISMS.GetId())
+         {
+            const int mid12 = GetMidEdgeNode(no[1], no[2]);
+            const int mid45 = GetMidEdgeNode(no[4], no[5]);
+            SetNodeScale(no[1], no[2], 0.5);
+            SetNodeScale(no[4], no[5], 0.5);
+            add_wedge_pair(no[0], no[1], mid12, no[3], no[4], mid45,
+                           fa[2], fa[3], -1);
+            add_wedge_pair(no[0], mid12, no[2], no[3], mid45, no[5],
+                           -1, fa[3], fa[4]);
+            if (split_z)
+            {
+               const int mid03 = GetMidEdgeNode(no[0], no[3]);
+               const int mid14 = GetMidEdgeNode(no[1], no[4]);
+               const int mid25 = GetMidEdgeNode(no[2], no[5]);
+               SetNodeScale(no[0], no[3], 0.5);
+               SetNodeScale(no[1], no[4], 0.5);
+               SetNodeScale(no[2], no[5], 0.5);
+               CheckAnisoFace(no[0], no[1], no[4], no[3], mid03, mid14);
+               CheckIsoFace(no[1], no[2], no[5], no[4], mid12, mid25,
+                            mid45, mid14, GetMidFaceNode(mid12, mid25, mid45, mid14));
+               CheckAnisoFace(no[2], no[0], no[3], no[5], mid25, mid03);
+            }
+            else { CheckAnisoFace(no[1], no[2], no[5], no[4], mid12, mid45); }
+         }
+         else
+         {
+            const int center0 = GetTriFaceCenterNode(no[0], no[1], no[2]);
+            const int center1 = GetTriFaceCenterNode(no[3], no[4], no[5]);
+            add_wedge_pair(no[0], no[1], center0, no[3], no[4], center1,
+                           fa[2], -1, -1);
+            add_wedge_pair(no[1], no[2], center0, no[4], no[5], center1,
+                           fa[3], -1, -1);
+            add_wedge_pair(no[2], no[0], center0, no[5], no[3], center1,
+                           fa[4], -1, -1);
+            if (split_z)
+            {
+               const int mid03 = GetMidEdgeNode(no[0], no[3]);
+               const int mid14 = GetMidEdgeNode(no[1], no[4]);
+               const int mid25 = GetMidEdgeNode(no[2], no[5]);
+               SetNodeScale(no[0], no[3], 0.5);
+               SetNodeScale(no[1], no[4], 0.5);
+               SetNodeScale(no[2], no[5], 0.5);
+               CheckAnisoFace(no[0], no[1], no[4], no[3], mid03, mid14);
+               CheckAnisoFace(no[1], no[2], no[5], no[4], mid14, mid25);
+               CheckAnisoFace(no[2], no[0], no[3], no[5], mid25, mid03);
+            }
+         }
+         Iso = false;
+      }
+      else if (ref_type < 4) // XY refinement (split in 4 wedges)
       {
          ref_type = Refinement::XY; // for consistency
 
@@ -5484,6 +5621,7 @@ int NCMesh::GetVertexRootCoord(int elem, RefCoord coord[3]) const
       MFEM_ASSERT(ch < MaxElemChildren, "internal error");
 
       if ((pa.Geom() == Geometry::TRIANGLE && pa.ref_type >= 8) ||
+          (pa.Geom() == Geometry::PRISM && pa.ref_type >= 8) ||
           (pa.Geom() == Geometry::TETRAHEDRON && pa.ref_type >= 8) ||
           (pa.Geom() == Geometry::SQUARE &&
            pa.ref_type >= Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId()))
@@ -5552,6 +5690,7 @@ void NCMesh::CollectIncidentElements(int elem, const RefCoord coord[3],
          GetNCRefinementPattern(el.Geom(), el.ref_type).ChildGeometry(el.Geom(), ch);
       bool inside;
       if ((el.Geom() == Geometry::TRIANGLE && el.ref_type >= 8) ||
+          (el.Geom() == Geometry::PRISM && el.ref_type >= 8) ||
           (el.Geom() == Geometry::TETRAHEDRON && el.ref_type >= 8) ||
           (el.Geom() == Geometry::SQUARE &&
            el.ref_type >= Refinement::Quadrilateral::EDGE_01_3_TRIS.GetId()))
@@ -5888,7 +6027,144 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
       }
       else if (geom == Geometry::PRISM)
       {
-         if (ref_type < 4) // XY split
+         if (ref_type >= Refinement::Prism::TRIANGLE_EDGE_01_2_PRISMS.GetId() &&
+             ref_type <= Refinement::Prism::TRIANGLE_CENTER_Z_6_PRISMS.GetId())
+         {
+            const bool split_z =
+               ref_type >= Refinement::Prism::TRIANGLE_EDGE_01_Z_4_PRISMS.GetId();
+            const int base_type = split_z ? ref_type - 4 : ref_type;
+            if (base_type == Refinement::Prism::TRIANGLE_EDGE_01_2_PRISMS.GetId())
+            {
+               Point mid01(pm(0), pm(1)), mid34(pm(3), pm(4));
+               if (!split_z)
+               {
+                  if (child == 0)
+                  { pm = PointMatrix(pm(0), mid01, pm(2), pm(3), mid34, pm(5)); }
+                  else if (child == 1)
+                  { pm = PointMatrix(mid01, pm(1), pm(2), mid34, pm(4), pm(5)); }
+               }
+               else
+               {
+                  Point mid03(pm(0), pm(3)), mid14(pm(1), pm(4));
+                  Point mid25(pm(2), pm(5)), midbase(mid01, mid34);
+                  if (child == 0)
+                  { pm = PointMatrix(pm(0), mid01, pm(2), mid03, midbase, mid25); }
+                  else if (child == 1)
+                  { pm = PointMatrix(mid01, pm(1), pm(2), midbase, mid14, mid25); }
+                  else if (child == 2)
+                  { pm = PointMatrix(mid03, midbase, mid25, pm(3), mid34, pm(5)); }
+                  else if (child == 3)
+                  { pm = PointMatrix(midbase, mid14, mid25, mid34, pm(4), pm(5)); }
+               }
+            }
+            else if (base_type == Refinement::Prism::TRIANGLE_EDGE_02_2_PRISMS.GetId())
+            {
+               Point mid20(pm(2), pm(0)), mid53(pm(5), pm(3));
+               if (!split_z)
+               {
+                  if (child == 0)
+                  { pm = PointMatrix(pm(0), pm(1), mid20, pm(3), pm(4), mid53); }
+                  else if (child == 1)
+                  { pm = PointMatrix(mid20, pm(1), pm(2), mid53, pm(4), pm(5)); }
+               }
+               else
+               {
+                  Point mid03(pm(0), pm(3)), mid14(pm(1), pm(4));
+                  Point mid25(pm(2), pm(5)), midbase(mid20, mid53);
+                  if (child == 0)
+                  { pm = PointMatrix(pm(0), pm(1), mid20, mid03, mid14, midbase); }
+                  else if (child == 1)
+                  { pm = PointMatrix(mid20, pm(1), pm(2), midbase, mid14, mid25); }
+                  else if (child == 2)
+                  { pm = PointMatrix(mid03, mid14, midbase, pm(3), pm(4), mid53); }
+                  else if (child == 3)
+                  { pm = PointMatrix(midbase, mid14, mid25, mid53, pm(4), pm(5)); }
+               }
+            }
+            else if (base_type == Refinement::Prism::TRIANGLE_EDGE_12_2_PRISMS.GetId())
+            {
+               Point mid12(pm(1), pm(2)), mid45(pm(4), pm(5));
+               if (!split_z)
+               {
+                  if (child == 0)
+                  { pm = PointMatrix(pm(0), pm(1), mid12, pm(3), pm(4), mid45); }
+                  else if (child == 1)
+                  { pm = PointMatrix(pm(0), mid12, pm(2), pm(3), mid45, pm(5)); }
+               }
+               else
+               {
+                  Point mid03(pm(0), pm(3)), mid14(pm(1), pm(4));
+                  Point mid25(pm(2), pm(5)), midbase(mid12, mid45);
+                  if (child == 0)
+                  { pm = PointMatrix(pm(0), pm(1), mid12, mid03, mid14, midbase); }
+                  else if (child == 1)
+                  { pm = PointMatrix(pm(0), mid12, pm(2), mid03, midbase, mid25); }
+                  else if (child == 2)
+                  { pm = PointMatrix(mid03, mid14, midbase, pm(3), pm(4), mid45); }
+                  else if (child == 3)
+                  { pm = PointMatrix(mid03, midbase, mid25, pm(3), mid45, pm(5)); }
+               }
+            }
+            else
+            {
+               Point center0(Point(pm(0), pm(1)), pm(2), 1.0/3.0);
+               Point center1(Point(pm(3), pm(4)), pm(5), 1.0/3.0);
+               if (!split_z)
+               {
+                  if (child == 0)
+                  {
+                     pm = PointMatrix(pm(0), pm(1), center0,
+                                      pm(3), pm(4), center1);
+                  }
+                  else if (child == 1)
+                  {
+                     pm = PointMatrix(pm(1), pm(2), center0,
+                                      pm(4), pm(5), center1);
+                  }
+                  else if (child == 2)
+                  {
+                     pm = PointMatrix(pm(2), pm(0), center0,
+                                      pm(5), pm(3), center1);
+                  }
+               }
+               else
+               {
+                  Point mid03(pm(0), pm(3)), mid14(pm(1), pm(4));
+                  Point mid25(pm(2), pm(5)), midcenter(center0, center1);
+                  if (child == 0)
+                  {
+                     pm = PointMatrix(pm(0), pm(1), center0,
+                                      mid03, mid14, midcenter);
+                  }
+                  else if (child == 1)
+                  {
+                     pm = PointMatrix(pm(1), pm(2), center0,
+                                      mid14, mid25, midcenter);
+                  }
+                  else if (child == 2)
+                  {
+                     pm = PointMatrix(pm(2), pm(0), center0,
+                                      mid25, mid03, midcenter);
+                  }
+                  else if (child == 3)
+                  {
+                     pm = PointMatrix(mid03, mid14, midcenter,
+                                      pm(3), pm(4), center1);
+                  }
+                  else if (child == 4)
+                  {
+                     pm = PointMatrix(mid14, mid25, midcenter,
+                                      pm(4), pm(5), center1);
+                  }
+                  else if (child == 5)
+                  {
+                     pm = PointMatrix(mid25, mid03, midcenter,
+                                      pm(5), pm(3), center1);
+                  }
+               }
+            }
+         }
+         else if (ref_type < 4) // XY split
          {
             Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
             Point mid20(pm(2), pm(0)), mid34(pm(3), pm(4));

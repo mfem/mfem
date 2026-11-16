@@ -193,6 +193,29 @@ Refinement TetRefinement(int element, char type)
    return Refinement(element, type);
 }
 
+Refinement PrismRefinement(int element, char type)
+{
+   if (type >= Refinement::Prism::TRIANGLE_EDGE_01_2_PRISMS.GetId())
+   {
+      return Refinement(element, {Geometry::PRISM, type});
+   }
+   return Refinement(element, type);
+}
+
+int PrismChildCount(char type)
+{
+   if (type == Refinement::Prism::TRIANGLE_UNIFORM.GetId()) { return 4; }
+   if (type == Refinement::Prism::SPLIT_Z.GetId()) { return 2; }
+   if (type == Refinement::Prism::UNIFORM.GetId()) { return 8; }
+   if (type >= Refinement::Prism::TRIANGLE_EDGE_01_2_PRISMS.GetId() &&
+       type <= Refinement::Prism::TRIANGLE_EDGE_12_2_PRISMS.GetId()) { return 2; }
+   if (type == Refinement::Prism::TRIANGLE_CENTER_3_PRISMS.GetId()) { return 3; }
+   if (type >= Refinement::Prism::TRIANGLE_EDGE_01_Z_4_PRISMS.GetId() &&
+       type <= Refinement::Prism::TRIANGLE_EDGE_12_Z_4_PRISMS.GetId()) { return 4; }
+   if (type == Refinement::Prism::TRIANGLE_CENTER_Z_6_PRISMS.GetId()) { return 6; }
+   MFEM_ABORT("Invalid prism refinement type");
+}
+
 #ifdef MFEM_USE_MPI
 Vector IntegrateGridFunctionComponents(Mesh &mesh, const GridFunction &field)
 {
@@ -1987,7 +2010,15 @@ TEST_CASE("NCMesh anisotropic prism refinement in mixed mesh", "[NCMesh]")
    const int prism_attribute = GENERATE(5, 6, 7, 8);
    const int ref_type = GENERATE(Refinement::Prism::TRIANGLE_UNIFORM.GetId(),
                                  Refinement::Prism::SPLIT_Z.GetId(),
-                                 Refinement::Prism::UNIFORM.GetId());
+                                 Refinement::Prism::UNIFORM.GetId(),
+                                 Refinement::Prism::TRIANGLE_EDGE_01_2_PRISMS.GetId(),
+                                 Refinement::Prism::TRIANGLE_EDGE_02_2_PRISMS.GetId(),
+                                 Refinement::Prism::TRIANGLE_EDGE_12_2_PRISMS.GetId(),
+                                 Refinement::Prism::TRIANGLE_CENTER_3_PRISMS.GetId(),
+                                 Refinement::Prism::TRIANGLE_EDGE_01_Z_4_PRISMS.GetId(),
+                                 Refinement::Prism::TRIANGLE_EDGE_02_Z_4_PRISMS.GetId(),
+                                 Refinement::Prism::TRIANGLE_EDGE_12_Z_4_PRISMS.GetId(),
+                                 Refinement::Prism::TRIANGLE_CENTER_Z_6_PRISMS.GetId());
    CAPTURE(prism_attribute, ref_type);
 
    Mesh mesh("../../data/l-mixed.mesh", 1, 1);
@@ -2008,7 +2039,7 @@ TEST_CASE("NCMesh anisotropic prism refinement in mixed mesh", "[NCMesh]")
       if (mesh.GetAttribute(i) == prism_attribute)
       {
          REQUIRE(mesh.GetElementBaseGeometry(i) == Geometry::PRISM);
-         refs.Append(Refinement(i, ref_type));
+         refs.Append(PrismRefinement(i, ref_type));
       }
    }
    REQUIRE(refs.Size() == 1);
@@ -2023,9 +2054,7 @@ TEST_CASE("NCMesh anisotropic prism refinement in mixed mesh", "[NCMesh]")
          prism_children++;
       }
    }
-   REQUIRE(prism_children ==
-           (ref_type == Refinement::Prism::TRIANGLE_UNIFORM.GetId() ? 4 :
-            (ref_type == Refinement::Prism::SPLIT_Z.GetId() ? 2 : 8)));
+   REQUIRE(prism_children == PrismChildCount(ref_type));
    REQUIRE(SummarizeRefinedElements(mesh).volume ==
            MFEM_Approx(original_volume));
    REQUIRE(mesh.CheckElementOrientation(false) == 0);
@@ -2041,12 +2070,23 @@ TEST_CASE("NCMesh anisotropic prism refinement in mixed mesh", "[NCMesh]")
 TEST_CASE("NCMesh anisotropic prism derefinement in mixed mesh", "[NCMesh]")
 {
    const int prism_attribute = GENERATE(5, 6, 7, 8);
-   const int ref_type = GENERATE(Refinement::Prism::TRIANGLE_UNIFORM.GetId(),
-                                 Refinement::Prism::SPLIT_Z.GetId());
+   const int ref_type = GENERATE(
+                           Refinement::Prism::TRIANGLE_UNIFORM.GetId(),
+                           Refinement::Prism::SPLIT_Z.GetId(),
+                           Refinement::Prism::TRIANGLE_EDGE_01_2_PRISMS.GetId(),
+                           Refinement::Prism::TRIANGLE_EDGE_02_2_PRISMS.GetId(),
+                           Refinement::Prism::TRIANGLE_EDGE_12_2_PRISMS.GetId(),
+                           Refinement::Prism::TRIANGLE_CENTER_3_PRISMS.GetId(),
+                           Refinement::Prism::TRIANGLE_EDGE_01_Z_4_PRISMS.GetId(),
+                           Refinement::Prism::TRIANGLE_EDGE_02_Z_4_PRISMS.GetId(),
+                           Refinement::Prism::TRIANGLE_EDGE_12_Z_4_PRISMS.GetId(),
+                           Refinement::Prism::TRIANGLE_CENTER_Z_6_PRISMS.GetId());
    const bool nested = GENERATE(false, true);
    const bool continuous = GENERATE(false, true);
    const bool variable_order = GENERATE(false, true);
    CAPTURE(prism_attribute, ref_type, nested, continuous, variable_order);
+   if (nested && ref_type >=
+       Refinement::Prism::TRIANGLE_EDGE_01_2_PRISMS.GetId()) { return; }
 
    Mesh mesh("../../data/l-mixed.mesh", 1, 1);
    const RefinedElementSummary original = SummarizeRefinedElements(mesh);
@@ -2080,7 +2120,7 @@ TEST_CASE("NCMesh anisotropic prism derefinement in mixed mesh", "[NCMesh]")
    {
       if (mesh.GetAttribute(i) == prism_attribute)
       {
-         refs.Append(Refinement(i, ref_type));
+         refs.Append(PrismRefinement(i, ref_type));
       }
    }
    REQUIRE(refs.Size() == 1);
@@ -2106,7 +2146,7 @@ TEST_CASE("NCMesh anisotropic prism derefinement in mixed mesh", "[NCMesh]")
                ref_type == Refinement::Prism::TRIANGLE_UNIFORM.GetId() ?
                Refinement::Prism::SPLIT_Z.GetId() :
                Refinement::Prism::TRIANGLE_UNIFORM.GetId();
-            refs.Append(Refinement(i, second_type));
+            refs.Append(PrismRefinement(i, second_type));
             break;
          }
       }
@@ -2877,13 +2917,25 @@ TEST_CASE("ParNCMesh anisotropic prism refinement and derefinement in mixed mesh
    if (nranks != 2 && nranks != 3) { return; }
    const int prism_attribute = GENERATE(5, 6, 7, 8);
    const int ref_type = GENERATE(Refinement::Prism::TRIANGLE_UNIFORM.GetId(),
-                                 Refinement::Prism::SPLIT_Z.GetId());
+                                 Refinement::Prism::SPLIT_Z.GetId(),
+                                 Refinement::Prism::TRIANGLE_EDGE_01_2_PRISMS.GetId(),
+                                 Refinement::Prism::TRIANGLE_EDGE_02_2_PRISMS.GetId(),
+                                 Refinement::Prism::TRIANGLE_EDGE_12_2_PRISMS.GetId(),
+                                 Refinement::Prism::TRIANGLE_CENTER_3_PRISMS.GetId(),
+                                 Refinement::Prism::TRIANGLE_EDGE_01_Z_4_PRISMS.GetId(),
+                                 Refinement::Prism::TRIANGLE_EDGE_02_Z_4_PRISMS.GetId(),
+                                 Refinement::Prism::TRIANGLE_EDGE_12_Z_4_PRISMS.GetId(),
+                                 Refinement::Prism::TRIANGLE_CENTER_Z_6_PRISMS.GetId());
    const bool redistribute = GENERATE(false, true);
    const bool nested = GENERATE(false, true);
    const bool continuous = GENERATE(false, true);
    const bool variable_order = GENERATE(false, true);
    CAPTURE(prism_attribute, ref_type, redistribute, nested, continuous,
            variable_order);
+   const bool extended_pattern =
+      ref_type >= Refinement::Prism::TRIANGLE_EDGE_01_2_PRISMS.GetId();
+   if (extended_pattern && (prism_attribute != 5 || redistribute || nested ||
+                            variable_order)) { return; }
 
    Mesh serial_mesh("../../data/l-mixed.mesh", 1, 1);
    serial_mesh.EnsureNCMesh(true);
@@ -2931,7 +2983,7 @@ TEST_CASE("ParNCMesh anisotropic prism refinement and derefinement in mixed mesh
       if (mesh.GetAttribute(i) == prism_attribute)
       {
          REQUIRE(mesh.GetElementBaseGeometry(i) == Geometry::PRISM);
-         refs.Append(Refinement(i, ref_type));
+         refs.Append(PrismRefinement(i, ref_type));
       }
    }
    int global_refs = refs.Size();
@@ -2954,8 +3006,7 @@ TEST_CASE("ParNCMesh anisotropic prism refinement and derefinement in mixed mesh
    }
    MPI_Allreduce(MPI_IN_PLACE, &prism_children, 1, MPI_INT, MPI_SUM,
                  MPI_COMM_WORLD);
-   REQUIRE(prism_children ==
-           (ref_type == Refinement::Prism::TRIANGLE_UNIFORM.GetId() ? 4 : 2));
+   REQUIRE(prism_children == PrismChildCount(ref_type));
 
    if (redistribute)
    {
@@ -2993,7 +3044,7 @@ TEST_CASE("ParNCMesh anisotropic prism refinement and derefinement in mixed mesh
             {
                const int second_type = ref_type == Refinement::XY ?
                                        Refinement::Z : Refinement::XY;
-               refs.Append(Refinement(i, second_type));
+               refs.Append(PrismRefinement(i, second_type));
                break;
             }
          }

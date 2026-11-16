@@ -162,6 +162,14 @@ struct Refinement
       static constexpr Pattern TRIANGLE_UNIFORM { Geometry::PRISM, XY };
       static constexpr Pattern SPLIT_Z { Geometry::PRISM, Z };
       static constexpr Pattern UNIFORM { Geometry::PRISM, XYZ };
+      static constexpr Pattern TRIANGLE_EDGE_01_2_PRISMS { Geometry::PRISM, 8 };
+      static constexpr Pattern TRIANGLE_EDGE_02_2_PRISMS { Geometry::PRISM, 9 };
+      static constexpr Pattern TRIANGLE_EDGE_12_2_PRISMS { Geometry::PRISM, 10 };
+      static constexpr Pattern TRIANGLE_CENTER_3_PRISMS { Geometry::PRISM, 11 };
+      static constexpr Pattern TRIANGLE_EDGE_01_Z_4_PRISMS { Geometry::PRISM, 12 };
+      static constexpr Pattern TRIANGLE_EDGE_02_Z_4_PRISMS { Geometry::PRISM, 13 };
+      static constexpr Pattern TRIANGLE_EDGE_12_Z_4_PRISMS { Geometry::PRISM, 14 };
+      static constexpr Pattern TRIANGLE_CENTER_Z_6_PRISMS { Geometry::PRISM, 15 };
    };
 
    /** Existing pyramid refinement pattern. */
