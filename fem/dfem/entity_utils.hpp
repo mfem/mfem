@@ -115,7 +115,7 @@ struct EntityTraits<Entity::BoundaryElement>
    /// The signs of Orientations() at the points of @a ir, see
    /// DifferentiableOperator::GetBoundaryOrientation().
    static std::pair<VectorQuadratureSpace, std::unique_ptr<QuadratureFunction>>
-   Orientations(Mesh &mesh, const IntegrationRule &ir)
+                                                                             Orientations(Mesh &mesh, const IntegrationRule &ir)
    {
       auto owned_qs = std::make_unique<FaceQuadratureSpace>(
                          mesh, ir, restriction.face_type);

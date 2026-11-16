@@ -44,7 +44,7 @@ struct IntegratorContext
    ///<--- Quadrature layouts
    std::unordered_map<std::type_index, std::vector<int>> &in_qlayouts;
    std::unordered_map<std::type_index, std::vector<int>> &out_qlayouts;
-   
+
    ///<--- Orientation
    /// Orientation sign of each entity, set when an input requests Orientation.
    const Vector *orientation = nullptr;

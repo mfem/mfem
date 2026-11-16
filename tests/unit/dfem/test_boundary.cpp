@@ -525,7 +525,7 @@ void bdr_mass(const char *filename, int p)
 
 // ────────────────────────────────────────────────────────────────────────────
 // Boundary mass of an L2 space and of a vector H1 space, against
-// the legacy assembly. 
+// the legacy assembly.
 template <int DIM>
 void bdr_mass_spaces(const char *filename, int p)
 {

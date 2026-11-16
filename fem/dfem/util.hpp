@@ -754,7 +754,7 @@ struct tuple_has_fop;
 
 template <template <typename> class trait, typename... fops>
 struct tuple_has_fop<trait, tuple<fops...>>
-   : std::bool_constant<(trait<std::decay_t<fops>>::value || ...)> {};
+                                         : std::bool_constant<(trait<std::decay_t<fops>>::value || ...)> {};
 
 // Convenience wrapper to encode Derivatives as integer sequence
 template <size_t... FieldIds>

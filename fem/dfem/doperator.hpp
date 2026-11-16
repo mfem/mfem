@@ -1362,7 +1362,7 @@ public:
    /// @note Both returned objects clean up automatically. Declare them before
    /// the operator so that they outlive it, as for any other input field.
    static std::pair<VectorQuadratureSpace, std::unique_ptr<QuadratureFunction>>
-   GetBoundaryOrientation(Mesh &mesh, const IntegrationRule &ir)
+                                                                             GetBoundaryOrientation(Mesh &mesh, const IntegrationRule &ir)
    {
       return EntityTraits<Entity::BoundaryElement>::Orientations(mesh, ir);
    }
@@ -1857,7 +1857,7 @@ void DifferentiableOperator::AddIntegrator(
    // applied to. The list is stored with the integrators of the type, since
    // the contexts below only refer to it.
    Array<int> &entities = *integrators.marked_entities.emplace_back(
-       std::make_unique<Array<int>>());
+                             std::make_unique<Array<int>>());
    AttrToElementList<entity_t>(mesh, attributes, entities);
 
    // Computed once per entity type, then shared by its integrators.

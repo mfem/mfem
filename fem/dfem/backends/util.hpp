@@ -175,9 +175,9 @@ inline FieldBasis FromFaceQI(const FaceQuadratureInterpolator *qi,
    };
 }
 
-// VectorQuadratureSpace identity copy. 
+// VectorQuadratureSpace identity copy.
 // The field is already quadrature point, so with no entity restriction is
-// just aliased. If a list is provided, only the listed entities are copied 
+// just aliased. If a list is provided, only the listed entities are copied
 // to the compact Q-vector.
 inline FieldBasis FromQS(const Array<int> *entities)
 {
@@ -206,8 +206,8 @@ inline FieldBasis FromQS(const Array<int> *entities)
 }
 
 // User-defined parameter space B, mapping the E-vector to the Q-vector of
-// all entities. 
-// B has no entity list, so with a list it is applied to all entities 
+// all entities.
+// B has no entity list, so with a list it is applied to all entities
 // into a temporary, and then copied to the compact Q-vector.
 inline FieldBasis FromPS(const Operator *B, const Operator *Bt,
                          const Array<int> *entities)

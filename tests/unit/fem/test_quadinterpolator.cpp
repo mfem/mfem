@@ -814,7 +814,7 @@ TEST_CASE("QuadratureInterpolator entity list",
                                der ? u : q, der ? q : u, y, list);
       }
    };
-   
+
    auto max_diff = [](const Vector &a, const Vector &b)
    {
       Vector d(a);
