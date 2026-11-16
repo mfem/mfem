@@ -274,33 +274,23 @@ public:
       Geometry::Type geometry, const CutDomain &domain, int order,
       const IntegrationRule *fixed_points = nullptr) const = 0;
 
-   /** Generate the rule and classify the domain as empty, full, or cut.
+   /** Generate the reference rule and region directly in @a out.
 
        This method validates its inputs independently of CheckSupport.
        Nonzero-weight nodes must lie in the domain closure; surface nodes must
        lie on the interface, and weights may be signed. A prescribed point
        layout keeps its coordinates and order, using zero weights for an empty
-       domain. On failure the rule is cleared and the region is Unknown. */
+       domain. On failure @a out is cleared. */
    virtual CutQuadratureReport Generate(
       Geometry::Type geometry, const CutDomain &domain, int order,
-      IntegrationRule &rule, CutQuadrature::Region &region,
+      CutQuadrature &out,
       const IntegrationRule *fixed_points = nullptr) const = 0;
 };
 
-/** Construct a compiled-in backend with its default configuration.
-    Returns nullptr for an unknown or unavailable backend. Concrete backend
-    constructors provide algorithm-specific configuration.
-
-    Polynomial ALGOIM simplifies same-degree constraints with exactly equal or
-    opposite normalized Bernstein coefficients. Remaining nearly proportional
-    constraints at coefficient-roundoff scale return NumericalFailure. Degree
-    elevation and normalization are used only for this diagnostic; constraints
-    are never merged using a tolerance. */
+/// Construct a compiled-in backend by name.
+/// Returns nullptr if the name is unknown or the backend is unavailable.
 std::unique_ptr<CutQuadratureBackend> CreateCutQuadratureBackend(
    const std::string &name);
-
-/** Names such as "algoim" and "moment-fitting" available in this build. */
-std::vector<std::string> GetCutQuadratureBackends();
 
 /** With measure ratio mu and volume factor volume = Tr.Weight():
 

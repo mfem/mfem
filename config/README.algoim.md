@@ -38,14 +38,14 @@ the general-only build's independence from LAPACK/LAPACKE.
 
 | Factory name | Behavior |
 | --- | --- |
-| `algoim` | Prefer polynomial quadrature for polynomial inputs when LAPACKE is enabled; otherwise use general quadrature |
+| `algoim-auto` | Prefer polynomial quadrature for polynomial inputs when LAPACKE is enabled; otherwise use general quadrature |
 | `algoim-general` | Force general implicit-domain quadrature |
 | `algoim-polynomial` | Force polynomial quadrature; available only with LAPACKE |
 
 Selection considers active constraints, not unused entries in the level-set
 array. Numerical failures never trigger an algorithm switch. Analytic functions
 are not implicitly approximated by polynomials. The factory returns null for an
-unavailable name; `GetCutQuadratureBackends()` lists compiled choices.
+unavailable name.
 
 ## Inputs and domains
 
@@ -144,7 +144,7 @@ A new moment backend remains future work.
 ## Examples and validation
 
 `ex38` integrates a circle/sphere. `lsf_integral` and distributed `lsf_integralp`
-accept `-cq algoim`, `-cq algoim-general`, or `-cq algoim-polynomial`.
+accept `-cq algoim-auto`, `-cq algoim-general`, or `-cq algoim-polynomial`.
 Use `-ls 2` for a unit-box plane (volume 0.37, surface measure 1) or `-ls 3` for
 intersection of two positive half-spaces (volume 0.42; LAPACKE required).
 Use `-n 1` with four MPI ranks to exercise empty partitions.

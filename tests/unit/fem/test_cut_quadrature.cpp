@@ -30,11 +30,13 @@ public:
                                    const IntegrationRule *) const override
    { return {}; }
    CutQuadratureReport Generate(Geometry::Type, const CutDomain &, int,
-                               IntegrationRule &output, CutQuadrature::Region &region,
+                               CutQuadrature &output,
                                const IntegrationRule *) const override
    {
-      output = rule;
-      region = CutQuadrature::Region::Cut;
+      output.Clear();
+      if (status != CutQuadratureStatus::Success) { return {status, "test"}; }
+      output.rule = rule;
+      output.region = CutQuadrature::Region::Cut;
       return {status, "test"};
    }
 };
@@ -560,7 +562,7 @@ TEST_CASE("Cut mapping remains stable on sheared and embedded elements", "[CutQu
 #ifdef MFEM_USE_ALGOIM
 TEST_CASE("ALGOIM cut phases and planes on tensor cells", "[CutQuadrature]")
 {
-   auto backend = CreateCutQuadratureBackend("algoim");
+   auto backend = CreateCutQuadratureBackend("algoim-auto");
    REQUIRE(backend != nullptr);
    CutQuadratureGenerator generator(*backend);
    for (int dimension : {2, 3})
@@ -603,7 +605,7 @@ TEST_CASE("ALGOIM cut phases and planes on tensor cells", "[CutQuadrature]")
 
 TEST_CASE("ALGOIM classifies constants and rejects unsupported requests", "[CutQuadrature]")
 {
-   auto backend = CreateCutQuadratureBackend("algoim");
+   auto backend = CreateCutQuadratureBackend("algoim-auto");
    CutQuadratureGenerator generator(*backend);
    L2_FECollection collection(0, 2);
    const auto &element = *collection.FiniteElementForGeometry(Geometry::SQUARE);
@@ -723,7 +725,7 @@ TEST_CASE("General ALGOIM integrates interval-capable analytic functions", "[Cut
    AlgoimFunctionLevelSet<2, SineLevelSet> level_set(SineLevelSet{});
    const auto saved = algoim::Interval<2>::delta();
    algoim::Interval<2>::delta() = 0.123;
-   for (const char *name : {"algoim-general", "algoim"})
+   for (const char *name : {"algoim-general", "algoim-auto"})
    {
       auto backend = CreateCutQuadratureBackend(name);
       REQUIRE(backend != nullptr);
@@ -773,7 +775,7 @@ TEST_CASE("General ALGOIM integrates interval-capable analytic functions", "[Cut
 
 TEST_CASE("ALGOIM dispatch depends on configured capabilities and active inputs", "[CutQuadrature]")
 {
-   auto automatic = CreateCutQuadratureBackend("algoim");
+   auto automatic = CreateCutQuadratureBackend("algoim-auto");
    auto general = CreateCutQuadratureBackend("algoim-general");
    auto polynomial = CreateCutQuadratureBackend("algoim-polynomial");
    L2_FECollection collection(2, 2);
@@ -861,7 +863,7 @@ TEST_CASE("Polynomial ALGOIM simplifies equivalent sign constraints", "[CutQuadr
       PolynomialLevelSet first, second;
       REQUIRE(first.Project(coefficient, identity, element).Succeeded());
       const real_t expected = dimension == 2 ? 0.405 : 0.1215;
-      for (const char *name : {"algoim", "algoim-polynomial"})
+      for (const char *name : {"algoim-auto", "algoim-polynomial"})
       {
          auto backend = CreateCutQuadratureBackend(name);
          CutQuadratureGenerator generator(*backend);
@@ -968,7 +970,7 @@ TEST_CASE("Polynomial ALGOIM rejects unresolved nearly proportional constraints"
          Vector scaled(original);
          scaled *= factor;
          REQUIRE(second.Set(second.GetFE(), scaled).Succeeded());
-         for (const char *name : {"algoim", "algoim-polynomial"})
+         for (const char *name : {"algoim-auto", "algoim-polynomial"})
          {
             auto backend = CreateCutQuadratureBackend(name);
             CutQuadratureGenerator generator(*backend);
@@ -989,13 +991,14 @@ TEST_CASE("Polynomial ALGOIM rejects unresolved nearly proportional constraints"
                REQUIRE(output.GetNPoints() == 0);
                REQUIRE(output.rule.GetOrder() == -1);
                REQUIRE(output.conormals.SizeK() == 0);
-               IntegrationRule rule(1);
-               CutQuadrature::Region region = CutQuadrature::Region::Full;
-               report = backend->Generate(geometry, domain, 8, rule, region);
+               CutQuadrature direct;
+               direct.rule.SetSize(1);
+               direct.region = CutQuadrature::Region::Full;
+               report = backend->Generate(geometry, domain, 8, direct);
                REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
-               REQUIRE(region == CutQuadrature::Region::Unknown);
-               REQUIRE(rule.GetNPoints() == 0);
-               REQUIRE(rule.GetOrder() == -1);
+               REQUIRE(direct.region == CutQuadrature::Region::Unknown);
+               REQUIRE(direct.GetNPoints() == 0);
+               REQUIRE(direct.rule.GetOrder() == -1);
             }
          }
       }
@@ -1019,7 +1022,7 @@ TEST_CASE("Polynomial ALGOIM partitions two level sets and preserves moments", "
       REQUIRE(second.Project(second_coefficient, identity,
                              *second_collection.FiniteElementForGeometry(geometry)).Succeeded());
       REQUIRE(third.Set(second.GetFE(), second.GetDofs()).Succeeded());
-      for (const char *name : {"algoim", "algoim-polynomial"})
+      for (const char *name : {"algoim-auto", "algoim-polynomial"})
       {
          auto backend = CreateCutQuadratureBackend(name);
          CutQuadratureGenerator generator(*backend);
@@ -1145,7 +1148,6 @@ TEST_CASE("Polynomial ALGOIM intersects genuinely three-dimensional cuts", "[Cut
 #else
 TEST_CASE("Disabled cut backend remains discoverable as unavailable", "[CutQuadrature]")
 {
-   REQUIRE(CreateCutQuadratureBackend("algoim") == nullptr);
-   REQUIRE(GetCutQuadratureBackends().empty());
+   REQUIRE(CreateCutQuadratureBackend("algoim-auto") == nullptr);
 }
 #endif

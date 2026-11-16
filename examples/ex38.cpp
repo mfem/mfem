@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
-   auto backend = CreateCutQuadratureBackend("algoim");
+   auto backend = CreateCutQuadratureBackend("algoim-auto");
    if (!backend)
    {
       cerr << "Example 38 requires MFEM_USE_ALGOIM.\n";

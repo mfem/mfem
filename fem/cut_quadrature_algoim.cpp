@@ -585,7 +585,8 @@ public:
    std::string Name() const override
    {
       return algorithm == Algorithm::General ? "algoim-general" :
-             (algorithm == Algorithm::Polynomial ? "algoim-polynomial" : "algoim");
+             (algorithm == Algorithm::Polynomial ? "algoim-polynomial" :
+              "algoim-auto");
    }
 
    CutQuadratureReport CheckSupport(
@@ -632,10 +633,12 @@ public:
 
    CutQuadratureReport Generate(
       Geometry::Type geometry, const CutDomain &domain, int order,
-      IntegrationRule &rule, CutQuadrature::Region &region,
+      CutQuadrature &out,
       const IntegrationRule *fixed_points) const override
    {
-      rule.SetSize(0); rule.SetOrder(-1); region = Region::Unknown;
+      out.Clear();
+      IntegrationRule &rule = out.rule;
+      Region &region = out.region;
       auto report = CheckSupport(geometry, domain, order, fixed_points);
       if (!report.Succeeded()) { return report; }
       try
@@ -665,7 +668,7 @@ public:
          }
       }
       if (!report.Succeeded())
-      { rule.SetSize(0); rule.SetOrder(-1); region = Region::Unknown; }
+      { out.Clear(); }
       else
       {
          rule.SetOrder(order);
@@ -700,24 +703,24 @@ private:
 std::unique_ptr<CutQuadratureBackend> CreateCutQuadratureBackend(
    const std::string &name)
 {
-   if (name == "algoim")
-   { return std::unique_ptr<CutQuadratureBackend>(new AlgoimBackend(Algorithm::Automatic)); }
+   if (name == "algoim-auto")
+   {
+      return std::unique_ptr<CutQuadratureBackend>
+         (new AlgoimBackend(Algorithm::Automatic));
+   }
    if (name == "algoim-general")
-   { return std::unique_ptr<CutQuadratureBackend>(new AlgoimBackend(Algorithm::General)); }
+   {
+      return std::unique_ptr<CutQuadratureBackend>
+         (new AlgoimBackend(Algorithm::General)); }
 #ifdef MFEM_USE_LAPACKE
    if (name == "algoim-polynomial")
-   { return std::unique_ptr<CutQuadratureBackend>(new AlgoimBackend(Algorithm::Polynomial)); }
+   {
+      return std::unique_ptr<CutQuadratureBackend>
+         (new AlgoimBackend(Algorithm::Polynomial));
+   }
 #endif
    return nullptr;
 }
 
-std::vector<std::string> GetCutQuadratureBackends()
-{
-   std::vector<std::string> result = {"algoim", "algoim-general"};
-#ifdef MFEM_USE_LAPACKE
-   result.push_back("algoim-polynomial");
-#endif
-   return result;
-}
 }
 #endif

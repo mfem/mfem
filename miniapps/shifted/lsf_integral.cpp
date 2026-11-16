@@ -27,13 +27,13 @@ int main(int argc, char *argv[])
    ranks = Mpi::WorldSize();
 #endif
    const char *mesh_file = "";
-   const char *algorithm = "algoim";
+   const char *algorithm = "algoim-auto";
    int dimension = 2, cells = 2, refinements = 0, degree = 2, order = 10, shape = 1;
    bool visualization = false;
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Optional quadrilateral/hexahedral mesh.");
    args.AddOption(&algorithm, "-cq", "--cut-quadrature",
-                  "algoim, algoim-general, or algoim-polynomial.");
+                  "algoim-auto, algoim-general, or algoim-polynomial.");
    args.AddOption(&dimension, "-dim", "--dimension", "Generated unit box dimension.");
    args.AddOption(&cells, "-n", "--cells", "Generated cells per coordinate axis.");
    args.AddOption(&refinements, "-rs", "--refine-serial", "Serial uniform refinements.");

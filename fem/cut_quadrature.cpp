@@ -356,8 +356,7 @@ CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
    }
    report = backend.CheckSupport(geometry, domain, order, fixed_points);
    if (!report.Succeeded()) { return report; }
-   report = backend.Generate(geometry, domain, order, out.rule, out.region,
-                             fixed_points);
+   report = backend.Generate(geometry, domain, order, out, fixed_points);
    if (!report.Succeeded()) { out.Clear(); return report; }
    auto fail = [&](CutQuadratureStatus status, const char *message)
    { out.Clear(); return Failure(status, message); };
@@ -374,6 +373,7 @@ CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
    const int dimension = Geometry::Dimension[geometry];
    const int codimension = domain.Codimension();
    const int count = out.GetNPoints();
+   out.conormals.SetSize(0, 0, 0);
    if (codimension) { out.conormals.SetSize(dimension, codimension, count); out.conormals = 0.; }
    for (int index = 0; index < count; ++index)
    {
@@ -535,6 +535,5 @@ CutQuadratureReport CutQuadratureGenerator::Generate(ElementTransformation &tran
 
 #ifndef MFEM_USE_ALGOIM
 std::unique_ptr<CutQuadratureBackend> CreateCutQuadratureBackend(const std::string &) { return nullptr; }
-std::vector<std::string> GetCutQuadratureBackends() { return {}; }
 #endif
 }
