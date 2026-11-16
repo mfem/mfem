@@ -18,6 +18,10 @@ GPU computing
 
 - Fixed RAJA CUDA/HIP element coverage when using a smaller fixed launch grid.
 
+- Sped up the partial assembly apply of DGDiffusionIntegrator on the GPU by
+  putting several faces in one thread block in the 2D face kernel, which fills
+  the warp that used to hold a single face. The results are unchanged.
+
 Discretization improvements
 ---------------------------
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces

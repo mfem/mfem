@@ -25,7 +25,7 @@ namespace mfem
 namespace internal
 {
 
-template <int T_D1D = 0, int T_Q1D = 0>
+template <int T_D1D = 0, int T_Q1D = 0, int T_NBZ = 1>
 void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
                           const Array<real_t> &bt, const Array<real_t> &g,
                           const Array<real_t> &gt, const real_t sigma,
@@ -51,28 +51,32 @@ void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
 
    const int NBX = std::max(D1D, Q1D);
 
-   mfem::forall_2D(NF, NBX, 2, [=] MFEM_HOST_DEVICE(int f) -> void
+   static constexpr int NBZ = T_NBZ;
+   mfem::forall_2D_batch(NF, NBX, 2, NBZ, [=] MFEM_HOST_DEVICE(int f) -> void
    {
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      // the z index is unused in 2D, so it numbers the faces in the block
+      constexpr int NBA = T_NBZ;
+      const int fz = MFEM_THREAD_ID(z);
 
-      MFEM_SHARED real_t u0[max_D1D];
-      MFEM_SHARED real_t u1[max_D1D];
-      MFEM_SHARED real_t du0[max_D1D];
-      MFEM_SHARED real_t du1[max_D1D];
+      MFEM_SHARED real_t u0[NBA][max_D1D];
+      MFEM_SHARED real_t u1[NBA][max_D1D];
+      MFEM_SHARED real_t du0[NBA][max_D1D];
+      MFEM_SHARED real_t du1[NBA][max_D1D];
 
-      MFEM_SHARED real_t Bu0[max_Q1D];
-      MFEM_SHARED real_t Bu1[max_Q1D];
-      MFEM_SHARED real_t Bdu0[max_Q1D];
-      MFEM_SHARED real_t Bdu1[max_Q1D];
+      MFEM_SHARED real_t Bu0[NBA][max_Q1D];
+      MFEM_SHARED real_t Bu1[NBA][max_Q1D];
+      MFEM_SHARED real_t Bdu0[NBA][max_Q1D];
+      MFEM_SHARED real_t Bdu1[NBA][max_Q1D];
 
-      MFEM_SHARED real_t r[max_Q1D];
+      MFEM_SHARED real_t r[NBA][max_Q1D];
 
       MFEM_SHARED real_t BG[2 * max_D1D * max_Q1D];
       DeviceMatrix B(BG, Q1D, D1D);
       DeviceMatrix G(BG + D1D * Q1D, Q1D, D1D);
 
-      if (MFEM_THREAD_ID(y) == 0)
+      if (MFEM_THREAD_ID(y) == 0 && fz == 0)
       {
          MFEM_FOREACH_THREAD(p, x, Q1D)
          {
@@ -88,8 +92,8 @@ void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
       // copy edge values to u0, u1 and copy edge normals to du0, du1
       MFEM_FOREACH_THREAD(side, y, 2)
       {
-         real_t *u = (side == 0) ? u0 : u1;
-         real_t *du = (side == 0) ? du0 : du1;
+         real_t *u = (side == 0) ? u0[fz] : u1[fz];
+         real_t *du = (side == 0) ? du0[fz] : du1[fz];
          MFEM_FOREACH_THREAD(d, x, D1D)
          {
             u[d] = x(d, side, f);
@@ -101,10 +105,10 @@ void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
       // eval @ quad points
       MFEM_FOREACH_THREAD(side, y, 2)
       {
-         real_t *u = (side == 0) ? u0 : u1;
-         real_t *du = (side == 0) ? du0 : du1;
-         real_t *Bu = (side == 0) ? Bu0 : Bu1;
-         real_t *Bdu = (side == 0) ? Bdu0 : Bdu1;
+         real_t *u = (side == 0) ? u0[fz] : u1[fz];
+         real_t *du = (side == 0) ? du0[fz] : du1[fz];
+         real_t *Bu = (side == 0) ? Bu0[fz] : Bu1[fz];
+         real_t *Bdu = (side == 0) ? Bdu0[fz] : Bdu1[fz];
 
          MFEM_FOREACH_THREAD(p, x, Q1D)
          {
@@ -134,9 +138,9 @@ void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
          {
             const real_t q = pa(0, p, f);
             const real_t hi = pa(1, p, f);
-            const real_t jump = Bu0[p] - Bu1[p];
-            const real_t avg = Bdu0[p] + Bdu1[p]; // = {Q du/dn} * w * det(J)
-            r[p] = -avg + hi * q * jump;
+            const real_t jump = Bu0[fz][p] - Bu1[fz][p];
+            const real_t avg = Bdu0[fz][p] + Bdu1[fz][p]; // = {Q du/dn} * w * det(J)
+            r[fz][p] = -avg + hi * q * jump;
          }
       }
       MFEM_SYNC_THREAD;
@@ -147,17 +151,17 @@ void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
 
          for (int p = 0; p < Q1D; ++p)
          {
-            Br += B(p, d) * r[p];
+            Br += B(p, d) * r[fz][p];
          }
 
-         u0[d] = Br; // overwrite u0, u1
-         u1[d] = -Br;
+         u0[fz][d] = Br; // overwrite u0, u1
+         u1[fz][d] = -Br;
       } // for d
       MFEM_SYNC_THREAD;
 
       MFEM_FOREACH_THREAD(side, y, 2)
       {
-         real_t *du = (side == 0) ? du0 : du1;
+         real_t *du = (side == 0) ? du0[fz] : du1[fz];
          MFEM_FOREACH_THREAD(d, x, D1D) { du[d] = 0.0; }
       }
       MFEM_SYNC_THREAD;
@@ -165,8 +169,8 @@ void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
       // term sigma * < [u], {Q dv/dn} >
       MFEM_FOREACH_THREAD(side, y, 2)
       {
-         real_t *const du = (side == 0) ? du0 : du1;
-         real_t *const u = (side == 0) ? u0 : u1;
+         real_t *const du = (side == 0) ? du0[fz] : du1[fz];
+         real_t *const u = (side == 0) ? u0[fz] : u1[fz];
 
          MFEM_FOREACH_THREAD(d, x, D1D)
          {
@@ -175,7 +179,7 @@ void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
                const real_t Je[] = {pa(2 + 2 * side, p, f),
                                     pa(2 + 2 * side + 1, p, f)
                                    };
-               const real_t jump = Bu0[p] - Bu1[p];
+               const real_t jump = Bu0[fz][p] - Bu1[fz][p];
                const real_t r_p = Je[0] * jump; // normal
                const real_t w_p = Je[1] * jump; // tangential
                du[d] += sigma * B(p, d) * r_p;
@@ -187,8 +191,8 @@ void PADGDiffusionApply2D(const int NF, const Array<real_t> &b,
 
       MFEM_FOREACH_THREAD(side, y, 2)
       {
-         real_t *u = (side == 0) ? u0 : u1;
-         real_t *du = (side == 0) ? du0 : du1;
+         real_t *u = (side == 0) ? u0[fz] : u1[fz];
+         real_t *du = (side == 0) ? du0[fz] : du1[fz];
          MFEM_FOREACH_THREAD(d, x, D1D)
          {
             y(d, side, f) += u[d];
@@ -485,7 +489,9 @@ DGDiffusionIntegrator::ApplyPAKernels::Kernel()
 {
    if constexpr (DIM == 2)
    {
-      return internal::PADGDiffusionApply2D<D1D, Q1D>;
+      constexpr int NBX = D1D > Q1D ? D1D : Q1D;
+      constexpr int NBZ = 32 / (2 * NBX) > 0 ? 32 / (2 * NBX) : 1;
+      return internal::PADGDiffusionApply2D<D1D, Q1D, NBZ>;
    }
    else if constexpr (DIM == 3)
    {
