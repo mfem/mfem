@@ -322,12 +322,13 @@ CutQuadratureReport CutDomain::Validate(Geometry::Type geometry) const
 
 void CutQuadrature::Clear()
 {
-   geometry = Geometry::INVALID; codimension = 0; region = CutRegion::Unknown;
+   geometry = Geometry::INVALID; codimension = 0; region = Region::Unknown;
    rule.SetSize(0); rule.SetOrder(-1); conormals.SetSize(0, 0, 0);
 }
 void MappedCutQuadrature::Clear()
 {
-   region = CutRegion::Unknown; weight_type = CutWeightType::Reference;
+   region = CutQuadrature::Region::Unknown;
+   weight_type = CutWeightType::Reference;
    rule.SetSize(0); rule.SetOrder(-1); physical_points.SetSize(0);
    physical_conormals.SetSize(0, 0, 0); measure_scaling.SetSize(0);
 }
@@ -360,9 +361,10 @@ CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
    if (!report.Succeeded()) { out.Clear(); return report; }
    auto fail = [&](CutQuadratureStatus status, const char *message)
    { out.Clear(); return Failure(status, message); };
-   if ((out.region != CutRegion::Full && out.region != CutRegion::Empty &&
-        out.region != CutRegion::Cut) ||
-       (out.region == CutRegion::Full && domain.Codimension() > 0))
+   if ((out.region != CutQuadrature::Region::Full &&
+        out.region != CutQuadrature::Region::Empty &&
+        out.region != CutQuadrature::Region::Cut) ||
+       (out.region == CutQuadrature::Region::Full && domain.Codimension() > 0))
    { return fail(CutQuadratureStatus::NumericalFailure, "Invalid backend region."); }
    if (fixed_points && out.GetNPoints() != fixed_points->GetNPoints())
    { return fail(CutQuadratureStatus::NumericalFailure, "Backend changed prescribed nodes."); }
@@ -378,7 +380,7 @@ CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
       auto &point = out.rule.IntPoint(index);
       point.index = index;
       if (!std::isfinite(point.weight) || !ValidPoint(geometry, point) ||
-          (out.region == CutRegion::Empty && point.weight != 0))
+          (out.region == CutQuadrature::Region::Empty && point.weight != 0))
       { return fail(CutQuadratureStatus::NumericalFailure, "Invalid quadrature node."); }
       if (fixed_points)
       {
@@ -418,7 +420,7 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
 {
    out.Clear();
    if (!ValidGeometry(reference.geometry) || reference.geometry != transformation.GetGeometryType() ||
-       reference.region == CutRegion::Unknown ||
+       reference.region == CutQuadrature::Region::Unknown ||
        (options.data & ~(CQ_PHYSICAL_POINTS | CQ_PHYSICAL_CONORMALS | CQ_MEASURE_SCALING)) ||
        (options.weight_type != CutWeightType::Reference && options.weight_type != CutWeightType::Physical &&
         options.weight_type != CutWeightType::Integrator))

@@ -17,6 +17,8 @@ namespace mfem
 {
 namespace
 {
+using Region = CutQuadrature::Region;
+
 struct AlgoimPolynomial
 {
    int dimension = 0;
@@ -26,7 +28,7 @@ struct AlgoimPolynomial
 
    CutQuadratureReport Set(const PolynomialLevelSet &level_set);
    CutQuadratureReport Classify(CutDomain::LevelSetSign sign,
-                                CutRegion &region) const;
+                                Region &region) const;
 
    template <typename Scalar>
    Scalar Evaluate(const Scalar *point, int derivative = -1) const
@@ -93,9 +95,9 @@ CutQuadratureReport AlgoimPolynomial::Set(const PolynomialLevelSet &level_set)
 }
 
 CutQuadratureReport AlgoimPolynomial::Classify(
-   CutDomain::LevelSetSign sign, CutRegion &region) const
+   CutDomain::LevelSetSign sign, Region &region) const
 {
-   region = CutRegion::Cut;
+   region = Region::Cut;
    const auto bounds = std::minmax_element(coefficients.begin(), coefficients.end());
    const real_t lower = *bounds.first, upper = *bounds.second;
    const bool surface = sign == CutDomain::LevelSetSign::Zero;
@@ -103,11 +105,11 @@ CutQuadratureReport AlgoimPolynomial::Classify(
    {
       if (surface)
       { return {CutQuadratureStatus::DegenerateGeometry, "Identically zero equality constraint."}; }
-      region = CutRegion::Empty;
+      region = Region::Empty;
    }
    else if (surface)
    {
-      if (lower > 0 || upper < 0) { region = CutRegion::Empty; return {}; }
+      if (lower > 0 || upper < 0) { region = Region::Empty; return {}; }
       int stride = 1;
       for (int axis = 0; axis < dimension; ++axis)
       {
@@ -127,10 +129,10 @@ CutQuadratureReport AlgoimPolynomial::Classify(
    }
    else if ((sign == CutDomain::LevelSetSign::Positive && lower >= 0) ||
             (sign == CutDomain::LevelSetSign::Negative && upper <= 0))
-   { region = CutRegion::Full; }
+   { region = Region::Full; }
    else if ((sign == CutDomain::LevelSetSign::Positive && upper <= 0) ||
             (sign == CutDomain::LevelSetSign::Negative && lower >= 0))
-   { region = CutRegion::Empty; }
+   { region = Region::Empty; }
    return {};
 }
 
@@ -235,12 +237,12 @@ struct GeneralFunction
 template <int Dimension>
 CutQuadratureReport ComputeGeneral(
    const ReferenceLevelSet &level_set, CutDomain::LevelSetSign sign, int order,
-   IntegrationRule &rule, CutRegion &region)
+   IntegrationRule &rule, Region &region)
 {
    IntervalGuard<Dimension> guard;
    AlgoimPolynomial polynomial;
    const auto *source = dynamic_cast<const PolynomialLevelSet *>(&level_set);
-   region = CutRegion::Cut;
+   region = Region::Cut;
    if (source)
    {
       auto report = polynomial.Set(*source);
@@ -270,13 +272,13 @@ CutQuadratureReport ComputeGeneral(
       {
          if (sign == CutDomain::LevelSetSign::Zero)
          { return {CutQuadratureStatus::DegenerateGeometry, "Identically zero equality constraint."}; }
-         region = CutRegion::Empty;
+         region = Region::Empty;
       }
       else if (value.alpha - deviation > 0)
-      { region = CutRegion::Empty; }
+      { region = Region::Empty; }
       else if (value.alpha + deviation < 0)
-      { region = sign == CutDomain::LevelSetSign::Zero ? CutRegion::Empty : CutRegion::Full; }
-      if (sign == CutDomain::LevelSetSign::Zero && region == CutRegion::Cut)
+      { region = sign == CutDomain::LevelSetSign::Zero ? Region::Empty : Region::Full; }
+      if (sign == CutDomain::LevelSetSign::Zero && region == Region::Cut)
       {
          for (int axis = 0; axis < Dimension; ++axis)
          {
@@ -292,8 +294,8 @@ CutQuadratureReport ComputeGeneral(
          }
       }
    }
-   if (region == CutRegion::Empty) { return {}; }
-   if (region == CutRegion::Full)
+   if (region == Region::Empty) { return {}; }
+   if (region == Region::Full)
    { rule = IntRules.Get(level_set.GetReferenceGeometry(), order); return {}; }
    const auto quadrature = algoim::quadGen<Dimension>(
       function, algoim::HyperRectangle<real_t, Dimension>(0.0, 1.0),
@@ -311,7 +313,7 @@ CutQuadratureReport ComputeGeneral(
       if constexpr (Dimension == 3) { point.z = node.x(2); }
       point.weight = node.w;
    }
-   region = rule.GetNPoints() ? CutRegion::Cut : CutRegion::Empty;
+   region = rule.GetNPoints() ? Region::Cut : Region::Empty;
    return {};
 }
 
@@ -324,7 +326,7 @@ bool SupportsAlgoimIntervals(const ReferenceLevelSet &level_set)
 
 CutQuadratureReport GenerateAlgoimGeneral(
    Geometry::Type geometry, const CutDomain &domain, int order,
-   IntegrationRule &rule, CutRegion &region)
+   IntegrationRule &rule, Region &region)
 {
    const auto &constraint = domain.GetConstraint(0);
    const auto &level_set = constraint.level_set.get();
@@ -384,7 +386,7 @@ template <int Dimension>
 CutQuadratureReport ComputePolynomialRule(
    const std::vector<AlgoimPolynomial> &data,
    const std::vector<CutDomain::LevelSetSign> &signs,
-   const CutDomain &domain, int order, IntegrationRule &rule, CutRegion &region)
+   const CutDomain &domain, int order, IntegrationRule &rule, Region &region)
 {
    if constexpr (Dimension == 3)
    {
@@ -512,13 +514,13 @@ CutQuadratureReport ComputePolynomialRule(
    rule.SetSize(static_cast<int>(nodes.size()));
    for (int index = 0; index < rule.GetNPoints(); ++index)
    { rule.IntPoint(index) = nodes[index]; }
-   region = nodes.empty() ? CutRegion::Empty : CutRegion::Cut;
+   region = nodes.empty() ? Region::Empty : Region::Cut;
    return {};
 }
 
 CutQuadratureReport GenerateAlgoimPolynomial(
    Geometry::Type geometry, const CutDomain &domain, int order,
-   IntegrationRule &rule, CutRegion &region)
+   IntegrationRule &rule, Region &region)
 {
    std::vector<AlgoimPolynomial> data;
    std::vector<CutDomain::LevelSetSign> signs;
@@ -532,12 +534,12 @@ CutQuadratureReport GenerateAlgoimPolynomial(
       { return {CutQuadratureStatus::Unsupported, "Polynomial ALGOIM requires polynomial inputs."}; }
       auto report = polynomial.Set(*source);
       if (!report.Succeeded()) { return report; }
-      CutRegion classification;
+      Region classification;
       report = polynomial.Classify(constraint.sign, classification);
       if (!report.Succeeded()) { return report; }
-      if (classification == CutRegion::Empty)
-      { region = CutRegion::Empty; return {}; }
-      if (classification == CutRegion::Full) { continue; }
+      if (classification == Region::Empty)
+      { region = Region::Empty; return {}; }
+      if (classification == Region::Full) { continue; }
       if (!data.empty() && polynomial.extent == data[0].extent)
       {
          bool same = true, opposite = true;
@@ -551,7 +553,7 @@ CutQuadratureReport GenerateAlgoimPolynomial(
          if (same || opposite)
          {
             if ((constraint.sign == signs[0]) != same)
-            { region = CutRegion::Empty; return {}; }
+            { region = Region::Empty; return {}; }
             continue;
          }
       }
@@ -566,7 +568,7 @@ CutQuadratureReport GenerateAlgoimPolynomial(
       signs.push_back(constraint.sign);
    }
    if (data.empty())
-   { rule = IntRules.Get(geometry, order); region = CutRegion::Full; return {}; }
+   { rule = IntRules.Get(geometry, order); region = Region::Full; return {}; }
    return geometry == Geometry::SQUARE ?
           ComputePolynomialRule<2>(data, signs, domain, order, rule, region) :
           ComputePolynomialRule<3>(data, signs, domain, order, rule, region);
@@ -630,16 +632,16 @@ public:
 
    CutQuadratureReport Generate(
       Geometry::Type geometry, const CutDomain &domain, int order,
-      IntegrationRule &rule, CutRegion &region,
+      IntegrationRule &rule, CutQuadrature::Region &region,
       const IntegrationRule *fixed_points) const override
    {
-      rule.SetSize(0); rule.SetOrder(-1); region = CutRegion::Unknown;
+      rule.SetSize(0); rule.SetOrder(-1); region = Region::Unknown;
       auto report = CheckSupport(geometry, domain, order, fixed_points);
       if (!report.Succeeded()) { return report; }
       try
       {
          if (!domain.NumConstraints())
-         { rule = IntRules.Get(geometry, order); region = CutRegion::Full; }
+         { rule = IntRules.Get(geometry, order); region = Region::Full; }
 #ifdef MFEM_USE_LAPACKE
          else if (UsePolynomial(domain))
          { report = GenerateAlgoimPolynomial(geometry, domain, order, rule, region); }
@@ -663,7 +665,7 @@ public:
          }
       }
       if (!report.Succeeded())
-      { rule.SetSize(0); rule.SetOrder(-1); region = CutRegion::Unknown; }
+      { rule.SetSize(0); rule.SetOrder(-1); region = Region::Unknown; }
       else
       {
          rule.SetOrder(order);

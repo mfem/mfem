@@ -218,73 +218,72 @@ private:
    std::vector<Constraint> constraints;
 };
 
-/** Relation to the reference element.
+/** @brief Result of cut-quadrature generation on a reference element.
 
-    Full means the domain covers the reference element up to a set of zero
-    measure and applies only without equality constraints. Empty means zero
-    measure in the requested manifold dimension, not necessarily an empty set.
-    Unknown is the uninitialized/failed state, never a successful result. */
-enum class CutRegion { Unknown, Empty, Full, Cut };
-
-/** @brief A reference rule with the geometric data needed for later mapping.
-
-    Weights always integrate reference measure. All coordinates are in the
-    parent element. The generator fills this object using backend-produced
-    points, weights, and region, then supplies geometry, codimension, and
-    conormals.
-
-    conormals has dimensions dim x codimension x npoints. For each Zero
-    constraint its column is grad(phi)/|grad(phi)|, toward phi > 0, in constraint
-    order. Columns are unit but need not be orthogonal. They are intrinsic
-    conormals, not ambient normals.
-    Columns at zero-weight nodes are zero and must not be used for geometry.
-    For codimension zero the tensor is empty.
-
-    The object owns its data and retains no references to the input level sets.
-    Clear resets geometry, codimension, region, rule, and conormals. */
+    This object owns its data and retains no references to the level sets. */
 struct CutQuadrature
 {
+   /** Relation to the reference element.
+
+       Full: the domain covers the reference element up to a set of zero measure
+             and applies only when there are no equality constraints.
+       Empty: zero measure in the requested manifold dimension,
+              not necessarily an empty set.
+       Unknown: uninitialized/failed state, never a successful result. */
+   enum class Region { Unknown, Empty, Full, Cut };
+   Region region = Region::Unknown;
+
+   /// Geometry of the reference element containing the rule.
    Geometry::Type geometry = Geometry::INVALID;
+
+   /// Codimension of the integration domain in the reference element.
    int codimension = 0;
-   CutRegion region = CutRegion::Unknown;
+
+   /// Rule points in reference coordinates, with reference-measure weights.
    IntegrationRule rule;
+
+   /// Intrinsic unit conormals at the rule points, stored as a
+   /// dim x codimension x npoints tensor. Each column corresponds to one
+   /// equality constraint, in constraint order, and points toward phi > 0.
+   /// Columns need not be orthogonal. The tensor is empty for codimension zero;
+   /// columns at zero-weight points are zero and must not be used for geometry.
    DenseTensor conormals;
 
+   /// Return the number of quadrature points.
    int GetNPoints() const { return rule.GetNPoints(); }
+
+   /// Reset all fields to their uninitialized state.
    void Clear();
 };
 
-/** @brief Backend for one reference element and one requested domain.
+/** @brief Interface for cut-quadrature generation on a reference element.
 
-    Calls receive no mesh or physical transformation and retain no input
-    references or element-dependent state. Temporary work is private to the
-    call. Algorithm configuration may be immutable backend state.
-
-    CheckSupport examines actual input types, geometry, polynomial spaces,
-    nominal order, constraints, and prescribed points. It is not a geometric
-    regularity or convergence certificate. Generate must also reject invalid
-    or unsupported input when called directly, without CheckSupport.
-
-    Generate handles empty, full, and cut domains. Nonzero-weight nodes must
-    lie in the domain closure; surface nodes lie on the interface, and weights
-    may be signed. A fixed-point layout must preserve its coordinates and order,
-    using zero weights for an empty domain. On failure Generate clears the rule
-    and sets the region to Unknown. */
+    A backend retains no input references or element-dependent state. */
 class CutQuadratureBackend
 {
 public:
    virtual ~CutQuadratureBackend() = default;
+
+   /// Return the backend name.
    virtual std::string Name() const = 0;
 
+   /// Check whether this backend supports the supplied input types, geometry,
+   /// polynomial spaces, order, constraints, and prescribed points. Success
+   /// does not certify geometric regularity, convergence, or exactness.
    virtual CutQuadratureReport CheckSupport(
-      Geometry::Type geometry,
-      const CutDomain &domain, int order,
+      Geometry::Type geometry, const CutDomain &domain, int order,
       const IntegrationRule *fixed_points = nullptr) const = 0;
 
+   /** Generate the rule and classify the domain as empty, full, or cut.
+
+       This method validates its inputs independently of CheckSupport.
+       Nonzero-weight nodes must lie in the domain closure; surface nodes must
+       lie on the interface, and weights may be signed. A prescribed point
+       layout keeps its coordinates and order, using zero weights for an empty
+       domain. On failure the rule is cleared and the region is Unknown. */
    virtual CutQuadratureReport Generate(
-      Geometry::Type geometry,
-      const CutDomain &domain, int order,
-      IntegrationRule &rule, CutRegion &region,
+      Geometry::Type geometry, const CutDomain &domain, int order,
+      IntegrationRule &rule, CutQuadrature::Region &region,
       const IntegrationRule *fixed_points = nullptr) const = 0;
 };
 
@@ -342,7 +341,7 @@ struct CutMappingOptions
     Point coordinates may still be mapped there. Clear resets all fields. */
 struct MappedCutQuadrature
 {
-   CutRegion region = CutRegion::Unknown;
+   CutQuadrature::Region region = CutQuadrature::Region::Unknown;
    CutWeightType weight_type = CutWeightType::Reference;
    IntegrationRule rule;
    DenseMatrix physical_points;

@@ -30,11 +30,11 @@ public:
                                    const IntegrationRule *) const override
    { return {}; }
    CutQuadratureReport Generate(Geometry::Type, const CutDomain &, int,
-                               IntegrationRule &output, CutRegion &region,
+                               IntegrationRule &output, CutQuadrature::Region &region,
                                const IntegrationRule *) const override
    {
       output = rule;
-      region = CutRegion::Cut;
+      region = CutQuadrature::Region::Cut;
       return {status, "test"};
    }
 };
@@ -198,7 +198,7 @@ TEST_CASE("Cut generator clears failures and supports simplex conormals", "[CutQ
    REQUIRE_FALSE(generator.Generate(Geometry::TRIANGLE, domain, 2, output).Succeeded());
    REQUIRE(output.GetNPoints() == 0);
    REQUIRE(output.geometry == Geometry::INVALID);
-   REQUIRE(output.region == CutRegion::Unknown);
+   REQUIRE(output.region == CutQuadrature::Region::Unknown);
    backend.status = CutQuadratureStatus::Success;
    backend.rule.IntPoint(0).x = 1.1;
    REQUIRE_FALSE(generator.Generate(Geometry::TRIANGLE, domain, 2, output).Succeeded());
@@ -231,7 +231,7 @@ TEST_CASE("Cut generator reports gradient exceptions and clears outputs", "[CutQ
    REQUIRE(output.GetNPoints() == 0);
    REQUIRE(output.rule.GetOrder() == -1);
    REQUIRE(output.geometry == Geometry::INVALID);
-   REQUIRE(output.region == CutRegion::Unknown);
+   REQUIRE(output.region == CutQuadrature::Region::Unknown);
    REQUIRE(output.conormals.SizeK() == 0);
 
    IsoparametricTransformation identity;
@@ -240,7 +240,7 @@ TEST_CASE("Cut generator reports gradient exceptions and clears outputs", "[CutQ
    REQUIRE_NOTHROW(report = generator.Generate(identity, domain, 2, {}, mapped));
    REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
    REQUIRE(mapped.GetNPoints() == 0);
-   REQUIRE(mapped.region == CutRegion::Unknown);
+   REQUIRE(mapped.region == CutQuadrature::Region::Unknown);
    throw_gradient = false;
    REQUIRE(generator.Generate(Geometry::SQUARE, domain, 2, output).Succeeded());
    REQUIRE(output.GetNPoints() == 2);
@@ -251,7 +251,7 @@ TEST_CASE("Cut mapping uses generalized Nanson scaling and preserves state", "[C
    CutQuadrature reference;
    reference.geometry = Geometry::SQUARE;
    reference.codimension = 1;
-   reference.region = CutRegion::Cut;
+   reference.region = CutQuadrature::Region::Cut;
    reference.rule.SetSize(1);
    reference.rule.IntPoint(0).Set2w(0.25, 0.5, 1);
    reference.conormals.SetSize(2, 1, 1);
@@ -342,7 +342,7 @@ TEST_CASE("Cut mapping clears transformation exceptions and restores state", "[C
             REQUIRE(report.message == (jacobian ? "Requested Jacobian failure." :
                                        "Requested transform failure."));
             REQUIRE(transformation.GetIntPointPointer() == saved);
-            REQUIRE(mapped.region == CutRegion::Unknown);
+            REQUIRE(mapped.region == CutQuadrature::Region::Unknown);
             REQUIRE(mapped.weight_type == CutWeightType::Reference);
             REQUIRE(mapped.GetNPoints() == 0);
             REQUIRE(mapped.rule.GetOrder() == -1);
@@ -381,7 +381,8 @@ TEST_CASE("Cut integrator weights preserve physical measure under reflections", 
             CutQuadrature reference;
             reference.geometry = geometry;
             reference.codimension = codimension;
-            reference.region = codimension ? CutRegion::Cut : CutRegion::Full;
+            reference.region = codimension ? CutQuadrature::Region::Cut :
+                               CutQuadrature::Region::Full;
             reference.rule.SetSize(1);
             reference.rule.IntPoint(0).Set3w(0.25, 0.5, 0.4, 0.7);
             if (codimension)
@@ -419,7 +420,7 @@ TEST_CASE("Cut mapping handles curved maps and intersecting surfaces", "[CutQuad
    CutQuadrature reference;
    reference.geometry = Geometry::SQUARE;
    reference.codimension = 1;
-   reference.region = CutRegion::Cut;
+   reference.region = CutQuadrature::Region::Cut;
    reference.rule.SetSize(1);
    reference.rule.IntPoint(0).Set2w(0.25, 0.5, 1);
    reference.conormals.SetSize(2, 1, 1);
@@ -495,7 +496,7 @@ TEST_CASE("Cut mapping remains stable on sheared and embedded elements", "[CutQu
             CutQuadrature reference;
             reference.geometry = geometry;
             reference.codimension = codimension;
-            reference.region = CutRegion::Cut;
+            reference.region = CutQuadrature::Region::Cut;
             reference.rule.SetSize(1);
             reference.rule.IntPoint(0) = center;
             reference.rule.IntPoint(0).weight = 1;
@@ -616,7 +617,8 @@ TEST_CASE("ALGOIM classifies constants and rejects unsupported requests", "[CutQ
       const auto positive = CutDomain::Positive(level_set);
       REQUIRE(generator.Generate(Geometry::SQUARE, positive, 2, output).Succeeded());
       REQUIRE(Measure(output.rule) == MFEM_Approx(value > 0 ? 1 : 0));
-      REQUIRE(output.region == (value > 0 ? CutRegion::Full : CutRegion::Empty));
+      REQUIRE(output.region == (value > 0 ? CutQuadrature::Region::Full :
+                                CutQuadrature::Region::Empty));
       const auto surface = CutDomain::Surface(level_set);
       auto report = generator.Generate(Geometry::SQUARE, surface, 2, output);
       REQUIRE(report.status == (value == 0 ? CutQuadratureStatus::DegenerateGeometry :
@@ -882,7 +884,7 @@ TEST_CASE("Polynomial ALGOIM simplifies equivalent sign constraints", "[CutQuadr
                REQUIRE(Measure(output.rule) == MFEM_Approx(contradictory ? 0 : expected));
                if (contradictory)
                {
-                  REQUIRE(output.region == CutRegion::Empty);
+                  REQUIRE(output.region == CutQuadrature::Region::Empty);
                   REQUIRE(output.GetNPoints() == 0);
                   REQUIRE(output.rule.GetOrder() == 8);
                }
@@ -926,7 +928,7 @@ TEST_CASE("Polynomial ALGOIM keeps nearby sign constraints distinct", "[CutQuadr
    auto report = generator.Generate(Geometry::SQUARE, domain, 8, output);
    INFO(report.message);
    REQUIRE(report.Succeeded());
-   REQUIRE(output.region == CutRegion::Cut);
+   REQUIRE(output.region == CutQuadrature::Region::Cut);
    REQUIRE(std::abs(Measure(output.rule) / width - 1) < 1e-5);
 
    coefficients += width;
@@ -934,7 +936,7 @@ TEST_CASE("Polynomial ALGOIM keeps nearby sign constraints distinct", "[CutQuadr
    REQUIRE(second.Set(element, coefficients).Succeeded());
    report = generator.Generate(Geometry::SQUARE, domain, 8, output);
    REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
-   REQUIRE(output.region == CutRegion::Unknown);
+   REQUIRE(output.region == CutQuadrature::Region::Unknown);
    REQUIRE(output.GetNPoints() == 0);
 }
 
@@ -983,15 +985,15 @@ TEST_CASE("Polynomial ALGOIM rejects unresolved nearly proportional constraints"
                REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
                REQUIRE(report.message.find("Nearly proportional") != std::string::npos);
                REQUIRE(output.geometry == Geometry::INVALID);
-               REQUIRE(output.region == CutRegion::Unknown);
+               REQUIRE(output.region == CutQuadrature::Region::Unknown);
                REQUIRE(output.GetNPoints() == 0);
                REQUIRE(output.rule.GetOrder() == -1);
                REQUIRE(output.conormals.SizeK() == 0);
                IntegrationRule rule(1);
-               CutRegion region = CutRegion::Full;
+               CutQuadrature::Region region = CutQuadrature::Region::Full;
                report = backend->Generate(geometry, domain, 8, rule, region);
                REQUIRE(report.status == CutQuadratureStatus::NumericalFailure);
-               REQUIRE(region == CutRegion::Unknown);
+               REQUIRE(region == CutQuadrature::Region::Unknown);
                REQUIRE(rule.GetNPoints() == 0);
                REQUIRE(rule.GetOrder() == -1);
             }
