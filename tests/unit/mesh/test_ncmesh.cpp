@@ -2209,6 +2209,78 @@ TEST_CASE("NCMesh anisotropic prism derefinement in mixed mesh", "[NCMesh]")
    }
 }
 
+TEST_CASE("NCMesh mixed prism refinement and derefinement", "[NCMesh]")
+{
+   const int prism_attribute = GENERATE(5, 6, 7, 8);
+   const int ref_type = GENERATE(
+      Refinement::Prism::TRIANGLE_CORNER_0_PRISM_HEX.GetId(),
+      Refinement::Prism::TRIANGLE_CORNER_1_PRISM_HEX.GetId(),
+      Refinement::Prism::TRIANGLE_CORNER_2_PRISM_HEX.GetId(),
+      Refinement::Prism::TRIANGLE_CENTER_3_HEXES.GetId());
+   CAPTURE(prism_attribute, ref_type);
+
+   Mesh mesh("../../data/l-mixed.mesh", 1, 1);
+   const RefinedElementSummary original = SummarizeRefinedElements(mesh);
+   mesh.EnsureNCMesh(true);
+   H1_FECollection fec(2, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + x[0] - 2.0*x[1] + 3.0*x[2];
+   });
+   field.ProjectCoefficient(affine);
+
+   Array<Refinement> refs;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == prism_attribute)
+      {
+         refs.Append(PrismRefinement(i, ref_type));
+      }
+   }
+   REQUIRE(refs.Size() == 1);
+   mesh.GeneralRefinement(refs);
+   fes.Update();
+   field.Update();
+
+   int prisms = 0;
+   int hexes = 0;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == prism_attribute)
+      {
+         const Geometry::Type geom = mesh.GetElementBaseGeometry(i);
+         prisms += geom == Geometry::PRISM;
+         hexes += geom == Geometry::CUBE;
+      }
+   }
+   REQUIRE(prisms == (ref_type ==
+                      Refinement::Prism::TRIANGLE_CENTER_3_HEXES.GetId() ? 0 : 1));
+   REQUIRE(hexes == (ref_type ==
+                     Refinement::Prism::TRIANGLE_CENTER_3_HEXES.GetId() ? 3 : 1));
+   REQUIRE(SummarizeRefinedElements(mesh).volume == MFEM_Approx(original.volume));
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
+   GridFunction fine_exact(&fes);
+   fine_exact.ProjectCoefficient(affine);
+   fine_exact -= field;
+   REQUIRE(fine_exact.Normlinf() == MFEM_Approx(0.0, EPS));
+
+   Vector error(mesh.GetNE());
+   error = 0.0;
+   REQUIRE(mesh.DerefineByError(error, 1.0));
+   fes.Update();
+   field.Update();
+   const RefinedElementSummary restored = SummarizeRefinedElements(mesh);
+   REQUIRE(restored.geometry_counts == original.geometry_counts);
+   REQUIRE(restored.volume == MFEM_Approx(original.volume));
+   GridFunction coarse_exact(&fes);
+   coarse_exact.ProjectCoefficient(affine);
+   coarse_exact -= field;
+   REQUIRE(coarse_exact.Normlinf() == MFEM_Approx(0.0, EPS));
+}
+
 TEST_CASE("NCMesh nested mixed child transforms", "[NCMesh]")
 {
    Mesh parent("../../data/ref-pyramid.mesh", 1, 1);

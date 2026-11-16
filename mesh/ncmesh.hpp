@@ -170,6 +170,10 @@ struct Refinement
       static constexpr Pattern TRIANGLE_EDGE_02_Z_4_PRISMS { Geometry::PRISM, 13 };
       static constexpr Pattern TRIANGLE_EDGE_12_Z_4_PRISMS { Geometry::PRISM, 14 };
       static constexpr Pattern TRIANGLE_CENTER_Z_6_PRISMS { Geometry::PRISM, 15 };
+      static constexpr Pattern TRIANGLE_CORNER_0_PRISM_HEX { Geometry::PRISM, 16 };
+      static constexpr Pattern TRIANGLE_CORNER_1_PRISM_HEX { Geometry::PRISM, 17 };
+      static constexpr Pattern TRIANGLE_CORNER_2_PRISM_HEX { Geometry::PRISM, 18 };
+      static constexpr Pattern TRIANGLE_CENTER_3_HEXES { Geometry::PRISM, 19 };
    };
 
    /** Existing pyramid refinement pattern. */

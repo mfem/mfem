@@ -1787,6 +1787,97 @@ void NCMesh::RefineElement(const Refinement & ref)
          }
          Iso = false;
       }
+      else if (ref_type >= Refinement::Prism::TRIANGLE_CORNER_0_PRISM_HEX.GetId() &&
+               ref_type <= Refinement::Prism::TRIANGLE_CENTER_3_HEXES.GetId())
+      {
+         GI[Geometry::CUBE].InitGeom(Geometry::CUBE);
+         if (ref_type == Refinement::Prism::TRIANGLE_CORNER_0_PRISM_HEX.GetId())
+         {
+            const int mid01 = GetMidEdgeNode(no[0], no[1]);
+            const int mid20 = GetMidEdgeNode(no[2], no[0]);
+            const int mid34 = GetMidEdgeNode(no[3], no[4]);
+            const int mid53 = GetMidEdgeNode(no[5], no[3]);
+            SetNodeScale(no[0], no[1], 0.5);
+            SetNodeScale(no[2], no[0], 0.5);
+            SetNodeScale(no[3], no[4], 0.5);
+            SetNodeScale(no[5], no[3], 0.5);
+            child[0] = NewWedge(no[0], mid01, mid20, no[3], mid34, mid53, attr,
+                                fa[0], fa[1], fa[2], -1, fa[4]);
+            child[1] = NewHexahedron(mid01, no[1], no[2], mid20,
+                                      mid34, no[4], no[5], mid53, attr,
+                                      fa[0], fa[2], fa[3], fa[4], -1, fa[1]);
+            CheckAnisoFace(no[0], no[1], no[4], no[3], mid01, mid34);
+            CheckAnisoFace(no[2], no[0], no[3], no[5], mid20, mid53);
+         }
+         else if (ref_type ==
+                  Refinement::Prism::TRIANGLE_CORNER_1_PRISM_HEX.GetId())
+         {
+            const int mid01 = GetMidEdgeNode(no[0], no[1]);
+            const int mid12 = GetMidEdgeNode(no[1], no[2]);
+            const int mid34 = GetMidEdgeNode(no[3], no[4]);
+            const int mid45 = GetMidEdgeNode(no[4], no[5]);
+            SetNodeScale(no[0], no[1], 0.5);
+            SetNodeScale(no[1], no[2], 0.5);
+            SetNodeScale(no[3], no[4], 0.5);
+            SetNodeScale(no[4], no[5], 0.5);
+            child[0] = NewWedge(mid01, no[1], mid12, mid34, no[4], mid45, attr,
+                                fa[0], fa[1], fa[2], fa[3], -1);
+            child[1] = NewHexahedron(no[0], mid01, mid12, no[2],
+                                      no[3], mid34, mid45, no[5], attr,
+                                      fa[0], fa[2], -1, fa[3], fa[4], fa[1]);
+            CheckAnisoFace(no[0], no[1], no[4], no[3], mid01, mid34);
+            CheckAnisoFace(no[1], no[2], no[5], no[4], mid12, mid45);
+         }
+         else if (ref_type ==
+                  Refinement::Prism::TRIANGLE_CORNER_2_PRISM_HEX.GetId())
+         {
+            const int mid12 = GetMidEdgeNode(no[1], no[2]);
+            const int mid20 = GetMidEdgeNode(no[2], no[0]);
+            const int mid45 = GetMidEdgeNode(no[4], no[5]);
+            const int mid53 = GetMidEdgeNode(no[5], no[3]);
+            SetNodeScale(no[1], no[2], 0.5);
+            SetNodeScale(no[2], no[0], 0.5);
+            SetNodeScale(no[4], no[5], 0.5);
+            SetNodeScale(no[5], no[3], 0.5);
+            child[0] = NewWedge(mid12, no[2], mid20, mid45, no[5], mid53, attr,
+                                fa[0], fa[1], fa[3], fa[4], -1);
+            child[1] = NewHexahedron(no[0], no[1], mid12, mid20,
+                                      no[3], no[4], mid45, mid53, attr,
+                                      fa[0], fa[2], fa[3], -1, fa[4], fa[1]);
+            CheckAnisoFace(no[1], no[2], no[5], no[4], mid12, mid45);
+            CheckAnisoFace(no[2], no[0], no[3], no[5], mid20, mid53);
+         }
+         else
+         {
+            const int mid01 = GetMidEdgeNode(no[0], no[1]);
+            const int mid12 = GetMidEdgeNode(no[1], no[2]);
+            const int mid20 = GetMidEdgeNode(no[2], no[0]);
+            const int mid34 = GetMidEdgeNode(no[3], no[4]);
+            const int mid45 = GetMidEdgeNode(no[4], no[5]);
+            const int mid53 = GetMidEdgeNode(no[5], no[3]);
+            const int center0 = GetTriFaceCenterNode(no[0], no[1], no[2]);
+            const int center1 = GetTriFaceCenterNode(no[3], no[4], no[5]);
+            SetNodeScale(no[0], no[1], 0.5);
+            SetNodeScale(no[1], no[2], 0.5);
+            SetNodeScale(no[2], no[0], 0.5);
+            SetNodeScale(no[3], no[4], 0.5);
+            SetNodeScale(no[4], no[5], 0.5);
+            SetNodeScale(no[5], no[3], 0.5);
+            child[0] = NewHexahedron(no[0], mid01, center0, mid20,
+                                      no[3], mid34, center1, mid53, attr,
+                                      fa[0], fa[2], -1, -1, fa[4], fa[1]);
+            child[1] = NewHexahedron(mid01, no[1], mid12, center0,
+                                      mid34, no[4], mid45, center1, attr,
+                                      fa[0], fa[2], fa[3], -1, -1, fa[1]);
+            child[2] = NewHexahedron(center0, mid12, no[2], mid20,
+                                      center1, mid45, no[5], mid53, attr,
+                                      fa[0], -1, fa[3], fa[4], -1, fa[1]);
+            CheckAnisoFace(no[0], no[1], no[4], no[3], mid01, mid34);
+            CheckAnisoFace(no[1], no[2], no[5], no[4], mid12, mid45);
+            CheckAnisoFace(no[2], no[0], no[3], no[5], mid20, mid53);
+         }
+         Iso = false;
+      }
       else if (ref_type < 4) // XY refinement (split in 4 wedges)
       {
          ref_type = Refinement::XY; // for consistency
@@ -6162,6 +6253,59 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
                                       pm(5), pm(3), center1);
                   }
                }
+            }
+         }
+         else if (ref_type >=
+                  Refinement::Prism::TRIANGLE_CORNER_0_PRISM_HEX.GetId() &&
+                  ref_type <= Refinement::Prism::TRIANGLE_CENTER_3_HEXES.GetId())
+         {
+            if (ref_type == Refinement::Prism::TRIANGLE_CORNER_0_PRISM_HEX.GetId())
+            {
+               Point mid01(pm(0), pm(1)), mid20(pm(2), pm(0));
+               Point mid34(pm(3), pm(4)), mid53(pm(5), pm(3));
+               if (child == 0)
+               { pm = PointMatrix(pm(0), mid01, mid20, pm(3), mid34, mid53); }
+               else if (child == 1)
+               { pm = PointMatrix(mid01, pm(1), pm(2), mid20,
+                                  mid34, pm(4), pm(5), mid53); }
+            }
+            else if (ref_type ==
+                     Refinement::Prism::TRIANGLE_CORNER_1_PRISM_HEX.GetId())
+            {
+               Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
+               Point mid34(pm(3), pm(4)), mid45(pm(4), pm(5));
+               if (child == 0)
+               { pm = PointMatrix(mid01, pm(1), mid12, mid34, pm(4), mid45); }
+               else if (child == 1)
+               { pm = PointMatrix(pm(0), mid01, mid12, pm(2),
+                                  pm(3), mid34, mid45, pm(5)); }
+            }
+            else if (ref_type ==
+                     Refinement::Prism::TRIANGLE_CORNER_2_PRISM_HEX.GetId())
+            {
+               Point mid12(pm(1), pm(2)), mid20(pm(2), pm(0));
+               Point mid45(pm(4), pm(5)), mid53(pm(5), pm(3));
+               if (child == 0)
+               { pm = PointMatrix(mid12, pm(2), mid20, mid45, pm(5), mid53); }
+               else if (child == 1)
+               { pm = PointMatrix(pm(0), pm(1), mid12, mid20,
+                                  pm(3), pm(4), mid45, mid53); }
+            }
+            else
+            {
+               Point mid01(pm(0), pm(1)), mid12(pm(1), pm(2));
+               Point mid20(pm(2), pm(0)), center0(mid01, pm(2), 1.0/3.0);
+               Point mid34(pm(3), pm(4)), mid45(pm(4), pm(5));
+               Point mid53(pm(5), pm(3)), center1(mid34, pm(5), 1.0/3.0);
+               if (child == 0)
+               { pm = PointMatrix(pm(0), mid01, center0, mid20,
+                                  pm(3), mid34, center1, mid53); }
+               else if (child == 1)
+               { pm = PointMatrix(mid01, pm(1), mid12, center0,
+                                  mid34, pm(4), mid45, center1); }
+               else if (child == 2)
+               { pm = PointMatrix(center0, mid12, pm(2), mid20,
+                                  center1, mid45, pm(5), mid53); }
             }
          }
          else if (ref_type < 4) // XY split
