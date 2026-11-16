@@ -27,6 +27,11 @@ Meshing improvements
   refined on one side only: on parallel meshes, the edges on the unrefined side
   of essential boundaries were not essential, and on serial meshes, those of
   all interior boundaries were.
+- Fixed deadlocks and corrupted face neighbor data in
+  ParMesh::ExchangeFaceNbrData on 3D parallel non-conforming meshes where only
+  some ranks have face neighbors with triangular faces. The face neighbor
+  orientations are now exchanged on all 3D non-conforming meshes, so, as for
+  conforming meshes, ExchangeFaceNbrData must be called on all ranks.
 
 Linear and nonlinear solvers
 ----------------------------

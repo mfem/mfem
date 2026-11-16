@@ -770,13 +770,32 @@ TEST_CASE("TetEdgeFaceCommunication", "[Parallel], [NCMesh]")
    CHECK(pfes.GlobalTrueVSize() == fes.GetTrueVSize());
 }
 
+// Checks that the faces and face orientations of all the face neighbor
+// elements of a 3D parallel mesh are set.
+static void CheckFaceNbrElementFaces(ParMesh &pmesh)
+{
+   Array<int> nbr_faces, nbr_ori;
+   for (int i = 0; i < pmesh.GetNFaceNeighborElements(); i++)
+   {
+      pmesh.GetFaceNbrElementFaces(pmesh.GetNE() + i, nbr_faces, nbr_ori);
+      const int nf = pmesh.face_nbr_elements[i]->GetNFaces();
+      REQUIRE(nbr_faces.Size() == nf);
+      REQUIRE(nbr_ori.Size() == nf);
+      for (int j = 0; j < nf; j++)
+      {
+         CHECK(nbr_faces[j] >= 0);
+         CHECK(nbr_ori[j] >= 0);
+      }
+   }
+}
+
 TEST_CASE("FaceNbrOrientationsMixedTriFaces", "[Parallel], [NCMesh]")
 {
    // A row of two hexahedra and a cube split into two prisms, one cell per
-   // rank: the face neighbors of rank 0 have only quadrilateral faces, those of
-   // ranks 1 and 2 also have triangular ones. All ranks must take part in the
-   // exchange of the face neighbor orientations, or the face neighbor exchanges
-   // that follow it receive the wrong messages.
+   // rank: only rank 1 has a face neighbor with triangular faces, and rank 0
+   // has no triangular faces at all. The orientations are exchanged with every
+   // face neighbor, so all ranks must take part, or the face neighbor exchanges
+   // that follow receive the wrong messages.
    if (Mpi::WorldSize() < 3) { return; }
 
    Mesh smesh(3, 16, 4);
@@ -814,6 +833,10 @@ TEST_CASE("FaceNbrOrientationsMixedTriFaces", "[Parallel], [NCMesh]")
    ParMesh pmesh(MPI_COMM_WORLD, smesh, partition);
    pmesh.ExchangeFaceNbrData();
 
+   // The face orientations of the face neighbor elements are available on all
+   // ranks, including rank 0, whose face neighbors are all hexahedra.
+   CheckFaceNbrElementFaces(pmesh);
+
    // The face neighbor data of a grid function are its values on the face
    // neighbor elements.
    FunctionCoefficient coeff([](const Vector &x)
@@ -840,6 +863,25 @@ TEST_CASE("FaceNbrOrientationsMixedTriFaces", "[Parallel], [NCMesh]")
    MPI_Allreduce(MPI_IN_PLACE, &num_nbr_elems, 1, MPI_INT, MPI_SUM,
                  MPI_COMM_WORLD);
    CHECK(num_nbr_elems > 0);
+}
+
+TEST_CASE("FaceNbrOrientationsHex", "[Parallel], [NCMesh]")
+{
+   // The face orientations of the face neighbor elements are also available
+   // when no element has triangular faces, as for conforming meshes, also
+   // after a refinement.
+   Mesh smesh = Mesh::MakeCartesian3D(Mpi::WorldSize(), 2, 1,
+                                      Element::HEXAHEDRON);
+   smesh.EnsureNCMesh(true);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+   pmesh.ExchangeFaceNbrData();
+   CheckFaceNbrElementFaces(pmesh);
+
+   Array<Refinement> refs;
+   if (pmesh.GetNE() > 0) { refs.Append(Refinement(0)); }
+   pmesh.GeneralRefinement(refs);
+   pmesh.ExchangeFaceNbrData();
+   CheckFaceNbrElementFaces(pmesh);
 }
 
 TEST_CASE("HangingVertexOwnership", "[Parallel], [NCMesh]")
