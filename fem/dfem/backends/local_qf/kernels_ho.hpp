@@ -285,12 +285,12 @@ struct ho_ker_backend
    static_assert(DIM == 2 || DIM == 3);
 
    template<int VDIM>
-   using val_reg_t = std::conditional_t<(DIM == 2),
+   using val_reg_t = pick_byDIM<DIM, void,
          ker::v_regs2d_t<VDIM, MQ1>,
          ker::v_regs3d_t<VDIM, MQ1>>;
 
    template<int VDIM, int SDIM>
-   using del_reg_t = std::conditional_t<(DIM == 2),
+   using del_reg_t = pick_byDIM<DIM, void,
          ker::vd_regs2d_t<VDIM, SDIM, MQ1>,
          ker::vd_regs3d_t<VDIM, SDIM, MQ1>>;
 

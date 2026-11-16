@@ -1370,6 +1370,11 @@ template <int DIM> MFEM_HOST_DEVICE constexpr int ny(const int n)
 template <int DIM> MFEM_HOST_DEVICE constexpr int nz(const int n)
 { return DIM > 2 ? n : 1; }
 
+/// The type of @a Ts for entity dimension @a DIM, counted from 1:
+/// pick_byDIM<DIM, T1D, T2D, T3D>.
+template <int DIM, typename... Ts>
+using pick_byDIM = tuple_element_t<DIM - 1, tuple<Ts...>>;
+
 /// Size of the E-vector of field @a i of @a m, with field operator @a FOP, on
 /// @a ne entities of dimension @a DIM.
 template <int DIM, typename FOP, size_t N>

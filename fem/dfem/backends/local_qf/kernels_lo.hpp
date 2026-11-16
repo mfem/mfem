@@ -464,18 +464,16 @@ struct lo_ker_backend
    static_assert(DIM >= 1 && DIM <= 3);
 
    template<int VDIM>
-   using qreg_t = std::conditional_t<(DIM == 1),
+   using qreg_t = pick_byDIM<DIM,
          ker::regs1d_t<VDIM, MQ1>,
-         std::conditional_t<(DIM == 2),
          ker::regs2d_t<VDIM, MQ1>,
-         ker::regs3d_t<VDIM, MQ1>>>;
+         ker::regs3d_t<VDIM, MQ1>>;
 
    template<int VDIM, int SDIM>
-   using qreg_vd_t = std::conditional_t<(DIM == 1),
+   using qreg_vd_t = pick_byDIM<DIM,
          ker::regs1d_vd_t<VDIM, SDIM, MQ1>,
-         std::conditional_t<(DIM == 2),
          ker::regs2d_vd_t<VDIM, SDIM, MQ1>,
-         ker::regs3d_vd_t<VDIM, SDIM, MQ1>>>;
+         ker::regs3d_vd_t<VDIM, SDIM, MQ1>>;
 
    struct Shared1d
    {
@@ -495,8 +493,7 @@ struct lo_ker_backend
       real_t B[MQ1][MQ1], G[MQ1][MQ1];
    };
 
-   using Shared = std::conditional_t<(DIM == 1), Shared1d,
-         std::conditional_t<(DIM == 2), Shared2d, Shared3d>>;
+   using Shared = pick_byDIM<DIM, Shared1d, Shared2d, Shared3d>;
 
    template<typename FieldParamT, typename ArgRegT, typename XE_T>
    static MFEM_HOST_DEVICE void load_value(Shared &s,
