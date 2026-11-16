@@ -2715,6 +2715,59 @@ void SparseMatrix::DiagScale(const Vector &b, Vector &x,
    });
 }
 
+void SparseMatrix::DiagScale(const Vector &b, Vector &x, real_t sc,
+                             bool use_abs_diag, Array<int> &diag_pos) const
+{
+   MFEM_VERIFY(Finalized(), "Matrix must be finalized.");
+
+   // Solver work vectors often have UseDevice() set even without a device.
+   const bool use_dev = b.UseDevice() || x.UseDevice();
+   if (use_dev && Device::IsEnabled())
+   {
+      DiagScale(b, x, sc, use_abs_diag);
+      return;
+   }
+
+   const int H = height;
+   if (diag_pos.Size() != H)
+   {
+      diag_pos.SetSize(H);
+      diag_pos = -1;
+   }
+
+   const real_t *Ap = A.Read(MemoryClass::HOST, J.Capacity());
+   const int *Ip = I.Read(MemoryClass::HOST, H+1);
+   const int *Jp = J.Read(MemoryClass::HOST, J.Capacity());
+   const real_t *bp = b.HostRead();
+   real_t *xp = x.HostWrite();
+   int *dp = diag_pos.GetData();
+
+   for (int i = 0; i < H; i++)
+   {
+      int j = dp[i];
+      // The stored position is only a hint, the row is searched if it is stale.
+      if (j < Ip[i] || j >= Ip[i+1] || Jp[j] != i)
+      {
+         const int end = Ip[i+1];
+         for (j = Ip[i]; true; j++)
+         {
+            if (j == end)
+            {
+               MFEM_ABORT("Diagonal not found in SparseMatrix::DiagScale");
+            }
+            if (Jp[j] == i) { break; }
+         }
+         dp[i] = j;
+      }
+      const real_t diag = (use_abs_diag) ? fabs(Ap[j]) : Ap[j];
+      if (diag == 0.0)
+      {
+         MFEM_ABORT("Zero diagonal in SparseMatrix::DiagScale");
+      }
+      xp[i] = sc * bp[i] / diag;
+   }
+}
+
 template <bool useFabs>
 static void JacobiDispatch(const Vector &b, const Vector &x0, Vector &x1,
                            const Memory<int> &I, const Memory<int> &J,

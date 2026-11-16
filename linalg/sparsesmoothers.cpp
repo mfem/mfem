@@ -93,7 +93,7 @@ void DSmoother::Mult_(const SparseMatrix &A, const Vector &x, Vector &y) const
 {
    if (!iterative_mode && type == 0 && iterations == 1)
    {
-      A.DiagScale(x, y, scale, use_abs_diag);
+      A.DiagScale(x, y, scale, use_abs_diag, diag_pos);
       return;
    }
 

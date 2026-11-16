@@ -115,6 +115,9 @@ protected:
 
    mutable Vector z; ///< Temporary work vector.
 
+   /// Cached diagonal positions of the matrix, used by Mult_().
+   mutable Array<int> diag_pos;
+
    /// Apply the Jacobi smoother (used internally by Mult() and MultTranspose())
    void Mult_(const SparseMatrix &A, const Vector &x, Vector &y) const;
 
@@ -145,6 +148,9 @@ public:
    /// backwards compatibility.
    DSmoother(const SparseMatrix &a, int t, real_t s = 1., int it = 1)
       : DSmoother(a, JacobiType(t), s, it) { }
+
+   void SetOperator(const Operator &a) override
+   { SparseSmoother::SetOperator(a); diag_pos.DeleteAll(); }
 
    /// @brief Replace diagonal entries with their absolute values. Relevant only
    /// with JacobiType::JACOBI.

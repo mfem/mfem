@@ -546,6 +546,18 @@ public:
    void DiagScale(const Vector &b, Vector &x,
                   real_t sc = 1.0, bool use_abs_diag = false) const;
 
+   /** @brief Same as above, reusing the diagonal positions in @a diag_pos.
+
+       @a diag_pos is owned by the caller and holds one position per row. The
+       first call resizes it to Height() and fills it, later calls skip the row
+       search. Each position is checked before use and its row is searched
+       again if it no longer points to the diagonal, so the matrix may change
+       between calls. If a row holds more than one diagonal entry, a position
+       found earlier may not be the first of them. On device the cache is not
+       used. */
+   void DiagScale(const Vector &b, Vector &x, real_t sc, bool use_abs_diag,
+                  Array<int> &diag_pos) const;
+
    /** x1 = x0 + sc D^{-1} (b - A x0) where $ D_{ii} = \sum_j |A_{ij}| $. */
    void Jacobi2(const Vector &b, const Vector &x0, Vector &x1,
                 real_t sc = 1.0) const;

@@ -49,6 +49,10 @@ Linear and nonlinear solvers
   were host vectors while the PETSc matrices and preconditioners computed on
   the device, so that the PETSc solvers returned wrong solutions.
 
+- Sped up DSmoother by caching the positions of the diagonal entries instead
+  of searching each row on every application. The positions are checked on
+  every use. Added an overload of SparseMatrix::DiagScale that takes the cache.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new example for solving the biharmonic equation (examples/ex42) based
