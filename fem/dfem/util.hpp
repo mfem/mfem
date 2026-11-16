@@ -1060,24 +1060,24 @@ struct ThreadBlocks
    int batch = 1;
 };
 
-/// When B items share the k threads of a block: the number of k threads of
-/// each item, ceil(blockDim.k / B), and the calling thread's index among the
-/// threads of its item.
+// When B items share the k threads of a block: the number of k threads of
+// each item, ceil(blockDim.k / B), and the calling thread's index among the
+// threads of its item.
 #define MFEM_BATCH_THREAD_SIZE(k,B) ((MFEM_THREAD_SIZE(k) + (B) - 1) / (B))
 #define MFEM_BATCH_THREAD_ID(k,B) \
    (MFEM_THREAD_ID(k) % MFEM_BATCH_THREAD_SIZE(k,B))
 
-/// MFEM_FOREACH_THREAD(i,k,N) when the k threads of a block are shared by a
-/// batch of B items: the threads of each item split i = 0..N-1. With B = 1 it
-/// is MFEM_FOREACH_THREAD.
-///
-/// Example: MFEM_FOREACH_THREAD_BATCHED(qz, z, N, B) in a block of 4 z threads
-///   B = 1, N = 4: 4 threads per element, z thread t runs qz = t
-///   B = 2, N = 4: 2 threads per element, z thread t runs qz = t % 2, t % 2 + 2
-///   B = 4, N = 1: 1 thread per element, every z thread runs qz = 0
-///
-/// @note it only uses MFEM_THREAD_ID and MFEM_THREAD_SIZE,
-/// so we could move it to general/backends.hpp next to MFEM_FOREACH_THREAD.
+// MFEM_FOREACH_THREAD(i,k,N) when the k threads of a block are shared by a
+// batch of B items: the threads of each item split i = 0..N-1. With B = 1 it
+// is MFEM_FOREACH_THREAD.
+//
+// Example: MFEM_FOREACH_THREAD_BATCHED(qz, z, N, B) in a block of 4 z threads
+//   B = 1, N = 4: 4 threads per element, z thread t runs qz = t
+//   B = 2, N = 4: 2 threads per element, z thread t runs qz = t % 2, t % 2 + 2
+//   B = 4, N = 1: 1 thread per element, every z thread runs qz = 0
+//
+// Note: it only uses MFEM_THREAD_ID and MFEM_THREAD_SIZE, so it could move to
+// general/backends.hpp next to MFEM_FOREACH_THREAD.
 #define MFEM_FOREACH_THREAD_BATCHED(i,k,N,B)                   \
    for (int i = MFEM_BATCH_THREAD_ID(k,B); i < (N);            \
         i += MFEM_BATCH_THREAD_SIZE(k,B))

@@ -676,12 +676,12 @@ void bdr_mass_spaces(const char *filename, int p)
 // used for the MFEM coefficient and by the dFEM qfunctions
 MFEM_HOST_DEVICE inline tensor<real_t, 3> FluxField(const tensor<real_t, 3> &x)
 {
-   return {x[0]*x[1] + 1.0, x[1] - x[2]*x[2], x[0] + 2.0*x[2]};
+   return {x[0]*x[1] + 1.0_r, x[1] - x[2]*x[2], x[0] + 2.0_r*x[2]};
 }
 
 MFEM_HOST_DEVICE inline tensor<real_t, 2> FluxField(const tensor<real_t, 2> &x)
 {
-   return {x[0]*x[1] + 1.0, 2.0*x[1] - x[0]*x[0]};
+   return {x[0]*x[1] + 1.0_r, 2.0_r*x[1] - x[0]*x[0]};
 }
 
 template <int DIM> struct global_bdr_flux_qf
