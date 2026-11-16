@@ -809,6 +809,22 @@ template void VTKHDF::SaveGridFunction<float>(const GridFunction&,
 template void VTKHDF::SaveGridFunction<double>(const GridFunction&,
                                                const std::string&);
 
+// Instantiations available to derived writers (T is deduced from the data
+// pointer, so callers pass non-const data).
+template void VTKHDF::AppendParData<hsize_t>(hid_t, const std::string&, hsize_t,
+                                             hsize_t, Dims, hsize_t*);
+template void VTKHDF::AppendParData<int>(hid_t, const std::string&, hsize_t,
+                                         hsize_t, Dims, int*);
+template void VTKHDF::AppendParData<unsigned char>(hid_t, const std::string&,
+                                                   hsize_t, hsize_t, Dims,
+                                                   unsigned char*);
+template VTKHDF::OffsetTotal VTKHDF::AppendParVector<int>(
+   hid_t, const std::string&, const std::vector<int>&, Dims);
+template VTKHDF::OffsetTotal VTKHDF::AppendParVector<float>(
+   hid_t, const std::string&, const std::vector<float>&, Dims);
+template VTKHDF::OffsetTotal VTKHDF::AppendParVector<double>(
+   hid_t, const std::string&, const std::vector<double>&, Dims);
+
 } // namespace mfem
 
 #endif // MFEM_USE_HDF5

@@ -47,7 +47,7 @@ public:
       static Restart Disabled() { return Restart(); }
    };
 
-private:
+protected:
 #ifdef MFEM_USE_MPI
    /// MPI communicator (only available if MPI is enabled).
    MPI_Comm comm = MPI_COMM_NULL;
