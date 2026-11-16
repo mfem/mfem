@@ -459,19 +459,23 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
                                    t?vd:d, d, d, t?d:ne_shared, t?ne_shared:vd);
    auto d_y = Reshape(y.Write(), q2d, vd, 2, nf);
 
-   mfem::forall_2D(nf, q2d, 2, [=] MFEM_HOST_DEVICE (int f) -> void
+   // from order 2 up a face fills a warp, so target two warps per block
+   constexpr int NBZ = T_D1D ? (64 / (2 * T_D1D * T_D1D) > 0 ?
+                                64 / (2 * T_D1D * T_D1D) : 1) : 1;
+   mfem::forall_2D_batch(nf, q2d, 2, NBZ, [=] MFEM_HOST_DEVICE (int f) -> void
    {
       static constexpr int MD = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      const int fz = MFEM_THREAD_ID(z);
 
       MFEM_SHARED real_t G_s[MD*MD];
       DeviceMatrix G(G_s, d, q);
 
-      MFEM_SHARED int E[2];
-      MFEM_SHARED int FID[2];
-      MFEM_SHARED int F2V[2][MD*MD];
+      MFEM_SHARED int E[NBZ][2];
+      MFEM_SHARED int FID[NBZ][2];
+      MFEM_SHARED int F2V[NBZ][2][MD*MD];
 
       // Load G matrix into shared memory
-      if (MFEM_THREAD_ID(y) == 0)
+      if (MFEM_THREAD_ID(y) == 0 && fz == 0)
       {
          MFEM_FOREACH_THREAD(j, x, d*q)
          {
@@ -485,24 +489,24 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
       {
          if (MFEM_THREAD_ID(x) == 0)
          {
-            E[side] = f2e(side, 0, f);
-            FID[side] = f2e(side, 1, f);
+            E[fz][side] = f2e(side, 0, f);
+            FID[fz][side] = f2e(side, 1, f);
          }
          MFEM_FOREACH_THREAD(j, x, q2d)
          {
-            F2V[side][j] = f2v(j, side, f);
+            F2V[fz][side][j] = f2v(j, side, f);
          }
       }
       MFEM_SYNC_THREAD;
 
       MFEM_FOREACH_THREAD(side, y, 2)
       {
-         const int el = E[side];
+         const int el = E[fz][side];
          const bool shared = (el >= num_elem);
          const auto &d_x_e = shared ? d_x_shared : d_x;
          const int el_idx = shared ? el - num_elem : el;
 
-         const int face_id = FID[side];
+         const int face_id = FID[fz][side];
 
          // Is this face parallel to the x-y plane in reference coordinates?
          const bool xy_plane = (face_id == 0 || face_id == 5);
@@ -520,7 +524,7 @@ void L2NormalDerivativeFaceRestriction::Mult3D(const Vector &x, Vector &y) const
             }
             else
             {
-               const int ijk = F2V[side][p];
+               const int ijk = F2V[fz][side][p];
                const int k = ijk / q2d;
                const int i = ijk % q;
                const int j = (ijk - q2d*k) / q;
