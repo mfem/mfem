@@ -599,7 +599,9 @@ TEST_CASE("Hcurl nonlinear diagonal PA",
    nlf_pa.Setup();
 
    Vector diag_pa(fes.GetVSize());
-   nlf_pa.GetGradient(Vector(fes.GetVSize())).AssembleDiagonal(diag_pa);
+  Vector state(fes.GetVSize());
+  state = 0.0;
+  nlf_pa.GetGradient(state).AssembleDiagonal(diag_pa);
    REQUIRE(diag_pa.Sum() == MFEM_Approx(8.));
 }
 
