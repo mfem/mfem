@@ -14,7 +14,7 @@ on:
   workflow_call:
 jobs:
   build-file-lsan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04  # can switch to 'ubuntu-latest' after 2026-11-19
     name: lsan.supp
     steps:
       - uses: actions/checkout@v6
@@ -24,7 +24,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{env.LSAN_DIR}}
-          key: build-lsan-suppression-file
+          key: ${{env.IMAGE_OS}}-build-lsan-suppression-file
       - name: Setup
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
@@ -35,4 +35,8 @@ jobs:
           leak:ompi_mpi_init
           leak:PMPI_Init
           leak:strdup
+          leak:libopen-pal.so
+          leak:libpmix.so
+          leak:libhwloc.so
+          leak:ompi_mpi_instance_init
           EOF
