@@ -1055,7 +1055,32 @@ struct ThreadBlocks
    int x = 1;
    int y = 1;
    int z = 1;
+   /// Items per block, launched on ceil(N / batch) blocks. With batch > 1 the
+   /// z threads of a block index its items, see thread_item().
+   int batch = 1;
 };
+
+/// When B items share the k threads of a block: the number of k threads of
+/// each item, ceil(blockDim.k / B), and the calling thread's index among the
+/// threads of its item.
+#define MFEM_BATCH_THREAD_SIZE(k,B) ((MFEM_THREAD_SIZE(k) + (B) - 1) / (B))
+#define MFEM_BATCH_THREAD_ID(k,B) \
+   (MFEM_THREAD_ID(k) % MFEM_BATCH_THREAD_SIZE(k,B))
+
+/// MFEM_FOREACH_THREAD(i,k,N) when the k threads of a block are shared by a
+/// batch of B items: the threads of each item split i = 0..N-1. With B = 1 it
+/// is MFEM_FOREACH_THREAD.
+///
+/// Example: MFEM_FOREACH_THREAD_BATCHED(qz, z, N, B) in a block of 4 z threads
+///   B = 1, N = 4: 4 threads per element, z thread t runs qz = t
+///   B = 2, N = 4: 2 threads per element, z thread t runs qz = t % 2, t % 2 + 2
+///   B = 4, N = 1: 1 thread per element, every z thread runs qz = 0
+///
+/// @note it only uses MFEM_THREAD_ID and MFEM_THREAD_SIZE,
+/// so we could move it to general/backends.hpp next to MFEM_FOREACH_THREAD.
+#define MFEM_FOREACH_THREAD_BATCHED(i,k,N,B)                   \
+   for (int i = MFEM_BATCH_THREAD_ID(k,B); i < (N);            \
+        i += MFEM_BATCH_THREAD_SIZE(k,B))
 
 #if defined(MFEM_USE_CUDA_OR_HIP)
 // Clang 19 does not know __grid_constant__ and warns at each use
@@ -1066,11 +1091,17 @@ struct ThreadBlocks
 #define MFEM_DFEM_GRID_CONSTANT
 #endif
 
+/// Item of the calling thread in a launch with @a batch items per block
+__device__ inline int thread_item(const int batch)
+{
+   return (batch > 1) ? blockIdx.x * batch + threadIdx.z : blockIdx.x;
+}
+
 template <typename func_t>
 __global__ void forall_kernel_shmem(MFEM_DFEM_GRID_CONSTANT const func_t f,
-                                    int n)
+                                    int n, int batch)
 {
-   int i = blockIdx.x;
+   const int i = thread_item(batch);
    extern __shared__ real_t shmem[];
    if (i < n)
    {
@@ -1080,9 +1111,9 @@ __global__ void forall_kernel_shmem(MFEM_DFEM_GRID_CONSTANT const func_t f,
 
 template <typename func_t>
 __global__ void forall_kernel_static_smem(
-   MFEM_DFEM_GRID_CONSTANT const func_t f, int n)
+   MFEM_DFEM_GRID_CONSTANT const func_t f, int n, int batch)
 {
-   int i = blockIdx.x;
+   const int i = thread_item(batch);
    if (i >= n) { return; }
    f(i, nullptr);
 }
@@ -1091,11 +1122,11 @@ template <int MAX_THREADS_PER_BLOCK, typename func_t>
 __global__
 MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
 static void forall_kernel_static_smem_launch_bounds(
-   MFEM_DFEM_GRID_CONSTANT const func_t f, int n)
+   MFEM_DFEM_GRID_CONSTANT const func_t f, int n, int batch)
 {
-   // Every launch site uses <<<n, block_size>>>, i.e. one block per item, so
-   // this is deliberately not a grid-stride loop.
-   int i = blockIdx.x;
+   // Every launch site uses one block per item or batch of items, so this is
+   // deliberately not a grid-stride loop.
+   const int i = thread_item(batch);
    if (i >= n) { return; }
    f(i, nullptr);
 }
@@ -1195,14 +1226,15 @@ void forall(func_t f,
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
+      const int NB = (N + blocks.batch - 1) / blocks.batch;
       if (num_bytes > 0)
       {
          dfem_prepare_dynamic_shmem(&forall_kernel_shmem<func_t>, num_bytes);
-         forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
+         forall_kernel_shmem<<<NB, block_size, num_bytes>>>(f, N, blocks.batch);
       }
       else
       {
-         forall_kernel_static_smem<<<N, block_size>>>(f, N);
+         forall_kernel_static_smem<<<NB, block_size>>>(f, N, blocks.batch);
       }
 #if defined(MFEM_USE_CUDA)
       MFEM_GPU_CHECK(cudaGetLastError());
@@ -1246,23 +1278,25 @@ void forall(func_t f,
       // A zero grid dim is a valid no-op, but CUDA reports it as
       // cudaErrorInvalidConfiguration, so screen it out here.
       if (N <= 0) { return; }
+      // One block per batch of items, N blocks by default (batch = 1)
+      const int NB = (N + blocks.batch - 1) / blocks.batch;
       if constexpr (MAX_THREADS_PER_BLOCK > 0)
       {
          assert(num_bytes == 0);
          forall_kernel_static_smem_launch_bounds
-         <MAX_THREADS_PER_BLOCK><<<N, block_size>>> (f, N);
+         <MAX_THREADS_PER_BLOCK><<<NB, block_size>>> (f, N, blocks.batch);
       }
       else
       {
          static_assert(MAX_THREADS_PER_BLOCK == 0);
          if (num_bytes == 0)
          {
-            forall_kernel_static_smem<<<N, block_size>>>(f, N);
+            forall_kernel_static_smem<<<NB, block_size>>>(f, N, blocks.batch);
          }
          else
          {
             dfem_prepare_dynamic_shmem(&forall_kernel_shmem<func_t>, num_bytes);
-            forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
+            forall_kernel_shmem<<<NB, block_size, num_bytes>>>(f, N, blocks.batch);
          }
       }
 #if defined(MFEM_USE_CUDA)
@@ -1292,9 +1326,9 @@ void forall(func_t f,
 #if defined(MFEM_USE_CUDA_OR_HIP)
 template <typename data_t, typename body_t>
 __global__ void forall_data_kernel(MFEM_DFEM_GRID_CONSTANT const data_t data,
-                                   int n)
+                                   int n, int batch)
 {
-   int i = blockIdx.x;
+   const int i = thread_item(batch);
    if (i >= n) { return; }
    body_t::run(data, i);
 }
@@ -1303,9 +1337,9 @@ template <int MAX_THREADS_PER_BLOCK, typename data_t, typename body_t>
 __global__
 MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
 static void forall_data_kernel_launch_bounds(
-   MFEM_DFEM_GRID_CONSTANT const data_t data, int n)
+   MFEM_DFEM_GRID_CONSTANT const data_t data, int n, int batch)
 {
-   int i = blockIdx.x;
+   const int i = thread_item(batch);
    if (i >= n) { return; }
    body_t::run(data, i);
 }
@@ -1325,14 +1359,19 @@ void forall_data(data_t data,
    {
 #if defined(MFEM_USE_CUDA_OR_HIP)
       dim3 block_size(blocks.x, blocks.y, blocks.z);
+      if (N <= 0) { return; }
+      // One block per batch of items, N blocks by default (batch = 1)
+      const int NB = (N + blocks.batch - 1) / blocks.batch;
       if constexpr (MAX_THREADS_PER_BLOCK > 0)
       {
          forall_data_kernel_launch_bounds
-         <MAX_THREADS_PER_BLOCK, data_t, body_t><<<N, block_size>>>(data, N);
+         <MAX_THREADS_PER_BLOCK, data_t, body_t><<<NB, block_size>>>(
+            data, N, blocks.batch);
       }
       else
       {
-         forall_data_kernel<data_t, body_t><<<N, block_size>>>(data, N);
+         forall_data_kernel<data_t, body_t><<<NB, block_size>>>(
+            data, N, blocks.batch);
       }
 #if defined(MFEM_USE_CUDA)
       MFEM_GPU_CHECK(cudaGetLastError());
