@@ -420,9 +420,14 @@ struct LocalQFHOBackend
    static_assert(DIM == 2 || DIM == 3);
 
    // ─────────────────────────────────────────────────────
-   static inline ThreadBlocks thread_blocks(const int q1d)
+   static constexpr int BATCH = 1;
+
+   // ─────────────────────────────────────────────────────
+   static inline ThreadBlocks thread_blocks(const int q1d, const int batch = 1)
    {
       MFEM_ASSERT(q1d <= Q1D, "q1d must be <= " << Q1D);
+      MFEM_ASSERT(batch == 1, "HO blocks hold a single entity");
+      MFEM_CONTRACT_VAR(batch);
       return { q1d, q1d, 1 };
    }
 

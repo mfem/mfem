@@ -980,7 +980,9 @@ inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
 
 ///////////////////////////////////////////////////////////////////////////////
 /// 1D kernels
-/// One x-thread per dof or quadrature point of a single element.
+/// One x-thread per dof or quadrature point of a single element. Callers may
+/// batch several elements per block along z, each with its own shared slot
+/// (see lo_ker_backend::BATCH in fem/dfem/backends/local_qf/kernels_lo.hpp).
 /// Eval1d and EvalTranspose1d also apply G for the gradient of a scalar field.
 
 template <int DIM, int MQ1>

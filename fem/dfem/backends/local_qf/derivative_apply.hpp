@@ -271,7 +271,7 @@ public:
          // Contract the cached Jacobian with the trial direction at each
          // quadrature point and push the result into the test registers.
          // -----------------------------------------------
-         MFEM_FOREACH_THREAD(qz, z, nz<DIM>(q1d))
+         MFEM_FOREACH_THREAD_BATCHED(qz, z, nz<DIM>(q1d), backend_t::BATCH)
          {
             MFEM_FOREACH_THREAD_DIRECT(qy, y, ny<DIM>(q1d))
             {
@@ -382,7 +382,8 @@ public:
       },
       ctx.marked_entities.Size(),
       backend_t::thread_blocks(compute_kernel_thread_1d<inputs_t, outputs_t>(
-                                  q1d, in.d1ds(), out.d1ds())),
+                                  q1d, in.d1ds(), out.d1ds()),
+                               backend_t::BATCH),
       0,
       nullptr);
    }

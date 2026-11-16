@@ -463,6 +463,13 @@ struct lo_ker_backend
    static constexpr int DIM = T_DIM;
    static_assert(DIM >= 1 && DIM <= 3);
 
+   /// Entities per thread block: a 1D block batches the entities of its z
+   /// threads, up to 128 threads; 2D and 3D blocks hold one entity.
+   static constexpr int BATCH = (DIM == 1 && MQ1 < 128) ? 128 / MQ1 : 1;
+
+   /// Shared-memory slot of the entity of the calling thread.
+   static MFEM_HOST_DEVICE int slot() { return (DIM == 1) ? MFEM_THREAD_ID(z) : 0; }
+
    template<int VDIM>
    using qreg_t = pick_byDIM<DIM,
          ker::regs1d_t<VDIM, MQ1>,
@@ -477,7 +484,7 @@ struct lo_ker_backend
 
    struct Shared1d
    {
-      real_t M[1][MQ1][DIM];
+      real_t M[BATCH][MQ1][DIM];
       real_t B[MQ1][MQ1], G[MQ1][MQ1];
    };
 
@@ -520,8 +527,8 @@ struct lo_ker_backend
       {
          if constexpr (DIM == 1)
          {
-            ker::LoadDofs1d(e, d, 0, XE, s.M[0]);
-            ker::Eval1d(d, q, s.B, s.M[0], rarg);
+            ker::LoadDofs1d(e, d, 0, XE, s.M[slot()]);
+            ker::Eval1d(d, q, s.B, s.M[slot()], rarg);
          }
          else if constexpr (DIM == 2)
          {
@@ -554,8 +561,8 @@ struct lo_ker_backend
             // Load and interpolate the c-th component of the vector field.
             if constexpr (DIM == 1)
             {
-               ker::LoadDofs1d(e, d, c, XE, s.M[0]);
-               ker::Eval1d(d, q, s.B, s.M[0], rc);
+               ker::LoadDofs1d(e, d, c, XE, s.M[slot()]);
+               ker::Eval1d(d, q, s.B, s.M[slot()], rc);
             }
             else if constexpr (DIM == 2)
             {
@@ -577,7 +584,7 @@ struct lo_ker_backend
 
             // Copy the interpolated component from the register to the corresponding
             // component in the output at the quadrature points.
-            MFEM_FOREACH_THREAD(qz, z, nz<DIM>(q))
+            MFEM_FOREACH_THREAD_BATCHED(qz, z, nz<DIM>(q), BATCH)
             {
                MFEM_FOREACH_THREAD_DIRECT(qy, y, ny<DIM>(q))
                {
@@ -615,8 +622,8 @@ struct lo_ker_backend
          {
             if constexpr (DIM == 1)
             {
-               ker::LoadDofs1d(e, d, 0, XE, s.M[0]);
-               ker::Eval1d(d, q, s.G, s.M[0], rarg);
+               ker::LoadDofs1d(e, d, 0, XE, s.M[slot()]);
+               ker::Eval1d(d, q, s.G, s.M[slot()], rarg);
             }
             else if constexpr (DIM == 2)
             {
@@ -647,8 +654,8 @@ struct lo_ker_backend
             {
                if constexpr (DIM == 1)
                {
-                  ker::LoadDofs1d(e, d, c, XE, s.M[0]);
-                  ker::VectorGrad1d(d, q, c, s.G, s.M[0], rarg);
+                  ker::LoadDofs1d(e, d, c, XE, s.M[slot()]);
+                  ker::VectorGrad1d(d, q, c, s.G, s.M[slot()], rarg);
                }
                else if constexpr (DIM == 2)
                {
@@ -699,7 +706,7 @@ struct lo_ker_backend
       {
          if constexpr (DIM == 1)
          {
-            ker::EvalTranspose1d(d, q, s.B, rarg, s.M[0]);
+            ker::EvalTranspose1d(d, q, s.B, rarg, s.M[slot()]);
             ker::WriteEvalDofs1d(d, 0, e, rarg, YE);
          }
          else if constexpr (DIM == 2)
@@ -722,7 +729,7 @@ struct lo_ker_backend
          for (int c = 0; c < VDIM; ++c)
          {
             // Copy the c-th component of the vector field to the register rc.
-            MFEM_FOREACH_THREAD(qz, z, nz<DIM>(q))
+            MFEM_FOREACH_THREAD_BATCHED(qz, z, nz<DIM>(q), BATCH)
             {
                MFEM_FOREACH_THREAD_DIRECT(qy, y, ny<DIM>(q))
                {
@@ -737,7 +744,7 @@ struct lo_ker_backend
             // Evaluate the transpose of the basis for the single component and write its dofs.
             if constexpr (DIM == 1)
             {
-               ker::EvalTranspose1d(d, q, s.B, rc, s.M[0]);
+               ker::EvalTranspose1d(d, q, s.B, rc, s.M[slot()]);
                ker::WriteEvalDofs1d(d, c, e, rc, YE);
             }
             else if constexpr (DIM == 2)
@@ -777,7 +784,7 @@ struct lo_ker_backend
          {
             if constexpr (DIM == 1)
             {
-               ker::EvalTranspose1d(d, q, s.G, rarg, s.M[0]);
+               ker::EvalTranspose1d(d, q, s.G, rarg, s.M[slot()]);
                ker::WriteEvalDofs1d(d, 0, e, rarg, YE);
             }
             else if constexpr (DIM == 2)
@@ -802,7 +809,7 @@ struct lo_ker_backend
             {
                if constexpr (DIM == 1)
                {
-                  ker::VectorGradTranspose1d(d, q, c, s.G, rarg, s.M[0]);
+                  ker::VectorGradTranspose1d(d, q, c, s.G, rarg, s.M[slot()]);
                   ker::WriteGradDofs1d(d, c, e, rarg, YE);
                }
                else if constexpr (DIM == 2)
@@ -838,18 +845,25 @@ struct LocalQFLOBackend
    static_assert(ZTHREADS > 0 && ZTHREADS <= Q1D);
 
    // ─────────────────────────────────────────────────────
-   static inline ThreadBlocks thread_blocks(const int q1d)
+   using backend_t = lo_ker_backend<DIM, Q1D, (DIM == 3 && ZTHREADS < Q1D)>;
+
+   // ─────────────────────────────────────────────────────
+   static constexpr int BATCH = backend_t::BATCH;
+
+   // ─────────────────────────────────────────────────────
+   /// Threads of a block over @a batch <= BATCH entities: @a q1d per axis of
+   /// the entity, plus one z thread per entity of a 1D batch.
+   static inline ThreadBlocks thread_blocks(const int q1d, const int batch = 1)
    {
       MFEM_ASSERT(q1d <= Q1D, "q1d must be <= " << Q1D);
-      return { q1d, (DIM > 1) ? q1d : 1, (DIM > 2) ? std::min(q1d, ZTHREADS) : 1 };
+      MFEM_ASSERT(batch >= 1 && batch <= BATCH, "batch must be <= " << BATCH);
+      return { q1d, (DIM > 1) ? q1d : 1,
+               (DIM > 2) ? std::min(q1d, ZTHREADS) : batch, batch };
    }
 
    // ─────────────────────────────────────────────────────
    static inline constexpr int MAX_THREADS_PER_BLOCK()
-   { return Q1D * ((DIM > 1) ? Q1D : 1) * ((DIM > 2) ? ZTHREADS : 1); }
-
-   // ─────────────────────────────────────────────────────
-   using backend_t = lo_ker_backend<DIM, Q1D, (DIM == 3 && ZTHREADS < Q1D)>;
+   { return Q1D * ((DIM > 1) ? Q1D : 1) * ((DIM > 2) ? ZTHREADS : BATCH); }
 
    // ─────────────────────────────────────────────────────
    using Shared = typename backend_t::Shared;
