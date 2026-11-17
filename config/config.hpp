@@ -87,11 +87,16 @@ constexpr real_t operator""_r(unsigned long long v)
 #define MFEM_DEPRECATED
 #endif
 
-// --- MFEM_FORCE_INLINE
-// Macro used to request that a function be always inlined (GCC and clang).
-// Unlike MFEM_ALWAYS_INLINE, MFEM_FORCE_INLINE inlines also in debug builds.
+// MFEM_FORCE_INLINE: request that a function be inlined regardless of the
+// optimization level, including debug builds (unlike MFEM_ALWAYS_INLINE in
+// config/tconfig.hpp which is disabled in debug builds). Intended for small
+// accessors, e.g. in class tensor, where the call overhead would otherwise
+// dominate at -O0, in particular when used with Enzyme. Use together with
+// 'inline' or on functions defined in-class (which are implicitly inline).
 #if defined(__GNUC__) || defined(__clang__)
 #define MFEM_FORCE_INLINE __attribute__((always_inline))
+#elif defined(_MSC_VER)
+#define MFEM_FORCE_INLINE __forceinline
 #else
 #define MFEM_FORCE_INLINE
 #endif
