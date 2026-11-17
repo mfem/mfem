@@ -20,6 +20,20 @@
 //   mpirun -np 4 pmesh-optimize-size -m junction-box-tet.mesh -mod-bndr-attr -bnd -vl 2 -mid 334 -gamma 0.7
 //   2D demo
 //   mpirun -np 4 pmesh-optimize-size -m stretched2D-tri.mesh -rr 2 -rrp 0.2 -vl 2 -vis -mid 80
+
+// Suggested TMOP settings
+// TMOP target
+// target_id = 3; // IDEAL SHAPE GIVEN SIZE
+// use       = 2 for IDEAL SHAPE EQUAL SIZE but that will change element sizes
+// TMOP metric
+// metric_id = 321 // depends on shape+size
+// Or          334 // depends on shape+size, with gamma \ in [0,1] controlling
+//                 // shape-size trade-off. \gamma = 0 favors shape, \gamma = 1
+//                 // favors size.
+// Boundary movement
+// Tangential movement on Cartesian boundary faces can be enabled with
+// the -mod-bndr-attr and -bnd options.
+
 #include "mfem.hpp"
 #include "mesh-fitting.hpp"
 #include <algorithm>
