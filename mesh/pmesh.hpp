@@ -20,6 +20,7 @@
 #include "../general/globals.hpp"
 #include "mesh.hpp"
 #include "pncmesh.hpp"
+#include <cstdint>
 #include <iostream>
 
 namespace mfem
@@ -200,6 +201,86 @@ protected:
                                   int op = 1) override;
 
    void RebalanceImpl(const Array<int> *partition);
+
+   /// Old location of the local elements after Rebalance() of a conforming
+   /// mesh, see GetRebalanceOldElements().
+   Array<int> rebalance_old_rank, rebalance_old_index;
+   /// Value of #sequence for which the arrays above are valid.
+   long rebalance_sequence = -1;
+
+   /** @brief Element, boundary element, vertex and edge records of a local
+       part of a conforming simplex mesh, described with global vertex ids.
+       Defined in pmesh_rebalance.cpp. */
+   struct ConformingRecords;
+   /** @brief The new ranks of the vertices, edges and faces of the local mesh
+       in a conforming rebalance. Defined in pmesh_rebalance.cpp. */
+   struct ConformingTarget;
+
+   /// Rebalance() for conforming meshes of triangles or tetrahedra.
+   void RebalanceConforming(const Array<int> &partition);
+
+   /** @name Steps of RebalanceConforming()
+
+       Collective unless stated otherwise. A refusal stops the call with an
+       error on all the ranks, before the mesh changes. */
+   ///@{
+   /// Refuse an unsupported mesh, nodes that are not in a
+   /// ParFiniteElementSpace of uniform order, a @a partition that does not map
+   /// the local elements to ranks, or step 2 arrays that would be too large.
+   void CheckRebalanceArguments(const Array<int> &partition) const;
+   /// Refuse a mesh whose ranks list different numbers of shared vertices,
+   /// edges or faces in a group; row n of @a nbr_groups lists the groups shared
+   /// with neighbor n, in an order that both know.
+   void CheckRebalanceGroupSizes(const Table &nbr_groups) const;
+   /// Set @a vert_gid to the global ids of the local vertices: the master rank
+   /// of a vertex, shifted by 32 bits, plus its local index there.
+   void GetRebalanceVertexIds(Array<std::int64_t> &vert_gid) const;
+   /// Refuse a mesh whose ranks describe the shared edges or faces of a group
+   /// differently, compared through the global vertex ids @a vert_gid.
+   void CheckRebalanceSharedEntities(const Table &nbr_groups,
+                                     const Array<std::int64_t> &vert_gid) const;
+   /// Set @a target, the new ranks of the local entities after @a partition,
+   /// completed over the groups. Return 1 if a received set would make an
+   /// array too large, otherwise 0: on this rank only.
+   int GetRebalanceTarget(const Array<int> &partition, const Table &nbr_groups,
+                          ConformingTarget &target) const;
+   /// Pack the records sent to each rank of @a dests in @a msgs. Local. Return
+   /// 1 if @a too_large is 1, or if a message would be too large (@a msgs is
+   /// then incomplete), otherwise 0.
+   int PackRebalanceMessages(
+      const Array<int> &partition, const Array<std::int64_t> &vert_gid,
+      const ConformingTarget &target, int too_large, Array<int> &dests,
+      std::vector<std::vector<std::int64_t>> &msgs) const;
+   /// Append the records of the messages @a recv_msgs, in the order of their
+   /// source ranks, to @a rec, emptying @a recv_msgs. Local.
+   void DecodeRebalanceMessages(
+      std::map<int, std::vector<std::int64_t>> &recv_msgs,
+      ConformingRecords &rec) const;
+   ///@}
+
+   /** @brief Replace the local mesh and its parallel topology by the mesh
+       described by @a records: the elements, boundary elements and vertices
+       of this rank, and the ranks holding each shared vertex, edge and face.
+       Collective. */
+   void BuildFromConformingRecords(ConformingRecords &records);
+
+   /// @name Steps of BuildFromConformingRecords()
+   ///@{
+   /// Replace the local mesh by the elements, boundary elements and vertices
+   /// of @a rec, without parallel topology, and set the new vertices of
+   /// @a rec. Local.
+   void BuildLocalMeshFromRecords(ConformingRecords &rec);
+   /// Make the groups of the new local mesh and their shared vertices, edges
+   /// and faces, from the sets of ranks of @a rec. Collective.
+   void BuildGroupsFromRecords(ConformingRecords &rec);
+   /// Give the shared triangles listed in @a faces_with for each rank q the
+   /// vertex order of the lower of this rank and q: send it to q, or receive
+   /// it from q. Collective.
+   void OrientSharedTriangles(const std::map<int, std::vector<int>> &faces_with,
+                              const ConformingRecords &rec);
+   /// Publish the previous location of each element, from @a rec. Local.
+   void PublishRebalance(ConformingRecords &rec);
+   ///@}
 
    void DeleteFaceNbrData();
 
@@ -720,10 +801,55 @@ public:
        sequence of elements. Works for nonconforming meshes only. */
    void Rebalance();
 
-   /** Load balance a nonconforming mesh using a user-defined partition. Each
-       local element 'i' is migrated to processor rank 'partition[i]', for 0 <=
-       i < GetNE(). */
+   /** @brief Load balance the mesh using a user-defined partition: each local
+       element 'i' is migrated to processor rank 'partition[i]', for 0 <= i <
+       GetNE().
+
+       Supported for nonconforming meshes and for conforming meshes of
+       triangles (2D) or tetrahedra (3D) without nodes. For a conforming mesh:
+
+       - The elements move with their attributes, vertex order, tetrahedron
+         refinement flags (so local conforming refinement continues as on the
+         original mesh) and boundary elements (also interior ones); attribute
+         sets are kept, and vertices that belong to no element stay on their
+         rank.
+       - No rank gathers the mesh: a rank only communicates with the ranks it
+         shares entities with, before or after the call, and with the ranks it
+         sends elements to or receives elements from. Any partition is allowed,
+         also one that leaves ranks without elements, and the result does not
+         depend on the order in which messages arrive. The memory used on a
+         rank is of the order of the size of its part of the mesh before and
+         after the call, times the largest number of ranks that share a vertex;
+         the master of a group of s ranks (its lowest rank) also holds of the
+         order of s^2 entries for it while the groups are built.
+       - The call stops with an error on all ranks, before anything moves and
+         with the mesh (its face neighbor data included) unchanged, for a mesh
+         with nodes, for a ParSubMesh (its maps to the parent mesh would no
+         longer be valid), for
+         a mesh that is not conforming across the ranks (ranks that list
+         different numbers of shared vertices, edges or faces in a group, or
+         describe its shared edges or faces with other vertices or in another
+         vertex order; the groups, and which shared vertex of a group is which
+         on each rank, are taken as given), and when an array would have more
+         than INT_MAX/2 entries, or a message more than INT_MAX words, for the
+         mesh or the tables of its groups.
+       - After the call, the grid functions on the mesh are not transferred:
+         rebuild each ParFiniteElementSpace on it with
+         ParFiniteElementSpace::Update(false) before the next change of the
+         mesh, and compute its grid functions again.
+       - The call invalidates the local indices of the elements, boundary
+         elements, vertices, edges and faces, and the tables and pointers taken
+         from the mesh or its spaces before it; attribute numbers and attribute
+         sets are kept. GetRebalanceOldElements() gives the previous location
+         of each element. A ParSubMesh made from the mesh is not updated. */
    void Rebalance(const Array<int> &partition);
+
+   /** @brief After Rebalance() of a conforming mesh, return for each local
+       element the rank that held it before the call, and its local index
+       there. The local elements are in the order of that rank, then of that
+       index. Valid until the next modification of the mesh, or Load(). */
+   void GetRebalanceOldElements(Array<int> &old_rank,
+                                Array<int> &old_index) const;
 
    /** Save the mesh in a parallel mesh format. If @a comments is non-empty, it
        will be printed after the first line of the file, and each line should

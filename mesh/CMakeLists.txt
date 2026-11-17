@@ -75,6 +75,7 @@ set(HDRS
 if (MFEM_USE_MPI)
   list(APPEND SRCS
     pmesh.cpp
+    pmesh_rebalance.cpp
     pncmesh.cpp
     submesh/pncsubmesh.cpp
     submesh/psubmesh.cpp

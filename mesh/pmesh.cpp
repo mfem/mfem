@@ -4072,8 +4072,11 @@ void ParMesh::RebalanceImpl(const Array<int> *partition)
 {
    if (Conforming())
    {
-      MFEM_ABORT("Load balancing is currently not supported for conforming"
-                 " meshes.");
+      MFEM_VERIFY(partition, "ParMesh::Rebalance() without a partition is not"
+                  " supported for conforming meshes, use"
+                  " ParMesh::Rebalance(partition).");
+      RebalanceConforming(*partition);
+      return;
    }
 
    if (Nodes)
@@ -7109,6 +7112,10 @@ void ParMesh::Swap(ParMesh &other)
    // Keep Print() behavior consistent after move/swap operations.
    mfem::Swap(print_shared, other.print_shared);
    mfem::Swap(print_interfaces, other.print_interfaces);
+
+   mfem::Swap(rebalance_old_rank, other.rebalance_old_rank);
+   mfem::Swap(rebalance_old_index, other.rebalance_old_index);
+   mfem::Swap(rebalance_sequence, other.rebalance_sequence);
 }
 
 void ParMesh::Destroy()
@@ -7125,6 +7132,12 @@ void ParMesh::Destroy()
    shared_edges.DeleteAll();
 
    face_nbr_el_to_face = nullptr;
+
+   // The migration of the last conforming Rebalance() describes the mesh that
+   // is destroyed (Load() starts the sequence of the next one again).
+   rebalance_old_rank.DeleteAll();
+   rebalance_old_index.DeleteAll();
+   rebalance_sequence = -1;
 }
 
 ParMesh::~ParMesh()
