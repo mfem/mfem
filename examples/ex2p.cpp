@@ -281,9 +281,10 @@ int main(int argc, char *argv[])
    if (static_cond) { a->EnableStaticCondensation(); }
    a->Assemble();
 
-   HypreParMatrix A;
+   OperatorPtr Aptr;
    Vector B, X;
-   a->FormLinearSystem(ess_tdof_list, x, *b, A, X, B);
+   a->FormLinearSystem(ess_tdof_list, x, *b, Aptr, X, B);
+   HypreParMatrix &A = *Aptr.As<HypreParMatrix>();
    if (myid == 0)
    {
       cout << "done." << endl;
