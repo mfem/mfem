@@ -64,9 +64,10 @@ int main(int argc, char *argv[])
    int lin_solver = 2;
    int lin_iter = 100;
    int verbosity = 0;
-   bool move_bnd = false;
-   bool mod_bdr_attr = false;
+   bool move_bnd = true;
+   bool mod_bdr_attr = true;
    bool normalization = false;
+   bool integ_over_target = true;
    bool visualization = false;
    const char *device_config = "cpu";
    bool pa = false;
@@ -126,6 +127,9 @@ int main(int argc, char *argv[])
                   "aligned boundaries. Saved meshes retain the input attributes.");
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization", "Normalize the TMOP functional.");
+   args.AddOption(&integ_over_target, "-it", "--integ-over-target",
+                  "-irf", "--integ-over-ref",
+                  "Integrate over target (-it) or reference (-irf) elements.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization", "Visualize TMOP metric values in GLVis.");
    args.AddOption(&device_config, "-d", "--device", "Device configuration.");
@@ -243,6 +247,7 @@ int main(int argc, char *argv[])
    unique_ptr<ParGridFunction> distance;
    ConstantCoefficient limit(lim_const);
    auto *integ = new TMOP_Integrator(metric.get(), &target);
+   integ->IntegrateOverTarget(integ_over_target);
    integ->SetIntegrationRules(IntRulesLo, quad_order);
    if (lim_const > 0.0 && normalization)
    {
