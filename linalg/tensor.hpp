@@ -38,16 +38,19 @@ MFEM_HOST_DEVICE inline void tensor_ilist_too_long()
 }
 } // namespace detail
 
+
+/// Tensor template: multi-dimensional array of any "scalar" type T.
 template <typename T, int... Dims>
 struct tensor;
 
+/// Specializaion for rank zero tensor, a scalar.
 template <typename T>
 struct tensor<T>
 {
    using type = T;
    using c_array_type = T;
    static constexpr int rank() { return 0; }
-   static constexpr auto sizes_array() { return std::array<int,0> {}; }
+   static inline constexpr auto sizes_array();
    static constexpr int size(int) { return 1; }
 
    MFEM_HOST_DEVICE constexpr tensor() = default;
@@ -67,11 +70,12 @@ private:
    T value;
 };
 
+/// Specializaion for tensors of rank at least one.
 template <typename T, int N0, int... Ns>
 struct tensor<T, N0, Ns...>
 {
-   static_assert(N0 > 0 && ((Ns > 0) && ...),
-                 "tensor: all dimensions must be positive");
+   static_assert(N0 >= 0 && ((Ns >= 0) && ...),
+                 "tensor: all dimensions must be non-negative");
 
    using type = T;
    using sub_tensor_type = std::conditional_t<
@@ -80,13 +84,13 @@ struct tensor<T, N0, Ns...>
                             (sizeof...(Ns) > 0),
                             typename tensor<T, Ns...>::c_array_type,
                             T>;
-   using c_array_type = c_sub_array_type[N0];
+   using c_array_type = c_sub_array_type[N0 ? N0 : 1];
 
    static constexpr int rank() { return 1 + sizeof...(Ns); }
 
    static constexpr auto sizes_array()
    {
-      return std::array<int,rank()> {N0, Ns...};
+      return tensor<int,rank()> {N0, Ns...};
    }
 
    static constexpr int size(int k) { return sizes_array()[k]; }
@@ -102,17 +106,27 @@ struct tensor<T, N0, Ns...>
    MFEM_HOST_DEVICE constexpr tensor(const c_array_type &a)
       : tensor(a, std::make_index_sequence<N0> {}) { }
 
-   /** @brief Construct a rank-1 tensor from a list of scalars, e.g.
-       tensor<T,3>{1,2,3}. Missing trailing entries are value-initialized.
+   /** @brief Construct a tensor from a multidimensional initializer list, e.g.
+       tensor<T,3>{1,2,3}, and tensor<T,2,2>{{1,2},{3,4}}.
 
-       Only available for rank 1: for higher ranks a single braced element
-       (e.g. tensor<T,2,2>{{{1},{2}}}) would be taken as a list with one
-       sub-tensor instead of a nested C array, changing its meaning. */
-   template <int R = sizeof...(Ns), std::enable_if_t<R == 0, int> = 0>
-   MFEM_HOST_DEVICE constexpr tensor(std::initializer_list<T> ilist)
+       This constructor allows for tensor initializations to use the exact same
+       format as the initializers for standard c-array variables. */
+   MFEM_HOST_DEVICE constexpr tensor(
+      std::initializer_list<c_sub_array_type> ilist)
       : tensor(ilist, std::make_index_sequence<N0> {})
    {
       if (ilist.size() > std::size_t(N0)) { detail::tensor_ilist_too_long(); }
+   }
+
+   /** @brief Constructor to force compiler errors (ambiguous ctor call) in
+       initializations of the form tensor<T,2,2>{{{1},{2}}}. Without this
+       constructor, the initialization is allowed (with a warning) but it has
+       the wrong result: the tensor has entries {{1,2},{0,0}} instead of
+       {{1,0},{2,0}}. */
+   MFEM_HOST_DEVICE constexpr tensor(std::initializer_list<c_array_type> ilist)
+      : tensor(ilist.begin()[0], std::make_index_sequence<N0> {})
+   {
+      if (ilist.size() != 1) { detail::tensor_ilist_too_long(); }
    }
 
    MFEM_HOST_DEVICE MFEM_FORCE_INLINE
@@ -140,20 +154,41 @@ struct tensor<T, N0, Ns...>
    }
 
 private:
-   sub_tensor_type values[N0];
+   static constexpr bool no_zero_dims()
+   {
+      return (N0 != 0) && ((Ns != 0) && ...);
+   }
+   using zero_sub_tensor_type = std::conditional_t<
+                                (sizeof...(Ns) > 0),
+                                tensor<T, (false ? Ns : 0)...>, T>;
+   using alloc_sub_tensor_type = std::conditional_t<
+                                 no_zero_dims(),
+                                 sub_tensor_type, zero_sub_tensor_type>;
+
+   alloc_sub_tensor_type values[no_zero_dims() ? N0 : 1];
+
+   // auxiliary
+   static constexpr c_sub_array_type zero_c_sub_array = {};
 
    // Helper constructor from c_array_type
    template <std::size_t... Is> MFEM_HOST_DEVICE
    constexpr tensor(const c_array_type &a, std::index_sequence<Is...>)
       : values{a[Is]...} { }
 
-   // Helper constructor from std::initializer_list<T> (rank 1). Entries
-   // missing from a shorter list are value-initialized, as in aggregate
-   // initialization.
+   // Helper constructor from std::initializer_list<c_sub_array>. If the list is
+   // shorter than the index sequence, the missing entries are zero initialized.
    template <std::size_t... Is> MFEM_HOST_DEVICE
-   constexpr tensor(std::initializer_list<T> a, std::index_sequence<Is...>)
-      : values{(Is < a.size() ? a.begin()[Is] : T{})...} { }
+   constexpr tensor(std::initializer_list<c_sub_array_type> a,
+                    std::index_sequence<Is...>)
+      : values{(Is < a.size() ? a.begin()[Is] : zero_c_sub_array)...} { }
 };
+
+
+template <typename T>
+inline constexpr auto tensor<T>::sizes_array()
+{
+   return tensor<int,0> {};
+}
 
 
 /**
