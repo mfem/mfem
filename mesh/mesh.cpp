@@ -14953,6 +14953,10 @@ public:
    bool UpdateCoordinates(const Mesh &mesh,
                           const Array<int> &global_vertex_node_ids)
    {
+      // SetCurvature(0) removes nodes after the hierarchy's coordinates have
+      // been discarded. Use nodal geometry derived from the live vertices.
+      if (coordinates.Size() == 0) { return false; }
+
       Array<int> node_to_vertex(nodes.NumIds());
       node_to_vertex = -1;
       for (int i = 0; i < global_vertex_node_ids.Size(); i++)
@@ -15654,7 +15658,7 @@ void MeshPartitioner::PrintPart(int part_id, std::ostream &os) const
       if (!global_nodes &&
           !part_ncmesh.UpdateCoordinates(mesh, mesh.ncmesh->vertex_nodeId))
       {
-         // Root coordinates cannot describe every moved refinement vertex.
+         // Root coordinates are absent or cannot describe moved vertices.
          // Preserve the live linear geometry without modifying the source mesh.
          linear_fec.reset(new H1_FECollection(1, mesh.Dimension()));
          linear_fes.reset(new FiniteElementSpace(&mesh, linear_fec.get(),

@@ -333,7 +333,8 @@ TEST_CASE("MakeFromSerial preserves moved linear NC geometry",
    const int nprocs = Mpi::WorldSize();
    const bool three_dimensional = GENERATE(false, true);
    const bool nonlinear = GENERATE(false, true);
-   CAPTURE(rank, three_dimensional, nonlinear);
+   const bool remove_curvature = GENERATE(false, true);
+   CAPTURE(rank, three_dimensional, nonlinear, remove_curvature);
 
    Mesh mesh = three_dimensional ?
                Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON) :
@@ -359,11 +360,17 @@ TEST_CASE("MakeFromSerial preserves moved linear NC geometry",
       }
       if (nonlinear) { y[0] += 0.1*x[0]*x[0]; }
    });
+   if (remove_curvature)
+   {
+      // Removing nodes leaves the NC hierarchy without root coordinates.
+      mesh.SetCurvature(2);
+      mesh.SetCurvature(0);
+   }
    for (int i = 0; i < mesh.GetNE(); i++) { mesh.SetAttribute(i, i + 1); }
 
    auto check_geometry = [&](Mesh &result)
    {
-      REQUIRE(bool(result.GetNodes()) == nonlinear);
+      REQUIRE(bool(result.GetNodes()) == (nonlinear || remove_curvature));
       for (int i = 0; i < result.GetNE(); i++)
       {
          const int global_id = result.GetAttribute(i) - 1;
