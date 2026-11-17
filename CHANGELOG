@@ -11,8 +11,6 @@
 Version 4.10.1 (development)
 ============================
 
-- Fixed coarse DOF transformations in unequal-order ND refinement transfer.
-
 GPU computing
 -------------
 - Fixed possible crashes in HypreParMatrix::AbsMult() and BooleanMult()
@@ -22,6 +20,9 @@ GPU computing
 
 Discretization improvements
 ---------------------------
+- Fixed matrix-free ND transfer between geometrically refined meshes with
+  different uniform polynomial orders.
+
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.

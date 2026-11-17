@@ -1897,7 +1897,7 @@ FiniteElementSpace::RefinementOperator::~RefinementOperator()
 }
 
 void FiniteElementSpace::RefinementOperator::ConstructDoFTransArray(
-   const FiniteElementCollection *fec_ref)
+   const FiniteElementCollection *coarse_fec)
 {
    old_DoFTransArray.SetSize(Geometry::NUM_GEOMETRIES);
    for (int i=0; i<old_DoFTransArray.Size(); i++)
@@ -1905,10 +1905,10 @@ void FiniteElementSpace::RefinementOperator::ConstructDoFTransArray(
       old_DoFTransArray[i] = NULL;
    }
 
-   if (dynamic_cast<const ND_FECollection*>(fec_ref))
+   if (dynamic_cast<const ND_FECollection*>(coarse_fec))
    {
       const FiniteElement *nd_tri =
-         fec_ref->FiniteElementForGeometry(Geometry::TRIANGLE);
+         coarse_fec->FiniteElementForGeometry(Geometry::TRIANGLE);
       if (nd_tri)
       {
          old_DoFTransArray[Geometry::TRIANGLE] =
@@ -1916,7 +1916,7 @@ void FiniteElementSpace::RefinementOperator::ConstructDoFTransArray(
       }
 
       const FiniteElement *nd_tet =
-         fec_ref->FiniteElementForGeometry(Geometry::TETRAHEDRON);
+         coarse_fec->FiniteElementForGeometry(Geometry::TETRAHEDRON);
       if (nd_tet)
       {
          old_DoFTransArray[Geometry::TETRAHEDRON] =
@@ -1924,7 +1924,7 @@ void FiniteElementSpace::RefinementOperator::ConstructDoFTransArray(
       }
 
       const FiniteElement *nd_pri =
-         fec_ref->FiniteElementForGeometry(Geometry::PRISM);
+         coarse_fec->FiniteElementForGeometry(Geometry::PRISM);
       if (nd_pri)
       {
          old_DoFTransArray[Geometry::PRISM] =
@@ -1932,7 +1932,7 @@ void FiniteElementSpace::RefinementOperator::ConstructDoFTransArray(
       }
 
       const FiniteElement *nd_pyr =
-         fec_ref->FiniteElementForGeometry(Geometry::PYRAMID);
+         coarse_fec->FiniteElementForGeometry(Geometry::PYRAMID);
       if (nd_pyr)
       {
          old_DoFTransArray[Geometry::PYRAMID] =

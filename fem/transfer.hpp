@@ -129,8 +129,9 @@ public:
     reference space and do not depend on the actual physical shape of the mesh
     elements.
 
-    It is assumed that both the coarse and the fine FiniteElementSpace%s use
-    compatible types of elements, e.g. finite elements with the same map-type
+    Both spaces must have uniform polynomial order. It is assumed that both
+    the coarse and the fine FiniteElementSpace%s use compatible types of
+    elements, e.g. finite elements with the same map-type
     (VALUE, INTEGRAL, H_DIV, H_CURL - see class FiniteElement). Generally, the
     FE spaces can have different orders, however, in order for the backward
     operator to be well-defined, the (local) number of the fine dofs should not
@@ -158,6 +159,9 @@ public:
    void SetMassIntegrator(BilinearFormIntegrator *mass_integ_,
                           bool own_mass_integ_ = true);
 
+   /** @note For ND spaces requiring nontrivial DOF transformations, the
+       forward operator supports only the default matrix-free representation
+       (Operator::ANY_TYPE). */
    const Operator &ForwardOperator() override;
 
    const Operator &BackwardOperator() override;
