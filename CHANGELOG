@@ -64,6 +64,10 @@ Linear and nonlinear solvers
   were host vectors while the PETSc matrices and preconditioners computed on
   the device, so that the PETSc solvers returned wrong solutions.
 
+- Added SuperLUSolver::SetRelaxedSupernodeSize and
+  SuperLUSolver::SetMaxSupernodeSize to set the maximum sizes of the relaxed
+  supernodes and of the supernodes in SuperLU_DIST 8.0 or newer.
+
 New and updated examples and miniapps
 -------------------------------------
 - Added a new example for solving the biharmonic equation (examples/ex42) based
