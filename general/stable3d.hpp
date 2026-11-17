@@ -22,15 +22,14 @@ class STable3DNode
 {
 public:
    STable3DNode *Prev;
-   int Column, Floor, Number;
+   int Column, Floor, Fourth, Number;
 };
 
-/** @brief Symmetric 3D Table stored as an array of rows each of which has a
-    stack of column, floor, number nodes. The number of the node is assigned by
+/** @brief Symmetric table for distinct triples and quadruples of integers,
+    stored as an array of rows. The number of the node is assigned by
     counting the nodes from zero as they are pushed into the table. Diagonals of
-    any kind are not allowed so the row, column and floor must all be different
-    for each node. Only one node is stored for all 6 symmetric entries that are
-    indexable by unique triplets of row, column, and floor. */
+    any kind are not allowed. Triple and quadruple entries remain distinct even
+    when they share three integers. */
 class STable3D
 {
 private:
@@ -56,14 +55,14 @@ public:
        there. */
    int Index (int r, int c, int f) const;
 
-   /** @brief Check to see if this entry is in the table and add it to the table
-       if it is not there. The entry is addressed by the three smallest values
-       of (r,c,f,t). Returns the number assigned to the table entry. */
+   /** @brief Check to see if this quadruple is in the table and add it if not.
+       Returns the number assigned to the entry. */
    int Push4 (int r, int c, int f, int t);
 
-   /** @brief Return the number assigned to the table entry. The entry is
-       addressed by the three smallest values of (r,c,f,t). Return -1 if it is
-       not there. */
+   /// Return the number assigned to this quadruple, or -1 if absent.
+   int Index (int r, int c, int f, int t) const;
+
+   /// Return the number assigned to this quadruple, or abort if absent.
    int operator() (int r, int c, int f, int t) const;
 
    /// Return the number of elements added to the table.

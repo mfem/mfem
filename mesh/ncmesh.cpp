@@ -1804,8 +1804,8 @@ void NCMesh::RefineElement(const Refinement & ref)
             child[0] = NewWedge(no[0], mid01, mid20, no[3], mid34, mid53, attr,
                                 fa[0], fa[1], fa[2], -1, fa[4]);
             child[1] = NewHexahedron(mid01, no[1], no[2], mid20,
-                                      mid34, no[4], no[5], mid53, attr,
-                                      fa[0], fa[2], fa[3], fa[4], -1, fa[1]);
+                                     mid34, no[4], no[5], mid53, attr,
+                                     fa[0], fa[2], fa[3], fa[4], -1, fa[1]);
             CheckAnisoFace(no[0], no[1], no[4], no[3], mid01, mid34);
             CheckAnisoFace(no[2], no[0], no[3], no[5], mid20, mid53);
          }
@@ -1823,8 +1823,8 @@ void NCMesh::RefineElement(const Refinement & ref)
             child[0] = NewWedge(mid01, no[1], mid12, mid34, no[4], mid45, attr,
                                 fa[0], fa[1], fa[2], fa[3], -1);
             child[1] = NewHexahedron(no[0], mid01, mid12, no[2],
-                                      no[3], mid34, mid45, no[5], attr,
-                                      fa[0], fa[2], -1, fa[3], fa[4], fa[1]);
+                                     no[3], mid34, mid45, no[5], attr,
+                                     fa[0], fa[2], -1, fa[3], fa[4], fa[1]);
             CheckAnisoFace(no[0], no[1], no[4], no[3], mid01, mid34);
             CheckAnisoFace(no[1], no[2], no[5], no[4], mid12, mid45);
          }
@@ -1842,8 +1842,8 @@ void NCMesh::RefineElement(const Refinement & ref)
             child[0] = NewWedge(mid12, no[2], mid20, mid45, no[5], mid53, attr,
                                 fa[0], fa[1], fa[3], fa[4], -1);
             child[1] = NewHexahedron(no[0], no[1], mid12, mid20,
-                                      no[3], no[4], mid45, mid53, attr,
-                                      fa[0], fa[2], fa[3], -1, fa[4], fa[1]);
+                                     no[3], no[4], mid45, mid53, attr,
+                                     fa[0], fa[2], fa[3], -1, fa[4], fa[1]);
             CheckAnisoFace(no[1], no[2], no[5], no[4], mid12, mid45);
             CheckAnisoFace(no[2], no[0], no[3], no[5], mid20, mid53);
          }
@@ -1864,18 +1864,80 @@ void NCMesh::RefineElement(const Refinement & ref)
             SetNodeScale(no[4], no[5], 0.5);
             SetNodeScale(no[5], no[3], 0.5);
             child[0] = NewHexahedron(no[0], mid01, center0, mid20,
-                                      no[3], mid34, center1, mid53, attr,
-                                      fa[0], fa[2], -1, -1, fa[4], fa[1]);
+                                     no[3], mid34, center1, mid53, attr,
+                                     fa[0], fa[2], -1, -1, fa[4], fa[1]);
             child[1] = NewHexahedron(mid01, no[1], mid12, center0,
-                                      mid34, no[4], mid45, center1, attr,
-                                      fa[0], fa[2], fa[3], -1, -1, fa[1]);
+                                     mid34, no[4], mid45, center1, attr,
+                                     fa[0], fa[2], fa[3], -1, -1, fa[1]);
             child[2] = NewHexahedron(center0, mid12, no[2], mid20,
-                                      center1, mid45, no[5], mid53, attr,
-                                      fa[0], -1, fa[3], fa[4], -1, fa[1]);
+                                     center1, mid45, no[5], mid53, attr,
+                                     fa[0], -1, fa[3], fa[4], -1, fa[1]);
             CheckAnisoFace(no[0], no[1], no[4], no[3], mid01, mid34);
             CheckAnisoFace(no[1], no[2], no[5], no[4], mid12, mid45);
             CheckAnisoFace(no[2], no[0], no[3], no[5], mid20, mid53);
          }
+         Iso = false;
+      }
+      else if (ref_type >= Refinement::Prism::CORNER_0_TET_PYRAMID.GetId() &&
+               ref_type <= Refinement::Prism::CORNER_5_TET_PYRAMID.GetId())
+      {
+         constexpr int tet_vertices[6][4] =
+         {
+            {0, 3, 4, 5}, {1, 3, 4, 5}, {2, 3, 4, 5},
+            {3, 0, 2, 1}, {4, 1, 0, 2}, {5, 2, 1, 0}
+         };
+         constexpr int pyramid_vertices[6][5] =
+         {
+            {1, 4, 5, 2, 0}, {2, 5, 3, 0, 1}, {0, 3, 4, 1, 2},
+            {1, 4, 5, 2, 3}, {2, 5, 3, 0, 4}, {0, 3, 4, 1, 5}
+         };
+         const int corner = ref_type - Refinement::Prism::CORNER_0_TET_PYRAMID.GetId();
+         int tet[4];
+         int pyramid[5];
+         for (int i = 0; i < 4; i++) { tet[i] = no[tet_vertices[corner][i]]; }
+         for (int i = 0; i < 5; i++) { pyramid[i] = no[pyramid_vertices[corner][i]]; }
+
+         const auto face_attributes = [&](Geometry::Type geom, const int *nodes,
+                                          int *attributes)
+         {
+            const GeomInfo &child_info = GI[geom];
+            for (int child_face = 0; child_face < child_info.nf; child_face++)
+            {
+               attributes[child_face] = -1;
+               const int *child_vertices = child_info.faces[child_face];
+               for (int parent_face = 0; parent_face < gi.nf; parent_face++)
+               {
+                  const int *parent_vertices = gi.faces[parent_face];
+                  bool contained = true;
+                  for (int i = 0; i < child_info.nfv[child_face]; i++)
+                  {
+                     bool found = false;
+                     for (int j = 0; j < gi.nfv[parent_face]; j++)
+                     {
+                        found = found || nodes[child_vertices[i]] == no[parent_vertices[j]];
+                     }
+                     contained = contained && found;
+                  }
+                  if (contained)
+                  {
+                     attributes[child_face] = fa[parent_face];
+                     break;
+                  }
+               }
+            }
+         };
+
+         int tet_attributes[4];
+         int pyramid_attributes[5];
+         face_attributes(Geometry::TETRAHEDRON, tet, tet_attributes);
+         face_attributes(Geometry::PYRAMID, pyramid, pyramid_attributes);
+         child[0] = NewTetrahedron(tet[0], tet[1], tet[2], tet[3], attr,
+                                   tet_attributes[0], tet_attributes[1],
+                                   tet_attributes[2], tet_attributes[3]);
+         child[1] = NewPyramid(pyramid[0], pyramid[1], pyramid[2], pyramid[3],
+                               pyramid[4], attr, pyramid_attributes[0],
+                               pyramid_attributes[1], pyramid_attributes[2],
+                               pyramid_attributes[3], pyramid_attributes[4]);
          Iso = false;
       }
       else if (ref_type < 4) // XY refinement (split in 4 wedges)
@@ -6266,8 +6328,10 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
                if (child == 0)
                { pm = PointMatrix(pm(0), mid01, mid20, pm(3), mid34, mid53); }
                else if (child == 1)
-               { pm = PointMatrix(mid01, pm(1), pm(2), mid20,
-                                  mid34, pm(4), pm(5), mid53); }
+               {
+                  pm = PointMatrix(mid01, pm(1), pm(2), mid20,
+                                   mid34, pm(4), pm(5), mid53);
+               }
             }
             else if (ref_type ==
                      Refinement::Prism::TRIANGLE_CORNER_1_PRISM_HEX.GetId())
@@ -6277,8 +6341,10 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
                if (child == 0)
                { pm = PointMatrix(mid01, pm(1), mid12, mid34, pm(4), mid45); }
                else if (child == 1)
-               { pm = PointMatrix(pm(0), mid01, mid12, pm(2),
-                                  pm(3), mid34, mid45, pm(5)); }
+               {
+                  pm = PointMatrix(pm(0), mid01, mid12, pm(2),
+                                   pm(3), mid34, mid45, pm(5));
+               }
             }
             else if (ref_type ==
                      Refinement::Prism::TRIANGLE_CORNER_2_PRISM_HEX.GetId())
@@ -6288,8 +6354,10 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
                if (child == 0)
                { pm = PointMatrix(mid12, pm(2), mid20, mid45, pm(5), mid53); }
                else if (child == 1)
-               { pm = PointMatrix(pm(0), pm(1), mid12, mid20,
-                                  pm(3), pm(4), mid45, mid53); }
+               {
+                  pm = PointMatrix(pm(0), pm(1), mid12, mid20,
+                                   pm(3), pm(4), mid45, mid53);
+               }
             }
             else
             {
@@ -6298,14 +6366,51 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
                Point mid34(pm(3), pm(4)), mid45(pm(4), pm(5));
                Point mid53(pm(5), pm(3)), center1(mid34, pm(5), 1.0/3.0);
                if (child == 0)
-               { pm = PointMatrix(pm(0), mid01, center0, mid20,
-                                  pm(3), mid34, center1, mid53); }
+               {
+                  pm = PointMatrix(pm(0), mid01, center0, mid20,
+                                   pm(3), mid34, center1, mid53);
+               }
                else if (child == 1)
-               { pm = PointMatrix(mid01, pm(1), mid12, center0,
-                                  mid34, pm(4), mid45, center1); }
+               {
+                  pm = PointMatrix(mid01, pm(1), mid12, center0,
+                                   mid34, pm(4), mid45, center1);
+               }
                else if (child == 2)
-               { pm = PointMatrix(center0, mid12, pm(2), mid20,
-                                  center1, mid45, pm(5), mid53); }
+               {
+                  pm = PointMatrix(center0, mid12, pm(2), mid20,
+                                   center1, mid45, pm(5), mid53);
+               }
+            }
+         }
+         else if (ref_type >= Refinement::Prism::CORNER_0_TET_PYRAMID.GetId() &&
+                  ref_type <= Refinement::Prism::CORNER_5_TET_PYRAMID.GetId())
+         {
+            constexpr int tet_vertices[6][4] =
+            {
+               {0, 3, 4, 5}, {1, 3, 4, 5}, {2, 3, 4, 5},
+               {3, 0, 2, 1}, {4, 1, 0, 2}, {5, 2, 1, 0}
+            };
+            constexpr int pyramid_vertices[6][5] =
+            {
+               {1, 4, 5, 2, 0}, {2, 5, 3, 0, 1}, {0, 3, 4, 1, 2},
+               {1, 4, 5, 2, 3}, {2, 5, 3, 0, 4}, {0, 3, 4, 1, 5}
+            };
+            const int corner =
+               ref_type - Refinement::Prism::CORNER_0_TET_PYRAMID.GetId();
+            if (child == 0)
+            {
+               pm = PointMatrix(pm(tet_vertices[corner][0]),
+                                pm(tet_vertices[corner][1]),
+                                pm(tet_vertices[corner][2]),
+                                pm(tet_vertices[corner][3]));
+            }
+            else if (child == 1)
+            {
+               pm = PointMatrix(pm(pyramid_vertices[corner][0]),
+                                pm(pyramid_vertices[corner][1]),
+                                pm(pyramid_vertices[corner][2]),
+                                pm(pyramid_vertices[corner][3]),
+                                pm(pyramid_vertices[corner][4]));
             }
          }
          else if (ref_type < 4) // XY split

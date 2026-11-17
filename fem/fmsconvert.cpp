@@ -265,7 +265,7 @@ FmsFieldToGridFunction(FmsMesh fms_mesh, FmsField f, Mesh *mesh,
       {
          mesh->GetFaceVertices(i, fv);
          if (fv.Size() == 3) { fv.Append(INT_MAX); }
-         // HashTable uses the smallest 3 of the 4 indices to hash Hashed4
+         // HashTable uses all four indices to identify a Hashed4 face.
          int id = mfem_face.GetId(fv[0], fv[1], fv[2], fv[3]);
          if (id != i) { return 14; }
       }

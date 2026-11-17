@@ -2753,33 +2753,12 @@ void ParMesh::BuildFaceNbrElementToFaceTable()
       for (int i = start; i < end; ++i)
       {
          const int * const fv = fverts[i];
-         int k = 0;
-         int max = v[fv[0]];
-
-         if (max < v[fv[1]]) { max = v[fv[1]], k = 1; }
-         if (max < v[fv[2]]) { max = v[fv[2]], k = 2; }
-         if (max < v[fv[3]]) { k = 3; }
-
-         int v0 = -1, v1 = -1, v2 = -1;
-         switch (k)
-         {
-            case 0:
-               v0 = v[fv[1]]; v1 = v[fv[2]]; v2 = v[fv[3]];
-               break;
-            case 1:
-               v0 = v[fv[0]]; v1 = v[fv[2]]; v2 = v[fv[3]];
-               break;
-            case 2:
-               v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[3]];
-               break;
-            case 3:
-               v0 = v[fv[0]]; v1 = v[fv[1]]; v2 = v[fv[2]];
-               break;
-         }
-         int lf = faces->Index(v0, v1, v2);
+         const int v0 = v[fv[0]], v1 = v[fv[1]];
+         const int v2 = v[fv[2]], v3 = v[fv[3]];
+         int lf = faces->Index(v0, v1, v2, v3);
          if (lf < 0)
          {
-            lf = shared_faces->Index(v0, v1, v2);
+            lf = shared_faces->Index(v0, v1, v2, v3);
             if (lf >= 0)
             {
                lf += NumOfFaces;

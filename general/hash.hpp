@@ -38,7 +38,7 @@ struct Hashed2
  */
 struct Hashed4
 {
-   int p1, p2, p3; // NOTE: p4 is neither hashed nor stored
+   int p1, p2, p3, p4;
    int next;
 };
 
@@ -385,7 +385,7 @@ protected:
        @return The hash key "idx" identifying a bin/bucket.
 
        NOTE: The constants are arbitrary.
-       NOTE: p4 is not hashed nor stored as p1, p2, p3 identify a face uniquely.
+       NOTE: p4 is checked for equality but is not needed in the bucket hash.
        @warning This method should be called only if T inherits from Hashed4. */
    inline int Hash(size_t p1, size_t p2, size_t p3) const
    { return (984120265ul*p1 + 125965121ul*p2 + 495698413ul*p3) & mask; }
@@ -412,17 +412,18 @@ protected:
    int SearchList(int id, int p1, int p2) const;
 
    /** @brief Search for the index of the item associated with the key
-       (p1,p2,p3,(p4)), starting from the item with index @a id.
+       (p1,p2,p3,p4), starting from the item with index @a id.
 
        @param[in] id Index of the item in the underlying BlockArray<T>.
        @param[in] p1 First part of the key.
        @param[in] p2 Second part of the key.
        @param[in] p3 Third part of the key.
+       @param[in] p4 Fourth part of the key, or -1 for a triple.
        @return The index "id" of the key in the BlockArray<T>, or -1 if no
                matching item is found.
 
        @warning This method should be called only if T inherits from Hashed4. */
-   int SearchList(int id, int p1, int p2, int p3) const;
+   int SearchList(int id, int p1, int p2, int p3, int p4) const;
 
    /** @brief Insert the item @a id into bin @a idx.
 
@@ -655,7 +656,7 @@ int HashTable<T>::GetId(int p1, int p2, int p3, int p4)
    // search for the item in the hashtable
    internal::sort4_ext(p1, p2, p3, p4);
    int idx = Hash(p1, p2, p3);
-   int id = SearchList(table[idx], p1, p2, p3);
+   int id = SearchList(table[idx], p1, p2, p3, p4);
    if (id >= 0) { return id; }
 
    // not found - use an unused item or create a new one
@@ -673,6 +674,7 @@ int HashTable<T>::GetId(int p1, int p2, int p3, int p4)
    item.p1 = p1;
    item.p2 = p2;
    item.p3 = p3;
+   item.p4 = p4;
 
    // insert into hashtable
    Insert(idx, new_id, item);
@@ -720,7 +722,7 @@ template<typename T>
 int HashTable<T>::FindId(int p1, int p2, int p3, int p4) const
 {
    internal::sort4_ext(p1, p2, p3, p4);
-   return SearchList(table[Hash(p1, p2, p3)], p1, p2, p3);
+   return SearchList(table[Hash(p1, p2, p3)], p1, p2, p3, p4);
 }
 
 template<typename T>
@@ -736,12 +738,15 @@ int HashTable<T>::SearchList(int id, int p1, int p2) const
 }
 
 template<typename T>
-int HashTable<T>::SearchList(int id, int p1, int p2, int p3) const
+int HashTable<T>::SearchList(int id, int p1, int p2, int p3, int p4) const
 {
    while (id >= 0)
    {
       const T& item = Base::At(id);
-      if (item.p1 == p1 && item.p2 == p2 && item.p3 == p3) { return id; }
+      if (item.p1 == p1 && item.p2 == p2 && item.p3 == p3 && item.p4 == p4)
+      {
+         return id;
+      }
       id = item.next;
    }
    return -1;
@@ -882,6 +887,7 @@ void HashTable<T>::Reparent(int id,
    item.p1 = new_p1;
    item.p2 = new_p2;
    item.p3 = new_p3;
+   item.p4 = new_p4;
 
    // reinsert under new parent IDs
    int new_idx = Hash(new_p1, new_p2, new_p3);

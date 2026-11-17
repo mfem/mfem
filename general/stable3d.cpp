@@ -13,6 +13,8 @@
 #include "error.hpp"
 #include "stable3d.hpp"
 
+#include <algorithm>
+
 using namespace std;
 
 namespace mfem
@@ -73,7 +75,7 @@ int STable3D::Push (int r, int c, int f)
    for (node = Rows[r]; node != NULL; node = node->Prev)
    {
       if (node->Column == c)
-         if (node->Floor == f)
+         if (node->Floor == f && node->Fourth == -1)
          {
             return node->Number;
          }
@@ -86,6 +88,7 @@ int STable3D::Push (int r, int c, int f)
 #endif
    node->Column = c;
    node->Floor  = f;
+   node->Fourth = -1;
    node->Number = NElem;
    node->Prev   = Rows[r];
    Rows[r] = node;
@@ -103,7 +106,7 @@ int STable3D::operator() (int r, int c, int f) const
    for (node = Rows[r]; node != NULL; node = node->Prev)
    {
       if (node->Column == c)
-         if (node->Floor == f)
+         if (node->Floor == f && node->Fourth == -1)
          {
             return node->Number;
          }
@@ -128,7 +131,7 @@ int STable3D::Index (int r, int c, int f) const
    for (node = Rows[r]; node != NULL; node = node->Prev)
    {
       if (node->Column == c)
-         if (node->Floor == f)
+         if (node->Floor == f && node->Fourth == -1)
          {
             return node->Number;
          }
@@ -141,50 +144,47 @@ int STable3D::Push4 (int r, int c, int f, int t)
 {
    MFEM_ASSERT(r != c && r != f && r != t && c != f && c != t && f != t,
                " r = " << r << ", c = " << c << ", f = " << f << ", t = " << t);
-
-   int i = 0;
-   int max = r;
-
-   if (max < c) { max = c, i = 1; }
-   if (max < f) { max = f, i = 2; }
-   if (max < t) { i = 3; }
-
-   switch (i)
+   int vertices[4] = {r, c, f, t};
+   std::sort(vertices, vertices + 4);
+   STable3DNode *node;
+   for (node = Rows[vertices[0]]; node != NULL; node = node->Prev)
    {
-      case 0:
-         return Push (c,f,t);
-      case 1:
-         return Push (r,f,t);
-      case 2:
-         return Push (r,c,t);
-      case 3:
-         return Push (r,c,f);
+      if (node->Column == vertices[1] && node->Floor == vertices[2] &&
+          node->Fourth == vertices[3]) { return node->Number; }
    }
-
-   return -1;
+#ifdef MFEM_USE_MEMALLOC
+   node = NodesMem.Alloc();
+#else
+   node = new STable3DNode;
+#endif
+   node->Column = vertices[1];
+   node->Floor = vertices[2];
+   node->Fourth = vertices[3];
+   node->Number = NElem++;
+   node->Prev = Rows[vertices[0]];
+   Rows[vertices[0]] = node;
+   return node->Number;
 }
 
 int STable3D::operator() (int r, int c, int f, int t) const
 {
-   int i = 0;
-   int max = r;
+   const int index = Index(r, c, f, t);
+   MFEM_VERIFY(index >= 0,
+               "(r,c,f,t) = (" << r << "," << c << "," << f << "," << t << ")");
+   return index;
+}
 
-   if (max < c) { max = c, i = 1; }
-   if (max < f) { max = f, i = 2; }
-   if (max < t) { i = 3; }
-
-   switch (i)
+int STable3D::Index (int r, int c, int f, int t) const
+{
+   int vertices[4] = {r, c, f, t};
+   std::sort(vertices, vertices + 4);
+   if (vertices[0] >= Size) { return -1; }
+   for (STable3DNode *node = Rows[vertices[0]];
+        node != NULL; node = node->Prev)
    {
-      case 0:
-         return (*this)(c,f,t);
-      case 1:
-         return (*this)(r,f,t);
-      case 2:
-         return (*this)(r,c,t);
-      case 3:
-         return (*this)(r,c,f);
+      if (node->Column == vertices[1] && node->Floor == vertices[2] &&
+          node->Fourth == vertices[3]) { return node->Number; }
    }
-
    return -1;
 }
 
@@ -218,6 +218,7 @@ void STable3D::Print(std::ostream & os) const
          os << row
             << ' ' << node_p->Column
             << ' ' << node_p->Floor
+            << ' ' << node_p->Fourth
             << ' ' << node_p->Number
             << endl;
          node_p = node_p->Prev;

@@ -2213,10 +2213,10 @@ TEST_CASE("NCMesh mixed prism refinement and derefinement", "[NCMesh]")
 {
    const int prism_attribute = GENERATE(5, 6, 7, 8);
    const int ref_type = GENERATE(
-      Refinement::Prism::TRIANGLE_CORNER_0_PRISM_HEX.GetId(),
-      Refinement::Prism::TRIANGLE_CORNER_1_PRISM_HEX.GetId(),
-      Refinement::Prism::TRIANGLE_CORNER_2_PRISM_HEX.GetId(),
-      Refinement::Prism::TRIANGLE_CENTER_3_HEXES.GetId());
+                           Refinement::Prism::TRIANGLE_CORNER_0_PRISM_HEX.GetId(),
+                           Refinement::Prism::TRIANGLE_CORNER_1_PRISM_HEX.GetId(),
+                           Refinement::Prism::TRIANGLE_CORNER_2_PRISM_HEX.GetId(),
+                           Refinement::Prism::TRIANGLE_CENTER_3_HEXES.GetId());
    CAPTURE(prism_attribute, ref_type);
 
    Mesh mesh("../../data/l-mixed.mesh", 1, 1);
@@ -2279,6 +2279,106 @@ TEST_CASE("NCMesh mixed prism refinement and derefinement", "[NCMesh]")
    coarse_exact.ProjectCoefficient(affine);
    coarse_exact -= field;
    REQUIRE(coarse_exact.Normlinf() == MFEM_Approx(0.0, EPS));
+}
+
+TEST_CASE("NCMesh prism corner tet-pyramid refinement", "[NCMesh]")
+{
+   const int prism_attribute = GENERATE(5, 6, 7, 8);
+   // Attributes 6 and 7 are non-affine prisms. Their vertex-only child
+   // geometry is not the restriction of the parent transformation.
+   const bool affine_prism = prism_attribute == 5 || prism_attribute == 8;
+   const bool continuous = GENERATE(false, true);
+   const int ref_type = GENERATE(
+                           Refinement::Prism::CORNER_0_TET_PYRAMID.GetId(),
+                           Refinement::Prism::CORNER_1_TET_PYRAMID.GetId(),
+                           Refinement::Prism::CORNER_2_TET_PYRAMID.GetId(),
+                           Refinement::Prism::CORNER_3_TET_PYRAMID.GetId(),
+                           Refinement::Prism::CORNER_4_TET_PYRAMID.GetId(),
+                           Refinement::Prism::CORNER_5_TET_PYRAMID.GetId());
+   CAPTURE(prism_attribute, ref_type, continuous);
+
+   Mesh mesh("../../data/l-mixed.mesh", 1, 1);
+   const RefinedElementSummary original = SummarizeRefinedElements(mesh);
+   mesh.EnsureNCMesh(true);
+   H1_FECollection h1_fec(2, 3);
+   L2_FECollection l2_fec(2, 3, BasisType::GaussLegendre,
+                          FiniteElement::VALUE);
+   FiniteElementSpace fes(&mesh, continuous ?
+                          static_cast<FiniteElementCollection*>(&h1_fec) :
+                          static_cast<FiniteElementCollection*>(&l2_fec));
+   GridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + x[0] - 2.0*x[1] + 3.0*x[2];
+   });
+   field.ProjectCoefficient(affine);
+   Array<Refinement> refs;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == prism_attribute)
+      {
+         refs.Append(PrismRefinement(i, ref_type));
+      }
+   }
+   REQUIRE(refs.Size() == 1);
+   mesh.GeneralRefinement(refs);
+   fes.Update();
+   field.Update();
+
+   int tets = 0;
+   int pyramids = 0;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == prism_attribute)
+      {
+         const Geometry::Type geom = mesh.GetElementBaseGeometry(i);
+         tets += geom == Geometry::TETRAHEDRON;
+         pyramids += geom == Geometry::PYRAMID;
+      }
+   }
+   REQUIRE(tets == 1);
+   REQUIRE(pyramids == 1);
+   REQUIRE(SummarizeRefinedElements(mesh).volume == MFEM_Approx(original.volume));
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
+   GridFunction fine_exact(&fes);
+   fine_exact.ProjectCoefficient(affine);
+   fine_exact -= field;
+   if (affine_prism)
+   {
+      REQUIRE(fine_exact.Normlinf() == MFEM_Approx(0.0, EPS));
+   }
+
+   real_t fine_integral = 0.0;
+   if (!continuous && affine_prism)
+   {
+      for (int i = 0; i < field.Size(); i++)
+      {
+         field(i) = (i % 13 - 6) / 9.0;
+      }
+      fine_integral = IntegrateGridFunction(mesh, field);
+   }
+
+   Vector error(mesh.GetNE());
+   error = 0.0;
+   REQUIRE(mesh.DerefineByError(error, 1.0));
+   fes.Update();
+   field.Update();
+   const RefinedElementSummary restored = SummarizeRefinedElements(mesh);
+   REQUIRE(restored.geometry_counts == original.geometry_counts);
+   REQUIRE(restored.volume == MFEM_Approx(original.volume));
+   if (continuous && affine_prism)
+   {
+      GridFunction coarse_exact(&fes);
+      coarse_exact.ProjectCoefficient(affine);
+      coarse_exact -= field;
+      REQUIRE(coarse_exact.Normlinf() == MFEM_Approx(0.0, EPS));
+   }
+   else if (!continuous && affine_prism)
+   {
+      REQUIRE(IntegrateGridFunction(mesh, field) ==
+              MFEM_Approx(fine_integral, EPS));
+   }
 }
 
 TEST_CASE("NCMesh nested mixed child transforms", "[NCMesh]")
@@ -3179,6 +3279,101 @@ TEST_CASE("ParNCMesh anisotropic prism refinement and derefinement in mixed mesh
       MPI_Allreduce(&local_integral, &restored_integral, 1,
                     MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
       REQUIRE(restored_integral == MFEM_Approx(fine_integral, 1e-10));
+   }
+}
+
+TEST_CASE("ParNCMesh prism corner tet-pyramid refinement", "[Parallel][NCMesh]")
+{
+   if (Mpi::WorldSize() != 2) { return; }
+   const int prism_attribute = GENERATE(5, 8);
+   const bool continuous = GENERATE(false, true);
+   const int ref_type = GENERATE(
+                           Refinement::Prism::CORNER_0_TET_PYRAMID.GetId(),
+                           Refinement::Prism::CORNER_1_TET_PYRAMID.GetId(),
+                           Refinement::Prism::CORNER_2_TET_PYRAMID.GetId(),
+                           Refinement::Prism::CORNER_3_TET_PYRAMID.GetId(),
+                           Refinement::Prism::CORNER_4_TET_PYRAMID.GetId(),
+                           Refinement::Prism::CORNER_5_TET_PYRAMID.GetId());
+   CAPTURE(prism_attribute, ref_type, continuous);
+
+   Mesh serial_mesh("../../data/l-mixed.mesh", 1, 1);
+   serial_mesh.EnsureNCMesh(true);
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   H1_FECollection h1_fec(2, 3);
+   L2_FECollection l2_fec(2, 3, BasisType::GaussLegendre,
+                          FiniteElement::VALUE);
+   ParFiniteElementSpace fes(&mesh, continuous ?
+                             static_cast<FiniteElementCollection*>(&h1_fec) :
+                             static_cast<FiniteElementCollection*>(&l2_fec));
+   ParGridFunction field(&fes);
+   FunctionCoefficient affine([](const Vector &x)
+   {
+      return 1.0 + x[0] - 2.0*x[1] + 3.0*x[2];
+   });
+   field.ProjectCoefficient(affine);
+
+   Array<Refinement> refs;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) == prism_attribute)
+      {
+         refs.Append(PrismRefinement(i, ref_type));
+      }
+   }
+   mesh.GeneralRefinement(refs);
+   fes.Update();
+   field.Update();
+   int child_counts[2] = {0, 0};
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      if (mesh.GetAttribute(i) != prism_attribute) { continue; }
+      const Geometry::Type geom = mesh.GetElementBaseGeometry(i);
+      child_counts[0] += geom == Geometry::TETRAHEDRON;
+      child_counts[1] += geom == Geometry::PYRAMID;
+   }
+   MPI_Allreduce(MPI_IN_PLACE, child_counts, 2, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   REQUIRE(child_counts[0] == 1);
+   REQUIRE(child_counts[1] == 1);
+   REQUIRE(mesh.CheckElementOrientation(false) == 0);
+   REQUIRE(mesh.CheckBdrElementOrientation(false) == 0);
+   ParGridFunction exact(&fes);
+   exact.ProjectCoefficient(affine);
+   exact -= field;
+   REQUIRE(exact.Normlinf() == MFEM_Approx(0.0, EPS));
+
+   real_t fine_integral = 0.0;
+   if (!continuous)
+   {
+      for (int i = 0; i < field.Size(); i++)
+      {
+         field(i) = (i % 13 - 6) / 9.0 + Mpi::WorldRank() / 10.0;
+      }
+      const real_t local_integral = IntegrateGridFunction(mesh, field);
+      MPI_Allreduce(&local_integral, &fine_integral, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+   }
+
+   Vector error(mesh.GetNE());
+   error = 0.0;
+   REQUIRE(mesh.DerefineByError(error, 1.0));
+   fes.Update();
+   field.Update();
+   REQUIRE(mesh.GetGlobalNE() == 9);
+   if (continuous)
+   {
+      ParGridFunction restored_exact(&fes);
+      restored_exact.ProjectCoefficient(affine);
+      restored_exact -= field;
+      REQUIRE(restored_exact.Normlinf() == MFEM_Approx(0.0, EPS));
+   }
+   else
+   {
+      const real_t local_integral = IntegrateGridFunction(mesh, field);
+      real_t restored_integral = 0.0;
+      MPI_Allreduce(&local_integral, &restored_integral, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_SUM, MPI_COMM_WORLD);
+      REQUIRE(restored_integral == MFEM_Approx(fine_integral, EPS));
    }
 }
 

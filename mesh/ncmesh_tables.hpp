@@ -322,6 +322,28 @@ static constexpr int prism_center_hex_vertex_local[6] =
 static constexpr int prism_center_hex_face_local[5] =
 { 0, 5, 1, 2, 3 };
 
+static constexpr Geometry::Type prism_tet_pyramid_children[2] =
+{ Geometry::TETRAHEDRON, Geometry::PYRAMID };
+static constexpr int prism_tet_pyramid_deref[6][6 + 5] =
+{
+   {0, 1, 1, 0, 0, 0, /**/ 1, 0, 0, 1, 0},
+   {1, 0, 1, 0, 0, 0, /**/ 1, 0, 0, 0, 1},
+   {1, 1, 0, 0, 0, 0, /**/ 1, 0, 1, 0, 1},
+   {0, 0, 0, 0, 1, 1, /**/ 0, 1, 0, 1, 0},
+   {0, 0, 0, 1, 0, 1, /**/ 0, 1, 0, 0, 1},
+   {0, 0, 0, 1, 1, 0, /**/ 0, 1, 1, 0, 0}
+};
+static constexpr int prism_tet_pyramid_vertex_local[6][6] =
+{
+   {0, 0, 3, 1, 2, 3}, {3, 0, 0, 1, 2, 3}, {0, 3, 0, 1, 2, 3},
+   {1, 3, 2, 0, 1, 2}, {2, 1, 3, 2, 0, 1}, {3, 2, 1, 1, 2, 0}
+};
+static constexpr int prism_tet_pyramid_face_local[6][5] =
+{
+   {4, 0, 3, 0, 2}, {4, 0, 3, 1, 0}, {4, 0, 0, 1, 4},
+   {0, 2, 2, 0, 3}, {0, 2, 3, 2, 0}, {0, 2, 0, 3, 2}
+};
+
 static constexpr int pyramid_deref_table[7][5 + 5] =
 {
    {-1,-1,-1,-1,-1, /**/ -1,-1,-1,-1,-1 }, // 1
@@ -558,7 +580,7 @@ static constexpr NCRefinementPattern hexahedron_patterns[8] =
    {4, hex_deref_table[4]}, {4, hex_deref_table[5]},
    {8, hex_deref_table[6]}
 };
-static constexpr NCRefinementPattern prism_patterns[20] =
+static constexpr NCRefinementPattern prism_patterns[26] =
 {
    {}, {}, {}, {4, prism_deref_table[2]},
    {2, prism_deref_table[3]}, {}, {}, {8, prism_deref_table[6]},
@@ -591,6 +613,30 @@ static constexpr NCRefinementPattern prism_patterns[20] =
    {
       3, prism_center_hex_deref, prism_center_hex_children,
       prism_center_hex_vertex_local, prism_center_hex_face_local
+   },
+   {
+      2, prism_tet_pyramid_deref[0], prism_tet_pyramid_children,
+      prism_tet_pyramid_vertex_local[0], prism_tet_pyramid_face_local[0]
+   },
+   {
+      2, prism_tet_pyramid_deref[1], prism_tet_pyramid_children,
+      prism_tet_pyramid_vertex_local[1], prism_tet_pyramid_face_local[1]
+   },
+   {
+      2, prism_tet_pyramid_deref[2], prism_tet_pyramid_children,
+      prism_tet_pyramid_vertex_local[2], prism_tet_pyramid_face_local[2]
+   },
+   {
+      2, prism_tet_pyramid_deref[3], prism_tet_pyramid_children,
+      prism_tet_pyramid_vertex_local[3], prism_tet_pyramid_face_local[3]
+   },
+   {
+      2, prism_tet_pyramid_deref[4], prism_tet_pyramid_children,
+      prism_tet_pyramid_vertex_local[4], prism_tet_pyramid_face_local[4]
+   },
+   {
+      2, prism_tet_pyramid_deref[5], prism_tet_pyramid_children,
+      prism_tet_pyramid_vertex_local[5], prism_tet_pyramid_face_local[5]
    }
 };
 static constexpr NCRefinementPattern pyramid_patterns[8] =
