@@ -14,6 +14,8 @@
 #include "unit_tests.hpp"
 
 #include <array>
+#include <limits>
+#include <sstream>
 namespace mfem
 {
 
@@ -183,7 +185,242 @@ TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
 } // test case
 
 
+TEST_CASE("NCMesh scaled field transfer", "[NCMesh]")
+{
+   const int dim = GENERATE(1, 2, 3);
+   const bool curved = GENERATE(false, true);
+   const real_t scale = GENERATE(0.5, 0.3);
+   const real_t tolerance = 100*std::numeric_limits<real_t>::epsilon();
+   CAPTURE(dim, curved, scale);
+
+   Mesh mesh = dim == 1 ? Mesh::MakeCartesian1D(3) : dim == 2 ?
+               Mesh::MakeCartesian2D(3, 1, Element::QUADRILATERAL) :
+               Mesh::MakeCartesian3D(3, 1, 1, Element::HEXAHEDRON);
+   mesh.EnsureNCMesh(true);
+   if (curved)
+   {
+      mesh.SetCurvature(2);
+      mesh.Transform([](const Vector &x, Vector &y)
+      {
+         y = x;
+         y[0] += 0.1*x[x.Size()-1]*x[x.Size()-1];
+      });
+   }
+   Vector coarse_coordinates;
+   mesh.GetNodes(coarse_coordinates);
+   H1_FECollection fec(2, dim);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   FunctionCoefficient linear([](const Vector &x)
+   {
+      real_t value = 0.0;
+      for (int d = 0; d < x.Size(); d++) { value += (d+1)*x[d]; }
+      return value;
+   });
+   field.ProjectCoefficient(linear);
+
+   const char type = dim == 1 ? Refinement::X : dim == 2 ?
+                     Refinement::XY : Refinement::XYZ;
+   Array<Refinement> refs(2);
+   refs[0] = Refinement(0, type, scale);
+   // Equal types and child numbers must not alias different split scales.
+   refs[1] = Refinement(1, type, scale == 0.5 ? 0.5 : 0.7);
+   if (scale != 0.5)
+   {
+      for (auto &ref : refs)
+      {
+         if (dim > 1) { ref.s[1] = 0.4; }
+         if (dim > 2) { ref.s[2] = 0.6; }
+      }
+   }
+   mesh.GeneralRefinement(refs);
+   fes.Update();
+   field.Update();
+   REQUIRE(field.ComputeL2Error(linear) < tolerance);
+   if (dim == 1)
+   {
+      IntegrationPoint end;
+      end.Set1(1.0);
+      Vector actual;
+      mesh.GetElementTransformation(0)->Transform(end, actual);
+      const real_t split = scale/3;
+      REQUIRE(actual[0] == MFEM_Approx(curved ? split + 0.1*split*split : split,
+                                       tolerance, tolerance));
+   }
+
+   Array<real_t> error(mesh.GetNE());
+   error = 0.0;
+   REQUIRE(mesh.DerefineByError(error, 1.0));
+   fes.Update();
+   field.Update();
+   REQUIRE(mesh.GetNE() == 3);
+   REQUIRE(field.ComputeL2Error(linear) < tolerance);
+   Vector coordinates;
+   mesh.GetNodes(coordinates);
+   REQUIRE(coordinates.Size() == coarse_coordinates.Size());
+   coordinates -= coarse_coordinates;
+   REQUIRE(coordinates.Normlinf() < tolerance);
+}
+
+TEST_CASE("NCMesh nested scaled refinement transforms", "[NCMesh]")
+{
+   const int dim = GENERATE(1, 2, 3);
+   const real_t scale = GENERATE(0.5, 0.3);
+   const real_t tolerance = 100*std::numeric_limits<real_t>::epsilon();
+   CAPTURE(dim, scale);
+   Mesh coarse = dim == 1 ? Mesh::MakeCartesian1D(3) : dim == 2 ?
+                 Mesh::MakeCartesian2D(3, 1, Element::QUADRILATERAL) :
+                 Mesh::MakeCartesian3D(3, 1, 1, Element::HEXAHEDRON);
+   NCMesh hierarchy(&coarse);
+   hierarchy.MarkCoarseLevel();
+   const char type = dim == 1 ? Refinement::X : dim == 2 ?
+                     Refinement::XY : Refinement::XYZ;
+   Array<Refinement> refs(2);
+   refs[0] = Refinement(0, type, scale);
+   refs[1] = Refinement(1, type, scale == 0.5 ? 0.5 : 0.7);
+   if (scale != 0.5)
+   {
+      for (int d = 1; d < dim; d++)
+      {
+         refs[0].s[d] = refs[1].s[d] = d == 1 ? 0.4 : 0.6;
+      }
+   }
+   hierarchy.Refine(refs);
+   refs.SetSize(1);
+   refs[0] = Refinement(0, type, scale == 0.5 ? 0.5 : 0.25);
+   hierarchy.Refine(refs);
+   std::stringstream serialized;
+   serialized.precision(17);
+   hierarchy.Print(serialized);
+   serialized << "\nmfem_mesh_end\n";
+   Mesh fine(serialized);
+   const CoarseFineTransformations &transforms =
+      hierarchy.GetRefinementTransforms();
+   for (int e = 0; e < fine.GetNE(); e++)
+   {
+      const Embedding &emb = transforms.embeddings[e];
+      const DenseMatrix &matrix = transforms.point_matrices[emb.geom](emb.matrix);
+      const IntegrationRule &vertices = *Geometries.GetVertices(emb.geom);
+      for (int i = 0; i < vertices.GetNPoints(); i++)
+      {
+         IntegrationPoint ip;
+         ip.Set(matrix.GetColumn(i), dim);
+         Vector expected, actual;
+         coarse.GetElementTransformation(emb.parent)->Transform(ip, expected);
+         fine.GetElementTransformation(e)->Transform(vertices.IntPoint(i), actual);
+         actual -= expected;
+         REQUIRE(actual.Normlinf() < tolerance);
+      }
+   }
+}
+
+TEST_CASE("NCMesh field transfer with reparented anisotropic split vertices",
+          "[NCMesh]")
+{
+   const real_t scale = GENERATE(0.5, 0.3);
+   const bool curved = GENERATE(false, true);
+   const real_t tolerance = 100*std::numeric_limits<real_t>::epsilon();
+   CAPTURE(scale, curved);
+   Mesh mesh = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+   mesh.EnsureNCMesh();
+   Mesh reference(mesh);
+   if (curved)
+   {
+      mesh.SetCurvature(2);
+      mesh.Transform([](const Vector &x, Vector &y)
+      {
+         y = x;
+         y[0] += 0.1*x[1]*x[2];
+      });
+   }
+   H1_FECollection fec(2, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   FunctionCoefficient linear([](const Vector &x)
+   {
+      return x[0] + 2*x[1] + 3*x[2];
+   });
+   field.ProjectCoefficient(linear);
+
+   const int indices[] = {1, 0, 3, 1};
+   const char types[] = {Refinement::Z, Refinement::Z,
+                         Refinement::Y, Refinement::Z
+                        };
+   Array<Refinement> refs(1);
+   for (int step = 0; step < 4; step++)
+   {
+      CAPTURE(step);
+      refs[0] = Refinement(indices[step], types[step], scale);
+      reference.GeneralRefinement(refs);
+      mesh.GeneralRefinement(refs);
+      fes.Update();
+      field.Update();
+      REQUIRE(field.ComputeL2Error(linear) < tolerance);
+      // The reference geometry is computed from node ancestry rather than
+      // the refinement transforms used to update curved geometry and fields.
+      REQUIRE(mesh.GetNV() == reference.GetNV());
+      for (int v = 0; v < mesh.GetNV(); v++)
+      {
+         const real_t *x = reference.GetVertex(v);
+         const real_t *y = mesh.GetVertex(v);
+         REQUIRE(std::abs(y[0] - x[0] - (curved ? 0.1*x[1]*x[2] : 0.0))
+                 < tolerance);
+         REQUIRE(std::abs(y[1] - x[1]) < tolerance);
+         REQUIRE(std::abs(y[2] - x[2]) < tolerance);
+      }
+   }
+}
+
 #ifdef MFEM_USE_MPI
+
+TEST_CASE("ParNCMesh scaled field transfer after redistribution",
+          "[Parallel] [NCMesh]")
+{
+   if (Mpi::WorldSize() < 2) { return; }
+   const real_t scale = GENERATE(0.5, 0.3);
+   const bool curved = GENERATE(false, true);
+   const real_t tolerance = 100*std::numeric_limits<real_t>::epsilon();
+   CAPTURE(Mpi::WorldRank(), scale, curved);
+   Mesh source = Mesh::MakeCartesian1D(2);
+   source.EnsureNCMesh(true);
+   if (curved) { source.SetCurvature(2); }
+   int partition[2] = {0, 1};
+   ParMesh mesh(MPI_COMM_WORLD, source, partition);
+   H1_FECollection fec(2, 1);
+   ParFiniteElementSpace fes(&mesh, &fec);
+   ParGridFunction field(&fes);
+   FunctionCoefficient linear([](const Vector &x) { return x[0]; });
+   field.ProjectCoefficient(linear);
+
+   Array<Refinement> refs(mesh.GetNE());
+   for (int i = 0; i < refs.Size(); i++)
+   {
+      refs[i] = Refinement(i, Refinement::X,
+                           Mpi::WorldRank() == 0 ? scale : 1.0-scale);
+   }
+   mesh.GeneralRefinement(refs);
+   fes.Update();
+   field.Update();
+   REQUIRE(field.ComputeL2Error(linear) < tolerance);
+
+   // Split each sibling pair between ranks 0 and 1 before coarsening.
+   Array<int> destination(mesh.GetNE());
+   for (int i = 0; i < destination.Size(); i++) { destination[i] = i % 2; }
+   mesh.Rebalance(destination);
+   fes.Update();
+   field.Update();
+   REQUIRE(field.ComputeL2Error(linear) < tolerance);
+
+   Array<real_t> error(mesh.GetNE());
+   error = 0.0;
+   REQUIRE(mesh.DerefineByError(error, 1.0));
+   fes.Update();
+   field.Update();
+   REQUIRE(field.ComputeL2Error(linear) < tolerance);
+   int local_ne = mesh.GetNE(), global_ne;
+   MPI_Allreduce(&local_ne, &global_ne, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(global_ne == 2);
+}
 
 // Test case: Verify that a conforming mesh yields the same norm for the
 //            assembled diagonal with PA when using the standard (conforming)

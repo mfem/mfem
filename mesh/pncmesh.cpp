@@ -2998,7 +2998,24 @@ void ParNCMesh::ElementSet::EncodeTree(int elem)
       data.Append(mask);
       if (include_ref_types)
       {
-         data.Append(el.ref_type);
+         // Bits 0-2 store the refinement type; bits 3-5 mark the directions
+         // with a non-midpoint scale, whose values follow the type byte.
+         unsigned char ref_type = el.ref_type;
+         real_t scales[3];
+         ncmesh->GetRefinementScales(el, scales);
+         for (int d = 0; d < 3; d++)
+         {
+            if (scales[d] != 0.5) { ref_type |= 1 << (d + 3); }
+         }
+         data.Append(ref_type);
+         for (int d = 0; d < 3; d++)
+         {
+            if (ref_type & (1 << (d + 3)))
+            {
+               data.Append(reinterpret_cast<const unsigned char*>(&scales[d]),
+                           sizeof(real_t));
+            }
+         }
       }
 
       for (int i = 0; i < 8; i++)
@@ -3066,10 +3083,22 @@ void ParNCMesh::ElementSet::DecodeTree(int elem, int &pos,
       Element &el = ncmesh->elements[elem];
       if (include_ref_types)
       {
-         int ref_type = data[pos++];
+         const unsigned char encoded_type = data[pos++];
+         const int ref_type = encoded_type & Refinement::XYZ;
+         Refinement ref(elem, ref_type);
+         for (int d = 0; d < 3; d++)
+         {
+            if (encoded_type & (1 << (d + 3)))
+            {
+               const char *scale_data =
+                  reinterpret_cast<const char*>(data.GetData()) + pos;
+               ref.s[d] = read<real_t>(scale_data);
+               pos += sizeof(real_t);
+            }
+         }
          if (!el.ref_type)
          {
-            ncmesh->RefineElement(elem, ref_type);
+            ncmesh->RefineElement(ref);
          }
          else { MFEM_ASSERT(ref_type == el.ref_type, "") }
       }

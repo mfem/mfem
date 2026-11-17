@@ -3084,6 +3084,7 @@ public:
 
        The output matches the corresponding per-part MFEM mesh file format for
        both conforming and nonconforming serial meshes.
+       Variable-order nodal geometry is not supported.
 
        @param[in]  part_id  Partition index to write; valid values are in the
                             range [0, num_parts).

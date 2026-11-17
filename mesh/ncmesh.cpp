@@ -1900,6 +1900,7 @@ void NCMesh::RefineElement(const Refinement & ref)
       ref_type = Refinement::X; // for consistency
 
       int mid = nodes.GetId(no[0], no[1]);
+      SetNodeScale(no[0], no[1], scale_x);
       child[0] = NewSegment(no[0], mid, attr, fa[0], -1);
       child[1] = NewSegment(mid, no[1], attr, -1, fa[1]);
    }
@@ -1993,7 +1994,7 @@ void NCMesh::Refine(const Array<Refinement>& refinements)
 
 //// Derefinement //////////////////////////////////////////////////////////////
 
-int NCMesh::RetrieveNode(const Element &el, int index)
+int NCMesh::RetrieveNode(const Element &el, int index) const
 {
    if (!el.ref_type) { return el.node[index]; }
 
@@ -2024,6 +2025,7 @@ int NCMesh::RetrieveNode(const Element &el, int index)
 
       case Geometry::TETRAHEDRON:
       case Geometry::TRIANGLE:
+      case Geometry::SEGMENT:
          ch = el.child[index];
          break;
 
@@ -2032,6 +2034,74 @@ int NCMesh::RetrieveNode(const Element &el, int index)
          MFEM_ABORT("Unsupported element geometry.");
    }
    return RetrieveNode(elements[ch], index);
+}
+
+void NCMesh::GetRefinementScales(const Element &el, real_t scales[3]) const
+{
+   for (int d = 0; d < 3; d++) { scales[d] = 0.5; }
+   if (el.Geom() != Geometry::SEGMENT && el.Geom() != Geometry::SQUARE &&
+       el.Geom() != Geometry::CUBE) { return; }
+
+   const int corner[3] = {1, 3, 4};
+   const int n0 = RetrieveNode(el, 0);
+   for (int d = 0; d < Dim; d++)
+   {
+      if (!(el.ref_type & (1 << d))) { continue; }
+      const int n1 = RetrieveNode(el, corner[d]);
+      const int mid = RetrieveNode(elements[el.child[0]], corner[d]);
+      const Node &split = nodes[mid];
+      if ((split.p1 == n0 && split.p2 == n1) ||
+          (split.p1 == n1 && split.p2 == n0))
+      {
+         scales[d] = GetScale(split.GetScale(), split.p1 != n0);
+         continue;
+      }
+
+      // Anisotropic face refinement may reparent the split vertex along a
+      // different direction. Recover its position in an independent basis of
+      // top-level vertices, without relying on physical or nodal coordinates.
+      // Cache ancestry weights since the parent dependencies form a DAG.
+      using VertexWeights = std::map<int, real_t>;
+      std::map<int, VertexWeights> weights;
+      auto get_weights = [&](auto &&self, int node) -> const VertexWeights &
+      {
+         VertexWeights &result = weights[node];
+         if (result.empty())
+         {
+            const Node &nd = nodes[node];
+            if (nd.p1 == nd.p2) { result[node] = 1.0; }
+            else
+            {
+               for (const auto &entry : self(self, nd.p1))
+               {
+                  result[entry.first] += (1.0 - nd.GetScale())*entry.second;
+               }
+               for (const auto &entry : self(self, nd.p2))
+               {
+                  result[entry.first] += nd.GetScale()*entry.second;
+               }
+            }
+         }
+         return result;
+      };
+      const VertexWeights &w0 = get_weights(get_weights, n0);
+      VertexWeights delta = get_weights(get_weights, n1);
+      for (const auto &entry : w0) { delta[entry.first] -= entry.second; }
+      // Use the largest endpoint weight difference to avoid a small divisor.
+      auto largest = delta.begin();
+      for (auto it = delta.begin(); it != delta.end(); ++it)
+      {
+         if (std::abs(it->second) > std::abs(largest->second)) { largest = it; }
+      }
+      MFEM_ASSERT(largest->second != 0.0, "degenerate refinement edge");
+      const int root = largest->first;
+      const auto start = w0.find(root);
+      const real_t start_weight = start == w0.end() ? 0.0 : start->second;
+      const VertexWeights &wmid = get_weights(get_weights, mid);
+      const auto split_weight = wmid.find(root);
+      scales[d] = ((split_weight == wmid.end() ? 0.0 : split_weight->second) -
+                   start_weight)/largest->second;
+   }
 }
 
 
@@ -2349,6 +2419,12 @@ void NCMesh::InitDerefTransforms()
    // this will tell GetDerefinementTransforms that transforms are not finished
    transforms.Clear();
 
+   for (auto &paths : derefinement_paths)
+   {
+      paths.clear();
+      paths[std::string()] = 1; // identity
+   }
+
    transforms.embeddings.SetSize(nfine);
    for (int i = 0; i < nfine; i++)
    {
@@ -2363,15 +2439,20 @@ void NCMesh::InitDerefTransforms()
 
 void NCMesh::SetDerefMatrixCodes(int parent, Array<int> &fine_coarse)
 {
-   // encode the ref_type and child number for GetDerefinementTransforms()
+   // Capture scales while the refinement edge nodes are still available.
    Element &prn = elements[parent];
+   std::string path;
+   AppendRefinementPath(prn, path);
+   RefPathMap &paths = derefinement_paths[prn.Geom()];
    for (int i = 0; i < MaxElemChildren && prn.child[i] >= 0; i++)
    {
       Element &ch = elements[prn.child[i]];
       if (ch.index >= 0)
       {
-         int code = (prn.ref_type << 4) | i;
-         transforms.embeddings[ch.index].matrix = code;
+         path.back() = i;
+         int &matrix = paths[path];
+         if (!matrix) { matrix = static_cast<int>(paths.size()); }
+         transforms.embeddings[ch.index].matrix = matrix - 1;
          fine_coarse[ch.index] = parent;
       }
    }
@@ -4629,8 +4710,43 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
 
    while (*ref_path)
    {
-      int ref_type = *ref_path++;
+      const unsigned char encoded_type = *ref_path++;
+      const int ref_type = encoded_type & Refinement::XYZ;
+      real_t scales[3] = {0.5, 0.5, 0.5};
+      for (int d = 0; d < 3; d++)
+      {
+         if (encoded_type & (1 << (d + 3)))
+         {
+            std::memcpy(&scales[d], ref_path, sizeof(real_t));
+            ref_path += sizeof(real_t);
+         }
+      }
       int child = *ref_path++;
+
+      if (encoded_type != ref_type)
+      {
+         // Reuse the midpoint child ordering, then move its split planes to
+         // the requested scales and compose it with the current parent map.
+         MFEM_ASSERT(geom == Geometry::SEGMENT || geom == Geometry::SQUARE ||
+                     geom == Geometry::CUBE, "unsupported scaled geometry");
+         const char midpoint_path[3] = {char(ref_type), char(child), 0};
+         DenseMatrix child_matrix(pm(0).dim, pm.np);
+         GetPointMatrix(geom, midpoint_path, child_matrix);
+         PointMatrix scaled = pm;
+         const int corner[3] = {1, 3, 4};
+         for (int i = 0; i < pm.np; i++)
+         {
+            for (int d = 0; d < pm(i).dim; d++)
+            {
+               const real_t x = child_matrix(d, i) == 0.5 ?
+                                scales[d] : child_matrix(d, i);
+               scaled(i).coord[d] = (1.0 - x)*pm(0).coord[d] +
+                                    x*pm(corner[d]).coord[d];
+            }
+         }
+         pm = scaled;
+         continue;
+      }
 
       // TODO: do this with the new child transform tables
 
@@ -5165,6 +5281,7 @@ void NCMesh::MarkCoarseLevel()
    }
 
    transforms.embeddings.DeleteAll();
+   for (auto &paths : derefinement_paths) { paths.clear(); }
 }
 
 void NCMesh::TraverseRefinements(int elem, int coarse_index,
@@ -5186,8 +5303,8 @@ void NCMesh::TraverseRefinements(int elem, int coarse_index,
    {
       MFEM_ASSERT(el.tet_type == 0, "not implemented");
 
-      ref_path.push_back(el.ref_type);
-      ref_path.push_back(0);
+      const std::size_t parent_path_size = ref_path.size();
+      AppendRefinementPath(el, ref_path);
 
       for (int i = 0; i < MaxElemChildren; i++)
       {
@@ -5197,8 +5314,28 @@ void NCMesh::TraverseRefinements(int elem, int coarse_index,
             TraverseRefinements(el.child[i], coarse_index, ref_path, map);
          }
       }
-      ref_path.resize(ref_path.length()-2);
+      ref_path.resize(parent_path_size);
    }
+}
+
+void NCMesh::AppendRefinementPath(const Element &el, std::string &path) const
+{
+   real_t scales[3];
+   GetRefinementScales(el, scales);
+   unsigned char ref_type = el.ref_type;
+   for (int d = 0; d < 3; d++)
+   {
+      if (scales[d] != 0.5) { ref_type |= 1 << (d + 3); }
+   }
+   path.push_back(ref_type);
+   for (int d = 0; d < 3; d++)
+   {
+      if (ref_type & (1 << (d + 3)))
+      {
+         path.append(reinterpret_cast<const char*>(&scales[d]), sizeof(real_t));
+      }
+   }
+   path.push_back(0); // child number is set by the caller
 }
 
 const CoarseFineTransformations& NCMesh::GetRefinementTransforms() const
@@ -5259,26 +5396,6 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms() const
 
    if (!transforms.IsInitialized())
    {
-      std::map<int, int> mat_no[Geometry::NumGeom];
-      for (int g = 0; g < Geometry::NumGeom; g++)
-      {
-         mat_no[g][0] = 1; // 0 == identity
-      }
-
-      // assign numbers to the different matrices used
-      for (int i = 0; i < transforms.embeddings.Size(); i++)
-      {
-         Embedding &emb = transforms.embeddings[i];
-         int code = emb.matrix; // see SetDerefMatrixCodes()
-         if (code)
-         {
-            int &matrix = mat_no[emb.geom][code];
-            if (!matrix) { matrix = static_cast<int>(mat_no[emb.geom].size()); }
-
-            emb.matrix = matrix - 1;
-         }
-      }
-
       for (int g = 0; g < Geometry::NumGeom; g++)
       {
          if (Geoms & (1 << g))
@@ -5287,25 +5404,18 @@ const CoarseFineTransformations& NCMesh::GetDerefinementTransforms() const
             const PointMatrix &identity = GetGeomIdentity(geom);
 
             transforms.point_matrices[geom]
-            .SetSize(Dim, identity.np, static_cast<int>(mat_no[geom].size()));
+            .SetSize(Dim, identity.np,
+                     static_cast<int>(derefinement_paths[geom].size()));
 
             // calculate point matrices
-            for (auto it = mat_no[geom].begin(); it != mat_no[geom].end(); ++it)
+            for (const auto &entry : derefinement_paths[geom])
             {
-               char path[3] = { 0, 0, 0 };
-
-               int code = it->first;
-               if (code)
-               {
-                  path[0] = code >> 4;  // ref_type (see SetDerefMatrixCodes())
-                  path[1] = code & 0xf; // child
-               }
-
-               GetPointMatrix(geom, path,
-                              transforms.point_matrices[geom](it->second-1));
+               GetPointMatrix(geom, entry.first.c_str(),
+                              transforms.point_matrices[geom](entry.second-1));
             }
          }
       }
+      for (auto &paths : derefinement_paths) { paths.clear(); }
    }
    return transforms;
 }
@@ -5336,6 +5446,7 @@ void NCMesh::ClearTransforms()
 {
    coarse_elements.DeleteAll();
    transforms.Clear();
+   for (auto &paths : derefinement_paths) { paths.clear(); }
 }
 
 void CoarseFineTransformations::Clear()

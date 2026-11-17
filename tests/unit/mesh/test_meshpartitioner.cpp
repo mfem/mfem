@@ -485,4 +485,169 @@ TEST_CASE("MakeFromSerial prunes anisotropic 3D NC parts",
    REQUIRE(distributed_ne == global_ne);
 }
 
+TEST_CASE("MakeFromSerial preserves NC refinement scales during rebalance",
+          "[Mesh] [MeshPartitioner] [Parallel]")
+{
+   if (Mpi::WorldSize() < 2) { return; }
+
+   const int rank = Mpi::WorldRank();
+   const int dim = GENERATE(1, 2, 3);
+   const bool curved = GENERATE(false, true);
+   const real_t scale = GENERATE(0.5, 0.3);
+   const char ref_type = dim == 1 ? Refinement::X : dim == 3 ?
+                         GENERATE(Refinement::X, Refinement::Y, Refinement::Z,
+                                  Refinement::XY, Refinement::XZ, Refinement::YZ,
+                                  Refinement::XYZ) :
+                         GENERATE(Refinement::X, Refinement::Y, Refinement::XY);
+   CAPTURE(rank, dim, curved, scale, int(ref_type));
+
+   Mesh mesh = dim == 1 ? Mesh::MakeCartesian1D(3) : dim == 3 ?
+               Mesh::MakeCartesian3D(3, 1, 1, Element::HEXAHEDRON) :
+               Mesh::MakeCartesian2D(3, 1, Element::QUADRILATERAL);
+   mesh.EnsureNCMesh(true);
+   Array<Refinement> refs(1);
+   refs[0] = Refinement(0, ref_type, scale);
+   // Use different scales along each active axis to check their ordering.
+   if (scale != 0.5)
+   {
+      if (ref_type & Refinement::Y) { refs[0].s[1] = 0.4; }
+      if (ref_type & Refinement::Z) { refs[0].s[2] = 0.6; }
+   }
+   mesh.GeneralRefinement(refs);
+   if (dim == 1)
+   {
+      REQUIRE(mesh.GetElementVolume(0) == MFEM_Approx(scale / 3));
+   }
+   // Refine a child with reversed edge node IDs too, so its parent's corners
+   // must be recovered recursively and the scales need orientation correction.
+   refs[0] = Refinement(1, ref_type, scale);
+   mesh.GeneralRefinement(refs);
+   if (curved)
+   {
+      mesh.SetCurvature(2);
+      mesh.Transform([](const Vector &x, Vector &y)
+      {
+         y = x;
+         y[0] += 0.1 * x[x.Size() - 1] * x[x.Size() - 1];
+      });
+   }
+   if (dim == 1)
+   {
+      // Exercise scaled v1.1 input as well as in-memory segment refinement.
+      std::stringstream serialized;
+      serialized.precision(17);
+      mesh.Print(serialized);
+      mesh = Mesh(serialized, 1, 0);
+   }
+   for (int i = 0; i < mesh.GetNE(); i++) { mesh.SetAttribute(i, i + 1); }
+
+   Array<int> partition(mesh.GetNE());
+   partition = 0;
+   Mesh smesh;
+   if (rank == 0) { smesh = Mesh(mesh); }
+   ParMesh distributed = ParMesh::MakeFromSerial(MPI_COMM_WORLD, smesh,
+                                                 partition.GetData());
+
+   // Each receiving rank initially has only collapsed, unowned roots.
+   for (int owner : {1, 0})
+   {
+      Array<int> destination(distributed.GetNE());
+      destination = owner;
+      distributed.Rebalance(destination);
+      REQUIRE(distributed.GetNE() == (rank == owner ? mesh.GetNE() : 0));
+      for (int i = 0; i < distributed.GetNE(); i++)
+      {
+         const int global_id = distributed.GetAttribute(i) - 1;
+         const Geometry::Type geom = distributed.GetElementGeometry(i);
+         const IntegrationRule &ir = IntRules.Get(geom, 4);
+         for (int q = 0; q < ir.GetNPoints(); q++)
+         {
+            Vector expected, actual;
+            mesh.GetElementTransformation(global_id)->Transform(ir.IntPoint(q),
+                                                                expected);
+            distributed.GetElementTransformation(i)->Transform(ir.IntPoint(q),
+                                                               actual);
+            actual -= expected;
+            REQUIRE(actual.Normlinf() < 1e-12);
+         }
+      }
+   }
+}
+
+#ifdef MFEM_USE_EXCEPTIONS
+TEST_CASE("MakeFromSerial rejects NURBS meshes collectively",
+          "[Mesh] [MeshPartitioner] [Parallel]")
+{
+   const bool from_stream = GENERATE(false, true);
+   CAPTURE(Mpi::WorldRank(), from_stream);
+   Mesh mesh;
+   std::stringstream input;
+   if (Mpi::WorldRank() == 0)
+   {
+      mesh = Mesh("../../data/beam-hex-nurbs.mesh");
+      REQUIRE(mesh.NURBSext);
+      if (from_stream) { mesh.Print(input); }
+   }
+   const int original_ne = mesh.GetNE();
+   NURBSExtension *original_nurbs = mesh.NURBSext;
+   GridFunction *original_nodes = mesh.GetNodes();
+   Array<int> partition(mesh.GetNE());
+   partition = 0;
+   if (from_stream)
+   {
+      REQUIRE_THROWS_WITH(ParMesh::MakeFromSerial(MPI_COMM_WORLD, input),
+                          Catch::Matchers::Contains("NURBS meshes"));
+   }
+   else
+   {
+      REQUIRE_THROWS_WITH(ParMesh::MakeFromSerial(MPI_COMM_WORLD, mesh,
+                                                  partition.GetData()),
+                          Catch::Matchers::Contains("NURBS meshes"));
+   }
+   REQUIRE(mesh.GetNE() == original_ne);
+   REQUIRE(mesh.NURBSext == original_nurbs);
+   REQUIRE(mesh.GetNodes() == original_nodes);
+   // All ranks must leave the rejected call and remain able to communicate.
+   int returned = 1, total_returned;
+   MPI_Allreduce(&returned, &total_returned, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(total_returned == Mpi::WorldSize());
+}
+
+TEST_CASE("MakeFromSerial rejects variable-order nodal geometry collectively",
+          "[Mesh] [MeshPartitioner] [Parallel]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL);
+   mesh.EnsureNCMesh();
+   H1_FECollection fec(1, 2);
+   FiniteElementSpace fes(&mesh, &fec, 2);
+   fes.SetElementOrder(0, 2);
+   fes.Update(false);
+   GridFunction nodes(&fes);
+   VectorFunctionCoefficient coordinates(2, [](const Vector &x, Vector &y)
+   {
+      y = x;
+      y[0] += 0.1 * x[1] * x[1];
+   });
+   nodes.ProjectCoefficient(coordinates);
+   mesh.NewNodes(nodes, false);
+
+   Array<int> partition(mesh.GetNE());
+   partition = 0;
+   MeshPartitioner partitioner(mesh, Mpi::WorldSize(), partition.GetData());
+   std::stringstream output;
+   REQUIRE_THROWS_WITH(partitioner.PrintPart(0, output),
+                       Catch::Matchers::Contains("variable-order nodal geometry"));
+   REQUIRE(output.str().empty());
+
+   Mesh empty;
+   Mesh &root = Mpi::WorldRank() == 0 ? mesh : empty;
+   REQUIRE_THROWS_WITH(ParMesh::MakeFromSerial(MPI_COMM_WORLD, root,
+                                               partition.GetData()),
+                       Catch::Matchers::Contains("variable-order nodal geometry"));
+   REQUIRE(mesh.GetNE() == 2);
+   REQUIRE(mesh.GetNodes() == &nodes);
+   REQUIRE(fes.GetElementOrder(0) == 2);
+}
+#endif
+
 #endif

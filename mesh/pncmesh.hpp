@@ -389,8 +389,9 @@ protected: // implementation
        an NCMesh. Can be dumped to a stream, sent to another processor, loaded,
        and decoded to identify the same set of elements (refinements) in a
        different but compatible NCMesh. The encoding can optionally include
-       the refinement types needed to reach the leaves, so the element set can
-       be decoded (recreated) even if the receiver has an incomplete tree. */
+       the refinement types and nonuniform scales needed to reach the leaves,
+       so the element set can be decoded (recreated) even if the receiver has
+       an incomplete tree. */
    class ElementSet
    {
    public:

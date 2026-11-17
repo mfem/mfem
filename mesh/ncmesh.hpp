@@ -616,13 +616,23 @@ protected: // implementation
       bool HasEdge()   const { return edge_refc > 0; }
 
       // decrease vertex/edge ref count, return false if Node should be deleted
-      bool UnrefVertex() { --vert_refc; return vert_refc || edge_refc; }
-      bool UnrefEdge()   { --edge_refc; return vert_refc || edge_refc; }
+      bool UnrefVertex() { return Unref(vert_refc); }
+      bool UnrefEdge()   { return Unref(edge_refc); }
 
       real_t GetScale() const { return scale; }
       void SetScale(real_t s, bool overwrite = false);
 
    private:
+      bool Unref(char &refc)
+      {
+         --refc;
+         if (vert_refc || edge_refc) { return true; }
+         // HashTable reuses deleted nodes without calling their constructor.
+         scale = 0.5;
+         scaleSet = false;
+         return false;
+      }
+
       real_t scale;  ///< Scale from struct Refinement, default 0.5
       bool scaleSet; ///< Indicates whether scale is set and cannot be changed
 #ifdef MFEM_USE_DOUBLE
@@ -1036,7 +1046,10 @@ protected:
    void CollectDerefinements(int elem, Array<Connection> &list);
 
    /// Return el.node[index] correctly, even if the element is refined.
-   int RetrieveNode(const Element &el, int index);
+   int RetrieveNode(const Element &el, int index) const;
+
+   /// Recover directed tensor-product refinement scales from child vertices.
+   void GetRefinementScales(const Element &el, real_t scales[3]) const;
 
    /// Extended version of find_node: works if 'el' is refined.
    int FindNodeExt(const Element &el, int node, bool abort = true);
@@ -1255,11 +1268,17 @@ protected:
 
    using RefPathMap = std::map<std::string, int>;
 
+   /// Append a refinement type, optional non-midpoint scales, and child byte.
+   void AppendRefinementPath(const Element &el, std::string &path) const;
+
    void TraverseRefinements(int elem, int coarse_index,
                             std::string &ref_path, RefPathMap &map) const;
 
    /// storage for data returned by Get[De]RefinementTransforms()
    mutable CoarseFineTransformations transforms;
+
+   /// Refinement paths captured before derefinement deletes the edge nodes.
+   mutable RefPathMap derefinement_paths[Geometry::NumGeom];
 
    /// state of leaf_elements before Refine(), set by MarkCoarseLevel()
    Array<int> coarse_elements;

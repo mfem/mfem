@@ -15638,6 +15638,9 @@ void MeshPartitioner::ExtractPart(int part_id, MeshPart &mesh_part) const
 
 void MeshPartitioner::PrintPart(int part_id, std::ostream &os) const
 {
+   MFEM_VERIFY(!mesh.GetNodes() ||
+               !mesh.GetNodes()->FESpace()->IsVariableOrder(),
+               "PrintPart does not support variable-order nodal geometry.");
    MFEM_VERIFY(0 <= part_id && part_id < num_parts,
                "invalid part_id = " << part_id
                << ", num_parts = " << num_parts);

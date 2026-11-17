@@ -7284,6 +7284,26 @@ ParMesh ParMesh::MakeParCartesian3D(MPI_Comm comm, int nx, int ny, int nz,
    }
 }
 
+static void ValidateSerialMesh(MPI_Comm comm, int rank, const Mesh &mesh)
+{
+   enum { NURBS_MESH = 1, VARIABLE_ORDER_NODES = 2 };
+   int unsupported_geometry = 0;
+   if (rank == 0)
+   {
+      if (mesh.NURBSext) { unsupported_geometry |= NURBS_MESH; }
+      if (mesh.GetNodes() && mesh.GetNodes()->FESpace()->IsVariableOrder())
+      {
+         unsupported_geometry |= VARIABLE_ORDER_NODES;
+      }
+   }
+   // Reject unsupported geometry on every rank before any partition is sent.
+   MPI_Bcast(&unsupported_geometry, 1, MPI_INT, 0, comm);
+   MFEM_VERIFY(!(unsupported_geometry & NURBS_MESH),
+               "MakeFromSerial does not support NURBS meshes.");
+   MFEM_VERIFY(!(unsupported_geometry & VARIABLE_ORDER_NODES),
+               "MakeFromSerial does not support variable-order nodal geometry.");
+}
+
 ParMesh ParMesh::MakeFromSerial(MPI_Comm comm, std::istream &input,
                                 int generate_edges, int refine,
                                 bool fix_orientation, int part_method,
@@ -7291,9 +7311,14 @@ ParMesh ParMesh::MakeFromSerial(MPI_Comm comm, std::istream &input,
 {
    int rank;
    MPI_Comm_rank(comm, &rank);
+   Mesh m;
    if (rank == 0)
    {
-      Mesh m(input, generate_edges, refine, fix_orientation);
+      m = Mesh(input, generate_edges, refine, fix_orientation);
+   }
+   ValidateSerialMesh(comm, rank, m);
+   if (rank == 0)
+   {
       return DistributeMesh(comm, m, part_method, nxyz, generate_edges, refine,
                             fix_orientation);
    }
@@ -7307,6 +7332,7 @@ ParMesh ParMesh::MakeFromSerial(MPI_Comm comm, Mesh &m, const int *partitioning)
 {
    int rank;
    MPI_Comm_rank(comm, &rank);
+   ValidateSerialMesh(comm, rank, m);
    if (rank == 0)
    {
       return DistributeMesh(comm, m, partitioning);
