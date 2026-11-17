@@ -76,6 +76,7 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal,
                                     const int NE,
                                     const DeviceTensor<5, const real_t> &J,
                                     const ConstDeviceMatrix &W,
+                                    const bool integ_over_target,
                                     const real_t *b,
                                     const DeviceTensor<4, const real_t> &R,
                                     const DeviceTensor<4, const real_t> &ALF_grad,
@@ -114,7 +115,8 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal,
          MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
             const real_t *Jtr = &J(0, 0, qx, qy, e);
-            const real_t detJtr = kernels::Det<2>(Jtr);
+            const real_t detJtr =
+               integ_over_target ? kernels::Det<2>(Jtr) : 1.0;
             const real_t weight = W(qx, qy) * detJtr;
             const real_t diff = alf_quad(qy, qx);
 
@@ -219,8 +221,9 @@ void TMOP_Integrator::AddMultGradPA_AdaptLim_2D(const Vector &R,
       const auto ALF_grad = Reshape(ALFG_all + c * ALFG_stride, 2, q, q, NE);
       const auto ALF_hess = Reshape(ALFH_all + c * ALFH_stride, 2, 2, q, q, NE);
 
-      TMOPMultGradAdaptLim::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, B,
-                                RR, ALF_grad, ALF_hess, ALFmF0, Y, d, q);
+      TMOPMultGradAdaptLim::Run(d, q, ln, delta_max, const_coeff, ALC, NE,
+                                J, W, integ_over_target, B, RR, ALF_grad,
+                                ALF_hess, ALFmF0, Y, d, q);
    }
 }
 
