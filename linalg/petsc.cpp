@@ -140,6 +140,16 @@ static PetscErrorCode MakeShellPCWithFactory(PC,
 #endif
 #endif
 
+#if defined(_USE_DEVICE)
+// Return true if memory of type mt is compatible with the device vectors and
+// matrices of PETSc on all systems: all the memory types of MemoryClass::DEVICE
+// (including the Umpire ones), except DEVICE_DEBUG, which is host memory.
+static bool __mfem_IsPetscDeviceCompatibleMemory(mfem::MemoryType mt)
+{
+   return mfem::IsDeviceMemory(mt) && mt != mfem::MemoryType::DEVICE_DEBUG;
+}
+#endif
+
 #if defined(PETSC_HAVE_DEVICE)
 static PetscErrorCode __mfem_VecSetOffloadMask(Vec,PetscOffloadMask);
 #endif
@@ -396,15 +406,13 @@ void PetscParVector::SetVecType_()
    MFEM_VERIFY(x,"Missing Vec");
    ierr = VecGetType(x,&vectype); PCHKERRQ(x,ierr);
 #if defined(_USE_DEVICE)
-   switch (Device::GetDeviceMemoryType())
+   if (__mfem_IsPetscDeviceCompatibleMemory(Device::GetDeviceMemoryType()))
    {
-      case MemoryType::DEVICE:
-      case MemoryType::MANAGED:
-         ierr = VecSetType(x,PETSC_VECDEVICE); PCHKERRQ(x,ierr);
-         break;
-      default:
-         ierr = VecSetType(x,VECSTANDARD); PCHKERRQ(x,ierr);
-         break;
+      ierr = VecSetType(x,PETSC_VECDEVICE); PCHKERRQ(x,ierr);
+   }
+   else
+   {
+      ierr = VecSetType(x,VECSTANDARD); PCHKERRQ(x,ierr);
    }
 #else
    if (!vectype)
@@ -897,7 +905,10 @@ void PetscParVector::PlaceMemory(const Memory<mfem::real_t>& mem)
 void PetscParVector::ResetMemory()
 {
    MFEM_VERIFY(pdata.IsAliasForSync(),"Vector data is not an alias");
-   MFEM_VERIFY(!pdata.Empty(),"Vector data is empty");
+   PetscInt n;
+   ierr = VecGetLocalSize(x,&n); PCHKERRQ(x,ierr);
+   MFEM_VERIFY(!pdata.Empty() || !n,"Vector data is empty, local size is not");
+
    bool read = pdata.ReadRequested();
    bool usedev = pdata.DeviceRequested();
    bool write = pdata.WriteRequested();
@@ -1379,7 +1390,7 @@ void PetscParMatrix::MakeWrapper(MPI_Comm comm, const Operator* op, Mat *A)
 #endif
 #if defined(_USE_DEVICE)
    MemoryType mt = GetMemoryType(op->GetMemoryClass());
-   if (mt == MemoryType::DEVICE || mt == MemoryType::MANAGED)
+   if (__mfem_IsPetscDeviceCompatibleMemory(mt))
    {
       ierr = MatShellSetVecType(*A,PETSC_VECDEVICE); PCHKERRQ(A,ierr);
       ierr = MatBindToCPU(*A,PETSC_FALSE); PCHKERRQ(A,ierr);

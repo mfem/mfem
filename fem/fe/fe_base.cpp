@@ -799,7 +799,8 @@ void NodalFiniteElement::GetLocalRestriction(ElementTransformation &Trans,
    for (int j = 0; j < dof; j++)
    {
       InvertLinearTrans(Trans, Nodes[j], pt);
-      if (Geometries.CheckPoint(geom_type, ipt)) // do we need an epsilon here?
+      constexpr real_t eps = MFEM_PRECISION_SWITCH(1e-14,1e-6f);
+      if (Geometries.CheckPoint(geom_type, ipt, eps))
       {
          CalcShape(ipt, shape);
          R.SetRow(j, shape);
@@ -1144,6 +1145,7 @@ void VectorFiniteElement::SetDerivMembers()
                deriv_type = NONE;
                deriv_range_type = UNKNOWN_RANGE_TYPE;
                deriv_map_type = UNKNOWN_MAP_TYPE;
+               break;
             default:
                MFEM_ABORT("Invalid dimension, Dim = " << dim);
          }
@@ -1742,7 +1744,8 @@ void VectorFiniteElement::LocalRestriction_RT(
    {
       InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
       ip.Set(pt_data, dim);
-      if (Geometries.CheckPoint(geom_type, ip)) // do we need an epsilon here?
+      constexpr real_t eps = MFEM_PRECISION_SWITCH(1e-14,1e-6f);
+      if (Geometries.CheckPoint(geom_type, ip, eps))
       {
          CalcVShape(ip, vshape);
          J.MultTranspose(nk+dim*d2n[j], pt_data);
@@ -1784,7 +1787,8 @@ void VectorFiniteElement::LocalRestriction_ND(
    {
       InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
       ip.Set(pt_data, dim);
-      if (Geometries.CheckPoint(geom_type, ip)) // do we need an epsilon here?
+      constexpr real_t eps = MFEM_PRECISION_SWITCH(1e-14,1e-6f);
+      if (Geometries.CheckPoint(geom_type, ip, eps))
       {
          CalcVShape(ip, vshape);
          Jinv.Mult(tk+dim*d2t[j], pt_data);

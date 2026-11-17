@@ -13,11 +13,87 @@
 #include "mesh_test_utils.hpp"
 #include "unit_tests.hpp"
 
+#include <algorithm>
 #include <array>
+#include <sstream>
 namespace mfem
 {
 
 constexpr real_t EPS = 1e-10;
+
+namespace
+{
+
+// The 2D mesh of DividingPlaneMesh with its interior boundary at x = 0.5,
+// refined twice, after which the elements on one side of the interior boundary
+// are refined once more. The interior boundary edges on the coarse side are
+// then the master edges of the slave edges of the boundary elements on the
+// refined side.
+Mesh OneSidedRefinedDividingLineMesh(bool tri_mesh)
+{
+   auto mesh = DividingPlaneMesh(tri_mesh, true, false);
+   mesh.EnsureNCMesh(true);
+   mesh.UniformRefinement();
+   mesh.UniformRefinement();
+   Array<int> refs;
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      if (mesh.GetAttribute(e) == 2) { refs.Append(e); }
+   }
+   mesh.GeneralRefinement(refs);
+   return mesh;
+}
+
+// Check that the DOFs on the interior boundary of a mesh from
+// OneSidedRefinedDividingLineMesh, except those on the exterior boundary, are
+// essential if and only if the interior boundary is. The array ess_marker marks
+// the essential DOFs, true or local, and the function dof_of returns the DOF of
+// a local DOF in ess_marker, or -1 for a DOF not to check (e.g. a constrained
+// or non-owned DOF). Returns the number of checked DOFs.
+template <typename DofOf>
+int CheckInteriorBoundaryEssentialDofs(const Mesh &mesh,
+                                       const FiniteElementSpace &fes,
+                                       const Array<int> &ess_marker,
+                                       bool ess_interior, DofOf &&dof_of)
+{
+   auto on_interior = [&](int v)
+   {
+      const real_t *x = mesh.GetVertex(v);
+      return std::abs(x[0] - 0.5) < EPS && x[1] > EPS && x[1] < 1.0 - EPS;
+   };
+   int checked = 0;
+   auto check_essential_dofs = [&](const Array<int> &dofs)
+   {
+      for (int d : dofs)
+      {
+         const int t = dof_of(UnsignIndex(d));
+         if (t < 0) { continue; }
+         CHECK((ess_marker[t] != 0) == ess_interior);
+         checked++;
+      }
+   };
+   Array<int> vert, dofs;
+   for (int e = 0; e < mesh.GetNEdges(); e++)
+   {
+      mesh.GetEdgeVertices(e, vert);
+      const real_t *x0 = mesh.GetVertex(vert[0]), *x1 = mesh.GetVertex(vert[1]);
+      if (std::abs(x0[0] - 0.5) > EPS || std::abs(x1[0] - 0.5) > EPS)
+      {
+         continue;
+      }
+      fes.GetEdgeInteriorDofs(e, dofs);
+      check_essential_dofs(dofs);
+   }
+   for (int v = 0; v < mesh.GetNV(); v++)
+   {
+      if (!on_interior(v)) { continue; }
+      fes.GetVertexDofs(v, dofs);
+      check_essential_dofs(dofs);
+   }
+   return checked;
+}
+
+} // namespace
 
 // Test case: Verify that a conforming mesh yields the same norm for the
 //            assembled diagonal with PA when using the standard (conforming)
@@ -418,6 +494,14 @@ TEST_CASE("EdgeFaceConstraint", "[Parallel], [NCMesh]")
       REQUIRE(pmesh.GetGlobalNE() == 8 + 1);
       REQUIRE(smesh.GetNE() == 8 + 1);
 
+      // RT0 has no edge DOFs; skip its empty edge-face constraints.
+      {
+         RT0_3DFECollection fec;
+         FiniteElementSpace fes(&smesh, &fec);
+         ParFiniteElementSpace pfes(&pmesh, &fec);
+         CHECK(pfes.GlobalTrueVSize() == fes.GetTrueVSize());
+      }
+
       // Each pair of indices here represents sequential element indices to
       // refine. First the i element is refined, then in the resulting mesh the
       // j element is refined. These pairs were arrived at by looping over all
@@ -609,6 +693,189 @@ TEST_CASE("EdgeFaceConstraint", "[Parallel], [NCMesh]")
    }
 
 } // test case
+
+TEST_CASE("TetEdgeFaceCommunication", "[Parallel], [NCMesh]")
+{
+   if (Mpi::WorldSize() < 3) { return; }
+
+   Mesh smesh("../../data/ref-tetrahedron.mesh");
+   smesh.UniformRefinement();
+   smesh.EnsureNCMesh(true);
+   Array<int> ref(1);
+   ref[0] = 0;
+   smesh.GeneralRefinement(ref);
+   REQUIRE(smesh.GetNE() == 15);
+
+   // On rank 1, SelfGroupId still means self. No faces should be shared.
+   {
+      Array<int> local_partition(smesh.GetNE());
+      local_partition = 1;
+      ParMesh local(MPI_COMM_WORLD, smesh, local_partition.GetData());
+      int shared = local.GetNE() ? local.pncmesh->GetSharedFaces().masters.Size() : 0;
+      MPI_Allreduce(MPI_IN_PLACE, &shared, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+      CHECK(shared == 0);
+   }
+
+   // Rank 0 owns an interior edge of rank 2's slave face, but no local
+   // slave face constrains that edge.
+   constexpr std::array<int, 15> partition =
+   {0, 1, 2, 1, 0, 1, 1, 0, 2, 2, 0, 2, 1, 0, 0};
+   ParMesh pmesh(MPI_COMM_WORLD, smesh, partition.data());
+   auto &nc = *pmesh.pncmesh;
+   const auto &faces = nc.GetFaceList();
+   const auto &edges = nc.GetEdgeList();
+
+   int checked = 0, remote = 0, missing = 0;
+   for (const auto &master : faces.masters)
+   {
+      if (nc.IsGhost(2, master.index)) { continue; }
+      int mv[4], me[4], mo[4];
+      const int nmv = nc.GetFaceVerticesEdges(master, mv, me, mo);
+      for (int i = master.slaves_begin; i < master.slaves_end; i++)
+      {
+         const auto &slave = faces.slaves[i];
+         if (slave.index < 0 || nc.IsGhost(2, slave.index)) { continue; }
+         int sv[4], se[4], so[4];
+         const int nsv = nc.GetFaceVerticesEdges(slave, sv, se, so);
+         for (int j = 0; j < nsv; j++)
+         {
+            const int edge = se[j];
+            if (std::find(me, me + nmv, edge) != me + nmv) { continue; }
+            const auto type = edges.GetMeshIdAndType(edge).type;
+            if (type != NCMesh::NCList::MeshIdType::MASTER &&
+                type != NCMesh::NCList::MeshIdType::CONFORMING) { continue; }
+
+            // Use the slave face's edges, not the edge-face records.
+            const int owner = nc.GetGroup(nc.GetEntityOwnerId(1, edge))[0];
+            checked++;
+            remote += (owner != Mpi::WorldRank());
+            const auto group = nc.GetEntityGroupId(2, master.index);
+            missing += !nc.GroupContains(group, owner);
+         }
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &checked, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(MPI_IN_PLACE, &remote, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(MPI_IN_PLACE, &missing, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(checked > 0);
+   // The partition must exercise an edge owned by another rank, which is the
+   // case that previously left that rank out of the master face's group.
+   REQUIRE(remote > 0);
+   // Fail on all ranks before a missing row can hang space construction.
+   REQUIRE(missing == 0);
+
+   ND_FECollection fec(2, 3);
+   FiniteElementSpace fes(&smesh, &fec);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+   CHECK(pfes.GlobalTrueVSize() == fes.GetTrueVSize());
+}
+
+TEST_CASE("HangingVertexOwnership", "[Parallel], [NCMesh]")
+{
+   if (Mpi::WorldSize() < 3) { return; }
+
+   auto check_ownership = [](Mesh &smesh, const Array<int> &base)
+   {
+      std::array<int, 3> labels = {0, 1, 2};
+      do
+      {
+         Array<int> partition(base.Size());
+         for (int i = 0; i < partition.Size(); i++)
+         {
+            partition[i] = labels[base[i]];
+         }
+
+         CAPTURE(labels[0], labels[1], labels[2]);
+         ParMesh pmesh(MPI_COMM_WORLD, smesh, partition.GetData());
+         for (int order : {1, 2, 3})
+         {
+            CAPTURE(order);
+            H1_FECollection fec(order, smesh.Dimension());
+            FiniteElementSpace fes(&smesh, &fec);
+            ParFiniteElementSpace pfes(&pmesh, &fec);
+            CHECK(pfes.GlobalTrueVSize() == fes.GetTrueVSize());
+            if (order != 1) { continue; }
+
+            // Compare serial and parallel P R for every P1 nodal basis vector.
+            // Affine fields can hide extra true DOFs.
+            GridFunction serial_values(&fes);
+            Vector true_values;
+            int finite = 1;
+            real_t error = 0.0;
+            for (int i = 0; i < fes.GetVSize(); i++)
+            {
+               serial_values = 0.0;
+               serial_values[i] = 1.0;
+               ParGridFunction actual(&pmesh, &serial_values, partition.GetData());
+               actual.GetTrueDofs(true_values);
+               actual.SetFromTrueDofs(true_values);
+               serial_values.GetTrueDofs(true_values);
+               serial_values.SetFromTrueDofs(true_values);
+               ParGridFunction expected(&pmesh, &serial_values, partition.GetData());
+               actual -= expected;
+               if (actual.CheckFinite()) { finite = 0; }
+               else { error = std::max(error, actual.Normlinf()); }
+            }
+            MPI_Allreduce(MPI_IN_PLACE, &finite, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+            MPI_Allreduce(MPI_IN_PLACE, &error, 1, MPITypeMap<real_t>::mpi_type,
+                          MPI_MAX, MPI_COMM_WORLD);
+            CHECK(finite);
+            CHECK(error == MFEM_Approx(0.0));
+         }
+      }
+      while (std::next_permutation(labels.begin(), labels.end()));
+   };
+
+   SECTION("VertexFan")
+   {
+      Mesh smesh("../../data/ref-tetrahedron.mesh");
+      smesh.UniformRefinement();
+      smesh.EnsureNCMesh(true);
+      smesh.GeneralRefinement(Array<int>({0}));
+      REQUIRE(smesh.GetNE() == 15);
+      const Array<int> partition({2, 2, 1, 2, 0, 1, 2, 2, 0, 2, 1, 1, 2, 1, 0});
+      check_ownership(smesh, partition);
+   }
+
+   SECTION("Edge")
+   {
+      // Child 3 on rank 0 touches the midpoint, but neither half-edge.
+      // Rank 1 holds both constraining half-edges.
+      Mesh smesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+      smesh.EnsureNCMesh(true);
+      smesh.GeneralRefinement(Array<int>({0}));
+      REQUIRE(smesh.GetNE() == 5);
+      const Array<int> partition({1, 1, 2, 0, 2});
+      check_ownership(smesh, partition);
+   }
+
+   SECTION("Face")
+   {
+      // Refine both children sharing edge [(0,1/2,0),(1/2,1/2,0)].
+      // Its midpoint then depends on the coarse face, not a master edge.
+      Mesh smesh(3, 5, 2, 0);
+      smesh.AddVertex(0, 0, 0);
+      smesh.AddVertex(1, 0, 0);
+      smesh.AddVertex(0, 1, 0);
+      smesh.AddVertex(0, 0, 1);
+      smesh.AddVertex(0, 0, -1);
+      smesh.AddTet(0, 1, 2, 3);
+      smesh.AddTet(0, 2, 1, 4);
+      smesh.FinalizeTetMesh(1, 0, true);
+      smesh.EnsureNCMesh(true);
+      smesh.GeneralRefinement(Array<int>({0}));
+      smesh.GeneralRefinement(Array<int>({2, 7}));
+      REQUIRE(smesh.GetNE() == 23);
+
+      // Element 20 touches the coarse face only at (1/4,1/2,0).
+      // Rank 1 holds all constraining faces; element 22 is the lower tet.
+      Array<int> partition(smesh.GetNE());
+      partition = 1;
+      partition[20] = 0;
+      partition[22] = 2;
+      check_ownership(smesh, partition);
+   }
+}
 
 TEST_CASE("P2Q1PureTetHexPri",  "[Parallel], [NCMesh]")
 {
@@ -1750,6 +2017,63 @@ TEST_CASE("Parallel RP=I", "[Parallel], [NCMesh]")
          ParFiniteElementSpace fespace(&mesh, &fec);
          CHECK(CheckRPIdentity(fespace));
       }
+   }
+}
+
+// Test case: Essential true DOFs of an interior boundary of a 2D parallel
+//            non-conforming mesh refined on one side of it. The master edges
+//            on the coarse side have no boundary elements, and must be marked
+//            from the slave boundary elements on the refined side only if the
+//            interior boundary is essential. The same is checked on the part
+//            of the mesh of each rank loaded as a serial mesh, in which the
+//            slave edges of a master edge may all be in ghost elements.
+TEST_CASE("ParInteriorBoundaryEssentialDofs2D", "[Parallel], [NCMesh]")
+{
+   const bool tri_mesh = GENERATE(false, true);
+   const int order = GENERATE(1, 2, 3);
+   const bool ess_interior = GENERATE(true, false);
+   CAPTURE(tri_mesh, order, ess_interior);
+
+   auto smesh = OneSidedRefinedDividingLineMesh(tri_mesh);
+   ParMesh mesh(MPI_COMM_WORLD, smesh);
+   std::stringstream part_stream;
+   mesh.ParPrint(part_stream);
+   Mesh part(part_stream, 1, 1);
+   const int interior_attr = mesh.bdr_attributes.Max();
+   Array<int> ess_bdr(interior_attr);
+   ess_bdr = ess_interior ? 0 : 1;
+   ess_bdr[interior_attr - 1] = ess_interior ? 1 : 0;
+
+   H1_FECollection h1_fec(order, 2);
+   ND_FECollection nd_fec(order, 2);
+   for (const FiniteElementCollection *fec :
+        std::vector<const FiniteElementCollection *> {&h1_fec, &nd_fec})
+   {
+      CAPTURE(fec->Name());
+      ParFiniteElementSpace fes(&mesh, fec);
+      Array<int> ess_tdof_list, ess_tdof_marker;
+      fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      FiniteElementSpace::ListToMarker(ess_tdof_list, fes.GetTrueVSize(),
+                                       ess_tdof_marker);
+      auto tdof_of = [&](int ldof) { return fes.GetLocalTDofNumber(ldof); };
+      int checked = CheckInteriorBoundaryEssentialDofs(
+                       mesh, fes, ess_tdof_marker, ess_interior, tdof_of);
+      MPI_Allreduce(MPI_IN_PLACE, &checked, 1, MPI_INT, MPI_SUM,
+                    MPI_COMM_WORLD);
+      REQUIRE(checked > 0);
+
+      // The true DOFs of a serial space on the part are not supported when the
+      // master edges of some of its slave edges are ghosts, so check its local
+      // DOFs instead.
+      FiniteElementSpace part_fes(&part, fec);
+      Array<int> ess_dof_marker;
+      part_fes.GetEssentialVDofs(ess_bdr, ess_dof_marker);
+      auto ldof_of = [](int ldof) { return ldof; };
+      checked = CheckInteriorBoundaryEssentialDofs(
+                   part, part_fes, ess_dof_marker, ess_interior, ldof_of);
+      MPI_Allreduce(MPI_IN_PLACE, &checked, 1, MPI_INT, MPI_SUM,
+                    MPI_COMM_WORLD);
+      REQUIRE(checked > 0);
    }
 }
 
@@ -2950,6 +3274,91 @@ TEST_CASE("InternalBoundaryProjectBdrCoefficient", "[NCMesh]")
       OneSidedNCRefine(smesh);
       test_project_H1(smesh, 3, 0.25);
    }
+}
+
+// Test case: Essential true DOFs of an interior boundary of a 2D non-conforming
+//            mesh refined on one side of it, see the parallel version above.
+TEST_CASE("InteriorBoundaryEssentialDofs2D", "[NCMesh]")
+{
+   const bool tri_mesh = GENERATE(false, true);
+   const int order = GENERATE(1, 2, 3);
+   const bool ess_interior = GENERATE(true, false);
+   CAPTURE(tri_mesh, order, ess_interior);
+
+   auto mesh = OneSidedRefinedDividingLineMesh(tri_mesh);
+   const int interior_attr = mesh.bdr_attributes.Max();
+   Array<int> ess_bdr(interior_attr);
+   ess_bdr = ess_interior ? 0 : 1;
+   ess_bdr[interior_attr - 1] = ess_interior ? 1 : 0;
+
+   H1_FECollection h1_fec(order, 2);
+   ND_FECollection nd_fec(order, 2);
+   for (const FiniteElementCollection *fec :
+        std::vector<const FiniteElementCollection *> {&h1_fec, &nd_fec})
+   {
+      CAPTURE(fec->Name());
+      FiniteElementSpace fes(&mesh, fec);
+      Array<int> ess_tdof_list, ess_tdof_marker;
+      fes.GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
+      FiniteElementSpace::ListToMarker(ess_tdof_list, fes.GetTrueVSize(),
+                                       ess_tdof_marker);
+      const SparseMatrix *R = fes.GetConformingRestriction();
+      REQUIRE(R != nullptr);
+      std::vector<int> tdof_of_ldof(fes.GetVSize(), -1);
+      for (int t = 0; t < R->Height(); t++)
+      {
+         tdof_of_ldof[R->GetRowColumns(t)[0]] = t;
+      }
+      auto tdof_of = [&](int ldof) { return tdof_of_ldof[ldof]; };
+      const int checked = CheckInteriorBoundaryEssentialDofs(
+                             mesh, fes, ess_tdof_marker, ess_interior, tdof_of);
+      REQUIRE(checked > 0);
+   }
+}
+
+TEST_CASE("NCMesh high vertex reference count", "[NCMesh]")
+{
+   // Test large vertex reference counts, supported up to the limit of
+   // std::uint16_t. K tets share a central axis edge, so the two axis
+   // vertices each have reference count K.
+   auto make_spindle = [](int K)
+   {
+      Mesh mesh(3, K + 2, K);
+      Array<int> ring(K);
+      for (int i = 0; i < K; i++)
+      {
+         const real_t t = 2.0 * M_PI * i / K;
+         ring[i] = mesh.AddVertex(std::cos(t), std::sin(t), 0.0);
+      }
+      const int c = mesh.AddVertex(0.0, 0.0, -1.0);
+      const int a = mesh.AddVertex(0.0, 0.0,  1.0);
+      for (int i = 0; i < K; i++)
+      {
+         int v[4] = {c, a, ring[i], ring[(i + 1) % K]};
+         mesh.AddTet(v, 1);
+      }
+      mesh.FinalizeTetMesh(1, 0, true);
+      return mesh;
+   };
+
+   const int K = GENERATE(255, 256, 512);
+
+   Mesh mesh = make_spindle(K);
+   const int nv = mesh.GetNV();
+   REQUIRE(mesh.GetNE() == K);
+
+   mesh.EnsureNCMesh(true);
+
+   REQUIRE(mesh.GetNV() == nv);
+   REQUIRE_FALSE(mesh.Conforming());
+
+   // The non-conforming structure must be usable.
+   H1_FECollection fec(1, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+   REQUIRE(fes.GetVSize() == nv);
+
+   mesh.UniformRefinement();
+   REQUIRE(mesh.GetNE() == 8 * K);
 }
 
 } // namespace mfem
