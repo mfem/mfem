@@ -53,17 +53,25 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_mesh_nodes,
       else
       {
          new_field_temp.SetSize(dof_cnt);
+         const real_t *src = new_field.HostRead();
+         real_t *dst = new_field_temp.HostWrite();
          for (int j = 0; j < dof_cnt; j++)
          {
-            new_field_temp(j) = new_field(i + j*ncomp);
+            dst[j] = src[i + j*ncomp];
          }
       }
       ComputeAtNewPositionScalar(new_mesh_nodes, new_field_temp);
-      if (fes_ordering == Ordering::byVDIM)
+      if (fes_ordering == Ordering::byNODES)
       {
+         new_field_temp.SyncAliasMemory(new_field);
+      }
+      else
+      {
+         const real_t *src = new_field_temp.HostRead();
+         real_t *dst = new_field.HostReadWrite();
          for (int j = 0; j < dof_cnt; j++)
          {
-            new_field(i + j*ncomp) = new_field_temp(j);
+            dst[i + j*ncomp] = src[j];
          }
       }
    }
