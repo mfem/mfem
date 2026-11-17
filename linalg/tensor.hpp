@@ -1384,7 +1384,7 @@ tensor<int, 3> argsort(const tensor<T, 3>& v)
 template <typename T> MFEM_HOST_DEVICE
 tuple<tensor<T, 1>, tensor<T, 1, 1>> eig_symm(tensor<T, 1, 1> &A)
 {
-   return {tensor<T, 1>{A[0][0]}, tensor<T, 1, 1>{{{1.0}}}};
+   return {tensor<T, 1>{A[0][0]}, tensor<T, 1, 1>{{1.0}}};
 }
 
 /** Eigendecomposition for a symmetric 2x2 matrix
@@ -1821,7 +1821,7 @@ template <typename T,
           typename std::enable_if<!is_dual_number<T>::value, int>::type = 0>
 MFEM_HOST_DEVICE inline constexpr tensor<T, 1, 1> inv(const tensor<T, 1, 1>& A)
 {
-   return tensor<T, 1, 1> {{{T{1.0} / A[0][0]}}};
+   return tensor<T, 1, 1> {{T{1.0} / A[0][0]}};
 }
 
 template <typename T,
