@@ -26,6 +26,7 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
                           const int NE,
                           const DeviceTensor<6, const real_t> &J,
                           const ConstDeviceCube &W,
+                          const bool integ_over_target,
                           const real_t *b,
                           const real_t *bld,
                           const DeviceTensor<5, const real_t> &X0,
@@ -65,7 +66,8 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
             MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
-               const real_t detJtr = kernels::Det<3>(Jtr);
+               const real_t detJtr =
+                  integ_over_target ? kernels::Det<3>(Jtr) : 1.0;
                const real_t weight = W(qx, qy, qz) * detJtr;
                const real_t D = rm1(qz, qy, qx);
                const real_t p0[3] = { r01(0, qz, qy, qx),
@@ -144,8 +146,8 @@ void TMOP_Integrator::AddMultPA_C0_3D(const Vector &x, Vector &y) const
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
 
-   TMOPMultCoefKernels3D::Run(d, q, ln, LD, const_c0, C0, NE, J, W, b, bld, XL,
-                              X, Y, exp_lim, d, q);
+   TMOPMultCoefKernels3D::Run(d, q, ln, LD, const_c0, C0, NE, J, W,
+                              integ_over_target, b, bld, XL, X, Y, exp_lim, d, q);
 }
 
 // Residual term for AdaptLim limiting (3D)
@@ -157,6 +159,7 @@ void TMOP_AddMultPA_AdaptLim_3D(const real_t lim_normal,
                                 const int NE,
                                 const DeviceTensor<6, const real_t> &J,
                                 const ConstDeviceCube &W,
+                                const bool integ_over_target,
                                 const real_t *b,
                                 const DeviceTensor<5, const real_t> &ALF_grad,
                                 const DeviceTensor<4, const real_t> &ALFmF0,
@@ -190,7 +193,8 @@ void TMOP_AddMultPA_AdaptLim_3D(const real_t lim_normal,
             MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
-               const real_t detJtr = kernels::Det<3>(Jtr);
+               const real_t detJtr =
+                  integ_over_target ? kernels::Det<3>(Jtr) : 1.0;
                const real_t weight = W(qx, qy, qz) * detJtr;
 
                const real_t coeff =
@@ -250,8 +254,9 @@ void TMOP_Integrator::AddMultPA_AdaptLim_3D([[maybe_unused]] const Vector &x,
                        : Reshape(ALC_all + c * ALC_stride, q, q, q, NE);
       const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, d, NE);
       const auto ALF_grad = Reshape(ALFG_all + c * ALFG_stride, 3, q, q, q, NE);
-      TMOPMultAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W,
-                              B, ALF_grad, ALFmF0, Y, d, q);
+      TMOPMultAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE,
+                              J, W, integ_over_target, B, ALF_grad, ALFmF0, Y,
+                              d, q);
    }
 }
 
