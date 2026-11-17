@@ -641,7 +641,7 @@ public:
       // to std::pow is <= 1 to avoid overflow.
       if (0 == size)
       {
-         return 0.0;
+         return dtype{};
       } // end if 0 == size
 
       if (1 == size)
@@ -654,13 +654,13 @@ public:
 
       for (int i = 0; i < size; i++)
       {
-         if (data[i] != 0.0)
+         if (data[i] != 0.0_r)
          {
             const dtype absdata = abs(data[i]);
             if (scale <= absdata)
             {
                const dtype sqr_arg = scale / absdata;
-               sum = 1.0 + sum * (sqr_arg * sqr_arg);
+               sum = 1.0_r + sum * (sqr_arg * sqr_arg);
                scale = absdata;
                continue;
             } // end if scale <= absdata
@@ -674,12 +674,12 @@ public:
    /// Returns the l_infinity norm of the vector.
    dtype Normlinf() const
    {
-      dtype max = {};
+      dtype maxval = {};
       for (int i = 0; i < size; i++)
       {
-         max = max(abs(data[i]), max);
+         maxval = max(abs(data[i]), maxval);
       }
-      return max;
+      return maxval;
    }
    /// Returns the l_1 norm of the vector.
    dtype Norml1() const

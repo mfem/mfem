@@ -70,6 +70,10 @@ Miscellaneous
 - Removes the SidreDataCollection class from MFEM in favor of the
   MFEMSidreDataCollection class in the Axom library (https://github.com/llnl/axom).
 
+- Improved the dual number implementation in linalg/dual.hpp: pow() no longer
+  returns NaN gradients at a zero base, added min(), max(), tanh() and cosh(),
+  and TAutoDiffVector now uses brace initialization to support nested duals.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================

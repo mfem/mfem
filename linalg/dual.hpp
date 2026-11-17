@@ -237,6 +237,7 @@ constexpr auto operator/(dual<value_type_a, gradient_type_a> a,
 mfem_binary_comparator_overload(<)   ///< implement operator<  for dual numbers
 mfem_binary_comparator_overload(<=)  ///< implement operator<= for dual numbers
 mfem_binary_comparator_overload(==)  ///< implement operator== for dual numbers
+mfem_binary_comparator_overload(!=)  ///< implement operator!= for dual numbers
 mfem_binary_comparator_overload(>=)  ///< implement operator>= for dual numbers
 mfem_binary_comparator_overload(>)   ///< implement operator>  for dual numbers
 
@@ -402,7 +403,8 @@ dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a,
    const bool is_zero = (a.value == value_type{}) && (b.value == value_type{});
    const bool is_pos = (a.value > value_type{});
    value_type val = pow(a.value, b.value);
-   value_type da = is_zero ? value_type{} : b.value * pow(a.value, b.value - 1.0_r);
+   value_type da = is_zero ? value_type{} : b.value * pow(a.value,
+                                                          b.value - 1.0_r);
    value_type db = is_pos ? val * log(a.value) : value_type{};
    return {val, da * a.gradient + db * b.gradient};
 }
@@ -446,7 +448,7 @@ dual<value_type, gradient_type> max(dual<value_type, gradient_type> a,
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> max(real_t a, dual<value_type, gradient_type> b)
 {
-   return (a < b.value) ? b : dual<value_type, gradient_type>{a, {}};
+   return (a < b.value) ? b : dual<value_type, gradient_type> {a, {}};
 }
 
 /** @brief implementation of max of two non-dual numbers */
@@ -461,7 +463,7 @@ value_type max(value_type a, value_type b)
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> max(dual<value_type, gradient_type> a, real_t b)
 {
-   return (a.value < b) ? dual<value_type, gradient_type>{b, {}} : a;
+   return (a.value < b) ? dual<value_type, gradient_type> {b, {}} : a;
 }
 
 /** @brief implementation of min of two dual numbers */
@@ -476,7 +478,7 @@ dual<value_type, gradient_type> min(dual<value_type, gradient_type> a,
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> min(real_t a, dual<value_type, gradient_type> b)
 {
-   return (b.value < a) ? b : dual<value_type, gradient_type>{a, {}};
+   return (b.value < a) ? b : dual<value_type, gradient_type> {a, {}};
 }
 
 /** @brief implementation of min of two non-dual numbers */
@@ -491,7 +493,7 @@ value_type min(value_type a, value_type b)
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> min(dual<value_type, gradient_type> a, real_t b)
 {
-   return (b < a.value) ? dual<value_type, gradient_type>{b, {}} : a;
+   return (b < a.value) ? dual<value_type, gradient_type> {b, {}} : a;
 }
 
 /** @brief overload of operator<< for `dual` to work with work with standard output streams */
