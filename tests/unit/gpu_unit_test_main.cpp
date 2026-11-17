@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -20,8 +20,11 @@ int main(int argc, char *argv[])
              " precision.\n\n";
    return MFEM_SKIP_RETURN_VALUE;
 #endif
-
+#ifdef MFEM_USE_RAJA
+   mfem::Device device("raja-gpu");
+#else
    mfem::Device device("gpu");
+#endif
 
    // Include only tests labeled with GPU. Exclude parallel tests.
    return RunCatchSession(argc, argv, {"[GPU]", "~[Parallel]"});

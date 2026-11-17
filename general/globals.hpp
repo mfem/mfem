@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -14,6 +14,7 @@
 
 #include "../config/config.hpp"
 #include <iostream>
+#include <string_view>
 
 #ifdef MFEM_USE_MPI
 #include <mpi.h>
@@ -77,12 +78,12 @@ extern MFEM_EXPORT OutStream err;
 /** This is a convenience function, e.g. to redirect mfem::out to individual
     files for each rank, one can use:
     \code
-       std::ofstream out_file(MakeParFilename("app_out.", myid).c_str());
+       std::ofstream out_file(MakeParFilename("app_out.", myid));
        mfem::out.SetStream(out_file);
     \endcode
 */
-std::string MakeParFilename(const std::string &prefix, const int myid,
-                            const std::string suffix = "", const int width = 6);
+std::string MakeParFilename(std::string_view prefix, const int myid,
+                            std::string_view suffix = "", const int width = 6);
 
 
 #ifdef MFEM_USE_MPI
@@ -111,7 +112,7 @@ void SetGlobalMPI_Comm(MPI_Comm comm);
 ///
 /// @note Directly calling getenv causes a warning with MSVC. Use this wrapper
 /// to suppress the warning.
-const char* GetEnv(const char* name);
+const char *GetEnv(const char *name);
 
 /// Signed indices i -> -1 - i are used as a convention to encode orientation.
 inline MFEM_HOST_DEVICE int FlipIndexSign(int i) { return -1 - i; }

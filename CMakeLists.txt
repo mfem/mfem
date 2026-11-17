@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -59,7 +59,7 @@ project(mfem NONE)
 # Current version of MFEM, see also `makefile`.
 #   mfem_VERSION = (string)
 #   MFEM_VERSION = (int)   [automatically derived from mfem_VERSION]
-set(${PROJECT_NAME}_VERSION 4.9.1)
+set(${PROJECT_NAME}_VERSION 4.10.1)
 
 # Prohibit in-source build
 if (${PROJECT_SOURCE_DIR} STREQUAL ${PROJECT_BINARY_DIR})
@@ -75,31 +75,22 @@ set(XSDK_ENABLE_Fortran OFF)
 
 # Check if we need to enable C or Fortran.
 if (MFEM_USE_CONDUIT OR
-    MFEM_USE_SIDRE OR
-    MFEM_USE_PETSC)
+    MFEM_USE_PETSC OR
+    MFEM_USE_MUMPS OR
+    MFEM_USE_COMPLEX_MUMPS)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
-   #  * find_package(HDF5 REQUIRED) needed, in turn, by:
-   #    - find_package(AXOM REQUIRED)
+   #  * find_package(HDF5 REQUIRED) and
    #  * find_package(PETSc REQUIRED)
    set(XSDK_ENABLE_C ON)
 endif()
-if (MFEM_USE_STRUMPACK OR MFEM_USE_MUMPS)
+if (MFEM_USE_STRUMPACK OR MFEM_USE_MUMPS OR MFEM_USE_COMPLEX_MUMPS)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
-# Ginkgo requires C++17:
-if ((MFEM_USE_GINKGO) AND ("${CMAKE_CXX_STANDARD}" LESS "17"))
-  set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to use." FORCE)
-# Google Benchmark, SUNDIALS, STRUMPACK, Tribol, RAJA and Umpire require C++14:
-elseif ((MFEM_USE_BENCHMARK OR
-         MFEM_USE_SUNDIALS OR
-         MFEM_USE_STRUMPACK OR
-         MFEM_USE_TRIBOL OR
-         MFEM_USE_RAJA OR
-         MFEM_USE_UMPIRE) AND
-    ("${CMAKE_CXX_STANDARD}" LESS "14"))
-  set(CMAKE_CXX_STANDARD 14 CACHE STRING "C++ standard to use." FORCE)
+# RAJA requires C++20:
+if ((MFEM_USE_UMPIRE OR MFEM_USE_RAJA) AND ("${CMAKE_CXX_STANDARD}" LESS "20"))
+  set(CMAKE_CXX_STANDARD 20 CACHE STRING "C++ standard to use." FORCE)
 endif()
 
 # Include xSDK default CMake file.
@@ -239,6 +230,13 @@ else()
   set(MFEM_DEBUG OFF)
 endif()
 
+# Shadow warnings for clang only; GCC's -Wshadow flags more.
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pedantic -Wall -Wshadow")
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pedantic -Wall")
+endif()
+
 # Shared build on Windows
 if (WIN32 AND BUILD_SHARED_LIBS)
   # CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS works only with MSVC?
@@ -304,7 +302,7 @@ endif()
 if (DEFINED FETCH_TPLS)
   message(STATUS "Setting MFEM_FETCH_TPLS to user-provided value of FETCH_TPLS (i.e., MFEM_FETCH_TPLS=${FETCH_TPLS})")
   set (MFEM_FETCH_TPLS FETCH_TPLS)
-  message(DEPRECATION "The use of FETCH_TPLS is deprecated and will be removed in future verison. Please use MFEM_FETCH_TPLS instead.")
+  message(DEPRECATION "The use of FETCH_TPLS is deprecated and will be removed in a future version. Please use MFEM_FETCH_TPLS instead.")
 endif()
 
   # Umpire (must be included before hypre, so hypre can use it if needed)
@@ -342,7 +340,7 @@ if (MFEM_USE_MPI)
     endif()
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU MUMPS PETSC SLEPC STRUMPACK PUMI)
+  set(PKGS_NEED_MPI SUPERLU MUMPS COMPLEX_MUMPS PETSC SLEPC STRUMPACK PUMI)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -415,7 +413,7 @@ if (MFEM_USE_SUPERLU)
 endif()
 
 # MUMPS can only be enabled in parallel
-if (MFEM_USE_MUMPS)
+if (MFEM_USE_MUMPS OR MFEM_USE_COMPLEX_MUMPS)
   if (MFEM_USE_MPI)
     find_package(MUMPS REQUIRED mumps_common pord)
     set(MFEM_MUMPS_VERSION ${MUMPS_VERSION})
@@ -487,11 +485,6 @@ if (MFEM_USE_FMS)
     find_package(FMS REQUIRED fms)
 endif()
 
-# Axom/Sidre
-if (MFEM_USE_SIDRE)
-  find_package(Axom REQUIRED Axom)
-endif()
-
 # PUMI
 if (MFEM_USE_PUMI)
   # If PUMI_DIR was specified, only link to that directory,
@@ -550,8 +543,23 @@ if (MFEM_USE_RAJA)
 endif()
 
 # GOOGLE-BENCHMARK
+if (MFEM_USE_CODSPEED AND NOT MFEM_USE_BENCHMARK)
+   message(FATAL_ERROR "MFEM_USE_CODSPEED requires MFEM_USE_BENCHMARK=YES")
+endif()
 if (MFEM_USE_BENCHMARK)
-   find_package(Benchmark REQUIRED)
+   # With MFEM_USE_CODSPEED, Google Benchmark is provided by CodSpeed's
+   # compatibility layer, which is fetched from tests/benchmarks/CMakeLists.txt.
+   # Otherwise, an existing Google Benchmark installation is required.
+   if (MFEM_USE_CODSPEED)
+      message(STATUS "Google Benchmark: using CodSpeed's fork")
+      # Drop BENCHMARK_* values cached by a previous configure with standard
+      # Google Benchmark, which would otherwise mix with CodSpeed's fork.
+      unset(BENCHMARK_FOUND CACHE)
+      unset(BENCHMARK_INCLUDE_DIRS CACHE)
+      unset(BENCHMARK_LIBRARIES CACHE)
+   else()
+      find_package(Benchmark REQUIRED)
+   endif()
 endif()
 
 # Caliper
@@ -589,7 +597,12 @@ endif()
 # Tribol
 if (MFEM_USE_TRIBOL)
   if (MFEM_USE_MPI)
-    find_package(Tribol REQUIRED tribol redecomp)
+    # Tribol's optional dependencies can contain imported CMake targets.
+    # Set up Tribol on each configure step to avoid stale target names.
+    unset(TRIBOL_FOUND CACHE)
+    unset(TRIBOL_LIBRARIES CACHE)
+    unset(TRIBOL_INCLUDE_DIRS CACHE)
+    find_package(Tribol REQUIRED tribol redecomp tribol_shared)
   else()
     message(FATAL_ERROR " *** Tribol requires that MPI be enabled.")
   endif()
@@ -638,7 +651,7 @@ find_package(Threads REQUIRED)
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
 set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
-    SUNDIALS PETSC SLEPC MUMPS AXOM FMS CONDUIT Ginkgo GNUTLS GSLIB HDF5
+    SUNDIALS PETSC SLEPC MUMPS FMS CONDUIT Ginkgo GNUTLS GSLIB HDF5
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 MKL_CPARDISO MKL_PARDISO AMGX MAGMA CUSPARSE CUBLAS CUDSS CALIPER CODIPACK
     BENCHMARK PARELAG TRIBOL MPI_CXX HIP HIPBLAS HIPSPARSE MOONOLITH BLITZ
