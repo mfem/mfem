@@ -30,7 +30,9 @@
 //     non-blocking consensus algorithm (MPI_Issend, MPI_Iprobe, MPI_Ibarrier),
 //     as in ParNCMesh::RedistributeElements() (ExchangeMessages()). The
 //     messages are decoded in the order of the source ranks, so the result
-//     does not depend on their arrival (DecodeRebalanceMessages()).
+//     does not depend on their arrival (DecodeRebalanceMessages()). The nodes
+//     are moved by the transfer operator of their space, as the other grid
+//     functions (ParFiniteElementSpace::Update()).
 //  4. BuildFromConformingRecords() builds the new local mesh
 //     (BuildLocalMeshFromRecords()) and its groups of shared vertices, edges
 //     and faces (BuildGroupsFromRecords()). Inside a group, the entities are
@@ -38,7 +40,7 @@
 //     The lower rank of the two ranks of a shared triangle orients it from its
 //     element (refinement edge first if the element is marked) and sends it
 //     to the higher rank, which adopts it (OrientSharedTriangles()). Then it
-//     publishes the previous location of the elements (PublishRebalance()).
+//     publishes the migration and updates the nodes (PublishRebalance()).
 //
 // Memory: no array is dimensioned by the number of ranks. Each vertex and
 // shared edge travels with the set of ranks that hold it after the call, in
@@ -61,6 +63,8 @@
 #ifdef MFEM_USE_MPI
 
 #include "mesh_headers.hpp"
+#include "../fem/pfespace.hpp"
+#include "../fem/pgridfunc.hpp"
 #include "../general/sets.hpp"
 #include "submesh/psubmesh.hpp"
 
@@ -69,6 +73,7 @@
 #include <climits>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <map>
 #include <set>
 #include <utility>
@@ -90,6 +95,8 @@ struct ParMesh::ConformingRecords
    Array<int> elem_nbr;
    /// Global ids of the vertices of no element (kept by their rank).
    Array<std::int64_t> iso_vert;
+   /// The new local indices of the vertices of iso_vert (set by the build).
+   Array<int> iso_new;
 
    /// For each boundary element: attribute and Dim global vertex ids.
    Array<int> bdr_attr;
@@ -168,6 +175,7 @@ constexpr int rebalance_elements_tag = 3802;
 constexpr int rebalance_groups_tag = 3803;
 constexpr int rebalance_check_tag = 3804;
 constexpr int rebalance_faces_tag = 3805;
+constexpr int rebalance_rows_tag = 3806;
 constexpr int rebalance_sizes_tag = 3807;
 
 /** The largest number of entries of the arrays of a rebalance. The sizes are
@@ -182,7 +190,7 @@ constexpr std::int64_t max_words = INT_MAX;
 
 /** Whether an Array of @a entries entries, or a message of @a words words,
     would be too large: the rule of all the arrays and messages of a
-    rebalance. */
+    rebalance and of the transfer of grid functions after it. */
 bool TooLarge(std::int64_t entries, std::int64_t words)
 {
    return entries > max_entries || words > max_words;
@@ -409,6 +417,30 @@ void NeighborGroups(const GroupTopology &gtopo, Table &nbr_groups)
    }
 }
 
+/** The length of the row of an element in the transfer of the nodes of
+    @a pmesh after a rebalance, see
+    ParFiniteElementSpace::ConformingRebalanceMatrix(): its vector DOFs, and
+    its face orientations where the nodal space has a DOF transformation; 0
+    for a mesh without nodes. */
+std::int64_t NodalRowLength(const ParMesh &pmesh)
+{
+   const GridFunction *nodes = pmesh.GetNodes();
+   const int dim = pmesh.Dimension();
+   std::int64_t nodal_row = 0;
+   if (nodes)
+   {
+      const FiniteElementCollection *fec = nodes->FESpace()->FEColl();
+      const Geometry::Type geom =
+         (dim == 3) ? Geometry::TETRAHEDRON : Geometry::TRIANGLE;
+      nodal_row = std::int64_t(nodes->FESpace()->GetVDim())*
+                  fec->FiniteElementForGeometry(geom)->GetDof();
+      const StatelessDofTransformation *t =
+         fec->DofTransformationForGeometry(geom);
+      if (t && !t->IsIdentity()) { nodal_row += dim + 1; }
+   }
+   return nodal_row;
+}
+
 } // anonymous namespace
 
 /// The new ranks of the entities of the local mesh in a conforming rebalance.
@@ -456,31 +488,37 @@ void ParMesh::RebalanceConforming(const Array<int> &partition)
    //    (entity, rank) pairs, and on each side of each face.
    int too_large = GetRebalanceTarget(partition, nbr_groups, target);
 
+   // The length of the row of an element in the transfer of the nodes after
+   // the rebalance: its sizes are checked with those of the rebalance, before
+   // the mesh changes.
+   const std::int64_t nodal_row = NodalRowLength(*this);
    Array<int> dests;
    std::vector<std::vector<std::int64_t>> msgs;
 
    // 3. Pack one message per destination: elements (in the local order),
    //    boundary elements, vertices, shared edges (3D), then the coordinates
    //    of the vertices.
-   too_large = PackRebalanceMessages(partition, vert_gid, target, too_large,
-                                     dests, msgs);
+   too_large = PackRebalanceMessages(partition, vert_gid, target, nodal_row,
+                                     too_large, dests, msgs);
    MPI_Allreduce(MPI_IN_PLACE, &too_large, 1, MPI_INT, MPI_MAX, MyComm);
    MFEM_VERIFY(!too_large, too_large_message);
 
    std::map<int, std::vector<std::int64_t>> recv_msgs;
    ExchangeMessages(MyComm, dests, msgs, recv_msgs);
 
-   // The records of all the messages received must fit, too: the rebalance
-   // refuses before the mesh is replaced, or completes.
+   // The records of all the messages received must fit, too, and so must the
+   // rows of the nodal space that the update of the nodes will receive: the
+   // rebalance refuses before the mesh is replaced, or completes.
    {
-      std::int64_t n_ints = 0, n_reals = 0;
+      std::int64_t n_ints = 0, n_reals = 0, n_elems = 0;
       for (const auto &m : recv_msgs)
       {
          MFEM_VERIFY(m.second.size() >= 3, "internal error: message size");
          n_ints += m.second[0];
          n_reals += m.second[1];
+         n_elems += m.second[2];
       }
-      too_large = TooLarge(std::max(n_ints, n_reals), 0);
+      too_large = TooLarge(std::max({n_ints, n_reals, n_elems*nodal_row}), 0);
       MPI_Allreduce(MPI_IN_PLACE, &too_large, 1, MPI_INT, MPI_MAX, MyComm);
       MFEM_VERIFY(!too_large, too_large_message);
    }
@@ -502,7 +540,7 @@ void ParMesh::RebalanceConforming(const Array<int> &partition)
    // neighbor data. A refusal above leaves the mesh, caches included, as it
    // was.
    DeleteFaceNbrData();
-   BuildFromConformingRecords(rec);
+   BuildFromConformingRecords(rec, partition, target.isolated);
    const std::array<long long, 4> counts_after = GlobalEntityCounts(*this);
    MFEM_VERIFY(counts_after == counts_before, "internal error: the rebalance"
                " changed the global numbers of elements, vertices, edges or"
@@ -530,7 +568,12 @@ void ParMesh::CheckRebalanceArguments(const Array<int> &partition) const
    {
       if (partition[i] < 0 || partition[i] >= NRanks) { bad = 2; }
    }
-   if (Nodes) { bad = 4; }
+   if (Nodes)
+   {
+      const ParFiniteElementSpace *pfes =
+         dynamic_cast<const ParFiniteElementSpace *>(Nodes->FESpace());
+      if (!pfes || pfes->IsVariableOrder()) { bad = 4; }
+   }
    // A bound of the sizes of the arrays of (entity, rank) pairs of step 2
    // (GetRebalanceTarget()), of the sets sent to each neighbor there, and of
    // the destinations of the elements and boundary elements of step 3.
@@ -545,8 +588,8 @@ void ParMesh::CheckRebalanceArguments(const Array<int> &partition) const
                " number of local elements.");
    MFEM_VERIFY(!(glob_bad & 2), "Partition values must be in [0, "
                << NRanks << ").");
-   MFEM_VERIFY(!(glob_bad & 4), "Rebalancing a conforming mesh with nodes"
-               " is not supported.");
+   MFEM_VERIFY(!(glob_bad & 4), "The nodes of the mesh must be in a"
+               " ParFiniteElementSpace of uniform order.");
    MFEM_VERIFY(!(glob_bad & 8), too_large_message);
 }
 
@@ -943,8 +986,8 @@ int ParMesh::GetRebalanceTarget(const Array<int> &partition,
 
 int ParMesh::PackRebalanceMessages(
    const Array<int> &partition, const Array<std::int64_t> &vert_gid,
-   const ConformingTarget &target, int too_large, Array<int> &dests,
-   std::vector<std::vector<std::int64_t>> &msgs) const
+   const ConformingTarget &target, std::int64_t nodal_row, int too_large,
+   Array<int> &dests, std::vector<std::vector<std::int64_t>> &msgs) const
 {
    const int nv_el = Dim + 1;            // vertices of an element
    const int nf_el = Dim + 1;            // faces (edges in 2D) of an element
@@ -1061,7 +1104,12 @@ int ParMesh::PackRebalanceMessages(
       const std::int64_t n_reals = std::int64_t(dest_verts.Size())*spaceDim;
       const std::int64_t n_words =
          2 + n_ints + (n_reals*std::int64_t(sizeof(real_t)) + 7)/8;
-      if (too_large || TooLarge(std::max(n_ints, n_reals), n_words))
+      // The message of the rows of the nodal space to this rank, sent by
+      // the update of the nodes (ExchangeRebalanceRows()).
+      const std::int64_t nodal_words =
+         1 + std::int64_t(ne_k)*(1 + nodal_row);
+      if (too_large || TooLarge(std::max(n_ints, n_reals), n_words) ||
+          TooLarge(0, nodal_words))
       {
          too_large = 1;
          break;
@@ -1214,11 +1262,13 @@ void ParMesh::DecodeRebalanceMessages(
    }
 }
 
-void ParMesh::BuildFromConformingRecords(ConformingRecords &rec)
+void ParMesh::BuildFromConformingRecords(ConformingRecords &rec,
+                                         const Array<int> &partition,
+                                         const Array<int> &isolated)
 {
    BuildLocalMeshFromRecords(rec);
    BuildGroupsFromRecords(rec);
-   PublishRebalance(rec);
+   PublishRebalance(rec, partition, isolated);
 }
 
 void ParMesh::BuildLocalMeshFromRecords(ConformingRecords &rec)
@@ -1661,18 +1711,155 @@ void ParMesh::OrientSharedTriangles(
                MPI_STATUSES_IGNORE);
 }
 
-void ParMesh::PublishRebalance(ConformingRecords &rec)
+void ParMesh::PublishRebalance(ConformingRecords &rec,
+                               const Array<int> &partition,
+                               const Array<int> &isolated)
 {
+   rec.iso_new.SetSize(rec.iso_vert.Size());
+   for (int i = 0; i < rec.iso_vert.Size(); i++)
+   {
+      rec.iso_new[i] = rec.LocalVertex(rec.iso_vert[i]);
+   }
+
    have_face_nbr_data = false;
    face_nbr_el_to_face.reset();
    face_nbr_el_ori.reset();
    last_operation = Mesh::REBALANCE;
    sequence++;
 
-   // The previous location of each element (GetRebalanceOldElements()).
+   // The migration, published before the nodal space is updated: the previous
+   // location of each element (GetRebalanceOldElements()), and the schedule of
+   // the transfer of grid functions (ParFiniteElementSpace::Update()).
    rebalance_old_rank.Swap(rec.elem_old_rank);
    rebalance_old_index.Swap(rec.elem_old_index);
+   rebalance_dest = partition;
+   rebalance_iso_old = isolated;
+   rebalance_iso_new.Swap(rec.iso_new);
    rebalance_sequence = sequence;
+
+   // Nodes: the same grid function and space, updated for the new mesh with
+   // the transfer operator of the space, as after a refinement, so that the
+   // other grid functions on the nodal space follow with Update().
+   if (Nodes)
+   {
+      ParFiniteElementSpace *nodes_fes =
+         static_cast<ParFiniteElementSpace *>(Nodes->FESpace());
+      nodes_fes->Update();
+      Nodes->Update();
+      // As after the other mesh modifications, see UpdateNodes(). That takes
+      // the vertex coordinates from the elements: the vertices of no element
+      // keep the coordinates they arrived with.
+      SetVerticesFromNodes(Nodes);
+      for (int i = 0; i < rec.iso_vert.Size(); i++)
+      {
+         const int v = rec.LocalVertex(rec.iso_vert[i]);
+         vertices[v].SetCoords(spaceDim, rec.vert_coord.GetData() +
+                               spaceDim*rec.new_vert_rec[v]);
+      }
+      NodesUpdated();
+   }
+}
+
+void ParMesh::ExchangeRebalanceRows(
+   const Array<std::int64_t> &row_sizes,
+   const std::function<void(int, std::int64_t *)> &fill,
+   Array<int> &new_offsets, Array<std::int64_t> &new_rows) const
+{
+   MFEM_VERIFY(rebalance_sequence == sequence &&
+               row_sizes.Size() == rebalance_dest.Size(),
+               "The mesh was modified after Rebalance(), or the rows do not "
+               "belong to its elements before the call.");
+   const int old_ne = rebalance_dest.Size();
+
+   // One message per new owner: the number of rows, then each row (its length,
+   // its entries), in the order of the old elements. The sizes are counted in
+   // 64 bits and checked on all ranks before the messages are filled; a row
+   // longer than a message stops the count, which therefore cannot overflow.
+   Array<int> dests(rebalance_dest);
+   dests.Sort();
+   dests.Unique();
+   std::vector<std::int64_t> words(dests.Size(), 1);
+   int too_large = 0;
+   for (int i = 0; i < old_ne && !too_large; i++)
+   {
+      MFEM_VERIFY(row_sizes[i] >= 0, "internal error: row size");
+      if (TooLarge(0, row_sizes[i])) { too_large = 1; }
+      else { words[dests.FindSorted(rebalance_dest[i])] += 1 + row_sizes[i]; }
+   }
+   for (std::int64_t w : words) { if (TooLarge(0, w)) { too_large = 1; } }
+   MPI_Allreduce(MPI_IN_PLACE, &too_large, 1, MPI_INT, MPI_MAX, MyComm);
+   MFEM_VERIFY(!too_large, too_large_message);
+   std::vector<std::vector<std::int64_t>> msgs(dests.Size());
+   for (int k = 0; k < dests.Size(); k++)
+   {
+      msgs[k].reserve(words[k]);
+      msgs[k].push_back(0);
+   }
+   for (int i = 0; i < old_ne; i++)
+   {
+      std::vector<std::int64_t> &m = msgs[dests.FindSorted(rebalance_dest[i])];
+      m[0]++;
+      m.push_back(row_sizes[i]);
+      const std::size_t start = m.size();
+      m.resize(start + row_sizes[i]);
+      fill(i, m.data() + start);
+   }
+   std::map<int, std::vector<std::int64_t>> recv;
+   ExchangeMessages(MyComm, dests, msgs, recv, rebalance_rows_tag);
+
+   // The entries of the rows received (each message: the number of rows, then
+   // a length and the entries of each row) must fit an array, on all ranks,
+   // before it is allocated, to its exact size.
+   std::int64_t total = 0;
+   for (const auto &m : recv)
+   {
+      const std::int64_t size = static_cast<std::int64_t>(m.second.size());
+      MFEM_VERIFY(size >= 1 && m.second[0] >= 0 && m.second[0] < size,
+                  "internal error: rows from rank " << m.first);
+      total += size - 1 - m.second[0];
+   }
+   too_large = TooLarge(std::max(total, std::int64_t(NumOfElements) + 1), 0);
+   MPI_Allreduce(MPI_IN_PLACE, &too_large, 1, MPI_INT, MPI_MAX, MyComm);
+   MFEM_VERIFY(!too_large, too_large_message);
+
+   // The local elements are in the order of their previous rank, then of
+   // their previous index: the rows of each source, in order.
+   std::map<int, std::size_t> pos;
+   std::map<int, std::int64_t> nrows;
+   for (const auto &m : recv)
+   {
+      pos[m.first] = 1;
+      nrows[m.first] = 0;
+   }
+   new_offsets.SetSize(NumOfElements + 1);
+   new_offsets[0] = 0;
+   new_rows.SetSize(static_cast<int>(total));
+   int filled = 0;
+   for (int e = 0; e < NumOfElements; e++)
+   {
+      const int src = rebalance_old_rank[e];
+      auto it = recv.find(src);
+      MFEM_VERIFY(it != recv.end(),
+                  "internal error: no rows from rank " << src);
+      const std::vector<std::int64_t> &m = it->second;
+      std::size_t &p = pos[src];
+      MFEM_VERIFY(p < m.size(), "internal error: rows from rank " << src);
+      const std::int64_t n = m[p++];
+      MFEM_VERIFY(n >= 0 && p + n <= m.size() && filled + n <= total,
+                  "internal error: rows from rank " << src);
+      std::copy(m.data() + p, m.data() + p + n, new_rows.GetData() + filled);
+      filled += static_cast<int>(n);
+      p += n;
+      nrows[src]++;
+      new_offsets[e+1] = filled;
+   }
+   MFEM_VERIFY(filled == total, "internal error: rows");
+   for (const auto &m : recv)
+   {
+      MFEM_VERIFY(pos[m.first] == m.second.size() &&
+                  nrows[m.first] == m.second[0],
+                  "internal error: rows from rank " << m.first);
+   }
 }
 
 } // namespace mfem

@@ -52,6 +52,13 @@ Meshing improvements
   or Mesh::SaveNURBSHDF5 for writing and the usual Mesh constructors or loaders
   for reading.
 
+- ParMesh::Rebalance(partition) supports conforming meshes of triangles and
+  tetrahedra, straight or curved, without gathering the mesh; it refuses, on all
+  ranks and before the mesh changes, meshes it cannot move.
+
+- After such a rebalance, ParFiniteElementSpace::Update and
+  ParGridFunction::Update transfer H1, L2, ND and RT fields of uniform order.
+
 Linear and nonlinear solvers
 ----------------------------
 - Fixed the AmgX resource shared by the AmgXSolver instances, which used the

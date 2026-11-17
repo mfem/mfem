@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <limits>
 #include <map>
 #include <list>
@@ -5010,11 +5011,239 @@ static int_type* make_j_array(int_type* I, int nrows)
 }
 
 HypreParMatrix*
+ParFiniteElementSpace::ConformingRebalanceMatrix(int old_ndofs,
+                                                 const Table* old_elem_dof,
+                                                 const Table* old_elem_fos)
+{
+   MFEM_VERIFY(!IsVariableOrder(), "Grid functions on variable-order spaces "
+               "are not transferred by ParMesh::Rebalance() of a conforming "
+               "mesh.");
+   MFEM_VERIFY(old_dof_offsets.Size(), "ParFiniteElementSpace::Update needs to "
+               "be called before ParFiniteElementSpace::RebalanceMatrix");
+   MFEM_VERIFY(old_elem_dof, "internal error: no old DOF table");
+
+   const int dim = pmesh->Dimension();
+   const Geometry::Type geom =
+      (dim == 3) ? Geometry::TETRAHEDRON : Geometry::TRIANGLE;
+   const StatelessDofTransformation *trans = DoFTransArray[geom];
+   const bool with_fo = trans && !trans->IsIdentity() && old_elem_fos;
+   const HYPRE_BigInt old_offset =
+      HYPRE_AssumedPartitionCheck() ? old_dof_offsets[0]
+      : old_dof_offsets[MyRank];
+   const int nrk = HYPRE_AssumedPartitionCheck() ? 2 : NRanks;
+
+   // Rows of the old elements: their old vector DOFs as global old indices
+   // (the sign kept as -1-i), then, with a DOF transformation, their old face
+   // orientations. They go to the new owners of the elements, written into the
+   // messages after their sizes are checked.
+   auto Global = [old_offset](int vdof) -> std::int64_t
+   {
+      return (vdof >= 0) ? old_offset + vdof : -1 - (old_offset + (-1 - vdof));
+   };
+   const int old_ne = old_elem_dof->Size();
+   Array<int> new_offsets;
+   Array<std::int64_t> row_sizes(old_ne), new_rows;
+   for (int i = 0; i < old_ne; i++)
+   {
+      row_sizes[i] = std::int64_t(vdim)*old_elem_dof->RowSize(i) +
+                     (with_fo ? old_elem_fos->RowSize(i) : 0);
+   }
+   pmesh->ExchangeRebalanceRows(row_sizes, [&](int i, std::int64_t *row)
+   {
+      const int nd = old_elem_dof->RowSize(i);
+      const int *dofs = old_elem_dof->GetRow(i);
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         for (int j = 0; j < nd; j++)
+         {
+            *row++ = Global(DofToVDof(dofs[j], vd, old_ndofs));
+         }
+      }
+      if (with_fo)
+      {
+         const int nf = old_elem_fos->RowSize(i);
+         const int *fo = old_elem_fos->GetRow(i);
+         for (int j = 0; j < nf; j++) { *row++ = fo[j]; }
+      }
+   }, new_offsets, new_rows);
+
+   // The entries of the rows, each new DOF from its first element. With a DOF
+   // transformation (Nedelec spaces on tetrahedra), D_new D_old^{-1} is the
+   // identity, but on the DOFs inside the faces whose orientations differ,
+   // where it is a block for each such face: computed from the unit vectors
+   // of the DOFs of the face (the local DOFs of an element are those of its
+   // edges, then of its faces, then of its interior).
+   const int vsize = GetVSize();
+   const HYPRE_BigInt old_local = static_cast<HYPRE_BigInt>(old_ndofs)*vdim;
+   const int nfo = with_fo ? dim + 1 : 0;
+   const int face_dofs = with_fo ? fec->DofForGeometry(Geometry::TRIANGLE) : 0;
+   const int faces_start = with_fo ? Geometry::NumEdges[geom]*
+                           fec->DofForGeometry(Geometry::SEGMENT) : 0;
+   struct Entry { int row; HYPRE_BigInt col; real_t val; };
+   std::vector<Entry> entries;
+   entries.reserve(vsize);
+   Array<bool> done(vsize);
+   done = false;
+   Array<int> dofs, old_fo, changed(nfo);
+   DofTransformation doftrans, old_doftrans;
+   DenseTensor blocks(face_dofs, face_dofs, nfo);
+   Vector v;
+   for (int e = 0; e < pmesh->GetNE(); e++)
+   {
+      GetElementDofs(e, dofs, doftrans);
+      const int nd = dofs.Size();
+      const std::int64_t *row = new_rows.GetData() + new_offsets[e];
+      MFEM_VERIFY(new_offsets[e+1] - new_offsets[e] ==
+                  std::int64_t(vdim)*nd + nfo,
+                  "internal error: element DOF rows");
+      // The faces whose old and new orientations differ, and their blocks.
+      changed = 0;
+      bool transform = false;
+      if (with_fo && !doftrans.IsIdentity())
+      {
+         old_fo.SetSize(nfo);
+         for (int j = 0; j < nfo; j++)
+         {
+            old_fo[j] = static_cast<int>(row[vdim*nd + j]);
+         }
+         const Array<int> &new_fo = doftrans.GetFaceOrientations();
+         for (int f = 0; f < nfo; f++)
+         {
+            changed[f] = (old_fo[f] != new_fo[f]);
+            transform = transform || changed[f];
+         }
+      }
+      if (transform)
+      {
+         old_doftrans.SetDofTransformation(*trans);
+         old_doftrans.SetFaceOrientations(old_fo);
+         v.SetSize(nd);
+         v = 0.0;
+         for (int f = 0; f < nfo; f++)
+         {
+            if (!changed[f]) { continue; }
+            const int first = faces_start + f*face_dofs;
+            for (int c = 0; c < face_dofs; c++)
+            {
+               v(first + c) = 1.0;
+               old_doftrans.InvTransformPrimal(v);
+               doftrans.TransformPrimal(v);
+               for (int r = 0; r < face_dofs; r++)
+               {
+                  blocks(r, c, f) = v(first + r);
+                  v(first + r) = 0.0;
+               }
+            }
+         }
+      }
+      for (int vd = 0; vd < vdim; vd++)
+      {
+         for (int k = 0; k < nd; k++)
+         {
+            const int new_vdof = DofToVDof(dofs[k], vd);
+            const int r = (new_vdof >= 0) ? new_vdof : -1 - new_vdof;
+            if (done[r]) { continue; }
+            done[r] = true;
+            const real_t s_new = (new_vdof >= 0) ? 1.0 : -1.0;
+            // The face of DOF k, if its orientation changed: a row of its
+            // block; otherwise the same DOF.
+            int f = -1;
+            if (transform && k >= faces_start &&
+                k < faces_start + nfo*face_dofs)
+            {
+               f = (k - faces_start)/face_dofs;
+               if (!changed[f]) { f = -1; }
+            }
+            const int c0 = (f < 0) ? k : faces_start + f*face_dofs;
+            const int nc = (f < 0) ? 1 : face_dofs;
+            for (int c = c0; c < c0 + nc; c++)
+            {
+               const real_t b = (f < 0) ? 1.0 : blocks(k - c0, c - c0, f);
+               if (b == 0.0) { continue; }
+               const std::int64_t g = row[vd*nd + c];
+               const real_t s_old = (g >= 0) ? 1.0 : -1.0;
+               const HYPRE_BigInt col = (g >= 0) ? g : -1 - g;
+               entries.push_back({r, col, s_new*b*s_old});
+            }
+         }
+      }
+   }
+   // The vertex DOFs of the vertices of no element, from the same vertices on
+   // this rank.
+   const int nvd = fec->DofForGeometry(Geometry::POINT);
+   for (int i = 0; i < pmesh->rebalance_iso_new.Size(); i++)
+   {
+      for (int k = 0; k < nvd; k++)
+      {
+         for (int vd = 0; vd < vdim; vd++)
+         {
+            const int r = DofToVDof(pmesh->rebalance_iso_new[i]*nvd + k, vd);
+            if (done[r]) { continue; }
+            done[r] = true;
+            const int c = DofToVDof(pmesh->rebalance_iso_old[i]*nvd + k, vd,
+                                    old_ndofs);
+            entries.push_back({r, old_offset + c, 1.0});
+         }
+      }
+   }
+   for (int r = 0; r < vsize; r++)
+   {
+      MFEM_VERIFY(done[r], "internal error: DOF " << r << " of no element");
+   }
+
+   // diag: the old DOFs of this rank; offd: the others, numbered by their
+   // global index.
+   std::vector<HYPRE_BigInt> offd_cols;
+   for (const Entry &en : entries)
+   {
+      if (en.col < old_offset || en.col >= old_offset + old_local)
+      {
+         offd_cols.push_back(en.col);
+      }
+   }
+   std::sort(offd_cols.begin(), offd_cols.end());
+   offd_cols.erase(std::unique(offd_cols.begin(), offd_cols.end()),
+                   offd_cols.end());
+   SparseMatrix *diag = new SparseMatrix(vsize, static_cast<int>(old_local));
+   SparseMatrix *offd = new SparseMatrix(vsize,
+                                         static_cast<int>(offd_cols.size()));
+   for (const Entry &en : entries)
+   {
+      if (en.col >= old_offset && en.col < old_offset + old_local)
+      {
+         diag->Add(en.row, static_cast<int>(en.col - old_offset), en.val);
+      }
+      else
+      {
+         const int c = static_cast<int>(
+                          std::lower_bound(offd_cols.begin(), offd_cols.end(),
+                                           en.col) - offd_cols.begin());
+         offd->Add(en.row, c, en.val);
+      }
+   }
+   diag->Finalize(0);
+   offd->Finalize(0);
+   HYPRE_BigInt *cmap =
+      Memory<HYPRE_BigInt>(static_cast<int>(offd_cols.size()));
+   std::copy(offd_cols.begin(), offd_cols.end(), cmap);
+
+   HypreParMatrix *M = new HypreParMatrix(MyComm, dof_offsets[nrk],
+                                          old_dof_offsets[nrk], dof_offsets,
+                                          old_dof_offsets, diag, offd, cmap,
+                                          true);
+   M->SetOwnerFlags(M->OwnsDiag(), M->OwnsOffd(), 1);
+   return M;
+}
+
+HypreParMatrix*
 ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
                                        const Table* old_elem_dof,
                                        const Table* old_elem_fos)
 {
-   MFEM_VERIFY(Nonconforming(), "Only supported for nonconforming meshes.");
+   if (!Nonconforming())
+   {
+      return ConformingRebalanceMatrix(old_ndofs, old_elem_dof, old_elem_fos);
+   }
    MFEM_VERIFY(old_dof_offsets.Size(), "ParFiniteElementSpace::Update needs to "
                "be called before ParFiniteElementSpace::RebalanceMatrix");
 
@@ -5543,8 +5772,9 @@ void ParFiniteElementSpace::Update(bool want_transform)
       return;
    }
 
-   Table* old_elem_dof = NULL;
-   Table* old_elem_fos = NULL;
+   // The old DOF tables, owned here until an operator takes them: the
+   // construction of a transfer operator can refuse (throw).
+   std::unique_ptr<Table> old_elem_dof, old_elem_fos;
    int old_ndofs = 0;
    // P is built collectively (Dof_TrueDof_Matrix()): whether the space has one
    // is the same on all the ranks.
@@ -5553,8 +5783,8 @@ void ParFiniteElementSpace::Update(bool want_transform)
    // save old DOF table
    if (want_transform)
    {
-      old_elem_dof = elem_dof;
-      old_elem_fos = elem_fos;
+      old_elem_dof.reset(elem_dof);
+      old_elem_fos.reset(elem_fos);
       elem_dof = NULL;
       elem_fos = NULL;
       old_ndofs = ndofs;
@@ -5582,17 +5812,16 @@ void ParFiniteElementSpace::Update(bool want_transform)
          {
             if (Th.Type() != Operator::MFEM_SPARSEMAT)
             {
-               Th.Reset(new RefinementOperator(this, old_elem_dof,
-                                               old_elem_fos, old_ndofs));
-               // The RefinementOperator takes ownership of 'old_elem_dofs', so
-               // we no longer own it:
-               old_elem_dof = NULL;
-               old_elem_fos = NULL;
+               // The RefinementOperator takes ownership of 'old_elem_dofs'.
+               Th.Reset(new RefinementOperator(this, old_elem_dof.release(),
+                                               old_elem_fos.release(),
+                                               old_ndofs));
             }
             else
             {
                // calculate fully assembled matrix
-               Th.Reset(RefinementMatrix(old_ndofs, old_elem_dof, old_elem_fos));
+               Th.Reset(RefinementMatrix(old_ndofs, old_elem_dof.get(),
+                                         old_elem_fos.get()));
             }
             break;
          }
@@ -5600,11 +5829,12 @@ void ParFiniteElementSpace::Update(bool want_transform)
          case Mesh::DEREFINE:
          {
 #if 0
-            Th.Reset(ParallelDerefinementMatrix(old_ndofs, old_elem_dof,
-                                                old_elem_fos));
+            Th.Reset(ParallelDerefinementMatrix(old_ndofs, old_elem_dof.get(),
+                                                old_elem_fos.get()));
 #else
-            Th.Reset(new ParDerefineMatrixOp(*this, old_ndofs, old_elem_dof,
-                                             old_elem_fos));
+            Th.Reset(new ParDerefineMatrixOp(*this, old_ndofs,
+                                             old_elem_dof.get(),
+                                             old_elem_fos.get()));
 #endif
             if (Nonconforming())
             {
@@ -5617,16 +5847,14 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
          case Mesh::REBALANCE:
          {
-            Th.Reset(RebalanceMatrix(old_ndofs, old_elem_dof, old_elem_fos));
+            Th.Reset(RebalanceMatrix(old_ndofs, old_elem_dof.get(),
+                                     old_elem_fos.get()));
             break;
          }
 
          default:
             break;
       }
-
-      delete old_elem_dof;
-      delete old_elem_fos;
    }
 
    // A grid function updated with the space refreshes its cached true vector

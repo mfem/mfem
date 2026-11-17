@@ -7115,6 +7115,9 @@ void ParMesh::Swap(ParMesh &other)
 
    mfem::Swap(rebalance_old_rank, other.rebalance_old_rank);
    mfem::Swap(rebalance_old_index, other.rebalance_old_index);
+   mfem::Swap(rebalance_dest, other.rebalance_dest);
+   mfem::Swap(rebalance_iso_old, other.rebalance_iso_old);
+   mfem::Swap(rebalance_iso_new, other.rebalance_iso_new);
    mfem::Swap(rebalance_sequence, other.rebalance_sequence);
 }
 
@@ -7137,6 +7140,9 @@ void ParMesh::Destroy()
    // is destroyed (Load() starts the sequence of the next one again).
    rebalance_old_rank.DeleteAll();
    rebalance_old_index.DeleteAll();
+   rebalance_dest.DeleteAll();
+   rebalance_iso_old.DeleteAll();
+   rebalance_iso_new.DeleteAll();
    rebalance_sequence = -1;
 }
 

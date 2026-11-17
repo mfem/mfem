@@ -21,6 +21,7 @@
 #include "mesh.hpp"
 #include "pncmesh.hpp"
 #include <cstdint>
+#include <functional>
 #include <iostream>
 
 namespace mfem
@@ -36,6 +37,7 @@ class ParMesh : public Mesh
 {
    friend class ParNCMesh;
    friend class ParSubMesh;
+   friend class ParFiniteElementSpace;
 #ifdef MFEM_USE_PUMI
    friend class ParPumiMesh;
 #endif
@@ -205,8 +207,30 @@ protected:
    /// Old location of the local elements after Rebalance() of a conforming
    /// mesh, see GetRebalanceOldElements().
    Array<int> rebalance_old_rank, rebalance_old_index;
+   /** After Rebalance() of a conforming mesh: the new rank of each element of
+       the mesh before the call (the partition), and the vertices of no element
+       (which stay on their rank) as pairs of their local indices before and
+       after the call. */
+   Array<int> rebalance_dest, rebalance_iso_old, rebalance_iso_new;
    /// Value of #sequence for which the arrays above are valid.
    long rebalance_sequence = -1;
+
+   /** @brief After Rebalance() of a conforming mesh, move one row of data per
+       element from the previous owner of each element to its new owner.
+
+       Element i of the mesh before the call has a row of @a row_sizes[i]
+       entries, which @a fill(i, row) writes into @a row; the rows are written
+       directly into the messages. The sizes have 64 bits, so that a caller can
+       compute them without overflow. The call is refused on all ranks if a
+       message would have more than INT_MAX words, checked before any row is
+       filled, or if the rows received by a rank would need an array of more
+       than INT_MAX/2 entries, checked after the exchange, before the array is
+       allocated. On return, row e of @a new_rows (entries @a new_offsets[e] to
+       @a new_offsets[e+1]) belongs to the local element e. Collective. */
+   void ExchangeRebalanceRows(
+      const Array<std::int64_t> &row_sizes,
+      const std::function<void(int, std::int64_t *)> &fill,
+      Array<int> &new_offsets, Array<std::int64_t> &new_rows) const;
 
    /** @brief Element, boundary element, vertex and edge records of a local
        part of a conforming simplex mesh, described with global vertex ids.
@@ -245,12 +269,13 @@ protected:
    int GetRebalanceTarget(const Array<int> &partition, const Table &nbr_groups,
                           ConformingTarget &target) const;
    /// Pack the records sent to each rank of @a dests in @a msgs. Local. Return
-   /// 1 if @a too_large is 1, or if a message would be too large (@a msgs is
-   /// then incomplete), otherwise 0.
+   /// 1 if @a too_large is 1, or if a message, or the rows of @a nodal_row
+   /// entries per element that the nodal update will send with it, would be
+   /// too large (@a msgs is then incomplete), otherwise 0.
    int PackRebalanceMessages(
       const Array<int> &partition, const Array<std::int64_t> &vert_gid,
-      const ConformingTarget &target, int too_large, Array<int> &dests,
-      std::vector<std::vector<std::int64_t>> &msgs) const;
+      const ConformingTarget &target, std::int64_t nodal_row, int too_large,
+      Array<int> &dests, std::vector<std::vector<std::int64_t>> &msgs) const;
    /// Append the records of the messages @a recv_msgs, in the order of their
    /// source ranks, to @a rec, emptying @a recv_msgs. Local.
    void DecodeRebalanceMessages(
@@ -261,8 +286,11 @@ protected:
    /** @brief Replace the local mesh and its parallel topology by the mesh
        described by @a records: the elements, boundary elements and vertices
        of this rank, and the ranks holding each shared vertex, edge and face.
-       Collective. */
-   void BuildFromConformingRecords(ConformingRecords &records);
+       Then publish the migration (@a partition, and the vertices of no element
+       @a isolated, before the call) and update the nodes. Collective. */
+   void BuildFromConformingRecords(ConformingRecords &records,
+                                   const Array<int> &partition,
+                                   const Array<int> &isolated);
 
    /// @name Steps of BuildFromConformingRecords()
    ///@{
@@ -278,8 +306,10 @@ protected:
    /// it from q. Collective.
    void OrientSharedTriangles(const std::map<int, std::vector<int>> &faces_with,
                               const ConformingRecords &rec);
-   /// Publish the previous location of each element, from @a rec. Local.
-   void PublishRebalance(ConformingRecords &rec);
+   /// Publish the migration, from @a rec, @a partition and the vertices of no
+   /// element @a isolated, then update the nodes. Collective.
+   void PublishRebalance(ConformingRecords &rec, const Array<int> &partition,
+                         const Array<int> &isolated);
    ///@}
 
    void DeleteFaceNbrData();
@@ -806,13 +836,15 @@ public:
        GetNE().
 
        Supported for nonconforming meshes and for conforming meshes of
-       triangles (2D) or tetrahedra (3D) without nodes. For a conforming mesh:
+       triangles (2D) or tetrahedra (3D), straight or curved (with nodes in a
+       ParFiniteElementSpace of uniform order). For a conforming mesh:
 
        - The elements move with their attributes, vertex order, tetrahedron
          refinement flags (so local conforming refinement continues as on the
          original mesh) and boundary elements (also interior ones); attribute
          sets are kept, and vertices that belong to no element stay on their
-         rank.
+         rank. The nodes are transferred by their space, which is updated when
+         the call returns.
        - No rank gathers the mesh: a rank only communicates with the ranks it
          shares entities with, before or after the call, and with the ranks it
          sends elements to or receives elements from. Any partition is allowed,
@@ -823,20 +855,23 @@ public:
          the master of a group of s ranks (its lowest rank) also holds of the
          order of s^2 entries for it while the groups are built.
        - The call stops with an error on all ranks, before anything moves and
-         with the mesh (its face neighbor data included) unchanged, for a mesh
-         with nodes, for a ParSubMesh (its maps to the parent mesh would no
-         longer be valid), for
+         with the mesh (its face neighbor data included) unchanged, for a
+         ParSubMesh (its maps to the parent mesh would no longer be valid), for
          a mesh that is not conforming across the ranks (ranks that list
          different numbers of shared vertices, edges or faces in a group, or
          describe its shared edges or faces with other vertices or in another
          vertex order; the groups, and which shared vertex of a group is which
          on each rank, are taken as given), and when an array would have more
          than INT_MAX/2 entries, or a message more than INT_MAX words, for the
-         mesh or the tables of its groups.
-       - After the call, the grid functions on the mesh are not transferred:
-         rebuild each ParFiniteElementSpace on it with
-         ParFiniteElementSpace::Update(false) before the next change of the
-         mesh, and compute its grid functions again.
+         mesh, the tables of its groups or the transfer of its nodes. The
+         transfer of another space is checked in its Update().
+       - After the call, update each ParFiniteElementSpace on the mesh with
+         ParFiniteElementSpace::Update() before the next change of the mesh
+         (else its next Update() with a transfer reports an error in the update
+         sequence), then each ParGridFunction on it with
+         ParGridFunction::Update(); see ParFiniteElementSpace::Update() for the
+         transfer. Only parallel spaces and grid functions are transferred;
+         Update(false) rebuilds a space without transferring its grid functions.
        - The call invalidates the local indices of the elements, boundary
          elements, vertices, edges and faces, and the tables and pointers taken
          from the mesh or its spaces before it; attribute numbers and attribute
