@@ -93,6 +93,9 @@ void CrystalRouter::Route(
                "CrystalRouter send buffer exceeds Array size limit");
    buf.SetSize((int)words);
 
+   // Fix: read leaving_idx through a host pointer after the packs. Reason: a
+   // device Pack() calls leaving_idx.Read(true), so operator[] is not valid.
+   const int *h_leaving = nullptr;
    if (n_leave > 0)
    {
       if (any_dev)
@@ -115,10 +118,11 @@ void CrystalRouter::Route(
             fields[k]->Pack(leaving_idx, h, stride, off[k]);
          }
       }
+      h_leaving = leaving_idx.HostRead();
       for (int k = 0; k < n_leave; k++)
       {
          std::memcpy(h + (std::size_t)k * stride + hdr,
-                     &h_ranks[leaving_idx[k]], sizeof(unsigned int));
+                     &h_ranks[h_leaving[k]], sizeof(unsigned int));
       }
    }
 
@@ -127,23 +131,27 @@ void CrystalRouter::Route(
    MPI_Type_free(&row_t);
 
    // nothing left or arrived: fields are already correct
-   if (n_leave == 0 && n_arr == 0) { return; }
+   if (n_leave == 0 && n_arr == 0)
+   {
+      ResetBuffer();
+      return;
+   }
 
    // fill list: dst[m] is the slot that gets arrival m, then tail[m - n_arr]
    const int n_new = n - n_leave + n_arr;
    Array<int> dst, tail;
    int k = 0;
    // holes
-   for (; k < n_leave && leaving_idx[k] < n_new; k++)
+   for (; k < n_leave && h_leaving[k] < n_new; k++)
    {
-      dst.Append(leaving_idx[k]);
+      dst.Append(h_leaving[k]);
    }
    // new slots
    for (int p = n; p < n_new; p++) { dst.Append(p); }
    // stayers past the end
    for (int p = n_new; p < n; p++)
    {
-      if (k < n_leave && leaving_idx[k] == p) { k++; }
+      if (k < n_leave && h_leaving[k] == p) { k++; }
       else { tail.Append(p); }
    }
    MFEM_ASSERT(dst.Size() == n_arr + tail.Size(),
@@ -172,9 +180,20 @@ void CrystalRouter::Route(
          }
       }
    }
+   ResetBuffer();
 }
 
 // PRIVATE METHODS
+
+// Fix: reset buf at each exit of Route(). Reason: the debug device keeps the
+// host pages protected after Read(true), and the device copy stayed allocated.
+void CrystalRouter::ResetBuffer()
+{
+   // while the size is that of the last device read: all pages become usable
+   if (buf.Size() > 0) { buf.HostReadWrite(); }
+   buf.GetMemory().DeleteDevice(false);
+   buf.SetSize(0);
+}
 
 // RouteInternal(), Move() and Exchange() are based on crystal_router(),
 // crystal_move() and crystal_exchange() in src/crystal.c of gslib

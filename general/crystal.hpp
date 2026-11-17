@@ -520,8 +520,14 @@ private:
    int nprocs;
 
    /** Packed rows, one row per particle: the packed columns, then the
-       destination rank (unsigned int). Its size is in 8-byte words. */
+       destination rank (unsigned int). Its size is in 8-byte words.
+       Route() keeps the host capacity on purpose, to avoid a new allocation
+       on each call. Route() releases the device copy after each call. */
    Array<std::uint64_t> buf;
+
+   /** @brief Make #buf empty and valid on the host only, and release its
+       device copy. The host capacity stays. */
+   void ResetBuffer();
 
    /** @brief Run the crystal router rounds on the rows in #buf
 

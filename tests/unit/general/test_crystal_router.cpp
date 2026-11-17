@@ -585,4 +585,109 @@ TEST_CASE("CrystalRouter reuse one router",
    CHECK(keys.Size() == (rank == size - 1 ? total : 0));
 }
 
+// Fix: test the index list after a device pack. Reason: Route() read
+// leaving_idx with operator[] while only the device copy was usable.
+TEST_CASE("CrystalRouter host index list after device pack",
+          "[CrystalRouter][Parallel][GPU]")
+{
+   const int size = Mpi::WorldSize();
+   const int rank = Mpi::WorldRank();
+   const int n = 20 + rank;
+   int total = 0;
+   for (int r = 0; r < size; r++) { total += 20 + r; }
+
+   Array<unsigned long long> keys;
+   Array<int> ai;
+   Vector v;
+   MakeColumns(n, keys, ai, v);
+   // each rank sends its even particles: at least one when size > 1
+   Array<unsigned int> rank_list(n);
+   for (int i = 0; i < n; i++)
+   {
+      rank_list[i] = i % 2 == 0 ? (rank + 1) % size : rank;
+   }
+   CrDev(keys, ~0ull); CrDev(ai, -1); CrDev(v);
+
+   CrystalRouter router(MPI_COMM_WORLD);
+   router.Route(rank_list,
+   {
+      CR::Array(keys), CR::Array(ai, 3, Ordering::byNODES),
+      CR::Vector(v, 2, Ordering::byVDIM)
+   });
+
+   CrHost(ai); CrHost(v);
+   const unsigned long long *h_keys = CrHost(keys);
+   // an even particle must be on the rank after its source rank
+   int misplaced = 0;
+   for (int i = 0; i < keys.Size(); i++)
+   {
+      const int src = static_cast<int>(h_keys[i] / 1000);
+      const int want = h_keys[i] % 2 == 0 ? (src + 1) % size : src;
+      if (want != rank) { misplaced++; }
+   }
+   misplaced = CrSum(misplaced);
+   const int wrong = CrSum(CountWrong(keys, ai, v));
+   const int global = CrSum(keys.Size());
+   CHECK(wrong == 0);
+   CHECK(misplaced == 0);
+   CHECK(global == total);
+}
+
+// Fix: test a small send with arrivals after a large arrival. Reason: with no
+// buffer reset in Route(), call 2 faults on the debug device (-d debug).
+TEST_CASE("CrystalRouter reuse after a large arrival",
+          "[CrystalRouter][Parallel][GPU]")
+{
+   const int size = Mpi::WorldSize();
+   const int rank = Mpi::WorldRank();
+   const int n = 4000;
+
+   Array<unsigned long long> keys;
+   Array<int> ai;
+   Vector v;
+   MakeColumns(n, keys, ai, v);
+   CrDev(keys, ~0ull); CrDev(ai, -1); CrDev(v);
+
+   CrystalRouter router(MPI_COMM_WORLD);
+
+   // Call 1: each rank r > 0 sends 2000 particles to rank 0, all others stay.
+   // The buffer of rank 0 ends with 2000*(size - 1) rows.
+   Array<unsigned int> rank_list1(n);
+   for (int i = 0; i < n; i++) { rank_list1[i] = i < 2000 ? 0 : rank; }
+   router.Route(rank_list1,
+   {
+      CR::Array(keys), CR::Array(ai, 3, Ordering::byNODES),
+      CR::Vector(v, 2, Ordering::byVDIM)
+   });
+   const int global1 = CrSum(keys.Size());
+
+   // Call 2: rank 0 sends one particle to the last rank, each rank r > 0
+   // sends 1500 particles to rank 0. Rank 0 packs one row, then its buffer
+   // grows to many pages, but stays below its size at the end of call 1.
+   const int n2 = keys.Size();
+   Array<unsigned int> rank_list2(n2);
+   for (int i = 0; i < n2; i++) { rank_list2[i] = i < 1500 ? 0 : rank; }
+   if (rank == 0 && n2 > 0)
+   {
+      rank_list2[0] = static_cast<unsigned int>(size - 1);
+   }
+   router.Route(rank_list2,
+   {
+      CR::Array(keys), CR::Array(ai, 3, Ordering::byNODES),
+      CR::Vector(v, 2, Ordering::byVDIM)
+   });
+   CrHost(keys); CrHost(ai); CrHost(v);
+   // the particles are not on their TargetRank here: check only the data
+   const int wrong = CrSum(CountWrong(keys, ai, v));
+   const int global2 = CrSum(keys.Size());
+
+   CHECK(global1 == n*size);
+   CHECK(global2 == n*size);
+   CHECK(wrong == 0);
+   if (rank == 0)
+   {
+      CHECK(keys.Size() == (size > 1 ? n + 3500*(size - 1) - 1 : n));
+   }
+}
+
 #endif // MFEM_USE_MPI
