@@ -25,22 +25,27 @@ using namespace mfem;
 template <typename T>
 static void MoveToDevice(Array<T> &a, T poison)
 {
+   // Fix: get the host pointer before the move. Reason: GetData() is not
+   // valid while only the device copy is valid.
+   T *h = a.GetData();
    a.GetMemory().UseDevice(true);
    a.ReadWrite();
    if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      std::fill_n(a.GetData(), a.Size(), poison);
+      std::fill_n(h, a.Size(), poison);
    }
 }
 
 static void MoveToDevice(Vector &v)
 {
+   // Fix: get the host pointer before the move. Reason: GetData() is not
+   // valid while only the device copy is valid.
+   real_t *h = v.GetData();
    v.UseDevice(true);
    v.ReadWrite();
    if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      std::fill_n(v.GetData(), v.Size(),
-                  std::numeric_limits<real_t>::quiet_NaN());
+      std::fill_n(h, v.Size(), std::numeric_limits<real_t>::quiet_NaN());
    }
 }
 
@@ -88,10 +93,13 @@ TEST_CASE("CrystalRouter device-resident fields",
       CR::ParticleVector(pv)
    });
 
-   keys.HostRead();
-   ai.HostRead();
-   v.HostRead();
+   // Fix: read through host pointers and a const reference. Reason: non-const
+   // operator[] is not valid while a device copy is valid.
+   const unsigned long long *h_keys = keys.HostRead();
+   const int *h_ai = ai.HostRead();
+   const real_t *h_v = v.HostRead();
    pv.HostRead();
+   const ParticleVector &h_pv = pv;
 
    const int m = keys.Size();
    REQUIRE(ai.Size() == 2*m);
@@ -101,16 +109,16 @@ TEST_CASE("CrystalRouter device-resident fields",
    int wrong = 0;
    for (int i = 0; i < m; i++)
    {
-      const unsigned long long gid = keys[i];
+      const unsigned long long gid = h_keys[i];
       bool ok = TargetRank(gid, size) == rank;
       for (int c = 0; c < 2; c++)
       {
-         ok = ok && ai[2*i + c] == static_cast<int>(2*gid + c);
+         ok = ok && h_ai[2*i + c] == static_cast<int>(2*gid + c);
       }
-      for (int c = 0; c < 3; c++) { ok = ok && v[c*m + i] == gid + 0.25*c; }
+      for (int c = 0; c < 3; c++) { ok = ok && h_v[c*m + i] == gid + 0.25*c; }
       for (int c = 0; c < 2; c++)
       {
-         ok = ok && pv(i, c) == -static_cast<real_t>(gid) - c;
+         ok = ok && h_pv(i, c) == -static_cast<real_t>(gid) - c;
       }
       if (!ok) { wrong++; }
    }
@@ -164,6 +172,9 @@ static void CrRunColumnCases(int vdim, Ordering::Type ord)
             col.HostWrite()[j] = T(10*i + c);
          }
       }
+      // Fix: get the host pointer before the move. Reason: GetData() is not
+      // valid while a device copy is valid.
+      const T *data_before = col.GetData();
       CrMove(col);
       auto f = CrWrap(col, vdim, ord);
 
@@ -212,7 +223,6 @@ static void CrRunColumnCases(int vdim, Ordering::Type ord)
       }
       const int n_new = static_cast<int>(fc.expect.size());
       const int cap_before = col.Capacity();
-      const T *data_before = col.GetData();
       f.Unpack(dst, tail, ab, fc.n_arr, n_new, stride, off);
 
       REQUIRE(col.Size() == n_new*vdim);
@@ -228,7 +238,7 @@ static void CrRunColumnCases(int vdim, Ordering::Type ord)
                     == T(e >= 0 ? 10*e + c : 100*(-e) + c));
          }
       }
-      if (n_new == n) { REQUIRE(col.GetData() == data_before); }
+      if (n_new == n) { REQUIRE(h == data_before); }
    }
 }
 
@@ -297,9 +307,13 @@ static void CrDev(Vector &v)
 }
 
 // HostRead, skipped for a column with 0 entries
+// Fix: return the host pointer. Reason: the tests read through it, non-const
+// operator[] is not valid while a device copy is valid.
 template <typename T>
-static void CrHost(const Array<T> &a) { if (a.Size() > 0) { a.HostRead(); } }
-static void CrHost(const Vector &v) { if (v.Size() > 0) { v.HostRead(); } }
+static const T *CrHost(const Array<T> &a)
+{ return a.Size() > 0 ? a.HostRead() : nullptr; }
+static const real_t *CrHost(const Vector &v)
+{ return v.Size() > 0 ? v.HostRead() : nullptr; }
 
 static int CrSum(int x)
 {
@@ -353,10 +367,12 @@ TEST_CASE("CrystalRouter equal swap keeps columns in place",
    {
       rank_list[i] = i % 3 == 0 ? (rank + 1) % size : rank;
    }
-   CrDev(keys, ~0ull); CrDev(ai, -1); CrDev(v);
+   // Fix: get the host pointers before the move, compare with CrHost().
+   // Reason: GetData() is not valid while a device copy is valid.
    const auto *pk = keys.GetData();
    const auto *pa = ai.GetData();
    const auto *pv = v.GetData();
+   CrDev(keys, ~0ull); CrDev(ai, -1); CrDev(v);
 
    CrystalRouter router(MPI_COMM_WORLD);
    router.Route(rank_list,
@@ -365,24 +381,26 @@ TEST_CASE("CrystalRouter equal swap keeps columns in place",
       CR::Vector(v, 2, Ordering::byVDIM)
    });
 
-   CrHost(keys); CrHost(ai); CrHost(v);
+   const unsigned long long *h_keys = CrHost(keys);
+   const int *h_ai = CrHost(ai);
+   const real_t *h_v = CrHost(v);
    const int wrong = CrSum(CountWrong(keys, ai, v));
    CHECK(wrong == 0);
    CHECK(keys.Size() == n);
    CHECK(ai.Size() == 3*n);
    CHECK(v.Size() == 2*n);
-   CHECK(keys.GetData() == pk);
-   CHECK(ai.GetData() == pa);
-   CHECK(v.GetData() == pv);
+   CHECK(h_keys == pk);
+   CHECK(h_ai == pa);
+   CHECK(h_v == pv);
    if (keys.Size() == n)
    {
       for (int i = 0; i < n; i++)
       {
-         if (i % 3 != 0) { CHECK(keys[i] == 1000ull*rank + i); }
+         if (i % 3 != 0) { CHECK(h_keys[i] == 1000ull*rank + i); }
          else
          {
             const int src = (rank + size - 1) % size;
-            CHECK(keys[i] / 1000 == static_cast<unsigned long long>(src));
+            CHECK(h_keys[i] / 1000 == static_cast<unsigned long long>(src));
          }
       }
    }
@@ -400,10 +418,12 @@ TEST_CASE("CrystalRouter all particles stay",
    MakeColumns(n, keys, ai, v);
    Array<unsigned int> rank_list(n);
    rank_list = static_cast<unsigned int>(rank);
-   CrDev(keys, ~0ull); CrDev(ai, -1); CrDev(v);
+   // Fix: get the host pointers before the move, compare with CrHost().
+   // Reason: GetData() is not valid while a device copy is valid.
    const auto *pk = keys.GetData();
    const auto *pa = ai.GetData();
    const auto *pv = v.GetData();
+   CrDev(keys, ~0ull); CrDev(ai, -1); CrDev(v);
 
    CrystalRouter router(MPI_COMM_WORLD);
    router.Route(rank_list,
@@ -412,16 +432,18 @@ TEST_CASE("CrystalRouter all particles stay",
       CR::Vector(v, 2, Ordering::byVDIM)
    });
 
-   CrHost(keys); CrHost(ai); CrHost(v);
+   const unsigned long long *h_keys = CrHost(keys);
+   const int *h_ai = CrHost(ai);
+   const real_t *h_v = CrHost(v);
    const int wrong = CrSum(CountWrong(keys, ai, v));
    CHECK(wrong == 0);
    CHECK(keys.Size() == n);
-   CHECK(keys.GetData() == pk);
-   CHECK(ai.GetData() == pa);
-   CHECK(v.GetData() == pv);
+   CHECK(h_keys == pk);
+   CHECK(h_ai == pa);
+   CHECK(h_v == pv);
    if (keys.Size() == n)
    {
-      for (int i = 0; i < n; i++) { CHECK(keys[i] == 1000ull*rank + i); }
+      for (int i = 0; i < n; i++) { CHECK(h_keys[i] == 1000ull*rank + i); }
    }
 }
 
@@ -455,14 +477,17 @@ TEST_CASE("CrystalRouter mixed element sizes",
       CR::Vector(v, 2, Ordering::byVDIM)
    });
 
-   CrHost(keys); CrHost(ai); CrHost(v); CrHost(tag);
+   CrHost(ai); CrHost(v);
+   // Fix: read keys and tag through host pointers. Reason: see CrHost().
+   const unsigned long long *h_keys = CrHost(keys);
+   const int *h_tag = CrHost(tag);
    const int wrong = CrSum(CountWrong(keys, ai, v));
    int bad_tag = tag.Size() == keys.Size() ? 0 : std::max(keys.Size(), 1);
    if (bad_tag == 0)
    {
       for (int i = 0; i < keys.Size(); i++)
       {
-         if (tag[i] != static_cast<int>(keys[i] % 7)) { bad_tag++; }
+         if (h_tag[i] != static_cast<int>(h_keys[i] % 7)) { bad_tag++; }
       }
    }
    bad_tag = CrSum(bad_tag);

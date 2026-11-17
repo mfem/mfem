@@ -189,21 +189,26 @@ template <typename T>
 static void MoveToDevice(Array<T> &a, T poison)
 {
    a.GetMemory().UseDevice(true);
+   // Fix: take the host pointer before the move to the device. Reason:
+   // GetData() fails a debug check when the host copy is not valid.
+   T *h = a.GetData();
    a.ReadWrite();
    if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      std::fill_n(a.GetData(), a.Size(), poison);
+      std::fill_n(h, a.Size(), poison);
    }
 }
 
 static void MoveToDevice(Vector &v)
 {
    v.UseDevice(true);
+   // Fix: take the host pointer before the move to the device. Reason:
+   // GetData() fails a debug check when the host copy is not valid.
+   real_t *h = v.GetData();
    v.ReadWrite();
    if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
    {
-      std::fill_n(v.GetData(), v.Size(),
-                  std::numeric_limits<real_t>::quiet_NaN());
+      std::fill_n(h, v.Size(), std::numeric_limits<real_t>::quiet_NaN());
    }
 }
 
