@@ -227,7 +227,10 @@ TEST_CASE("ParMeshMakeSimplicial", "[Parallel], [ParMesh]")
 
 TEST_CASE("ParMeshPrintLoadEmptyCurvedPartitions", "[Parallel], [ParMesh]")
 {
-   Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
+   const int dim = GENERATE(2, 3);
+   Mesh mesh = (dim == 2) ?
+               Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL) :
+               Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
    mesh.SetCurvature(2);
    ParMesh pmesh(MPI_COMM_WORLD, mesh);
 
@@ -243,8 +246,9 @@ TEST_CASE("ParMeshPrintLoadEmptyCurvedPartitions", "[Parallel], [ParMesh]")
    REQUIRE(recovered.GetNE() == pmesh.GetNE());
    REQUIRE(recovered.GetGlobalNE() == 1);
    REQUIRE(recovered.GetNodes() != nullptr);
-   REQUIRE(recovered.SpaceDimension() == 3);
-   REQUIRE(recovered.GetTypicalElementGeometry() == Geometry::CUBE);
+   REQUIRE(recovered.SpaceDimension() == dim);
+   REQUIRE(recovered.GetTypicalElementGeometry() ==
+           (dim == 2 ? Geometry::SQUARE : Geometry::CUBE));
    REQUIRE(recovered.GetNodes()->Size() == pmesh.GetNodes()->Size());
 
    if (recovered.GetNodes()->Size() > 0)
