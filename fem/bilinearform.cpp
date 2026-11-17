@@ -2084,12 +2084,12 @@ void MixedBilinearForm::ComputeElementMatrix(int i, DenseMatrix &elmat) const
          if (trial_fes == test_fes)
          {
             domain_integs[k]->AssembleElementMatrix(trial_fe, *eltrans,
-                                                     elemmat);
+                                                    elemmat);
          }
          else
          {
             domain_integs[k]->AssembleElementMatrix2(trial_fe, test_fe,
-                                                      *eltrans, elemmat);
+                                                     *eltrans, elemmat);
          }
          elmat += elemmat;
       }
@@ -2126,12 +2126,12 @@ void MixedBilinearForm::ComputeBdrElementMatrix(int i, DenseMatrix &elmat) const
          if (trial_fes == test_fes)
          {
             boundary_integs[k]->AssembleElementMatrix(trial_be, *eltrans,
-                                                       elemmat);
+                                                      elemmat);
          }
          else
          {
             boundary_integs[k]->AssembleElementMatrix2(trial_be, test_be,
-                                                        *eltrans, elemmat);
+                                                       *eltrans, elemmat);
          }
          elmat += elemmat;
       }

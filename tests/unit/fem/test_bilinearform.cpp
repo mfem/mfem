@@ -103,8 +103,11 @@ TEST_CASE("MixedBilinearForm supports square assembly levels",
    Vector x(fes.GetVSize());
    x.Randomize(91);
 
-   for (AssemblyLevel level : {AssemblyLevel::FULL, AssemblyLevel::ELEMENT,
-                               AssemblyLevel::PARTIAL})
+   for (AssemblyLevel level :
+        {
+           AssemblyLevel::FULL, AssemblyLevel::ELEMENT,
+           AssemblyLevel::PARTIAL
+        })
    {
       DYNAMIC_SECTION("assembly level " << static_cast<int>(level))
       {

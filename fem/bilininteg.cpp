@@ -77,8 +77,8 @@ void BilinearFormIntegrator::AssembleEA(const FiniteElementSpace &trial_fes,
                                         Vector &emat, const bool add)
 {
    MFEM_ABORT(
-       "BilinearFormIntegrator::AssembleEA(trial_fes,test_fes, emat, add)\n"
-       "   is not implemented for this class.");
+      "BilinearFormIntegrator::AssembleEA(trial_fes,test_fes, emat, add)\n"
+      "   is not implemented for this class.");
 }
 
 void BilinearFormIntegrator::AssembleEABoundary(const FiniteElementSpace &fes,

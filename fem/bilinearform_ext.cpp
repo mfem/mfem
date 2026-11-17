@@ -2193,6 +2193,30 @@ void EAMixedBilinearFormExtension::Assemble()
                "integrators yet");
 }
 
+namespace
+{
+// nvcc doesn't allow a host-device lambda in the non-public MultInternal
+void EAMultInternalImpl(int ne, int in_dofs, int out_dofs, int trial_dofs,
+                        int test_dofs, bool transpose, const real_t *X,
+                        const real_t *A, real_t *Y)
+{
+   mfem::forall(ne * out_dofs, [=] MFEM_HOST_DEVICE (int index)
+   {
+      const int e = index / out_dofs;
+      const int j = index % out_dofs;
+      real_t value = 0.0;
+      for (int i = 0; i < in_dofs; i++)
+      {
+         const int trial = transpose ? j : i;
+         const int test = transpose ? i : j;
+         value += A[trial + trial_dofs * (test + test_dofs * e)] *
+                  X[i + in_dofs * e];
+      }
+      Y[j + out_dofs * e] += value;
+   });
+}
+}
+
 void EAMixedBilinearFormExtension::MultInternal(
    const Vector &x, Vector &y, const bool transpose, const real_t c) const
 {
@@ -2212,20 +2236,8 @@ void EAMixedBilinearFormExtension::MultInternal(
    const int out_dofs = transpose ? trial_elem_dofs : test_elem_dofs;
    const int trial_dofs = trial_elem_dofs;
    const int test_dofs = test_elem_dofs;
-   mfem::forall(ne * out_dofs, [=] MFEM_HOST_DEVICE (int index)
-   {
-      const int e = index / out_dofs;
-      const int j = index % out_dofs;
-      real_t value = 0.0;
-      for (int i = 0; i < in_dofs; i++)
-      {
-         const int trial = transpose ? j : i;
-         const int test = transpose ? i : j;
-         value += A[trial + trial_dofs * (test + test_dofs * e)] *
-                  X[i + in_dofs * e];
-      }
-      Y[j + out_dofs * e] += value;
-   });
+   EAMultInternalImpl(ne, in_dofs, out_dofs, trial_dofs, test_dofs, transpose,
+                      X, A, Y);
 
    if (output_restriction)
    {
