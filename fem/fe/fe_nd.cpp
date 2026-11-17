@@ -1690,135 +1690,6 @@ const DofToQuad &NDPos_TetrahedronElement::GetRaggedTensorDofToQuad(
          rd2q->inverse_map2d_mass.SetSize(2 * basis_dim2d);
          rd2q->inverse_map3d_mass.SetSize(3 * basis_dim3d);
 
-         const NDPos_TetrahedronElement &nd_fe =
-            static_cast<const NDPos_TetrahedronElement &>(fe);
-
-         // when expressing Bernstein Nedelec basis functions as scalar Bernsteins with vector coefficients,
-         // the vector coefficients are transformations of the original scalar coefficients. A given
-         // Bernstein Nedelec basis function can contribute to the vector coefficients of multiple scalar
-         // Bernstein functions:
-         //    \Phi_i = \sum_{\alpha} d_{\alpha} B^{p+1}_{\alpha}.
-         // The vector coefficients d_{\alpha} can be written in the form
-         //    d_{\alpha} = \sum_i c_i * c_{\alpha,i},
-         // where i comes from the set of Bernstein Nedelec basis functions contributing to B^{p+1}_{\alpha}
-         // and c_{\alpha,i} are the transformation coefficients. We precompute these transformation
-         // coefficients for each basis function. Since each basis function can contribute to as few as one
-         // or as many as 16 scalar Bernstein coefficients, we store them using two arrays: scalar_offsets,
-         // which indicates the starting index of the coefficients for each basis function, and scalar_coeffs,
-         // which stores the actual transformation coefficients.
-         int count = 0;
-         int count_curl = 0;
-         for (int basis = 0; basis < ndof3d; basis++)
-         {
-            rd2q->scalar_offsets[basis] = count;
-            rd2q->scalar_offsets_curl[basis] = count_curl;
-            const int alpha[4] = {nd_fe.a0[basis], nd_fe.a1[basis], nd_fe.a2[basis], nd_fe.a3[basis]};
-
-            if (nd_fe.type[basis] == GRADIENT)
-            {
-               // gradient fields can contribute to up 4*4 different scalar Bernstein coefficients
-               // (fewer if any multiindices are invalid).
-               for (int i = 0; i < 4; i++)
-               {
-                  if (alpha[i] == 0) { continue; }
-                  for (int l = 0; l < 4; l++)
-                  {
-                     int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
-                     beta[i]--; beta[l]++;
-                     const real_t coefficient = alpha[l] - (i == l) + 1;
-                     for (int d = 0; d < 3; d++)
-                     {
-                        rd2q->scalar_coeffs[d + 3*count] = coefficient * grad_lambda_3d[i][d];
-
-                        // we only need to store any three components of the multiindex. Since the Bernstein
-                        // H(curl) PA kernels use the same structure as the H1Pos kernels, we MUST store
-                        // beta1, beta2, and beta3, which correspond to \lambda_1, \lambda_2, and \lambda_3,
-                        // respectively, in the scalar Bernstein polynomial.
-                        rd2q->scalar_multiindices[d + 3*count] = beta[d + 1];
-                     }
-                     count++;
-                  }
-               }
-            }
-            else if (nd_fe.type[basis] == FACE_BUBBLE)
-            {
-               // non-gradient face bubbles contribute to exactly three scalar Bernstein coefficients
-               const int vertices[3] = {nd_fe.v0[basis], nd_fe.v1[basis], nd_fe.v2[basis]};
-               for (int s = 0; s < 3; s++)
-               {
-                  const int i = vertices[s];
-                  const int j = vertices[(s + 1)%3];
-                  const int k = vertices[(s + 2)%3];
-                  // transformation coefficients for mapping Bernstein Nedelec basis to scalar Bernstein
-                  int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
-                  beta[i]++;
-                  for (int d = 0; d < 3; d++)
-                  {
-                     rd2q->scalar_coeffs[d + 3*count] = (alpha[i] + 1) *
-                                                        (alpha[k]*grad_lambda_3d[j][d] -
-                                                         alpha[j]*grad_lambda_3d[k][d]);
-                     rd2q->scalar_multiindices[d + 3*count] = beta[d + 1];
-                  }
-                  count++;
-                  // transformation coefficients for mapping curls of Bernstein Nedelec basis to scalar
-                  // Bernstein
-                  for (int q = 0; q < 3; q++)
-                  {
-                     const int m = vertices[q];
-                     beta[0] = alpha[0]; beta[1] = alpha[1]; beta[2] = alpha[2]; beta[3] = alpha[3];
-                     beta[i]++; beta[m]--;
-                     if (beta[m] < 0) { continue; }
-                     for (int d = 0; d < 3; d++)
-                     {
-                        rd2q->scalar_coeffs_curl[d + 3*count_curl] = (ndof-1) * (alpha[i] + 1) *
-                                                                     (alpha[k] * tangent_3d[m][j][d] -
-                                                                      alpha[j] * tangent_3d[m][k][d]);
-                        rd2q->scalar_multiindices_curl[d + 3*count_curl] = beta[d + 1];
-                     }
-                     count_curl++;
-                  }
-               }
-            }
-            else if (nd_fe.type[basis] == CELL_BUBBLE)
-            {
-               // non-gradient cell bubbles contribute to up to four scalar Bernstein coefficients
-               const int l = nd_fe.ell[basis];
-               // transformation coefficients for mapping Bernstein Nedelec basis to scalar Bernstein
-               for (int i = 0; i < 4; i++)
-               {
-                  if (alpha[i] == 0) { continue; }
-                  int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
-                  beta[i]--;
-                  const real_t coefficient =
-                     (i == l ? ndof : 0) - alpha[l];
-                  for (int d = 0; d < 3; d++)
-                  {
-                     rd2q->scalar_coeffs[d + 3*count] = coefficient*grad_lambda_3d[i][d];
-                     rd2q->scalar_multiindices[d + 3*count] = beta[d + 1];
-                  }
-                  count++;
-               }
-               // transformation coefficients for mapping curls of Bernstein Nedelec basis to scalar
-               // Bernstein
-               for (int i = 0; i < 4; i++)
-               {
-                  if (i == l) { continue; }
-                  int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
-                  beta[i]--; beta[l]--;
-                  if (beta[i] < 0 || beta[l] < 0) { continue; }
-                  for (int d = 0; d < 3; d++)
-                  {
-                     rd2q->scalar_coeffs_curl[d + 3*count_curl] = (ndof-1) * ndof *
-                                                                  tangent_3d[i][l][d];
-                     rd2q->scalar_multiindices_curl[d + 3*count_curl] = beta[d + 1];
-                  }
-                  count_curl++;
-               }
-            }
-         }
-         rd2q->scalar_offsets[ndof3d] = count;
-         rd2q->scalar_offsets_curl[ndof3d] = count_curl;
-
          // after transformation from (vector) Bernstein Nedelec basis to scalar Bernstein basis,
          // only need to store the 1D Bernstein basis components as in H1Pos_TetrahedronElement.
          int idx = 0;
@@ -1952,6 +1823,188 @@ const DofToQuad &NDPos_TetrahedronElement::GetRaggedTensorDofToQuad(
                                                             shape_Ga3(m);
                      }
                   }
+               }
+            }
+         }
+
+         const NDPos_TetrahedronElement &nd_fe =
+            static_cast<const NDPos_TetrahedronElement &>(fe);
+
+         // when expressing Bernstein Nedelec basis functions as scalar Bernsteins with vector coefficients,
+         // the vector coefficients are transformations of the original scalar coefficients. A given
+         // Bernstein Nedelec basis function can contribute to the vector coefficients of multiple scalar
+         // Bernstein functions:
+         //    \Phi_i = \sum_{\alpha} d_{\alpha} B^{p+1}_{\alpha}.
+         // The vector coefficients d_{\alpha} can be written in the form
+         //    d_{\alpha} = \sum_i c_i * c_{\alpha,i},
+         // where i comes from the set of Bernstein Nedelec basis functions contributing to B^{p+1}_{\alpha}
+         // and c_{\alpha,i} are the transformation coefficients. We precompute these transformation
+         // coefficients for each basis function. Since each basis function can contribute to as few as one
+         // or as many as 16 scalar Bernstein coefficients, we store them using three arrays: scalar_offsets,
+         // which indicates the starting index of the coefficients for each basis function, scalar_multiindices,
+         // which gives the associated scalar Bernstein basis function that the current Nedelec basis function
+         // contributes to, and scalar_coeffs, which stores the actual transformation coefficients.
+         //
+         // Shared memory kernels also perform the transpose of this operation: for a given scalar Bernstein
+         // basis function, scalar_t_offsets indicates the starting index for each scalar bernstein basis function,
+         // scalar_t_indices gives the associated Bernstein Nedelec basis function contributing to the current
+         // scalar Bernstein, and scalar_t_coeffs stores the transformation coefficients.
+         int count = 0;
+         int count_curl = 0;
+         for (int basis = 0; basis < ndof3d; basis++)
+         {
+            rd2q->scalar_offsets[basis] = count;
+            rd2q->scalar_offsets_curl[basis] = count_curl;
+            const int alpha[4] = {nd_fe.a0[basis], nd_fe.a1[basis], nd_fe.a2[basis], nd_fe.a3[basis]};
+
+            if (nd_fe.type[basis] == GRADIENT)
+            {
+               // gradient fields can contribute to up 4*4 different scalar Bernstein coefficients
+               // (fewer if any multiindices are invalid).
+               for (int i = 0; i < 4; i++)
+               {
+                  if (alpha[i] == 0) { continue; }
+                  for (int l = 0; l < 4; l++)
+                  {
+                     int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
+                     beta[i]--; beta[l]++;
+                     const real_t coefficient = alpha[l] - (i == l) + 1;
+
+                     for (int d = 0; d < 3; d++)
+                     {
+                        rd2q->scalar_coeffs[d + 3*count] = coefficient * grad_lambda_3d[i][d];
+
+                        // we only need to store any three components of the multiindex. Since the Bernstein
+                        // H(curl) PA kernels use the same structure as the H1Pos kernels, we MUST store
+                        // beta1, beta2, and beta3, which correspond to \lambda_1, \lambda_2, and \lambda_3,
+                        // respectively, in the scalar Bernstein polynomial.
+                        rd2q->scalar_multiindices[d + 3*count] = beta[d + 1];
+                     }
+                     count++;
+                  }
+               }
+            }
+            else if (nd_fe.type[basis] == FACE_BUBBLE)
+            {
+               // non-gradient face bubbles contribute to exactly three scalar Bernstein coefficients
+               const int vertices[3] = {nd_fe.v0[basis], nd_fe.v1[basis], nd_fe.v2[basis]};
+               for (int s = 0; s < 3; s++)
+               {
+                  const int i = vertices[s];
+                  const int j = vertices[(s + 1)%3];
+                  const int k = vertices[(s + 2)%3];
+                  // transformation coefficients for mapping Bernstein Nedelec basis to scalar Bernstein
+                  int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
+                  beta[i]++;
+                  for (int d = 0; d < 3; d++)
+                  {
+                     rd2q->scalar_coeffs[d + 3*count] = (alpha[i] + 1) *
+                                                        (alpha[k]*grad_lambda_3d[j][d] -
+                                                         alpha[j]*grad_lambda_3d[k][d]);
+                     rd2q->scalar_multiindices[d + 3*count] = beta[d + 1];
+                  }
+                  count++;
+                  // transformation coefficients for mapping curls of Bernstein Nedelec basis to scalar
+                  // Bernstein
+                  for (int q = 0; q < 3; q++)
+                  {
+                     const int m = vertices[q];
+                     beta[0] = alpha[0]; beta[1] = alpha[1]; beta[2] = alpha[2]; beta[3] = alpha[3];
+                     beta[i]++; beta[m]--;
+                     if (beta[m] < 0) { continue; }
+                     for (int d = 0; d < 3; d++)
+                     {
+                        rd2q->scalar_coeffs_curl[d + 3*count_curl] = (ndof-1) * (alpha[i] + 1) *
+                                                                     (alpha[k] * tangent_3d[m][j][d] -
+                                                                      alpha[j] * tangent_3d[m][k][d]);
+                        rd2q->scalar_multiindices_curl[d + 3*count_curl] = beta[d + 1];
+                     }
+                     count_curl++;
+                  }
+               }
+            }
+            else if (nd_fe.type[basis] == CELL_BUBBLE)
+            {
+               // non-gradient cell bubbles contribute to up to four scalar Bernstein coefficients
+               const int l = nd_fe.ell[basis];
+               // transformation coefficients for mapping Bernstein Nedelec basis to scalar Bernstein
+               for (int i = 0; i < 4; i++)
+               {
+                  if (alpha[i] == 0) { continue; }
+                  int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
+                  beta[i]--;
+                  const real_t coefficient =
+                     (i == l ? ndof : 0) - alpha[l];
+                  for (int d = 0; d < 3; d++)
+                  {
+                     rd2q->scalar_coeffs[d + 3*count] = coefficient*grad_lambda_3d[i][d];
+                     rd2q->scalar_multiindices[d + 3*count] = beta[d + 1];
+                  }
+                  count++;
+               }
+               // transformation coefficients for mapping curls of Bernstein Nedelec basis to scalar
+               // Bernstein
+               for (int i = 0; i < 4; i++)
+               {
+                  if (i == l) { continue; }
+                  int beta[4] = {alpha[0], alpha[1], alpha[2], alpha[3]};
+                  beta[i]--; beta[l]--;
+                  if (beta[i] < 0 || beta[l] < 0) { continue; }
+                  for (int d = 0; d < 3; d++)
+                  {
+                     rd2q->scalar_coeffs_curl[d + 3*count_curl] = (ndof-1) * ndof *
+                                                                  tangent_3d[i][l][d];
+                     rd2q->scalar_multiindices_curl[d + 3*count_curl] = beta[d + 1];
+                  }
+                  count_curl++;
+               }
+            }
+         }
+         rd2q->scalar_offsets[ndof3d] = count;
+         rd2q->scalar_offsets_curl[ndof3d] = count_curl;
+
+         // compute arrays for transpose mapping operation
+         rd2q->scalar_t_offsets.SetSize(basis_dim3d + 1);
+         rd2q->scalar_t_offsets = 0;
+         // compute number of Bernstein Nedelec contributions for each scalar Bernstein
+         for (int basis = 0; basis < ndof3d; basis++)
+         {
+            for (int k = rd2q->scalar_offsets[basis];
+                 k < rd2q->scalar_offsets[basis + 1]; k++)
+            {
+               const int beta1 = rd2q->scalar_multiindices[3*k];
+               const int beta2 = rd2q->scalar_multiindices[3*k + 1];
+               const int beta3 = rd2q->scalar_multiindices[3*k + 2];
+               const int scalar_idx = rd2q->lex_map[beta3 + ndof*(beta2 + ndof*beta1)];
+               rd2q->scalar_t_offsets[scalar_idx + 1]++;
+            }
+         }
+         // convert counts to offsets (i.e. scalar_idx+1 contains cumulative sum of
+         // contributions of up to scalar_idx
+         for (int scalar_idx = 0; scalar_idx < basis_dim3d; scalar_idx++)
+         {
+            rd2q->scalar_t_offsets[scalar_idx + 1] += rd2q->scalar_t_offsets[scalar_idx];
+         }
+
+         rd2q->scalar_t_indices.SetSize(count);
+         rd2q->scalar_t_coeffs.SetSize(3*count);
+         Array<int> next(rd2q->scalar_t_offsets);
+         for (int basis = 0; basis < ndof3d; basis++)
+         {
+            for (int k = rd2q->scalar_offsets[basis];
+                 k < rd2q->scalar_offsets[basis + 1]; k++)
+            {
+               const int beta1 = rd2q->scalar_multiindices[3*k];
+               const int beta2 = rd2q->scalar_multiindices[3*k + 1];
+               const int beta3 = rd2q->scalar_multiindices[3*k + 2];
+               const int scalar_idx = rd2q->lex_map[beta3 + ndof*(beta2 + ndof*beta1)];
+               // store all the transformation coefficients contributing to scalar_idx
+               // in contiguous memory
+               const int pos = next[scalar_idx]++;
+               rd2q->scalar_t_indices[pos] = basis;
+               for (int d = 0; d < 3; d++)
+               {
+                  rd2q->scalar_t_coeffs[d + 3*pos] = rd2q->scalar_coeffs[d + 3*k];
                }
             }
          }

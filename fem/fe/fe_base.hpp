@@ -279,6 +279,9 @@ public:
    Array<int> scalar_offsets_curl;
    Array<int> scalar_multiindices_curl;
    Array<real_t> scalar_coeffs_curl;
+   Array<int> scalar_t_offsets;
+   Array<int> scalar_t_indices;
+   Array<real_t> scalar_t_coeffs;
 };
 
 /// Describes the function space on each element
