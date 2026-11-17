@@ -564,6 +564,11 @@ const DofToQuad &H1Pos_TriangleElement::GetRaggedTensorDofToQuad(
 {
    DofToQuad *d2q = nullptr;
    MFEM_VERIFY(mode == DofToQuad::RAGGED_TENSOR, "invalid mode requested");
+   const IntegrationRule &stroud_ir =
+      StroudIntRules.Get(fe.GetGeomType(), ir.GetOrder());
+   MFEM_VERIFY(&ir == &stroud_ir,
+               "partial assembly with Bernstein basis on simplices "
+               "requires an integration rule returned by StroudIntRules");
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    #pragma omp critical (DofToQuad)
@@ -851,6 +856,11 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
 {
    DofToQuad *d2q = nullptr;
    MFEM_VERIFY(mode == DofToQuad::RAGGED_TENSOR, "invalid mode requested");
+   const IntegrationRule &stroud_ir =
+      StroudIntRules.Get(fe.GetGeomType(), ir.GetOrder());
+   MFEM_VERIFY(&ir == &stroud_ir,
+               "partial assembly with Bernstein basis on simplices "
+               "requires an integration rule returned by StroudIntRules");
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    #pragma omp critical (DofToQuad)
