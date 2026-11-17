@@ -322,8 +322,7 @@ struct TMOPIntegratorSpec
    /// Order used with @a irules; negative uses the problem's order.
    int quadrature_order = -1;
 
-   /// Integrate over the target element rather than the reference element.
-   /// Partial assembly always integrates over the target.
+   /// True integrates over the target element, false over the reference element.
    bool integrate_over_target = true;
    /// Exact action of TMOP_Integrator, instead of the assembled operator.
    bool exact_action = false;
@@ -1049,10 +1048,6 @@ inline void TMOPOptimizer::Validate() const
       }
       MFEM_VERIFY(!pa || !spec.exact_action,
                   "Partial assembly does not support exact action.");
-      // The PA kernels weight every integral by det(Jtr) unconditionally.
-      MFEM_VERIFY(!pa || spec.integrate_over_target,
-                  "Partial assembly always integrates over the target; "
-                  "integrate_over_target = false needs legacy assembly.");
       MFEM_VERIFY(!spec.limiting.enabled || !pa || !Periodic(),
                   "Native partial-assembly limiting does not support "
                   "periodic reference nodes.");
