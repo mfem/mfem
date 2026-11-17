@@ -18,6 +18,7 @@
 //    ex9 -m ../data/periodic-cube.mesh -p 0 -r 2 -o 2 -dt 0.02 -tf 8
 //    ex9 -m ../data/periodic-square.msh -p 0 -r 2 -dt 0.005 -tf 2
 //    ex9 -m ../data/periodic-cube.msh -p 0 -r 1 -o 2 -tf 2
+//    ex9 -m ../data/amr-hex.mesh -p 1 -r 1 -dt 0.005 -tf 0.5 -s 21  -imp-state
 //
 // Device sample runs:
 //    ex9 -pa
@@ -305,16 +306,18 @@ int main(int argc, char *argv[])
    }
 
    // Create data collection for solution output: either VisItDataCollection for
-   // ascii data files, or SidreDataCollection for binary data files.
+   // ascii data files, or ConduitDataCollection for binary data files.
    DataCollection *dc = NULL;
    if (visit)
    {
       if (binary)
       {
-#ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example9", &mesh);
+#ifdef MFEM_USE_CONDUIT
+         auto conduit_dc = new ConduitDataCollection("Example9", &mesh);
+         conduit_dc->SetProtocol("hdf5");
+         dc = conduit_dc;
 #else
-         MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
+         MFEM_ABORT("Must build with MFEM_USE_CONDUIT=YES for binary output.");
 #endif
       }
       else
@@ -374,11 +377,11 @@ int main(int argc, char *argv[])
    ImplicitVariableType imp_var = solve_implicit_state ?
                                   ImplicitVariableType::STATE
                                   : ImplicitVariableType::SLOPE;
-   adv.SetImplicitVariableType(imp_var);
 
    real_t t = 0.0;
    adv.SetTime(t);
    ode_solver->Init(adv);
+   ode_solver->SetImplicitVariableType(imp_var);
 
    bool done = false;
    for (int ti = 0; !done; )
@@ -469,17 +472,19 @@ void FE_Evolution::ImplicitSolve(const real_t dt, const Vector &x, Vector &k)
    MFEM_VERIFY(dg_solver != NULL,
                "Implicit time integration is not supported with partial assembly");
    // Construct current right-hand side for stage state vs. slope solve
+   real_t c = 1.0;
    if (ImplicitVarTypeIsState())
    {
       // k, on return, is the stage value u
       M.Mult(x, z);
+      c = dt;
    }
    else
    {
       // k, on return, is the stage slope du/dt
       K.Mult(x, z);
    }
-   z += b;
+   z.Add(c, b);
    dg_solver->SetTimeStep(dt);
    dg_solver->Mult(z, k);
 }

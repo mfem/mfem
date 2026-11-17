@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -77,8 +77,6 @@ VectorFEMassIntegrator::Kernels::Kernels()
                           FiniteElement::CURL, 3, 3, 3, 4>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
                           FiniteElement::CURL, 3, 4, 4, 5>();
-   VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
-                          FiniteElement::CURL, 3, 5, 5, 6>();
    // Q = P + 2 (3D)
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::CURL,
                           FiniteElement::CURL, 3, 2, 2, 4>();
@@ -115,8 +113,6 @@ VectorFEMassIntegrator::Kernels::Kernels()
                           FiniteElement::DIV, 3, 3, 3, 4>();
    VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
                           FiniteElement::DIV, 3, 4, 4, 5>();
-   VectorFEMassIntegrator::AddSpecialization<FiniteElement::DIV,
-                          FiniteElement::DIV, 3, 5, 5, 6>();
 }
 
 void VectorFEMassIntegrator::Init(Coefficient *q, DiagonalMatrixCoefficient *dq,

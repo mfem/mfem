@@ -168,7 +168,7 @@ int main(int argc, char *argv[])
          {
             case 1: mesh.GetHilbertElementOrdering(ordering); break;
             case 2: mesh.GetGeckoElementOrdering(ordering); break;
-            default: MFEM_ABORT("Unknown mesh reodering type " << reorder_mesh);
+            default: MFEM_ABORT("Unknown mesh reordering type " << reorder_mesh);
          }
          mesh.ReorderElements(ordering);
       }

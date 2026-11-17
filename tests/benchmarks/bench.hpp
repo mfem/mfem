@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,6 +26,14 @@ namespace mfem
 {
 
 constexpr std::size_t KB = (1 << 10);
+
+/// True when MFEM is built with a CUDA or HIP backend. This is a build-time
+/// flag only; it does not reflect the device configured at runtime.
+#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
+constexpr bool mfem_use_gpu = true;
+#else
+constexpr bool mfem_use_gpu = false;
+#endif
 
 // Specific MFEM Reporter
 class Reporter : public benchmark::BenchmarkReporter
