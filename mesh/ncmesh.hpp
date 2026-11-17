@@ -532,9 +532,6 @@ public:
    void Print(std::ostream &out, const std::string &comments = "",
               bool nurbs=false, bool attribute_sets=false) const;
 
-   /// Return true when the loaded NC mesh format supports named attribute sets.
-   bool SupportsAttributeSets() const { return using_attribute_sets; }
-
    /// I/O: Return true if the mesh was loaded from the legacy v1.1 format.
    bool IsLegacyLoaded() const { return Legacy; }
 
@@ -690,7 +687,6 @@ protected: // implementation
    HashTable<Face> faces; // associative container holding all Faces
 
    bool using_scaling = false; // Whether Node::scale is being used
-   bool using_attribute_sets = false; // Whether NC mesh format v1.2 is used
 
    BlockArray<Element> elements; // storage for all Elements
    Array<int> free_element_ids;  // unused element ids - indices into 'elements'

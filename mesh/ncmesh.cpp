@@ -240,7 +240,6 @@ NCMesh::NCMesh(const NCMesh &other)
    , nodes(other.nodes)
    , faces(other.faces)
    , using_scaling(other.using_scaling)
-   , using_attribute_sets(other.using_attribute_sets)
    , elements(other.elements)
    , free_element_ids(other.free_element_ids)
    , root_state(other.root_state)
@@ -6523,7 +6522,7 @@ int NCMesh::CountTopLevelNodes() const
 
 NCMesh::NCMesh(std::istream &input, int version, int &curved, int &is_nc)
    : spaceDim(0), MyRank(0), Iso(true), Legacy(false),
-     using_scaling(version >= 11), using_attribute_sets(version >= 12)
+     using_scaling(version >= 11)
 {
    is_nc = 1;
    if (version == 1) // old MFEM mesh v1.1 format

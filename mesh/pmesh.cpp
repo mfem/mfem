@@ -7191,8 +7191,6 @@ static ParMesh DistributeMesh(MPI_Comm comm, Mesh &m, int part_method,
       return DistributeMesh(comm, m, partitioning.GetData(), generate_edges,
                             refine, fix_orientation);
    }
-   std::stringstream local_ser;
-
    int *partitioning;
    if (nxyz)
    {

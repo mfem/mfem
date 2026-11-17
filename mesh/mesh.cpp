@@ -15080,10 +15080,6 @@ public:
       return false;
    }
 
-   void DropCoordinates()
-   {
-      coordinates.DeleteAll();
-   }
 };
 
 } // namespace
@@ -15672,7 +15668,7 @@ void MeshPartitioner::PrintPart(int part_id, std::ostream &os) const
                              owned_global_elem_ids);
       if (global_nodes)
       {
-         part_ncmesh.DropCoordinates();
+         part_ncmesh.MakeTopologyOnly();
       }
 
       const bool set_names = mesh.attribute_sets.SetsExist() ||
@@ -15735,26 +15731,13 @@ MeshPartitioner::ExtractGridFunction(const MeshPart &mesh_part,
 {
    MFEM_VERIFY(mesh.Conforming(),
                "ExtractGridFunction not supported for non-conforming meshes");
-   std::unique_ptr<GridFunction> local_gf(new GridFunction(&local_fespace));
-
-   // Transfer data from 'global_gf' to 'local_gf'.
-   Array<int> gvdofs, lvdofs;
-   Vector loc_vals;
    const int part_id = mesh_part.my_part_id;
    const int num_elems = part_to_element.RowSize(part_id);
    const int *elem_list = part_to_element.GetRow(part_id); // sorted
-   for (int loc_elem_id = 0; loc_elem_id < num_elems; loc_elem_id++)
-   {
-      const int glob_elem_id = elem_list[loc_elem_id];
-      DofTransformation glob_dt, local_dt;
-      global_gf.FESpace()->GetElementVDofs(glob_elem_id, gvdofs, glob_dt);
-      global_gf.GetSubVector(gvdofs, loc_vals);
-      glob_dt.InvTransformPrimal(loc_vals);
-      local_fespace.GetElementVDofs(loc_elem_id, lvdofs, local_dt);
-      local_dt.TransformPrimal(loc_vals);
-      local_gf->SetSubVector(lvdofs, loc_vals);
-   }
-   return local_gf;
+   // Borrow the table row without copying or modifying its element IDs.
+   const Array<int> global_elem_ids(const_cast<int *>(elem_list), num_elems);
+   return ExtractElementwiseGridFunction(global_elem_ids, global_gf,
+                                         local_fespace);
 }
 
 
