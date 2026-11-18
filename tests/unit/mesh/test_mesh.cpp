@@ -14,6 +14,23 @@
 
 using namespace mfem;
 
+TEST_CASE("AttrToMarker", "[Mesh][AttributeSets]")
+{
+   SECTION("Empty attribute array")
+   {
+      Array<int> attrs;
+      Array<int> marker = AttributeSets::AttrToMarker(5, attrs);
+      REQUIRE(marker == Array<int>({0, 0, 0, 0, 0}));
+   }
+
+   SECTION("Non-empty attribute array")
+   {
+      Array<int> attrs({1, 3, 3, 5});
+      Array<int> marker = AttributeSets::AttrToMarker(5, attrs);
+      REQUIRE(marker == Array<int>({1, 0, 1, 0, 1}));
+   }
+}
+
 TEST_CASE("Element-wise construction", "[Mesh]")
 {
    SECTION("Quadrilateral")

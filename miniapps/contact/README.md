@@ -82,6 +82,45 @@ Although Tribol can be built automatically via **uberenv** and **Spack**,
 for this miniapp it is simpler to build **Axom** and **MFEM** manually and 
 point Tribol to them. The steps are as follows:
 
+### Using pre-built Tribol/Axom installs
+
+If you already have compatible installs of Tribol and Axom, point MFEM to the install prefixes.
+
+- Hypre install prefix: `<path/to/hypre>`
+- METIS install prefix: `<path/to/metis>`
+- Axom install prefix: `<path/to/axom>`
+- Tribol install prefix: `<path/to/tribol>`
+
+**MFEM make build (configure):**
+```bash
+make config MFEM_USE_MPI=YES MFEM_USE_METIS=YES MFEM_USE_METIS_5=YES MFEM_USE_TRIBOL=YES \
+  CXXFLAGS="-std=c++20" \
+  HYPRE_DIR=<path/to/hypre> METIS_DIR=<path/to/metis> \
+  AXOM_DIR=<path/to/axom> TRIBOL_DIR=<path/to/tribol> ADIAK_DIR=<path/to/adiak> CAMP_DIR=<path/to/camp> \
+  RAJA_DIR=<path/to/raja> UMPIRE_DIR=<path/to/umpire> FMT_DIR=<path/to/fmt> CALIPER_DIR=<path/to/caliper>
+```
+
+**MFEM CMake build (configure):**
+```bash
+cmake -S . -B <mfem-build-dir> -DCMAKE_CXX_STANDARD=20 \
+  -DMFEM_USE_MPI=YES -DMFEM_USE_METIS=YES -DMFEM_USE_TRIBOL=YES \
+  -DHYPRE_DIR=<path/to/hypre> -DMETIS_DIR=<path/to/metis> \
+  -DAXOM_DIR=<path/to/axom> -DTRIBOL_DIR=<path/to/tribol> -DADIAK_DIR=<path/to/adiak> -DCAMP_DIR=<path/to/camp> \
+  -DRAJA_DIR=<path/to/raja> -DUMPIRE_DIR=<path/to/umpire> -DCALIPER_DIR=<path/to/caliper>
+```
+
+Note: RAJA/UMPIRE/CALIPER are optional for MFEM itself, but many Tribol builds
+enable them. If your Tribol install does not depend on them, you can omit the
+corresponding `*_DIR` entries above.
+
+Note: `FMT_DIR` only needs to be added for the make-based build (and only when
+the Umpire install uses `fmt`). If `FMT_DIR` is not set and a sibling `fmt-*`
+directory exists next to your `UMPIRE_DIR`, MFEM's make configuration will try
+to pick it up automatically.
+
+Note: when using pre-built Tribol/Axom, you typically need to use a compatible
+compiler/MPI wrapper (same C++ standard library ABI).
+
 ### Manual Build Steps
 
 1. Pull axom and tribol (starting from the mfem folder):
@@ -90,8 +129,8 @@ point Tribol to them. The steps are as follows:
    git clone --recursive https://github.com/LLNL/axom.git axom-repo
    git clone --recursive https://github.com/LLNL/Tribol.git tribol-repo
    ```
-2. **MFEM:** Build with `MFEM_USE_MPI`, `MFEM_USE_METIS`, and `MFEM_USE_TRIBOL`  
-   enabled, plus MUMPS or CPardiso if AMGF is desired.
+2. **MFEM:** Build with `MFEM_USE_MPI`, `MFEM_USE_METIS`, `MFEM_USE_METIS_5`, 
+   and `MFEM_USE_TRIBOL` enabled, plus MUMPS or CPardiso if AMGF is desired.
    Note: it's important to do `make install`.
    ```
    MFEM_USE_TRIBOL = YES
@@ -99,7 +138,7 @@ point Tribol to them. The steps are as follows:
    TRIBOL_DIR = @MFEM_DIR@/../tribol-repo/tribol
    TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
    TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -ltribol_shared -lredecomp -L$(AXOM_DIR)/lib \
-   -laxom_mint -laxom_slam -laxom_slic -laxom_core
+   -laxom_quest -laxom_mint -laxom_slam -laxom_slic -laxom_lumberjack -laxom_core
    ```
 3. [**Axom:**](https://github.com/LLNL/axom.git) Starting from the MFEM root
    directory (we assume this directory is named mfem):
@@ -121,4 +160,3 @@ point Tribol to them. The steps are as follows:
      ```bash
       make contact
       ```  
-
