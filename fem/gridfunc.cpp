@@ -397,9 +397,26 @@ void GridFunction::GetNodalValues(int i, Array<real_t> &nval, int vdim) const
       Vector shape(dof);
       if (FElem->GetMapType() == FiniteElement::VALUE)
       {
+         // On simplices, prisms and pyramids, CalcShape ends in a dense solve
+         // that depends only on the point: the values at the vertices are
+         // read from the DofToQuad table of the element instead. They are
+         // the same. Tensor-product elements gain nothing, and the NURBS ones
+         // depend on the element.
+         const real_t *B = nullptr;
+         if (!Geometry::IsTensorProduct(FElem->GetGeomType()))
+         {
+            B = FElem->GetDofToQuad(*ElemVert, DofToQuad::FULL).B.HostRead();
+         }
          for (int k = 0; k < n; k++)
          {
-            FElem->CalcShape(ElemVert->IntPoint(k), shape);
+            if (B)
+            {
+               for (int j = 0; j < dof; j++) { shape(j) = B[k + n*j]; }
+            }
+            else
+            {
+               FElem->CalcShape(ElemVert->IntPoint(k), shape);
+            }
             nval[k] = shape * (&loc_data[dof * vdim]);
          }
       }
