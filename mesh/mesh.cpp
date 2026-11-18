@@ -7357,6 +7357,35 @@ int Mesh::CheckElementOrientation(bool fix_it)
    int i, j, k, wo = 0, fo = 0;
    real_t *v[4];
 
+   // Jacobian of an element at its center. On curved simplices, prisms and
+   // pyramids, CalcDShape ends in dense solves that depend only on the point:
+   // the gradients of the shape functions at the center are evaluated once
+   // per finite element, not once per element. The Jacobian is the same.
+   // Tensor-product elements gain nothing, and the NURBS ones depend on the
+   // element.
+   const FiniteElement *center_fe = nullptr;
+   DenseMatrix center_dshape, dFdx;
+   auto GetCenterJacobian = [&](int el, DenseMatrix &J)
+   {
+      const Geometry::Type geom = GetElementBaseGeometry(el);
+      if (Nodes == nullptr || Geometry::IsTensorProduct(geom))
+      {
+         GetElementJacobian(el, J);
+         return;
+      }
+      GetElementTransformation(el, &Transformation);
+      const FiniteElement *fe = Transformation.GetFE();
+      if (fe != center_fe)
+      {
+         center_dshape.SetSize(fe->GetDof(), fe->GetDim());
+         fe->CalcDShape(Geometries.GetCenter(geom), center_dshape);
+         center_fe = fe;
+      }
+      dFdx.SetSize(spaceDim, fe->GetDim());
+      Mult(Transformation.GetPointMat(), center_dshape, dFdx);
+      Geometries.JacToPerfJac(geom, dFdx, J);
+   };
+
    if (Dim == 2 && spaceDim == 2)
    {
       DenseMatrix J(2, 2);
@@ -7379,7 +7408,7 @@ int Mesh::CheckElementOrientation(bool fix_it)
          else
          {
             // only check the Jacobian at the center of the element
-            GetElementJacobian(i, J);
+            GetCenterJacobian(i, J);
          }
          if (J.Det() < 0.0)
          {
@@ -7430,7 +7459,7 @@ int Mesh::CheckElementOrientation(bool fix_it)
                else
                {
                   // only check the Jacobian at the center of the element
-                  GetElementJacobian(i, J);
+                  GetCenterJacobian(i, J);
                }
                if (J.Det() < 0.0)
                {
@@ -7445,7 +7474,7 @@ int Mesh::CheckElementOrientation(bool fix_it)
 
             case Element::WEDGE:
                // only check the Jacobian at the center of the element
-               GetElementJacobian(i, J);
+               GetCenterJacobian(i, J);
                if (J.Det() < 0.0)
                {
                   wo++;
@@ -7458,7 +7487,7 @@ int Mesh::CheckElementOrientation(bool fix_it)
 
             case Element::PYRAMID:
                // only check the Jacobian at the center of the element
-               GetElementJacobian(i, J);
+               GetCenterJacobian(i, J);
                if (J.Det() < 0.0)
                {
                   wo++;
