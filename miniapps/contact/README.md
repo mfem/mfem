@@ -72,6 +72,75 @@ sequence and returns exit code 2.
 
 ### GPU execution
 
+BoomerAMG uses Chebyshev smoothing by default (`-amg-relax-type 16`) for both
+AMG and AMGF. Select the previous l1-Jacobi smoother with
+`-amg-relax-type 18`. Coarsening 8, interpolation 6, and zero aggressive levels
+remain the defaults.
+
+`-hypre-gpu-aware-mpi` enables HYPRE's runtime GPU-aware communication flag
+after device initialization. Its default is disabled; use
+`-no-hypre-gpu-aware-mpi` to disable it explicitly. The MPI installation must
+accept device buffers. On Tuolumne, `run-contact-bound.sh` automatically sets
+`MPICH_GPU_SUPPORT_ENABLED=1` when this option is enabled; for other launchers,
+export it explicitly. The existing build links Cray MPICH's HSA GPU transport. MFEM's separate
+GPU-aware MPI setting is controlled by `MFEM_GPU_AWARE_MPI`: leave that
+environment variable unset for the measured HYPRE-only configuration.
+
+To run the native-HIP version of the fastest tested solver/refinement settings,
+first build only the miniapp:
+
+```bash
+cd /usr/workspace/socratis/nnl/GPU/mfem/miniapps/contact
+make -j3 contact
+```
+
+Then, inside an allocated four-GPU Tuolumne node:
+
+```bash
+export MPICH_GPU_SUPPORT_ENABLED=1 HSA_XNACK=0
+unset MFEM_DEVICE MFEM_MEMORY MFEM_GPU_AWARE_MPI
+./run-contact-bound.sh --ranks 4 --cores 24 -- \
+  -prob 0 -sr 0 -pr 3 -tr 2 -nsteps 1 -opt-maxit 1 \
+  -amgf -amgf-fsolver mumps -fa -d hip -hypre-gpu-aware-mpi \
+  -no-vis -no-paraview -pl 1
+```
+
+Use `--ranks 1`, `2`, or `4` with identical miniapp options for strong scaling.
+The wrapper binds one GPU and its local CPU/NUMA domain per rank, uses one
+OpenMP/BLAS thread, enables MPICH GPU support for the HYPRE option, and
+prints the per-rank MPI settings plus `TOTAL_WALL_SECONDS`. To inspect the configuration once, use
+`-pl 2 -amg-print-options`: HYPRE GPU-aware MPI should print `enabled` and
+AMG down/up relaxation should be 16. With `-opt-maxit 1`, exit 2 after one
+accepted optimizer step is expected; the inner CG solve must still converge.
+
+The prior study's 9.09-second result was a synchronized program timer, excluding
+launch/device initialization and final teardown; corresponding full elapsed
+time was 12.18 seconds. It also explicitly allocated selected displacement
+vectors as managed memory. The native `-d hip` command above reproduces the
+solver, refinement, and communication settings with ordinary HIP allocation;
+its performance has not yet been measured under identical conditions. For
+the exact measured selective-memory command, see
+`../../../contact-scaling-investigation-20261117/REPRODUCE.md`.
+
+For host execution, specify `-d cpu`. The launcher accepts MPI rank counts
+above four, defaults to one CPU core per rank, requests no GPUs, and uses
+Flux per-task CPU affinity with local host-memory allocation. Rank count
+times `--cores` must fit the single-node CPU allocation. OpenMP and BLAS
+remain single-threaded per rank.
+
+For example, inside a sufficiently large single-node allocation:
+
+```bash
+unset MFEM_DEVICE MFEM_MEMORY MFEM_GPU_AWARE_MPI
+./run-contact-bound.sh --ranks 16 --cores 1 -- \
+  -prob 0 -sr 0 -pr 3 -tr 2 -nsteps 1 -opt-maxit 1 \
+  -amgf -amgf-fsolver mumps -fa -d cpu -no-vis -no-paraview -pl 1
+```
+
+Use 32, 48, or 96 ranks similarly when enough CPU cores are allocated.
+Omit `-hypre-gpu-aware-mpi` for host runs. HIP runs retain the one-GPU-per-rank
+binding and the four-rank limit on one Tuolumne node.
+
 Use a CUDA-enabled MFEM and a CUDA-enabled HYPRE build for `-d cuda`. The HIP
 equivalent is `-d hip`, with HIP enabled in both libraries. GPU HYPRE builds
 require version 2.31 or newer for MFEM's runtime host/device memory policy

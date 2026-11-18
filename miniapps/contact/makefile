@@ -24,6 +24,11 @@ include $(DEFAULTS_MK)
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
+# Resolve the workspace alias recorded in this installation's dependency paths.
+CONTACT_WORKSPACE_ROOT := $(abspath $(MFEM_DIR)/../..)
+MFEM_FLAGS := $(subst /usr/WS1/socratis/nnl,$(CONTACT_WORKSPACE_ROOT),$(MFEM_FLAGS))
+MFEM_LIBS := $(subst /usr/WS1/socratis/nnl,$(CONTACT_WORKSPACE_ROOT),$(MFEM_LIBS))
+
 # Device-enabled Tribol dependencies require C++20; MFEM remains C++17.
 ifeq ($(MFEM_USE_TRIBOL),YES)
 ifneq ($(filter YES,$(MFEM_USE_CUDA) $(MFEM_USE_HIP)),)

@@ -322,11 +322,10 @@ int main(int argc, char *argv[])
    cout << "Contact miniapp is not supported in single precision.\n\n";
    return MFEM_SKIP_RETURN_VALUE;
 #endif
-   // 0. Initialize MPI and HYPRE.
+   // 0. Initialize MPI.
    Mpi::Init();
    int myid = Mpi::WorldRank();
    int num_procs = Mpi::WorldSize();
-   Hypre::Init();
 
    problem_name prob_name;
 
@@ -359,12 +358,13 @@ int main(int argc, char *argv[])
    // Direct solver for AMGF filtered subspace
    // Choices:"auto", "mumps", "cpardiso", "superlu", "strumpack", "cudss"
    const char *amgf_fsolver = "auto";
-   // BoomerAMG options. Defaults match MFEM/HYPRE's GPU-oriented defaults.
+   // GPU-oriented BoomerAMG coarsening/interpolation with Chebyshev smoothing.
    int amg_coarsen_type = 8;
    int amg_agg_levels = 0;
    int amg_interp_type = 6;
-   int amg_relax_type = 18;
+   int amg_relax_type = 16;
    bool amg_print_options = false;
+   bool hypre_gpu_aware_mpi = false;
    // Device configuration string.
    const char *device_config = "cpu";
    // Use full assembly for the linear elasticity stiffness matrix.
@@ -411,7 +411,12 @@ int main(int argc, char *argv[])
                   "BoomerAMG interpolation type.");
    args.AddOption(&amg_relax_type, "-amg-relax-type",
                   "--amg-relax-type",
-                  "BoomerAMG relaxation/smoother type.");
+                  "BoomerAMG smoother: 16 = Chebyshev (default), 18 = l1-Jacobi.");
+   args.AddOption(&hypre_gpu_aware_mpi, "-hypre-gpu-aware-mpi",
+                  "--hypre-gpu-aware-mpi", "-no-hypre-gpu-aware-mpi",
+                  "--no-hypre-gpu-aware-mpi",
+                  "Enable HYPRE GPU-aware MPI; requires GPU-aware MPI support "
+                  "in the MPI library and launcher.");
    args.AddOption(&amg_print_options, "-amg-print-options",
                   "--amg-print-options", "-no-amg-print-options",
                   "--no-amg-print-options",
@@ -452,7 +457,23 @@ int main(int argc, char *argv[])
       mfem::out.Disable();
       mfem::err.Disable();
    }
+   // Keep help/option validation independent of GPU HYPRE initialization.
+   Hypre::Init();
    Device device(device_config);
+#if MFEM_HYPRE_VERSION >= 23100
+   MFEM_VERIFY(!hypre_gpu_aware_mpi || HypreUsingGPU(),
+               "HYPRE GPU-aware MPI requires an active GPU HYPRE backend.");
+   MFEM_VERIFY(HYPRE_SetGpuAwareMPI(hypre_gpu_aware_mpi ? 1 : 0) == 0,
+               "HYPRE MPI policy configuration failed.");
+   if (myid == 0 && print_level >= 2)
+   {
+      cout << "HYPRE GPU-aware MPI: "
+           << (hypre_GetGpuAwareMPI() ? "enabled" : "disabled") << endl;
+   }
+#else
+   MFEM_VERIFY(!hypre_gpu_aware_mpi,
+               "The HYPRE GPU-aware MPI option requires HYPRE 2.31 or newer.");
+#endif
    if (amgf)
    {
       std::string solver_name(amgf_fsolver);
