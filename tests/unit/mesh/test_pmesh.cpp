@@ -12,6 +12,10 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <algorithm>
+#include <cmath>
+#include <vector>
+
 namespace mfem
 {
 #ifdef MFEM_USE_MPI
@@ -258,6 +262,116 @@ TEST_CASE("ParMeshMakeSimplicial interior boundary", "[Parallel], [ParMesh]")
    {
       REQUIRE(simplex_mesh.GetBdrAttribute(i) == pmesh.GetBdrAttribute(i));
    }
+}
+
+TEST_CASE("ParMesh nodes after a conforming refinement are the same in any "
+          "partition", "[Parallel], [ParMesh]")
+{
+   // After a conforming refinement each node takes the largest of the values
+   // of the fine elements that contain it, on all the ranks: a curved mesh
+   // distributed cyclically and refined near a point, then uniformly, has the
+   // same nodes, bit for bit and element for element, as the serial mesh.
+   const int nranks = Mpi::WorldSize();
+   for (const int dim : {2, 3})
+   {
+      INFO(dim << "D");
+      Mesh serial = (dim == 2) ?
+                    Mesh::MakeCartesian2D(4, 4, Element::TRIANGLE) :
+                    Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON);
+      serial.Finalize(true);
+      serial.SetCurvature(3);
+      serial.Transform([](const Vector &x, Vector &y)
+      {
+         y = x;
+         y(0) += 0.03*std::sin(3.0*x(1));
+         y(1) += 0.02*std::cos(2.0*x(0));
+      });
+      Array<int> part(serial.GetNE());
+      for (int e = 0; e < serial.GetNE(); e++) { part[e] = e % nranks; }
+      ParMesh pmesh(MPI_COMM_WORLD, serial, part.GetData());
+      // The nodal values of each element, of all the ranks, sorted.
+      auto Nodes = [](Mesh &mesh)
+      {
+         const GridFunction &nodes = *mesh.GetNodes();
+         std::vector<real_t> flat;
+         Array<int> vdofs;
+         int len = 0;
+         for (int e = 0; e < mesh.GetNE(); e++)
+         {
+            nodes.FESpace()->GetElementVDofs(e, vdofs);
+            len = vdofs.Size();
+            for (int i : vdofs) { flat.push_back(nodes(i)); }
+         }
+         if (ParMesh *pm = dynamic_cast<ParMesh *>(&mesh))
+         {
+            int n = static_cast<int>(flat.size()), size;
+            MPI_Comm_size(pm->GetComm(), &size);
+            std::vector<int> counts(size), offsets(size + 1, 0);
+            MPI_Allgather(&n, 1, MPI_INT, counts.data(), 1, MPI_INT,
+                          pm->GetComm());
+            for (int r = 0; r < size; r++)
+            {
+               offsets[r+1] = offsets[r] + counts[r];
+            }
+            std::vector<real_t> all(offsets[size]);
+            MPI_Allgatherv(flat.data(), n, MPITypeMap<real_t>::mpi_type,
+                           all.data(), counts.data(), offsets.data(),
+                           MPITypeMap<real_t>::mpi_type, pm->GetComm());
+            flat.swap(all);
+            MPI_Allreduce(MPI_IN_PLACE, &len, 1, MPI_INT, MPI_MAX,
+                          pm->GetComm());
+         }
+         std::vector<std::vector<real_t>> rows;
+         for (std::size_t i = 0; i + len <= flat.size() && len > 0; i += len)
+         {
+            rows.emplace_back(flat.begin() + i, flat.begin() + i + len);
+         }
+         std::sort(rows.begin(), rows.end());
+         return rows;
+      };
+      for (Mesh *m :
+           {
+              static_cast<Mesh *>(&serial),
+              static_cast<Mesh *>(&pmesh)
+           })
+      {
+         Array<int> marked;
+         Vector c;
+         for (int e = 0; e < m->GetNE(); e++)
+         {
+            m->GetElementCenter(e, c);
+            if (c.Norml2() < 0.6) { marked.Append(e); }
+         }
+         m->GeneralRefinement(marked, 0);
+      }
+      CHECK(Nodes(pmesh) == Nodes(serial));
+      pmesh.UniformRefinement();
+      serial.UniformRefinement();
+      CHECK(Nodes(pmesh) == Nodes(serial));
+   }
+}
+
+TEST_CASE("ParMesh nodes refined with a matrix update operator",
+          "[Parallel], [ParMesh]")
+{
+   // The largest values of the nodes after a conforming refinement come from
+   // the default update operator. With a matrix (SetUpdateOperatorType()) they
+   // do not: each rank applies the matrix to its coarse nodes.
+   Mesh serial = Mesh::MakeCartesian2D(3, 3, Element::TRIANGLE);
+   serial.Finalize(true);
+   serial.SetCurvature(3);
+   ParMesh pmesh(MPI_COMM_WORLD, serial);
+   FiniteElementSpace &fes = *pmesh.GetNodes()->FESpace();
+   fes.SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
+   const Vector coarse(*pmesh.GetNodes());
+   pmesh.UniformRefinement();
+   const SparseMatrix *T =
+      dynamic_cast<const SparseMatrix *>(fes.GetUpdateOperator());
+   REQUIRE(T != nullptr);
+   Vector y(T->Height());
+   T->Mult(coarse, y);
+   y -= *pmesh.GetNodes();
+   CHECK(y.Normlinf() == 0.0);
 }
 
 #endif // MFEM_USE_MPI

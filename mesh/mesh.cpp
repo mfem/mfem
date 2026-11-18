@@ -10232,12 +10232,27 @@ void Mesh::AverageVertices(const int *indexes, int n, int result)
    }
 }
 
+bool Mesh::UpdateNodeValues()
+{
+   // After a conforming refinement, a node shared by fine elements takes the
+   // componentwise largest of their values, so that the refined nodes depend
+   // on the coarse elements and nodes only, not on the order of the elements.
+   FiniteElementSpace *nodes_fes = Nodes->FESpace();
+   const long nodes_seq = nodes_fes->GetSequence();
+   nodes_fes->Update();
+   const bool maximum = last_operation == Mesh::REFINE && !ncmesh &&
+                        nodes_fes->GetSequence() != nodes_seq &&
+                        nodes_fes->UseSharedMaximum(true);
+   Nodes->Update();
+   if (maximum) { nodes_fes->UseSharedMaximum(false); }
+   return maximum;
+}
+
 void Mesh::UpdateNodes()
 {
    if (Nodes)
    {
-      Nodes->FESpace()->Update();
-      Nodes->Update();
+      UpdateNodeValues();
 
       // update vertex coordinates for compatibility (e.g., GetVertex())
       SetVerticesFromNodes(Nodes);

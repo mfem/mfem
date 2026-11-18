@@ -112,6 +112,10 @@ protected:
    // Determine sedge_ledge and sface_lface.
    void FinalizeParTopo();
 
+   /** As Mesh::UpdateNodes(); after a conforming refinement, the copies of a
+       shared node then take the largest of their values over the ranks. */
+   void UpdateNodes() override;
+
    // Mark all tets to ensure consistency across MPI tasks; also mark the shared
    // and boundary triangle faces using the consistently marked tets.
    void MarkTetMeshForRefinement(const DSTable &v_to_v) override;

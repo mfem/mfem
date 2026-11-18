@@ -1750,6 +1750,22 @@ void ParMesh::GetSharedTriCommunicator(int ordering,
    stria_comm.Finalize();
 }
 
+void ParMesh::UpdateNodes()
+{
+   if (!Nodes) { return; }
+   // The copies of a shared node, each the largest of the values of the fine
+   // elements of its rank, take the largest over the ranks that share it.
+   auto *pfes = dynamic_cast<ParFiniteElementSpace *>(Nodes->FESpace());
+   if (UpdateNodeValues() && pfes)
+   {
+      GroupCommunicator &gc = pfes->GroupComm();
+      gc.Reduce<real_t>(Nodes->HostReadWrite(), GroupCommunicator::Max);
+      gc.Bcast(Nodes->HostReadWrite());
+   }
+   SetVerticesFromNodes(Nodes);
+   NodesUpdated();
+}
+
 void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
 {
    Array<int> order;

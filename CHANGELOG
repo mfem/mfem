@@ -49,6 +49,10 @@ Meshing improvements
   or Mesh::SaveNURBSHDF5 for writing and the usual Mesh constructors or loaders
   for reading.
 
+- After a conforming refinement, a mesh node shared by fine elements, or ranks,
+  takes the componentwise largest of their values: in one build, the same for
+  any partition and any renumbering that keeps the elements' vertex lists.
+
 Linear and nonlinear solvers
 ----------------------------
 - Fixed the AmgX resource shared by the AmgXSolver instances, which used the

@@ -455,12 +455,23 @@ protected:
    /** @brief Update the nodes of a curved mesh after the topological part of a
        Mesh::Operation, such as refinement, has been performed. */
    /** If Nodes GridFunction is defined, i.e. not NULL, this method calls
-       NodesUpdated().
+       NodesUpdated(). After a conforming refinement, a node shared by several
+       fine elements takes the componentwise largest of their values (in a
+       ParMesh, also over the ranks that share it), with the default update
+       operator of the space of the nodes (not with a matrix, see
+       FiniteElementSpace::SetUpdateOperatorType()): in one build, the refined
+       nodes are then the same for any partition and any renumbering of the
+       elements and vertices that keeps the vertex list of each element.
 
        @note Unlike the similarly named public method NodesUpdated() this
        method modifies the mesh nodes (if they exist) and calls NodesUpdated().
    */
-   void UpdateNodes();
+   virtual void UpdateNodes();
+
+   /** The update of the values of the nodes in UpdateNodes(), before the
+       vertices; returns true if the nodes shared by fine elements took the
+       largest of their values. */
+   bool UpdateNodeValues();
 
    /// Helper to set vertex coordinates given a high-order curvature function.
    void SetVerticesFromNodes(const GridFunction *nodes);
