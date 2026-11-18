@@ -590,3 +590,86 @@ TEST_CASE("Mesh::Swap preserves named attribute sets", "[Mesh]")
    REQUIRE(a_bdr_result == b_bdr_attrs);
    REQUIRE(b_bdr_result == a_bdr_attrs);
 }
+
+// Compares the vertices of a curved mesh read from a stream, and its elements
+// with a negative Jacobian, with their evaluation element by element.
+static void CheckVerticesAndOrientation(Mesh &orig_mesh)
+{
+   std::stringstream stream;
+   orig_mesh.Print(stream);
+   Mesh mesh(stream);
+   GridFunction &nodes = *mesh.GetNodes();
+   const int dim = mesh.Dimension();
+   Array<int> vertices, vdofs, overlap(mesh.GetNV());
+
+   for (int vd = 1; vd <= dim; vd++)
+   {
+      Vector nval, ref(mesh.GetNV());
+      ref = 0.0;
+      overlap = 0;
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         const IntegrationRule &ir =
+            *Geometries.GetVertices(mesh.GetElementBaseGeometry(i));
+         mesh.GetElementVertices(i, vertices);
+         for (int k = 0; k < vertices.Size(); k++)
+         {
+            ref(vertices[k]) += nodes.GetValue(i, ir.IntPoint(k), vd);
+            overlap[vertices[k]]++;
+         }
+      }
+      nodes.GetNodalValues(nval, vd);
+      for (int v = 0; v < mesh.GetNV(); v++)
+      {
+         ref(v) /= overlap[v];
+         REQUIRE(nval(v) == ref(v));
+         REQUIRE(mesh.GetVertex(v)[vd-1] == ref(v));
+      }
+   }
+
+   // Mirror the nodes of one element out of three
+   for (int i = 0; i < mesh.GetNE(); i += 3)
+   {
+      nodes.FESpace()->GetElementVDofs(i, vdofs);
+      for (int j = 0; j < vdofs.Size()/dim; j++) { nodes(vdofs[j]) *= -1; }
+   }
+   int inverted = 0;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      ElementTransformation &T = *mesh.GetElementTransformation(i);
+      T.SetIntPoint(&Geometries.GetCenter(mesh.GetElementBaseGeometry(i)));
+      if (T.Weight() < 0.0) { inverted++; }
+   }
+   REQUIRE(inverted > 0);
+   REQUIRE(inverted < mesh.GetNE());
+   REQUIRE(mesh.CheckElementOrientation(false) == inverted);
+}
+
+TEST_CASE("Vertices and orientation of curved meshes", "[Mesh]")
+{
+   SECTION("Discontinuous nodes")
+   {
+      auto type = GENERATE(Element::TRIANGLE, Element::QUADRILATERAL,
+                           Element::TETRAHEDRON, Element::HEXAHEDRON,
+                           Element::WEDGE, Element::PYRAMID);
+      CAPTURE(type);
+      Mesh mesh = (type == Element::TRIANGLE ||
+                   type == Element::QUADRILATERAL) ?
+                  Mesh::MakeCartesian2D(3, 3, type) :
+                  Mesh::MakeCartesian3D(2, 2, 2, type);
+      mesh.SetCurvature(2, true);
+      GridFunction &nodes = *mesh.GetNodes();
+      for (int i = 0; i < nodes.Size(); i++) { nodes(i) += 0.01*std::sin(i); }
+      CheckVerticesAndOrientation(mesh);
+   }
+   SECTION("NURBS")
+   {
+      // The shape functions of a NURBS element depend on the element
+      auto mesh_fname = GENERATE("../../data/square-disc-nurbs.mesh",
+                                 "../../data/pipe-nurbs.mesh");
+      CAPTURE(mesh_fname);
+      Mesh mesh(mesh_fname, 1, 1);
+      mesh.UniformRefinement();
+      CheckVerticesAndOrientation(mesh);
+   }
+}
