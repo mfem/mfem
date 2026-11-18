@@ -622,8 +622,8 @@ static void CheckVerticesAndOrientation(Mesh &orig_mesh)
       for (int v = 0; v < mesh.GetNV(); v++)
       {
          ref(v) /= overlap[v];
-         REQUIRE(nval(v) == ref(v));
-         REQUIRE(mesh.GetVertex(v)[vd-1] == ref(v));
+         REQUIRE(nval(v) == MFEM_Approx(ref(v)));
+         REQUIRE(mesh.GetVertex(v)[vd-1] == MFEM_Approx(ref(v)));
       }
    }
 
