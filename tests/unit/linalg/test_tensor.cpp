@@ -11,6 +11,7 @@
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
+#include <limits>
 
 using namespace mfem;
 using namespace mfem::future;
@@ -299,4 +300,108 @@ TEST_CASE("Tensor make_tensor and outer of arbitrary rank", "[Tensor]")
                   abs_err += std::abs(CB(i, j, k, l, m) - C(i, j, k) * B(l, m));
                }
    REQUIRE(abs_err == 0_r);
+}
+
+TEST_CASE("Determinant", "[Tensor]")
+{
+   // *INDENT-OFF*
+   tensor<real_t, 3, 3> A{{{ 3,  1, -9},
+                           { 2,  2,  4}, 
+                           {-7,  1,  5}}};
+   // *INDENT-ON*
+   real_t detA = -164;
+   CHECK_THAT(det(A), Catch::WithinULP(detA, 1));
+}
+
+// anonymous namespace for file-scope helper functions
+namespace
+{
+
+tensor<real_t, 2, 2> Orthogonal2x2Matrix()
+{
+   // Orthogonal tensor that was generated externally and written out to 17 decimal places
+   // *INDENT-OFF*
+   return {{{-0.364568375099243,   0.9311766212043223},
+            {-0.9311766212043223, -0.3645683750992428}}};
+   // *INDENT-ON*
+}
+
+tensor<real_t, 3, 3> Orthogonal3x3Matrix()
+{
+   // Orthogonal tensor that was generated externally and written out to 17 decimal places
+   // *INDENT-OFF*
+   return {{{-0.33037703540355823,  0.1084986605114631,  -0.9375921582144203},
+            {-0.4549579058918012,  -0.8886561428364343,   0.05747663582376441},
+            {-0.8269608928749312,   0.4455539254302321,   0.34295390534182263}}};
+   // *INDENT-ON*
+}
+
+} // namespace
+
+TEST_CASE("Eigenvalues 2x2 nearly degenerate", "[Tensor]")
+{
+   tensor<real_t, 2> lambda{{8.0, 8.0 + 1e-12}};
+   tensor<real_t, 2, 2> V = Orthogonal2x2Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   auto [eigenvals, eigenvecs] = eig_symm(A);
+   CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda[0], 2));
+   CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda[1], 2));
+
+   auto should_be_A = dot(eigenvecs, dot(diag(eigenvals), transpose(eigenvecs)));
+   CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
+}
+
+TEST_CASE("Eigenvalues 2x2 Distinct", "[Tensor]")
+{
+   tensor<real_t, 2> lambda{{-4.3, 8.0}};
+   tensor<real_t, 2, 2> V = Orthogonal2x2Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   auto [eigenvals, eigenvecs] = eig_symm(A);
+   CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda[0], 2));
+   CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda[1], 2));
+
+   auto should_be_A = dot(eigenvecs, dot(diag(eigenvals), transpose(eigenvecs)));
+   CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
+}
+
+TEST_CASE("Eigenvalues 2x2 distinct and unsorted", "[Tensor]")
+{
+   // these eigenvalues are not specified in ascending order, the solver
+   // will have to sort them.
+   tensor<real_t, 2> lambda{{8.0, -4.3}};
+   tensor<real_t, 2, 2> V = Orthogonal2x2Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   auto [eigenvals, eigenvecs] = eig_symm(A);
+   CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda[1], 2));
+   CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda[0], 2));
+
+   auto should_be_A = dot(eigenvecs, dot(diag(eigenvals), transpose(eigenvecs)));
+   CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
+}
+
+TEST_CASE("Eigenvalues 2x2 with small eigenvalue", "[Tensor]")
+{
+   real_t eps = std::numeric_limits<real_t>::epsilon();
+   tensor<real_t, 2, 2> A{{{2.0_r, 2.0_r - eps}, {2.0_r - eps, 2.0_r}}};
+   auto [eigenvals, eigenvecs] = eig_symm(A);
+   real_t lambda_exact[2] {eps, 4.0_r - eps};
+   CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda_exact[0], 2));
+   CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda_exact[1], 2));
+
+   auto should_be_A = dot(eigenvecs, dot(diag(eigenvals), transpose(eigenvecs)));
+   CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
+}
+
+TEST_CASE("Eigenvalues3x3", "[Tensor]")
+{
+   tensor<real_t, 3> lambda{{-2.2, 4.0 - 1e-12, 4.0}};
+   tensor<real_t, 3, 3> V = Orthogonal3x3Matrix();
+   auto A = dot(V, dot(diag(lambda), transpose(V)));
+   auto [eigenvals, eigenvecs] = eig_symm(A);
+   CHECK_THAT(eigenvals[0], Catch::WithinULP(lambda[0], 2));
+   CHECK_THAT(eigenvals[1], Catch::WithinULP(lambda[1], 2));
+   CHECK_THAT(eigenvals[2], Catch::WithinULP(lambda[2], 2));
+
+   auto should_be_A = dot(eigenvecs, dot(diag(eigenvals), transpose(eigenvecs)));
+   CHECK(norm(A - should_be_A) < 100*std::numeric_limits<real_t>::epsilon());
 }
