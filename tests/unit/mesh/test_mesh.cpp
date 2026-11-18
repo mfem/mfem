@@ -791,6 +791,40 @@ TEST_CASE("Curved simplices with collinear corners marked alike", "[Mesh]")
    }
 }
 
+TEST_CASE("Uniform refinement after a local refinement of a curved mesh",
+          "[Mesh]")
+{
+   // Uniform refinement takes the point matrices of the children from static
+   // arrays, and local refinement computes its own: it must not write them
+   // over the static arrays, which the next uniform refinements use for the
+   // nodes of curved meshes. The point matrices of a local refinement that
+   // refines few elements, here none, fit in these arrays. Straight nodes of
+   // order 2 must keep the measure of the unit square or cube.
+   const int dim = GENERATE(2, 3);
+   Mesh mesh = (dim == 2) ?
+               Mesh::MakeCartesian2D(2, 2, Element::TRIANGLE) :
+               Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON);
+   mesh.SetCurvature(2);
+   auto Measure = [&mesh]()
+   {
+      real_t measure = 0.0;
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         measure += mesh.GetElementVolume(e);
+      }
+      return measure;
+   };
+   for (int pass = 0; pass < 2; pass++)
+   {
+      mesh.UniformRefinement();
+      CHECK(std::abs(Measure() - 1.0) < 1e-12);
+      mesh.Finalize(true);
+      Array<int> none;
+      mesh.GeneralRefinement(none, 0);
+      CHECK(std::abs(Measure() - 1.0) < 1e-12);
+   }
+}
+
 namespace
 {
 
