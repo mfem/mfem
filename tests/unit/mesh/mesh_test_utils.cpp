@@ -445,6 +445,7 @@ Mesh CheckerboardMesh(int dim, int n)
       const int z = el / (n * n);
       mesh.GetElement(el)->SetAttribute(1 + (x % 2) + (y % 2) + (z % 2));
    }
+   mesh.SetAttributes();
    return mesh;
 }
 
