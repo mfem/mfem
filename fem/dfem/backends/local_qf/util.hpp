@@ -13,6 +13,7 @@
 // Compile-time quadrature argument metadata for local q-functions
 
 #include "../../../../linalg/tensor.hpp"
+#include "../../../kernels.hpp" // for kernels::internal::thread_regs
 
 #include "../../integrator_ctx.hpp"
 #include "../../util.hpp"
@@ -105,11 +106,9 @@ constexpr bool active_qparams_use_dual()
 ///////////////////////////////////////////////////////////////////////////////
 /// `tensor` base class of `T`, or `void` when `T` has none.
 ///
-/// On device, the register types in mfem::kernels::internal (regs2d_t,
-/// regs3d_t, ...) are wrapper structs *deriving* from `tensor` instead of
-/// aliases of it, so that the thread-tile extents can be zeroed while keeping
-/// the MQ1 extent part of the type. A derived class does not match the `tensor`
-/// partial specialization of qf_param_shape below, so look through to the base.
+/// A class deriving from `tensor` does not match the `tensor` partial
+/// specialization of qf_param_shape below, so look through to the base. Types
+/// with no `tensor` base (e.g. dual numbers) get the rank-0 shape of `void`.
 template <typename scalar_t, int... Is>
 tensor<scalar_t, Is...> qf_tensor_base_of(const tensor<scalar_t, Is...> &);
 
@@ -158,6 +157,14 @@ struct qf_param_shape<real_t>
    static constexpr int rank = 0;
    static constexpr std::array<int, 0> extents {};
 };
+
+/// Shape of the value held at each quadrature point by the registers of
+/// mfem::kernels::internal (regs1d_t, regs2d_t, regs3d_t and their _vd
+/// variants): the shape of the per-thread element @a T, without the thread
+/// dimensions @a TDims.
+template <typename T, int... TDims>
+struct qf_param_shape<mfem::kernels::internal::thread_regs<T, TDims...>>
+   : qf_param_shape<T> {};
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Type used in quadrature registers for parameter
