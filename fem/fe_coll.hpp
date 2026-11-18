@@ -127,6 +127,8 @@ public:
    | ND_R1D@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(curl) | * | * / * | H_CURL | 3D H(curl)-conforming Nedelec vector elements in 1D. |
    | ND_R2D_[DIM]_[ORDER] | H(curl) | * | 1 / 0 | H_CURL | 3D H(curl)-conforming Nedelec vector elements in 2D. |
    | ND_R2D@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(curl) | * | * / * | H_CURL | 3D H(curl)-conforming Nedelec vector elements in 2D. |
+   | BRT_[DIM]_[ORDER] | L2 | * | 1 / 0 | H_DIV | Broken Raviart-Thomas vector elements |
+   | BRT@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | L2 | * | * / * | H_DIV | Broken Raviart-Thomas vector elements |
    | RT_[DIM]_[ORDER] | H(div) | * | 1 / 0 | H_DIV | Raviart-Thomas vector elements |
    | RT@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(div) | * | * / * | H_DIV | Raviart-Thomas vector elements |
    | RT_Trace_[DIM]_[ORDER] | H^{1/2} | * | 0 | INTEGRAL | H^{1/2}-conforming trace elements for H(div) defined on the interface between mesh elements (faces) |
@@ -439,7 +441,13 @@ protected:
 
    // Initialize only the face elements
    void InitFaces(const int p, const int dim, const int map_type,
-                  const bool signs);
+                  const bool signs, const bool faces = true);
+
+   // Generalized constructor of the RT_FECollection and BrokenRT_FECollection
+   // classes with optional construction of face elements
+   RT_FECollection(const int p, const int dim, const bool faces,
+                   const int cb_type = BasisType::GaussLobatto,
+                   const int ob_type = BasisType::GaussLegendre);
 
    // Constructor used by the constructor of the RT_Trace_FECollection and
    // DG_Interface_FECollection classes
@@ -483,6 +491,25 @@ public:
    { return base_p-1; }
 
    virtual ~RT_FECollection();
+};
+
+/// Broken H(div) collection (RT elements, no continuity)
+class BrokenRT_FECollection : public RT_FECollection
+{
+public:
+   BrokenRT_FECollection(const int p, const int dim,
+                         const int cb_type = BasisType::GaussLobatto,
+                         const int ob_type = BasisType::GaussLegendre);
+
+   int DofForGeometry(Geometry::Type GeomType) const override
+   { return (RT_Elements[GeomType])?(RT_Elements[GeomType]->GetDof()):(0); }
+
+   int GetContType() const override { return DISCONTINUOUS; }
+
+   FiniteElementCollection *GetTraceCollection() const override;
+
+   FiniteElementCollection *Clone(int p) const override
+   { return new BrokenRT_FECollection(p, dim, cb_type, ob_type); }
 };
 
 /** @brief Arbitrary order "H^{-1/2}-conforming" face finite elements defined on

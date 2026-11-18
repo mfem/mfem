@@ -54,6 +54,10 @@ groups_serial=(
    "Ginkgo examples:"
    "examples/ginkgo"
    "ex1.cpp"'
+'"hdg_examples"
+   "HDG examples:"
+   "examples/hdg"
+   "ex{5,6,14,17,21,41}.cpp"'
 '"hiop"
    "HiOp examples:"
    "examples/hiop"
@@ -85,6 +89,10 @@ groups_serial=(
    "DPG miniapps:"
    "miniapps/dpg"
    "{acoustics,convection-diffusion,diffusion,maxwell}.cpp"'
+'"hdg_miniapps"
+   "HDG miniapps:"
+   "miniapps/hdg"
+   "{anisodiff,convdiff}.cpp"'
 '"isf"
    "Schrodinger flow miniapps:"
    "miniapps/fluids/schrodinger-flow"
@@ -143,6 +151,10 @@ groups_parallel=(
    "Caliper examples:"
    "examples/caliper"
    "ex1p.cpp"'
+'"hdg_examples"
+   "HDG examples:"
+   "examples/hdg"
+   "ex{5,6,14,17,21,41}p.cpp"'
 '"hiop"
    "HiOp examples:"
    "examples/hiop"
@@ -190,6 +202,10 @@ groups_parallel=(
    "GSLIB miniapps:"
    "miniapps/gslib"
    "pfindpts.cpp schwarz_ex1p.cpp"'
+'"hdg_miniapps"
+   "HDG miniapps:"
+   "miniapps/hdg"
+   "p{anisodiff,convdiff}.cpp"'
 '"hdiv-linear-solver"
    "H(div) linear solver miniapps:"
    "miniapps/hdiv-linear-solver"
@@ -261,6 +277,10 @@ groups_all=(
    "Ginkgo examples:"
    "examples/ginkgo"
    "ex1.cpp"'
+'"hdg_examples"
+   "HDG examples:"
+   "examples/hdg"
+   "ex{5,6,14,17,21,41}{,p}.cpp"'
 '"hiop"
    "HiOp examples:"
    "examples/hiop"
@@ -311,6 +331,10 @@ groups_all=(
    "miniapps/gslib"
    "field-diff.cpp field-interp.cpp findpts.cpp schwarz_ex1.cpp pfindpts.cpp
     schwarz_ex1p.cpp"'
+'"hdg_miniapps"
+   "HDG miniapps:"
+   "miniapps/hdg"
+   "{,p}{anisodiff,convdiff}.cpp"'
 '"hdiv-linear-solver"
    "H(div) linear solver miniapps:"
    "miniapps/hdiv-linear-solver"
