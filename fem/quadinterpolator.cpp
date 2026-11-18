@@ -11,6 +11,7 @@
 
 #include "quadinterpolator.hpp"
 #include "qinterp/grad.hpp"
+#include "qinterp/grad_transpose.hpp"
 #include "qinterp/eval.hpp"
 #include "qspace.hpp"
 #include "../general/forall.hpp"
@@ -30,6 +31,8 @@ void InitEvalKernels();
 void InitDetKernels();
 template <bool P> void InitGradByNodesKernels();
 template <bool P> void InitGradByVDimKernels();
+template <bool P> void InitGradTransposeByNodesKernels();
+template <bool P> void InitGradTransposeByVDimKernels();
 void InitTensorEvalHDivKernels();
 void InitEvalTransposeByVDimKernels();
 struct Kernels
@@ -46,6 +49,12 @@ struct Kernels
       // Phys grad kernels
       InitGradByNodesKernels<true>();
       InitGradByVDimKernels<true>();
+      // Non-phys grad transpose kernels
+      InitGradTransposeByNodesKernels<false>();
+      InitGradTransposeByVDimKernels<false>();
+      // Phys grad transpose kernels
+      InitGradTransposeByNodesKernels<true>();
+      InitGradTransposeByVDimKernels<true>();
       // Determinants
       InitDetKernels();
       // Non-tensor
@@ -429,10 +438,8 @@ void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,
    const FiniteElement *fe = fespace->GetFE(0);
    MFEM_VERIFY(fe->GetMapType() == FiniteElement::MapType::VALUE,
                "AddMultTranspose supports only spaces with a VALUE map type");
-   MFEM_VERIFY(!(eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES)),
-               "AddMultTranspose supports only VALUES and PHYSICAL_VALUES");
-   MFEM_CONTRACT_VAR(q_der);
    const int vdim = fespace->GetVDim();
+   const int sdim = fespace->GetMesh()->SpaceDimension();
 
    const bool use_tensor_eval =
       use_tensor_products &&
@@ -446,6 +453,13 @@ void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,
    const int nd = maps.ndof;
    const int nq = maps.nqpt;
 
+   const GeometricFactors *geom = nullptr;
+   if (eval_flags & PHYSICAL_DERIVATIVES)
+   {
+      const int jacobians = GeometricFactors::JACOBIANS;
+      geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians);
+   }
+
    if (use_tensor_eval)
    {
       if (eval_flags & (VALUES | PHYSICAL_VALUES))
@@ -454,6 +468,16 @@ void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,
                                          maps.B.Read(), q_val.Read(),
                                          e_vec.ReadWrite(), vdim, nd, nq,
                                          elist);
+      }
+      if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
+      {
+         const bool phys = (eval_flags & PHYSICAL_DERIVATIVES);
+         const real_t *J = phys ? geom->J.Read() : nullptr;
+         const int s_dim = phys ? sdim : dim;
+         GradTransposeKernels::Run(dim, q_layout, phys, vdim, nd, nq, ne,
+                                   maps.B.Read(), maps.G.Read(), J,
+                                   q_der.Read(), e_vec.ReadWrite(),
+                                   s_dim, vdim, nd, nq, elist);
       }
    }
    else

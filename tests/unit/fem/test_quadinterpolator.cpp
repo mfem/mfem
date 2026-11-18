@@ -784,8 +784,8 @@ TEST_CASE("QuadratureInterpolator entity list",
    if (qi) { qi->SetOutputLayout(l); }
    else { fqi->SetOutputLayout(l); }
 
-   // E -> Q, and Q -> E added to y (element values only), on the entities of
-   // list (all if null)
+   // E -> Q, and Q -> E added to y (elements only), on the entities of list
+   // (all if null)
    auto forward = [&](const Vector &x, Vector &q, const Array<int> *list)
    {
       Vector u; // unused outputs
@@ -847,8 +847,8 @@ TEST_CASE("QuadratureInterpolator entity list",
    REQUIRE(max_diff(q_all, q_full) == MFEM_Approx(0.0));
    forward(e_vec, q_none, &empty);
 
-   // Q -> E with the same list (QuadratureInterpolator values only)
-   if (qi && !der)
+   // Q -> E with the same list (QuadratureInterpolator only)
+   if (qi)
    {
       // The same as the full transpose of the compact Q-vector scattered into
       // zeros, so the other entities of the E-vector are unchanged.

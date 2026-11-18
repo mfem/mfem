@@ -169,10 +169,11 @@ public:
    /** @brief Perform the transpose operation of Mult(), adding the result to
        @a e_vec.
 
-       Only the VALUES and PHYSICAL_VALUES flags are supported: @a q_val is
-       transposed, with the layout set by SetOutputLayout(), and @a q_der is
-       not used. Only tensor-product evaluations of spaces with a VALUE map
-       type are supported. See Mult() for @a elist. */
+       The @a eval_flags select the Q-vectors to transpose: @a q_val for VALUES
+       and PHYSICAL_VALUES, @a q_der for DERIVATIVES and PHYSICAL_DERIVATIVES,
+       with the layout set by SetOutputLayout(). Only tensor-product
+       evaluations of spaces with a VALUE map type are supported. See Mult()
+       for @a elist. */
    void AddMultTranspose(unsigned eval_flags, const Vector &q_val,
                          const Vector &q_der, Vector &e_vec,
                          const Array<int> *elist = nullptr) const;
@@ -230,6 +231,11 @@ public:
                                                  const real_t *,
                                                  real_t *, const int, const int, const int,
                                                  const Array<int> *);
+   using GradTransposeKernelType = void(*)(const int, const real_t *,
+                                           const real_t *, const real_t *,
+                                           const real_t *, real_t *,
+                                           const int, const int, const int, const int,
+                                           const Array<int> *);
 
    // value-type mapping
    MFEM_REGISTER_KERNELS(TensorEvalKernels, TensorEvalKernelType,
@@ -250,6 +256,8 @@ public:
                          (int, QVectorLayout, unsigned, int, int));
    MFEM_REGISTER_KERNELS(TensorEvalTransposeKernels, TensorEvalTransposeKernelType,
                          (int, QVectorLayout, int, int, int), (int));
+   MFEM_REGISTER_KERNELS(GradTransposeKernels, GradTransposeKernelType,
+                         (int, QVectorLayout, bool, int, int, int), (int));
 
    /// Adds specializations for TensorEvalKernels
    template <int DIM, QVectorLayout Q_LAYOUT, int VDIM, int D1D, int Q1D,
