@@ -20,7 +20,7 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
    const int num_iter = 1;
    Array<int> errors(num_iter);
    errors = 0;
-   auto *d_errors = errors.Write();
+   auto *d_errors = errors.ReadWrite();
    mfem::forall(num_iter, [=] MFEM_HOST_DEVICE (int i)
    {
       // 0-D tensors
