@@ -76,6 +76,10 @@ Meshing improvements
   mesh: the static point matrices were overwritten, and grid functions and
   curved nodes were interpolated wrongly by every later uniform refinement.
 
+- Uniform refinement of tetrahedra chooses between diagonals whose aspect ratios
+  agree to the square root of the machine precision by a fixed order: the mesh
+  refined no longer depends on round-off, and so on the compiler or libm.
+
 Linear and nonlinear solvers
 ----------------------------
 - Fixed the AmgX resource shared by the AmgXSolver instances, which used the

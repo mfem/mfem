@@ -10731,6 +10731,10 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
             // 0: smallest octahedron diagonal
             // 1: best aspect ratio
             const int rt_algo = 1;
+            // A later diagonal is chosen only if better by more than the square
+            // root of epsilon: ties follow this order, not the build.
+            const real_t rel_tol =
+               std::sqrt(std::numeric_limits<real_t>::epsilon());
             // Refinement type:
             // 0: (v0,v1)-(v2,v3), 1: (v0,v2)-(v1,v3), 2: (v0,v3)-(v1,v2)
             // 0:      e0-e5,      1:      e1-e4,      2:      e2-e3
@@ -10751,12 +10755,16 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
                len_sqr = sqr(J(0,1)-J(0,0)-J(0,2)) +
                          sqr(J(1,1)-J(1,0)-J(1,2)) +
                          sqr(J(2,1)-J(2,0)-J(2,2));
-               if (len_sqr < min_len) { min_len = len_sqr; rt = 1; }
+               if (len_sqr < (1 - rel_tol)*min_len)
+               {
+                  min_len = len_sqr;
+                  rt = 1;
+               }
 
                len_sqr = sqr(J(0,2)-J(0,0)-J(0,1)) +
                          sqr(J(1,2)-J(1,0)-J(1,1)) +
                          sqr(J(2,2)-J(2,0)-J(2,1));
-               if (len_sqr < min_len) { rt = 2; }
+               if (len_sqr < (1 - rel_tol)*min_len) { rt = 2; }
             }
             else
             {
@@ -10818,7 +10826,11 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
                Geometries.JacToPerfJac(Geometry::TETRAHEDRON, Js, Jp);
                ar2 = Jp.CalcSingularvalue(0)/Jp.CalcSingularvalue(2);
                kappa = std::max(ar1, ar2);
-               if (kappa < kappa_min) { kappa_min = kappa; rt = 1; }
+               if (kappa < (1 - rel_tol)*kappa_min)
+               {
+                  kappa_min = kappa;
+                  rt = 1;
+               }
 
                // rt = 2; Em: {2,0,1,3}, {2,1,5,3}
                for (int t = 0; t < 3; t++)
@@ -10838,7 +10850,7 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
                Geometries.JacToPerfJac(Geometry::TETRAHEDRON, Js, Jp);
                ar2 = Jp.CalcSingularvalue(0)/Jp.CalcSingularvalue(2);
                kappa = std::max(ar1, ar2);
-               if (kappa < kappa_min) { rt = 2; }
+               if (kappa < (1 - rel_tol)*kappa_min) { rt = 2; }
             }
 
             static const int mv_all[3][4][4] =

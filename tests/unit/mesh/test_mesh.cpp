@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <random>
 #include <vector>
 
 using namespace mfem;
@@ -1031,4 +1032,53 @@ TEST_CASE("Inverted tetrahedra with discontinuous nodes marked by their "
       }
    }
    CHECK(gap < 1e-12);
+}
+
+TEST_CASE("Uniform refinement of tetrahedra independent of round-off",
+          "[Mesh]")
+{
+   // Prisms over equilateral triangles split into tetrahedra: the diagonals of
+   // many octahedra of their uniform refinement tie. Moving every vertex by 1
+   // to 6 ULP after the marking must not change the diagonals chosen.
+   auto Refined = [](int seed)
+   {
+      Mesh wedges = Mesh::MakeCartesian3D(4, 4, 4, Element::WEDGE);
+      for (int v = 0; v < wedges.GetNV(); v++)
+      {
+         real_t *x = wedges.GetVertex(v);
+         x[0] -= 0.5*x[1];
+         x[1] *= std::sqrt(real_t(0.75));
+      }
+      Mesh mesh = Mesh::MakeSimplicial(wedges);
+      mesh.Finalize(true);
+      std::mt19937 gen(seed);
+      std::uniform_int_distribution<int> ulps(1, 6), up(0, 1);
+      for (int v = 0; seed > 0 && v < mesh.GetNV(); v++)
+      {
+         real_t *x = mesh.GetVertex(v);
+         for (int d = 0; d < 3; d++)
+         {
+            const real_t to = up(gen) ? 2.0 : -2.0;
+            for (int k = ulps(gen); k > 0; k--)
+            {
+               x[d] = std::nextafter(x[d], to);
+            }
+         }
+      }
+      mesh.UniformRefinement();
+      std::vector<std::array<int, 4>> children(mesh.GetNE());
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         const int *v = mesh.GetElement(e)->GetVertices();
+         std::copy(v, v + 4, children[e].begin());
+         std::sort(children[e].begin(), children[e].end());
+      }
+      return children;
+   };
+   const auto reference = Refined(0);
+   for (int seed = 1; seed <= 4; seed++)
+   {
+      CAPTURE(seed);
+      CHECK(Refined(seed) == reference);
+   }
 }
