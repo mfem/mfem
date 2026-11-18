@@ -172,12 +172,12 @@ int main(int argc, char *argv[])
       if (ir_order == -1) { ir_order = 2*fec->GetOrder(); }
       cout << "Using ir_order " << ir_order << endl;
 
-      patchRule = new NURBSMeshRules(mesh.NURBSext->GetNP(), dim);
+      patchRule = new NURBSMeshRules(mesh.NURBSExt()->GetNP(), dim);
       // Loop over patches and set a different rule for each patch.
-      for (int p=0; p<mesh.NURBSext->GetNP(); ++p)
+      for (int p=0; p<mesh.NURBSExt()->GetNP(); ++p)
       {
          Array<const KnotVector*> kv(dim);
-         mesh.NURBSext->GetPatchKnotVectors(p, kv);
+         mesh.NURBSExt()->GetPatchKnotVectors(p, kv);
 
          std::vector<const IntegrationRule*> ir1D(dim);
          const IntegrationRule *ir = &IntRules.Get(Geometry::SEGMENT, ir_order);

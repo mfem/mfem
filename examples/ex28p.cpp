@@ -169,7 +169,7 @@ int main(int argc, char *argv[])
    //    (degree elevated) NURBS space associated with the mesh nodes.
    FiniteElementCollection *fec;
    ParFiniteElementSpace *fespace;
-   const bool use_nodal_fespace = pmesh->NURBSext;
+   const bool use_nodal_fespace = pmesh->IsNURBS();
    if (use_nodal_fespace)
    {
       fec = NULL;

@@ -1163,7 +1163,7 @@ TEST_CASE("3D Bilinear Weak Curl Integrators Partial Assembly",
    REQUIRE(mesh.SpaceDimension() == dim);
 
    // convert nurbs into piecewise-quadratic curved mesh
-   if (mesh.NURBSext)
+   if (mesh.NURBSExt())
    {
       mesh.UniformRefinement();
       mesh.SetCurvature(2);

@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
    }
    // Since NURBS meshes do not support DG integrators, we convert them to
    // regular polynomial mesh of the specified (solution) order.
-   if (mesh.NURBSext) { mesh.SetCurvature(order); }
+   if (mesh.IsNURBS()) { mesh.SetCurvature(order); }
 
    // 4. Define a DG vector finite element space on the mesh. Here, we use
    //    Gauss-Lobatto nodal basis because it gives rise to a sparser matrix

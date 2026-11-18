@@ -120,11 +120,11 @@ int main(int argc, char *argv[])
    FiniteElementCollection *l2_coll = nullptr;
    NURBSExtension *NURBSext = nullptr;
 
-   if (mesh->NURBSext && !pa)
+   if (mesh->IsNURBS() && !pa)
    {
       hdiv_coll = new NURBS_HDivFECollection(order,dim);
       l2_coll   = new NURBSFECollection(order);
-      NURBSext  = new NURBSExtension(mesh->NURBSext, order);
+      NURBSext  = new NURBSExtension(mesh->NURBSExt(), order);
       mfem::out<<"Create NURBS fec and ext"<<std::endl;
    }
    else
