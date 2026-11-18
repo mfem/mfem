@@ -93,9 +93,10 @@ int main(int argc, char *argv[])
       const auto *finite_element = collection.FiniteElementForGeometry(
                                       transformation.GetGeometryType());
       PolynomialLevelSet level_set, second_level_set;
-      auto report = level_set.Project(coefficient, transformation, *finite_element);
-      if (shape == 3 && report.Succeeded())
-      { report = second_level_set.Project(second_coefficient, transformation, *finite_element); }
+      level_set.Project(coefficient, transformation, *finite_element);
+      if (shape == 3)
+      { second_level_set.Project(second_coefficient, transformation, *finite_element); }
+      CutQuadratureReport report;
       for (int surface = 0; surface < (shape == 3 ? 1 : 2) && report.Succeeded(); ++surface)
       {
          auto domain = surface ? CutDomain::Surface(level_set) :

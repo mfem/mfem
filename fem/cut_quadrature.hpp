@@ -29,39 +29,6 @@
 namespace mfem
 {
 
-/** Computation outcome, independent of whether the domain is empty or full. */
-enum class CutQuadratureStatus
-{
-   Success,
-   InvalidInput,
-   Unsupported,
-   DegenerateGeometry,
-   NumericalFailure
-};
-
-/** @brief Outcome and optional moment-fitting diagnostics.
-
-    A successful call never silently lowers the requested nominal order.
-    Unsupported orders return Unsupported. Moment-system rank, convergence,
-    and tolerance failures return NumericalFailure. A valid empty domain is
-    Success; a singular geometric mapping returns DegenerateGeometry.
-
-    moment_degree is the total degree of the fitted reference polynomial
-    space, or -1 when not applicable. moment_residual is
-    ||A weights - moments||_inf / max(1, ||moments||_inf), or -1 if unavailable.
-    It measures the fit, not the accuracy of the supplied moments, the level-set
-    approximation, or integration of arbitrary functions. Backend-specific
-    solver tolerances and refinement policies belong to concrete backends. */
-struct CutQuadratureReport
-{
-   CutQuadratureStatus status = CutQuadratureStatus::Success;
-   std::string message;
-   int moment_degree = -1;
-   real_t moment_residual = -1;
-
-   bool Succeeded() const { return status == CutQuadratureStatus::Success; }
-};
-
 /** @brief A scalar level set in MFEM reference-element coordinates.
 
     Evaluation is required throughout the closed reference element.
@@ -90,34 +57,34 @@ public:
 
     Set and Project copy dofs, but borrow the finite element. The element must
     outlive this object and must not change while it is used. Rational bases,
-    unsupported polynomial spaces, and INTEGRAL-mapped fields are rejected.
+    unsupported polynomial spaces, and INTEGRAL-mapped fields fail
+    verification.
     A positive basis on a pyramid is not automatically a Cartesian polynomial.
 
-    Default construction leaves the object uninitialized. Failed Set/Project
-    calls clear it. GetReferenceGeometry returns INVALID while uninitialized.
-    Evaluation and GetFE require successful initialization.
+    Default construction leaves the object uninitialized. GetReferenceGeometry
+    returns INVALID while uninitialized. Evaluation and GetFE require
+    successful initialization.
     There is no retained Bernstein conversion or element-dependent cache. */
 class PolynomialLevelSet : public ReferenceLevelSet
 {
 public:
    PolynomialLevelSet() = default;
 
-   CutQuadratureReport Set(const FiniteElement &element,
-                           const Vector &values);
+   void Set(const FiniteElement &element, const Vector &values);
 
    /** Extract local scalar dofs, including the local dof transformation.
        The GridFunction and its finite-element space must remain valid and
        unchanged for the lifetime of the borrowed finite element. */
-   CutQuadratureReport Set(const GridFunction &function, int element);
+   void Set(const GridFunction &function, int element);
 
    /** Project coefficient(T(point)) into the supplied reference polynomial
        space. Projection is local; it does not construct a mesh-wide field.
        Interpolate in the matching Gauss-Legendre nodal tensor space, then
        convert to the supplied basis. Exactly representable polynomials are
        preserved, including for positive (Bernstein) elements. */
-   CutQuadratureReport Project(Coefficient &coefficient,
-                               ElementTransformation &transformation,
-                               const FiniteElement &element);
+   void Project(Coefficient &coefficient,
+                ElementTransformation &transformation,
+                const FiniteElement &element);
 
    bool IsInitialized() const { return element != nullptr; }
    const FiniteElement &GetFE() const;
@@ -130,8 +97,8 @@ public:
        tensor-product on boxes. Exporting tensor-product data to ALGOIM needs
        a permutation; exporting simplex data to a box needs a separate basis
        conversion and domain restriction inside the backend. */
-   CutQuadratureReport GetBernsteinCoefficients(
-      const FiniteElement &bernstein_element, Vector &coefficients) const;
+   void GetBernsteinCoefficients(const FiniteElement &bernstein_element,
+                                 Vector &coefficients) const;
 
    Geometry::Type GetReferenceGeometry() const override;
    real_t Eval(const IntegrationPoint &point) const override;
@@ -167,6 +134,40 @@ private:
    Geometry::Type geometry;
    ValueFunction value;
    GradientFunction gradient;
+};
+
+/// Result of a cut-quadrature related computation.
+struct CutQuadratureReport
+{
+   /// Computation outcome, independent of whether the domain is empty or full.
+   /// A valid empty domain is Success.
+   /// Unsupported orders return Unsupported rather than being silently reduced.
+   /// Singular mapping geometry -> DegenerateGeometry;
+   /// moment-system rank, convergence, tolerance failures -> NumericalFailure.
+   enum class Status
+   {
+      Success,
+      InvalidInput,
+      Unsupported,
+      DegenerateGeometry,
+      NumericalFailure
+   };
+   Status status = Status::Success;
+
+   /// Optional detail about the outcome.
+   std::string message;
+
+   /// Total degree of the fitted reference polynomial space, or -1 when not
+   /// applicable.
+   int moment_degree = -1;
+
+   /// Relative moment residual
+   /// ||A weights - moments||_inf / max(1, ||moments||_inf), or -1 when
+   /// unavailable. This measures the fit, not the accuracy of the supplied
+   /// moments, level-set approximation, or integration of arbitrary functions.
+   real_t moment_residual = -1;
+
+   bool Succeeded() const { return status == Status::Success; }
 };
 
 /** @brief An intersection of level-set sign constraints on one reference
@@ -358,10 +359,11 @@ public:
    explicit CutQuadratureGenerator(const CutQuadratureBackend &backend);
    const CutQuadratureBackend &GetBackend() const { return backend; }
 
-   /** Generate a reference rule of nominal MFEM integration @a order; this is
-       not an exactness guarantee on curved domains. Non-null @a fixed_points
-       supplies borrowed coordinates for full-dimensional weight fitting; its
-       weights are ignored, and backends may report this mode as unsupported. */
+   /// Generate a reference rule of nominal MFEM integration @a order; this is
+   /// not an exactness guarantee on curved domains.
+   /// Non-null @a fixed_points supplies borrowed coordinates for
+   /// full-dimensional weight fitting; its weights are ignored, and backends
+   /// may report this mode as unsupported.
    CutQuadratureReport Generate(
       Geometry::Type geometry,
       const CutDomain &domain, int order, CutQuadrature &out,

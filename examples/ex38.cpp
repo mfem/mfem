@@ -60,15 +60,14 @@ int main(int argc, char *argv[])
    {
       auto &transformation = *mesh.GetElementTransformation(element);
       PolynomialLevelSet level_set;
-      auto report = level_set.Set(field, element);
-      if (!report.Succeeded()) { cerr << report.message << '\n'; return 2; }
+      level_set.Set(field, element);
       for (int surface = 0; surface < 2; ++surface)
       {
          const auto domain = surface ? CutDomain::Surface(level_set) :
                              CutDomain::Positive(level_set);
          CutQuadrature quadrature;
-         report = generator.Generate(transformation.GetGeometryType(), domain,
-                                     order, quadrature);
+         auto report = generator.Generate(transformation.GetGeometryType(),
+                                          domain, order, quadrature);
          CutQuadratureMapping mapping;
          if (report.Succeeded())
          {

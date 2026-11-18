@@ -26,7 +26,7 @@ struct AlgoimPolynomial
    std::vector<real_t> coefficients;
    std::array<std::vector<real_t>, 3> derivatives;
 
-   CutQuadratureReport Set(const PolynomialLevelSet &level_set);
+   void Set(const PolynomialLevelSet &level_set);
    CutQuadratureReport Classify(CutDomain::LevelSetSign sign,
                                 Region &region) const;
 
@@ -61,7 +61,7 @@ struct AlgoimPolynomial
    }
 };
 
-CutQuadratureReport AlgoimPolynomial::Set(const PolynomialLevelSet &level_set)
+void AlgoimPolynomial::Set(const PolynomialLevelSet &level_set)
 {
    dimension = level_set.GetDim();
    extent = level_set.GetFE().GetOrder() + 1;
@@ -69,8 +69,7 @@ CutQuadratureReport AlgoimPolynomial::Set(const PolynomialLevelSet &level_set)
    const auto &positive =
       *collection.FiniteElementForGeometry(level_set.GetReferenceGeometry());
    Vector values;
-   auto report = level_set.GetBernsteinCoefficients(positive, values);
-   if (!report.Succeeded()) { return report; }
+   level_set.GetBernsteinCoefficients(positive, values);
    const real_t scale = values.Normlinf();
    if (scale > 0) { values /= scale; }
    const auto &mapping =
@@ -91,7 +90,6 @@ CutQuadratureReport AlgoimPolynomial::Set(const PolynomialLevelSet &level_set)
       }
       stride *= extent;
    }
-   return {};
 }
 
 CutQuadratureReport AlgoimPolynomial::Classify(
@@ -104,7 +102,7 @@ CutQuadratureReport AlgoimPolynomial::Classify(
    if (lower == 0 && upper == 0)
    {
       if (surface)
-      { return {CutQuadratureStatus::DegenerateGeometry, "Identically zero equality constraint."}; }
+      { return {CutQuadratureReport::Status::DegenerateGeometry, "Identically zero equality constraint."}; }
       region = Region::Empty;
    }
    else if (surface)
@@ -122,7 +120,7 @@ CutQuadratureReport AlgoimPolynomial::Classify(
                { maximum = std::max(maximum, std::abs(coefficients[index])); }
             }
             if (maximum <= 64 * std::numeric_limits<real_t>::epsilon())
-            { return {CutQuadratureStatus::DegenerateGeometry, "Interface coincides with an element facet."}; }
+            { return {CutQuadratureReport::Status::DegenerateGeometry, "Interface coincides with an element facet."}; }
          }
          stride *= extent;
       }
@@ -245,9 +243,8 @@ CutQuadratureReport ComputeGeneral(
    region = Region::Cut;
    if (source)
    {
-      auto report = polynomial.Set(*source);
-      if (!report.Succeeded()) { return report; }
-      report = polynomial.Classify(sign, region);
+      polynomial.Set(*source);
+      auto report = polynomial.Classify(sign, region);
       if (!report.Succeeded()) { return report; }
    }
    GeneralFunction<Dimension> function{
@@ -267,11 +264,11 @@ CutQuadratureReport ComputeGeneral(
       const auto value = function(box);
       const real_t deviation = value.maxDeviation();
       if (!std::isfinite(value.alpha) || !std::isfinite(deviation) || deviation < 0)
-      { return {CutQuadratureStatus::NumericalFailure, "Invalid interval bounds."}; }
+      { return {CutQuadratureReport::Status::NumericalFailure, "Invalid interval bounds."}; }
       if (value.alpha == 0 && deviation == 0)
       {
          if (sign == CutDomain::LevelSetSign::Zero)
-         { return {CutQuadratureStatus::DegenerateGeometry, "Identically zero equality constraint."}; }
+         { return {CutQuadratureReport::Status::DegenerateGeometry, "Identically zero equality constraint."}; }
          region = Region::Empty;
       }
       else if (value.alpha - deviation > 0)
@@ -288,7 +285,7 @@ CutQuadratureReport ComputeGeneral(
                box(axis) = Interval(side);
                const auto face = function(box);
                if (face.alpha == 0 && face.maxDeviation() == 0)
-               { return {CutQuadratureStatus::DegenerateGeometry, "Interface coincides with an element facet."}; }
+               { return {CutQuadratureReport::Status::DegenerateGeometry, "Interface coincides with an element facet."}; }
             }
             box(axis) = saved;
          }
@@ -302,7 +299,7 @@ CutQuadratureReport ComputeGeneral(
       sign == CutDomain::LevelSetSign::Zero ? Dimension : -1, -1,
       order / 2 + 1);
    if (quadrature.nodes.size() > size_t(std::numeric_limits<int>::max()))
-   { return {CutQuadratureStatus::NumericalFailure, "Too many ALGOIM nodes."}; }
+   { return {CutQuadratureReport::Status::NumericalFailure, "Too many ALGOIM nodes."}; }
    rule.SetSize(static_cast<int>(quadrature.nodes.size()));
    for (int index = 0; index < rule.GetNPoints(); ++index)
    {
@@ -425,7 +422,7 @@ CutQuadratureReport ComputePolynomialRule(
          if (!report.Succeeded()) { return report; }
          const auto &line = IntRules.Get(Geometry::SEGMENT, order);
          if (plane.GetNPoints() > std::numeric_limits<int>::max() / line.GetNPoints())
-         { return {CutQuadratureStatus::NumericalFailure, "Too many extruded ALGOIM nodes."}; }
+         { return {CutQuadratureReport::Status::NumericalFailure, "Too many extruded ALGOIM nodes."}; }
          rule.SetSize(plane.GetNPoints() * line.GetNPoints());
          int output = 0;
          for (int index = 0; index < plane.GetNPoints(); ++index)
@@ -510,7 +507,7 @@ CutQuadratureReport ComputePolynomialRule(
          });
    }
    if (nodes.size() > size_t(std::numeric_limits<int>::max()))
-   { return {CutQuadratureStatus::NumericalFailure, "Too many ALGOIM nodes."}; }
+   { return {CutQuadratureReport::Status::NumericalFailure, "Too many ALGOIM nodes."}; }
    rule.SetSize(static_cast<int>(nodes.size()));
    for (int index = 0; index < rule.GetNPoints(); ++index)
    { rule.IntPoint(index) = nodes[index]; }
@@ -531,11 +528,10 @@ CutQuadratureReport GenerateAlgoimPolynomial(
       const auto *source = dynamic_cast<const PolynomialLevelSet *>(
                               &constraint.level_set.get());
       if (!source)
-      { return {CutQuadratureStatus::Unsupported, "Polynomial ALGOIM requires polynomial inputs."}; }
-      auto report = polynomial.Set(*source);
-      if (!report.Succeeded()) { return report; }
+      { return {CutQuadratureReport::Status::Unsupported, "Polynomial ALGOIM requires polynomial inputs."}; }
+      polynomial.Set(*source);
       Region classification;
-      report = polynomial.Classify(constraint.sign, classification);
+      auto report = polynomial.Classify(constraint.sign, classification);
       if (!report.Succeeded()) { return report; }
       if (classification == Region::Empty)
       { region = Region::Empty; return {}; }
@@ -561,7 +557,7 @@ CutQuadratureReport GenerateAlgoimPolynomial(
                            NearlyProportional<2>(data[0], polynomial) :
                            NearlyProportional<3>(data[0], polynomial)))
       {
-         return {CutQuadratureStatus::NumericalFailure,
+         return {CutQuadratureReport::Status::NumericalFailure,
                  "Nearly proportional polynomial constraints cannot be resolved reliably."};
       }
       data.push_back(std::move(polynomial));
@@ -596,38 +592,38 @@ public:
       auto report = domain.Validate(geometry);
       if (!report.Succeeded()) { return report; }
       if (order < 0)
-      { return {CutQuadratureStatus::InvalidInput, "Negative quadrature order."}; }
+      { return {CutQuadratureReport::Status::InvalidInput, "Negative quadrature order."}; }
       if (geometry != Geometry::SQUARE && geometry != Geometry::CUBE)
-      { return {CutQuadratureStatus::Unsupported, "ALGOIM supports quads and hexes."}; }
+      { return {CutQuadratureReport::Status::Unsupported, "ALGOIM supports quads and hexes."}; }
       if (fixed_points)
-      { return {CutQuadratureStatus::Unsupported, "Unsupported ALGOIM prescribed nodes."}; }
+      { return {CutQuadratureReport::Status::Unsupported, "Unsupported ALGOIM prescribed nodes."}; }
       const int count = domain.NumConstraints();
       const bool polynomial = UsePolynomial(domain);
       if (polynomial)
       {
 #ifndef MFEM_USE_LAPACKE
-         return {CutQuadratureStatus::Unsupported, "Polynomial ALGOIM requires LAPACKE."};
+         return {CutQuadratureReport::Status::Unsupported, "Polynomial ALGOIM requires LAPACKE."};
 #else
          if (count > 2 || (count > 1 && domain.Codimension()))
-         { return {CutQuadratureStatus::Unsupported, "Polynomial ALGOIM supports two signs or one surface."}; }
+         { return {CutQuadratureReport::Status::Unsupported, "Polynomial ALGOIM supports two signs or one surface."}; }
          for (int index = 0; index < count; ++index)
          {
             if (!dynamic_cast<const PolynomialLevelSet *>(
                    &domain.GetConstraint(index).level_set.get()))
-            { return {CutQuadratureStatus::Unsupported, "Polynomial ALGOIM requires polynomial inputs."}; }
+            { return {CutQuadratureReport::Status::Unsupported, "Polynomial ALGOIM requires polynomial inputs."}; }
          }
 #endif
       }
       else
       {
          if (count > 1)
-         { return {CutQuadratureStatus::Unsupported, "General ALGOIM supports one active level set."}; }
+         { return {CutQuadratureReport::Status::Unsupported, "General ALGOIM supports one active level set."}; }
          if (count && !SupportsAlgoimIntervals(
                 domain.GetConstraint(0).level_set.get()))
-         { return {CutQuadratureStatus::Unsupported, "General ALGOIM requires interval-capable inputs."}; }
+         { return {CutQuadratureReport::Status::Unsupported, "General ALGOIM requires interval-capable inputs."}; }
       }
       if (order / 2 + 1 > (polynomial ? 100 : 10))
-      { return {CutQuadratureStatus::Unsupported, "Quadrature order exceeds the selected ALGOIM limit."}; }
+      { return {CutQuadratureReport::Status::Unsupported, "Quadrature order exceeds the selected ALGOIM limit."}; }
       return {};
    }
 
@@ -653,7 +649,7 @@ public:
          { report = GenerateAlgoimGeneral(geometry, domain, order, rule, region); }
       }
       catch (const std::exception &error)
-      { report = {CutQuadratureStatus::NumericalFailure, error.what()}; }
+      { report = {CutQuadratureReport::Status::NumericalFailure, error.what()}; }
       if (report.Succeeded())
       {
          for (int index = 0; index < rule.GetNPoints(); ++index)
@@ -664,7 +660,7 @@ public:
                 (geometry == Geometry::CUBE && !std::isfinite(point.z)) ||
                 !Geometry::CheckPoint(geometry, point,
                                      128 * std::numeric_limits<real_t>::epsilon()))
-            { report = {CutQuadratureStatus::NumericalFailure, "Invalid ALGOIM quadrature node."}; break; }
+            { report = {CutQuadratureReport::Status::NumericalFailure, "Invalid ALGOIM quadrature node."}; break; }
          }
       }
       if (!report.Succeeded())
