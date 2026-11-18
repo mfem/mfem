@@ -30,7 +30,7 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
       tensor<real_t> t0d{1_r};
       [[maybe_unused]] auto sizeof_t0d = sizeof(t0d);
       // reading the scalar value is implicit:
-      [[maybe_unused]] real_t exp_t0d = exp(t0d);
+      [[maybe_unused]] real_t exp_t0d = std::exp(t0d);
       // modifying with = is supported:
       t0d = 2_r;
       if (t0d != 2_r) { d_errors[i] += 1; }
