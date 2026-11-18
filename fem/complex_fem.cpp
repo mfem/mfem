@@ -1920,7 +1920,10 @@ struct ZeroDiagonalHypreKernel
    void MFEM_HOST_DEVICE operator()(int k) const
    {
       const int j = ess_tdof_list[k];
-      diag_data[diag_i[j]] = 0.0;
+      if (diag_i[j] < diag_i[j + 1])
+      {
+         diag_data[diag_i[j]] = 0.0;
+      }
    }
 };
 }
