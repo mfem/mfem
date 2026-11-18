@@ -11,7 +11,8 @@
 
 // Implementation of class LinearForm
 
-#include "fem.hpp"
+#include "linearform.hpp"
+#include "integ/mma/mma.hpp"
 
 namespace mfem
 {
@@ -153,10 +154,44 @@ bool LinearForm::SupportsDevice() const
    const int mesh_dim = mesh.Dimension();
    if (mesh_dim == 1 || mesh_dim != mesh.SpaceDimension()) { return false; }
 
-   // tensor-product finite element space only
-   if (!UsesTensorBasis(*fes)) { return false; }
+   // Tensor-product FE spaces use the existing device kernels
+   if (UsesTensorBasis(*fes)) { return true; }
 
-   return true;
+   // Simplex boundary loads: H1 only, through the NATIVE face restriction and
+   // the simplex FaceGeometricFactors (continuous mesh nodes are needed).
+   // As in the tensor case above, any boundary integrator whose
+   // SupportsDevice() is true is accepted: this is the extension point for
+   // integrators defined outside the library. On simplices, AssembleDevice()
+   // must then handle
+   //  - a NATIVE face E-vector of layout (nd, vdim, nbf), nd being the number
+   //    of DOFs of the face element (see ConformingFaceRestriction),
+   //  - the DofToQuad::FULL basis of the face element (no tensor structure),
+   //  - the simplex FaceGeometricFactors, in the IntegrationRule point order.
+   // BLFEvalAssembleSimplex in fem/integ/lininteg_boundary.cpp is the
+   // reference implementation.
+   if (boundary_integs.Size() > 0)
+   {
+      if (!UsesSimplexMMA(*fes)) { return false; }
+      const GridFunction *nodes = mesh.GetNodes();
+      if (nodes && nodes->FESpace()->IsDGSpace()) { return false; }
+   }
+
+   // Simplices can use MMA (H1, H(curl), H(div); boundary loads H1 only)
+   if (UsesSimplexMMA(*fes) || UsesSimplexMmaHcurl(*fes) ||
+       UsesSimplexMmaHdiv(*fes))
+   {
+      for (int i = 0; i < domain_integs.Size(); ++i)
+      {
+         if (dynamic_cast<DomainLFGradIntegrator*>(domain_integs[i]) ||
+             dynamic_cast<VectorDomainLFGradIntegrator*>(domain_integs[i]))
+         {
+            return false;
+         }
+      }
+      return true;
+   }
+
+   return false;
 }
 
 void LinearForm::UseFastAssembly(bool use_fa)
@@ -232,9 +267,10 @@ void LinearForm::Assemble()
          if (boundary_integs_marker[k] == NULL)
          {
             bdr_attr_marker = 1;
-            break;
+            continue; // the markers are also read on host below
          }
-         Array<int> &bdr_marker = *boundary_integs_marker[k];
+         const Array<int> &bdr_marker = *boundary_integs_marker[k];
+         bdr_marker.HostRead();
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary integrator #"
                      << k << ", counting from zero");
@@ -277,9 +313,10 @@ void LinearForm::Assemble()
          if (boundary_face_integs_marker[k] == NULL)
          {
             bdr_attr_marker = 1;
-            break;
+            continue; // the markers are also read on host below
          }
-         Array<int> &bdr_marker = *boundary_face_integs_marker[k];
+         const Array<int> &bdr_marker = *boundary_face_integs_marker[k];
+         bdr_marker.HostRead();
          MFEM_ASSERT(bdr_marker.Size() == bdr_attr_marker.Size(),
                      "invalid boundary marker for boundary face integrator #"
                      << k << ", counting from zero");

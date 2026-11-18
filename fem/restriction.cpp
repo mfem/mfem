@@ -631,9 +631,25 @@ ConformingFaceRestriction::ConformingFaceRestriction(
 
    CheckFESpace(f_ordering);
 
-   // Get the mapping from lexicographic DOF ordering to native ordering.
    const TensorBasisElement* el =
       dynamic_cast<const TensorBasisElement*>(fes.GetTypicalFE());
+
+   // Simplices have no lexicographic DOF numbering: their faces are only
+   // defined in NATIVE order, which is also what GetEVectorOrdering() selects
+   // for the element E-vectors of these spaces.
+   native_faces = (el == nullptr);
+   MFEM_VERIFY(!native_faces || f_ordering == ElementDofOrdering::NATIVE,
+               "Non-tensor (simplex) face restrictions require "
+               "ElementDofOrdering::NATIVE, see GetEVectorOrdering()");
+   if (native_faces)
+   {
+      if (!build) { return; }
+      ComputeScatterIndicesAndOffsets(f_ordering, type);
+      ComputeGatherIndices(f_ordering, type);
+      return;
+   }
+
+   // Get the mapping from lexicographic DOF ordering to native ordering.
    const Array<int> &dof_map_ = el->GetDofMap();
    if (dof_map_.Size() > 0)
    {
@@ -758,8 +774,11 @@ void ConformingFaceRestriction::CheckFESpace(const ElementDofOrdering
 #ifdef MFEM_DEBUG
    const FiniteElement *fe0 = fes.GetTypicalFE();
    const TensorBasisElement *tfe = dynamic_cast<const TensorBasisElement*>(fe0);
+   // Simplices: NATIVE face DOFs straight from GetFaceDofs(), any basis.
+   if (tfe == nullptr && f_ordering == ElementDofOrdering::NATIVE) { return; }
    MFEM_VERIFY(tfe != NULL,
-               "ConformingFaceRestriction only supports TensorBasisElements");
+               "ConformingFaceRestriction only supports TensorBasisElements"
+               " and NATIVE ordering on simplices");
    MFEM_VERIFY(tfe->GetBasisType()==BasisType::GaussLobatto ||
                tfe->GetBasisType()==BasisType::Positive,
                "ConformingFaceRestriction only supports Gauss-Lobatto and Bernstein bases");
@@ -805,7 +824,8 @@ void ConformingFaceRestriction::ComputeScatterIndicesAndOffsets(
       }
       else if ( face.IsOfFaceType(type) )
       {
-         SetFaceDofsScatterIndices(face, f_ind, f_ordering);
+         if (native_faces) { SetNativeFaceDofsScatterIndices(f, f_ind); }
+         else { SetFaceDofsScatterIndices(face, f_ind, f_ordering); }
          f_ind++;
       }
    }
@@ -837,7 +857,8 @@ void ConformingFaceRestriction::ComputeGatherIndices(
       }
       else if ( face.IsOfFaceType(type) )
       {
-         SetFaceDofsGatherIndices(face, f_ind, f_ordering);
+         if (native_faces) { SetNativeFaceDofsGatherIndices(f, f_ind); }
+         else { SetFaceDofsGatherIndices(face, f_ind, f_ordering); }
          f_ind++;
       }
    }
@@ -909,6 +930,41 @@ void ConformingFaceRestriction::SetFaceDofsGatherIndices(
       const int restriction_dof = face_dofs*face_index + face_dof;
       const int s_restriction_dof = (sgn >= 0) ? restriction_dof : -1 -
                                     restriction_dof;
+      gather_indices[gather_offsets[global_dof]++] = s_restriction_dof;
+   }
+}
+
+// On a conforming face, element 1 always has orientation 0 (see the assertion
+// in SetFaceDofsScatterIndices), i.e. its local view of the face coincides
+// with the face's own vertex order. The face-native DOF order returned by
+// GetFaceDofs() is therefore element 1's NATIVE view of the face, and it is
+// the order used by GetFaceElement(), GetFaceTransformation() and the
+// FaceQuadratureSpace points: no permutation is needed on simplices.
+void ConformingFaceRestriction::SetNativeFaceDofsScatterIndices(
+   const int face, const int face_index)
+{
+   fes.GetFaceDofs(face, face_map);
+   MFEM_ASSERT(face_map.Size() == face_dofs, "unexpected face DOF count");
+   for (int face_dof = 0; face_dof < face_dofs; ++face_dof)
+   {
+      const int s_global_dof = face_map[face_dof];
+      const int global_dof = UnsignIndex(s_global_dof);
+      scatter_indices[face_dofs*face_index + face_dof] = s_global_dof;
+      ++gather_offsets[global_dof + 1];
+   }
+}
+
+void ConformingFaceRestriction::SetNativeFaceDofsGatherIndices(
+   const int face, const int face_index)
+{
+   fes.GetFaceDofs(face, face_map);
+   for (int face_dof = 0; face_dof < face_dofs; ++face_dof)
+   {
+      const int s_global_dof = face_map[face_dof];
+      const int global_dof = UnsignIndex(s_global_dof);
+      const int restriction_dof = face_dofs*face_index + face_dof;
+      const int s_restriction_dof = (s_global_dof >= 0) ? restriction_dof :
+                                    -1 - restriction_dof;
       gather_indices[gather_offsets[global_dof]++] = s_restriction_dof;
    }
 }

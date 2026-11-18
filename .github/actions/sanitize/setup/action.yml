@@ -17,8 +17,8 @@ inputs:
     description: 'Whether to build for parallel (true/false)'
     default: false
   sanitizer:
-    description: 'Sanitizer to use (asan, msan, ubsan)'
-    default: asan
+    description: 'Sanitizer set to use (asan-ubsan, msan)'
+    default: asan-ubsan
 
 runs:
   using: 'composite'
@@ -27,7 +27,7 @@ runs:
       with:
         path: ${{env.LLVM_DIR}}
         fail-on-cache-miss: true
-        key: build-libcxx-${{env.LLVM_VER}}-${{inputs.sanitizer}}
+        key: ${{env.IMAGE_OS}}-build-libcxx-${{env.CLANG_VER}}-${{env.LLVM_VER}}-${{inputs.sanitizer}}
 
     - uses: ./.github/actions/sanitize/mpi
       if: ${{inputs.par == 'true'}}
@@ -37,14 +37,14 @@ runs:
       with:
         path: ${{env.HYPRE_DIR}}
         fail-on-cache-miss: true
-        key: ${{runner.os}}-ompi-build-${{env.HYPRE_DIR}}-int32-fp64-${{env.MFEM_ACTIONS_VERSION}}
+        key: ${{env.IMAGE_OS}}-ompi-build-${{env.HYPRE_DIR}}-int32-fp64-${{env.MFEM_ACTIONS_VERSION}}
 
     - uses: actions/cache/restore@v5  # Cache for Metis
       if: ${{inputs.par == 'true'}}
       with:
         path: ${{env.METIS_DIR}}
         fail-on-cache-miss: true
-        key: ${{runner.os}}-build-${{env.METIS_DIR}}-${{env.MFEM_ACTIONS_VERSION}}
+        key: ${{env.IMAGE_OS}}-build-${{env.METIS_DIR}}-${{env.MFEM_ACTIONS_VERSION}}
 
     - name: Hypre/Metis links
       if: ${{inputs.par == 'true'}}
@@ -55,7 +55,7 @@ runs:
       with:
         path: ${{env.LSAN_DIR}}
         fail-on-cache-miss: true
-        key: build-lsan-suppression-file
+        key: ${{env.IMAGE_OS}}-build-lsan-suppression-file
 
     - uses: actions/checkout@v6  # Checkout the repository
       with:

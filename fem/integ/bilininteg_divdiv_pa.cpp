@@ -13,12 +13,60 @@
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
 #include "bilininteg_hdiv_kernels.hpp"
+#include "mma/mma.hpp"
+#include "mma/hdiv.hpp"
 
 namespace mfem
 {
 
+DivDivIntegrator::DivDivIntegrator() : Q(nullptr)
+{
+   static Kernels kernels;
+}
+
+DivDivIntegrator::DivDivIntegrator(Coefficient &q, const IntegrationRule *ir)
+   : BilinearFormIntegrator(ir), Q(&q)
+{
+   static Kernels kernels;
+}
+
+/// \cond DO_NOT_DOCUMENT
+
+DivDivIntegrator::Kernels::Kernels()
+{
+   // 2D: Q1D = D1D
+   // RT0 (D1D = Q1D = 2) is not specialized because the fallback is faster
+   DivDivIntegrator::AddSpecialization<2, 3, 3>();
+   DivDivIntegrator::AddSpecialization<2, 4, 4>();
+   DivDivIntegrator::AddSpecialization<2, 5, 5>();
+   // 3D: Q1D = D1D + 1
+   DivDivIntegrator::AddSpecialization<3, 2, 3>();
+   DivDivIntegrator::AddSpecialization<3, 3, 4>();
+   DivDivIntegrator::AddSpecialization<3, 4, 5>();
+   DivDivIntegrator::AddSpecialization<3, 5, 6>();
+}
+
+DivDivIntegrator::ApplyKernelType
+DivDivIntegrator::ApplyPAKernels::Fallback(int DIM, int, int)
+{
+   if (DIM == 2) { return internal::PADivDivApply2D; }
+   else if (DIM == 3) { return internal::PADivDivApply3D; }
+   else { MFEM_ABORT("Unsupported dimension!"); }
+}
+
+/// \endcond DO_NOT_DOCUMENT
+
 void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   use_tensors_mma_sum = false;
+   use_simplex_mma = false;
+
+   if (UsesSimplexMmaHdiv(fes))
+   {
+      AssembleSimplexMmaPA(fes);
+      return;
+   }
+
    // Assumes tensor-product elements
    Mesh *mesh = fes.GetMesh();
    const FiniteElement *fel = fes.GetTypicalFE();
@@ -33,7 +81,7 @@ void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const int dims = el->GetDim();
    MFEM_VERIFY(dims == 2 || dims == 3, "");
 
-   const int nq = ir->GetNPoints();
+   nq = ir->GetNPoints();
    dim = mesh->Dimension();
    MFEM_VERIFY(dim == 2 || dim == 3, "");
 
@@ -65,10 +113,40 @@ void DivDivIntegrator::AssemblePA(const FiniteElementSpace &fes)
    {
       MFEM_ABORT("Unknown kernel.");
    }
+
+   if (UsesTensorMmaHdiv(fes)) { use_tensors_mma_sum = true; }
 }
 
 void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
 {
+   if (use_simplex_mma)
+   {
+      const int nd = simplex_nd;
+      MFEM_VERIFY(nd > 0 && ne > 0, "");
+      MFEM_VERIFY(diag.Size() == nd * ne, "");
+      MFEM_VERIFY(pa_data.Size() % ne == 0, "");
+      const int stride = pa_data.Size() / ne;
+      const real_t *pa = pa_data.HostRead();
+      Vector x(nd), y(nd), slice(stride);
+      real_t *d = diag.HostReadWrite();
+      for (int e = 0; e < ne; ++e)
+      {
+         const real_t *src = pa + static_cast<size_t>(stride) * e;
+         for (int k = 0; k < stride; ++k) { slice(k) = src[k]; }
+         for (int i = 0; i < nd; ++i)
+         {
+            x.HostWrite();
+            x = 0.0;
+            x(i) = 1.0;
+            y.UseDevice(true);
+            y = 0.0;
+            internal::MmaDivDivApplySimplex(dim, 1, nd, simplex_nq, dofs1D,
+                                            simplex_B, slice, x, y);
+            d[i + nd * e] += y.HostRead()[i];
+         }
+      }
+      return;
+   }
    if (dim == 3)
    {
       internal::PADivDivAssembleDiagonal3D(dofs1D, quad1D, ne,
@@ -83,12 +161,37 @@ void DivDivIntegrator::AssembleDiagonalPA(Vector& diag)
 
 void DivDivIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (dim == 3)
-      internal::PADivDivApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
-                                mapsO->Bt, mapsC->Gt, pa_data, x, y);
-   else if (dim == 2)
-      internal::PADivDivApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
-                                mapsO->Bt, mapsC->Gt, pa_data, x, y);
+   if (use_simplex_mma)
+   {
+      internal::MmaDivDivApplySimplex(dim, ne, simplex_nd, simplex_nq, dofs1D,
+                                      simplex_B, pa_data, x, y);
+      return;
+   }
+   if (use_tensors_mma_sum)
+   {
+      if (dim == 3)
+      {
+         internal::MmaDivDivApplyTensors3D(dofs1D, quad1D, ne, mapsO->B,
+                                           mapsC->G, mapsO->Bt, mapsC->Gt,
+                                           pa_data, x, y);
+      }
+      else
+      {
+         internal::MmaDivDivApplyTensors2D(dofs1D, quad1D, ne, mapsO->B,
+                                           mapsC->G, mapsO->Bt, mapsC->Gt,
+                                           pa_data, x, y);
+      }
+      return;
+   }
+   if (dim == 3 || dim == 2)
+   {
+      // internal::PADivDivApply3D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
+      //                           mapsO->Bt, mapsC->Gt, pa_data, x, y);
+      // internal::PADivDivApply2D(dofs1D, quad1D, ne, mapsO->B, mapsC->G,
+      //                           mapsO->Bt, mapsC->Gt, pa_data, x, y);
+      ApplyPAKernels::Run(dim, dofs1D, quad1D, dofs1D, quad1D, ne, mapsO->B,
+                          mapsC->G, mapsO->Bt, mapsC->Gt, pa_data, x, y);
+   }
    else
    {
       MFEM_ABORT("Unsupported dimension!");

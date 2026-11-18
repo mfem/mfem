@@ -21,12 +21,20 @@ runs:
   using: 'composite'
   steps:
     - name: Install
-      run: sudo apt-get install openmpi-bin libopenmpi-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install openmpi-bin libopenmpi-dev
       shell: bash
 
     - name: Env
       run: |
         echo PRTE_MCA_rmaps_default_mapping_policy=:oversubscribe >> $GITHUB_ENV
+        # Ubuntu 26.04's OpenMPI 5 crashes at init under ASAN when it opens its UCX
+        # components (memory hooks), so keep MPI on the shared-memory transports
+        echo OMPI_MCA_pml=^ucx >> $GITHUB_ENV
+        echo OMPI_MCA_osc=^ucx >> $GITHUB_ENV
+        echo OMPI_MCA_btl=^uct >> $GITHUB_ENV
+        echo OMPI_MCA_coll=^ucc >> $GITHUB_ENV
         echo MPI_INC=$(mpicxx --showme:compile) >> $GITHUB_ENV
         echo MPI_LIB=$(mpicxx --showme:link) >> $GITHUB_ENV
       shell: bash

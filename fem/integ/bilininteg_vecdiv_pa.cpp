@@ -12,6 +12,7 @@
 #include "../../general/forall.hpp"
 #include "../bilininteg.hpp"
 #include "./bilininteg_vecdiv_pa.hpp" // IWYU pragma: keep
+#include "mma/vector.hpp"
 
 namespace mfem
 {
@@ -126,6 +127,13 @@ static void PADivergenceSetup(const int dim,
 void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                             const FiniteElementSpace &test_fes)
 {
+   use_simplex_mma = false;
+   if (UsesSimplexMmaVectorDivergence(trial_fes, test_fes))
+   {
+      AssembleSimplexMmaPA(trial_fes, test_fes);
+      return;
+   }
+
    // Assumes tensor-product elements ordered by nodes
    MFEM_ASSERT(trial_fes.GetOrdering() == Ordering::byNODES,
                "PA Only supports Ordering::byNODES!");
@@ -163,6 +171,14 @@ void VectorDivergenceIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 // PA Divergence Apply kernel
 void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   if (use_simplex_mma)
+   {
+      internal::MmaVectorDivergenceApplySimplex(
+         false, dim, ne, nq, simplex_trial_nd, simplex_test_nd, mma_G, mma_B,
+         pa_data, x, mma_u, mma_v, y);
+      return;
+   }
+
    using Kernels = VectorDivergenceAddMultPA;
 
    static const auto specializations =
@@ -212,6 +228,14 @@ void VectorDivergenceIntegrator::AddMultPA(const Vector &x, Vector &y) const
 void VectorDivergenceIntegrator::AddMultTransposePA(const Vector &x,
                                                     Vector &y) const
 {
+   if (use_simplex_mma)
+   {
+      internal::MmaVectorDivergenceApplySimplex(
+         true, dim, ne, nq, simplex_trial_nd, simplex_test_nd, mma_G, mma_B,
+         pa_data, x, mma_u, mma_v, y);
+      return;
+   }
+
    using Kernels = VectorDivergenceAddMultTransposePA;
 
    static const auto specializations =

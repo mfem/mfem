@@ -16,10 +16,10 @@
 #include "../../general/forall.hpp"
 #include "../fem.hpp"
 
-/// \cond DO_NOT_DOCUMENT
-
 namespace mfem
 {
+
+/// \cond DO_NOT_DOCUMENT
 
 template <int T_D1D = 0, int T_Q1D = 0>
 static void VBFEvalAssemble2D(const int vdim, const int nbe, const int d,
@@ -40,7 +40,7 @@ static void VBFEvalAssemble2D(const int vdim, const int nbe, const int d,
 
    mfem::forall_2D(nbe, d, 1, [=] MFEM_HOST_DEVICE (int e)
    {
-      if (M(e) == 0) { return; }
+      if (M(e) == 0) { return; } // ignore
 
       constexpr int Q = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
 
@@ -74,6 +74,7 @@ static void VBFEvalAssemble3D(const int vdim, const int nbe, const int d,
                               const real_t sign, real_t *y)
 {
    static constexpr int VDIM = 3;
+   MFEM_VERIFY(vdim == VDIM, "vdim must be " << VDIM);
 
    const auto F = coeff.Read();
    const auto M = Reshape(markers, nbe);
@@ -84,20 +85,20 @@ static void VBFEvalAssemble3D(const int vdim, const int nbe, const int d,
    const auto C = cst ? Reshape(F,1,1,1,1) : Reshape(F,1,q,q,nbe);
    auto Y = Reshape(y, d, d, VDIM, nbe);
 
-   constexpr int T_N1D = T_D1D > T_Q1D ? T_D1D : T_Q1D;
-   const int n1d = d > q ? d : q;
-   mfem::forall_2D<T_N1D*T_N1D>(nbe, n1d, n1d,
-                              [=] MFEM_HOST_DEVICE (int e)
+   // The default LEGACY rule has q < d for p > 1: use max(d, q) threads and
+   // max(D1D, Q1D) storage, as the 2D tile holds both dofs and points.
+   constexpr int T_DQ = T_D1D > T_Q1D ? T_D1D : T_Q1D;
+   const int dq = d > q ? d : q;
+   mfem::forall_2D<T_DQ*T_DQ>(nbe, dq, dq, [=] MFEM_HOST_DEVICE (int e)
    {
       if (M(e) == 0) { return; }
 
-      // The CPU default quadrature can have fewer points than dofs.
-      constexpr int MAX_N1D = DofQuadLimits::MAX_D1D > DofQuadLimits::MAX_Q1D ?
-                             DofQuadLimits::MAX_D1D : DofQuadLimits::MAX_Q1D;
-      constexpr int MN1 = T_N1D > 0 ? kernels::internal::SetMaxOf(T_N1D) : MAX_N1D;
+      constexpr int MDQ = T_DQ > 0 ? kernels::internal::SetMaxOf(T_DQ) :
+                          DofQuadLimits::MAX_D1D > DofQuadLimits::MAX_Q1D ?
+                          DofQuadLimits::MAX_D1D : DofQuadLimits::MAX_Q1D;
 
-      MFEM_SHARED real_t sB[MN1][MN1], smem[MN1][MN1];
-      kernels::internal::v_regs2d_t<VDIM, MN1> r0, r1;
+      MFEM_SHARED real_t sB[MDQ][MDQ], smem[MDQ][MDQ];
+      kernels::internal::v_regs2d_t<VDIM, MDQ> r0, r1;
       kernels::internal::LoadMatrix(d, q, b, sB);
 
       MFEM_FOREACH_THREAD_DIRECT(qy, y, q)
@@ -123,9 +124,9 @@ template <int DIM, int T_D1D, int T_Q1D>
 VectorBoundaryFluxLFIntegrator::AssembleKernelType
 VectorBoundaryFluxLFIntegrator::AssembleKernels::Kernel()
 {
+   static_assert(DIM == 2 || DIM == 3, "only 2D and 3D are supported");
    if constexpr (DIM == 2) { return VBFEvalAssemble2D<T_D1D, T_Q1D>; }
-   if constexpr (DIM == 3) { return VBFEvalAssemble3D<T_D1D, T_Q1D>; }
-   MFEM_ABORT("");
+   else { return VBFEvalAssemble3D<T_D1D, T_Q1D>; }
 }
 
 /// \endcond DO_NOT_DOCUMENT

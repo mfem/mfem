@@ -12,10 +12,12 @@
 #include "../../general/forall.hpp"
 #include "../bilininteg.hpp"
 #include "../gridfunc.hpp"
-#include "../qfunction.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
-#include "bilininteg_mass_kernels.hpp"
-#include "bilininteg_mass_pa_simplices.hpp"
+#include "mma/mma.hpp"
+
+#include "bilininteg_mass_kernels.hpp" // IWYU pragma: keep
+#include "bilininteg_mass_pa_simplices.hpp" // IWYU pragma: keep
+#include "mma/mass.hpp" // IWYU pragma: keep
 
 namespace mfem
 {
@@ -24,10 +26,23 @@ namespace mfem
 
 void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   use_simplex_mma = false;
+   use_tensors_mma_sum = false;
+   use_tensors_mma_gem = false;
+   nq = 0;
+   mma_P.DeleteAll();
+
+   if (UsesSimplexMMA(fes))
+   {
+      delete ceedOp;
+      ceedOp = nullptr;
+      AssembleSimplexMmaPA(fes);
+      return;
+   }
+
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
 
-   // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    dim = mesh->Dimension();
@@ -35,6 +50,7 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    ElementTransformation *T0 = mesh->GetTypicalElementTransformation();
    const bool stroud = fes.UsesRaggedTensorBasis();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0, stroud);
+   nq = ir->GetNPoints();
    if (DeviceCanUseCeed())
    {
       delete ceedOp;
@@ -52,8 +68,6 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    int map_type = el.GetMapType();
    ne = fes.GetMesh()->GetNE();
-   nq = ir->GetNPoints();
-   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
    if (stroud)
    {
       maps = &el.GetDofToQuad(*ir, DofToQuad::RAGGED_TENSOR);
@@ -64,17 +78,35 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
    }
    dofs1D = maps->ndof;
    quad1D = maps->nqpt;
+   // dbg("dofs1D:{} quad1D:{}", dofs1D, quad1D);
    pa_data.SetSize(ne*nq, mt);
 
    QuadratureSpace qs(*mesh, *ir);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
-   // QuadratureSpace expects ir defined in reference simplex for Bernstein
-   // elements with partial assembly
+   const bool by_val = map_type == FiniteElement::VALUE;
+
+   // Assemble from restricted mesh nodes
+   if (stroud && mesh->SpaceDimension() == dim)
+   {
+      geom = nullptr;
+      Vector nodes_e;
+      int nd_n = 0, sdim = 0;
+      internal::GetSimplexMeshNodesE(*mesh, mt, nodes_e, nd_n, sdim);
+      MFEM_VERIFY(sdim == dim, "");
+      const FiniteElement &nfe = *mesh->GetNodes()->FESpace()->GetTypicalFE();
+      const DofToQuad &nmaps = nfe.GetDofToQuad(*ir, DofToQuad::FULL);
+      MFEM_VERIFY(nmaps.ndof == nd_n && nmaps.nqpt == nq, "");
+      internal::PADetJSetupSimplexFromNodes(
+         dim, ne, nq, nd_n, by_val, ir->GetWeights(), nmaps.G, nodes_e, coeff,
+         pa_data);
+      return;
+   }
+
+   geom = mesh->GetGeometricFactors(*ir, GeometricFactors::DETERMINANTS, mt);
    {
       const int NE = ne;
       const int NQ = nq;
       const bool const_c = coeff.Size() == 1;
-      const bool by_val = map_type == FiniteElement::VALUE;
       const auto W = Reshape(ir->GetWeights().Read(), NQ);
       const auto J = Reshape(geom->detJ.Read(), NQ, NE);
       const auto C =
@@ -87,6 +119,25 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
          v(q, e) = W(q) * coeff * (by_val ? detJ : 1.0 / detJ);
       });
    }
+
+   const bool tensor_shell =
+      UsesTensorMMA(fes) &&
+      dofs1D <= internal::mma::TensorsMmaMaxD1D &&
+      quad1D <= internal::mma::TensorsMmaMaxQ1D;
+   if (tensor_shell && GetForceGEM())
+   {
+      use_tensors_mma_gem = true;
+      const int ndof = internal::mma::form::gem::TensorGemPow(dofs1D, dim);
+      MFEM_VERIFY(nq == internal::mma::form::gem::TensorGemPow(quad1D, dim),
+                  "tensor GEM mass nq must be Q1D^dim");
+      mma_P.SetSize(nq * ndof, mt);
+      internal::mma::form::gem::BuildTensorGemMassBasis(
+         dim, dofs1D, quad1D, maps->B.HostRead(), mma_P.HostWrite());
+   }
+   else if (tensor_shell)
+   {
+      use_tensors_mma_sum = true;
+   }
 }
 
 void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
@@ -94,7 +145,6 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
    const MemoryType mt = (pa_mt == MemoryType::DEFAULT) ?
                          Device::GetDeviceMemoryType() : pa_mt;
 
-   // Assuming the same element type
    fespace = &fes;
    Mesh *mesh = fes.GetMesh();
    ne = mesh->GetNFbyType(FaceType::Boundary);
@@ -104,7 +154,7 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, el, *T0);
 
    int map_type = el.GetMapType();
-   dim = el.GetDim(); // Dimension of the boundary element, *not* the mesh
+   dim = el.GetDim();
    nq = ir->GetNPoints();
    face_geom = mesh->GetFaceGeometricFactors(*ir, GeometricFactors::DETERMINANTS,
                                              FaceType::Boundary, mt);
@@ -137,7 +187,32 @@ void MassIntegrator::AssemblePABoundary(const FiniteElementSpace &fes)
 
 void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (DeviceCanUseCeed())
+   if (use_simplex_mma)
+   {
+      if (ne <= 0 || nq <= 0) { return; }
+      const int NQ = nq;
+      const int nd = mma_P.Size() / NQ;
+      MFEM_VERIFY(nd > 0 && mma_P.Size() == NQ * nd, "");
+      MFEM_VERIFY(pa_data.Size() == NQ * ne, "");
+      const auto P = Reshape(mma_P.Read(), NQ, nd);
+      const auto D = Reshape(pa_data.Read(), NQ, ne);
+      auto Y = Reshape(diag.ReadWrite(), nd, ne);
+      mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+      {
+         for (int i = 0; i < nd; ++i)
+         {
+            real_t s = 0.0;
+            for (int q = 0; q < NQ; ++q)
+            {
+               const real_t b = P(q, i);
+               s += b * b * D(q, e);
+            }
+            Y(i, e) += s;
+         }
+      });
+      return;
+   }
+   if (ceedOp)
    {
       ceedOp->GetDiagonal(diag);
    }
@@ -153,7 +228,25 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
 
 void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
-   if (DeviceCanUseCeed())
+   if (use_simplex_mma)
+   {
+      ApplySimplexMmaGemPAKernels::Run(dim, dofs1D, nq, ne, mma_P,
+                                       pa_data, x, y);
+   }
+   else if (use_tensors_mma_gem)
+   {
+      ApplyTensorsMmaGemPAKernels::Run(dim, dofs1D, quad1D, ne, mma_P,
+                                       pa_data, x, y);
+   }
+   else if (use_tensors_mma_sum)
+   {
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &Bt = maps->Bt;
+      ApplyTensorsMmaSumPAKernels::Run(dim, dofs1D, quad1D, ne, B, Bt,
+                                       pa_data, x,
+                                       y, dofs1D, quad1D);
+   }
+   else if (ceedOp)
    {
       ceedOp->AddMult(x, y);
    }
@@ -209,7 +302,7 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 {
-   if (DeviceCanUseCeed())
+   if (ceedOp)
    {
       MFEM_ABORT("AddAbsMultPA not implemented with CEED!");
       ceedOp->AddMult(x, y);
@@ -218,6 +311,9 @@ void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    {
       MFEM_VERIFY(!fespace->UsesRaggedTensorBasis(),
                   "AbsMultPA not implemented for ragged tensor basis");
+      MFEM_VERIFY(!use_simplex_mma && !use_tensors_mma_sum &&
+                  !use_tensors_mma_gem,
+                  "AbsMultPA not implemented for MMA PA");
       Vector abs_pa_data(pa_data);
       abs_pa_data.Abs();
       Array<real_t> absB(maps->B);
@@ -232,13 +328,11 @@ void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 
 void MassIntegrator::AddMultTransposePA(const Vector &x, Vector &y) const
 {
-   // Mass integrator is symmetric
    AddMultPA(x, y);
 }
 
 void MassIntegrator::AddAbsMultTransposePA(const Vector &x, Vector &y) const
 {
-   // Mass integrator is symmetric
    AddAbsMultPA(x, y);
 }
 

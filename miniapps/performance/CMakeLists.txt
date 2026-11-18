@@ -12,7 +12,7 @@
 # Rosetta will have x86 as a physical CPU, so we need CMAKE_OSX_ARCHITECTURES case too.
 if (${CMAKE_SYSTEM_PROCESSOR} MATCHES "ppc|ppc64" OR (APPLE AND "${CMAKE_OSX_ARCHITECTURES}" MATCHES "ppc|ppc64"))
    set(MFEM_PERF_CXX_ARCH_FLAGS "-mcpu=native" "-mtune=native")
-elseif (APPLE AND ${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64")
+elseif (APPLE AND "${CMAKE_SYSTEM_PROCESSOR}" MATCHES "arm64")
    set(MFEM_PERF_CXX_ARCH_FLAGS "-mcpu=apple-m1")
 elseif (${CMAKE_SYSTEM_PROCESSOR} MATCHES "riscv64")
    set(MFEM_PERF_CXX_ARCH_FLAGS "-march=rv64gc")
@@ -21,7 +21,8 @@ else()
 endif()
 
 set(PERFORMANCE_CXX_OPTIONS)
-if (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
+if ((${CMAKE_CXX_COMPILER_ID} MATCHES "Clang") OR
+    (${CMAKE_CXX_COMPILER_ID} MATCHES "IntelLLVM"))
   list(APPEND PERFORMANCE_CXX_OPTIONS
     ${MFEM_PERF_CXX_ARCH_FLAGS}
     "-fcolor-diagnostics"

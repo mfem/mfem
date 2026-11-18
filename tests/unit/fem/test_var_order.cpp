@@ -913,7 +913,8 @@ real_t ErrorSerialParallel(const GridFunction & xser,
    Mesh *mesh = fespace->GetMesh();
    ParMesh *pmesh = pfespace->GetParMesh();
 
-   const int npe = pmesh->GetNE();
+   // keep non-const as a workaround for MPI warning in MPI_Allgather below
+   int npe = pmesh->GetNE();
 
    int numprocs, rank;
    MPI_Comm_size(MPI_COMM_WORLD, &numprocs);

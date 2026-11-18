@@ -91,7 +91,13 @@ public:
 
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
-       used later in the methods AddMultPA(). */
+       used later in the methods AddMultPA().
+
+       For a NonlinearForm boundary integrator (AddBoundaryIntegrator), every
+       E-vector passed to the PA methods below is a boundary-face E-vector of
+       PANonlinearFormExtension::GetBdrFaceRestriction(fes), with ordering
+       GetEVectorOrdering(fes) (NATIVE on simplex MMA spaces), see
+       PANonlinearFormExtension. */
    virtual void AssemblePA(const FiniteElementSpace &fes);
 
    /** The result of the partial assembly is stored internally so that it can be
@@ -151,6 +157,8 @@ public:
    virtual void AddMultMF(const Vector &x, Vector &y) const;
 
    ceed::Operator& GetCeedOp() { return *ceedOp; }
+
+   bool HasCeedOp() const { return ceedOp != nullptr; }
 
    virtual ~NonlinearFormIntegrator()
    {
@@ -389,6 +397,14 @@ private:
    Vector pa_adj, pa_u;
    const DofToQuad *maps;         ///< Not owned
    const GeometricFactors *geom;  ///< Not owned
+   bool use_simplex_mma = false;
+   int simplex_nd = 0;
+   Array<real_t> mma_BG; ///< Dense values + ref gradients (nq, 1+dim, nd)
+   Vector mma_uq;        ///< Gradient state BG u at Q
+   mutable Vector mma_xq, mma_vq;
+
+   void AssembleSimplexMmaPA(const FiniteElementSpace &fes);
+   void SetSimplexMmaState(const Vector &u);
 
 public:
    struct Kernels { Kernels(); };

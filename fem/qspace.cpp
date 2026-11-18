@@ -260,12 +260,17 @@ void FaceQuadratureSpace::Construct()
 int FaceQuadratureSpace::GetPermutedIndex(int idx, int iq) const
 {
    const int f_idx = face_indices[idx];
-   if (Geometry::IsTensorProduct(GetGeometry(idx)))
+   const Mesh::FaceInformation face = mesh.GetFaceInformation(f_idx);
+   // The lexicographic face convention belongs to tensor elements: a segment
+   // face of a triangle stays in native order (see GetPermutedIndex docs).
+   const Geometry::Type e1_geom =
+      mesh.GetElementGeometry(face.element[0].index);
+   if (Geometry::IsTensorProduct(GetGeometry(idx)) &&
+       Geometry::IsTensorProduct(e1_geom))
    {
       const int dim = mesh.Dimension();
       const IntegrationRule &ir = GetIntRule(idx);
       const int q1d = (int)floor(pow(ir.GetNPoints(), 1.0/(dim-1)) + 0.5);
-      const Mesh::FaceInformation face = mesh.GetFaceInformation(f_idx);
       return ToLexOrdering(dim, face.element[0].local_face_id, q1d, iq);
    }
    else
@@ -279,7 +284,8 @@ ElementTransformation *FaceQuadratureSpace::GetTransformation(int idx)
    ElementTransformation *T = mesh.GetFaceTransformation(face_indices[idx]);
    if (face_type == FaceType::Boundary)
    {
-      T->Attribute = mesh.GetBdrFaceAttributes()[idx];
+      // HostRead: device boundary assembly may have read the attributes.
+      T->Attribute = mesh.GetBdrFaceAttributes().HostRead()[idx];
    }
    return T;
 }

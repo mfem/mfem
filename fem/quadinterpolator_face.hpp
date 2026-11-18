@@ -65,7 +65,8 @@ public:
                               const IntegrationRule &ir, FaceType type);
 
    /// @brief Returns true if the given finite element space is supported by
-   /// FaceQuadratureInterpolator.
+   /// FaceQuadratureInterpolator: Gauss-Lobatto or Bernstein tensor elements,
+   /// or scalar simplex elements (evaluated with EvalSimplex()).
    static bool SupportsFESpace(const FiniteElementSpace &fes);
 
    /** @brief Disable the use of tensor product evaluations, for tensor-product
@@ -142,6 +143,25 @@ public:
                           Vector &q_det,
                           Vector &q_nor,
                           const int eval_flags);
+
+   /** @brief Compute kernel for simplex (triangle/tetrahedron) spaces.
+
+       The face E-vector is in NATIVE order (see ConformingFaceRestriction)
+       and @a maps is the DofToQuad::FULL map of the trace element, so the
+       quadrature points follow the native order of the IntegrationRule on
+       the face reference geometry. Same output layouts as Eval2D/Eval3D,
+       with the quadrature points flattened into a single index. */
+   static void EvalSimplex(const int NF,
+                           const int vdim,
+                           const QVectorLayout q_layout,
+                           const DofToQuad &maps,
+                           const Array<bool> &signs,
+                           const Vector &e_vec,
+                           Vector &q_val,
+                           Vector &q_der,
+                           Vector &q_det,
+                           Vector &q_nor,
+                           const int eval_flags);
 };
 
 } // mfem namespace

@@ -974,8 +974,13 @@ public:
        Quadrilaterals are split into two triangles, prisms are split into
        3 tetrahedra, and hexahedra are split into either 5 or 6 tetrahedra
        depending on the configuration.
-       @warning The curvature of the original mesh is not carried over to the
-       new mesh. Periodic meshes are not supported. */
+
+       @warning Although periodic meshes are supported, some periodic
+       configurations (such as periodic-hexagon.mesh) do not work because MFEM
+       requires edges to be uniquely identified by their endpoint vertices, and
+       so edge paths connecting periodic boundaries must have at least three
+       segments. MakeSimplicial inserts new diagonal edges that may violate this
+       condition. */
    static Mesh MakeSimplicial(const Mesh &orig_mesh);
 
    /// Create a periodic mesh by identifying vertices of @a orig_mesh.
@@ -3168,7 +3173,14 @@ public:
 /** @brief Structure for storing face geometric factors: coordinates, Jacobians,
     determinants of the Jacobians, and normal vectors. */
 /** Typically objects of this type are constructed and owned by objects of class
-    Mesh. See Mesh::GetFaceGeometricFactors(). */
+    Mesh. See Mesh::GetFaceGeometricFactors().
+
+    Faces are numbered as in FiniteElementSpace::GetFaceRestriction() for the
+    same FaceType, and normals point out of element 1 (out of the domain on
+    boundary faces). On tensor meshes the quadrature points are lexicographic
+    in element 1's view of the face; on simplex meshes they follow the native
+    order of the IntegrationRule on the face's own reference frame, the frame
+    of Mesh::GetFaceTransformation() and FaceQuadratureSpace. */
 class FaceGeometricFactors
 {
 public:

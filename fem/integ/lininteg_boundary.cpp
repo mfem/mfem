@@ -18,10 +18,20 @@
 namespace mfem
 {
 
+/// Boundary load multiplying the test function at a quadrature point.
+enum class BdrLoad
+{
+   Value,      ///< f v, scalar f          (BoundaryLFIntegrator)
+   NormalDot,  ///< (g.n) v, vector g      (BoundaryNormalLFIntegrator)
+   NormalFlux, ///< f (n.v), vdim = dim    (VectorBoundaryFluxLFIntegrator)
+   VectorValue ///< g.v, g of size vdim    (VectorBoundaryLFIntegrator)
+};
+
 template<int T_D1D = 0, int T_Q1D = 0>
 static void BLFEvalAssemble2D(const int vdim, const int nbe, const int d,
                               const int q,
-                              const bool normals, const int *markers, const real_t *b,
+                              const BdrLoad load, const real_t scale,
+                              const int *markers, const real_t *b,
                               const real_t *detj, const real_t *n, const real_t *weights,
                               const Vector &coeff, real_t *y)
 {
@@ -31,7 +41,10 @@ static void BLFEvalAssemble2D(const int vdim, const int nbe, const int d,
    const auto detJ = Reshape(detj, q, nbe);
    const auto N = Reshape(n, q, 2, nbe);
    const auto W = Reshape(weights, q);
-   const int cvdim = normals ? 2 : 1;
+   const bool normals = load == BdrLoad::NormalDot;
+   // Vector loads: component c of v is tested with component c of g
+   const bool vector = load == BdrLoad::VectorValue;
+   const int cvdim = normals ? 2 : vector ? vdim : 1;
    const bool cst = coeff.Size() == cvdim;
    const auto C = cst ? Reshape(F,cvdim,1,1) : Reshape(F,cvdim,q,nbe);
    auto Y = Reshape(y, d, vdim, nbe);
@@ -58,9 +71,10 @@ static void BLFEvalAssemble2D(const int vdim, const int nbe, const int d,
             }
             else
             {
-               coeff_val = cst ? C(0,0,0) : C(0,qx,e);
+               const int cc = vector ? c : 0;
+               coeff_val = cst ? C(cc,0,0) : C(cc,qx,e);
             }
-            QQ[qx] = W(qx) * coeff_val * detJ(qx,e);
+            QQ[qx] = scale * W(qx) * coeff_val * detJ(qx,e);
          }
          for (int dx = 0; dx < d; ++dx)
          {
@@ -75,7 +89,8 @@ static void BLFEvalAssemble2D(const int vdim, const int nbe, const int d,
 template<int T_D1D = 0, int T_Q1D = 0>
 static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
                               const int q,
-                              const bool normals, const int *markers, const real_t *b,
+                              const BdrLoad load, const real_t scale,
+                              const int *markers, const real_t *b,
                               const real_t *detj, const real_t *n, const real_t *weights,
                               const Vector &coeff, real_t *y)
 {
@@ -85,7 +100,9 @@ static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
    const auto detJ = Reshape(detj, q, q, nbe);
    const auto N = Reshape(n, q, q, 3, nbe);
    const auto W = Reshape(weights, q, q);
-   const int cvdim = normals ? 3 : 1;
+   const bool normals = load == BdrLoad::NormalDot;
+   const bool vector = load == BdrLoad::VectorValue;
+   const int cvdim = normals ? 3 : vector ? vdim : 1;
    const bool cst = coeff.Size() == cvdim;
    const auto C = cst ? Reshape(F,cvdim,1,1,1) : Reshape(F,cvdim,q,q,nbe);
    auto Y = Reshape(y, d, d, vdim, nbe);
@@ -124,9 +141,10 @@ static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
                }
                else
                {
-                  coeff_val = cst ? C(0,0,0,0) : C(0,x,y,e);
+                  const int cc = vector ? c : 0;
+                  coeff_val = cst ? C(cc,0,0,0) : C(cc,x,y,e);
                }
-               QQ(y,x) = W(x,y) * coeff_val * detJ(x,y,e);
+               QQ(y,x) = scale * W(x,y) * coeff_val * detJ(x,y,e);
             }
          }
          MFEM_SYNC_THREAD;
@@ -154,24 +172,110 @@ static void BLFEvalAssemble3D(const int vdim, const int nbe, const int d,
    });
 }
 
+/** Simplex (triangle/tetrahedron) boundary faces, i.e. segments/triangles.
+
+    The face E-vector @a y is in NATIVE order (ConformingFaceRestriction),
+    @a b is the DofToQuad::FULL basis of the face element, and the geometric
+    factors and the coefficient follow the native IntegrationRule order (see
+    FaceGeometricFactors). Boundary loads are assembled once and touch only
+    the boundary DOFs, so a flat kernel (one thread per face DOF) is used
+    rather than the simplex MMA engine of the domain integrators. */
+static void BLFEvalAssembleSimplex(const int vdim, const int nbf,
+                                   const int d, const int q, const int sdim,
+                                   const BdrLoad load, const real_t scale,
+                                   const int *markers, const real_t *b,
+                                   const real_t *detj, const real_t *n,
+                                   const real_t *weights,
+                                   const Vector &coeff, real_t *y)
+{
+   const bool normals = load == BdrLoad::NormalDot;
+   const bool flux = load == BdrLoad::NormalFlux;
+   const bool vector = load == BdrLoad::VectorValue;
+   const int cvdim = normals ? sdim : vector ? vdim : 1;
+   const bool cst = coeff.Size() == cvdim;
+   const auto F = coeff.Read();
+   const auto C = cst ? Reshape(F, cvdim, 1, 1) : Reshape(F, cvdim, q, nbf);
+   const auto M = Reshape(markers, nbf);
+   const auto B = Reshape(b, q, d);
+   const auto detJ = Reshape(detj, q, nbf);
+   const auto N = Reshape(n, q, sdim, nbf);
+   const auto W = Reshape(weights, q);
+   auto Y = Reshape(y, d, vdim, nbf);
+
+   mfem::forall(nbf*d, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int dof = i % d, f = i / d;
+      if (M(f) == 0) { return; } // ignore
+      for (int c = 0; c < vdim; ++c)
+      {
+         real_t u = 0.0;
+         for (int k = 0; k < q; ++k)
+         {
+            real_t coeff_val = 0.0;
+            if (normals)
+            {
+               for (int cd = 0; cd < sdim; ++cd)
+               {
+                  coeff_val += (cst ? C(cd,0,0) : C(cd,k,f)) * N(k,cd,f);
+               }
+            }
+            else
+            {
+               const int cc = vector ? c : 0;
+               coeff_val = cst ? C(cc,0,0) : C(cc,k,f);
+            }
+            if (flux) { coeff_val *= N(k,c,f); }
+            u += B(k,dof) * W(k) * coeff_val * detJ(k,f);
+         }
+         Y(dof,c,f) += scale * u;
+      }
+   });
+}
+
 static void BLFEvalAssemble(const FiniteElementSpace &fes,
                             const IntegrationRule &ir,
                             const Array<int> &markers,
                             const Vector &coeff,
-                            const bool normals,
+                            const BdrLoad load,
+                            const real_t scale,
                             Vector &y)
 {
-   if (fes.GetNBE() == 0) { return; }
    Mesh &mesh = *fes.GetMesh();
    const int dim = mesh.Dimension();
-   const FiniteElement &el = *fes.GetBE(0);
+   const FiniteElement &el = *fes.GetTypicalBE();
    const MemoryType mt = Device::GetDeviceMemoryType();
-   const DofToQuad &maps = el.GetDofToQuad(ir, DofToQuad::TENSOR);
-   const int d = maps.ndof, q = maps.nqpt;
    int flags = FaceGeometricFactors::DETERMINANTS;
-   if (normals) { flags |= FaceGeometricFactors::NORMALS; }
+   if (load == BdrLoad::NormalDot || load == BdrLoad::NormalFlux)
+   {
+      flags |= FaceGeometricFactors::NORMALS;
+   }
    const FaceGeometricFactors *geom = mesh.GetFaceGeometricFactors(
                                          ir, flags, FaceType::Boundary, mt);
+   MFEM_VERIFY(load != BdrLoad::NormalFlux || fes.GetVDim() == dim,
+               "the normal flux load needs a vector space with vdim = dim");
+
+   const int vdim = fes.GetVDim();
+   const int nbf = fes.GetMesh()->GetNFbyType(FaceType::Boundary);
+   const int *M = markers.Read();
+   const real_t *detJ = geom->detJ.Read();
+   const real_t *n = geom->normal.Read();
+   const real_t *W = ir.GetWeights().Read();
+   real_t *Y = y.ReadWrite();
+
+   if (!UsesTensorBasis(fes))
+   {
+      // NATIVE face E-vector: full (non-tensor) basis of the face element.
+      const DofToQuad &maps = el.GetDofToQuad(ir, DofToQuad::FULL);
+      BLFEvalAssembleSimplex(vdim, nbf, maps.ndof, maps.nqpt, dim, load,
+                             scale, M, maps.B.Read(), detJ, n, W, coeff, Y);
+      return;
+   }
+
+   // Tensor normal flux loads go through VectorBoundaryFluxLFIntegrator's
+   // AssembleKernels registry, see VBFEvalAssemble.
+   MFEM_ASSERT(load != BdrLoad::NormalFlux, "use VBFEvalAssemble");
+   const DofToQuad &maps = el.GetDofToQuad(ir, DofToQuad::TENSOR);
+   const int d = maps.ndof, q = maps.nqpt;
    auto ker = (dim == 2) ? BLFEvalAssemble2D<> : BLFEvalAssemble3D<>;
 
    if (dim==2)
@@ -201,24 +305,14 @@ static void BLFEvalAssemble(const FiniteElementSpace &fes,
    }
 
    MFEM_VERIFY(ker, "No kernel ndof " << d << " nqpt " << q);
-
-   const int vdim = fes.GetVDim();
-   const int nbe = fes.GetMesh()->GetNFbyType(FaceType::Boundary);
-   const int *M = markers.Read();
-   const real_t *B = maps.B.Read();
-   const real_t *detJ = geom->detJ.Read();
-   const real_t *n = geom->normal.Read();
-   const real_t *W = ir.GetWeights().Read();
-   real_t *Y = y.ReadWrite();
-   ker(vdim, nbe, d, q, normals, M, B, detJ, n, W, coeff, Y);
+   ker(vdim, nbf, d, q, load, scale, M, maps.B.Read(), detJ, n, W, coeff, Y);
 }
 
 void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                           const Array<int> &markers,
                                           Vector &b)
 {
-   if (fes.GetNBE() == 0) { return; }
-   const FiniteElement &fe = *fes.GetBE(0);
+   const FiniteElement &fe = *fes.GetTypicalBE();
    const int qorder = oa * fe.GetOrder() + ob;
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
@@ -226,15 +320,14 @@ void BoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
 
    FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
-   BLFEvalAssemble(fes, ir, markers, coeff, false, b);
+   BLFEvalAssemble(fes, ir, markers, coeff, BdrLoad::Value, 1.0, b);
 }
 
 void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                                 const Array<int> &markers,
                                                 Vector &b)
 {
-   if (fes.GetNBE() == 0) { return; }
-   const FiniteElement &fe = *fes.GetBE(0);
+   const FiniteElement &fe = *fes.GetTypicalBE();
    const int qorder = oa * fe.GetOrder() + ob;
    const Geometry::Type gtype = fe.GetGeomType();
    const IntegrationRule &ir = IntRule ? *IntRule : IntRules.Get(gtype, qorder);
@@ -242,83 +335,132 @@ void BoundaryNormalLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
 
    FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
    CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
-   BLFEvalAssemble(fes, ir, markers, coeff, true, b);
+   BLFEvalAssemble(fes, ir, markers, coeff, BdrLoad::NormalDot, 1.0, b);
 }
 
-void VectorBoundaryFluxLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
-                                                    const Array<int> &markers,
-                                                    Vector &b)
+void VectorBoundaryLFIntegrator::AssembleDevice(const FiniteElementSpace &fes,
+                                                const Array<int> &markers,
+                                                Vector &b)
 {
-   static Kernels kernels;
-   Mesh &mesh = *fes.GetMesh();
-   // Parallel node creation is collective, including ranks without boundaries.
-   mesh.EnsureNodes();
    if (fes.GetNBE() == 0) { return; }
-   const int dim = mesh.Dimension();
-   MFEM_VERIFY((dim == 2 || dim == 3) && mesh.SpaceDimension() == dim &&
-               fes.GetVDim() == dim,
-               "Boundary flux device assembly requires a full-dimensional "
-               "2D or 3D mesh and vector dimension equal to the mesh dimension.");
-   const int nbe = mesh.GetNFbyType(FaceType::Boundary);
-   MFEM_VERIFY(markers.Size() == nbe, "Invalid boundary face marker size.");
-   const FiniteElement &fe = *fes.GetBE(0);
-   const IntegrationRule &ir = IntRule ? *IntRule :
-                               IntRules.Get(fe.GetGeomType(), fe.GetOrder() + 1);
-   const DofToQuad &maps = fe.GetDofToQuad(ir, DofToQuad::TENSOR);
-   const int d = maps.ndof, q = maps.nqpt;
-   MFEM_VERIFY(d <= DofQuadLimits::MAX_D1D && q <= DofQuadLimits::MAX_Q1D,
-               "Boundary flux dofs or quadrature points exceed kernel limits.");
+   // Component c of the load g tests component c of v: one per space vdim.
+   MFEM_VERIFY(Q.GetVDim() == fes.GetVDim(), "VectorBoundaryLFIntegrator: "
+               "the coefficient and the space must have the same vdim");
+   const FiniteElement &fe = *fes.GetTypicalBE();
+   // Same default rule as AssembleRHSElementVect(): order 2p.
+   const Geometry::Type gtype = fe.GetGeomType();
+   const IntegrationRule &ir =
+      IntRule ? *IntRule : IntRules.Get(gtype, 2 * fe.GetOrder());
+   Mesh &mesh = *fes.GetMesh();
+
    FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
-   mesh.GetFaceIndices(FaceType::Boundary).HostRead();
-   mesh.GetBdrFaceAttributes().HostRead();
-   CoefficientVector coeff(F, qs, CoefficientStorage::COMPRESSED);
-   MFEM_VERIFY(coeff.Size() == 1 || coeff.Size() == qs.GetSize(),
-               "Boundary flux requires scalar coefficient values on its "
-               "boundary quadrature space.");
-   const auto *geom = mesh.GetFaceGeometricFactors(
-                        ir, FaceGeometricFactors::DETERMINANTS |
-                        FaceGeometricFactors::NORMALS, FaceType::Boundary,
-                        Device::GetDeviceMemoryType());
-   AssembleKernels::Run(dim, d, q, fes.GetVDim(), nbe, d, q, markers.Read(),
-                       maps.B.Read(), geom->detJ.Read(), ir.GetWeights().Read(),
-                       geom->normal.Read(), coeff, Sign, b.ReadWrite());
+   CoefficientVector coeff(Q, qs, CoefficientStorage::COMPRESSED);
+   BLFEvalAssemble(fes, ir, markers, coeff, BdrLoad::VectorValue, 1.0, b);
 }
+
+/// Tensor (quadrilateral/hexahedron) VectorBoundaryFluxLFIntegrator assembly,
+/// dispatched through the AssembleKernels registry.
+static void VBFEvalAssemble(const FiniteElementSpace &fes,
+                            const IntegrationRule &ir,
+                            const Array<int> &markers, const Vector &coeff,
+                            const real_t sign, Vector &y)
+{
+   Mesh &mesh = *fes.GetMesh();
+   const int dim = mesh.Dimension();
+   MFEM_VERIFY(dim == 2 || dim == 3, "VectorBoundaryFluxLFIntegrator "
+               "device assembly is only defined in 2D and 3D");
+   MFEM_VERIFY(fes.GetVDim() == dim,
+               "the normal flux load needs a vector space with vdim = dim");
+   const FiniteElement &el = *fes.GetTypicalBE();
+   const MemoryType mt = Device::GetDeviceMemoryType();
+   const DofToQuad &maps = el.GetDofToQuad(ir, DofToQuad::TENSOR);
+   const int d = maps.ndof, q = maps.nqpt;
+   const int flags = FaceGeometricFactors::DETERMINANTS |
+                     FaceGeometricFactors::NORMALS;
+   const FaceGeometricFactors *geom = mesh.GetFaceGeometricFactors(
+                                         ir, flags, FaceType::Boundary, mt);
+
+   const int vdim = fes.GetVDim();
+   const int nbf = mesh.GetNFbyType(FaceType::Boundary);
+   const int *M = markers.Read();
+   const real_t *B = maps.B.Read();
+   const real_t *detJ = geom->detJ.Read();
+   const real_t *n = geom->normal.Read();
+   const real_t *W = ir.GetWeights().Read();
+   real_t *Y = y.ReadWrite();
+   VectorBoundaryFluxLFIntegrator::AssembleKernels::Run(
+      dim, d, q, vdim, nbf, d, q, M, B, detJ, W, n, coeff, sign, Y);
+}
+
+void VectorBoundaryFluxLFIntegrator::AssembleDevice(
+   const FiniteElementSpace &fes, const Array<int> &markers, Vector &b)
+{
+   // Parallel node creation is collective, including ranks without boundaries.
+   fes.GetMesh()->EnsureNodes();
+   if (fes.GetNBE() == 0) { return; }
+   const FiniteElement &fe = *fes.GetTypicalBE();
+   // Same default rule as AssembleRHSElementVect().
+   const Geometry::Type gtype = fe.GetGeomType();
+   const IntegrationRule &ir =
+      IntRule ? *IntRule : IntRules.Get(gtype, fe.GetOrder() + 1);
+   Mesh &mesh = *fes.GetMesh();
+
+   FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
+   CoefficientVector coeff(*F, qs, CoefficientStorage::COMPRESSED);
+   if (UsesTensorBasis(fes))
+   {
+      VBFEvalAssemble(fes, ir, markers, coeff, Sign, b);
+   }
+   else
+   {
+      BLFEvalAssemble(fes, ir, markers, coeff, BdrLoad::NormalFlux, Sign, b);
+   }
+}
+
+/// \cond DO_NOT_DOCUMENT
 
 VectorBoundaryFluxLFIntegrator::AssembleKernelType
 VectorBoundaryFluxLFIntegrator::AssembleKernels::Fallback(int DIM, int, int)
 {
-   switch (DIM)
-   {
-      case 2: return VBFEvalAssemble2D<0, 0>;
-      case 3: return VBFEvalAssemble3D<0, 0>;
-   }
-   MFEM_ABORT("Boundary flux device assembly is only supported in 2D and 3D.");
+   if (DIM == 2) { return VBFEvalAssemble2D<>; }
+   if (DIM == 3) { return VBFEvalAssemble3D<>; }
+   MFEM_ABORT("VectorBoundaryFluxLFIntegrator: unsupported DIM " << DIM);
+   return nullptr;
 }
 
 VectorBoundaryFluxLFIntegrator::Kernels::Kernels()
 {
-   AddSpecialization<2, 1, 1>();
-   AddSpecialization<2, 2, 2>();
-   AddSpecialization<2, 3, 3>();
-   AddSpecialization<2, 4, 4>();
-   AddSpecialization<2, 5, 5>();
-   AddSpecialization<2, 2, 3>();
-   AddSpecialization<2, 3, 4>();
-   AddSpecialization<2, 4, 5>();
-   AddSpecialization<2, 5, 6>();
-   AddSpecialization<2, 3, 2>();
-   AddSpecialization<2, 4, 3>();
-   AddSpecialization<3, 1, 1>();
-   AddSpecialization<3, 2, 2>();
-   AddSpecialization<3, 3, 3>();
-   AddSpecialization<3, 4, 4>();
-   AddSpecialization<3, 5, 5>();
-   AddSpecialization<3, 2, 3>();
-   AddSpecialization<3, 3, 4>();
-   AddSpecialization<3, 4, 5>();
-   AddSpecialization<3, 5, 6>();
-   AddSpecialization<3, 3, 2>();
-   AddSpecialization<3, 4, 3>();
+   using VBF = VectorBoundaryFluxLFIntegrator;
+   // Default LEGACY rule: order p+1, i.e. Q1D = (P+1)/2 + 1 for D1D = P+1
+   VBF::AddSpecialization<2, 2, 2>();
+   VBF::AddSpecialization<2, 3, 2>();
+   VBF::AddSpecialization<2, 4, 3>();
+   VBF::AddSpecialization<2, 5, 3>();
+   VBF::AddSpecialization<2, 6, 4>();
+   VBF::AddSpecialization<3, 2, 2>();
+   VBF::AddSpecialization<3, 3, 2>();
+   VBF::AddSpecialization<3, 4, 3>();
+   VBF::AddSpecialization<3, 5, 3>();
+   VBF::AddSpecialization<3, 6, 4>();
+   // User rules with Q1D = D1D and Q1D = D1D + 1
+   VBF::AddSpecialization<2, 1, 1>();
+   VBF::AddSpecialization<2, 3, 3>();
+   VBF::AddSpecialization<2, 4, 4>();
+   VBF::AddSpecialization<2, 5, 5>();
+   VBF::AddSpecialization<2, 2, 3>();
+   VBF::AddSpecialization<2, 3, 4>();
+   VBF::AddSpecialization<2, 4, 5>();
+   VBF::AddSpecialization<2, 5, 6>();
+   VBF::AddSpecialization<3, 1, 1>();
+   VBF::AddSpecialization<3, 3, 3>();
+   VBF::AddSpecialization<3, 4, 4>();
+   VBF::AddSpecialization<3, 5, 5>();
+   VBF::AddSpecialization<3, 2, 3>();
+   VBF::AddSpecialization<3, 3, 4>();
+   VBF::AddSpecialization<3, 4, 5>();
+   VBF::AddSpecialization<3, 5, 6>();
 }
+
+/// \endcond DO_NOT_DOCUMENT
 
 } // namespace mfem

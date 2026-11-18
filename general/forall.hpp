@@ -19,6 +19,7 @@
 #include "device.hpp"
 #include "mem_manager.hpp"
 #include "../linalg/dtensor.hpp"
+#include <type_traits>
 #ifdef MFEM_USE_MPI
 #include <_hypre_utilities.h>
 #endif
@@ -104,9 +105,9 @@ struct DofQuadLimits_CPU
 ///
 /// @sa For accessing the limits according to the runtime configuration of the
 /// Device, see DeviceDofQuadLimits.
-#if defined(__CUDA_ARCH__)
+#if defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)
 using DofQuadLimits = internal::DofQuadLimits_CUDA;
-#elif defined(__HIP_DEVICE_COMPILE__)
+#elif defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)
 using DofQuadLimits = internal::DofQuadLimits_HIP;
 #else
 using DofQuadLimits = internal::DofQuadLimits_CPU;
@@ -294,7 +295,9 @@ using cuda_launch_bounds_policy =
    RAJA::LaunchPolicy<RAJA::cuda_launch_t<true, LB>>;
 using cuda_launch_policy =
    RAJA::LaunchPolicy<RAJA::cuda_launch_t<true>>;
-using cuda_teams_x =
+using cuda_teams_x_loop =
+   RAJA::LoopPolicy<RAJA::cuda_block_x_loop>;
+using cuda_teams_x_direct =
    RAJA::LoopPolicy<RAJA::cuda_block_x_direct>;
 using cuda_threads_z =
    RAJA::LoopPolicy<RAJA::cuda_thread_z_direct>;
@@ -306,7 +309,9 @@ using hip_launch_policy =
 template <int LB>
 using hip_launch_bounds_policy =
    RAJA::LaunchPolicy<RAJA::hip_launch_t<true, LB>>;
-using hip_teams_x =
+using hip_teams_x_loop =
+   RAJA::LoopPolicy<RAJA::hip_block_x_loop>;
+using hip_teams_x_direct =
    RAJA::LoopPolicy<RAJA::hip_block_x_direct>;
 using hip_threads_z =
    RAJA::LoopPolicy<RAJA::hip_thread_z_direct>;
@@ -335,8 +340,7 @@ void RajaCuWrap2D(const int N, DBODY &&d_body,
                               LaunchParams(Teams(G), Threads(X, Y, BZ)),
                               [=] RAJA_DEVICE(LaunchContext ctx)
    {
-
-      loop<cuda_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
+      loop<cuda_teams_x_direct>(ctx, RangeSegment(0, G), [&](const int n)
       {
 
          loop<cuda_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
@@ -347,7 +351,6 @@ void RajaCuWrap2D(const int N, DBODY &&d_body,
             d_body(k);
 
          });
-
       });
    });
 
@@ -368,7 +371,7 @@ void RajaCuWrap2DLaunchBounds(const int N, DBODY &&d_body, const int X,
       Device::GetRajaResource(), LaunchParams(Teams(G), Threads(X, Y, BZ)),
       [=] RAJA_DEVICE(LaunchContext ctx)
    {
-      loop<cuda_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
+      loop<cuda_teams_x_direct>(ctx, RangeSegment(0, G), [&](const int n)
       {
          loop<cuda_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
          {
@@ -394,7 +397,7 @@ void RajaCuWrap3D(const int N, DBODY &&d_body,
                               [=] RAJA_DEVICE(LaunchContext ctx)
    {
 
-      loop<cuda_teams_x>(ctx, RangeSegment(0, N), d_body);
+      loop<cuda_teams_x_loop>(ctx, RangeSegment(0, N), d_body);
    });
 
    MFEM_GPU_CHECK(cudaGetLastError());
@@ -411,7 +414,7 @@ void RajaCuWrap3DLaunchBounds(const int N, DBODY &&d_body,
    launch<cuda_launch_bounds_policy<LB> >(
       Device::GetRajaResource(), LaunchParams(Teams(GRID), Threads(X, Y, Z)),
       [=] RAJA_DEVICE(LaunchContext ctx)
-   { loop<cuda_teams_x>(ctx, RangeSegment(0, N), d_body); });
+   { loop<cuda_teams_x_loop>(ctx, RangeSegment(0, N), d_body); });
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
@@ -498,8 +501,7 @@ void RajaHipWrap2D(const int N, DBODY &&d_body,
                              LaunchParams(Teams(G), Threads(X, Y, BZ)),
                              [=] RAJA_DEVICE(LaunchContext ctx)
    {
-
-      loop<hip_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
+      loop<hip_teams_x_direct>(ctx, RangeSegment(0, G), [&](const int n)
       {
 
          loop<hip_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
@@ -510,7 +512,6 @@ void RajaHipWrap2D(const int N, DBODY &&d_body,
             d_body(k);
 
          });
-
       });
    });
 
@@ -531,7 +532,7 @@ void RajaHipWrap2DLaunchBounds(const int N, DBODY &&d_body, const int X,
       Device::GetRajaResource(), LaunchParams(Teams(G), Threads(X, Y, BZ)),
       [=] RAJA_DEVICE(LaunchContext ctx)
    {
-      loop<hip_teams_x>(ctx, RangeSegment(0, G), [&] (const int n)
+      loop<hip_teams_x_direct>(ctx, RangeSegment(0, G), [&](const int n)
       {
          loop<hip_threads_z>(ctx, RangeSegment(0, BZ), [&] (const int tz)
          {
@@ -557,7 +558,7 @@ void RajaHipWrap3D(const int N, DBODY &&d_body,
                              [=] RAJA_DEVICE(LaunchContext ctx)
    {
 
-      loop<hip_teams_x>(ctx, RangeSegment(0, N), d_body);
+      loop<hip_teams_x_loop>(ctx, RangeSegment(0, N), d_body);
    });
 
    MFEM_GPU_CHECK(hipGetLastError());
@@ -574,7 +575,7 @@ void RajaHipWrap3DLaunchBounds(const int N, DBODY &&d_body, const int X,
    launch<hip_launch_bounds_policy<LB> >(
       Device::GetRajaResource(), LaunchParams(Teams(GRID), Threads(X, Y, Z)),
       [=] RAJA_DEVICE(LaunchContext ctx)
-   { loop<hip_teams_x>(ctx, RangeSegment(0, N), d_body); });
+   { loop<hip_teams_x_loop>(ctx, RangeSegment(0, N), d_body); });
    MFEM_GPU_CHECK(hipGetLastError());
 }
 
@@ -797,6 +798,34 @@ void CuWrap3D(const int N, DBODY &&d_body,
    const int GRID = G == 0 ? N : G;
    const dim3 BLCK(X,Y,Z);
    CuKernel3D<<<GRID,BLCK>>>(N,d_body);
+   MFEM_GPU_CHECK(cudaGetLastError());
+}
+
+/** 3D CUDA launch with dynamic shared memory (bytes). Opt-in for >48KB (H100).
+ */
+template <typename DBODY>
+void CuWrap3DSmem(const int N, DBODY &&d_body,
+                  const int X, const int Y, const int Z, const int G,
+                  const int smem_bytes)
+{
+   if (N==0) { return; }
+   const int GRID = G == 0 ? N : G;
+   const dim3 BLCK(X,Y,Z);
+   using Body = typename std::remove_reference<DBODY>::type;
+   if (smem_bytes > 48 * 1024)
+   {
+      // Per-Body static: raise attribute once to the high-water mark.
+      static int max_dyn_smem = 0;
+      if (smem_bytes > max_dyn_smem)
+      {
+         MFEM_GPU_CHECK(cudaFuncSetAttribute(
+                           CuKernel3D<Body>,
+                           cudaFuncAttributeMaxDynamicSharedMemorySize,
+                           smem_bytes));
+         max_dyn_smem = smem_bytes;
+      }
+   }
+   CuKernel3D<<<GRID, BLCK, smem_bytes>>>(N, d_body);
    MFEM_GPU_CHECK(cudaGetLastError());
 }
 
@@ -1256,6 +1285,29 @@ template<typename lambda>
 inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
 {
    ForallWrap<3>(true, N, body, X, Y, Z, G);
+}
+
+template<int MAX_THREADS_PER_BLOCK, typename lambda>
+inline void forall_3D_grid(int N, int X, int Y, int Z, int G, lambda &&body)
+{
+   ForallWrap<3, MAX_THREADS_PER_BLOCK>(true, N, body, X, Y, Z, G);
+}
+
+/** Like forall_3D, but pass @a smem_bytes of dynamic shared memory (CUDA).
+    Body: extern __shared__ char ...[]; HIP/CPU use forall_3D. */
+template<typename lambda>
+inline void forall_3D_smem(int N, int X, int Y, int Z, int smem_bytes,
+                           lambda &&body)
+{
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__)
+   if (Device::Allows(Backend::CUDA))
+   {
+      CuWrap3DSmem(N, body, X, Y, Z, 0, smem_bytes);
+      return;
+   }
+#endif
+   MFEM_CONTRACT_VAR(smem_bytes);
+   ForallWrap<3>(true, N, body, X, Y, Z, 0);
 }
 
 #ifdef MFEM_USE_MPI

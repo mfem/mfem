@@ -144,14 +144,35 @@ public:
                                        const real_t *, const Vector &coeff,
                                        real_t *y);
 
-   /// parameters: use DIM, T_D1D, T_Q1D
+   using AssembleSimplexMmaKernelType = void (*)(const int,
+                                                 const Array<real_t> &,
+                                                 const Vector &,
+                                                 real_t *,
+                                                 const int, const int);
+
+   /// parameters: DIM, D1D, QND (QND = ir.GetNPoints())
    MFEM_REGISTER_KERNELS(AssembleKernels, AssembleKernelType, (int, int, int));
+   MFEM_REGISTER_KERNELS(AssembleSimplexMmaKernels,
+                         AssembleSimplexMmaKernelType,
+                         (int, int, int));
    struct Kernels { Kernels(); };
 
    template <int DIM, int D1D, int Q1D> static void AddSpecialization()
    {
       AssembleKernels::Specialization<DIM, D1D, Q1D>::Add();
    }
+
+   template <int DIM, int D1D, int QND>
+   static void AddSimplexMmaSpecialization()
+   {
+      if constexpr (DIM == 2 || DIM == 3)
+      {
+         AssembleSimplexMmaKernels::Specialization<DIM, D1D, QND>::Add();
+      }
+   }
+
+   /// Register specialized simplex MMA DomainLF kernels
+   static void RegisterSimplexMmaKernels();
 };
 
 /// Class for domain integrator $ L(v) := (f, \nabla v) $
@@ -346,6 +367,13 @@ public:
    /// Constructs a boundary integrator with a given VectorCoefficient QG
    VectorBoundaryLFIntegrator(VectorCoefficient &QG) : Q(QG) { }
 
+   bool SupportsDevice() const override { return true; }
+
+   /// Method defining assembly on device
+   void AssembleDevice(const FiniteElementSpace &fes,
+                       const Array<int> &markers,
+                       Vector &b) override;
+
    /** Given a particular boundary Finite Element and a transformation (Tr)
        computes the element boundary vector, elvect. */
    void AssembleRHSElementVect(const FiniteElement &el,
@@ -422,6 +450,28 @@ public:
    {
       AssembleKernels::Specialization<TestType, DIM, TEST_D1D, Q1D>::Add();
    }
+
+   using AssembleSimplexMmaKernelType = void (*)(const int NE, const int nd,
+                                                 const int nq, const int sdim,
+                                                 const Array<real_t> &B,
+                                                 const Vector &D, Vector &y);
+
+   /// parameters: DIM, D1D, QND (QND = ir.GetNPoints())
+   MFEM_REGISTER_KERNELS(AssembleSimplexMmaKernels,
+                         AssembleSimplexMmaKernelType,
+                         (int, int, int));
+
+   template <int DIM, int D1D, int QND>
+   static void AddSimplexMmaSpecialization()
+   {
+      if constexpr (DIM == 2 || DIM == 3)
+      {
+         AssembleSimplexMmaKernels::Specialization<DIM, D1D, QND>::Add();
+      }
+   }
+
+   /// Register specialized simplex MMA VectorFE DomainLF kernels
+   static void RegisterSimplexMmaKernels();
 };
 
 /// $ (Q, \mathrm{curl}(v))_{\Omega} $ for Nedelec Elements
@@ -485,11 +535,13 @@ private:
 public:
    VectorBoundaryFluxLFIntegrator(Coefficient &f, real_t s = 1.0,
                                   const IntegrationRule *ir = NULL)
-      : LinearFormIntegrator(ir), Sign(s), F(&f) { }
+      : LinearFormIntegrator(ir), Sign(s), F(&f) { static Kernels kernels; }
 
    bool SupportsDevice() const override { return true; }
 
-   void AssembleDevice(const FiniteElementSpace &fes, const Array<int> &markers,
+   /// Method defining assembly on device (tensor and simplex H1 spaces).
+   void AssembleDevice(const FiniteElementSpace &fes,
+                       const Array<int> &markers,
                        Vector &b) override;
 
    void AssembleRHSElementVect(const FiniteElement &el,
@@ -503,8 +555,10 @@ public:
                                        const int, const int *,
                                        const real_t *, const real_t *,
                                        const real_t *, const real_t *,
-                                       const Vector &, const real_t, real_t *);
+                                       const Vector &,
+                                       const real_t, real_t *);
 
+   /// parameters: use DIM, T_D1D, T_Q1D
    MFEM_REGISTER_KERNELS(AssembleKernels, AssembleKernelType, (int, int, int));
    struct Kernels { Kernels(); };
 

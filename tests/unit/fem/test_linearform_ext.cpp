@@ -46,7 +46,8 @@ struct LinearFormExtTest
 {
    enum { DLFEval, QLFEval, DLFGrad, // scalar domain
           VDLFEval, VQLFEval, VDLFGrad, // vector domain
-          BLFEval, BNLFEval // boundary
+          BLFEval, BNLFEval, // boundary
+          BVFLFEval // vector boundary flux, vdim = dim
         };
    const double abs_tol = 1e-14, rel_tol = 1e-14;
    const char *mesh_filename;
@@ -150,16 +151,24 @@ struct LinearFormExtTest
          lfi_dev = new BoundaryNormalLFIntegrator(dim_fn_coeff);
          lfi_std = new BoundaryNormalLFIntegrator(dim_fn_coeff);
       }
+      else if (problem == BVFLFEval)
+      {
+         REQUIRE(vdim == dim);
+         lfi_dev = new VectorBoundaryFluxLFIntegrator(fn_coeff, -0.7);
+         lfi_std = new VectorBoundaryFluxLFIntegrator(fn_coeff, -0.7);
+      }
       else { REQUIRE(false); }
 
-      if (problem != QLFEval && problem != VQLFEval && problem != BLFEval &&
-          problem != BNLFEval)
+      const bool boundary = problem == BLFEval || problem == BNLFEval ||
+                            problem == BVFLFEval;
+
+      if (problem != QLFEval && problem != VQLFEval && !boundary)
       {
          lfi_dev->SetIntRule((qtype == Lobatto) ? irGLL : ir);
          lfi_std->SetIntRule((qtype == Lobatto) ? irGLL : ir);
       }
 
-      if (problem != BLFEval && problem != BNLFEval)
+      if (!boundary)
       {
          lf_dev.AddDomainIntegrator(lfi_dev, elem_marker);
          lf_std.AddDomainIntegrator(lfi_std, elem_marker);
@@ -231,6 +240,14 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [GPU]")
                                     LinearFormExtTest::VQLFEval,
                                     LinearFormExtTest::VDLFGrad);
       LinearFormExtTest(mesh_file, vdim, ordering, qtype, problem, p).Run();
+   }
+
+   SECTION("Vector boundary flux")
+   {
+      const int dim = Mesh::LoadFromFile(mesh_file).Dimension();
+      const auto ordering = GENERATE(Ordering::byVDIM, Ordering::byNODES);
+      LinearFormExtTest(mesh_file, dim, ordering, Legendre,
+                        LinearFormExtTest::BVFLFEval, p).Run();
    }
 
    SECTION("SetIntPoint")
@@ -412,6 +429,52 @@ TEST_CASE("Parallel Fast LinearForm Assembly",
    b.AddBoundaryIntegrator(new BoundaryLFIntegrator(one), ess_bdr);
    b.UseFastAssembly(true);
    b.Assemble();
+}
+
+TEST_CASE("Fast Boundary LinearForm Empty Rank", "[Parallel][GPU]")
+{
+   // All elements are on rank 0, other ranks are empty.
+   Mesh serial_mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+   Array<int> partitioning(serial_mesh.GetNE());
+   partitioning = 0;
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partitioning.GetData());
+
+   H1_FECollection fec(1, mesh.Dimension());
+   ParFiniteElementSpace fes(&mesh, &fec);
+
+   ConstantCoefficient one(1.0);
+   ParLinearForm b(&fes);
+   b.AddBoundaryIntegrator(new BoundaryLFIntegrator(one));
+   b.UseFastAssembly(true);
+   b.Assemble();
+
+   ParGridFunction x(&fes);
+   x = 1.0;
+   REQUIRE(b(x) == MFEM_Approx(4.0));
+}
+
+TEST_CASE("Fast VectorFE Boundary LinearForm Empty Rank", "[Parallel][GPU]")
+{
+   // All elements are on rank 0, other ranks are empty.
+   Mesh serial_mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
+   Array<int> partitioning(serial_mesh.GetNE());
+   partitioning = 0;
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partitioning.GetData());
+
+   RT_FECollection fec(0, mesh.Dimension());
+   ParFiniteElementSpace fes(&mesh, &fec);
+
+   ConstantCoefficient one(1.0);
+   ParLinearForm b(&fes);
+   b.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(one));
+   b.UseFastAssembly(true);
+   b.Assemble();
+
+   // Flux of u = (x, y, z) through the boundary of the unit cube is 3
+   VectorFunctionCoefficient u_coeff(3, [](const Vector &p, Vector &u) { u = p; });
+   ParGridFunction x(&fes);
+   x.ProjectCoefficient(u_coeff);
+   REQUIRE(b(x) == MFEM_Approx(3.0));
 }
 
 #endif

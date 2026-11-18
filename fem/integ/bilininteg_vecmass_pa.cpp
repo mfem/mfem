@@ -12,22 +12,39 @@
 #include "../bilininteg.hpp"
 #include "../../general/forall.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
+#include "mma/mma.hpp"
 
 #include "./bilininteg_vecmass_pa.hpp" // IWYU pragma: keep
+#include "mma/mass.hpp" // IWYU pragma: keep
 
 namespace mfem
 {
 
 void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 {
+   use_tensors_mma_sum = false;
+   use_simplex_mma = false;
+   mma_P.DeleteAll();
+
+   // Simplex MMA before CEED / tensor maps (Q / VQ / MQ).
+   if (UsesSimplexMMA(fes))
+   {
+      delete ceedOp;
+      ceedOp = nullptr;
+      AssembleSimplexMmaPA(fes);
+      return;
+   }
+
    Mesh *mesh = fes.GetMesh();
    const FiniteElement &el = *fes.GetTypicalFE();
    MFEM_VERIFY(el.GetMapType() == FiniteElement::VALUE,
                "Only value map type supported");
    ElementTransformation &Trans = *mesh->GetTypicalElementTransformation();
    const auto *ir = IntRule ? IntRule : &MassIntegrator::GetRule(el, el, Trans);
+   nq = ir->GetNPoints();
 
-   if (DeviceCanUseCeed())
+   // CEED path for scalar Q only; VQ/MQ stay on native PA / MMA.
+   if (DeviceCanUseCeed() && !VQ && !MQ)
    {
       delete ceedOp;
       const bool mixed =
@@ -48,7 +65,6 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
    ne = mesh->GetNE();
    dim = mesh->Dimension();
-   const int nq = ir->GetNPoints();
    const int sdim = mesh->SpaceDimension();
    geom = mesh->GetGeometricFactors(*ir, GeometricFactors::JACOBIANS, mt);
    maps = &el.GetDofToQuad(*ir, DofToQuad::TENSOR);
@@ -165,12 +181,49 @@ void VectorMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       MFEM_ABORT("Unknown VectorMassIntegrator::AssemblePA kernel for"
                  << " dim:" << dim << ", vdim:" << vdim << ", sdim:" << sdim);
    }
+
+   // Tensor MMA: stock PA layouts for Q / VQ / MQ.
+   if (UsesTensorMMA(fes) &&
+       dofs1D <= internal::mma::TensorsMmaMaxD1D &&
+       quad1D <= internal::mma::TensorsMmaMaxQ1D)
+   {
+      use_tensors_mma_sum = true;
+   }
 }
 
 void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   if (use_simplex_mma)
+   {
+      static bool registered = false;
+      if (!registered)
+      {
+         RegisterSimplexMmaKernels();
+         registered = true;
+      }
+      ApplySimplexMmaPAKernels::Run(dim, dofs1D, nq,
+                                    ne, vdim, mma_P, pa_data, x, y);
+      return;
+   }
+
+   if (use_tensors_mma_sum)
+   {
+      static bool registered = false;
+      if (!registered)
+      {
+         RegisterTensorsMmaKernels();
+         registered = true;
+      }
+      const Array<real_t> &B = maps->B;
+      const Array<real_t> &Bt = maps->Bt;
+      ApplyTensorsMmaPAKernels::Run(dim, dofs1D, quad1D,
+                                    ne, vdim, B, Bt, pa_data, x, y,
+                                    dofs1D, quad1D);
+      return;
+   }
+
    // Use CEED backend if available
-   if (DeviceCanUseCeed()) { return ceedOp->AddMult(x, y); }
+   if (ceedOp) { return ceedOp->AddMult(x, y); }
 
    // Add the VectorMassAddMultPA specializations
    static const auto vector_mass_kernel_specializations =
@@ -209,7 +262,42 @@ void VectorMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
 void VectorMassIntegrator::AssembleDiagonalPA(Vector &diag)
 {
-   if (DeviceCanUseCeed()) { return ceedOp->GetDiagonal(diag); }
+   if (use_simplex_mma)
+   {
+      if (ne <= 0 || nq <= 0) { return; }
+      const int NQ = nq;
+      const int nd = mma_P.Size() / NQ;
+      MFEM_VERIFY(nd > 0 && mma_P.Size() == NQ * nd, "");
+      MFEM_VERIFY(pa_data.Size() == coeff_vdim * NQ * ne, "");
+      const auto P = Reshape(mma_P.Read(), NQ, nd);
+      const auto D = Reshape(pa_data.Read(), NQ, coeff_vdim, ne);
+      auto Y = Reshape(diag.ReadWrite(), nd, vdim, ne);
+      const int vd = vdim, cv = coeff_vdim;
+      mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+      {
+         for (int c = 0; c < vd; ++c)
+         {
+            for (int i = 0; i < nd; ++i)
+            {
+               real_t s = 0.0;
+               for (int q = 0; q < NQ; ++q)
+               {
+                  const real_t b = P(q, i);
+                  real_t dq = D(q, 0, e);
+                  if (cv == vd) { dq = D(q, c, e); }
+                  else if (cv == vd * vd)
+                  {
+                     dq = D(q, c + vd * c, e);
+                  }
+                  s += b * b * dq;
+               }
+               Y(i, c, e) += s;
+            }
+         }
+      });
+      return;
+   }
+   if (ceedOp) { return ceedOp->GetDiagonal(diag); }
 
    MFEM_VERIFY(coeff_vdim == 1, "coeff_vdim != 1");
    MFEM_VERIFY(!VQ && !MQ, "VQ and MQ not supported");

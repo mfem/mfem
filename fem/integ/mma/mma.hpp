@@ -1,0 +1,589 @@
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+#pragma once
+
+/** @file mma.hpp
+    MMA partial-assembly backends and public entry flags.
+
+    ## When MMA runs
+    - Programmatic: ForceMMA(true) / MMAForce RAII
+    - Env: MFEM_USE_MMA set and not "0" (see GetForceMMA)
+    - UsesSimplexMMA: fixed-order H1/H1Pos tri/tet; Positive only if ForceMMA
+    - UsesTensorMMA: ForceMMA + H1 GLL quad/hex, double, D1D<=9
+    - ForceGEM: with UsesTensorMMA, Mass/Diffusion use dense element GEMM
+
+    ## Host apply tree
+    - Tensor: PreferTensorDense → dense sum-fact vs Emulate shell
+    - Tensor H(curl)/H(div) shells: InterpAx / GradX / GemmMbyK
+      (LAPACK: vendor GEMM on host; CUDA/HIP: DMMA/MFMA via MMA_BACKEND_PICK)
+    - Simplex host: PreferMultiRhs -> lapack multi-RHS (size gate)
+      else → dense / form simplex host path
+
+    ## Device apply tree
+    - TensorMmaEnabled → dmma (CUDA) / mfma (HIP); else blas Emulate
+
+    ## Package map (fem/integ/mma/)
+    - mma.hpp / mma.cpp   ForceMMA / Uses* / simplex helpers
+    - mode/               backends: common, dispatch, dmma, mfma, blas
+    - form/               integrator-agnostic Apply engines
+    - mass.hpp, …         operator drivers (QFn + Kernel registration)
+*/
+
+#include "mode/common.hpp" // IWYU pragma: export
+#include "mode/dispatch.hpp" // IWYU pragma: export
+#include "nddual.hpp"
+
+// Public Uses* / ForceMMA + simplex helpers
+#include "../../fespace.hpp"   // FiniteElementSpace, ElementDofOrdering
+#include "../../fe/fe_h1.hpp"
+#include "../../fe/fe_pos.hpp"
+#include "../../fe/fe_nd.hpp"
+#include "../../fe/fe_rt.hpp"
+#include "../../gridfunc.hpp"  // GetSimplexMeshNodesE
+
+namespace mfem
+{
+
+/** @brief Prefer MMA PA when an MMA path exists for the space.
+    Enables opt-in tensor MMA and Bernstein simplex MMA
+    instead of their default SUM / Stroud paths.
+    Also enabled when MFEM_USE_MMA is set to any value other than "0".
+    @return Previous programmatic force flag (not including env). */
+bool ForceMMA(bool enable = true);
+bool GetForceMMA();
+
+/** @brief RAII: ForceMMA(enable) for this scope, then restore the flag. */
+class MMAForce
+{
+   const bool previous;
+public:
+   explicit MMAForce(bool enable) : previous(ForceMMA(enable)) { }
+   ~MMAForce() { ForceMMA(previous); }
+   MMAForce(const MMAForce &) = delete;
+   MMAForce &operator=(const MMAForce &) = delete;
+};
+
+/** @brief Dense element GEMM for tensor Mass and Diffusion.
+    Read only at AssemblePA, and only when UsesTensorMMA is also true.
+    Sum-factorized tensor MMA stays the default. H(curl)/H(div) ignore this.
+    @return Previous flag. */
+bool ForceGEM(bool enable = true);
+bool GetForceGEM();
+
+/** @brief RAII: ForceGEM(enable) for this scope, then restore the flag. */
+class GEMForce
+{
+   const bool previous;
+public:
+   explicit GEMForce(bool enable) : previous(ForceGEM(enable)) { }
+   ~GEMForce() { ForceGEM(previous); }
+   GEMForce(const GEMForce &) = delete;
+   GEMForce &operator=(const GEMForce &) = delete;
+};
+
+/// \cond DO_NOT_DOCUMENT
+
+/** True if the typical FE is a nodal H1 or Positive H1 triangle/tet of the
+    given mesh dimension (used by simplex MMA assemble asserts). */
+inline bool IsSimplexMmaH1Element(const FiniteElement &el, int dim)
+{
+   if (dim == 2)
+   {
+      return dynamic_cast<const H1_TriangleElement *>(&el) ||
+             dynamic_cast<const H1Pos_TriangleElement *>(&el);
+   }
+   return dynamic_cast<const H1_TetrahedronElement *>(&el) ||
+          dynamic_cast<const H1Pos_TetrahedronElement *>(&el);
+}
+
+/** MPI agreement for Uses* so empty ranks take the same path as others. */
+bool AllreduceMmaFlag(const FiniteElementSpace &fes, bool ok);
+
+/** Local mesh checks. Empty ranks skip GetNumGeometries (no local bits). */
+inline bool MmaVolumetricMeshOk(const Mesh &mesh, int dim)
+{
+   if (dim != 2 && dim != 3) { return false; }
+   if (mesh.SpaceDimension() != dim) { return false; }
+   if (mesh.GetNE() > 0 && mesh.GetNumGeometries(dim) != 1)
+   {
+      return false;
+   }
+   return true;
+}
+
+inline bool TypicalFeAvailable(const Mesh &mesh)
+{
+   return mesh.GetNE() > 0 || mesh.MeshGenerator() != 0;
+}
+
+/** True if this space can use dense simplex PA (as opposed to Stroud
+    sum-factorization on Positive bases).
+    Backends: CUDA DMMA, HIP MFMA, or dense host GEMM/hand kernels on CPU.
+    - GLL (`H1_*`): always eligible (CUDA / HIP / CPU).
+    - Positive (`H1Pos_*`): only when forced via ForceMMA / MFEM_USE_MMA. */
+inline bool UsesSimplexMMA(const FiniteElementSpace &fes)
+{
+   bool ok = !fes.IsVariableOrder();
+   Mesh *mesh = fes.GetMesh();
+   const int dim = mesh->Dimension();
+   ok = ok && MmaVolumetricMeshOk(*mesh, dim);
+   if (ok && TypicalFeAvailable(*mesh))
+   {
+      const FiniteElement &el = *fes.GetTypicalFE();
+      if (dim == 2)
+      {
+         ok = el.GetGeomType() == Geometry::TRIANGLE;
+      }
+      else
+      {
+         ok = el.GetGeomType() == Geometry::TETRAHEDRON;
+      }
+      ok = ok && IsSimplexMmaH1Element(el, dim);
+      if (ok)
+      {
+         const bool positive =
+            dynamic_cast<const H1Pos_TriangleElement *>(&el) ||
+            dynamic_cast<const H1Pos_TetrahedronElement *>(&el);
+         if (positive && !GetForceMMA()) { ok = false; }
+      }
+   }
+   return AllreduceMmaFlag(fes, ok);
+}
+
+inline bool IsTensorsMmaH1Element(const FiniteElement &el, int dim)
+{
+   if (dim == 2)
+   {
+      return dynamic_cast<const H1_QuadrilateralElement *>(&el) != nullptr;
+   }
+   return dynamic_cast<const H1_HexahedronElement *>(&el) != nullptr;
+}
+
+/** Opt-in tensor MMA for fixed-order H1 GLL quad/hex, D1D <= 9.
+    Default apply is sum-factored. ForceGEM selects dense element GEMM for
+    Mass and Diffusion only.
+    GPU: MMA smem shell (Interp/Grad/GemmMbyK + dmma/mfma when TensorMmaEnabled,
+    else fine-grained blas::Sumf / blas::GemmMbyK).
+    CPU: 1D LAPACK GEMM when profitable, else MMA shell + dense blas_*.
+    Unregistered (D1D,Q1D) Fallback is the runtime MMA shell.
+    Requires ForceMMA / MFEM_USE_MMA; double precision only. */
+inline bool UsesTensorMMA(const FiniteElementSpace &fes)
+{
+   bool ok = GetForceMMA() && !fes.IsVariableOrder();
+#if defined(MFEM_USE_SINGLE)
+   ok = false;
+#else
+   Mesh *mesh = fes.GetMesh();
+   const int dim = mesh->Dimension();
+   ok = ok && MmaVolumetricMeshOk(*mesh, dim);
+   if (ok && TypicalFeAvailable(*mesh))
+   {
+      const FiniteElement &el = *fes.GetTypicalFE();
+      if (dim == 2)
+      {
+         ok = el.GetGeomType() == Geometry::SQUARE;
+      }
+      else
+      {
+         ok = el.GetGeomType() == Geometry::CUBE;
+      }
+      ok = ok && IsTensorsMmaH1Element(el, dim);
+      if (ok && el.GetOrder() + 1 > internal::mma::TensorsMmaMaxD1D)
+      {
+         ok = false;
+      }
+   }
+#endif
+   return AllreduceMmaFlag(fes, ok);
+}
+
+inline bool IsTensorsMmaHcurlElement(const FiniteElement &el, int dim)
+{
+   if (dim == 2)
+   {
+      return dynamic_cast<const ND_QuadrilateralElement *>(&el) != nullptr;
+   }
+   return dynamic_cast<const ND_HexahedronElement *>(&el) != nullptr;
+}
+
+inline bool IsTensorsMmaHdivElement(const FiniteElement &el, int dim)
+{
+   if (dim == 2)
+   {
+      return dynamic_cast<const RT_QuadrilateralElement *>(&el) != nullptr;
+   }
+   return dynamic_cast<const RT_HexahedronElement *>(&el) != nullptr;
+}
+
+/** Opt-in tensor MMA for fixed-order ND quad/hex. ForceMMA; double; p≥3.
+    GPU: MMA smem shell (InterpAx/GradX/GemmMbyK via MMA_BACKEND_PICK).
+    Host: same shell, 1 thread; LAPACK routes those through vendor GEMM. */
+inline bool UsesTensorMmaHcurl(const FiniteElementSpace &fes)
+{
+   bool ok = GetForceMMA() && !fes.IsVariableOrder();
+#if defined(MFEM_USE_SINGLE)
+   ok = false;
+#else
+   Mesh *mesh = fes.GetMesh();
+   const int dim = mesh->Dimension();
+   ok = ok && MmaVolumetricMeshOk(*mesh, dim);
+   if (ok && TypicalFeAvailable(*mesh))
+   {
+      const FiniteElement &el = *fes.GetTypicalFE();
+      if (dim == 2)
+      {
+         ok = el.GetGeomType() == Geometry::SQUARE;
+      }
+      else
+      {
+         ok = el.GetGeomType() == Geometry::CUBE;
+      }
+      ok = ok && IsTensorsMmaHcurlElement(el, dim);
+      ok = ok && el.GetOrder() >= 3;
+      if (ok && el.GetOrder() + 1 > internal::mma::TensorsMmaMaxD1D)
+      {
+         ok = false;
+      }
+   }
+#endif
+   return AllreduceMmaFlag(fes, ok);
+}
+
+/** Opt-in tensor MMA for fixed-order RT quad/hex. ForceMMA; double; p>=3.
+    GPU: MMA smem shell (InterpAx/GradX/GemmMbyK via MMA_BACKEND_PICK).
+    Host: same shell, 1 thread; LAPACK routes those through vendor GEMM. */
+inline bool UsesTensorMmaHdiv(const FiniteElementSpace &fes)
+{
+   bool ok = GetForceMMA() && !fes.IsVariableOrder();
+#if defined(MFEM_USE_SINGLE)
+   ok = false;
+#else
+   Mesh *mesh = fes.GetMesh();
+   const int dim = mesh->Dimension();
+   ok = ok && MmaVolumetricMeshOk(*mesh, dim);
+   if (ok && TypicalFeAvailable(*mesh))
+   {
+      const FiniteElement &el = *fes.GetTypicalFE();
+      if (dim == 2)
+      {
+         ok = el.GetGeomType() == Geometry::SQUARE;
+      }
+      else
+      {
+         ok = el.GetGeomType() == Geometry::CUBE;
+      }
+      ok = ok && IsTensorsMmaHdivElement(el, dim);
+      // RT order p means D1D = p+1 for closed; require p >= 3 like H1/ND
+      ok = ok && el.GetOrder() >= 3;
+      if (ok && el.GetOrder() + 1 > internal::mma::TensorsMmaMaxD1D)
+      {
+         ok = false;
+      }
+   }
+#endif
+   return AllreduceMmaFlag(fes, ok);
+}
+
+inline bool IsSimplexMmaHcurlElement(const FiniteElement &el, int dim)
+{
+   if (dim == 2)
+   {
+      return dynamic_cast<const ND_TriangleElement *>(&el) != nullptr;
+   }
+   return dynamic_cast<const ND_TetrahedronElement *>(&el) != nullptr;
+}
+
+inline bool IsSimplexMmaHdivElement(const FiniteElement &el, int dim)
+{
+   if (dim == 2)
+   {
+      return dynamic_cast<const RT_TriangleElement *>(&el) != nullptr;
+   }
+   return dynamic_cast<const RT_TetrahedronElement *>(&el) != nullptr;
+}
+
+/** Dense simplex MMA for fixed-order ND on tri/tet. ForceMMA; double. */
+inline bool UsesSimplexMmaHcurl(const FiniteElementSpace &fes)
+{
+   bool ok = GetForceMMA() && !fes.IsVariableOrder();
+#if defined(MFEM_USE_SINGLE)
+   ok = false;
+#else
+   Mesh *mesh = fes.GetMesh();
+   const int dim = mesh->Dimension();
+   ok = ok && MmaVolumetricMeshOk(*mesh, dim);
+   if (ok && TypicalFeAvailable(*mesh))
+   {
+      const FiniteElement &el = *fes.GetTypicalFE();
+      if (dim == 2)
+      {
+         ok = el.GetGeomType() == Geometry::TRIANGLE;
+      }
+      else
+      {
+         ok = el.GetGeomType() == Geometry::TETRAHEDRON;
+      }
+      ok = ok && IsSimplexMmaHcurlElement(el, dim);
+   }
+#endif
+   return AllreduceMmaFlag(fes, ok);
+}
+
+/** Dense simplex MMA for fixed-order RT on tri/tet. ForceMMA; double. */
+inline bool UsesSimplexMmaHdiv(const FiniteElementSpace &fes)
+{
+   bool ok = GetForceMMA() && !fes.IsVariableOrder();
+#if defined(MFEM_USE_SINGLE)
+   ok = false;
+#else
+   Mesh *mesh = fes.GetMesh();
+   const int dim = mesh->Dimension();
+   ok = ok && MmaVolumetricMeshOk(*mesh, dim);
+   if (ok && TypicalFeAvailable(*mesh))
+   {
+      const FiniteElement &el = *fes.GetTypicalFE();
+      if (dim == 2)
+      {
+         ok = el.GetGeomType() == Geometry::TRIANGLE;
+      }
+      else
+      {
+         ok = el.GetGeomType() == Geometry::TETRAHEDRON;
+      }
+      ok = ok && IsSimplexMmaHdivElement(el, dim);
+   }
+#endif
+   return AllreduceMmaFlag(fes, ok);
+}
+
+} // namespace mfem
+
+/// \cond DO_NOT_DOCUMENT
+
+namespace mfem::internal
+{
+
+/** Restrict mesh nodes to a NATIVE E-vector: layout (ndof x sdim x NE). */
+inline void GetSimplexMeshNodesE(Mesh &mesh, MemoryType mt, Vector &nodes_e,
+                                 int &nd_n, int &sdim)
+{
+   mesh.EnsureNodes();
+   const GridFunction *nodes = mesh.GetNodes();
+   MFEM_VERIFY(nodes, "Mesh has no nodes");
+   const FiniteElementSpace *nfes = nodes->FESpace();
+   sdim = nfes->GetVDim();
+   nd_n = nfes->GetTypicalFE()->GetDof();
+   const Operator *nR =
+      nfes->GetElementRestriction(ElementDofOrdering::NATIVE);
+   MFEM_VERIFY(nR, "Missing mesh ElementRestriction");
+   nodes_e.SetSize(nR->Height(), mt);
+   nodes_e.UseDevice(true);
+   nR->Mult(*nodes, nodes_e);
+}
+
+/** Mesh-node E-vector plus FULL DofToQuad G for a simplex IR. */
+inline void GetSimplexSetupGeom(Mesh &mesh, const IntegrationRule &ir,
+                                MemoryType mt, Vector &nodes_e,
+                                const Array<real_t> *&G, int &nd_n)
+{
+   int sdim = 0;
+   GetSimplexMeshNodesE(mesh, mt, nodes_e, nd_n, sdim);
+   MFEM_VERIFY(sdim == mesh.Dimension(), "");
+   const FiniteElement &nfe = *mesh.GetNodes()->FESpace()->GetTypicalFE();
+   const DofToQuad &nmaps = nfe.GetDofToQuad(ir, DofToQuad::FULL);
+   MFEM_VERIFY(nmaps.ndof == nd_n && nmaps.nqpt == ir.GetNPoints(), "");
+   G = &nmaps.G;
+}
+
+/** Reference ND / RT vector shapes at IR: B(q,i,c). Host FE eval, once. */
+void BuildRefVShape(const FiniteElement &el, const IntegrationRule &ir,
+                    Array<real_t> &B);
+
+/** Face orientations Fo(f,e) packed as nfaces*NE; empty if identity (p<2). */
+void GatherNdFaceOrientations(const FiniteElementSpace &fes, Array<int> &fo);
+
+/** Apply ND 2x2 face maps in-place on E-vector columns using precomputed Fo. */
+void ApplyNdDofTransEVector(NdDofTransOp op, const FiniteElementSpace &fes,
+                            const Array<int> &fo, Vector &y);
+
+/** Device pointer + tet/tri face layout for fused simplex GEMM dual. */
+inline NdDualCtx MakeNdDualCtx(const FiniteElementSpace &fes,
+                               const Array<int> &fo)
+{
+   NdDualCtx ctx;
+   if (fo.Size() == 0) { return ctx; }
+   const int NE = fes.GetNE();
+   if (NE < 1 || fo.Size() % NE != 0) { return ctx; }
+   const int p = fes.GetTypicalFE()->GetOrder();
+   const int dim = fes.GetMesh()->Dimension();
+   ctx.fo = fo.Read();
+   ctx.nfaces = fo.Size() / NE;
+   ctx.ntdofs = p * (p - 1);
+   ctx.face_base = ((dim == 2) ? 3 : 6) * p;
+   return ctx;
+}
+
+/** TransformDual each native E-vector column (gathers Fo, then device apply).
+ */
+void TransformDualEVector(const FiniteElementSpace &fes, Vector &y);
+void TransformPrimalEVector(const FiniteElementSpace &fes, Vector &y);
+void InvTransformPrimalEVector(const FiniteElementSpace &fes, Vector &y);
+void InvTransformDualEVector(const FiniteElementSpace &fes, Vector &y);
+
+/** Y += Dual( A_ref · InvPrimal(X) ). Matches bake of TransformDual into C:
+    A_t = T^{-T} A_ref T^{-1}. Empty fo → identity (apply x into y).
+    apply(x, y, dual): on CUDA device, dual is fused into the simplex GEMM
+    (no xhat/yinc). Host (and HIP-only) keeps the copy / yinc path so LAPACK
+    multi-RHS GEMM stays on the fast host apply. */
+template <typename ApplyFn>
+inline void AddMultSimplexNdDual(const FiniteElementSpace &fes,
+                                 const Array<int> &fo,
+                                 Vector &xhat, Vector &yinc,
+                                 const Vector &x, Vector &y,
+                                 ApplyFn &&apply)
+{
+   const NdDualCtx none{};
+   if (fo.Size() == 0)
+   {
+      apply(x, y, none);
+      return;
+   }
+#if !defined(MFEM_USE_HIP) || defined(MFEM_USE_CUDA)
+   if (Device::Allows(Backend::DEVICE_MASK))
+   {
+      apply(x, y, MakeNdDualCtx(fes, fo));
+      return;
+   }
+#endif
+   xhat.SetSize(x.Size());
+   xhat.UseDevice(true);
+   xhat = x;
+   ApplyNdDofTransEVector(NdDofTransOp::InvPrimal, fes, fo, xhat);
+   yinc.SetSize(y.Size());
+   yinc.UseDevice(true);
+   yinc = 0.0;
+   apply(xhat, yinc, none);
+   ApplyNdDofTransEVector(NdDofTransOp::Dual, fes, fo, yinc);
+   y += yinc;
+}
+
+/** Build 2D Jacobian at (q,e) from mesh nodes E and GradP slice G. */
+template <typename EAcc, typename GAcc>
+MFEM_HOST_DEVICE inline void EvalSimplexJ2(EAcc E, GAcc G, const int q,
+                                           const int e, const int ND,
+                                           real_t &J11, real_t &J21,
+                                           real_t &J12, real_t &J22)
+{
+   J11 = J21 = J12 = J22 = 0.0;
+   for (int i = 0; i < ND; i++)
+   {
+      const real_t x = E(i, 0, e), y = E(i, 1, e);
+      const real_t gx = G(q, 0, i), gy = G(q, 1, i);
+      J11 += x * gx; J21 += y * gx;
+      J12 += x * gy; J22 += y * gy;
+   }
+}
+
+/** Build 3D Jacobian at (q,e) from mesh nodes E and GradP slice G. */
+template <typename EAcc, typename GAcc>
+MFEM_HOST_DEVICE inline void EvalSimplexJ3(EAcc E, GAcc G, const int q,
+                                           const int e, const int ND,
+                                           real_t &J11, real_t &J21,
+                                           real_t &J31,
+                                           real_t &J12, real_t &J22,
+                                           real_t &J32,
+                                           real_t &J13, real_t &J23,
+                                           real_t &J33)
+{
+   J11 = J21 = J31 = J12 = J22 = J32 = J13 = J23 = J33 = 0.0;
+   for (int i = 0; i < ND; i++)
+   {
+      const real_t x = E(i, 0, e), y = E(i, 1, e), z = E(i, 2, e);
+      const real_t gx = G(q, 0, i), gy = G(q, 1, i), gz = G(q, 2, i);
+      J11 += x * gx; J21 += y * gx; J31 += z * gx;
+      J12 += x * gy; J22 += y * gy; J32 += z * gy;
+      J13 += x * gz; J23 += y * gz; J33 += z * gz;
+   }
+}
+
+/** Adjugate of J (J^{-1} = adj(J) / detJ). */
+MFEM_HOST_DEVICE inline void CofactorsJ3(const real_t J11, const real_t J21,
+                                         const real_t J31, const real_t J12,
+                                         const real_t J22, const real_t J32,
+                                         const real_t J13, const real_t J23,
+                                         const real_t J33,
+                                         real_t &C11, real_t &C12, real_t &C13,
+                                         real_t &C21, real_t &C22, real_t &C23,
+                                         real_t &C31, real_t &C32, real_t &C33)
+{
+   C11 = (J22 * J33) - (J23 * J32);
+   C12 = (J32 * J13) - (J12 * J33);
+   C13 = (J12 * J23) - (J22 * J13);
+   C21 = (J31 * J23) - (J21 * J33);
+   C22 = (J11 * J33) - (J13 * J31);
+   C23 = (J21 * J13) - (J11 * J23);
+   C31 = (J21 * J32) - (J31 * J22);
+   C32 = (J31 * J12) - (J11 * J32);
+   C33 = (J11 * J22) - (J12 * J21);
+}
+
+void PADetJSetupSimplexFromNodes(const int dim,
+                                 const int NE,
+                                 const int NQ,
+                                 const int ND,
+                                 const bool by_val,
+                                 const Array<real_t> &w,
+                                 const Array<real_t> &g,
+                                 const Vector &nodes_e,
+                                 const Vector &c,
+                                 Vector &d);
+
+/** D(q,e) = w(q) * C_0(q,e) / |J|  (2D curl-curl, div-div).
+    C layout: (coeffDim, NQ, NE) or constant (coeffDim). */
+void PAInvDetJSetupSimplexFromNodes(const int dim,
+                                    const int coeffDim,
+                                    const int NE,
+                                    const int NQ,
+                                    const int ND,
+                                    const Array<real_t> &w,
+                                    const Array<real_t> &g,
+                                    const Vector &nodes_e,
+                                    const Vector &c,
+                                    Vector &d);
+
+/** D = (w/|J|) J^T C J (H(div) mass, 3D curl-curl). Packed like simplex apply.
+ */
+void PAJTQJSetupSimplexFromNodes(const int dim,
+                                 const int coeffDim,
+                                 const int NE,
+                                 const int NQ,
+                                 const int ND,
+                                 const Array<real_t> &w,
+                                 const Array<real_t> &g,
+                                 const Vector &nodes_e,
+                                 const Vector &c,
+                                 Vector &d);
+
+/** D = w |J| J^{-1} C J^{-T}  (H(curl) mass with reference V-shapes). */
+void PAJinvQJinvTSetupSimplexFromNodes(const int dim,
+                                       const int coeffDim,
+                                       const int NE,
+                                       const int NQ,
+                                       const int ND,
+                                       const Array<real_t> &w,
+                                       const Array<real_t> &g,
+                                       const Vector &nodes_e,
+                                       const Vector &c,
+                                       Vector &d);
+
+} // namespace mfem::internal
+
+/// \endcond DO_NOT_DOCUMENT

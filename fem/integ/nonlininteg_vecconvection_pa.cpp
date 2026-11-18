@@ -13,6 +13,7 @@
 #include "./nonlininteg_vecconvection_pa.hpp" // IWYU pragma: keep
 #include "./nonlininteg_vecconvection_pa_grad.hpp" // IWYU pragma: keep
 #include "./nonlininteg_vecconvection_pa_diag.hpp" // IWYU pragma: keep
+#include "mma/vector.hpp"
 
 namespace mfem
 {
@@ -53,6 +54,16 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
    const FiniteElement &el = *fes.GetTypicalFE();
    ElementTransformation &Tr = *mesh->GetTypicalElementTransformation();
    const IntegrationRule *ir = IntRule ? IntRule : &GetRule(el, Tr);
+
+   // Simplex MMA works on E-vectors, so it is skipped when CEED takes the
+   // L-vector path in PANonlinearFormExtension.
+   use_simplex_mma = false;
+   if (!DeviceCanUseCeed() && UsesSimplexMMA(fes) &&
+       fes.GetVDim() == mesh->Dimension())
+   {
+      AssembleSimplexMmaPA(fes);
+      return;
+   }
 
    if (DeviceCanUseCeed())
    {
@@ -191,6 +202,14 @@ void VectorConvectionNLFIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
 void VectorConvectionNLFIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   if (use_simplex_mma)
+   {
+      const Vector none;
+      internal::MmaVectorConvectionApplySimplex(dim, ne, nq, simplex_nd, mma_BG,
+                                                pa_adj, none, x, mma_xq,
+                                                mma_vq, y);
+      return;
+   }
    if (DeviceCanUseCeed())
    {
       ceedOp->AddMult(x, y);

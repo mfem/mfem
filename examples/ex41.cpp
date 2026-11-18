@@ -433,16 +433,18 @@ int main(int argc, char *argv[])
    u.ProjectCoefficient(*u0);
 
    // Create data collection for solution output: either VisItDataCollection for
-   // ascii data files, or SidreDataCollection for binary data files.
+   // ascii data files, or ConduitDataCollection for binary data files.
    DataCollection *dc = NULL;
    if (visit)
    {
       if (binary)
       {
-#ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example41", &mesh);
+#ifdef MFEM_USE_CONDUIT
+         auto conduit_dc = new ConduitDataCollection("Example41", &mesh);
+         conduit_dc->SetProtocol("hdf5");
+         dc = conduit_dc;
 #else
-         MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
+         MFEM_ABORT("Must build with MFEM_USE_CONDUIT=YES for binary output.");
 #endif
       }
       else

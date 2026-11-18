@@ -961,6 +961,9 @@ public:
    void MultTranspose(const Vector &x, Vector &y) const override
    { z.SetSize(A->Width()); A->MultTranspose(x, z); B->MultTranspose(x, y); add(alpha, z, beta, y, y); }
 
+   void AssembleDiagonal(Vector &diag) const override
+   { z.SetSize(std::min(A->Height(), A->Width())); A->AssembleDiagonal(z); B->AssembleDiagonal(diag); add(alpha, z, beta, diag, diag); }
+
    virtual ~SumOperator();
 };
 
@@ -1135,6 +1138,9 @@ public:
    void AbsMult(const Vector &x, Vector &y) const override;
 
    void MultTranspose(const Vector &x, Vector &y) const override;
+
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override;
 
    void AbsMultTranspose(const Vector &x, Vector &y) const override;
 

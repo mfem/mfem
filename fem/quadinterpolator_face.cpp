@@ -65,6 +65,23 @@ static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
    }
 }
 
+/// Simplex faces are seen in their own vertex order, which is element 1's
+/// local order when the orientation is even: flip the normal of reflected
+/// faces so that it always points out of element 1.
+static void GetSimplexSigns(const FiniteElementSpace &fes, const FaceType type,
+                            Array<bool> &signs)
+{
+   const Mesh &mesh = *fes.GetMesh();
+   int f_ind = 0;
+   for (int f = 0; f < mesh.GetNumFacesWithGhost(); ++f)
+   {
+      const Mesh::FaceInformation face = mesh.GetFaceInformation(f);
+      if (face.IsNonconformingCoarse()) { continue; }
+      if (!face.IsOfFaceType(type)) { continue; }
+      signs[f_ind++] = (face.element[0].orientation % 2) == 1;
+   }
+}
+
 FaceQuadratureInterpolator::FaceQuadratureInterpolator(
    const FiniteElementSpace &fes,
    const IntegrationRule &ir, FaceType type_)
@@ -76,8 +93,9 @@ FaceQuadratureInterpolator::FaceQuadratureInterpolator(
    use_tensor_products = true; // not implemented yet (not used)
 
    if (fespace->GetNE() == 0) { return; }
-   GetSigns(*fespace, type, signs);
    MFEM_VERIFY(SupportsFESpace(fes), "Unsupported finite element space");
+   if (UsesTensorBasis(fes)) { GetSigns(*fespace, type, signs); }
+   else { GetSimplexSigns(*fespace, type, signs); }
 }
 
 bool FaceQuadratureInterpolator::SupportsFESpace(const FiniteElementSpace &fes)
@@ -85,9 +103,103 @@ bool FaceQuadratureInterpolator::SupportsFESpace(const FiniteElementSpace &fes)
    const FiniteElement *fe = fes.GetTypicalFE();
    const auto *sfe = dynamic_cast<const ScalarFiniteElement*>(fe);
    const auto *tfe = dynamic_cast<const TensorBasisElement*>(fe);
+   if (sfe != nullptr && tfe == nullptr)
+   {
+      return fes.GetMesh()->IsSimplexMesh() &&
+             fes.GetMesh()->GetNumGeometries(fes.GetMesh()->Dimension()) == 1;
+   }
    return sfe != nullptr && tfe != nullptr && (
              tfe->GetBasisType() == BasisType::GaussLobatto ||
              tfe->GetBasisType() == BasisType::Positive);
+}
+
+void FaceQuadratureInterpolator::EvalSimplex(
+   const int NF,
+   const int vdim,
+   const QVectorLayout q_layout,
+   const DofToQuad &maps,
+   const Array<bool> &signs,
+   const Vector &e_vec,
+   Vector &q_val,
+   Vector &q_der,
+   Vector &q_det,
+   Vector &q_nor,
+   const int eval_flags)
+{
+   const int ND = maps.ndof, NQ = maps.nqpt, VDIM = vdim;
+   const int FDIM = maps.FE->GetDim(); // face reference dimension: 1 or 2
+   constexpr int max_VDIM = MAX_VDIM3D;
+   MFEM_VERIFY(FDIM == 1 || FDIM == 2, "simplex faces are segments/triangles");
+   MFEM_VERIFY(VDIM <= max_VDIM, "vdim " << VDIM << " is not supported");
+   MFEM_VERIFY(VDIM == FDIM + 1 || !(eval_flags & (DETERMINANTS | NORMALS)),
+               "determinants and normals need vdim == face dim + 1");
+   const bool by_nodes = q_layout == QVectorLayout::byNODES;
+   const auto B = Reshape(maps.B.Read(), NQ, ND);
+   const auto G = Reshape(maps.G.Read(), NQ, FDIM, ND);
+   const auto F = Reshape(e_vec.Read(), ND, VDIM, NF);
+   const auto sign = signs.Read();
+   auto val = by_nodes ? Reshape(q_val.Write(), NQ, VDIM, NF) :
+              Reshape(q_val.Write(), VDIM, NQ, NF);
+   auto der = by_nodes ? Reshape(q_der.Write(), NQ, VDIM, FDIM, NF) :
+              Reshape(q_der.Write(), VDIM, FDIM, NQ, NF);
+   auto det = Reshape(q_det.Write(), NQ, NF);
+   auto nor = by_nodes ? Reshape(q_nor.Write(), NQ, VDIM, NF) :
+              Reshape(q_nor.Write(), VDIM, NQ, NF);
+
+   // One thread per (quadrature point, face): no tensor structure to share.
+   mfem::forall(NQ*NF, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int q = i % NQ, f = i / NQ;
+      real_t u[max_VDIM], du[max_VDIM][2];
+      for (int c = 0; c < VDIM; ++c)
+      {
+         u[c] = du[c][0] = du[c][1] = 0.0;
+         for (int d = 0; d < ND; ++d)
+         {
+            const real_t x = F(d,c,f);
+            u[c] += B(q,d) * x;
+            for (int k = 0; k < FDIM; ++k) { du[c][k] += G(q,k,d) * x; }
+         }
+         if (eval_flags & VALUES)
+         {
+            (by_nodes ? val(q,c,f) : val(c,q,f)) = u[c];
+         }
+         if (eval_flags & DERIVATIVES)
+         {
+            for (int k = 0; k < FDIM; ++k)
+            {
+               (by_nodes ? der(q,c,k,f) : der(c,k,q,f)) = du[c][k];
+            }
+         }
+      }
+      if (!(eval_flags & (DETERMINANTS | NORMALS))) { return; }
+      // Same orthogonal vector as CalcOrtho(): (J1,-J0) for an edge in 2D,
+      // the cross product of the two tangents for a triangle in 3D.
+      real_t n[3];
+      if (FDIM == 1)
+      {
+         n[0] = du[1][0];
+         n[1] = -du[0][0];
+      }
+      else
+      {
+         n[0] = du[1][0]*du[2][1] - du[2][0]*du[1][1];
+         n[1] = du[2][0]*du[0][1] - du[0][0]*du[2][1];
+         n[2] = du[0][0]*du[1][1] - du[1][0]*du[0][1];
+      }
+      real_t norm = 0.0;
+      for (int c = 0; c < VDIM; ++c) { norm += n[c]*n[c]; }
+      norm = sqrt(norm);
+      if (eval_flags & DETERMINANTS) { det(q,f) = norm; }
+      if (eval_flags & NORMALS)
+      {
+         const real_t s = sign[f] ? -1.0 : 1.0;
+         for (int c = 0; c < VDIM; ++c)
+         {
+            (by_nodes ? nor(q,c,f) : nor(c,q,f)) = s * n[c] / norm;
+         }
+      }
+   });
 }
 
 template<const int T_VDIM, const int T_ND1D, const int T_NQ1D>
@@ -648,6 +760,13 @@ void FaceQuadratureInterpolator::Mult(
    const int dim = fespace->GetMesh()->Dimension();
    const FiniteElement *fe = fespace->GetTypicalTraceElement();
    const IntegrationRule *ir = IntRule;
+   if (!UsesTensorBasis(*fespace))
+   {
+      const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::FULL);
+      EvalSimplex(nf, vdim, q_layout, maps, signs, e_vec,
+                  q_val, q_der, q_det, q_nor, eval_flags);
+      return;
+   }
    const DofToQuad &maps = fe->GetDofToQuad(*ir, DofToQuad::TENSOR);
    const int nd1d = maps.ndof;
    const int nq1d = maps.nqpt;

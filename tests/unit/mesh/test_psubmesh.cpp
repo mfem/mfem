@@ -13,6 +13,8 @@
 #include "unit_tests.hpp"
 #include "mesh_test_utils.hpp"
 
+#include <map>
+
 using namespace mfem;
 
 #ifdef MFEM_USE_MPI
@@ -39,7 +41,6 @@ void CHECK_GLOBAL_NORM(Vector &v, bool small = true)
       REQUIRE(norm_global > tol);
    }
 };
-
 
 FiniteElementCollection *create_surf_fec(FECType fectype, int p, int dim)
 {
@@ -1137,6 +1138,79 @@ TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel],[SubMesh]")
    }
 
 
+}
+
+TEST_CASE("ParSubMesh Rotated Shared Face Orientation", "[Parallel],[SubMesh]")
+{
+   if (Mpi::WorldSize() < 2)
+   {
+      SUCCEED("Shared-face orientation requires at least two MPI ranks.");
+      return;
+   }
+
+   Mesh serial_mesh = Mesh::MakeCartesian3D(4, 4, 4,
+                                            Element::TETRAHEDRON);
+   for (int e = 0; e < serial_mesh.GetNE(); e++)
+   {
+      Vector center;
+      serial_mesh.GetElementCenter(e, center);
+      serial_mesh.SetAttribute(e, center[0] < 0.5 ? 2 : 1);
+   }
+   serial_mesh.SetAttributes();
+
+   ParMesh parent_mesh(MPI_COMM_WORLD, serial_mesh);
+   Array<int> domain_attributes(1);
+   domain_attributes[0] = 2;
+   ParSubMesh submesh = ParSubMesh::CreateFromDomain(parent_mesh,
+                                                     domain_attributes);
+
+   // The submesh retains the same local vertex ordering as its parent faces,
+   // so both meshes must report the same orientation for each shared face.
+   std::map<int, int> parent_orientations;
+   for (int group = 1; group < parent_mesh.GetNGroups(); group++)
+   {
+      for (int i = 0; i < parent_mesh.GroupNTriangles(group); i++)
+      {
+         int face, orientation;
+         parent_mesh.GroupTriangle(group, i, face, orientation);
+         parent_orientations[face] = orientation;
+      }
+   }
+
+   int local_missing_or_wrong = 0;
+   int local_rotated = 0;
+   for (int group = 1; group < submesh.GetNGroups(); group++)
+   {
+      for (int i = 0; i < submesh.GroupNTriangles(group); i++)
+      {
+         int face, orientation;
+         submesh.GroupTriangle(group, i, face, orientation);
+         const int parent_face = submesh.GetParentFaceIDMap()[face];
+         const auto parent_orientation = parent_orientations.find(parent_face);
+         if (parent_orientation == parent_orientations.end())
+         {
+            local_missing_or_wrong++;
+         }
+         else
+         {
+            local_missing_or_wrong += orientation != parent_orientation->second;
+            local_rotated += parent_orientation->second == 2 ||
+                             parent_orientation->second == 4;
+         }
+      }
+   }
+
+   int global_missing_or_wrong = 0;
+   int global_rotated = 0;
+   MPI_Allreduce(&local_missing_or_wrong, &global_missing_or_wrong, 1, MPI_INT,
+                 MPI_SUM, MPI_COMM_WORLD);
+   MPI_Allreduce(&local_rotated, &global_rotated, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   CHECK(global_missing_or_wrong == 0);
+   // This lower bound is specific to the Cartesian tetrahedral split used by
+   // this test. Another mesh generator may produce no rotated shared faces,
+   // so this is not a general invariant of ParSubMesh.
+   CHECK(global_rotated > 0);
 }
 
 

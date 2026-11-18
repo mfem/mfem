@@ -12,6 +12,7 @@
 #include "../bilininteg.hpp"
 #include "../qfunction.hpp"
 #include "bilininteg_elasticity_kernels.hpp"
+#include "mma/vector.hpp"
 
 #include <memory>
 #include <tuple>
@@ -101,6 +102,13 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
    vdim = mesh.Dimension();
    ndofs = fespace->GetTypicalFE()->GetDof();
 
+   use_simplex_mma = false;
+   if (UsesSimplexMMA(fes))
+   {
+      AssembleSimplexMmaPA(fes);
+      return;
+   }
+
    SetUpQuadratureSpaceAndCoefficients(fes);
    const auto ordering = GetEVectorOrdering(*fespace);
    const auto mode =
@@ -144,12 +152,25 @@ void ElasticityIntegrator::AssemblePA(const FiniteElementSpace &fes)
 
 void ElasticityIntegrator::AssembleDiagonalPA(Vector &diag)
 {
+   if (use_simplex_mma)
+   {
+      internal::MmaElasticityDiagonalSimplex(vdim, fespace->GetNE(), mma_nq,
+                                             ndofs, mma_G, mma_pa, diag);
+      return;
+   }
    internal::ElasticityAssembleDiagonalPA(vdim, ndofs, *maps, *IntRule,
                                           pa_data, diag);
 }
 
 void ElasticityIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
+   if (use_simplex_mma)
+   {
+      internal::MmaElasticityApplySimplex(vdim, fespace->GetNE(), mma_nq,
+                                          ndofs, mma_G, mma_pa, x, mma_u,
+                                          mma_v, y);
+      return;
+   }
    if (use_tensor_pa)
    {
       tensor_apply(fespace->GetNE(), *tensor_maps, pa_data, x, y);

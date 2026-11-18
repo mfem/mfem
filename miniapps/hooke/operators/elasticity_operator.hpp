@@ -184,9 +184,14 @@ public:
       }
 
       element_apply_kernel_wrapper =
-         [=](const int ne, const Array<real_t> &B_, const Array<real_t> &G_,
-             const Array<real_t> &W_, const Vector &Jacobian_,
-             const Vector &detJ_, const Vector &X_, Vector &Y_)
+#if __cplusplus < 202002L
+         [=]
+#else
+         [=, this]
+#endif
+         (const int ne, const Array<real_t> &B_, const Array<real_t> &G_,
+          const Array<real_t> &W_, const Vector &Jacobian_,
+          const Vector &detJ_, const Vector &X_, Vector &Y_)
       {
          const int id = (d1d_ << 4) | q1d_;
          switch (id)
@@ -213,10 +218,15 @@ public:
       };
 
       element_apply_gradient_kernel_wrapper =
-         [=](const int ne, const Array<real_t> &B_, const Array<real_t> &G_,
-             const Array<real_t> &W_, const Vector &Jacobian_,
-             const Vector &detJ_, const Vector &dU_, Vector &dF_,
-             const Vector &U_)
+#if __cplusplus < 202002L
+         [=]
+#else
+         [=, this]
+#endif
+         (const int ne, const Array<real_t> &B_, const Array<real_t> &G_,
+          const Array<real_t> &W_, const Vector &Jacobian_,
+          const Vector &detJ_, const Vector &dU_, Vector &dF_,
+          const Vector &U_)
       {
          const int id = (d1d_ << 4) | q1d_;
          switch (id)
@@ -242,9 +252,14 @@ public:
       };
 
       element_kernel_assemble_diagonal_wrapper =
-         [=](const int ne, const Array<real_t> &B_, const Array<real_t> &G_,
-             const Array<real_t> &W_, const Vector &Jacobian_,
-             const Vector &detJ_, const Vector &X_, Vector &Y_)
+#if __cplusplus < 202002L
+         [=]
+#else
+         [=, this]
+#endif
+         (const int ne, const Array<real_t> &B_, const Array<real_t> &G_,
+          const Array<real_t> &W_, const Vector &Jacobian_,
+          const Vector &detJ_, const Vector &X_, Vector &Y_)
       {
          const int id = (d1d_ << 4) | q1d_;
          switch (id)

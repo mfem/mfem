@@ -58,7 +58,7 @@ protected:
 
    inline void GrowSize(int minsize);
 
-   static_assert(std::is_trivial<T>::value, "type T must be trivial");
+   static_assert(std::is_trivial_v<T>, "type T must be trivial");
 
    friend class MemoryView<Array<T>>;
    friend class MemoryView<const Array<T>>;
@@ -104,8 +104,8 @@ public:
    explicit inline Array(const CT (&values)[N]);
 
    /// Construct an Array from a braced initializer list of convertible type
-   template <typename CT, typename std::enable_if<
-                std::is_convertible<CT,T>::value,bool>::type = true>
+   template <typename CT, std::enable_if_t<
+                std::is_convertible_v<CT,T>,bool> = true>
    explicit inline Array(std::initializer_list<CT> values);
 
    /// Move constructor ("steals" data from 'src')
@@ -779,12 +779,28 @@ inline void swap(Array<T> &a, Array<T> &b)
    a.Swap(b);
 }
 
+/** @brief Drop the entries that are >= @a N from @a v, then sort and unique
+    what is left, so that @a v holds the distinct local values it started with.
+    Used by the mesh classes to clean up vertex, edge and face lists after a
+    parallel exchange. */
+inline void FilterSortUnique(Array<int> &v, int N)
+{
+   // The O(N) filter runs before the O(N log N) sort.
+   auto last = std::remove_if(v.begin(), v.end(), [N](int i) { return i >= N; });
+   std::sort(v.begin(), last);
+   const int n = static_cast<int>(std::unique(v.begin(), last) - v.begin());
+   v.SetSize(n);
+}
+
 template <class T>
 inline Array<T>::Array(const Array &src)
    : size(src.Size())
 {
-   size > 0 ? data.New(size, src.data.GetMemoryType()) : data.Reset();
-   data.CopyFrom(src.data, size);
+   // The copy is host-valid, so operator[] on it needs no explicit sync:
+   // src.HostRead() syncs (and, with the debug device, unprotects) the host
+   // data of 'src', which is then copied on host.
+   size > 0 ? data.New(size, src.data.GetHostMemoryType()) : data.Reset();
+   data.CopyFromHost(src.HostRead(), size);
    data.UseDevice(src.data.UseDevice());
 }
 
@@ -793,12 +809,12 @@ inline Array<T>::Array(const Array<CT> &src)
    : size(src.Size())
 {
    size > 0 ? data.New(size) : data.Reset();
+   src.HostRead();
    for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
 }
 
 template <typename T>
-template <typename CT, typename std::enable_if<
-             std::is_convertible<CT,T>::value,bool>::type>
+template <typename CT, std::enable_if_t<std::is_convertible_v<CT,T>,bool>>
 inline Array<T>::Array(std::initializer_list<CT> values) : Array(values.size())
 {
    std::copy(values.begin(), values.end(), begin());
@@ -1070,12 +1086,13 @@ inline void Array<T>::DeleteAll()
 template <typename T>
 inline void Array<T>::Copy(Array &copy) const
 {
+   if (&copy == this) { return; }
    copy.SetSize(Size());
    const bool use_dev = UseDevice() || copy.UseDevice();
    copy.data.UseDevice(use_dev);
-   // keep 'copy.data' where it is, unless 'use_dev' is true
-   if (use_dev) { copy.Write(); }
-   copy.data.CopyFrom(data, Size());
+   // Copy on host, as in the copy constructor: 'copy' ends up host-valid.
+   copy.HostWrite();
+   copy.data.CopyFromHost(HostRead(), Size());
 }
 
 template <class T>

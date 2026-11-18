@@ -245,7 +245,7 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      int osc = 0;
+      int offset = 0;
 
       for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
       {
@@ -256,40 +256,53 @@ void PAHdivMassAssembleDiagonal3D(const int D1D,
          const int opc = (c == 0) ? 0 : ((c == 1) ? (symmetric ? 3 : 4) :
                                          (symmetric ? 5 : 8));
 
-         real_t mass[DofQuadLimits::HDIV_MAX_Q1D];
-
-         for (int dz = 0; dz < D1Dz; ++dz)
+         for (int dx = 0; dx < D1Dx; ++dx)
          {
-            for (int dy = 0; dy < D1Dy; ++dy)
+            real_t mass_1[DofQuadLimits::HDIV_MAX_Q1D * DofQuadLimits::HDIV_MAX_Q1D];
+            for (int qz = 0; qz < Q1D; ++qz)
             {
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  mass[qx] = 0.0;
-                  for (int qy = 0; qy < Q1D; ++qy)
-                  {
-                     const real_t wy = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
-                     for (int qz = 0; qz < Q1D; ++qz)
-                     {
-                        const real_t wz = (c == 2) ? Bc(qz,dz) : Bo(qz,dz);
-                        mass[qx] += wy * wy * wz * wz * op(qx,qy,qz,opc,e);
-                     }
-                  }
-               }
-
-               for (int dx = 0; dx < D1Dx; ++dx)
+               for (int qy = 0; qy < Q1D; ++qy)
                {
                   real_t val = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const real_t wx = (c == 0) ? Bc(qx,dx) : Bo(qx,dx);
-                     val += mass[qx] * wx * wx;
+                     const real_t b = (c == 0) ? Bc(qx,dx) : Bo(qx,dx);
+                     val += b * b * op(qx,qy,qz,opc,e);
                   }
-                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += val;
+                  mass_1[qy + qz*Q1D] = val;
+               }
+            }
+
+            real_t mass_2[DofQuadLimits::HDIV_MAX_D1D * DofQuadLimits::HDIV_MAX_Q1D];
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  real_t val = 0.0;
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     const real_t b = (c == 1) ? Bc(qy,dy) : Bo(qy,dy);
+                     val += b * b * mass_1[qy + qz*Q1D];
+                  }
+                  mass_2[qz + dy*Q1D] = val;
+               }
+            }
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               for (int dz = 0; dz < D1Dz; ++dz)
+               {
+                  real_t val = 0.0;
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     const real_t b = (c == 2) ? Bc(qz,dz) : Bo(qz,dz);
+                     val += b * b * mass_2[qz + dy*Q1D];
+                  }
+                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + offset, e) += val;
                }
             }
          }
-
-         osc += D1Dx * D1Dy * D1Dz;
+         offset += D1Dx * D1Dy * D1Dz;
       }  // loop c
    }); // end of element loop
 }
@@ -302,6 +315,10 @@ void PAHdivMassApply2D(const int NE, const bool symmetric, const bool,
 {
    MFEM_VERIFY(D1D == TestD1D,
                "Trial and test spaces must have same number of dofs");
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Bc = Reshape(Bc_.Read(), Q1D, D1D);
    auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
@@ -445,7 +462,9 @@ void PAHdivMassApply3D(const int NE, const bool symmetric, const bool,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      real_t mass[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][VDIM];
+      constexpr int MD = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr int MQ = DofQuadLimits::HDIV_MAX_Q1D;
+      real_t mass[MQ][MQ][MQ][VDIM];
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -471,7 +490,7 @@ void PAHdivMassApply3D(const int NE, const bool symmetric, const bool,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            real_t massXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+            real_t massXY[MQ][MQ];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -482,7 +501,7 @@ void PAHdivMassApply3D(const int NE, const bool symmetric, const bool,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               real_t massX[DofQuadLimits::HDIV_MAX_Q1D];
+               real_t massX[MQ];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   massX[qx] = 0.0;
@@ -553,7 +572,7 @@ void PAHdivMassApply3D(const int NE, const bool symmetric, const bool,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         real_t massXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
+         real_t massXY[MD][MD];
 
          osc = 0;
 
@@ -572,7 +591,7 @@ void PAHdivMassApply3D(const int NE, const bool symmetric, const bool,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               real_t massX[DofQuadLimits::HDIV_MAX_D1D];
+               real_t massX[MD];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   massX[dx] = 0;
@@ -752,7 +771,7 @@ void PADivDivAssembleDiagonal3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      int osc = 0;
+      int offset = 0;
 
       for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
       {
@@ -760,41 +779,53 @@ void PADivDivAssembleDiagonal3D(const int D1D,
          const int D1Dy = (c == 1) ? D1D : D1D - 1;
          const int D1Dx = (c == 0) ? D1D : D1D - 1;
 
-         for (int dz = 0; dz < D1Dz; ++dz)
+         for (int dx = 0; dx < D1Dx; ++dx)
          {
-            for (int dy = 0; dy < D1Dy; ++dy)
+            real_t mass_1[DofQuadLimits::HDIV_MAX_Q1D * DofQuadLimits::HDIV_MAX_Q1D];
+            for (int qz = 0; qz < Q1D; ++qz)
             {
-               real_t a[DofQuadLimits::HDIV_MAX_Q1D];
-
-               for (int qx = 0; qx < Q1D; ++qx)
-               {
-                  a[qx] = 0.0;
-                  for (int qy = 0; qy < Q1D; ++qy)
-                  {
-                     const real_t wy = (c == 1) ? Gc(qy,dy) : Bo(qy,dy);
-
-                     for (int qz = 0; qz < Q1D; ++qz)
-                     {
-                        const real_t wz = (c == 2) ? Gc(qz,dz) : Bo(qz,dz);
-                        a[qx] += wy * wy * wz * wz * op(qx,qy,qz,e);
-                     }
-                  }
-               }
-
-               for (int dx = 0; dx < D1Dx; ++dx)
+               for (int qy = 0; qy < Q1D; ++qy)
                {
                   real_t val = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const real_t wx = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
-                     val += a[qx] * wx * wx;
+                     const real_t b = (c == 0) ? Gc(qx,dx) : Bo(qx,dx);
+                     val += b * b * op(qx,qy,qz,e);
                   }
-                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += val;
+                  mass_1[qy + qz*Q1D] = val;
+               }
+            }
+
+            real_t mass_2[DofQuadLimits::HDIV_MAX_D1D * DofQuadLimits::HDIV_MAX_Q1D];
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  real_t val = 0.0;
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     const real_t b = (c == 1) ? Gc(qy,dy) : Bo(qy,dy);
+                     val += b * b * mass_1[qy + qz*Q1D];
+                  }
+                  mass_2[qz + dy*Q1D] = val;
+               }
+            }
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               for (int dz = 0; dz < D1Dz; ++dz)
+               {
+                  real_t val = 0.0;
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     const real_t b = (c == 2) ? Gc(qz,dz) : Bo(qz,dz);
+                     val += b * b * mass_2[qz + dy*Q1D];
+                  }
+                  diag(dx + ((dy + (dz * D1Dy)) * D1Dx) + offset, e) += val;
                }
             }
          }
-
-         osc += D1Dx * D1Dy * D1Dz;
+         offset += D1Dx * D1Dy * D1Dz;
       }  // loop c
    }); // end of element loop
 }
@@ -810,6 +841,11 @@ void PADivDivApply2D(const int D1D,
                      const Vector &x_,
                      Vector &y_)
 {
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().HDIV_MAX_D1D,
+               "Error: D1D > HDIV_MAX_D1D");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().HDIV_MAX_Q1D,
+               "Error: Q1D > HDIV_MAX_Q1D");
+
    auto Bo = Reshape(Bo_.Read(), Q1D, D1D-1);
    auto Bot = Reshape(Bot_.Read(), D1D-1, Q1D);
    auto Gc = Reshape(Gc_.Read(), Q1D, D1D);
@@ -821,10 +857,10 @@ void PADivDivApply2D(const int D1D,
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr static int VDIM = 2;
-      constexpr static int MAX_D1D = DofQuadLimits::HDIV_MAX_D1D;
-      constexpr static int MAX_Q1D = DofQuadLimits::HDIV_MAX_Q1D;
+      constexpr int MD = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr int MQ = DofQuadLimits::HDIV_MAX_Q1D;
 
-      real_t div[MAX_Q1D][MAX_Q1D];
+      real_t div[MQ][MQ];
 
       // div[qy][qx] will be computed as du_x/dx + du_y/dy
 
@@ -845,7 +881,7 @@ void PADivDivApply2D(const int D1D,
 
          for (int dy = 0; dy < D1Dy; ++dy)
          {
-            real_t gradX[MAX_Q1D];
+            real_t gradX[MQ];
             for (int qx = 0; qx < Q1D; ++qx)
             {
                gradX[qx] = 0;
@@ -891,7 +927,7 @@ void PADivDivApply2D(const int D1D,
             const int D1Dx = (c == 1) ? D1D - 1 : D1D;
             const int D1Dy = (c == 0) ? D1D - 1 : D1D;
 
-            real_t gradX[MAX_D1D];
+            real_t gradX[MD];
             for (int dx = 0; dx < D1Dx; ++dx)
             {
                gradX[dx] = 0;
@@ -945,7 +981,9 @@ void PADivDivApply3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
-      real_t div[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+      constexpr int MD = DofQuadLimits::HDIV_MAX_D1D;
+      constexpr int MQ = DofQuadLimits::HDIV_MAX_Q1D;
+      real_t div[MQ][MQ][MQ];
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
@@ -968,7 +1006,7 @@ void PADivDivApply3D(const int D1D,
 
          for (int dz = 0; dz < D1Dz; ++dz)
          {
-            real_t aXY[DofQuadLimits::HDIV_MAX_Q1D][DofQuadLimits::HDIV_MAX_Q1D];
+            real_t aXY[MQ][MQ];
             for (int qy = 0; qy < Q1D; ++qy)
             {
                for (int qx = 0; qx < Q1D; ++qx)
@@ -979,7 +1017,7 @@ void PADivDivApply3D(const int D1D,
 
             for (int dy = 0; dy < D1Dy; ++dy)
             {
-               real_t aX[DofQuadLimits::HDIV_MAX_Q1D];
+               real_t aX[MQ];
                for (int qx = 0; qx < Q1D; ++qx)
                {
                   aX[qx] = 0.0;
@@ -1035,7 +1073,7 @@ void PADivDivApply3D(const int D1D,
 
       for (int qz = 0; qz < Q1D; ++qz)
       {
-         real_t aXY[DofQuadLimits::HDIV_MAX_D1D][DofQuadLimits::HDIV_MAX_D1D];
+         real_t aXY[MD][MD];
 
          osc = 0;
 
@@ -1054,7 +1092,7 @@ void PADivDivApply3D(const int D1D,
             }
             for (int qy = 0; qy < Q1D; ++qy)
             {
-               real_t aX[DofQuadLimits::HDIV_MAX_D1D];
+               real_t aX[MD];
                for (int dx = 0; dx < D1Dx; ++dx)
                {
                   aX[dx] = 0;

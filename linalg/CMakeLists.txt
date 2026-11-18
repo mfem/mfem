@@ -115,7 +115,7 @@ if (MFEM_USE_SUPERLU)
   list(APPEND HDRS superlu.hpp)
 endif()
 
-if (MFEM_USE_MUMPS)
+if (MFEM_USE_MUMPS OR MFEM_USE_COMPLEX_MUMPS)
   list(APPEND SRCS mumps.cpp)
   list(APPEND HDRS mumps.hpp)
 endif()

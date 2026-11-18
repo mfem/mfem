@@ -1,0 +1,2349 @@
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+#ifdef _WIN32
+#define _USE_MATH_DEFINES
+#include <cmath>
+#endif
+
+#include <limits>
+#include <type_traits>
+#include <cmath>
+
+#include "unit_tests.hpp"
+#include "mfem.hpp"
+#include "fem/integ/mma/mma.hpp"
+#include "fem/integ/mma/vector.hpp"
+
+using namespace mfem;
+
+namespace pa_simplices_mma
+{
+
+namespace
+{
+
+void AddMassDiffIntegrators(BilinearForm &a, const IntegrationRule *ir,
+                            Coefficient &const_coeff,
+                            Coefficient &funct_coeff)
+{
+   a.AddDomainIntegrator(new MassIntegrator(ir));
+   a.AddDomainIntegrator(new MassIntegrator(const_coeff, ir));
+   a.AddDomainIntegrator(new MassIntegrator(funct_coeff, ir));
+   a.AddDomainIntegrator(new DiffusionIntegrator(ir));
+   a.AddDomainIntegrator(new DiffusionIntegrator(const_coeff, ir));
+   a.AddDomainIntegrator(new DiffusionIntegrator(funct_coeff, ir));
+}
+
+/** MMA-PA vs stock Simplex PA (Positive / MMAForce). FA vs PA is covered in
+    test_pa_simplices.cpp. */
+void test_pa_simplices_mma_positive(const char *filename, int p)
+{
+   CAPTURE(filename, p);
+
+   Mesh mesh(filename);
+   MFEM_VERIFY((mesh.Dimension() == 2 || mesh.Dimension() == 3),
+               "Mesh dimension must be 2 or 3");
+   MFEM_VERIFY(!mesh.IsMixedMesh(), "Mesh is mixed");
+   MFEM_VERIFY(mesh.SpaceDimension() == mesh.Dimension(),
+               "Simplex MMA requires volumetric meshes (sdim == dim)");
+
+   H1_FECollection fec(p, mesh.Dimension(), BasisType::Positive);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   {
+      MMAForce on(true);
+      if (!UsesSimplexMMA(fes)) { return; }
+   }
+
+   GridFunction x(&fes), y_mma(&fes), y_sum(&fes);
+   x.Randomize(0x100001b3);
+   y_mma.Randomize(0x9e3779b9);
+   y_sum = y_mma;
+
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   // Stock Positive PA uses ragged-tensor maps with Stroud rules; MMA accepts
+   // the same IR via CalcShape, so both paths share Stroud quadrature.
+   const auto order = 2 * fe.GetOrder() + Tr.OrderW();
+   const IntegrationRule *ir = &StroudIntRules.Get(fe.GetGeomType(), order);
+
+   // Runtime (non-specialized) simplex MMA apply caps.
+   const int max_q1d = DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_nq = (mesh.Dimension() == 2) ? max_q1d * max_q1d : 256;
+   if (ir->GetNPoints() > max_nq) { return; }
+
+   ConstantCoefficient const_coeff(M_2_SQRTPI);
+   FunctionCoefficient funct_coeff([](const Vector &pt)
+   { return M_1_PI + pt[0] * pt[0]; });
+
+   BilinearForm pa_mma(&fes), pa_sum(&fes);
+   AddMassDiffIntegrators(pa_mma, ir, const_coeff, funct_coeff);
+   AddMassDiffIntegrators(pa_sum, ir, const_coeff, funct_coeff);
+   pa_mma.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa_sum.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
+   {
+      MMAForce on(true);
+      pa_mma.Assemble();
+   }
+   {
+      MMAForce off(false);
+      pa_sum.Assemble();
+   }
+
+   pa_mma.Mult(x, y_mma);
+   pa_sum.Mult(x, y_sum);
+
+   y_sum -= y_mma;
+   REQUIRE(y_sum.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
+}
+
+/** ir_order < 0 → default smoke order 2p+OrderW+4.
+    compare_stock → MMA Mult vs stock PA (used for Fallback sizes). */
+void test_pa_simplices_mma_h1(const char *filename, int p,
+                              int ir_order = -1, bool compare_stock = false)
+{
+   CAPTURE(filename, p, ir_order, compare_stock);
+
+   Mesh mesh(filename);
+   MFEM_VERIFY((mesh.Dimension() == 2 || mesh.Dimension() == 3),
+               "Mesh dimension must be 2 or 3");
+   MFEM_VERIFY(!mesh.IsMixedMesh(), "Mesh is mixed");
+   MFEM_VERIFY(mesh.SpaceDimension() == mesh.Dimension(),
+               "Simplex MMA requires volumetric meshes (sdim == dim)");
+
+   H1_FECollection fec(p, mesh.Dimension(), BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   if (!UsesSimplexMMA(fes)) { return; }
+
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   const int order = (ir_order < 0)
+                     ? (2 * fe.GetOrder() + Tr.OrderW() + 4)
+                     : ir_order;
+   const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
+   CAPTURE(order, ir->GetNPoints());
+
+   const int max_q1d = DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_nq = (mesh.Dimension() == 2) ? max_q1d * max_q1d : 256;
+   if (ir->GetNPoints() > max_nq) { return; }
+
+   ConstantCoefficient const_coeff(M_2_SQRTPI);
+   FunctionCoefficient funct_coeff([](const Vector &pt)
+   { return M_1_PI + pt[0] * pt[0]; });
+
+   GridFunction x(&fes), y_mma(&fes), y_sum(&fes);
+   x.Randomize(0x100001b3);
+   y_mma.Randomize(0x9e3779b9);
+   y_sum = y_mma;
+
+   BilinearForm pa_mma(&fes);
+   AddMassDiffIntegrators(pa_mma, ir, const_coeff, funct_coeff);
+   pa_mma.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa_mma.Assemble();
+   pa_mma.Mult(x, y_mma);
+
+   BilinearForm fa(&fes);
+   AddMassDiffIntegrators(fa, ir, const_coeff, funct_coeff);
+   fa.Assemble();
+   fa.Mult(x, y_sum);
+   y_sum -= y_mma;
+   REQUIRE(y_sum.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
+}
+
+} // namespace
+
+TEST_CASE("PA Simplices MMA vs stock PA", "[PartialAssembly][MMA][GPU]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? GENERATE(1, 2, 5, 6, 7) :
+                  GENERATE(1, 2, 3, 4, 5, 6, 7);
+
+   const auto GenMesh = [&](const auto &meshs, const auto &extra)
+   {
+      return !all_tests
+             ? GENERATE_REF(from_range(meshs))
+             : GENERATE_REF(from_range(meshs), from_range(extra));
+   };
+
+   SECTION("2D")
+   {
+      auto meshs = { "../../data/beam-tri.mesh",
+                     "../../data/inline-tri.mesh",
+                     "../../data/ref-triangle.mesh",
+                     "../../data/rt-2d-p4-tri.mesh",
+                     "../../data/square-disc-p2.mesh",
+                     "../../data/square-disc-p3.mesh",
+                     "../../data/periodic-annulus-sector.msh"
+                   };
+      test_pa_simplices_mma_positive(GENERATE_REF(from_range(meshs)), p);
+   }
+
+   SECTION("3D")
+   {
+      auto meshs = { "../../data/beam-tet.mesh",
+                     "../../data/inline-tet.mesh",
+                     "../../data/ref-tetrahedron.mesh"
+                   };
+      auto extra = { "../../data/escher.mesh",
+                     "../../data/escher-p2.mesh"
+                   };
+      test_pa_simplices_mma_positive(GenMesh(meshs, extra), p);
+   }
+}
+
+TEST_CASE("PA Simplices MMA GLL", "[PartialAssembly][MMA][GPU]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? GENERATE(1, 2, 5, 6, 7) :
+                  GENERATE(1, 2, 3, 4, 5, 6, 7);
+
+   SECTION("smoke 2D")
+   {
+      auto meshs = { "../../data/ref-triangle.mesh",
+                     "../../data/inline-tri.mesh",
+                     "../../data/beam-tri.mesh"
+                   };
+      test_pa_simplices_mma_h1(GENERATE_REF(from_range(meshs)), p);
+   }
+
+   SECTION("smoke 3D")
+   {
+      auto meshs = { "../../data/ref-tetrahedron.mesh",
+                     "../../data/inline-tet.mesh",
+                     "../../data/beam-tet.mesh"
+                   };
+      test_pa_simplices_mma_h1(GENERATE_REF(from_range(meshs)), p);
+   }
+
+   // Unregistered (D1D,nq) → ApplySimplexMmaGemPAKernels::Fallback.
+   SECTION("Fallback 2D triangle nq=7")
+   {
+      // Tables register (2,3/4/9/...), not (2,7).
+      test_pa_simplices_mma_h1("../../data/ref-triangle.mesh", 1, 5, true);
+      test_pa_simplices_mma_h1("../../data/inline-tri.mesh", 1, 5, true);
+   }
+   SECTION("Fallback 3D tet nq=35")
+   {
+      // Tables register (2,4/8/14/24), not (2,35).
+      test_pa_simplices_mma_h1("../../data/ref-tetrahedron.mesh", 1, 7, true);
+      test_pa_simplices_mma_h1("../../data/inline-tet.mesh", 1, 7, true);
+   }
+}
+
+TEST_CASE("PA Simplices Positive force MMA", "[PartialAssembly][MMA][GPU]")
+{
+   Mesh mesh("../../data/ref-triangle.mesh");
+   H1_FECollection fec(3, mesh.Dimension(), BasisType::Positive);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   REQUIRE_FALSE(UsesSimplexMMA(fes));
+   REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::LEXICOGRAPHIC);
+
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   const IntegrationRule *ir =
+      &StroudIntRules.Get(fe.GetGeomType(), 2 * fe.GetOrder() + Tr.OrderW());
+
+   GridFunction x(&fes), y_mma(&fes), y_sum(&fes);
+   x.Randomize(0x100001b3);
+   y_mma.Randomize(0x9e3779b9);
+   y_sum = y_mma;
+
+   BilinearForm pa_mma(&fes), pa_sum(&fes);
+   pa_mma.AddDomainIntegrator(new MassIntegrator(ir));
+   pa_mma.AddDomainIntegrator(new DiffusionIntegrator(ir));
+   pa_sum.AddDomainIntegrator(new MassIntegrator(ir));
+   pa_sum.AddDomainIntegrator(new DiffusionIntegrator(ir));
+   pa_mma.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa_sum.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
+   {
+      MMAForce on(true);
+      REQUIRE(UsesSimplexMMA(fes));
+      REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::NATIVE);
+      pa_mma.Assemble();
+   }
+   {
+      MMAForce off(false);
+      pa_sum.Assemble();
+   }
+
+   pa_mma.Mult(x, y_mma);
+   pa_sum.Mult(x, y_sum);
+   y_sum -= y_mma;
+   REQUIRE(y_sum.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
+
+   REQUIRE_FALSE(UsesSimplexMMA(fes));
+   REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::LEXICOGRAPHIC);
+}
+
+/** Vector Mass/Diffusion simplex MMA PA vs full assembly (FA). */
+void test_pa_vec_simplices_mma_fa(Mesh &mesh, int p, bool positive,
+                                  int ir_order = -1)
+{
+   const int dim = mesh.Dimension();
+   CAPTURE(dim, p, positive, ir_order, mesh.GetNE());
+   MFEM_VERIFY(mesh.SpaceDimension() == dim, "");
+   MFEM_VERIFY(!mesh.IsMixedMesh(), "");
+
+   const int btype = positive ? BasisType::Positive : BasisType::GaussLobatto;
+   H1_FECollection fec(p, dim, btype);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+
+   if (positive)
+   {
+      MMAForce on(true);
+      if (!UsesSimplexMMA(fes)) { return; }
+   }
+   else if (!UsesSimplexMMA(fes)) { return; }
+
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   const int order = (ir_order < 0)
+                     ? (2 * fe.GetOrder() + Tr.OrderW() + (positive ? 0 : 4))
+                     : ir_order;
+   const IntegrationRule *ir = positive
+                               ? &StroudIntRules.Get(fe.GetGeomType(), order)
+                               : &IntRules.Get(fe.GetGeomType(), order);
+   CAPTURE(order, ir->GetNPoints());
+
+   const int max_q1d = DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_nq = (dim == 2) ? max_q1d * max_q1d : 256;
+   if (ir->GetNPoints() > max_nq) { return; }
+
+   ConstantCoefficient const_coeff(M_2_SQRTPI);
+   FunctionCoefficient funct_coeff([](const Vector &pt)
+   { return M_1_PI + pt[0] * pt[0]; });
+
+   GridFunction x(&fes), y_mma(&fes), y_fa(&fes);
+   x.Randomize(0x100001b3);
+   y_mma.Randomize(0x9e3779b9);
+   y_fa = y_mma;
+
+   BilinearForm pa(&fes), fa(&fes);
+   auto add_vec = [&](BilinearForm &a)
+   {
+      auto *vm0 = new VectorMassIntegrator;
+      auto *vm1 = new VectorMassIntegrator(const_coeff, ir);
+      auto *vm2 = new VectorMassIntegrator(funct_coeff, ir);
+      vm0->SetIntRule(ir);
+      a.AddDomainIntegrator(vm0);
+      a.AddDomainIntegrator(vm1);
+      a.AddDomainIntegrator(vm2);
+      a.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
+      a.AddDomainIntegrator(new VectorDiffusionIntegrator(const_coeff, ir));
+      a.AddDomainIntegrator(new VectorDiffusionIntegrator(funct_coeff, ir));
+   };
+   add_vec(pa);
+   add_vec(fa);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   // Legacy FA (FULL/EA not implemented for VectorMass/Diffusion).
+
+   {
+      MMAForce on(true);
+      pa.Assemble();
+   }
+   fa.Assemble();
+   fa.Finalize();
+
+   pa.Mult(x, y_mma);
+   fa.Mult(x, y_fa);
+   y_fa -= y_mma;
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
+}
+
+TEST_CASE("PA Simplices MMA VectorMass/Diffusion vs FA",
+          "[PartialAssembly][MMA][GPU]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? GENERATE(1, 2, 5) : GENERATE(1, 2, 3, 4, 5);
+
+   SECTION("GLL 2D")
+   {
+      auto meshs = { "../../data/ref-triangle.mesh",
+                     "../../data/inline-tri.mesh"
+                   };
+      Mesh mesh(GENERATE_REF(from_range(meshs)));
+      test_pa_vec_simplices_mma_fa(mesh, p, false);
+   }
+   SECTION("GLL 3D")
+   {
+      auto meshs = { "../../data/ref-tetrahedron.mesh",
+                     "../../data/inline-tet.mesh"
+                   };
+      Mesh mesh(GENERATE_REF(from_range(meshs)));
+      test_pa_vec_simplices_mma_fa(mesh, p, false);
+   }
+   SECTION("Positive 2D")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_simplices_mma_fa(mesh, p, true);
+   }
+   SECTION("Positive 3D")
+   {
+      Mesh mesh("../../data/ref-tetrahedron.mesh");
+      test_pa_vec_simplices_mma_fa(mesh, p, true);
+   }
+   SECTION("Fallback GLL triangle")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_simplices_mma_fa(mesh, 1, false, 5);
+   }
+}
+
+/** Simplex VectorMass/Diffusion VQ or MQ MMA vs FA (smoke). */
+void test_pa_vec_coeff_simplices_mma_fa(Mesh &mesh, int p, bool diffusion,
+                                        bool mq)
+{
+   const int dim = mesh.Dimension();
+   CAPTURE(dim, p, diffusion, mq, mesh.GetNE());
+
+   H1_FECollection fec(p, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+   if (!UsesSimplexMMA(fes)) { return; }
+
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   const int order = 2 * fe.GetOrder() + Tr.OrderW() + 4;
+   const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
+
+   VectorFunctionCoefficient vq(dim, [](const Vector &pt, Vector &v)
+   {
+      for (int i = 0; i < v.Size(); ++i) { v(i) = M_1_PI + pt[0] + real_t(i); }
+   });
+   MatrixFunctionCoefficient mq_coeff(dim, [](const Vector &pt, DenseMatrix &m)
+   {
+      m = 0.0;
+      for (int i = 0; i < m.Height(); ++i)
+      {
+         m(i, i) = 1.0 + M_1_PI * pt[0] + real_t(i);
+         for (int j = 0; j < i; ++j)
+         {
+            m(i, j) = m(j, i) = 0.1 * (pt[0] + real_t(i + j));
+         }
+      }
+   });
+
+   GridFunction x(&fes), y_mma(&fes), y_fa(&fes);
+   x.Randomize(0x100001b3);
+   y_mma.Randomize(0x9e3779b9);
+   y_fa = y_mma;
+
+   BilinearForm pa(&fes), fa(&fes);
+   auto add = [&](BilinearForm &a)
+   {
+      BilinearFormIntegrator *integ = nullptr;
+      if (diffusion)
+      {
+         integ = mq ? static_cast<BilinearFormIntegrator *>(
+                    new VectorDiffusionIntegrator(mq_coeff))
+                 : static_cast<BilinearFormIntegrator *>(
+                    new VectorDiffusionIntegrator(vq));
+      }
+      else
+      {
+         integ = mq ? static_cast<BilinearFormIntegrator *>(
+                    new VectorMassIntegrator(mq_coeff))
+                 : static_cast<BilinearFormIntegrator *>(
+                    new VectorMassIntegrator(vq));
+      }
+      integ->SetIntRule(ir);
+      a.AddDomainIntegrator(integ);
+   };
+   add(pa);
+   add(fa);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
+   {
+      MMAForce on(true);
+      pa.Assemble();
+   }
+   fa.Assemble();
+   fa.Finalize();
+
+   pa.Mult(x, y_mma);
+   fa.Mult(x, y_fa);
+   y_fa -= y_mma;
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
+}
+
+TEST_CASE("PA Simplices MMA Vector VQ/MQ vs FA",
+          "[PartialAssembly][MMA][GPU]")
+{
+   SECTION("2D VQ Mass")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, false, false);
+   }
+   SECTION("2D MQ Mass")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, false, true);
+   }
+   SECTION("2D VQ Diffusion")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, true, false);
+   }
+   SECTION("2D MQ Diffusion")
+   {
+      Mesh mesh("../../data/ref-triangle.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, true, true);
+   }
+   SECTION("3D VQ Mass")
+   {
+      Mesh mesh("../../data/ref-tetrahedron.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, false, false);
+   }
+   SECTION("3D MQ Diffusion")
+   {
+      Mesh mesh("../../data/ref-tetrahedron.mesh");
+      test_pa_vec_coeff_simplices_mma_fa(mesh, 2, true, true);
+   }
+}
+
+/** ir_order < 0 → default (use_2p_ir ? 2p : 2p+OrderW+4). */
+void test_domain_lf_simplex_mma(const char *filename, int p, bool use_2p_ir,
+                                int ir_order = -1)
+{
+   CAPTURE(filename, p, use_2p_ir, ir_order);
+
+   Mesh mesh(filename);
+   MFEM_VERIFY((mesh.Dimension() == 2 || mesh.Dimension() == 3),
+               "Mesh dimension must be 2 or 3");
+   MFEM_VERIFY(!mesh.IsMixedMesh(), "Mesh is mixed");
+   MFEM_VERIFY(mesh.SpaceDimension() == mesh.Dimension(),
+               "Simplex MMA requires volumetric meshes (sdim == dim)");
+
+   H1_FECollection fec(p, mesh.Dimension(), BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   REQUIRE(UsesSimplexMMA(fes));
+
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   const int order = (ir_order >= 0) ? ir_order
+                     : (use_2p_ir ? (2 * p)
+                        : (2 * fe.GetOrder() + Tr.OrderW() + 4));
+   const IntegrationRule *ir = &IntRules.Get(fe.GetGeomType(), order);
+   CAPTURE(order, ir->GetNPoints());
+
+   const int max_q1d = DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_nq = (mesh.Dimension() == 2) ? max_q1d * max_q1d : 256;
+   if (ir->GetNPoints() > max_nq) { return; }
+
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      mesh.SetAttribute(e, e % 2 ? 1 : 2);
+   }
+   mesh.SetAttributes();
+   Array<int> elem_marker(mesh.attributes.Max());
+   elem_marker = 1;
+   if (elem_marker.Size() >= 2) { elem_marker[0] = 0; }
+
+   ConstantCoefficient const_coeff(M_2_SQRTPI);
+   FunctionCoefficient funct_coeff([](const Vector &pt)
+   { return M_1_PI + pt[0] * pt[0]; });
+
+   auto compare = [&](Coefficient &Q)
+   {
+      LinearForm lf_dev(&fes), lf_std(&fes);
+      lf_dev.AddDomainIntegrator(new DomainLFIntegrator(Q, ir), elem_marker);
+      lf_std.AddDomainIntegrator(new DomainLFIntegrator(Q, ir), elem_marker);
+
+      REQUIRE(lf_dev.SupportsDevice());
+      lf_dev.UseFastAssembly(true);
+      REQUIRE(lf_dev.SupportsDevice());
+      lf_dev.Assemble();
+
+      lf_std.UseFastAssembly(false);
+      lf_std.Assemble();
+
+      lf_std -= lf_dev;
+      REQUIRE(lf_std.Norml2() == MFEM_Approx(0.0, 1e-10));
+   };
+
+   compare(const_coeff);
+   compare(funct_coeff);
+}
+
+TEST_CASE("DomainLF Simplices MMA", "[LinearFormExtension][MMA][GPU]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? GENERATE(1, 2, 5, 6) :
+                  GENERATE(1, 2, 3, 4, 5, 6);
+   const auto use_2p_ir = GENERATE(false, true);
+
+   SECTION("2D")
+   {
+      auto meshs = { "../../data/beam-tri.mesh",
+                     "../../data/inline-tri.mesh",
+                     "../../data/ref-triangle.mesh"
+                   };
+      test_domain_lf_simplex_mma(GENERATE_REF(from_range(meshs)), p, use_2p_ir);
+   }
+
+   SECTION("3D")
+   {
+      auto meshs = { "../../data/beam-tet.mesh",
+                     "../../data/inline-tet.mesh",
+                     "../../data/ref-tetrahedron.mesh"
+                   };
+      test_domain_lf_simplex_mma(GENERATE_REF(from_range(meshs)), p, use_2p_ir);
+   }
+
+   // Unregistered (D1D,nq) → AssembleSimplexMmaKernels::Fallback.
+   SECTION("Fallback 2D triangle nq=7")
+   {
+      // Tables register (2,3/12/...), not (2,7).
+      test_domain_lf_simplex_mma("../../data/ref-triangle.mesh", 1, false, 5);
+      test_domain_lf_simplex_mma("../../data/inline-tri.mesh", 1, false, 5);
+   }
+   SECTION("Fallback 3D tet nq=35")
+   {
+      // Tables register (2,4/8/14/24), not (2,35).
+      test_domain_lf_simplex_mma("../../data/ref-tetrahedron.mesh",
+                                 1, false, 7);
+      test_domain_lf_simplex_mma("../../data/inline-tet.mesh", 1, false, 7);
+   }
+}
+
+static void fvec_dim(const Vector &xvec, Vector &v)
+{
+   const int dim = xvec.Size();
+   real_t val = 2 * xvec[0];
+   if (dim >= 2) { val += 3 * xvec[1] * xvec[0]; }
+   if (dim >= 3) { val += real_t(0.25) * xvec[2] * xvec[1]; }
+   v.SetSize(dim);
+   for (int d = 0; d < dim; ++d) { v[d] = val / real_t(d + 1); }
+}
+
+/** ir_order < 0: default (use_2p_ir ? 2*GetOrder() : GetRule). */
+void test_vectorfe_domain_lf_simplex_mma(const char *filename, int p,
+                                         bool hcurl,
+                                         bool use_2p_ir, int ir_order = -1)
+{
+   CAPTURE(filename, p, hcurl, use_2p_ir, ir_order);
+
+   Mesh mesh(filename);
+   MFEM_VERIFY((mesh.Dimension() == 2 || mesh.Dimension() == 3),
+               "Mesh dimension must be 2 or 3");
+   MFEM_VERIFY(!mesh.IsMixedMesh(), "Mesh is mixed");
+   MFEM_VERIFY(mesh.SpaceDimension() == mesh.Dimension(),
+               "Simplex MMA requires volumetric meshes (sdim == dim)");
+
+   const int dim = mesh.Dimension();
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (hcurl) { fec.reset(new ND_FECollection(p, dim)); }
+   else { fec.reset(new RT_FECollection(p, dim)); }
+   FiniteElementSpace fes(&mesh, fec.get());
+
+   {
+      MMAForce on(true);
+      if (hcurl) { REQUIRE(UsesSimplexMmaHcurl(fes)); }
+      else { REQUIRE(UsesSimplexMmaHdiv(fes)); }
+   }
+
+   const auto &fe = *fes.GetTypicalFE();
+   const auto &Tr = *mesh.GetTypicalElementTransformation();
+   const IntegrationRule *ir = nullptr;
+   if (ir_order >= 0)
+   {
+      ir = &IntRules.Get(fe.GetGeomType(), ir_order);
+   }
+   else if (use_2p_ir)
+   {
+      ir = &IntRules.Get(fe.GetGeomType(), 2 * fe.GetOrder());
+   }
+   else
+   {
+      ir = &MassIntegrator::GetRule(fe, fe, Tr);
+   }
+   CAPTURE(ir->GetNPoints());
+
+   const int max_q1d = DeviceDofQuadLimits::Get().MAX_Q1D;
+   const int max_nq = (dim == 2) ? max_q1d * max_q1d : 256;
+   if (ir->GetNPoints() > max_nq) { return; }
+
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      mesh.SetAttribute(e, e % 2 ? 1 : 2);
+   }
+   mesh.SetAttributes();
+   Array<int> elem_marker(mesh.attributes.Max());
+   elem_marker = 1;
+   if (elem_marker.Size() >= 2) { elem_marker[0] = 0; }
+
+   Vector cst(dim);
+   cst = M_2_SQRTPI;
+   VectorConstantCoefficient const_coeff(cst);
+   VectorFunctionCoefficient funct_coeff(dim, fvec_dim);
+
+   auto compare = [&](VectorCoefficient &Q)
+   {
+      MMAForce on(true);
+      LinearForm lf_dev(&fes), lf_std(&fes);
+      lf_dev.AddDomainIntegrator(new VectorFEDomainLFIntegrator(Q, ir),
+                                 elem_marker);
+      lf_std.AddDomainIntegrator(new VectorFEDomainLFIntegrator(Q, ir),
+                                 elem_marker);
+
+      REQUIRE(lf_dev.SupportsDevice());
+      lf_dev.UseFastAssembly(true);
+      REQUIRE(lf_dev.SupportsDevice());
+      lf_dev.Assemble();
+
+      lf_std.UseFastAssembly(false);
+      lf_std.Assemble();
+
+      lf_std -= lf_dev;
+      REQUIRE(lf_std.Norml2() == MFEM_Approx(0.0, 1e-10));
+   };
+
+   compare(const_coeff);
+   compare(funct_coeff);
+}
+
+TEST_CASE("VectorFE DomainLF Simplices MMA",
+          "[LinearFormExtension][MMA][GPU]")
+{
+   const auto all_tests = launch_all_non_regression_tests;
+   const auto p = !all_tests ? GENERATE(1, 2, 5, 6) :
+                  GENERATE(1, 2, 3, 4, 5, 6);
+   const auto use_2p_ir = GENERATE(false, true);
+   const auto hcurl = GENERATE(true, false);
+
+   SECTION("2D")
+   {
+      auto meshs = { "../../data/inline-tri.mesh",
+                     "../../data/ref-triangle.mesh"
+                   };
+      test_vectorfe_domain_lf_simplex_mma(GENERATE_REF(from_range(meshs)), p,
+                                          hcurl, use_2p_ir);
+   }
+
+   SECTION("3D")
+   {
+      auto meshs = { "../../data/inline-tet.mesh",
+                     "../../data/ref-tetrahedron.mesh"
+                   };
+      test_vectorfe_domain_lf_simplex_mma(GENERATE_REF(from_range(meshs)), p,
+                                          hcurl, use_2p_ir);
+   }
+
+   // Unregistered (D1D,nq) → AssembleSimplexMmaKernels::Fallback.
+   SECTION("Fallback 2D triangle nq=7")
+   {
+      test_vectorfe_domain_lf_simplex_mma("../../data/ref-triangle.mesh", 1,
+                                          hcurl, false, 5);
+      test_vectorfe_domain_lf_simplex_mma("../../data/inline-tri.mesh", 1,
+                                          hcurl, false, 5);
+   }
+   SECTION("Fallback 3D tet nq=35")
+   {
+      test_vectorfe_domain_lf_simplex_mma("../../data/ref-tetrahedron.mesh", 1,
+                                          hcurl, false, 7);
+      test_vectorfe_domain_lf_simplex_mma("../../data/inline-tet.mesh", 1,
+                                          hcurl, false, 7);
+   }
+}
+
+enum class VecFeOp { Mass, CurlCurl, DivDiv };
+
+void test_hcurl_hdiv_simplex_fa_vs_mma(Mesh &mesh, int p, bool hcurl,
+                                       VecFeOp op)
+{
+   const int dim = mesh.Dimension();
+   CAPTURE(dim, p, hcurl, int(op), mesh.GetNE());
+
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (hcurl) { fec.reset(new ND_FECollection(p, dim)); }
+   else { fec.reset(new RT_FECollection(p, dim)); }
+   FiniteElementSpace fes(&mesh, fec.get());
+
+   {
+      MMAForce on(true);
+      if (hcurl) { REQUIRE(UsesSimplexMmaHcurl(fes)); }
+      else { REQUIRE(UsesSimplexMmaHdiv(fes)); }
+   }
+   {
+      MMAForce off(false);
+      REQUIRE_FALSE((UsesSimplexMmaHcurl(fes) || UsesSimplexMmaHdiv(fes)));
+   }
+
+   GridFunction x(&fes), y_fa(&fes), y_mma(&fes);
+   x.Randomize(0x100001b3);
+   y_fa = 0.0;
+   y_mma = 0.0;
+
+   ConstantCoefficient one(1.0);
+   ConstantCoefficient c2(M_2_SQRTPI);
+   FunctionCoefficient cf([](const Vector &pt)
+   { return M_1_PI + pt[0] * pt[0]; });
+
+   const auto &fe = *fes.GetTypicalFE();
+   ElementTransformation &T = *mesh.GetTypicalElementTransformation();
+   const IntegrationRule *ir = &MassIntegrator::GetRule(fe, fe, T);
+
+   auto add_ops = [&](BilinearForm &a)
+   {
+      if (op == VecFeOp::Mass)
+      {
+         auto *i0 = new VectorFEMassIntegrator;
+         auto *i1 = new VectorFEMassIntegrator(c2);
+         auto *i2 = new VectorFEMassIntegrator(cf);
+         i0->SetIntRule(ir); i1->SetIntRule(ir); i2->SetIntRule(ir);
+         a.AddDomainIntegrator(i0);
+         a.AddDomainIntegrator(i1);
+         a.AddDomainIntegrator(i2);
+      }
+      else if (op == VecFeOp::CurlCurl)
+      {
+         auto *i0 = new CurlCurlIntegrator;
+         auto *i1 = new CurlCurlIntegrator(c2);
+         auto *i2 = new CurlCurlIntegrator(cf);
+         i0->SetIntRule(ir); i1->SetIntRule(ir); i2->SetIntRule(ir);
+         a.AddDomainIntegrator(i0);
+         a.AddDomainIntegrator(i1);
+         a.AddDomainIntegrator(i2);
+      }
+      else
+      {
+         auto *i0 = new DivDivIntegrator(one);
+         auto *i1 = new DivDivIntegrator(c2);
+         auto *i2 = new DivDivIntegrator(cf);
+         i0->SetIntRule(ir); i1->SetIntRule(ir); i2->SetIntRule(ir);
+         a.AddDomainIntegrator(i0);
+         a.AddDomainIntegrator(i1);
+         a.AddDomainIntegrator(i2);
+      }
+   };
+
+   BilinearForm fa(&fes), pa(&fes);
+   add_ops(fa);
+   add_ops(pa);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+
+   fa.Assemble();
+   fa.Finalize();
+   {
+      MMAForce on(true);
+      pa.Assemble();
+   }
+
+   fa.Mult(x, y_fa);
+   pa.Mult(x, y_mma);
+   y_fa -= y_mma;
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0, 1e-8, 1e-8));
+}
+
+TEST_CASE("Hcurl/Hdiv simplex MMA PA vs FA",
+          "[PA][MMA][Hcurl][Hdiv][Simplex][GPU]")
+{
+   const int p = GENERATE(1, 2, 3, 4, 5, 6);
+   SECTION("2D ND triangle")
+   {
+      Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::TRIANGLE);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, true, VecFeOp::Mass);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, true, VecFeOp::CurlCurl);
+   }
+   SECTION("2D RT triangle")
+   {
+      Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::TRIANGLE);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, false, VecFeOp::Mass);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, false, VecFeOp::DivDiv);
+   }
+   SECTION("3D ND tet")
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, true, VecFeOp::Mass);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, true, VecFeOp::CurlCurl);
+   }
+   SECTION("3D RT tet")
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, false, VecFeOp::Mass);
+      test_hcurl_hdiv_simplex_fa_vs_mma(mesh, p, false, VecFeOp::DivDiv);
+   }
+}
+
+TEST_CASE("Hcurl simplex MMA PA vs FA large NE tet",
+          "[PA][MMA][Hcurl][Simplex][GPU]")
+{
+   // Old bake used nq*nd*curl_dim*NE and skipped Dual when that overflowed
+   // int Array::SetSize (p=6 tet, ~27k elements). Shared-C + E-vector dual
+   // must still run, and FA vs MMA must match on a large-but-FA-feasible mesh.
+   auto run_mma = [](Mesh &mesh, bool require_overflow)
+   {
+      const int p = 6;
+      ND_FECollection fec(p, mesh.Dimension());
+      FiniteElementSpace fes(&mesh, &fec);
+      {
+         MMAForce on(true);
+         REQUIRE(UsesSimplexMmaHcurl(fes));
+      }
+      const auto &fe = *fes.GetTypicalFE();
+      ElementTransformation &T = *mesh.GetTypicalElementTransformation();
+      const IntegrationRule *ir = &MassIntegrator::GetRule(fe, fe, T);
+      const long long nB = (long long)ir->GetNPoints() * fe.GetDof() *
+                           fe.GetCurlDim() * mesh.GetNE();
+      if (require_overflow)
+      {
+         REQUIRE(nB > static_cast<long long>(std::numeric_limits<int>::max()));
+      }
+
+      GridFunction x(&fes), y_mma(&fes);
+      x.Randomize(0x100001b3);
+      y_mma = 0.0;
+      BilinearForm pa(&fes);
+      auto *ipa = new CurlCurlIntegrator;
+      ipa->SetIntRule(ir);
+      pa.AddDomainIntegrator(ipa);
+      pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      {
+         MMAForce on(true);
+         pa.Assemble();
+      }
+      pa.Mult(x, y_mma);
+      REQUIRE(std::isfinite(y_mma.Norml2()));
+      REQUIRE(y_mma.Norml2() > 0.0);
+
+      if (!require_overflow)
+      {
+         GridFunction y_fa(&fes);
+         y_fa = 0.0;
+         BilinearForm fa(&fes);
+         auto *ifa = new CurlCurlIntegrator;
+         ifa->SetIntRule(ir);
+         fa.AddDomainIntegrator(ifa);
+         fa.Assemble();
+         fa.Finalize();
+         fa.Mult(x, y_fa);
+         y_fa -= y_mma;
+         REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0, 1e-8, 1e-8));
+      }
+   };
+
+   SECTION("bake would overflow")
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(18, 18, 18, Element::TETRAHEDRON);
+      run_mma(mesh, true);
+   }
+   SECTION("FA vs MMA on large NE")
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(8, 8, 8, Element::TETRAHEDRON);
+      REQUIRE(mesh.GetNE() > 2700);
+      run_mma(mesh, false);
+   }
+}
+
+#ifdef MFEM_USE_MPI
+#define MMA_ROUND "[MMA][AddressRound][Parallel]"
+#else
+#define MMA_ROUND "[MMA][AddressRound]"
+#endif
+
+void RequireMultMatches(FiniteElementSpace &fes, BilinearForm &pa,
+                        BilinearForm &fa, int seed)
+{
+   GridFunction x(&fes), y_pa(&fes), y_fa(&fes);
+   x.Randomize(seed);
+   y_pa = 0.0;
+   y_fa = 0.0;
+   pa.Mult(x, y_pa);
+   fa.Mult(x, y_fa);
+   y_fa -= y_pa;
+   REQUIRE(y_fa.Normlinf() == MFEM_Approx(0.0, 1e-8, 1e-8));
+}
+
+void RequireDiagonalMatches(FiniteElementSpace &fes, BilinearForm &pa,
+                            BilinearForm &fa)
+{
+   Vector d_pa(fes.GetTrueVSize()), d_fa(fes.GetTrueVSize());
+   pa.AssembleDiagonal(d_pa);
+   fa.AssembleDiagonal(d_fa);
+   d_fa -= d_pa;
+   REQUIRE(d_fa.Normlinf() == MFEM_Approx(0.0, 1e-8, 1e-8));
+}
+
+// Unregistered 7-point rule on a quadratic triangle: nq=7, ndof=6, vdim=2.
+// The first divisor of the PA sizes is the wrong (nq, ndof) pair.
+TEST_CASE("Unregistered simplex VQ and MQ", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+   H1_FECollection fec(2, 2);
+   FiniteElementSpace fes(&mesh, &fec, 2);
+   const IntegrationRule &ir = IntRules.Get(Geometry::TRIANGLE, 5);
+   REQUIRE(ir.GetNPoints() == 7);
+   REQUIRE(fes.GetTypicalFE()->GetDof() == 6);
+
+   VectorFunctionCoefficient vq(2, [](const Vector &pt, Vector &v)
+   {
+      v(0) = 1.0 + pt(0);
+      v(1) = 2.0 + 0.3 * pt(1);
+   });
+   MatrixFunctionCoefficient mq(2, [](const Vector &pt, DenseMatrix &m)
+   {
+      m(0, 0) = 1.2 + pt(0);
+      m(1, 0) = 0.2;
+      m(0, 1) = 0.2;
+      m(1, 1) = 0.7 + pt(1);
+   });
+
+   auto run = [&](bool diffusion, bool matrix_coeff)
+   {
+      BilinearForm pa(&fes), fa(&fes);
+      auto add = [&](BilinearForm &a)
+      {
+         BilinearFormIntegrator *integ = nullptr;
+         if (diffusion && matrix_coeff)
+         {
+            integ = new VectorDiffusionIntegrator(mq);
+         }
+         else if (diffusion)
+         {
+            integ = new VectorDiffusionIntegrator(vq);
+         }
+         else if (matrix_coeff)
+         {
+            integ = new VectorMassIntegrator(mq);
+         }
+         else
+         {
+            integ = new VectorMassIntegrator(vq);
+         }
+         integ->SetIntRule(&ir);
+         a.AddDomainIntegrator(integ);
+      };
+      add(pa);
+      add(fa);
+      pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      pa.Assemble();
+      fa.Assemble();
+      fa.Finalize();
+      RequireMultMatches(fes, pa, fa, 0x51);
+   };
+   run(false, false);
+   run(false, true);
+   run(true, false);
+   run(true, true);
+}
+
+// Stock 2D H(div) mass used MAX_D1D = 8 with no check. RT_7 has D1D = 9.
+TEST_CASE("Hdiv mass above the shrunk CPU cap", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+   RT_FECollection fec(7, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   const IntegrationRule &ir = IntRules.Get(Geometry::SQUARE, 16);
+   BilinearForm pa(&fes), fa(&fes);
+   auto add = [&](BilinearForm &a)
+   {
+      auto *integ = new VectorFEMassIntegrator;
+      integ->SetIntRule(&ir);
+      a.AddDomainIntegrator(integ);
+   };
+   add(pa);
+   add(fa);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   fa.Assemble();
+   fa.Finalize();
+   RequireMultMatches(fes, pa, fa, 0x52);
+}
+
+// Simplex curl-curl, div-div, and vector FE mass must add their diagonal.
+TEST_CASE("Simplex vector FE diagonal", MMA_ROUND)
+{
+   MMAForce on(true);
+   const int p = GENERATE(1, 2);
+   Mesh tri = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+
+   SECTION("curl-curl and vector FE mass")
+   {
+      ND_FECollection fec(p, 2);
+      FiniteElementSpace fes(&tri, &fec);
+      BilinearForm pa(&fes), fa(&fes);
+      auto add = [&](BilinearForm &a)
+      {
+         a.AddDomainIntegrator(new VectorFEMassIntegrator);
+         a.AddDomainIntegrator(new CurlCurlIntegrator);
+      };
+      add(pa);
+      add(fa);
+      pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      pa.Assemble();
+      fa.Assemble();
+      fa.Finalize();
+      RequireDiagonalMatches(fes, pa, fa);
+   }
+   SECTION("div-div")
+   {
+      RT_FECollection fec(p, 2);
+      FiniteElementSpace fes(&tri, &fec);
+      BilinearForm pa(&fes), fa(&fes);
+      pa.AddDomainIntegrator(new DivDivIntegrator);
+      fa.AddDomainIntegrator(new DivDivIntegrator);
+      pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+      pa.Assemble();
+      fa.Assemble();
+      fa.Finalize();
+      RequireDiagonalMatches(fes, pa, fa);
+   }
+}
+
+// Host scratch was alloca'd inside the element loop, so stack use grew with NE.
+TEST_CASE("Simplex mass apply on many elements", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(90, 90, Element::TRIANGLE);
+   REQUIRE(mesh.GetNE() > 15000);
+   H1_FECollection fec(1, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   const IntegrationRule &ir = IntRules.Get(Geometry::TRIANGLE, 21);
+   REQUIRE(ir.GetNPoints() == 126);
+   BilinearForm pa(&fes), fa(&fes);
+   auto add = [&](BilinearForm &a)
+   {
+      auto *integ = new MassIntegrator;
+      integ->SetIntRule(&ir);
+      a.AddDomainIntegrator(integ);
+   };
+   add(pa);
+   add(fa);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   fa.Assemble();
+   fa.Finalize();
+   RequireMultMatches(fes, pa, fa, 0x53);
+}
+
+TEST_CASE("Simplex mass and diffusion diagonal", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::TRIANGLE);
+   H1_FECollection fec(1, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   BilinearForm pa(&fes), fa(&fes);
+   pa.AddDomainIntegrator(new MassIntegrator);
+   pa.AddDomainIntegrator(new DiffusionIntegrator);
+   fa.AddDomainIntegrator(new MassIntegrator);
+   fa.AddDomainIntegrator(new DiffusionIntegrator);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   fa.Assemble();
+   fa.Finalize();
+   RequireDiagonalMatches(fes, pa, fa);
+}
+
+TEST_CASE("Simplex linear form rejects gradient device", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+   H1_FECollection fec(1, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   Vector v(2);
+   v = 1.0;
+   VectorConstantCoefficient coeff(v);
+   LinearForm lf(&fes);
+   lf.AddDomainIntegrator(new DomainLFGradIntegrator(coeff));
+   REQUIRE_FALSE(lf.SupportsDevice());
+   lf.Assemble();
+   REQUIRE(lf.Norml2() >= 0.0);
+}
+
+TEST_CASE("Tensor MMA rejects D1D above the shell cap", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+   H1_FECollection fec9(9, 2);
+   FiniteElementSpace fes9(&mesh, &fec9);
+   MMAForce on(true);
+   REQUIRE_FALSE(UsesTensorMMA(fes9));
+   H1_FECollection fec8(8, 2);
+   FiniteElementSpace fes8(&mesh, &fec8);
+   REQUIRE(UsesTensorMMA(fes8));
+}
+
+TEST_CASE("Simplex vector mass four components", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::TRIANGLE);
+   H1_FECollection fec(1, 2);
+   FiniteElementSpace fes(&mesh, &fec, 4);
+   REQUIRE(UsesSimplexMMA(fes));
+   BilinearForm pa(&fes), fa(&fes);
+   auto *vm_pa = new VectorMassIntegrator;
+   auto *vm_fa = new VectorMassIntegrator;
+   vm_pa->SetVDim(4);
+   vm_fa->SetVDim(4);
+   pa.AddDomainIntegrator(vm_pa);
+   fa.AddDomainIntegrator(vm_fa);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   fa.Assemble();
+   fa.Finalize();
+   RequireMultMatches(fes, pa, fa, 0x54);
+}
+
+TEST_CASE("Tensor MMA GEM mass vs FA", MMA_ROUND)
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   H1_FECollection fec(1, 2);
+   FiniteElementSpace fes(&mesh, &fec);
+   MMAForce on(true);
+   GEMForce gem(true);
+   REQUIRE(UsesTensorMMA(fes));
+   BilinearForm pa(&fes), fa(&fes);
+   pa.AddDomainIntegrator(new MassIntegrator);
+   fa.AddDomainIntegrator(new MassIntegrator);
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   fa.Assemble();
+   fa.Finalize();
+   RequireMultMatches(fes, pa, fa, 0x55);
+}
+
+/** Mesh @a filename; @a curved makes it a perturbed quadratic mesh. */
+Mesh MakeSimplexMmaMesh(const char *filename, bool curved)
+{
+   Mesh mesh(filename);
+   if (curved)
+   {
+      mesh.SetCurvature(2);
+      mesh.Transform([](const Vector &x, Vector &y)
+      {
+         y = x;
+         y(0) += 0.05 * std::sin(M_PI * x(1));
+         y(1) += 0.05 * std::sin(M_PI * x(0));
+      });
+   }
+   return mesh;
+}
+
+real_t SimplexMmaCoeff(const Vector &x)
+{
+   return 1.0 + 0.5 * x(0) + 0.25 * x(1);
+}
+
+void RequireSmall(Vector &diff)
+{
+   REQUIRE(diff.Normlinf() == MFEM_Approx(0.0, 1e-9, 1e-9));
+}
+
+/** Elasticity simplex MMA PA vs FA: (lambda, mu) and (mu, q_l, q_m). */
+void test_elasticity_simplex_mma(const char *filename, int p, bool positive,
+                                 bool curved)
+{
+   CAPTURE(filename, p, positive, curved);
+   MMAForce force(positive || GetForceMMA());
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   const int dim = mesh.Dimension();
+   const int btype = positive ? BasisType::Positive : BasisType::GaussLobatto;
+   H1_FECollection fec(p, dim, btype);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+   REQUIRE(UsesSimplexMMA(fes));
+
+   ConstantCoefficient lambda(1.7);
+   FunctionCoefficient mu(SimplexMmaCoeff);
+   BilinearForm pa(&fes), fa(&fes);
+   for (BilinearForm *a : {&pa, &fa})
+   {
+      a->AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+      a->AddDomainIntegrator(new ElasticityIntegrator(mu, 0.5, 0.75));
+   }
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   fa.Assemble();
+   fa.Finalize();
+   RequireMultMatches(fes, pa, fa, 0x61);
+   RequireDiagonalMatches(fes, pa, fa);
+}
+
+TEST_CASE("Elasticity Simplices MMA vs FA", "[PartialAssembly][MMA][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3);
+   SECTION("2D")
+   {
+      test_elasticity_simplex_mma("../../data/ref-triangle.mesh", p,
+                                  false, false);
+      test_elasticity_simplex_mma("../../data/inline-tri.mesh", p,
+                                  false, true);
+   }
+   SECTION("3D")
+   {
+      test_elasticity_simplex_mma("../../data/ref-tetrahedron.mesh", p,
+                                  false, false);
+      test_elasticity_simplex_mma("../../data/inline-tet.mesh", p,
+                                  false, true);
+   }
+   SECTION("Positive")
+   {
+      test_elasticity_simplex_mma("../../data/inline-tri.mesh", p,
+                                  true, false);
+      test_elasticity_simplex_mma("../../data/ref-tetrahedron.mesh", p,
+                                  true, false);
+   }
+}
+
+/** VectorDivergence simplex MMA PA vs FA, Mult and MultTranspose.
+    test_kind: 0 = H1, 1 = L2 VALUE, 2 = L2 INTEGRAL. */
+void test_vecdiv_simplex_mma(const char *filename, int p, int test_kind,
+                             bool curved)
+{
+   CAPTURE(filename, p, test_kind, curved);
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   const int dim = mesh.Dimension();
+   H1_FECollection vfec(p, dim);
+   FiniteElementSpace vfes(&mesh, &vfec, dim);
+   std::unique_ptr<FiniteElementCollection> sfec;
+   if (test_kind == 0)
+   {
+      sfec.reset(new H1_FECollection(std::max(p - 1, 1), dim));
+   }
+   else
+   {
+      const int map = (test_kind == 1) ? FiniteElement::VALUE
+                      : FiniteElement::INTEGRAL;
+      sfec.reset(new L2_FECollection(p - 1, dim, BasisType::GaussLegendre,
+                                     map));
+   }
+   FiniteElementSpace sfes(&mesh, sfec.get());
+   REQUIRE(UsesSimplexMmaVectorDivergence(vfes, sfes));
+
+   FunctionCoefficient q(SimplexMmaCoeff);
+   MixedBilinearForm pa(&vfes, &sfes), fa(&vfes, &sfes);
+   pa.AddDomainIntegrator(new VectorDivergenceIntegrator(q));
+   fa.AddDomainIntegrator(new VectorDivergenceIntegrator(q));
+   pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   pa.Assemble();
+   fa.Assemble();
+   fa.Finalize();
+
+   GridFunction x(&vfes), y_pa(&sfes), y_fa(&sfes);
+   x.Randomize(0x62);
+   pa.Mult(x, y_pa);
+   fa.Mult(x, y_fa);
+   y_fa -= y_pa;
+   RequireSmall(y_fa);
+
+   GridFunction s(&sfes), z_pa(&vfes), z_fa(&vfes);
+   s.Randomize(0x63);
+   pa.MultTranspose(s, z_pa);
+   fa.MultTranspose(s, z_fa);
+   z_fa -= z_pa;
+   RequireSmall(z_fa);
+}
+
+TEST_CASE("VectorDivergence Simplices MMA vs FA",
+          "[PartialAssembly][MMA][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3);
+   const auto test_kind = GENERATE(0, 1, 2);
+   SECTION("2D")
+   {
+      test_vecdiv_simplex_mma("../../data/ref-triangle.mesh", p, test_kind,
+                              false);
+      test_vecdiv_simplex_mma("../../data/inline-tri.mesh", p, test_kind,
+                              true);
+   }
+   SECTION("3D")
+   {
+      test_vecdiv_simplex_mma("../../data/ref-tetrahedron.mesh", p,
+                              test_kind, false);
+      test_vecdiv_simplex_mma("../../data/inline-tet.mesh", p, test_kind,
+                              true);
+   }
+}
+
+/** VectorConvectionNL simplex MMA PA vs FA: action, gradient, diagonal. */
+void test_vecconv_simplex_mma(const char *filename, int p, bool positive,
+                              bool curved)
+{
+   CAPTURE(filename, p, positive, curved);
+   MMAForce force(positive || GetForceMMA());
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   const int dim = mesh.Dimension();
+   const int btype = positive ? BasisType::Positive : BasisType::GaussLobatto;
+   H1_FECollection fec(p, dim, btype);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+   REQUIRE(UsesSimplexMMA(fes));
+   // P1 native and lex agree; P2+ catches a basis/form ordering mismatch.
+   REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::NATIVE);
+
+   ConstantCoefficient const_coeff(M_2_SQRTPI);
+   FunctionCoefficient funct_coeff(SimplexMmaCoeff);
+   NonlinearForm nlf_fa(&fes), nlf_pa(&fes);
+   nlf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   for (NonlinearForm *nlf : {&nlf_fa, &nlf_pa})
+   {
+      nlf->AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+      nlf->AddDomainIntegrator(new VectorConvectionNLFIntegrator(const_coeff));
+      nlf->AddDomainIntegrator(new VectorConvectionNLFIntegrator(funct_coeff));
+   }
+   nlf_pa.Setup();
+
+   GridFunction x(&fes), dx(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(0x64);
+   dx.Randomize(0x65);
+
+   nlf_fa.Mult(x, y_fa);
+   nlf_pa.Mult(x, y_pa);
+   y_fa -= y_pa;
+   RequireSmall(y_fa);
+
+   Operator &grad_fa = nlf_fa.GetGradient(x);
+   Operator &grad_pa = nlf_pa.GetGradient(x);
+   grad_fa.Mult(dx, y_fa);
+   grad_pa.Mult(dx, y_pa);
+   y_fa -= y_pa;
+   RequireSmall(y_fa);
+
+   Vector diag_fa(fes.GetVSize()), diag_pa(fes.GetVSize());
+   dynamic_cast<SparseMatrix &>(grad_fa).GetDiag(diag_fa);
+   grad_pa.AssembleDiagonal(diag_pa);
+   diag_fa -= diag_pa;
+   RequireSmall(diag_fa);
+}
+
+TEST_CASE("VectorConvectionNL Simplices MMA vs FA",
+          "[PartialAssembly][NonlinearPA][MMA][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3);
+   SECTION("2D")
+   {
+      test_vecconv_simplex_mma("../../data/ref-triangle.mesh", p,
+                               false, false);
+      test_vecconv_simplex_mma("../../data/inline-tri.mesh", p, false, true);
+   }
+   SECTION("3D")
+   {
+      test_vecconv_simplex_mma("../../data/ref-tetrahedron.mesh", p,
+                               false, false);
+      test_vecconv_simplex_mma("../../data/inline-tet.mesh", p, false, true);
+   }
+   SECTION("Positive")
+   {
+      test_vecconv_simplex_mma("../../data/inline-tri.mesh", p, true, false);
+      test_vecconv_simplex_mma("../../data/ref-tetrahedron.mesh", p,
+                               true, false);
+   }
+}
+
+// Simplex counterparts of the hex/quad tests in test_pa_diagonal.cpp
+// ("Elasticity Diagonal PA"), test_pa_vecdiv.cpp ("VecDivPA") and
+// test_pa_nlvc.cpp ("NL Convection PA Gradient"), on triangle/tet meshes.
+
+TEST_CASE("Elasticity Diagonal PA Simplices MMA",
+          "[AssembleDiagonal][PartialAssembly][ElasticityPA][MMA][GPU]")
+{
+   const auto dim = GENERATE(2, 3);
+   const auto order = GENERATE(1, 2);
+   CAPTURE(dim, order);
+
+   Mesh mesh;
+   if (dim == 2)
+   {
+      mesh = Mesh::MakeCartesian2D(2, 2, Element::TRIANGLE, 0, 1.0, 1.0);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON,
+                                   1.0, 1.0, 1.0);
+   }
+
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim, Ordering::byNODES);
+   REQUIRE(UsesSimplexMMA(fes));
+
+   ConstantCoefficient lambda(1.0), mu(1.0);
+
+   BilinearForm form_pa(&fes);
+   form_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   form_pa.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+   form_pa.Assemble();
+
+   BilinearForm form_fa(&fes);
+   form_fa.AddDomainIntegrator(new ElasticityIntegrator(lambda, mu));
+   form_fa.Assemble();
+   form_fa.Finalize();
+
+   Vector diag_pa(fes.GetVSize()), diag_fa(fes.GetVSize());
+   form_pa.AssembleDiagonal(diag_pa);
+   form_fa.SpMat().GetDiag(diag_fa);
+
+   diag_fa -= diag_pa;
+   REQUIRE(diag_fa.Normlinf() == MFEM_Approx(0.0));
+
+   RequireMultMatches(fes, form_pa, form_fa, 0x66);
+}
+
+template <bool TRANSPOSE>
+void pa_mixed_simplex_test(FiniteElementSpace &fes1,
+                           FiniteElementSpace &fes2,
+                           const IntegrationRule &ir)
+{
+   auto make = [&]() -> BilinearFormIntegrator *
+   {
+      BilinearFormIntegrator *integ = new VectorDivergenceIntegrator;
+      if constexpr (TRANSPOSE) { integ = new TransposeIntegrator(integ); }
+      integ->SetIntRule(&ir);
+      return integ;
+   };
+   MixedBilinearForm bform_pa(&fes1, &fes2), bform_fa(&fes1, &fes2);
+   bform_pa.AddDomainIntegrator(make());
+   bform_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   bform_pa.Assemble();
+   bform_fa.AddDomainIntegrator(make());
+   bform_fa.Assemble();
+   bform_fa.Finalize();
+
+   GridFunction x(&fes1), y_pa(&fes2), y_fa(&fes2);
+   x.Randomize(0x100001b3);
+
+   bform_pa.Mult(x, y_pa);
+   bform_fa.Mult(x, y_fa);
+
+   y_pa -= y_fa;
+   REQUIRE(y_pa.Normlinf() == MFEM_Approx(0.0));
+}
+
+void test_pa_divergence_simplices(const char *filename, int vp, int sp)
+{
+   CAPTURE(filename, vp, sp);
+
+   Mesh mesh(filename);
+   const int dim = mesh.Dimension();
+
+   // Vector
+   H1_FECollection vfec(vp, dim);
+   FiniteElementSpace vfes(&mesh, &vfec, dim);
+
+   // Scalar
+   H1_FECollection sfec(sp, dim);
+   FiniteElementSpace sfes(&mesh, &sfec);
+   REQUIRE(UsesSimplexMmaVectorDivergence(vfes, sfes));
+
+   const auto &trial_fe = *vfes.GetTypicalFE();
+   const auto &test_fe = *sfes.GetTypicalFE();
+   const auto &Trans = *mesh.GetTypicalElementTransformation();
+   const int order = Trans.OrderGrad(&trial_fe) + test_fe.GetOrder() +
+                     Trans.OrderJ();
+   const IntegrationRule &ir = IntRules.Get(trial_fe.GetGeomType(), order);
+
+   pa_mixed_simplex_test<false>(vfes, sfes, ir);
+   pa_mixed_simplex_test<true>(sfes, vfes, ir);
+}
+
+TEST_CASE("VecDivPA Simplices MMA",
+          "[PartialAssembly][VecDivPA][MMA][GPU]")
+{
+   // Vector (vp) and scalar (sp) space orders
+   const auto vp_base = {1, 2}, vp_extra = {3, 4};
+   const auto sp_base = {1, 2}, sp_extra = {3, 4};
+   const auto vp = MFEM_GENERATE_RANGES(vp_base, vp_extra);
+   const auto sp = MFEM_GENERATE_RANGES(sp_base, sp_extra);
+
+   SECTION("2D")
+   {
+      const auto meshs = { "../../data/inline-tri.mesh",
+                           "../../data/beam-tri.mesh"
+                         };
+      const auto extra = { "../../data/ref-triangle.mesh",
+                           "../../data/rt-2d-p4-tri.mesh",
+                           "../../data/square-disc-p2.mesh",
+                           "../../data/square-disc-p3.mesh",
+                           "../../data/periodic-annulus-sector.msh"
+                         };
+      test_pa_divergence_simplices(MFEM_GENERATE_RANGES(meshs, extra),
+                                   vp, sp);
+   }
+
+   SECTION("3D")
+   {
+      const auto meshs = { "../../data/inline-tet.mesh",
+                           "../../data/beam-tet.mesh"
+                         };
+      const auto extra = { "../../data/ref-tetrahedron.mesh",
+                           "../../data/escher.mesh",
+                           "../../data/escher-p2.mesh"
+                         };
+      test_pa_divergence_simplices(MFEM_GENERATE_RANGES(meshs, extra),
+                                   vp, sp);
+   }
+}
+
+void test_nl_convection_pa_grad_simplices(const char *filename, int p)
+{
+   CAPTURE(filename, p);
+
+   Mesh mesh(filename);
+   const int dim = mesh.Dimension();
+
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+   REQUIRE(UsesSimplexMMA(fes));
+   // P1 native and lex agree; P2+ catches a basis/form ordering mismatch.
+   REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::NATIVE);
+
+   GridFunction x(&fes), dx(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(0x100001b3);
+   dx.Randomize(0x9e3779b9);
+
+   ConstantCoefficient const_coeff(M_2_SQRTPI);
+   FunctionCoefficient funct_coeff([](const Vector &pt)
+   { return M_1_PI + pt[0] * pt[0]; });
+
+   NonlinearForm nlf_fa(&fes);
+   nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+   nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(const_coeff));
+   nlf_fa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(funct_coeff));
+
+   NonlinearForm nlf_pa(&fes);
+   nlf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   nlf_pa.AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+   nlf_pa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(const_coeff));
+   nlf_pa.AddDomainIntegrator(new VectorConvectionNLFIntegrator(funct_coeff));
+   nlf_pa.Setup();
+
+   SECTION("Action")
+   {
+      nlf_fa.Mult(x, y_fa), nlf_pa.Mult(x, y_pa);
+      y_fa -= y_pa;
+      REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
+   }
+
+   SECTION("Gradient")
+   {
+      Operator &nlf_fa_grad = nlf_fa.GetGradient(x);
+      Operator &nlf_pa_grad = nlf_pa.GetGradient(x);
+      nlf_pa_grad.Mult(dx, y_pa);
+      nlf_fa_grad.Mult(dx, y_fa);
+      y_fa -= y_pa;
+      REQUIRE(y_fa.Norml2() == MFEM_Approx(0.0));
+   }
+
+   SECTION("Diagonal")
+   {
+      Vector diag_fa(fes.GetVSize()), diag_pa(fes.GetVSize());
+      dynamic_cast<SparseMatrix &>(nlf_fa.GetGradient(x)).GetDiag(diag_fa);
+      nlf_pa.GetGradient(x).AssembleDiagonal(diag_pa);
+      diag_fa -= diag_pa;
+      REQUIRE(diag_fa.Norml2() == MFEM_Approx(0.0));
+   }
+}
+
+TEST_CASE("NL Convection PA Gradient Simplices MMA",
+          "[PartialAssembly][NonlinearPA][MMA][GPU][NLConv]")
+{
+   const auto p_base = {1, 2}, p_extra = {3, 4};
+   const auto p = MFEM_GENERATE_RANGES(p_base, p_extra);
+
+   SECTION("2D")
+   {
+      const auto meshs = { "../../data/inline-tri.mesh",
+                           "../../data/beam-tri.mesh"
+                         };
+      const auto extra = { "../../data/ref-triangle.mesh",
+                           "../../data/rt-2d-p4-tri.mesh",
+                           "../../data/square-disc-p2.mesh",
+                           "../../data/square-disc-p3.mesh",
+                           "../../data/periodic-annulus-sector.msh"
+                         };
+      test_nl_convection_pa_grad_simplices(
+         MFEM_GENERATE_RANGES(meshs, extra), p);
+   }
+
+   SECTION("3D")
+   {
+      const auto meshs = { "../../data/inline-tet.mesh",
+                           "../../data/beam-tet.mesh"
+                         };
+      const auto extra = { "../../data/ref-tetrahedron.mesh",
+                           "../../data/escher.mesh",
+                           "../../data/escher-p2.mesh"
+                         };
+      test_nl_convection_pa_grad_simplices(
+         MFEM_GENERATE_RANGES(meshs, extra), p);
+   }
+}
+
+// Simplex boundary-face PA: the NATIVE face restriction, the simplex face
+// geometric factors, device boundary linear forms (counterparts of the hex
+// "Linear Form Extension" boundary tests) and PA boundary nonlinear
+// integrators. P1 face DOFs are vertex DOFs in any order; P2+ catches a face
+// DOF or face point ordering mismatch.
+
+/// Comparison tolerance for these tests, in double or single precision.
+constexpr double BdrTol()
+{
+   return std::is_same<real_t, float>::value ? 1e-4 : 1e-10;
+}
+
+/// Relative check of @a diff against the size of the reference @a ref.
+void RequireSmallRel(const Vector &diff, const Vector &ref)
+{
+   const real_t scale = std::max(real_t(1), ref.Normlinf());
+   REQUIRE(diff.Normlinf() <= BdrTol() * scale);
+}
+
+/// Mark boundary attributes 1, 2 alternately; the marker keeps attribute 2.
+void SetAlternateBdrAttributes(Mesh &mesh, Array<int> &marker)
+{
+   for (int be = 0; be < mesh.GetNBE(); ++be)
+   {
+      mesh.SetBdrAttribute(be, 1 + be % 2);
+   }
+   mesh.SetAttributes();
+   marker.SetSize(mesh.bdr_attributes.Max());
+   marker = 0;
+   marker[marker.Size() - 1] = 1;
+}
+
+void test_simplex_bdr_face_restriction(const char *filename, int p, int vdim,
+                                       Ordering::Type ordering)
+{
+   CAPTURE(filename, p, vdim, ordering);
+   Mesh mesh(filename);
+   const int dim = mesh.Dimension();
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace fes(&mesh, &fec, vdim, ordering);
+   REQUIRE(UsesSimplexMMA(fes));
+   REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::NATIVE);
+
+   // The extension, the linear forms and the integrators share one object.
+   const FaceRestriction &R =
+      PANonlinearFormExtension::GetBdrFaceRestriction(fes);
+   REQUIRE(&R == fes.GetFaceRestriction(ElementDofOrdering::NATIVE,
+                                        FaceType::Boundary,
+                                        L2FaceValues::SingleValued));
+   const Array<int> &faces = mesh.GetFaceIndices(FaceType::Boundary);
+   const int nbf = faces.Size(), nd = fes.GetFaceElement(0)->GetDof();
+   REQUIRE(nbf == fes.GetNFbyType(FaceType::Boundary));
+   REQUIRE(R.Height() == nd * vdim * nbf);
+   REQUIRE(R.Width() == fes.GetVSize());
+
+   // Contract: block f is x[GetFaceVDofs(faces[f])], layout (nd, vdim, nbf).
+   GridFunction x(&fes);
+   x.Randomize(0x51);
+   Vector xf(R.Height());
+   R.Mult(x, xf);
+   const real_t *h_xf = xf.HostRead();
+   const real_t *h_x = x.HostRead();
+   Array<int> vdofs;
+   for (int f = 0; f < nbf; ++f)
+   {
+      fes.GetFaceVDofs(faces[f], vdofs);
+      REQUIRE(vdofs.Size() == nd * vdim);
+      for (int i = 0; i < nd * vdim; ++i)
+      {
+         REQUIRE(h_xf[i + nd * vdim * f] == h_x[vdofs[i]]);
+      }
+   }
+
+   // Adjoint: (R x, y_f) == (x, R^T y_f).
+   Vector yf(R.Height()), y(fes.GetVSize());
+   yf.Randomize(0x52);
+   y = 0.0;
+   R.AddMultTranspose(yf, y);
+   REQUIRE((xf * yf) == MFEM_Approx(x * y, BdrTol(), BdrTol()));
+}
+
+void test_simplex_bdr_face_geometry(const char *filename, bool curved)
+{
+   CAPTURE(filename, curved);
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   const int dim = mesh.Dimension();
+   const IntegrationRule &ir =
+      IntRules.Get(mesh.GetTypicalFaceGeometry(), 8);
+   const int nq = ir.GetNPoints();
+   constexpr int flags = FaceGeometricFactors::COORDINATES |
+                         FaceGeometricFactors::JACOBIANS |
+                         FaceGeometricFactors::DETERMINANTS |
+                         FaceGeometricFactors::NORMALS;
+   const FaceGeometricFactors *geom =
+      mesh.GetFaceGeometricFactors(ir, flags, FaceType::Boundary);
+   const Array<int> &faces = mesh.GetFaceIndices(FaceType::Boundary);
+   const int nbf = faces.Size();
+   const auto X = Reshape(geom->X.HostRead(), nq, dim, nbf);
+   const auto J = Reshape(geom->J.HostRead(), nq, dim, dim - 1, nbf);
+   const auto detJ = Reshape(geom->detJ.HostRead(), nq, nbf);
+   const auto N = Reshape(geom->normal.HostRead(), nq, dim, nbf);
+
+   // Pointwise: the face's own transformation, in the IntegrationRule order.
+   Vector x(dim), nor(dim), xc(dim), flux(dim);
+   real_t x_dot_n = 0.0;
+   flux = 0.0;
+   for (int f = 0; f < nbf; ++f)
+   {
+      const auto info = mesh.GetFaceInformation(faces[f]);
+      ElementTransformation &T1 =
+         *mesh.GetElementTransformation(info.element[0].index);
+      T1.Transform(Geometries.GetCenter(T1.GetGeometryType()), xc);
+      ElementTransformation &T = *mesh.GetFaceTransformation(faces[f]);
+      for (int q = 0; q < nq; ++q)
+      {
+         const IntegrationPoint &ip = ir.IntPoint(q);
+         T.SetIntPoint(&ip);
+         T.Transform(ip, x);
+         CalcOrtho(T.Jacobian(), nor);
+         const real_t det = nor.Norml2();
+         REQUIRE(detJ(q, f) == MFEM_Approx(det, BdrTol(), BdrTol()));
+         real_t out = 0.0;
+         for (int c = 0; c < dim; ++c)
+         {
+            REQUIRE(X(q, c, f) == MFEM_Approx(x(c), BdrTol(), BdrTol()));
+            const real_t nc = nor(c) / det;
+            REQUIRE(N(q, c, f) == MFEM_Approx(nc, BdrTol(), BdrTol()));
+            for (int k = 0; k < dim - 1; ++k)
+            {
+               const real_t jck = T.Jacobian()(c, k);
+               REQUIRE(J(q, c, k, f) == MFEM_Approx(jck, BdrTol(), BdrTol()));
+            }
+            out += (x(c) - xc(c)) * N(q, c, f);
+            x_dot_n += ip.weight * detJ(q, f) * x(c) * N(q, c, f);
+            flux(c) += ip.weight * detJ(q, f) * N(q, c, f);
+         }
+         REQUIRE(out > 0.0); // points out of element 1, i.e. of the domain
+      }
+   }
+
+   // Divergence theorem: int x.n = dim |Omega| and int n = 0. The volume
+   // uses a rule exact for the curved (P2) Jacobian determinants.
+   real_t volume = 0.0;
+   const IntegrationRule &vir =
+      IntRules.Get(mesh.GetTypicalElementGeometry(), 8);
+   for (int e = 0; e < mesh.GetNE(); ++e)
+   {
+      ElementTransformation &Te = *mesh.GetElementTransformation(e);
+      for (const IntegrationPoint &ip : vir)
+      {
+         Te.SetIntPoint(&ip);
+         volume += ip.weight * Te.Weight();
+      }
+   }
+   REQUIRE(x_dot_n == MFEM_Approx(dim * volume, BdrTol(), BdrTol()));
+   REQUIRE(flux.Normlinf() == MFEM_Approx(0.0, BdrTol(), BdrTol()));
+}
+
+real_t SimplexBdrLoad(const Vector &x)
+{
+   return 1.0 + std::sin(2.0 * x(0)) + 0.5 * x(1) * x(1);
+}
+
+/// Device (fast) vs legacy assembly of the boundary load built by @a make,
+/// on the boundary attributes of @a marker, or everywhere if it is null.
+template <typename Make>
+void CompareBdrLoad(FiniteElementSpace &fes, Make make, Array<int> *marker)
+{
+   CAPTURE(fes.GetVDim(), fes.GetOrdering(), marker != nullptr);
+   // The device form reads its marker on the device: give the legacy form
+   // its own copy, legacy assembly indexes markers on the host.
+   Array<int> marker_std;
+   LinearForm lf_dev(&fes), lf_std(&fes);
+   if (marker)
+   {
+      marker_std = *marker;
+      lf_dev.AddBoundaryIntegrator(make(), *marker);
+      lf_std.AddBoundaryIntegrator(make(), marker_std);
+   }
+   else
+   {
+      lf_dev.AddBoundaryIntegrator(make());
+      lf_std.AddBoundaryIntegrator(make());
+   }
+   REQUIRE(lf_dev.SupportsDevice());
+   lf_dev.UseFastAssembly(true);
+   lf_dev.Assemble();
+   lf_std.UseFastAssembly(false);
+   lf_std.Assemble();
+   REQUIRE(lf_std.Norml2() > 0.0);
+   Vector diff(lf_std);
+   diff -= lf_dev;
+   RequireSmallRel(diff, lf_std);
+}
+
+void test_bdr_lf_simplex_mma(const char *filename, int p, bool curved)
+{
+   CAPTURE(filename, p, curved);
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   Array<int> bdr_marker;
+   SetAlternateBdrAttributes(mesh, bdr_marker);
+   const int dim = mesh.Dimension();
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace sfes(&mesh, &fec);
+   FiniteElementSpace vfes_n(&mesh, &fec, dim, Ordering::byNODES);
+   FiniteElementSpace vfes_v(&mesh, &fec, dim, Ordering::byVDIM);
+   REQUIRE(UsesSimplexMMA(sfes));
+
+   FunctionCoefficient f(SimplexBdrLoad);
+   VectorFunctionCoefficient g(dim, fvec_dim);
+
+   for (bool marked : {false, true})
+   {
+      Array<int> *marker = marked ? &bdr_marker : nullptr;
+      CompareBdrLoad(sfes, [&] { return new BoundaryLFIntegrator(f); },
+                     marker);
+      CompareBdrLoad(sfes, [&] { return new BoundaryNormalLFIntegrator(g); },
+                     marker);
+      for (FiniteElementSpace *vfes : {&vfes_n, &vfes_v})
+      {
+         CompareBdrLoad(*vfes, [&]
+         { return new VectorBoundaryFluxLFIntegrator(f); }, marker);
+         CompareBdrLoad(*vfes, [&]
+         { return new VectorBoundaryFluxLFIntegrator(f, -0.7); }, marker);
+         // <g, v>, the traction load, with the default order 2p rule
+         CompareBdrLoad(*vfes, [&]
+         { return new VectorBoundaryLFIntegrator(g); }, marker);
+      }
+   }
+}
+
+/// VectorBoundaryLFIntegrator on quadrilateral/hexahedral meshes: the tensor
+/// counterpart (BLFEvalAssemble2D/3D) of the simplex <g, v> load above.
+void test_vector_bdr_lf_tensor(const char *filename, int p, bool curved)
+{
+   CAPTURE(filename, p, curved);
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   Array<int> bdr_marker;
+   SetAlternateBdrAttributes(mesh, bdr_marker);
+   const int dim = mesh.Dimension();
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace vfes_n(&mesh, &fec, dim, Ordering::byNODES);
+   FiniteElementSpace vfes_v(&mesh, &fec, dim, Ordering::byVDIM);
+   REQUIRE(UsesTensorBasis(vfes_n));
+
+   VectorFunctionCoefficient g(dim, fvec_dim);
+   Vector g0(dim);
+   for (int c = 0; c < dim; ++c) { g0(c) = 1.0 - 0.5 * c; }
+   VectorConstantCoefficient gc(g0);
+   for (bool marked : {false, true})
+   {
+      Array<int> *marker = marked ? &bdr_marker : nullptr;
+      for (FiniteElementSpace *vfes : {&vfes_n, &vfes_v})
+      {
+         CompareBdrLoad(*vfes, [&]
+         { return new VectorBoundaryLFIntegrator(g); }, marker);
+         CompareBdrLoad(*vfes, [&]
+         { return new VectorBoundaryLFIntegrator(gc); }, marker);
+      }
+   }
+}
+
+/** A boundary load f v defined outside the library, as iFSI's traction
+    integrator is: the legacy path delegates to BoundaryLFIntegrator while
+    AssembleDevice() is its own kernel, written only against the simplex
+    contract documented in LinearForm::SupportsDevice(): a NATIVE face
+    E-vector (nd, nbf), the DofToQuad::FULL face basis and the simplex
+    FaceGeometricFactors, all in the IntegrationRule point order. */
+class ExternalBdrLFIntegrator : public LinearFormIntegrator
+{
+   Coefficient &Q;
+   BoundaryLFIntegrator legacy;
+
+public:
+   ExternalBdrLFIntegrator(Coefficient &q, const IntegrationRule &ir)
+      : LinearFormIntegrator(&ir), Q(q), legacy(q) { legacy.SetIntRule(&ir); }
+
+   bool SupportsDevice() const override { return true; }
+
+   void AssembleDevice(const FiniteElementSpace &fes,
+                       const Array<int> &markers, Vector &b) override
+   {
+      MFEM_VERIFY(!UsesTensorBasis(fes), "simplex only");
+      MFEM_VERIFY(fes.GetVDim() == 1, "scalar only");
+      Mesh &mesh = *fes.GetMesh();
+      const IntegrationRule &ir = *IntRule;
+      const DofToQuad &maps =
+         fes.GetTypicalBE()->GetDofToQuad(ir, DofToQuad::FULL);
+      constexpr int flags = FaceGeometricFactors::DETERMINANTS;
+      const FaceGeometricFactors *geom =
+         mesh.GetFaceGeometricFactors(ir, flags, FaceType::Boundary);
+      FaceQuadratureSpace qs(mesh, ir, FaceType::Boundary);
+      CoefficientVector coeff(Q, qs, CoefficientStorage::FULL);
+
+      const int nd = maps.ndof, nq = maps.nqpt;
+      const int nbf = mesh.GetNFbyType(FaceType::Boundary);
+      const auto M = markers.Read();
+      const auto B = Reshape(maps.B.Read(), nq, nd);
+      const auto W = ir.GetWeights().Read();
+      const auto detJ = Reshape(geom->detJ.Read(), nq, nbf);
+      const auto C = Reshape(coeff.Read(), nq, nbf);
+      auto Y = Reshape(b.ReadWrite(), nd, nbf);
+      mfem::forall(nbf * nd, [=] MFEM_HOST_DEVICE (int i)
+      {
+         const int d = i % nd, f = i / nd;
+         if (M[f] == 0) { return; }
+         real_t u = 0.0;
+         for (int k = 0; k < nq; ++k)
+         {
+            u += B(k, d) * W[k] * C(k, f) * detJ(k, f);
+         }
+         Y(d, f) += u;
+      });
+   }
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
+                               Vector &elvect) override
+   {
+      legacy.AssembleRHSElementVect(el, Tr, elvect);
+   }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+void test_external_bdr_lf_simplex(const char *filename, int p, bool curved)
+{
+   CAPTURE(filename, p, curved);
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   Array<int> bdr_marker;
+   SetAlternateBdrAttributes(mesh, bdr_marker);
+   H1_FECollection fec(p, mesh.Dimension());
+   FiniteElementSpace fes(&mesh, &fec);
+   REQUIRE(UsesSimplexMMA(fes));
+   const IntegrationRule &ir =
+      IntRules.Get(fes.GetBE(0)->GetGeomType(), 2 * p);
+   FunctionCoefficient f(SimplexBdrLoad);
+   for (Array<int> *marker : {(Array<int>*) nullptr, &bdr_marker})
+   {
+      CompareBdrLoad(fes, [&] { return new ExternalBdrLFIntegrator(f, ir); },
+                     marker);
+   }
+}
+
+/** Test boundary integrator R(u)(v) = int_G (u.n) (u.v) ds, the smooth part
+    of a backflow stabilization. It is nonlinear and normal dependent, so it
+    exercises the face E-vector, the face basis and the face geometric factors
+    of the PANonlinearFormExtension boundary contract together. */
+class BdrNormalConvectionNLFI : public NonlinearFormIntegrator
+{
+   const DofToQuad *maps = nullptr;
+   int dim = 0, nd = 0, nq = 0, nbf = 0;
+   Vector wn; // (nq, dim, nbf): w detJ n at the face points
+   Vector ue; // gradient state, boundary E-vector
+
+public:
+   explicit BdrNormalConvectionNLFI(const IntegrationRule &ir)
+      : NonlinearFormIntegrator(&ir) { }
+
+   using NonlinearFormIntegrator::AssemblePA;
+
+   void AssembleElementVector(const FiniteElement &el,
+                              ElementTransformation &Tr,
+                              const Vector &elfun, Vector &elvect) override
+   {
+      const int nd_ = el.GetDof(), dim_ = Tr.GetSpaceDim();
+      Vector shape(nd_), nor(dim_), u(dim_);
+      const DenseMatrix U(elfun.GetData(), nd_, dim_);
+      elvect.SetSize(nd_ * dim_);
+      elvect = 0.0;
+      for (const IntegrationPoint &ip : *IntRule)
+      {
+         Tr.SetIntPoint(&ip);
+         CalcOrtho(Tr.Jacobian(), nor);
+         el.CalcShape(ip, shape);
+         U.MultTranspose(shape, u);
+         const real_t un = ip.weight * (u * nor);
+         for (int c = 0; c < dim_; ++c)
+         {
+            for (int d = 0; d < nd_; ++d)
+            {
+               elvect(d + nd_ * c) += un * u(c) * shape(d);
+            }
+         }
+      }
+   }
+
+   void AssembleElementGrad(const FiniteElement &el,
+                            ElementTransformation &Tr,
+                            const Vector &elfun, DenseMatrix &elmat) override
+   {
+      const int nd_ = el.GetDof(), dim_ = Tr.GetSpaceDim();
+      Vector shape(nd_), nor(dim_), u(dim_);
+      const DenseMatrix U(elfun.GetData(), nd_, dim_);
+      elmat.SetSize(nd_ * dim_);
+      elmat = 0.0;
+      for (const IntegrationPoint &ip : *IntRule)
+      {
+         Tr.SetIntPoint(&ip);
+         CalcOrtho(Tr.Jacobian(), nor);
+         el.CalcShape(ip, shape);
+         U.MultTranspose(shape, u);
+         const real_t un = u * nor;
+         for (int c = 0; c < dim_; ++c)
+         {
+            for (int k = 0; k < dim_; ++k)
+            {
+               const real_t a = (c == k) ? un : 0.0;
+               for (int d = 0; d < nd_; ++d)
+               {
+                  for (int e = 0; e < nd_; ++e)
+                  {
+                     elmat(d + nd_ * c, e + nd_ * k) += ip.weight * shape(d) *
+                                                        shape(e) *
+                                                        (nor(k) * u(c) + a);
+                  }
+               }
+            }
+         }
+      }
+   }
+
+   void AssemblePA(const FiniteElementSpace &fes) override
+   {
+      // Contract: boundary E-vectors use GetEVectorOrdering(fes), NATIVE
+      // here, so the face basis is the FULL map of the face element.
+      REQUIRE(GetEVectorOrdering(fes) == ElementDofOrdering::NATIVE);
+      Mesh &mesh = *fes.GetMesh();
+      dim = mesh.Dimension();
+      maps = &fes.GetFaceElement(0)->GetDofToQuad(*IntRule, DofToQuad::FULL);
+      nd = maps->ndof;
+      nq = maps->nqpt;
+      nbf = fes.GetNFbyType(FaceType::Boundary);
+      REQUIRE(PANonlinearFormExtension::GetBdrFaceRestriction(fes).Height() ==
+              nd * dim * nbf);
+      constexpr int flags = FaceGeometricFactors::DETERMINANTS |
+                            FaceGeometricFactors::NORMALS;
+      const FaceGeometricFactors *geom =
+         mesh.GetFaceGeometricFactors(*IntRule, flags, FaceType::Boundary);
+      wn.SetSize(nq * dim * nbf);
+      const int NQ = nq, DIM = dim, NF = nbf;
+      const auto W = IntRule->GetWeights().Read();
+      const auto detJ = Reshape(geom->detJ.Read(), NQ, NF);
+      const auto N = Reshape(geom->normal.Read(), NQ, DIM, NF);
+      auto WN = Reshape(wn.Write(), NQ, DIM, NF);
+      mfem::forall(NQ * NF, [=] MFEM_HOST_DEVICE (int i)
+      {
+         const int q = i % NQ, f = i / NQ;
+         for (int c = 0; c < DIM; ++c)
+         {
+            WN(q, c, f) = W[q] * detJ(q, f) * N(q, c, f);
+         }
+      });
+   }
+
+   void AddMultPA(const Vector &x, Vector &y) const override
+   { Apply(x, x, y, false); }
+
+   void AssembleGradPA(const Vector &x, const FiniteElementSpace &) override
+   { ue = x; }
+
+   void AddMultGradPA(const Vector &x, Vector &y) const override
+   { Apply(ue, x, y, true); }
+
+   /// y += R(u) if !grad (u == du), else y += R'(u) du.
+   void Apply(const Vector &u, const Vector &du, Vector &y, bool grad) const
+   {
+      const int ND = nd, NQ = nq, DIM = dim, NF = nbf;
+      const auto B = Reshape(maps->B.Read(), NQ, ND);
+      const auto WN = Reshape(wn.Read(), NQ, DIM, NF);
+      const auto U = Reshape(u.Read(), ND, DIM, NF);
+      const auto DU = Reshape(du.Read(), ND, DIM, NF);
+      auto Y = Reshape(y.ReadWrite(), ND, DIM, NF);
+      mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
+      {
+         for (int q = 0; q < NQ; ++q)
+         {
+            real_t uq[3] = {0, 0, 0}, dq[3] = {0, 0, 0}, un = 0, dn = 0;
+            for (int c = 0; c < DIM; ++c)
+            {
+               for (int d = 0; d < ND; ++d)
+               {
+                  uq[c] += B(q, d) * U(d, c, f);
+                  dq[c] += B(q, d) * DU(d, c, f);
+               }
+               un += uq[c] * WN(q, c, f);
+               dn += dq[c] * WN(q, c, f);
+            }
+            for (int c = 0; c < DIM; ++c)
+            {
+               const real_t r = grad ? dn * uq[c] + un * dq[c] : un * uq[c];
+               for (int d = 0; d < ND; ++d) { Y(d, c, f) += B(q, d) * r; }
+            }
+         }
+      });
+   }
+
+   void AssembleGradDiagonalPA(Vector &diag) const override
+   {
+      const int ND = nd, NQ = nq, DIM = dim, NF = nbf;
+      const auto B = Reshape(maps->B.Read(), NQ, ND);
+      const auto WN = Reshape(wn.Read(), NQ, DIM, NF);
+      const auto U = Reshape(ue.Read(), ND, DIM, NF);
+      auto D = Reshape(diag.ReadWrite(), ND, DIM, NF);
+      mfem::forall(NF, [=] MFEM_HOST_DEVICE (int f)
+      {
+         for (int q = 0; q < NQ; ++q)
+         {
+            real_t uq[3] = {0, 0, 0}, un = 0;
+            for (int c = 0; c < DIM; ++c)
+            {
+               for (int d = 0; d < ND; ++d) { uq[c] += B(q, d) * U(d, c, f); }
+               un += uq[c] * WN(q, c, f);
+            }
+            for (int c = 0; c < DIM; ++c)
+            {
+               const real_t a = WN(q, c, f) * uq[c] + un;
+               for (int d = 0; d < ND; ++d)
+               {
+                  D(d, c, f) += B(q, d) * B(q, d) * a;
+               }
+            }
+         }
+      });
+   }
+};
+
+void test_bdr_nlf_simplex_mma(const char *filename, int p, bool curved,
+                              bool marked)
+{
+   CAPTURE(filename, p, curved, marked);
+   Mesh mesh = MakeSimplexMmaMesh(filename, curved);
+   Array<int> bdr_marker;
+   SetAlternateBdrAttributes(mesh, bdr_marker);
+   const int dim = mesh.Dimension();
+   H1_FECollection fec(p, dim);
+   FiniteElementSpace fes(&mesh, &fec, dim);
+   REQUIRE(UsesSimplexMMA(fes));
+   const IntegrationRule &ir =
+      IntRules.Get(fes.GetBE(0)->GetGeomType(), 3 * p + 4);
+
+   // Domain and boundary integrators together: both sides of the contract.
+   // As for the linear forms, the legacy form gets its own marker copy.
+   Array<int> bdr_marker_fa(bdr_marker);
+   NonlinearForm nlf_fa(&fes), nlf_pa(&fes);
+   nlf_pa.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   for (NonlinearForm *nlf : {&nlf_fa, &nlf_pa})
+   {
+      nlf->AddDomainIntegrator(new VectorConvectionNLFIntegrator);
+      Array<int> &marker = (nlf == &nlf_fa) ? bdr_marker_fa : bdr_marker;
+      if (marked)
+      {
+         nlf->AddBoundaryIntegrator(new BdrNormalConvectionNLFI(ir), marker);
+      }
+      else { nlf->AddBoundaryIntegrator(new BdrNormalConvectionNLFI(ir)); }
+   }
+   nlf_pa.Setup();
+
+   GridFunction x(&fes), dx(&fes), y_fa(&fes), y_pa(&fes);
+   x.Randomize(0x71);
+   dx.Randomize(0x72);
+
+   nlf_fa.Mult(x, y_fa);
+   nlf_pa.Mult(x, y_pa);
+   y_pa -= y_fa;
+   RequireSmallRel(y_pa, y_fa);
+
+   Operator &grad_fa = nlf_fa.GetGradient(x);
+   Operator &grad_pa = nlf_pa.GetGradient(x);
+   grad_fa.Mult(dx, y_fa);
+   grad_pa.Mult(dx, y_pa);
+   y_pa -= y_fa;
+   RequireSmallRel(y_pa, y_fa);
+
+   Vector diag_fa(fes.GetVSize()), diag_pa(fes.GetVSize());
+   dynamic_cast<SparseMatrix &>(grad_fa).GetDiag(diag_fa);
+   grad_pa.AssembleDiagonal(diag_pa);
+   diag_pa -= diag_fa;
+   RequireSmallRel(diag_pa, diag_fa);
+}
+
+TEST_CASE("Simplex NATIVE boundary face restriction",
+          "[MMA][FaceRestriction][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3, 4);
+   const auto vdim = GENERATE(1, 3);
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   const auto mesh = GENERATE("../../data/inline-tri.mesh",
+                              "../../data/beam-tri.mesh",
+                              "../../data/inline-tet.mesh",
+                              "../../data/beam-tet.mesh");
+   test_simplex_bdr_face_restriction(mesh, p, vdim, ordering);
+}
+
+TEST_CASE("Simplex boundary face geometric factors",
+          "[MMA][FaceRestriction][GPU]")
+{
+   const auto curved = GENERATE(false, true);
+   const auto mesh = GENERATE("../../data/inline-tri.mesh",
+                              "../../data/beam-tri.mesh",
+                              "../../data/inline-tet.mesh",
+                              "../../data/beam-tet.mesh");
+   test_simplex_bdr_face_geometry(mesh, curved);
+}
+
+TEST_CASE("Boundary LF Simplices MMA", "[LinearFormExtension][MMA][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3, 4);
+   const auto curved = GENERATE(false, true);
+   SECTION("2D")
+   {
+      test_bdr_lf_simplex_mma("../../data/inline-tri.mesh", p, curved);
+      test_bdr_lf_simplex_mma("../../data/beam-tri.mesh", p, curved);
+   }
+   SECTION("3D")
+   {
+      test_bdr_lf_simplex_mma("../../data/inline-tet.mesh", p, curved);
+      test_bdr_lf_simplex_mma("../../data/beam-tet.mesh", p, curved);
+   }
+}
+
+TEST_CASE("Vector Boundary LF Tensor MMA", "[LinearFormExtension][MMA][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3);
+   const auto curved = GENERATE(false, true);
+   SECTION("2D")
+   {
+      test_vector_bdr_lf_tensor("../../data/inline-quad.mesh", p, curved);
+      test_vector_bdr_lf_tensor("../../data/star.mesh", p, curved);
+   }
+   SECTION("3D")
+   {
+      test_vector_bdr_lf_tensor("../../data/inline-hex.mesh", p, curved);
+      test_vector_bdr_lf_tensor("../../data/fichera.mesh", p, curved);
+   }
+}
+
+TEST_CASE("External Boundary LF Simplices MMA",
+          "[LinearFormExtension][MMA][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3);
+   const auto curved = GENERATE(false, true);
+   SECTION("2D")
+   {
+      test_external_bdr_lf_simplex("../../data/inline-tri.mesh", p, curved);
+   }
+   SECTION("3D")
+   {
+      test_external_bdr_lf_simplex("../../data/inline-tet.mesh", p, curved);
+   }
+}
+
+TEST_CASE("Boundary NLF PA Simplices MMA",
+          "[PartialAssembly][NonlinearPA][MMA][GPU]")
+{
+   const auto p = GENERATE(1, 2, 3);
+   const auto curved = GENERATE(false, true);
+   const auto marked = GENERATE(false, true);
+   SECTION("2D")
+   {
+      test_bdr_nlf_simplex_mma("../../data/inline-tri.mesh", p, curved,
+                               marked);
+   }
+   SECTION("3D")
+   {
+      test_bdr_nlf_simplex_mma("../../data/inline-tet.mesh", p, curved,
+                               marked);
+   }
+}
+
+#undef MMA_ROUND
+
+} // namespace pa_simplices_mma
