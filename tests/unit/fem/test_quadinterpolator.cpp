@@ -745,7 +745,7 @@ TEST_CASE("QuadratureInterpolator entity list",
    const auto der = GENERATE(false, true);
    const auto dim = GENERATE(2, 3);
    const auto p = GENERATE(2, 3);
-   const auto vdim = GENERATE_COPY(1, dim);
+   const auto vdim = GENERATE_COPY(values({1, dim}));
    const auto l = GENERATE(QVectorLayout::byNODES, QVectorLayout::byVDIM);
    CAPTURE(faces, der, dim, p, vdim, l);
 
