@@ -93,12 +93,20 @@ public:
        When the DETERMINANTS flags is set, it is assumed that the derivatives
        form a matrix at each quadrature point (i.e. the associated
        FiniteElementSpace is a vector space) and their determinants are computed
-       and stored in @a q_det. */
+       and stored in @a q_det.
+
+       If @a flist is not null, only the faces it lists are interpolated:
+       @a e_vec still holds all the faces of the interpolator, while the
+       quadrature point vectors hold only the listed ones, in the order of
+       @a flist. */
    void Mult(const Vector &e_vec, unsigned eval_flags,
-             Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor) const;
+             Vector &q_val, Vector &q_der, Vector &q_det, Vector &q_nor,
+             const Array<int> *flist = nullptr) const;
 
    /// Interpolate the values of the E-vector @a e_vec at quadrature points.
-   void Values(const Vector &e_vec, Vector &q_val) const;
+   /// See Mult() for @a flist.
+   void Values(const Vector &e_vec, Vector &q_val,
+               const Array<int> *flist = nullptr) const;
 
    // Compute kernels follow (cannot be private or protected with nvcc)
 
@@ -114,7 +122,8 @@ public:
                       Vector &q_der,
                       Vector &q_det,
                       Vector &q_nor,
-                      const int eval_flags);
+                      const int eval_flags,
+                      const Array<int> *flist = nullptr);
 
    /// Template compute kernel for 3D.
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
@@ -128,7 +137,8 @@ public:
                       Vector &q_der,
                       Vector &q_det,
                       Vector &q_nor,
-                      const int eval_flags);
+                      const int eval_flags,
+                      const Array<int> *flist = nullptr);
 
    template<const int T_VDIM = 0, const int T_ND = 0, const int T_NQ = 0>
    static void SmemEval3D(const int NF,
@@ -141,7 +151,8 @@ public:
                           Vector &q_der,
                           Vector &q_det,
                           Vector &q_nor,
-                          const int eval_flags);
+                          const int eval_flags,
+                          const Array<int> *flist = nullptr);
 };
 
 } // mfem namespace
