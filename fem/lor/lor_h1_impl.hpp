@@ -33,10 +33,12 @@ void BatchedLOR_H1::Assemble2D()
    const auto MQ = const_mq
                    ? Reshape(c1.Read(), 1, 1, 1)
                    : Reshape(c1.Read(), nd1d, nd1d, nel_ho);
-   const bool const_dq = c2.Size() == 1;
+
+   const int dq_vdim = c2.GetVDim();
+   const bool const_dq = c2.Size() == dq_vdim;
    const auto DQ = const_dq
-                   ? Reshape(c2.Read(), 1, 1, 1)
-                   : Reshape(c2.Read(), nd1d, nd1d, nel_ho);
+                   ? Reshape(c2.Read(), dq_vdim, 1, 1, 1)
+                   : Reshape(c2.Read(), dq_vdim, nd1d, nd1d, nel_ho);
 
    sparse_ij.SetSize(nnz_per_row*ndof_per_el*nel_ho);
    auto V = Reshape(sparse_ij.Write(), nnz_per_row, nd1d, nd1d, nel_ho);
@@ -73,14 +75,13 @@ void BatchedLOR_H1::Assemble2D()
 
             for (int i=0; i<sz_local_mat; ++i) { local_mat[i] = 0.0; }
 
-            SetupLORQuadData2D<ORDER,SDIM,false,false>(X, iel_ho, kx, ky, Q, false);
+            SetupLORQuadData2D<ORDER,SDIM,false,false>(
+               X, const_dq, DQ, const_mq, MQ, iel_ho, kx, ky, Q);
 
             for (int iqx=0; iqx<2; ++iqx)
             {
                for (int iqy=0; iqy<2; ++iqy)
                {
-                  const real_t mq = const_mq ? MQ(0,0,0) : MQ(kx+iqx, ky+iqy, iel_ho);
-                  const real_t dq = const_dq ? DQ(0,0,0) : DQ(kx+iqx, ky+iqy, iel_ho);
                   for (int jy=0; jy<2; ++jy)
                   {
                      const real_t bjy = (jy == iqy) ? 1.0 : 0.0;
@@ -117,9 +118,8 @@ void BatchedLOR_H1::Assemble2D()
                               val += dix*djx*Q(0,iqy,iqx);
                               val += (dix*djy + diy*djx)*Q(1,iqy,iqx);
                               val += diy*djy*Q(2,iqy,iqx);
-                              val *= dq;
 
-                              val += mq*bix*biy*bjx*bjy*Q(3,iqy,iqx);
+                              val += bix*biy*bjx*bjy*Q(3,iqy,iqx);
 
                               local_mat(ii_loc, jj_loc) += val;
                            }
@@ -201,10 +201,11 @@ void BatchedLOR_H1::Assemble3D()
    const auto MQ = const_mq
                    ? Reshape(c1.Read(), 1, 1, 1, 1)
                    : Reshape(c1.Read(), nd1d, nd1d, nd1d, nel_ho);
-   const bool const_dq = c2.Size() == 1;
+   const int dq_vdim = c2.GetVDim();
+   const bool const_dq = c2.Size() == dq_vdim;
    const auto DQ = const_dq
-                   ? Reshape(c2.Read(), 1, 1, 1, 1)
-                   : Reshape(c2.Read(), nd1d, nd1d, nd1d, nel_ho);
+                   ? Reshape(c2.Read(), dq_vdim, 1, 1, 1, 1)
+                   : Reshape(c2.Read(), dq_vdim, nd1d, nd1d, nd1d, nel_ho);
 
    sparse_ij.SetSize(nel_ho*ndof_per_el*nnz_per_row);
    auto V = Reshape(sparse_ij.Write(), nnz_per_row, nd1d, nd1d, nd1d, nel_ho);
@@ -296,12 +297,13 @@ void BatchedLOR_H1::Assemble3D()
                         DeviceTensor<2> A(A_, 3, 3);
                         Adjugate3D(J, A);
 
-                        Q(0,iqz,iqy,iqx) = w_detJ*(A(0,0)*A(0,0)+A(0,1)*A(0,1)+A(0,2)*A(0,2)); // 1,1
-                        Q(1,iqz,iqy,iqx) = w_detJ*(A(0,0)*A(1,0)+A(0,1)*A(1,1)+A(0,2)*A(1,2)); // 2,1
-                        Q(2,iqz,iqy,iqx) = w_detJ*(A(0,0)*A(2,0)+A(0,1)*A(2,1)+A(0,2)*A(2,2)); // 3,1
-                        Q(3,iqz,iqy,iqx) = w_detJ*(A(1,0)*A(1,0)+A(1,1)*A(1,1)+A(1,2)*A(1,2)); // 2,2
-                        Q(4,iqz,iqy,iqx) = w_detJ*(A(1,0)*A(2,0)+A(1,1)*A(2,1)+A(1,2)*A(2,2)); // 3,2
-                        Q(5,iqz,iqy,iqx) = w_detJ*(A(2,0)*A(2,0)+A(2,1)*A(2,1)+A(2,2)*A(2,2)); // 3,3
+                        real_t dq_vals[9];
+                        Get3DMatrixCoeff(DQ, const_dq, kx+iqx, ky+iqy, kz+iqz, iel_ho, dq_vals);
+                        DeviceTensor<2> dq_mat(dq_vals, 3, 3);
+
+                        // Fill first 5 entries of Q with A e A^T (storing the
+                        // symmetric part only)
+                        FillAtBA(A, dq_mat, &Q(0,iqz,iqy,iqx), w_detJ);
                         Q(6,iqz,iqy,iqx) = w*detJ;
                      }
                   }
@@ -325,7 +327,6 @@ void BatchedLOR_H1::Assemble3D()
                            for (int iqz=0; iqz<2; ++iqz)
                            {
                               const real_t mq = const_mq ? MQ(0,0,0,0) : MQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
-                              const real_t dq = const_dq ? DQ(0,0,0,0) : DQ(kx+iqx, ky+iqy, kz+iqz, iel_ho);
 
                               const real_t biz = (iz == iqz) ? 1.0 : 0.0;
                               const real_t giz = (iz == 0) ? -1.0 : 1.0;
@@ -343,15 +344,15 @@ void BatchedLOR_H1::Assemble3D()
                               const real_t J23 = J32;
                               const real_t J33 = Q(5,iqz,iqy,iqx);
 
-                              grad_A(0,0,iqy,iz,jz,iqx) += dq*J11*biz*bjz;
-                              grad_A(1,0,iqy,iz,jz,iqx) += dq*J21*biz*bjz;
-                              grad_A(2,0,iqy,iz,jz,iqx) += dq*J31*giz*bjz;
-                              grad_A(0,1,iqy,iz,jz,iqx) += dq*J12*biz*bjz;
-                              grad_A(1,1,iqy,iz,jz,iqx) += dq*J22*biz*bjz;
-                              grad_A(2,1,iqy,iz,jz,iqx) += dq*J32*giz*bjz;
-                              grad_A(0,2,iqy,iz,jz,iqx) += dq*J13*biz*gjz;
-                              grad_A(1,2,iqy,iz,jz,iqx) += dq*J23*biz*gjz;
-                              grad_A(2,2,iqy,iz,jz,iqx) += dq*J33*giz*gjz;
+                              grad_A(0,0,iqy,iz,jz,iqx) += J11*biz*bjz;
+                              grad_A(1,0,iqy,iz,jz,iqx) += J21*biz*bjz;
+                              grad_A(2,0,iqy,iz,jz,iqx) += J31*giz*bjz;
+                              grad_A(0,1,iqy,iz,jz,iqx) += J12*biz*bjz;
+                              grad_A(1,1,iqy,iz,jz,iqx) += J22*biz*bjz;
+                              grad_A(2,1,iqy,iz,jz,iqx) += J32*giz*bjz;
+                              grad_A(0,2,iqy,iz,jz,iqx) += J13*biz*gjz;
+                              grad_A(1,2,iqy,iz,jz,iqx) += J23*biz*gjz;
+                              grad_A(2,2,iqy,iz,jz,iqx) += J33*giz*gjz;
 
                               real_t wdetJ = Q(6,iqz,iqy,iqx);
                               mass_A(iqy,iz,jz,iqx) += mq*wdetJ*biz*bjz;
