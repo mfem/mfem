@@ -355,9 +355,10 @@ void VTKHDF::Truncate(const real_t t)
       connectivity_offsets.next =
          ReadValue<hsize_t>("Steps/ConnectivityIdOffsets", i - 1);
 
+      const hsize_t part_offset_i = ReadValue<hsize_t>("Steps/PartOffsets", i - 1);
       for (int part = 0; part < mpi_size; ++part)
       {
-         const hsize_t p_i = ReadValue<hsize_t>("Steps/PartOffsets", i - 1 + part);
+         const hsize_t p_i = part_offset_i + part;
          npoints += ReadValue<hsize_t>("NumberOfPoints", p_i);
          cell_offsets.next += ReadValue<hsize_t>("NumberOfCells", p_i);
          connectivity_offsets.next +=
