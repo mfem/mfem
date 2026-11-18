@@ -104,34 +104,10 @@ constexpr bool active_qparams_use_dual()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// `tensor` base class of `T`, or `void` when `T` has none.
-///
-/// A class deriving from `tensor` does not match the `tensor` partial
-/// specialization of qf_param_shape below, so look through to the base. Types
-/// with no `tensor` base (e.g. dual numbers) get the rank-0 shape of `void`.
-template <typename scalar_t, int... Is>
-tensor<scalar_t, Is...> qf_tensor_base_of(const tensor<scalar_t, Is...> &);
-
-template <typename T, typename = void>
-struct qf_tensor_base { using type = void; };
-
+/// Static shape for one decayed q-function parameter type. Types that are not
+/// tensors (real_t, dual numbers) are scalars, of rank 0.
 template <typename T>
-struct qf_tensor_base<
-T, std::void_t<decltype(qf_tensor_base_of(std::declval<const T &>()))>>
-{
-   using type = decltype(qf_tensor_base_of(std::declval<const T &>()));
-};
-
-template <typename T>
-using qf_tensor_base_t = typename qf_tensor_base<T>::type;
-
-///////////////////////////////////////////////////////////////////////////////
-/// Static shape for one decayed q-function parameter type
-template <typename T>
-struct qf_param_shape : qf_param_shape<qf_tensor_base_t<T>> {};
-
-template <>
-struct qf_param_shape<void>
+struct qf_param_shape
 {
    static constexpr int rank = 0;
    static constexpr std::array<int, 0> extents {};
@@ -146,13 +122,6 @@ struct qf_param_shape<tensor<scalar_t, Is...>>
 
 template <typename scalar_t>
 struct qf_param_shape<tensor<scalar_t>>
-{
-   static constexpr int rank = 0;
-   static constexpr std::array<int, 0> extents {};
-};
-
-template <>
-struct qf_param_shape<real_t>
 {
    static constexpr int rank = 0;
    static constexpr std::array<int, 0> extents {};
