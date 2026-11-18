@@ -13,7 +13,6 @@
 // Compile-time quadrature argument metadata for local q-functions
 
 #include "../../../../linalg/tensor.hpp"
-#include "../../../kernels.hpp" // for kernels::internal::thread_regs
 
 #include "../../integrator_ctx.hpp"
 #include "../../util.hpp"
@@ -126,14 +125,6 @@ struct qf_param_shape<tensor<scalar_t>>
    static constexpr int rank = 0;
    static constexpr std::array<int, 0> extents {};
 };
-
-/// Shape of the value held at each quadrature point by the registers of
-/// mfem::kernels::internal (regs1d_t, regs2d_t, regs3d_t and their _vd
-/// variants): the shape of the per-thread element @a T, without the thread
-/// dimensions @a TDims.
-template <typename T, int... TDims>
-struct qf_param_shape<mfem::kernels::internal::thread_regs<T, TDims...>>
-   : qf_param_shape<T> {};
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Type used in quadrature registers for parameter
@@ -1515,13 +1506,14 @@ void LoadField(typename backend_t::Shared &smem, const int e, const int q1d,
 {
    const int d = dtq.B.GetShape()[DofToQuadMap::DOF];
    const int q = dtq.B.GetShape()[DofToQuadMap::QP];
+   using param_t = typename qf_param_slot<qfunc_t, SLOT>::qf_decay_param_t;
    if constexpr (is_value_fop_v<FOP>)
    {
-      backend_t::LoadValue(smem, e, d, q, q1d, dtq.B, XE, rarg);
+      backend_t::template LoadValue<rarg_t, XE_t, param_t>(
+         smem, e, d, q, q1d, dtq.B, XE, rarg);
    }
    else if constexpr (is_gradient_fop_v<FOP>)
    {
-      using param_t = typename qf_param_slot<qfunc_t, SLOT>::qf_decay_param_t;
       constexpr auto RNK = qf_param_slot<qfunc_t, SLOT>::extents.size();
       backend_t::template LoadGradient<RNK, rarg_t, XE_t, param_t>(
          smem, e, d, q, q1d, dtq.B, dtq.G, XE, rarg);
@@ -1545,13 +1537,14 @@ void WriteField(typename backend_t::Shared &smem, const int e, const int q1d,
 {
    const int d = dtq.B.GetShape()[DofToQuadMap::DOF];
    const int q = dtq.B.GetShape()[DofToQuadMap::QP];
+   using param_t = typename qf_param_slot<qfunc_t, SLOT>::qf_decay_param_t;
    if constexpr (is_value_fop_v<FOP>)
    {
-      backend_t::WriteValue(smem, e, d, q, q1d, dtq.B, YE, rarg);
+      backend_t::template WriteValue<rarg_t, YE_t, param_t>(
+         smem, e, d, q, q1d, dtq.B, YE, rarg);
    }
    else if constexpr (is_gradient_fop_v<FOP>)
    {
-      using param_t = typename qf_param_slot<qfunc_t, SLOT>::qf_decay_param_t;
       constexpr auto RNK = qf_param_slot<qfunc_t, SLOT>::extents.size();
       backend_t::template WriteGradient<RNK, rarg_t, YE_t, param_t>(
          smem, e, d, q, q1d, dtq.B, dtq.G, YE, rarg);

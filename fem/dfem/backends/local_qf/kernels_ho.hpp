@@ -532,7 +532,9 @@ struct LocalQFHOBackend
    using QReg = ho_qreg_t<backend_t, T>;
 
    // ─────────────────────────────────────────────────────
-   template<typename ArgRegT, typename XE_T>
+   /// The q-function parameter type @a FieldParamT is unused: the register
+   /// type @a ArgRegT selects the interpolation overloads.
+   template<typename ArgRegT, typename XE_T, typename FieldParamT>
    static inline MFEM_HOST_DEVICE void LoadValue(Shared &s,
                                                  const int e,
                                                  const int d,
@@ -552,7 +554,7 @@ struct LocalQFHOBackend
    template<int RNK,
             typename ArgRegT,
             typename XE_T,
-            typename FieldParamT = ArgRegT>
+            typename FieldParamT>
    static inline MFEM_HOST_DEVICE void LoadGradient(Shared &s,
                                                     const int e,
                                                     const int d,
@@ -749,7 +751,8 @@ struct LocalQFHOBackend
    }
 
    // ─────────────────────────────────────────────────────
-   template<typename ArgRegT, typename YE_T>
+   /// See LoadValue() for the unused @a FieldParamT.
+   template<typename ArgRegT, typename YE_T, typename FieldParamT>
    static inline MFEM_HOST_DEVICE void WriteValue(Shared &s,
                                                   const int e,
                                                   const int d,
@@ -768,7 +771,7 @@ struct LocalQFHOBackend
    template<int RNK,
             typename ArgRegT,
             typename YE_T,
-            typename FieldParamT = ArgRegT>
+            typename FieldParamT>
    static inline MFEM_HOST_DEVICE void WriteGradient(Shared &s,
                                                      const int e,
                                                      const int d,

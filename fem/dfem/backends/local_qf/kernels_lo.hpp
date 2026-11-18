@@ -603,7 +603,7 @@ struct lo_ker_backend
    template<int RNK,
             typename ArgRegT,
             typename XE_T,
-            typename FieldParamT = ArgRegT>
+            typename FieldParamT>
    static MFEM_HOST_DEVICE void load_gradient(Shared &s,
                                               const int e,
                                               const int d,
@@ -681,7 +681,7 @@ struct lo_ker_backend
       }
    }
 
-   template<typename ArgRegT, typename YE_T>
+   template<typename FieldParamT, typename ArgRegT, typename YE_T>
    static MFEM_HOST_DEVICE void write_value(Shared &s,
                                             const int e,
                                             const int d,
@@ -691,8 +691,7 @@ struct lo_ker_backend
                                             ArgRegT &rarg)
    {
       ker::LoadMatrix(d, q, B, s.B);
-      using field_t = std::remove_cv_t<std::remove_reference_t<ArgRegT>>;
-      /// See NOTE in load_value_byVDIM for why this is needed.
+      using field_t = std::remove_cv_t<std::remove_reference_t<FieldParamT>>;
       write_byVDIM<qf_value_vdim_v<field_t>>(s, e, d, q, YE, rarg);
    }
 
@@ -765,7 +764,7 @@ struct lo_ker_backend
    template<int RNK,
             typename ArgRegT,
             typename YE_T,
-            typename FieldParamT = ArgRegT>
+            typename FieldParamT>
    static MFEM_HOST_DEVICE void write_gradient(Shared &s,
                                                const int e,
                                                const int d,
@@ -982,7 +981,7 @@ struct LocalQFLOBackend
    using QReg = lo_qreg_t<backend_t, T>;
 
    // ─────────────────────────────────────────────────────
-   template<typename ArgRegT, typename XE_T>
+   template<typename ArgRegT, typename XE_T, typename FieldParamT>
    static inline MFEM_HOST_DEVICE void LoadValue(Shared &s,
                                                  const int e,
                                                  const int d,
@@ -992,14 +991,14 @@ struct LocalQFLOBackend
                                                  const XE_T &XE,
                                                  ArgRegT &rarg)
    {
-      backend_t::template load_value<ArgRegT>(s, e, d, q, B, XE, rarg);
+      backend_t::template load_value<FieldParamT>(s, e, d, q, B, XE, rarg);
    }
 
    // ─────────────────────────────────────────────────────
    template<int RNK,
             typename ArgRegT,
             typename XE_T,
-            typename FieldParamT = ArgRegT>
+            typename FieldParamT>
    static inline MFEM_HOST_DEVICE void LoadGradient(Shared &s,
                                                     const int e,
                                                     const int d,
@@ -1244,7 +1243,7 @@ struct LocalQFLOBackend
    }
 
    // ─────────────────────────────────────────────────────
-   template<typename ArgRegT, typename YE_T>
+   template<typename ArgRegT, typename YE_T, typename FieldParamT>
    static inline MFEM_HOST_DEVICE void WriteValue(Shared &s,
                                                   const int e,
                                                   const int d,
@@ -1253,13 +1252,13 @@ struct LocalQFLOBackend
                                                   const real_t *B,
                                                   const YE_T &YE,
                                                   ArgRegT &rarg)
-   { backend_t::write_value(s, e, d, q, B, YE, rarg); }
+   { backend_t::template write_value<FieldParamT>(s, e, d, q, B, YE, rarg); }
 
    // ─────────────────────────────────────────────────────
    template<int RNK,
             typename ArgRegT,
             typename YE_T,
-            typename FieldParamT = ArgRegT>
+            typename FieldParamT>
    static inline MFEM_HOST_DEVICE void WriteGradient(Shared &s,
                                                      const int e,
                                                      const int d,
