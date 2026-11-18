@@ -130,7 +130,7 @@ TEST_CASE("Elasticity PA action and diagonal",
           "[PartialAssembly][ElasticityPA][GPU]")
 {
    const int dim = GENERATE(2, 3);
-   const int order = GENERATE(1, 2);
+   const int order = GENERATE(1, 2, 3);
    CAPTURE(dim, order);
 
    Mesh mesh = MakeMesh(dim);
@@ -165,6 +165,47 @@ TEST_CASE("Elasticity PA action and diagonal",
    pa_form.AssembleDiagonal(diagonal_pa);
    full_form.SpMat().GetDiag(diagonal_full);
    RequireClose(diagonal_pa, diagonal_full);
+}
+
+TEST_CASE("Elasticity PA high-order quadrature",
+          "[PartialAssembly][ElasticityPA][GPU]")
+{
+   // Rules with many points per direction stress the shared memory of the
+   // fused 3D tensor kernel, e.g. order 3 with Q1D = 9 (D1D = 4).
+   const auto [order, q1d] = GENERATE(table<int, int>({{2, 6}, {3, 9}}));
+   CAPTURE(order, q1d);
+   constexpr int dim = 3;
+
+   Mesh mesh = MakeMesh(dim);
+   H1_FECollection fec(order, dim);
+   FiniteElementSpace vector_fes(&mesh, &fec, dim, Ordering::byNODES);
+   FunctionCoefficient material(MaterialFunction);
+   const IntegrationRule &ir = IntRules.Get(Geometry::CUBE, 2*q1d - 1);
+   REQUIRE(ir.GetNPoints() == q1d*q1d*q1d);
+
+   BilinearForm pa_form(&vector_fes);
+   pa_form.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   auto *pa_integ = new ElasticityIntegrator(material, q_lambda, q_mu);
+   pa_integ->SetIntRule(&ir);
+   pa_form.AddDomainIntegrator(pa_integ);
+   pa_form.Assemble();
+
+   BilinearForm full_form(&vector_fes);
+   auto *full_integ = new ElasticityIntegrator(material, q_lambda, q_mu);
+   full_integ->SetIntRule(&ir);
+   full_form.AddDomainIntegrator(full_integ);
+   full_form.Assemble();
+   full_form.Finalize();
+
+   Vector x(vector_fes.GetVSize());
+   Vector y_pa(vector_fes.GetVSize());
+   Vector y_full(vector_fes.GetVSize());
+   FillVector(x, 2);
+   y_pa = 0.0;
+   y_full = 0.0;
+   pa_form.Mult(x, y_pa);
+   full_form.Mult(x, y_full);
+   RequireClose(y_pa, y_full);
 }
 
 TEST_CASE("Elasticity PA diagonal accumulation",

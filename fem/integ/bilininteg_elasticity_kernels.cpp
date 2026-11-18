@@ -120,7 +120,14 @@ ElasticityIntegrator::ApplyPAKernels::Kernel()
    }
    else if constexpr (DIM == 3)
    {
-      return internal::ElasticityAddMultPATensor3D_<D1D, Q1D>;
+      if constexpr (internal::ElasticityTensor3DFitsShared(D1D, Q1D))
+      {
+         return internal::ElasticityAddMultPATensor3D_<D1D, Q1D>;
+      }
+      else
+      {
+         return internal::ElasticityAddMultPATensor3DRegs_<D1D, Q1D>;
+      }
    }
    MFEM_ABORT("Elasticity tensor PA is implemented only in dimensions 2 and 3.");
    return nullptr;

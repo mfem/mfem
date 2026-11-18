@@ -40,6 +40,7 @@
 #include "../../linalg/tensor.hpp"
 #include "../quadinterpolator.hpp"
 #include "../coefficient.hpp"
+#include "../kernels.hpp"
 #include "../qfunction.hpp"
 
 namespace mfem
@@ -596,6 +597,28 @@ void ElasticityAddMultPATensor2D_(const int numEls,
 }
 
 
+/// Static shared memory available to one thread block on every supported
+/// device: 48 KiB is the CUDA limit for statically sized __shared__ arrays
+/// (HIP allows 64 KiB), and larger blocks would need dynamic shared memory.
+constexpr int ElasticityMaxStaticSharedBytes = 48*1024;
+
+/// Bytes of shared memory used by ElasticityAddMultPATensor3D_: the B and G
+/// matrices, three Q1D^3 work arrays, the 3x3 gradient/flux tensor at every
+/// quadrature point, and a 3*D1D^2*Q1D transpose scratch tensor.
+constexpr int ElasticityTensor3DSharedBytes(const int D1D, const int Q1D)
+{
+   return static_cast<int>(sizeof(real_t)) *
+          (2*Q1D*D1D + 3*Q1D*Q1D*Q1D + 9*Q1D*Q1D*Q1D + 3*D1D*D1D*Q1D);
+}
+
+/// Whether ElasticityAddMultPATensor3D_ fits in static shared memory; other
+/// (D1D, Q1D) pairs use ElasticityAddMultPATensor3DRegs_.
+constexpr bool ElasticityTensor3DFitsShared(const int D1D, const int Q1D)
+{
+   return ElasticityTensor3DSharedBytes(D1D, Q1D) <=
+          ElasticityMaxStaticSharedBytes;
+}
+
 template<int D1D, int Q1D>
 void ElasticityAddMultPATensor3D_(const int numEls,
                                   const DofToQuad &maps,
@@ -606,6 +629,8 @@ void ElasticityAddMultPATensor3D_(const int numEls,
    using future::tensor;
    static constexpr int d = 3;
    static constexpr int entries = 11;
+   static_assert(ElasticityTensor3DFitsShared(D1D, Q1D),
+                 "Use ElasticityAddMultPATensor3DRegs_ for this (D1D, Q1D).");
 
    const auto b = Reshape(maps.B.Read(), Q1D, D1D);
    const auto g = Reshape(maps.G.Read(), Q1D, D1D);
@@ -619,9 +644,9 @@ void ElasticityAddMultPATensor3D_(const int numEls,
    {
       // Shared data consist of the one-dimensional basis maps, three Q1D^3
       // work arrays, the 3x3 q-point gradient/flux tensor, and a
-      // 3*D1D^2*Q1D transpose scratch tensor. Dispatch is limited to Q1D <= 7
-      // to keep double-precision shared memory below common device limits
-      // (about 42 KiB at D1D=Q1D=7, including B and G).
+      // 3*D1D^2*Q1D transpose scratch tensor, see
+      // ElasticityTensor3DSharedBytes (about 42 KiB at D1D=Q1D=7 in double
+      // precision, 72 KiB at D1D=4, Q1D=9).
       MFEM_SHARED tensor<real_t, Q1D, D1D> B;
       MFEM_SHARED tensor<real_t, Q1D, D1D> G;
       MFEM_SHARED tensor<real_t, 3, Q1D, Q1D, Q1D> S;
@@ -857,6 +882,187 @@ void ElasticityAddMultPATensor3D_(const int numEls,
             }
          }
          MFEM_SYNC_THREAD;
+      }
+   });
+}
+
+/** @brief Register-tiled tensor-product elasticity action in 3D, y += K x.
+
+    Used for the (D1D, Q1D) pairs where ElasticityAddMultPATensor3D_ would
+    exceed ElasticityMaxStaticSharedBytes, e.g. D1D = 4, Q1D = 9.
+
+    The threads of an element form a Q1D x Q1D tile in (x, y), and each
+    thread keeps its column of Q1D quadrature points along z in registers
+    (see kernels::internal::s_regs3d_t). Shared memory only holds the 1D
+    basis matrices and one Q1D x Q1D contraction slice, so its footprint,
+    (2*D1D + Q1D)*Q1D values, grows quadratically with Q1D instead of
+    cubically. The price is more contractions and synchronizations, which
+    is why the shared-memory kernel is preferred whenever it fits.
+
+    The action proceeds in three stages:
+    1. reference gradients dU(c,m) = d u_c / d xi_m of every displacement
+       component, by sum factorization with G along xi_m and B elsewhere;
+    2. at each quadrature point, the physical gradient grad = dU J^{-1}, the
+       weighted stress sigma_w = lambda_w div(u) I + mu_w (grad + grad^T),
+       and the reference flux F(a,m) = sum_b J^{-1}(m,b) sigma_w(a,b);
+    3. for every output component a, the transposed contraction of F(a,m)
+       with G along xi_m and B elsewhere, summed over m. */
+template<int D1D, int Q1D>
+void ElasticityAddMultPATensor3DRegs_(const int numEls,
+                                      const DofToQuad &maps,
+                                      const Vector &pa_data,
+                                      const Vector &x,
+                                      Vector &y)
+{
+   using future::tensor;
+   using kernels::internal::s_regs3d_t;
+   using kernels::internal::vd_regs3d_t;
+   using kernels::internal::Contract3d;
+   static constexpr int d = 3;
+   static constexpr int entries = 11;
+   static_assert(D1D <= Q1D, "The thread tile is sized by Q1D.");
+
+   const real_t *b = maps.B.Read();
+   const real_t *g = maps.G.Read();
+
+   const auto D = Reshape(pa_data.Read(), Q1D, Q1D, Q1D, entries, numEls);
+   const auto X = Reshape(x.Read(), D1D, D1D, D1D, d, numEls);
+   auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, d, numEls);
+
+   mfem::forall_2D<Q1D*Q1D>(numEls, Q1D, Q1D,
+                            [=] MFEM_HOST_DEVICE (int e)
+   {
+      constexpr int MD1 = kernels::internal::SetMaxOf(D1D);
+      constexpr int MQ1 = kernels::internal::SetMaxOf(Q1D);
+
+      // Basis matrices are stored transposed: sB[dof][qpt] = B(qpt, dof).
+      MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1], smem[MQ1][MQ1];
+      kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
+      kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
+
+      // dU(c, m) at the quadrature points; overwritten by the flux F(c, m).
+      vd_regs3d_t<d, d, MQ1> dU;
+      // Contraction input/scratch and output-component accumulator.
+      s_regs3d_t<MQ1> r0, r1;
+      // The loops over components, directions and z points are unrolled so
+      // that every register tensor index is a compile-time constant on the
+      // device; otherwise dU would be placed in local (stack) memory.
+
+      // 1. Reference gradients. Contract3d consumes its input r0, so the
+      //    degrees of freedom of component c are reloaded for each m.
+      MFEM_UNROLL(3)
+      for (int c = 0; c < d; ++c)
+      {
+         MFEM_UNROLL(3)
+         for (int m = 0; m < d; ++m)
+         {
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+               {
+                  MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+                  {
+                     r0[dz][dy][dx] = X(dx, dy, dz, c, e);
+                  }
+               }
+            }
+            Contract3d<false>(D1D, Q1D, smem,
+                              m == 0 ? sG : sB,
+                              m == 1 ? sG : sB,
+                              m == 2 ? sG : sB,
+                              r0, dU[c][m]);
+         }
+      }
+
+      // 2. Constitutive operation and reference-space flux, pointwise.
+      MFEM_UNROLL(Q1D)
+      for (int qz = 0; qz < Q1D; ++qz)
+      {
+         MFEM_FOREACH_THREAD_DIRECT(qy, y, Q1D)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
+            {
+               tensor<real_t, d, d> invJ, grad, sigma_w;
+               for (int i = 0; i < d; ++i)
+               {
+                  for (int j = 0; j < d; ++j)
+                  {
+                     invJ(i, j) = D(qx, qy, qz, i*d + j, e);
+                  }
+               }
+               for (int a = 0; a < d; ++a)
+               {
+                  for (int j = 0; j < d; ++j)
+                  {
+                     grad(a, j) = 0.0;
+                     for (int m = 0; m < d; ++m)
+                     {
+                        grad(a, j) += dU[a][m][qz][qy][qx]*invJ(m, j);
+                     }
+                  }
+               }
+               const real_t alpha = D(qx, qy, qz, d*d, e);
+               const real_t beta = D(qx, qy, qz, d*d + 1, e);
+               const real_t div_u = grad(0, 0) + grad(1, 1) + grad(2, 2);
+               for (int a = 0; a < d; ++a)
+               {
+                  for (int j = 0; j < d; ++j)
+                  {
+                     sigma_w(a, j) = beta*(grad(a, j) + grad(j, a));
+                     if (a == j) { sigma_w(a, j) += alpha*div_u; }
+                  }
+               }
+               for (int a = 0; a < d; ++a)
+               {
+                  for (int m = 0; m < d; ++m)
+                  {
+                     real_t flux = 0.0;
+                     for (int j = 0; j < d; ++j)
+                     {
+                        flux += invJ(m, j)*sigma_w(a, j);
+                     }
+                     dU[a][m][qz][qy][qx] = flux;
+                  }
+               }
+            }
+         }
+      }
+
+      // 3. Transposed contractions, accumulated per output component.
+      //    Contract3d<true> consumes the flux dU(a, m) and returns r0.
+      MFEM_UNROLL(3)
+      for (int a = 0; a < d; ++a)
+      {
+         MFEM_UNROLL(3)
+         for (int m = 0; m < d; ++m)
+         {
+            Contract3d<true>(D1D, Q1D, smem,
+                             m == 0 ? sG : sB,
+                             m == 1 ? sG : sB,
+                             m == 2 ? sG : sB,
+                             dU[a][m], r0);
+            for (int dz = 0; dz < D1D; ++dz)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+               {
+                  MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+                  {
+                     const real_t prev = (m == 0) ? 0.0 : r1[dz][dy][dx];
+                     r1[dz][dy][dx] = prev + r0[dz][dy][dx];
+                  }
+               }
+            }
+         }
+         for (int dz = 0; dz < D1D; ++dz)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)
+            {
+               MFEM_FOREACH_THREAD_DIRECT(dx, x, D1D)
+               {
+                  Y(dx, dy, dz, a, e) += r1[dz][dy][dx];
+               }
+            }
+         }
       }
    });
 }
