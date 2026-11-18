@@ -225,6 +225,7 @@ set(HDRS
   dfem/parameterspace.hpp
   dfem/qfunction_apply.hpp
   dfem/qfunction_transform.hpp
+  dfem/tensor_functions.hpp
   dfem/tuple.hpp
   dfem/util.hpp
   eltrans.hpp

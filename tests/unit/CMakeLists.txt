@@ -39,6 +39,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_divergence.cpp
   dfem/test_lvector_interface.cpp
   dfem/test_mass.cpp
+  dfem/test_tensor_functions.cpp
   dfem/test_tuple.cpp
   general/test_array.cpp
   general/test_backends.cpp
