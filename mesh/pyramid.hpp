@@ -75,6 +75,7 @@ public:
    virtual ~Pyramid() = default;
 };
 
+// Defined in fe.cpp to ensure construction before 'mfem::Geometries'.
 extern MFEM_EXPORT class LinearPyramidFiniteElement PyramidFE;
 
 }

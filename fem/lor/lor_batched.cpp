@@ -51,7 +51,11 @@ bool HasIntegrators(BilinearForm &a)
 bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
 {
    const FiniteElementCollection *fec = a.FESpace()->FEColl();
-   // TODO: check for maximum supported orders
+   // Batched LOR kernels are instantiated only up to order 5. Higher-order
+   // spaces are handled by the (order-independent) legacy assembly path in
+   // LORBase::LegacyAssembleSystem, so functionality is preserved while the
+   // CUDA compilation time is kept bounded.
+   if (a.FESpace()->GetMaxElementOrder() > 5) { return false; }
 
    // Batched LOR requires all tensor elements
    if (!UsesTensorBasis(*a.FESpace())) { return false; }
@@ -587,9 +591,6 @@ static void Assemble_(LOR_KERNEL &kernel, int dim, int sdim, int order)
       case 3: Assemble_<3>(kernel, dim, sdim); break;
       case 4: Assemble_<4>(kernel, dim, sdim); break;
       case 5: Assemble_<5>(kernel, dim, sdim); break;
-      case 6: Assemble_<6>(kernel, dim, sdim); break;
-      case 7: Assemble_<7>(kernel, dim, sdim); break;
-      case 8: Assemble_<8>(kernel, dim, sdim); break;
       default: MFEM_ABORT("No kernel order " << order << "!");
    }
 }

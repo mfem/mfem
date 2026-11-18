@@ -14,7 +14,7 @@ on:
   workflow_call:
 jobs:
   build-llvm-libcxx:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04  # can switch to 'ubuntu-latest' after 2026-11-19
     strategy:
       matrix:
         sanitizer: [asan-ubsan, msan]
@@ -34,7 +34,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{env.LLVM_DIR}}
-          key: build-libcxx-${{env.LLVM_VER}}-${{matrix.sanitizer}}
+          key: ${{env.IMAGE_OS}}-build-libcxx-${{env.CLANG_VER}}-${{env.LLVM_VER}}-${{matrix.sanitizer}}
       - name: Clone
         if: ${{ steps.cache.outputs.cache-hit != 'true' }}
         run: >
@@ -47,7 +47,7 @@ jobs:
         run: |
           git sparse-checkout set --cone
           git checkout llvmorg-${{env.LLVM_VER}}
-          git sparse-checkout set cmake llvm/cmake runtimes libcxx libcxxabi
+          git sparse-checkout set cmake llvm/cmake runtimes libc libcxx libcxxabi
       - name: Mkdir
         if: ${{ steps.cache.outputs.cache-hit != 'true' }}
         run: mkdir ${{env.LLVM_DIR}}
