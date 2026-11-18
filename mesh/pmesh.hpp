@@ -112,6 +112,9 @@ protected:
    // Determine sedge_ledge and sface_lface.
    void FinalizeParTopo();
 
+   /// The shared edges and faces of the new numbering (FinalizeParTopo()).
+   void UpdateDerivedTopology() override { FinalizeParTopo(); }
+
    /** As Mesh::UpdateNodes(); after a conforming refinement, the copies of a
        shared node then take the largest of their values over the ranks. */
    void UpdateNodes() override;
@@ -406,7 +409,10 @@ public:
 
    /** Finalize the mesh as Mesh::Finalize() does, with the same marking for
        refinement on all ranks: on a mesh with triangles or tetrahedra,
-       Finalize(true) is collective. */
+       Finalize(true) is collective. When the marking of simplices or the fixed
+       orientations may change the vertex orders of the elements, also delete
+       the face neighbor data, whose shared face orientations they change: the
+       spaces built before must then be built again. */
    void Finalize(bool refine = false, bool fix_orientation = false) override;
 
    void SetAttributes(bool elem_attrs_changed = true,
@@ -725,7 +731,8 @@ public:
    void GenerateBoundaryElements() override
    { MFEM_ABORT("Generation of boundary elements works properly only on serial meshes."); }
 
-   /// See the remarks for the serial version in mesh.hpp
+   /// See the remarks for the serial version in mesh.hpp. Also deletes the
+   /// face neighbor data, which the new vertex orders make out of date.
    MFEM_DEPRECATED void ReorientTetMesh() override;
 
    /// Utility function: sum integers from all processors (Allreduce).

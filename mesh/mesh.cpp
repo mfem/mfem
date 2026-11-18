@@ -3642,6 +3642,9 @@ void Mesh::DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert)
          CheckBdrElementOrientation();
       }
    }
+   // The space of the nodes is built on the topology derived from the edges
+   // and faces too (for a ParMesh, its shared edges and faces).
+   UpdateDerivedTopology();
    // To force FE space update, we need to increase 'sequence':
    sequence++;
    nodes_sequence++;
@@ -3914,6 +3917,13 @@ void Mesh::FinalizeTopology(bool generate_bdr)
    SetAttributes();
 }
 
+bool Mesh::FinalizeMayReorder(bool refine, bool fix_orientation) const
+{
+   return !NURBSext && !ncmesh &&
+          ((refine && Dim > 1 && (meshgen & 1)) ||
+           (fix_orientation && (Dim == 2 || (Dim == 3 && (meshgen & 1)))));
+}
+
 void Mesh::Finalize(bool refine, bool fix_orientation)
 {
    if (NURBSext || ncmesh)
@@ -3930,10 +3940,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
 
    const bool check_orientation = true; // for regular elements, not boundary
    const bool curved = (Nodes != NULL);
-   const bool may_change_topology =
-      ( refine && (Dim > 1 && (meshgen & 1)) ) ||
-      ( check_orientation && fix_orientation &&
-        (Dim == 2 || (Dim == 3 && (meshgen & 1))) );
+   const bool may_change_topology = FinalizeMayReorder(refine, fix_orientation);
 
    DSTable *old_v_to_v = NULL;
    Table *old_elem_vert = NULL;

@@ -425,6 +425,10 @@ protected:
    virtual void MarkTriMeshForRefinement(const DSTable &v_to_v);
    virtual void MarkTetMeshForRefinement(const DSTable &v_to_v);
 
+   /** Whether Finalize() with these arguments may change the vertex order of
+       elements: the marking of simplices, or fixed orientations. */
+   bool FinalizeMayReorder(bool refine, bool fix_orientation) const;
+
    // Methods used to prepare and apply permutation of the mesh nodes assuming
    // that the mesh elements may be rotated (e.g. to mark triangle or tet edges
    // for refinement) between the two calls - PrepareNodeReorder() and
@@ -432,6 +436,11 @@ protected:
    // updated after the element rotations.
    void PrepareNodeReorder(DSTable **old_v_to_v, Table **old_elem_vert);
    void DoNodeReorder(DSTable *old_v_to_v, Table *old_elem_vert);
+
+   /** Bring the data derived from the numbering of the edges and faces up to
+       date, after they are numbered again; called by DoNodeReorder() before
+       it updates the space of the nodes. Nothing to do for a serial mesh. */
+   virtual void UpdateDerivedTopology() { }
 
    STable3D *GetFacesTable();
    STable3D *GetElementToFaceTable(int ret_ftbl = 0);
@@ -1212,6 +1221,8 @@ public:
        space of the nodes (see UpdateNodes()). A ParMesh built from a Mesh has
        the positions of the Mesh, also after conforming refinements of both;
        positions set per rank, or moved after the ParMesh is built, may differ.
+       When the vertex orders may change, a ParMesh also deletes its face
+       neighbor data.
 
        Before calling this method, call FinalizeTopology() and ensure that the
        Mesh vertices or nodes are set. */

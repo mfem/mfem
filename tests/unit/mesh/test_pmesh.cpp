@@ -15,7 +15,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <exception>
 #include <functional>
+#include <limits>
+#include <memory>
 #include <vector>
 
 namespace mfem
@@ -477,6 +480,20 @@ real_t ConformityError(ParMesh &pmesh, const FiniteElementCollection &fec)
    return diff;
 }
 
+/// Check that ND and RT spaces of orders 1 and 2 are conforming.
+bool NDAndRTConforming(ParMesh &pmesh)
+{
+   real_t worst = 0.0;
+   for (int p = 1; p <= 2; p++)
+   {
+      ND_FECollection nd(p, 3);
+      RT_FECollection rt(p - 1, 3);
+      worst = std::max({worst, ConformityError(pmesh, nd),
+                        ConformityError(pmesh, rt)});
+   }
+   return worst < 1e-10;
+}
+
 /// Refine conformally the elements whose center is closer than r to p.
 void RefineNear(Mesh &mesh, const Vector &p, real_t r)
 {
@@ -643,6 +660,68 @@ real_t NodesAtVerticesGap(ParMesh &pmesh)
    return gap;
 }
 
+/// The largest distance between the points of the shared faces as mapped
+/// from their two sides, through the face neighbor data; infinity if these
+/// data do not describe the shared faces.
+real_t SharedFaceGap(ParMesh &pmesh)
+{
+   real_t gap = 0.0;
+   try
+   {
+      pmesh.ExchangeFaceNbrData();
+      Vector x1, x2;
+      for (int f = 0; f < pmesh.GetNSharedFaces(); f++)
+      {
+         FaceElementTransformations *T = pmesh.GetSharedFaceTransformations(f);
+         const IntegrationRule &ir = IntRules.Get(T->GetGeometryType(), 3);
+         for (int j = 0; j < ir.GetNPoints(); j++)
+         {
+            T->SetAllIntPoints(&ir.IntPoint(j));
+            T->Elem1->Transform(T->GetElement1IntPoint(), x1);
+            T->Elem2->Transform(T->GetElement2IntPoint(), x2);
+            gap = std::max(gap, x1.DistanceTo(x2));
+         }
+      }
+   }
+   catch (std::exception &)
+   {
+      gap = std::numeric_limits<real_t>::infinity();
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &gap, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                 pmesh.GetComm());
+   return gap;
+}
+
+/// The largest change of the nodes, and of a smooth field interpolated in the
+/// space of the nodes, when the values of their shared dofs are replaced by
+/// those of their owners: round-off if the space of the nodes is conforming.
+real_t NodalSpaceError(ParMesh &pmesh)
+{
+   ParGridFunction &nodes = *static_cast<ParGridFunction *>(pmesh.GetNodes());
+   ParFiniteElementSpace &fes = *nodes.ParFESpace();
+   VectorFunctionCoefficient u(3, [](const Vector &x, Vector &y)
+   {
+      y(0) = 1.0 + x(1)*x(2);
+      y(1) = 2.0 - x(0)*x(2);
+      y(2) = 3.0 + x(0)*x(1);
+   });
+   ParGridFunction field(&fes);
+   field.ProjectCoefficient(u);
+   real_t diff = 0.0;
+   for (ParGridFunction *x : {&nodes, &field})
+   {
+      Vector t(fes.GetTrueVSize());
+      x->GetTrueDofs(t);
+      ParGridFunction y(&fes);
+      y.SetFromTrueDofs(t);
+      y -= *x;
+      diff = std::max(diff, y.Normlinf());
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &diff, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                 pmesh.GetComm());
+   return diff;
+}
+
 } // namespace tet_marking
 
 TEST_CASE("ParMesh marks tetrahedra alike on all ranks",
@@ -677,6 +756,60 @@ TEST_CASE("ParMesh marks shared triangles from the lengths of their master",
    REQUIRE(tet_marking::SharedEntitiesAgree(pmesh));
    tet_marking::RefineLeftHalf(pmesh);
    CHECK(tet_marking::SharedEntitiesAgree(pmesh));
+}
+
+TEST_CASE("ParMesh marked again updates its face neighbors",
+          "[Parallel], [ParMesh]")
+{
+   // A Nedelec space of order 2 has the mesh exchange the data of its face
+   // neighbors, which include the orientations of the shared faces in the
+   // neighbor elements. Marking the tetrahedra again changes these
+   // orientations: the spaces built after it must not use the old ones.
+   Mesh serial = tet_marking::EquilateralPrisms(4);
+   ParMesh pmesh(MPI_COMM_WORLD, serial);
+   pmesh.UniformRefinement();
+   {
+      ND_FECollection nd(2, 3);
+      ParFiniteElementSpace fes(&pmesh, &nd);
+      fes.Dof_TrueDof_Matrix();
+   }
+   pmesh.Finalize(true);
+   CHECK(tet_marking::NDAndRTConforming(pmesh));
+}
+
+TEST_CASE("ParMesh finalized without a new marking keeps its face neighbors",
+          "[Parallel], [ParMesh]")
+{
+   // A DG form uses the face neighbor data of its space. Finalize() without a
+   // new marking or orientation fix keeps the vertex orders, and so must keep
+   // these data: the form assembled again gives the same matrix.
+   Mesh serial = Mesh::MakeCartesian3D(3, 3, 3, Element::TETRAHEDRON);
+   ParMesh pmesh(MPI_COMM_WORLD, serial);
+   L2_FECollection fec(1, 3);
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   auto Assemble = [&fes]()
+   {
+      ParBilinearForm a(&fes);
+      ConstantCoefficient one(1.0);
+      a.AddDomainIntegrator(new DiffusionIntegrator(one));
+      a.AddInteriorFaceIntegrator(new DGDiffusionIntegrator(one, -1.0, 2.0));
+      a.Assemble();
+      a.Finalize();
+      std::unique_ptr<HypreParMatrix> A(a.ParallelAssemble());
+      ParGridFunction u(&fes);
+      FunctionCoefficient f([](const Vector &p)
+      {
+         return p(0) + 2.0*p(1)*p(2);
+      });
+      u.ProjectCoefficient(f);
+      Vector U(A->Width()), V(A->Height());
+      u.GetTrueDofs(U);
+      A->Mult(U, V);
+      return InnerProduct(fes.GetComm(), V, V);
+   };
+   const real_t before = Assemble();
+   pmesh.Finalize();
+   CHECK(Assemble() == before);
 }
 
 TEST_CASE("ParMesh marks shared triangles alike when their vertices differ by "
@@ -1062,6 +1195,62 @@ TEST_CASE("ParMesh nodes refined with a matrix update operator",
    T->Mult(coarse, y);
    y -= *pmesh.GetNodes();
    CHECK(y.Normlinf() == 0.0);
+}
+
+TEST_CASE("ParMesh reoriented updates its face neighbors",
+          "[Parallel], [ParMesh]")
+{
+   // ReorientTetMesh() changes the vertex order of the tetrahedra and numbers
+   // the faces again. The face neighbor data exchanged before, here by a
+   // Nedelec space of order 3, must not be used after it: new Nedelec and
+   // Raviart-Thomas spaces are conforming, and the transformations of the
+   // shared faces map their points to the same places from both sides.
+   Mesh serial = tet_marking::EquilateralPrisms(4);
+   ParMesh pmesh(MPI_COMM_WORLD, serial);
+   pmesh.UniformRefinement();
+   {
+      ND_FECollection nd(3, 3);
+      ParFiniteElementSpace fes(&pmesh, &nd);
+      fes.Dof_TrueDof_Matrix();
+   }
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+   pmesh.ReorientTetMesh();
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic pop
+#endif
+   CHECK(tet_marking::NDAndRTConforming(pmesh));
+   CHECK(tet_marking::SharedFaceGap(pmesh) < 1e-12);
+}
+
+TEST_CASE("ParMesh marked again keeps the space of its nodes conforming",
+          "[Parallel], [ParMesh]")
+{
+   // A new marking, and a reorientation, number the edges and faces again and
+   // rebuild the space of the nodes: it must be built with the shared edges
+   // and faces of the new numbering. With nodes of orders 2 to 4, the nodes
+   // and a field interpolated in their space equal their restriction to the
+   // true dofs prolongated back, after a uniform refinement and a new marking,
+   // and after a reorientation.
+   const int order = GENERATE(2, 3, 4);
+   INFO("nodes of order " << order);
+   Mesh serial = tet_marking::TetMesh(true, 0.0, order, false);
+   ParMesh pmesh(MPI_COMM_WORLD, serial);
+   serial.Clear();
+   pmesh.UniformRefinement();
+   pmesh.Finalize(true);
+   CHECK(tet_marking::NodalSpaceError(pmesh) < 1e-12);
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+   pmesh.ReorientTetMesh();
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic pop
+#endif
+   CHECK(tet_marking::NodalSpaceError(pmesh) < 1e-12);
 }
 
 #endif // MFEM_USE_MPI

@@ -1533,6 +1533,7 @@ ParMesh ParMesh::MakeSimplicial(ParMesh &orig_mesh)
 void ParMesh::Finalize(bool refine, bool fix_orientation)
 {
    const int meshgen_save = meshgen; // Mesh::Finalize() may call SetMeshGen()
+   const bool may_reorder = FinalizeMayReorder(refine, fix_orientation);
    // 'mesh_geoms' is local, so there's no need to save and restore it.
 
    Mesh::Finalize(refine, fix_orientation);
@@ -1543,6 +1544,11 @@ void ParMesh::Finalize(bool refine, bool fix_orientation)
 
    // Setup secondary parallel mesh data: sedge_ledge, sface_lface
    FinalizeParTopo();
+
+   // The marking, or the fixed orientations, may have changed the vertex order
+   // of the elements, and with it the orientations of the shared faces in the
+   // face neighbor data. Otherwise the data, which spaces keep using, stay.
+   if (may_reorder) { DeleteFaceNbrData(); }
 }
 
 int ParMesh::GetLocalElementNum(long long global_element_num) const
@@ -3430,6 +3436,10 @@ void ParMesh::ReorientTetMesh()
    // the local edge and face numbering is changed therefore we need to
    // update sedge_ledge and sface_lface.
    FinalizeParTopo();
+
+   // The new vertex orders change the orientations of the shared faces in the
+   // face neighbor data, and the faces are numbered again.
+   DeleteFaceNbrData();
 }
 
 void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)

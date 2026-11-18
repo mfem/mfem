@@ -68,6 +68,10 @@ Meshing improvements
   takes the componentwise largest of their values: in one build, the same for
   any partition and any renumbering that keeps the elements' vertex lists.
 
+- ParMesh::Finalize, when it may change vertex orders, and ReorientTetMesh now
+  delete the face neighbor data and rebuild the nodal space on the renumbered
+  shared entities.
+
 Linear and nonlinear solvers
 ----------------------------
 - Fixed the AmgX resource shared by the AmgXSolver instances, which used the
