@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -15,6 +15,7 @@ namespace ker = mfem::kernels::internal;
 
 #include "../../util.hpp" // for ThreadBlocks
 #include "util.hpp"
+#include "kernels_lo.hpp" // for the 1D backend
 
 namespace mfem::future
 {
@@ -73,7 +74,7 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
    if constexpr (DIM == 2)
    {
       MFEM_CONTRACT_VAR(qz);
-      if constexpr (RNK == 0) { return T{ reg(0, qy, qx) }; }
+      if constexpr (RNK == 0) { T t{}; t = reg(0, qy, qx); return t; }
       else if constexpr (RNK == 1)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
@@ -119,7 +120,7 @@ MFEM_HOST_DEVICE inline auto load_at(Reg &reg, int qx, int qy, int qz)
    }
    else
    {
-      if constexpr (RNK == 0) { return T{ reg(0, qz, qy, qx) }; }
+      if constexpr (RNK == 0) { T t{}; t = reg(0, qz, qy, qx); return t; }
       else if constexpr (RNK == 1)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
@@ -195,7 +196,7 @@ store_at(Reg &reg, int qx, int qy, int qz, const T &out)
             reg(dd, qy, qx) = qp_store<tangent>(out(dd));
          }
       }
-      else
+      else if constexpr (RNK == 2)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
          constexpr int e1 = qf_param_shape<T>::extents[1];
@@ -206,6 +207,25 @@ store_at(Reg &reg, int qx, int qy, int qz, const T &out)
             for (int j = 0; j < e1; ++j)
             {
                reg(i, j, qy, qx) = qp_store<tangent>(out(i, j));
+            }
+         }
+      }
+      else
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         constexpr int e2 = qf_param_shape<T>::extents[2];
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j)
+            {
+               MFEM_UNROLL(e2)
+               for (int k = 0; k < e2; ++k)
+               {
+                  reg(i, j, k, qy, qx) = qp_store<tangent>(out(i, j, k));
+               }
             }
          }
       }
@@ -222,7 +242,7 @@ store_at(Reg &reg, int qx, int qy, int qz, const T &out)
             reg(dd, qz, qy, qx) = qp_store<tangent>(out(dd));
          }
       }
-      else
+      else if constexpr (RNK == 2)
       {
          constexpr int e0 = qf_param_shape<T>::extents[0];
          constexpr int e1 = qf_param_shape<T>::extents[1];
@@ -233,6 +253,25 @@ store_at(Reg &reg, int qx, int qy, int qz, const T &out)
             for (int j = 0; j < e1; ++j)
             {
                reg(i, j, qz, qy, qx) = qp_store<tangent>(out(i, j));
+            }
+         }
+      }
+      else
+      {
+         constexpr int e0 = qf_param_shape<T>::extents[0];
+         constexpr int e1 = qf_param_shape<T>::extents[1];
+         constexpr int e2 = qf_param_shape<T>::extents[2];
+         MFEM_UNROLL(e0)
+         for (int i = 0; i < e0; ++i)
+         {
+            MFEM_UNROLL(e1)
+            for (int j = 0; j < e1; ++j)
+            {
+               MFEM_UNROLL(e2)
+               for (int k = 0; k < e2; ++k)
+               {
+                  reg(i, j, k, qz, qy, qx) = qp_store<tangent>(out(i, j, k));
+               }
             }
          }
       }
@@ -335,12 +374,12 @@ struct ho_ker_backend
    static_assert(DIM == 2 || DIM == 3);
 
    template<int VDIM>
-   using val_reg_t = std::conditional_t<(DIM == 2),
+   using val_reg_t = pick_byDIM<DIM, void,
          ker::v_regs2d_t<VDIM, MQ1>,
          ker::v_regs3d_t<VDIM, MQ1>>;
 
    template<int VDIM, int SDIM>
-   using del_reg_t = std::conditional_t<(DIM == 2),
+   using del_reg_t = pick_byDIM<DIM, void,
          ker::vd_regs2d_t<VDIM, SDIM, MQ1>,
          ker::vd_regs3d_t<VDIM, SDIM, MQ1>>;
 
@@ -491,6 +530,70 @@ struct ho_ker_backend
          write_gradient_3d(d, q, e, s, rarg, dofs, YE);
       }
    }
+
+   template<int SDIM, typename Smem, typename ArgReg, typename YE_t>
+   static MFEM_HOST_DEVICE void write_hessian_2d(const int d,
+                                                 const int q,
+                                                 const int e,
+                                                 const int c,
+                                                 Smem &s,
+                                                 ArgReg &rarg,
+                                                 YE_t &YE)
+   {
+      ker::vd_regs2d_t<SDIM, SDIM, MQ1> dofs;
+      ker::HessTranspose2d<SDIM, MQ1>(
+         d, q, s.M, s.B, s.G, s.H, rarg, dofs);
+      for (int i = 0; i < SDIM; ++i)
+      {
+         ker::WriteDofs2d(e, d, i, c, dofs, YE);
+      }
+   }
+
+   template<int SDIM, typename Smem, typename ArgReg, typename YE_t>
+   static MFEM_HOST_DEVICE void write_hessian_3d(const int d,
+                                                 const int q,
+                                                 const int e,
+                                                 const int c,
+                                                 Smem &s,
+                                                 ArgReg &rarg,
+                                                 YE_t &YE)
+   {
+      ker::vd_regs3d_t<SDIM, SDIM, MQ1> dofs;
+      ker::HessTranspose3d<SDIM, MQ1>(
+         d, q, s.M, s.B, s.G, s.H, rarg, dofs);
+      for (int i = 0; i < SDIM; ++i)
+      {
+         ker::WriteDofs3d(e, d, i, c, dofs, YE);
+      }
+   }
+
+   template<int RNK, int VDIM, int SDIM,
+            typename Smem, typename ArgReg, typename YE_t>
+   static MFEM_HOST_DEVICE void write_hessian(const int d,
+                                              const int q,
+                                              const int e,
+                                              Smem &s,
+                                              ArgReg &rarg,
+                                              YE_t &YE)
+   {
+      static_assert(SDIM == DIM, "hessian spatial dim must match kernel DIM");
+      for (int c = 0; c < VDIM; ++c)
+      {
+         auto &component = [&]() -> auto &
+         {
+            if constexpr (RNK == 2) { return rarg; }
+            else { return rarg[c]; }
+         }();
+         if constexpr (DIM == 2)
+         {
+            write_hessian_2d<SDIM>(d, q, e, c, s, component, YE);
+         }
+         else
+         {
+            write_hessian_3d<SDIM>(d, q, e, c, s, component, YE);
+         }
+      }
+   }
 };
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -502,9 +605,14 @@ struct LocalQFHOBackend
    static_assert(DIM == 2 || DIM == 3);
 
    // ─────────────────────────────────────────────────────
-   static inline ThreadBlocks thread_blocks(const int q1d)
+   static constexpr int BATCH = 1;
+
+   // ─────────────────────────────────────────────────────
+   static inline ThreadBlocks thread_blocks(const int q1d, const int batch = 1)
    {
       MFEM_ASSERT(q1d <= Q1D, "q1d must be <= " << Q1D);
+      MFEM_ASSERT(batch == 1, "HO blocks hold a single entity");
+      MFEM_CONTRACT_VAR(batch);
       return { q1d, q1d, 1 };
    }
 
@@ -825,6 +933,26 @@ struct LocalQFHOBackend
                }
             }
          }
+         else if constexpr (RNK == 3)
+         {
+            constexpr int e0 = qf_param_shape<DT>::extents[0];
+            constexpr int e1 = qf_param_shape<DT>::extents[1];
+            constexpr int e2 = qf_param_shape<DT>::extents[2];
+            MFEM_UNROLL(e0)
+            for (int i = 0; i < e0; ++i)
+            {
+               MFEM_UNROLL(e1)
+               for (int j = 0; j < e1; ++j)
+               {
+                  MFEM_UNROLL(e2)
+                  for (int k = 0; k < e2; ++k)
+                  {
+                     YE(i + e0 * (j + e1 * k), qx, qy, qz, e) =
+                        qf_store_value(qout(i, j, k));
+                  }
+               }
+            }
+         }
          else
          {
             static_assert(false, "Unsupported");
@@ -864,6 +992,26 @@ struct LocalQFHOBackend
                for (int j = 0; j < e1; ++j)
                {
                   YE(i + e0 * j, qx, qy, qz, e) = qf_store_gradient(qout(i, j));
+               }
+            }
+         }
+         else if constexpr (RNK == 3)
+         {
+            constexpr int e0 = qf_param_shape<DT>::extents[0];
+            constexpr int e1 = qf_param_shape<DT>::extents[1];
+            constexpr int e2 = qf_param_shape<DT>::extents[2];
+            MFEM_UNROLL(e0)
+            for (int i = 0; i < e0; ++i)
+            {
+               MFEM_UNROLL(e1)
+               for (int j = 0; j < e1; ++j)
+               {
+                  MFEM_UNROLL(e2)
+                  for (int k = 0; k < e2; ++k)
+                  {
+                     YE(i + e0 * (j + e1 * k), qx, qy, qz, e) =
+                        qf_store_gradient(qout(i, j, k));
+                  }
                }
             }
          }
@@ -920,7 +1068,47 @@ struct LocalQFHOBackend
             d, q, e, s, rarg, dofs, YE);
       }
    }
+
+   // ─────────────────────────────────────────────────────
+   template<int RNK,
+            typename ArgRegT,
+            typename YE_T,
+            typename FieldParamT = ArgRegT>
+   static inline MFEM_HOST_DEVICE void WriteHessian(Shared &s,
+                                                    const int e,
+                                                    const int d,
+                                                    const int q,
+                                                    const int,
+                                                    const real_t *B,
+                                                    const real_t *G,
+                                                    const real_t *H,
+                                                    YE_T &YE,
+                                                    ArgRegT &rarg)
+   {
+      static_assert(RNK == 2 || RNK == 3,
+                    "Hessian output requires a rank-2 scalar-field tensor or "
+                    "rank-3 vector-field tensor");
+      ker::LoadMatrix(d, q, B, s.B);
+      ker::LoadMatrix(d, q, G, s.G);
+      ker::LoadMatrix(d, q, H, s.H);
+      static constexpr int SDIM = (RNK == 2)
+                                  ? qf_param_shape<FieldParamT>::extents[0]
+                                  : qf_param_shape<FieldParamT>::extents[1];
+      static constexpr int VDIM = (RNK == 2)
+                                  ? 1 : qf_param_shape<FieldParamT>::extents[0];
+      static_assert(qf_param_shape<FieldParamT>::extents[RNK - 1] == SDIM,
+                    "Hessian trailing q-function parameter dimensions must match");
+      if constexpr (SDIM == DIM)
+      {
+         backend_t::template write_hessian<RNK, VDIM, SDIM>(
+            d, q, e, s, rarg, YE);
+      }
+   }
 };
+
+/// In 1D the LO and HO layouts coincide (one quadrature point per thread).
+template<int Q1D>
+struct LocalQFHOBackend<1, Q1D> : LocalQFLOBackend<1, Q1D> {};
 
 /// @brief Dispatch to a compile-time HO kernel with MQ1 >= runtime @a q1d.
 template <typename HOKernelTable, int DIM, int MQ1 = LocalQFHOBackendMQ1()>
@@ -929,18 +1117,23 @@ DispatchHOKernelByQ1D(int q1d)
 {
    MFEM_VERIFY(q1d >= 2 && q1d <= MQ1,
                "Unsupported HO quadrature order: " << q1d);
-   if (q1d <= 8) { return HOKernelTable::template Kernel<DIM, 8>(); }
-   if constexpr (MQ1 > 8)
+   // 1D: one point per thread, a single kernel serves every q1d <= MQ1
+   if constexpr (DIM == 1) { return HOKernelTable::template Kernel<1, MQ1>(); }
+   else
    {
-      if (q1d <= 10) { return HOKernelTable::template Kernel<DIM, 10>(); }
-   }
-   if constexpr (MQ1 > 10)
-   {
-      if (q1d <= 12) { return HOKernelTable::template Kernel<DIM, 12>(); }
-   }
-   if constexpr (MQ1 > 12)
-   {
-      return HOKernelTable::template Kernel<DIM, 16>();
+      if (q1d <= 8) { return HOKernelTable::template Kernel<DIM, 8>(); }
+      if constexpr (MQ1 > 8)
+      {
+         if (q1d <= 10) { return HOKernelTable::template Kernel<DIM, 10>(); }
+      }
+      if constexpr (MQ1 > 10)
+      {
+         if (q1d <= 12) { return HOKernelTable::template Kernel<DIM, 12>(); }
+      }
+      if constexpr (MQ1 > 12)
+      {
+         return HOKernelTable::template Kernel<DIM, 16>();
+      }
    }
    return nullptr;
 }
@@ -949,13 +1142,13 @@ DispatchHOKernelByQ1D(int q1d)
 ///
 /// QFDIM is deduced at compile-time from the q-function signature.
 /// If it is not possible to deduce the dimension (QFDIM=0), we fallback
-/// to the original runtime dispatching, which means we emit both 2D and 3D
+/// to the original runtime dispatching, which means we emit the 1D, 2D and 3D
 /// branches.
 template <typename HOKernelTable, int QFDIM, int MQ1 = LocalQFHOBackendMQ1()>
 inline typename HOKernelTable::KernelSignature
 DispatchHOKernelByDim(int dim, int q1d)
 {
-   if constexpr (QFDIM == 2 || QFDIM == 3)
+   if constexpr (QFDIM >= 1 && QFDIM <= 3)
    {
       MFEM_VERIFY(dim == QFDIM,
                   "mesh dimension " << dim << " does not match the " << QFDIM
@@ -966,6 +1159,10 @@ DispatchHOKernelByDim(int dim, int q1d)
    {
       // Couldn't deduce the dimension from the q-function signature,
       // we fall back to original runtime dispatching.
+      if (dim == 1)
+      {
+         return DispatchHOKernelByQ1D<HOKernelTable, 1, MQ1>(q1d);
+      }
       if (dim == 2)
       {
          return DispatchHOKernelByQ1D<HOKernelTable, 2, MQ1>(q1d);

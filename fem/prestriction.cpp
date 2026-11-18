@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -49,6 +49,13 @@ void ParNCH1FaceRestriction::Mult(const Vector &x, Vector &y) const
 {
    H1FaceRestriction::Mult(x, y);
    NonconformingInterpolation(y);
+}
+
+EntityDofMap ParNCH1FaceRestriction::GetEntityDofMap() const
+{
+   MFEM_VERIFY(type == FaceType::Boundary,
+               "the interior faces of a nonconforming mesh are interpolated");
+   return H1FaceRestriction::GetEntityDofMap();
 }
 
 void ParNCH1FaceRestriction::NonconformingInterpolation(Vector& y) const

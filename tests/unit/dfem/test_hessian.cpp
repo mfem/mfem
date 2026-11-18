@@ -21,6 +21,14 @@
 using namespace mfem;
 using namespace mfem::future;
 
+
+#ifdef MFEM_USE_ENZYME
+using dscalar_t = real_t;
+#else
+using mfem::future::dual;
+using dscalar_t = dual<real_t, real_t>;
+#endif // MFEM_USE_MPI
+
 // ────────────────────────────────────────────────────────────────────────────
 // Reference Hessian of a scalar H1 field, and the pullback to physical space.
 //
@@ -43,9 +51,9 @@ template <int DIM>
 struct affine_hessian_qf
 {
    MFEM_HOST_DEVICE inline void operator()(
-      const tensor<real_t, DIM, DIM> &dduxi,
-      const tensor<real_t, DIM, DIM> &J,
-      tensor<real_t, DIM, DIM> &out) const
+      const tensor<dscalar_t, DIM, DIM> &dduxi,
+      const tensor<dscalar_t, DIM, DIM> &J,
+      tensor<dscalar_t, DIM, DIM> &out) const
    {
       const auto K = inv(J);
       out = transpose(K) * dduxi * K;
@@ -60,11 +68,11 @@ template <int DIM>
 struct hessian_qf
 {
    MFEM_HOST_DEVICE inline void operator()(
-      const tensor<real_t, DIM, DIM> &dduxi,
-      const tensor<real_t, DIM> &duxi,
-      const tensor<real_t, DIM, DIM> &J,
-      const tensor<real_t, DIM, DIM, DIM> &ddx,
-      tensor<real_t, DIM, DIM> &out) const
+      const tensor<dscalar_t, DIM, DIM> &dduxi,
+      const tensor<dscalar_t, DIM> &duxi,
+      const tensor<dscalar_t, DIM, DIM> &J,
+      const tensor<dscalar_t, DIM, DIM, DIM> &ddx,
+      tensor<dscalar_t, DIM, DIM> &out) const
    {
       const auto K = inv(J);
       const auto Kt = transpose(K);
@@ -72,6 +80,37 @@ struct hessian_qf
       // dot contracts the first index: (g . ddx)_ab = sum_c g_c ddx_cab.
       const auto M = dduxi - dot(g, ddx);
       out = Kt * M * K;
+   }
+};
+
+/// Linear q-function used to test Hessian output integration.
+///
+/// At each quadrature point, a scalar field value u is mapped to the symmetric tensor
+///
+///   A_ij(u) = (i + 1) (j + 1) u.
+///
+/// which is then contracted with the Hessian of the test function,
+/// since we requested Hessian<U> as an output:
+///
+///   y = sum_ij H_ij^T A_ij(u),
+///
+/// where H_ii uses a second-derivative matrix in direction i and value
+/// matrices in the other directions, while H_ij for i != j uses first-
+/// derivative matrices in directions i and j.
+template <int DIM>
+struct hessian_output_qf
+{
+   MFEM_HOST_DEVICE inline void operator()(
+      const dscalar_t &value,
+      tensor<dscalar_t, DIM, DIM> &ddu) const
+   {
+      for (int i = 0; i < DIM; i++)
+      {
+         for (int j = 0; j < DIM; j++)
+         {
+            ddu(i, j) = (i + 1) * (j + 1) * value;
+         }
+      }
    }
 };
 
@@ -94,8 +133,7 @@ inline void SymIndex(int dim, int k, int &i, int &j)
    }
 }
 
-/// @brief Host reference: the physical Hessian of @a u at every quadrature
-/// point of every element, via FiniteElement::CalcPhysHessian.
+/// Physical Hessian of @a u at every quadrature point of every element, via FiniteElement::CalcPhysHessian.
 ///
 /// Returned as (dim*dim, nqp, ne) with the (i,j) entry at i + dim*j. This works
 /// in the element's own dof ordering and never touches the E-vector layout the
@@ -159,13 +197,323 @@ inline real_t MaxAbsDiff(const Vector &a, const Vector &b, MPI_Comm comm)
    return global;
 }
 
+template <int DIM>
+void hessian_derivative_action(const char *filename, int p)
+{
+   Mesh smesh(filename);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+   smesh.Clear();
+
+   Array<int> all_domain_attr(pmesh.attributes.Max());
+   all_domain_attr = 1;
+   H1_FECollection fec(p, DIM);
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
+
+   static constexpr int U = 0;
+   DifferentiableOperator dop({{U, &fes}}, {{U, &fes}}, pmesh);
+   hessian_output_qf<DIM> qf;
+   constexpr auto kernels = DerivativeKernels::Action |
+                            DerivativeKernels::Apply |
+                            DerivativeKernels::ApplyTranspose;
+   dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+      qf, Inputs<Value<U>> {}, Outputs<Hessian<U>> {},
+      *ir, all_domain_attr, Derivatives<U> {});
+
+   Vector x(fes.GetTrueVSize()), y_primal(fes.GetTrueVSize());
+   Vector y_action(fes.GetTrueVSize()), y_apply(fes.GetTrueVSize());
+   Vector y_transpose(fes.GetTrueVSize());
+   x.Randomize(1);
+   MultiVector X{x};
+   // false: matrix-free derivative action, true: cached derivative apply.
+   auto action_derivative = dop.GetDerivative(U, X, false);
+   auto cached_derivative = dop.GetDerivative(U, X, true);
+
+   Vector direction(fes.GetTrueVSize());
+   direction.Randomize(2);
+   MultiVector action_output{y_action};
+   action_derivative->Mult(direction, action_output);
+
+   MultiVector apply_output{y_apply};
+   cached_derivative->Mult(direction, apply_output);
+
+   Vector cotangent(fes.GetTrueVSize());
+   cotangent.Randomize(3);
+   MultiVector cotangent_input{cotangent};
+   MultiVector transpose_output{y_transpose};
+   cached_derivative->MultTranspose(cotangent_input, transpose_output);
+
+   // The q-function is linear, so the derivative action in a direction is the
+   // primal action applied to that direction.
+   MultiVector direction_input{direction};
+   MultiVector primal_output{y_primal};
+   dop.Mult(direction_input, primal_output);
+   REQUIRE(MaxAbsDiff(y_primal, y_action, pmesh.GetComm()) ==
+           MFEM_Approx(0.0).margin(1e-11));
+   REQUIRE(MaxAbsDiff(y_action, y_apply, pmesh.GetComm()) ==
+           MFEM_Approx(0.0).margin(1e-11));
+   REQUIRE(InnerProduct(pmesh.GetComm(), cotangent, y_apply) ==
+           MFEM_Approx(InnerProduct(pmesh.GetComm(), y_transpose, direction)));
+}
+
+/// Comparison bw assembled and MF hessian
+template <int DIM>
+void hessian_assemble(const char *filename, int p)
+{
+   Mesh smesh(filename);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+   smesh.Clear();
+
+   Array<int> all_domain_attr(pmesh.attributes.Max());
+   all_domain_attr = 1;
+   H1_FECollection fec(p, DIM);
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
+
+   static constexpr int U = 0;
+   DifferentiableOperator dop({{U, &fes}}, {{U, &fes}}, pmesh);
+   hessian_output_qf<DIM> qf;
+   constexpr auto kernels = DerivativeKernels::Action |
+                            DerivativeKernels::AssembleMatrix |
+                            DerivativeKernels::AssembleDiagonal;
+   dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+      qf, Inputs<Value<U>> {}, Outputs<Hessian<U>> {},
+      *ir, all_domain_attr, Derivatives<U> {});
+
+   Vector x(fes.GetTrueVSize());
+   x.Randomize(1);
+   MultiVector X{x};
+   auto derivative = dop.GetDerivative(U, X);
+
+   HypreParMatrix *A = nullptr;
+   derivative->Assemble(A);
+
+   Vector direction(fes.GetTrueVSize());
+   direction.Randomize(2);
+   Vector y_action(fes.GetTrueVSize()), y_assembled(fes.GetTrueVSize());
+   MultiVector action_output{y_action};
+   derivative->Mult(direction, action_output);
+   A->Mult(direction, y_assembled);
+   REQUIRE(MaxAbsDiff(y_action, y_assembled, pmesh.GetComm()) ==
+           MFEM_Approx(0.0).margin(1e-10));
+
+   // The separately assembled diagonal must agree with the matrix's own.
+   Vector diag(fes.GetTrueVSize()), ref_diag(fes.GetTrueVSize());
+   derivative->AssembleDiagonal(U, diag);
+   A->GetDiag(ref_diag);
+   REQUIRE(MaxAbsDiff(diag, ref_diag, pmesh.GetComm()) ==
+           MFEM_Approx(0.0).margin(1e-10));
+
+   delete A;
+}
+
+/// Integrand of the right-hand side of the adjoint identity: the reference
+/// Hessian of v contracted, entry by entry, with A_ij(u) = (i+1)(j+1) u.
+template <int DIM>
+struct hessian_adjoint_qf
+{
+   MFEM_HOST_DEVICE inline void operator()(
+      const tensor<dscalar_t, DIM, DIM> &ddv,
+      const dscalar_t &u,
+      tensor<dscalar_t, DIM, DIM> &out) const
+   {
+      for (int i = 0; i < DIM; i++)
+      {
+         for (int j = 0; j < DIM; j++)
+         {
+            out(i, j) = (i + 1) * (j + 1) * u * ddv(i, j);
+         }
+      }
+   }
+};
+
+/// Check Hessian-as-output against Hessian-as-input.
+/// Similar to jvp-vjp test, check that adjoint identity ios satisfied:
+///
+///   <v, F^T A(u)>  =  sum_e sum_q sum_ij  Hess(v)_ij(q) A_ij(q),
+///
+/// Left is output path, right is input path.
+template <int DIM>
+void hessian_output_adjoint(const char *filename, int p)
+{
+   Mesh smesh(filename);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+   MFEM_VERIFY(pmesh.Dimension() == DIM, "Mesh dimension mismatch");
+   smesh.Clear();
+
+   Array<int> all_domain_attr(pmesh.attributes.Max());
+   all_domain_attr = 1;
+   H1_FECollection fec(p, DIM);
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
+
+   Vector u(fes.GetTrueVSize()), v(fes.GetTrueVSize());
+   u.Randomize(1);
+   v.Randomize(2);
+
+   // Left: y = F^T A(u) through the Hessian output path.
+   real_t lhs = 0.0;
+   {
+      // U --> Hessian<U>
+      static constexpr int U = 0;
+      DifferentiableOperator dop({{U, &fes}}, {{U, &fes}}, pmesh);
+      hessian_output_qf<DIM> qf;
+      const auto kernels = DerivativeKernels::None; // Primal action only
+      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+         qf, Inputs<Value<U>> {}, Outputs<Hessian<U>> {},
+         *ir, all_domain_attr);
+      Vector y(fes.GetTrueVSize());
+      y = 0.0;
+      MultiVector X{u}, Y{y};
+      dop.Mult(X, Y);
+      lhs = InnerProduct(pmesh.GetComm(), v, y);
+   }
+
+   // Right: same sum but built from the Hessian input path.
+   real_t rhs = 0.0;
+   {
+      static constexpr int V = 0, U = 1, QData = 2;
+      QuadratureSpace qspace(pmesh, *ir);
+      VectorQuadratureSpace qspace_vec(qspace, DIM * DIM);
+      QuadratureFunction qd(qspace_vec);
+      qd = 0.0;
+
+      // Hessian<U>, U --> Identity
+      DifferentiableOperator dop({{V, &fes}, {U, &fes}},
+      {{QData, &qspace_vec}}, pmesh);
+      hessian_adjoint_qf<DIM> qf;
+      const auto kernels = DerivativeKernels::None; // Primal action only
+      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+         qf, Inputs<Hessian<V>, Value<U>> {}, Outputs<Identity<QData>> {},
+         *ir, all_domain_attr);
+      MultiVector X{v, u}, Y{qd};
+      dop.Mult(X, Y);
+
+      const real_t local = qd.Sum();
+      MPI_Allreduce(&local, &rhs, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                    pmesh.GetComm());
+   }
+
+   const real_t scale = std::max(std::abs(rhs), real_t(1.0));
+   REQUIRE(std::abs(lhs - rhs) / scale == MFEM_Approx(0.0).margin(1e-11));
+}
+
+/// Vector twin of hessian_output_qf, for a VDIM-component field:
+///
+///   A_cij(u) = (c + 1) (i + 1) (j + 1) u_c.
+template <int DIM, int VDIM>
+struct vector_hessian_output_qf
+{
+   MFEM_HOST_DEVICE inline void operator()(
+      const tensor<dscalar_t, VDIM> &value,
+      tensor<dscalar_t, VDIM, DIM, DIM> &ddu) const
+   {
+      for (int c = 0; c < VDIM; c++)
+      {
+         for (int i = 0; i < DIM; i++)
+         {
+            for (int j = 0; j < DIM; j++)
+            {
+               ddu(c, i, j) = (c + 1) * (i + 1) * (j + 1) * value(c);
+            }
+         }
+      }
+   }
+};
+
+/// Integrand of the right-hand side of the vector adjoint identity.
+template <int DIM, int VDIM>
+struct vector_hessian_adjoint_qf
+{
+   MFEM_HOST_DEVICE inline void operator()(
+      const tensor<dscalar_t, VDIM, DIM, DIM> &ddv,
+      const tensor<dscalar_t, VDIM> &u,
+      tensor<dscalar_t, VDIM, DIM, DIM> &out) const
+   {
+      for (int c = 0; c < VDIM; c++)
+      {
+         for (int i = 0; i < DIM; i++)
+         {
+            for (int j = 0; j < DIM; j++)
+            {
+               out(c, i, j) = (c + 1) * (i + 1) * (j + 1) * u(c) * ddv(c, i, j);
+            }
+         }
+      }
+   }
+};
+
+/// Same test as above but for a vector field.
+template <int DIM, int VDIM>
+void hessian_vector_output_adjoint(const char *filename, int p)
+{
+   Mesh smesh(filename);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+   MFEM_VERIFY(pmesh.Dimension() == DIM, "Mesh dimension mismatch");
+   smesh.Clear();
+
+   Array<int> all_domain_attr(pmesh.attributes.Max());
+   all_domain_attr = 1;
+   H1_FECollection fec(p, DIM);
+   ParFiniteElementSpace vfes(&pmesh, &fec, VDIM);
+   const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
+
+   Vector u(vfes.GetTrueVSize()), v(vfes.GetTrueVSize());
+   u.Randomize(1);
+   v.Randomize(2);
+
+   // Left: y = F^T A(u) through the vector Hessian output path.
+   real_t lhs = 0.0;
+   {
+      // W --> Hessian<W>
+      static constexpr int W = 0;
+      DifferentiableOperator dop({{W, &vfes}}, {{W, &vfes}}, pmesh);
+      vector_hessian_output_qf<DIM, VDIM> qf;
+      const auto kernels = DerivativeKernels::None; // Primal action only
+      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+         qf, Inputs<Value<W>> {}, Outputs<Hessian<W>> {},
+         *ir, all_domain_attr);
+      Vector y(vfes.GetTrueVSize());
+      y = 0.0;
+      MultiVector X{u}, Y{y};
+      dop.Mult(X, Y);
+      lhs = InnerProduct(pmesh.GetComm(), v, y);
+   }
+
+   // Right: same sum but built from the vector Hessian input path.
+   real_t rhs = 0.0;
+   {
+      static constexpr int V = 0, U = 1, QData = 2;
+      QuadratureSpace qspace(pmesh, *ir);
+      VectorQuadratureSpace qspace_vec(qspace, VDIM * DIM * DIM);
+      QuadratureFunction qd(qspace_vec);
+      qd = 0.0;
+
+      // Hessian<W>, W --> Identity
+      DifferentiableOperator dop({{V, &vfes}, {U, &vfes}},
+      {{QData, &qspace_vec}}, pmesh);
+      vector_hessian_adjoint_qf<DIM, VDIM> qf;
+      const auto kernels = DerivativeKernels::None; // Primal action only
+      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
+         qf, Inputs<Hessian<V>, Value<U>> {}, Outputs<Identity<QData>> {},
+         *ir, all_domain_attr);
+      MultiVector X{v, u}, Y{qd};
+      dop.Mult(X, Y);
+
+      const real_t local = qd.Sum();
+      MPI_Allreduce(&local, &rhs, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                    pmesh.GetComm());
+   }
+
+   const real_t scale = std::max(std::abs(rhs), real_t(1.0));
+   REQUIRE(std::abs(lhs - rhs) / scale == MFEM_Approx(0.0).margin(1e-11));
+}
+
+
 // ────────────────────────────────────────────────────────────────────────────
-/// @brief Compare the dFEM Hessian pullback against CalcPhysHessian.
+/// Compare the dFEM Hessian pullback against CalcPhysHessian.
 ///
 /// @param affine_qf when true, run the q-function that drops the mesh term.
-/// On a curved mesh that must *not* reproduce the reference: a missing
-/// correction term still converges under refinement, so the only way to know it
-/// is being exercised is to check that removing it breaks the answer.
 template <int DIM>
 real_t hessian_error(const char *filename, int p, bool affine_qf)
 {
@@ -220,7 +568,8 @@ real_t hessian_error(const char *filename, int p, bool affine_qf)
 
       DifferentiableOperator dop(input_fields, output_fields, pmesh);
       affine_hessian_qf<DIM> qf;
-      dop.AddDomainIntegrator<LocalQFBackend>(
+      const auto kernels = DerivativeKernels::None; // Primal action only
+      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
          qf,
          input_fieldops,
          output_fieldops,
@@ -240,7 +589,8 @@ real_t hessian_error(const char *filename, int p, bool affine_qf)
 
       DifferentiableOperator dop(input_fields, output_fields, pmesh);
       hessian_qf<DIM> qf;
-      dop.AddDomainIntegrator<LocalQFBackend>(
+      const auto kernels = DerivativeKernels::None; // Primal action only
+      dop.AddDomainIntegrator<LocalQFBackend, kernels>(
          qf,
          input_fieldops,
          output_fieldops,
@@ -437,6 +787,85 @@ TEST_CASE("dFEM Hessian 3D", "[Parallel][dFEM][Hessian]")
       // d1d = p + 1 > 8 selects LocalQFHOBackend rather than LocalQFLOBackend.
       REQUIRE(hessian_error<3>("../../data/fichera-q3.mesh", 8, false) ==
               MFEM_Approx(0.0, 1e-8, 1e-8));
+   }
+}
+
+TEST_CASE("dFEM Hessian derivative action", "[Parallel][dFEM][Hessian]")
+{
+   SECTION("2D")
+   {
+      const int p = GENERATE(2, 8);
+      CAPTURE(p);
+      hessian_derivative_action<2>("../../data/inline-quad.mesh", p);
+   }
+   SECTION("3D")
+   {
+      const int p = GENERATE(2, 8);
+      CAPTURE(p);
+      hessian_derivative_action<3>("../../data/inline-hex.mesh", p);
+   }
+}
+
+TEST_CASE("dFEM Hessian assemble", "[Parallel][dFEM][Hessian]")
+{
+   SECTION("2D")
+   {
+      const int p = GENERATE(2, 8);
+      CAPTURE(p);
+      hessian_assemble<2>("../../data/inline-quad.mesh", p);
+   }
+   SECTION("3D")
+   {
+      // DerivativeAssemble limits 3D HO kernels to MQ1 = 8, so p = 8
+      // (which requires q1d = 9) is intentionally unsupported here.
+      const int p = GENERATE(2, 7);
+      CAPTURE(p);
+      hessian_assemble<3>("../../data/inline-hex.mesh", p);
+   }
+}
+
+TEST_CASE("dFEM Hessian output adjoint", "[Parallel][dFEM][Hessian]")
+{
+   // p <= 7 takes the LO backend, p = 8 the HO one.
+   SECTION("2D")
+   {
+      const int p = GENERATE(1, 2, 4, 8);
+      CAPTURE(p);
+      hessian_output_adjoint<2>("../../data/inline-quad.mesh", p);
+   }
+   SECTION("3D")
+   {
+      const int p = GENERATE(1, 2, 4, 8);
+      CAPTURE(p);
+      hessian_output_adjoint<3>("../../data/inline-hex.mesh", p);
+   }
+   SECTION("curved mesh")
+   {
+      hessian_output_adjoint<2>("../../data/star-q3.mesh", 3);
+      hessian_output_adjoint<3>("../../data/fichera-q3.mesh", 3);
+   }
+}
+
+TEST_CASE("dFEM Hessian vector output adjoint", "[Parallel][dFEM][Hessian]")
+{
+   // Hessian<W> on a vector field: the RNK == 3 output branch, which no other
+   // case in this file instantiates. p <= 7 is LO, p = 8 is HO.
+   SECTION("2D")
+   {
+      const int p = GENERATE(1, 2, 4, 8);
+      CAPTURE(p);
+      hessian_vector_output_adjoint<2, 2>("../../data/inline-quad.mesh", p);
+   }
+   SECTION("3D")
+   {
+      const int p = GENERATE(1, 2, 4, 8);
+      CAPTURE(p);
+      hessian_vector_output_adjoint<3, 3>("../../data/inline-hex.mesh", p);
+   }
+   SECTION("curved mesh")
+   {
+      hessian_vector_output_adjoint<2, 2>("../../data/star-q3.mesh", 3);
+      hessian_vector_output_adjoint<3, 3>("../../data/fichera-q3.mesh", 3);
    }
 }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -913,7 +913,8 @@ real_t ErrorSerialParallel(const GridFunction & xser,
    Mesh *mesh = fespace->GetMesh();
    ParMesh *pmesh = pfespace->GetParMesh();
 
-   const int npe = pmesh->GetNE();
+   // keep non-const as a workaround for MPI warning in MPI_Allgather below
+   int npe = pmesh->GetNE();
 
    int numprocs, rank;
    MPI_Comm_size(MPI_COMM_WORLD, &numprocs);

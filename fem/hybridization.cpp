@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -57,14 +57,7 @@ void Hybridization::ConstructC()
    int num_hat_dofs = hat_offsets[NE];
    Array<int> vdofs, c_vdofs;
 
-#if defined(MFEM_USE_DOUBLE)
-   constexpr real_t mtol = 1e-12;
-#elif defined(MFEM_USE_SINGLE)
-   constexpr real_t mtol = 4e-6;
-#else
-#error "Only single and double precision are supported!"
-   constexpr real_t mtol = 1.;
-#endif
+   constexpr real_t mtol = MFEM_PRECISION_SWITCH(1e-12,4e-6f);
 
    int c_num_face_nbr_dofs = 0;
 #ifdef MFEM_USE_MPI

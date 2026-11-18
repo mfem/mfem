@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -46,9 +46,9 @@ namespace mfem
  *  seen by the rest of MFEM as they are skipped when a Mesh is created from
  *  the NCMesh.
  *
- *  The processor that owns a vertex, edge or a face (and in turn its DOFs) is
- *  currently defined to be the one with the lowest rank in the group of
- *  processors that share the entity.
+ *  Edges, faces, and non-hanging vertices use the lowest sharing rank as owner.
+ *  A hanging vertex uses the lowest-ranked owner of a constraining slave
+ *  edge or face containing it.
  *
  *  Vertices, edges and faces that are not owned by this ('MyRank') processor
  *  are ghosts, and are numbered after all real vertices/edges/faces, i.e.,
@@ -154,6 +154,10 @@ public:
    using GroupId = short;
    using CommGroup = std::vector<int>;
 
+   /// ID of the group containing only this rank, i.e., groups[SelfGroupId] =
+   /// { MyRank }.
+   static constexpr GroupId SelfGroupId = 0;
+
    /// Return vertex/edge/face ('entity' == 0/1/2, resp.) owner.
    GroupId GetEntityOwnerId(int entity, int index)
    {
@@ -247,7 +251,7 @@ public:
    /** Extension of NCMesh::GetBoundaryClosure. Filters out ghost vertices and
        ghost edges from 'bdr_vertices' and 'bdr_edges', and uncovers hidden
        internal boundary faces. */
-   void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+   void GetBoundaryClosure(const Array<int> &bdr_attr_marked,
                            Array<int> &bdr_vertices,
                            Array<int> &bdr_edges, Array<int> &bdr_faces) override;
 
@@ -308,7 +312,7 @@ protected: // implementation
    using GroupList = std::vector<CommGroup>;
    using GroupMap = std::map<CommGroup, GroupId>;
 
-   GroupList groups;  // comm group list; NOTE: groups[0] = { MyRank }
+   GroupList groups;  // comm group list; NOTE: groups[SelfGroupId] = {MyRank}
    GroupMap group_id; // search index over groups
 
    // owner rank for each vertex, edge and face (encoded as singleton group)
@@ -531,26 +535,36 @@ protected: // implementation
       typedef std::map<int, NeighborDerefinementMessage> Map;
    };
 
-   /** Used in Step 2 of Rebalance() to synchronize new rank assignments in
-    *  the ghost layer.
+   struct ElementRankAndAttribute
+   {
+      int rank;
+      int attribute;
+   };
+
+   /** Used in RedistributeElements() to synchronize new rank assignments and
+    *  element attributes in the ghost layer.
     */
-   class NeighborElementRankMessage : public ElementValueMessage<int, false,
+   class NeighborElementRankMessage :
+      public ElementValueMessage<ElementRankAndAttribute, false,
       VarMessageTag::NEIGHBOR_ELEMENT_RANK_VM>
    {
    public:
-      void AddElementRank(int elem, int rank) { Add(elem, rank); }
+      void AddElement(int elem, int rank, int attribute)
+      { Add(elem, {rank, attribute}); }
       typedef std::map<int, NeighborElementRankMessage> Map;
    };
 
-   /** Used by Rebalance() to send elements and their ranks. Note that
+   /** Used by Rebalance() to send elements, ranks, and attributes. Note that
     *  RefTypes == true which means the refinement hierarchy will be recreated
     *  on the receiving side.
     */
-   class RebalanceMessage : public ElementValueMessage<int, true,
+   class RebalanceMessage :
+      public ElementValueMessage<ElementRankAndAttribute, true,
       VarMessageTag::REBALANCE_VM>
    {
    public:
-      void AddElementRank(int elem, int rank) { Add(elem, rank); }
+      void AddElement(int elem, int rank, int attribute)
+      { Add(elem, {rank, attribute}); }
       typedef std::map<int, RebalanceMessage> Map;
    };
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -897,7 +897,10 @@ void PetscParVector::PlaceMemory(const Memory<mfem::real_t>& mem)
 void PetscParVector::ResetMemory()
 {
    MFEM_VERIFY(pdata.IsAliasForSync(),"Vector data is not an alias");
-   MFEM_VERIFY(!pdata.Empty(),"Vector data is empty");
+   PetscInt n;
+   ierr = VecGetLocalSize(x,&n); PCHKERRQ(x,ierr);
+   MFEM_VERIFY(!pdata.Empty() || !n,"Vector data is empty, local size is not");
+
    bool read = pdata.ReadRequested();
    bool usedev = pdata.DeviceRequested();
    bool write = pdata.WriteRequested();

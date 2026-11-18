@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,7 +30,7 @@
 #include "fem/integ/bilininteg_vecdiffusion_pa.hpp" // IWYU pragma: keep
 
 // Custom benchmark arguments generator
-static void CustomArguments(bm::Benchmark *b) noexcept
+static void CustomArguments(bmi::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 16 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
@@ -297,7 +297,7 @@ template <typename T>
 static void Benchmark(bm::State& state) noexcept
 {
    T run(state.range(0), state.range(1));
-   while (state.KeepRunning()) { run.benchmark(); }
+   for (auto _ : state) { run.benchmark(); }
    state.counters["Dofs"] = bm::Counter(run.dofs);
    state.counters["MDof/s"] = bm::Counter(run.SumMdofs(), bm::Counter::kIsRate);
    state.counters["Order"] = bm::Counter(state.range(0));

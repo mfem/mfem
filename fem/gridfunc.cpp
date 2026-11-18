@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -30,6 +30,7 @@
 #include <cmath>
 #include <iostream>
 #include <algorithm>
+#include <memory> // std::make_unique
 #include <queue>
 
 namespace mfem
@@ -1189,7 +1190,7 @@ void GridFunction::ReorderByNodes()
    int i, j, k;
    int vdim = fes->GetVDim();
    int ndofs = fes->GetNDofs();
-   real_t *temp = new real_t[size];
+   auto temp = std::make_unique<real_t[]>(size);
 
    k = 0;
    for (j = 0; j < ndofs; j++)
@@ -1202,8 +1203,6 @@ void GridFunction::ReorderByNodes()
    {
       data[i] = temp[i];
    }
-
-   delete [] temp;
 }
 
 void GridFunction::GetVectorFieldNodalValues(Vector &val, int comp) const
@@ -1288,6 +1287,11 @@ void GridFunction::AccumulateAndCountDerivativeValues(
 
    zones_per_dof = 0;
    der = 0.0;
+   // in case zero-fill happens on GPU
+   zones_per_dof.HostReadWrite();
+   der.HostReadWrite();
+   // also need to host read our data
+   auto h_data = HostRead();
 
    comp--;
    for (i = 0; i < der_fes->GetNE(); i++)
@@ -1307,7 +1311,7 @@ void GridFunction::AccumulateAndCountDerivativeValues(
       transf = fes->GetElementTransformation(i);
       for (j = 0; j < dof; j++)
          loc_func(j) = ( (ind=vdofs[comp*dof+j]) >= 0 ) ?
-                       (data[ind]) : (-data[-1-ind]);
+                       (h_data[ind]) : (-h_data[-1-ind]);
       for (k = 0; k < der_dof; k++)
       {
          const IntegrationPoint &ip = ir.IntPoint(k);
@@ -2354,8 +2358,10 @@ void GridFunction::AccumulateAndCountTraceTangentValues(
    }
 }
 
-void GridFunction::ComputeMeans(AvgType type, Array<int> &zones_per_vdof)
+void GridFunction::ComputeMeans(AvgType type, const Array<int> &zones_per_vdof)
 {
+   HostReadWrite();
+   zones_per_vdof.HostRead();
    switch (type)
    {
       case ARITHMETIC:
@@ -2490,7 +2496,7 @@ void GridFunction::ProjectCoefficient(Coefficient &coeff, ProjectType type)
                ProjectCoefficientGlobalL2(coeff);
                return;
             case ProjectType::ELEMENT:
-               constexpr real_t signal = std::numeric_limits<real_t>::min();
+               constexpr real_t signal = -infinity();
 
                for (int i = 0; i < fes->GetNE(); i++)
                {
@@ -2763,7 +2769,7 @@ void GridFunction::ProjectCoefficient(VectorCoefficient &vcoeff,
             ProjectCoefficientGlobalL2(vcoeff);
             return;
          case ProjectType::ELEMENT:
-            constexpr real_t signal = std::numeric_limits<real_t>::min();
+            constexpr real_t signal = -infinity();
             for (int i = 0; i < fes->GetNE(); i++)
             {
                fes->GetElementVDofs(i, vdofs, doftrans);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -40,29 +40,29 @@ public:
    }
 
    /// Resets the patch and element data stored in the element
-   void                 Reset      ()         const { patch = elem = -1; }
+   void Reset() const { patch = elem = -1; }
    /// Set which IJK in patch should be evaluated
-   void                 SetIJK     (const int *IJK) const { ijk = IJK; }
+   void SetIJK(const int *IJK) const { ijk = IJK; }
    /// Get which patch is currently considered
-   int                  GetPatch   ()         const { return patch; }
+   int GetPatch() const { return patch; }
    /// Set which patch should be evaluated
-   void                 SetPatch   (int p)    const { patch = p; }
-   /// Set which element should be evaluated
-   int                  GetElement ()         const { return elem; }
+   void SetPatch(int p) const { patch = p; }
    /// Get which element is currently considered
-   void                 SetElement (int e)    const { elem = e; }
-   /// Get the KnotVectors
-   Array <const KnotVector*> &KnotVectors()   const { return kv; }
-   /// Get the Weights
-   Vector              &Weights    ()         const { return weights; }
+   int GetElement() const { return elem; }
+   /// Set which element should be evaluated
+   void SetElement(int e) const { elem = e; }
+   /// Get the knot vectors.
+   Array<const KnotVector*> &KnotVectors() const { return kv; }
+   /// Get the weights.
+   Vector &Weights() const { return weights; }
    /// Update the polynomial order according to the currently set knotvectors
    /// Resizes all internal data members to have the correct size
    /// related to the polynomial order
-   virtual void         SetOrder   ()         const { }
+   virtual void SetOrder() const { }
 
    /// Returns the indices (i,j) in 2D or (i,j,k) in 3D of this element in the
    /// tensor product ordering of the patch.
-   const int* GetIJK() const { return ijk; }
+   const int *GetIJK() const { return ijk; }
 };
 
 

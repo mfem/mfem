@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -48,7 +48,6 @@ MFEM_USE_NETCDF        = @MFEM_USE_NETCDF@
 MFEM_USE_PETSC         = @MFEM_USE_PETSC@
 MFEM_USE_SLEPC         = @MFEM_USE_SLEPC@
 MFEM_USE_MPFR          = @MFEM_USE_MPFR@
-MFEM_USE_SIDRE         = @MFEM_USE_SIDRE@
 MFEM_USE_FMS           = @MFEM_USE_FMS@
 MFEM_USE_CONDUIT       = @MFEM_USE_CONDUIT@
 MFEM_USE_PUMI          = @MFEM_USE_PUMI@

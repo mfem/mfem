@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -84,8 +84,8 @@ public:
       MFEM_ASSERT(1 <= dim && dim <= 3, "invalid dim: " << dim);
       switch (dim)
       {
-         case 3: p[2] = z;
-         case 2: p[1] = y;
+         case 3: p[2] = z; [[fallthrough]];
+         case 2: p[1] = y; [[fallthrough]];
          case 1: p[0] = x;
       }
    }

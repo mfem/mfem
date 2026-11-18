@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -235,11 +235,7 @@ void SerialAdvectorCGOper::Mult(const Vector &ind, Vector &di_dt) const
    M.BilinearForm::operator=(0.0);
    M.Assemble();
 
-#ifdef MFEM_USE_SINGLE
-   const real_t rtol = 1e-4;
-#else
-   const real_t rtol = 1e-12;
-#endif
+   const real_t rtol = MFEM_PRECISION_SWITCH(1e-12,1e-4f);
 
    // Solve.
    di_dt = 0.0;

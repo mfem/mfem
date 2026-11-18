@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -358,7 +358,7 @@ int main(int argc, char *argv[])
                ess_bdr = 0; ess_bdr[2] = 1;
             }
             f.constant = -p*(i+1)/nsteps;
-            prob.SetNeumanPressureData(f,ess_bdr);
+            prob.SetNeumannPressureData(f,ess_bdr);
             break;
          default:
             MFEM_ABORT("Should be unreachable");

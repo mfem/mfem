@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -96,9 +96,10 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
 
    mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
    {
+      constexpr static int MAX_D1D = DofQuadLimits::HCURL_MAX_D1D;
       constexpr static int MAX_Q1D = DofQuadLimits::HCURL_MAX_Q1D;
 
-      int osc = 0;
+      int offset = 0;
 
       for (int c = 0; c < VDIM; ++c)  // loop over x, y, z components
       {
@@ -109,40 +110,53 @@ void PAHcurlMassAssembleDiagonal3D(const int D1D,
          const int opc = (c == 0) ? 0 : ((c == 1) ? (symmetric ? 3 : 4) :
                                          (symmetric ? 5 : 8));
 
-         real_t mass[MAX_Q1D];
-
-         for (int dz = 0; dz < D1Dz; ++dz)
+         for (int dx = 0; dx < D1Dx; ++dx)
          {
-            for (int dy = 0; dy < D1Dy; ++dy)
+            real_t mass_1[MAX_Q1D * MAX_Q1D];
+            for (int qz = 0; qz < Q1D; ++qz)
             {
-               for (int qx = 0; qx < Q1D; ++qx)
+               for (int qy = 0; qy < Q1D; ++qy)
                {
-                  mass[qx] = 0.0;
-                  for (int qy = 0; qy < Q1D; ++qy)
-                  {
-                     const real_t wy = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
-
-                     for (int qz = 0; qz < Q1D; ++qz)
-                     {
-                        const real_t wz = (c == 2) ? Bo(qz,dz) : Bc(qz,dz);
-
-                        mass[qx] += wy * wy * wz * wz * op(qx,qy,qz,opc,e);
-                     }
-                  }
-               }
-
-               for (int dx = 0; dx < D1Dx; ++dx)
-               {
+                  real_t val = 0.0;
                   for (int qx = 0; qx < Q1D; ++qx)
                   {
-                     const real_t wx = ((c == 0) ? Bo(qx,dx) : Bc(qx,dx));
-                     D(dx + ((dy + (dz * D1Dy)) * D1Dx) + osc, e) += mass[qx] * wx * wx;
+                     const real_t b = (c == 0) ? Bo(qx,dx) : Bc(qx,dx);
+                     val += b * b * op(qx,qy,qz,opc,e);
                   }
+                  mass_1[qy + qz*Q1D] = val;
+               }
+            }
+
+            real_t mass_2[MAX_D1D * MAX_Q1D];
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               for (int qz = 0; qz < Q1D; ++qz)
+               {
+                  real_t val = 0.0;
+                  for (int qy = 0; qy < Q1D; ++qy)
+                  {
+                     const real_t b = (c == 1) ? Bo(qy,dy) : Bc(qy,dy);
+                     val += b * b * mass_1[qy + qz*Q1D];
+                  }
+                  mass_2[qz + dy*Q1D] = val;
+               }
+            }
+
+            for (int dy = 0; dy < D1Dy; ++dy)
+            {
+               for (int dz = 0; dz < D1Dz; ++dz)
+               {
+                  real_t val = 0.0;
+                  for (int qz = 0; qz < Q1D; ++qz)
+                  {
+                     const real_t b = (c == 2) ? Bo(qz,dz) : Bc(qz,dz);
+                     val += b * b * mass_2[qz + dy*Q1D];
+                  }
+                  D(dx + ((dy + (dz * D1Dy)) * D1Dx) + offset, e) += val;
                }
             }
          }
-
-         osc += D1Dx * D1Dy * D1Dz;
+         offset += D1Dx * D1Dy * D1Dz;
       }  // loop c
    }); // end of element loop
 }
@@ -781,6 +795,23 @@ void PAHcurlL2Setup2D(const int Q1D,
       for (int q = 0; q < NQ; ++q)
       {
          y(q,e) = W[q] * C(q,e);
+      }
+   });
+}
+
+void PAHcurlL2IntSetup2D(const int Q1D, const int NE, const Array<real_t> &w,
+                         Vector &coeff, const Vector &detJ, Vector &op)
+{
+   const int NQ = Q1D*Q1D;
+   auto W = w.Read();
+   auto C = Reshape(coeff.Read(), NQ, NE);
+   auto J = Reshape(detJ.Read(), NQ, NE);
+   auto y = Reshape(op.Write(), NQ, NE);
+   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   {
+      for (int q = 0; q < NQ; ++q)
+      {
+         y(q,e) = W[q] * C(q,e) / J(q,e);
       }
    });
 }

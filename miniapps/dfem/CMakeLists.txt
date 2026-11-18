@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -69,6 +69,10 @@ if (MFEM_USE_MPI)
         MAIN dfem-navier-stokes/dfem-navier-kovasznay.cpp
         LIBRARIES dfem-navier)
 
+    add_mfem_miniapp(dfem-runtime-materials
+        MAIN dfem-runtime-materials.cpp
+        LIBRARIES mfem)
+
     # Add parallel tests.
     if (MFEM_ENABLE_TESTING)
         add_test(NAME dfem-minimal-surface=${MFEM_MPI_NP}
@@ -124,5 +128,9 @@ if (MFEM_USE_MPI)
             -al ${AL} -o 1 -r 0 -tf 0.1 -dt 0.05 -no-vis
             ${MPIEXEC_POSTFLAGS})
         endforeach()
+        add_test(NAME dfem-runtime-materials=${MFEM_MPI_NP}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:dfem-runtime-materials> -nm 13 -r 1
+        ${MPIEXEC_POSTFLAGS})
     endif()
 endif()
