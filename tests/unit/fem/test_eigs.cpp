@@ -158,7 +158,7 @@ TEST_CASE("Laplacian Eigenvalues",
 #endif // MFEM_USE_LAPACK
 
 #ifdef MFEM_USE_MPI
-#
+
 TEST_CASE("Laplacian Eigenvalues in Parallel",
           "[H1_FECollection]"
           "[GridFunction]"
@@ -245,6 +245,9 @@ TEST_CASE("Laplacian Eigenvalues in Parallel",
       lobpcg.Solve();
       lobpcg.GetEigenvalues(eigenvalues);
 
+      delete A;
+      delete M;
+
       Array<int> exact_eigs(&eigs[7 * (dim - 1)], 7);
 
       real_t max_err = 0.0;
@@ -257,9 +260,6 @@ TEST_CASE("Laplacian Eigenvalues in Parallel",
          REQUIRE(err < 5.0);
       }
       CAPTURE(mt, max_err);
-
-      delete A;
-      delete M;
    }
 }
 

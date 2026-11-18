@@ -16038,8 +16038,8 @@ Mesh PartitionMPI(int dim, int mpi_cnt, int elem_per_mpi, bool print,
 
    if (print && dim == 2)
    {
-      int elem_par_x = mpi_x * el0_x * pow(2, par_ref),
-          elem_par_y = mpi_y * el0_y * pow(2, par_ref);
+      int elem_par_x = mpi_x * el0_x * (1 << par_ref),
+          elem_par_y = mpi_y * el0_y * (1 << par_ref);
 
       mfem::out << "--- Mesh generation: \n";
       mfem::out << "Par mesh:    " << elem_par_x << " x " << elem_par_y
@@ -16060,9 +16060,9 @@ Mesh PartitionMPI(int dim, int mpi_cnt, int elem_per_mpi, bool print,
 
    if (print && dim == 3)
    {
-      int elem_par_x = mpi_x * el0_x * pow(2, par_ref),
-          elem_par_y = mpi_y * el0_y * pow(2, par_ref),
-          elem_par_z = mpi_z * el0_z * pow(2, par_ref);
+      int elem_par_x = mpi_x * el0_x * (1 << par_ref),
+          elem_par_y = mpi_y * el0_y * (1 << par_ref),
+          elem_par_z = mpi_z * el0_z * (1 << par_ref);
 
       mfem::out << "--- Mesh generation: \n";
       mfem::out << "Par mesh:    "
