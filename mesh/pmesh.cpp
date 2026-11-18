@@ -3706,7 +3706,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
       Array<int> group_edges;
 
-      MPI_Request request;
+      MPI_Request *requests = new MPI_Request[GetNGroups()-1];
       MPI_Status  status;
       Vertex V;
       V(2) = 0.0;
@@ -3744,6 +3744,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
             // MPI_Barrier(MyComm);
 
             // (a) send the type of interface splitting
+            int req_count = 0;
             for (int i = 0; i < GetNGroups()-1; i++)
             {
                group_sedge.GetRow(i, group_edges);
@@ -3767,7 +3768,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                      neighbor = gtopo.GetNeighborRank(nbs[0]);
                   }
                   MPI_Isend(edge_splittings[i], edges_in_group, MPI_INT,
-                            neighbor, 0, MyComm, &request);
+                            neighbor, 0, MyComm, &requests[req_count++]);
                }
             }
 
@@ -3817,6 +3818,8 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
             int nr = need_refinement;
             MPI_Allreduce(&nr, &need_refinement, 1, MPI_INT, MPI_LOR, MyComm);
+
+            MPI_Waitall(req_count, requests, MPI_STATUSES_IGNORE);
          }
       }
       while (need_refinement == 1);
@@ -3840,6 +3843,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       }
       delete [] edge_splittings;
 
+      delete [] requests;
       delete [] iBuf;
 
       // 5. Update the boundary elements.
