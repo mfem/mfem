@@ -812,6 +812,60 @@ TEST_CASE("ParMesh finalized without a new marking keeps its face neighbors",
    CHECK(Assemble() == before);
 }
 
+TEST_CASE("ParMesh marks tetrahedra consistently through refinements",
+          "[Parallel], [ParMesh]")
+{
+   // Edges of equal length, of nearly equal length, and curved meshes, whose
+   // ranks hold node values that differ by round-off after a refinement.
+   // After a uniform refinement, a new marking, and rounds of local refinement
+   // near a boundary, the ranks agree on their shared entities, the faces and
+   // the boundary triangles agree with the marking of their tetrahedra, and
+   // ND and RT spaces are conforming.
+   struct Case
+   {
+      const char *name;
+      bool prisms;
+      real_t eps;
+      int order;
+      bool deform;
+   };
+   const Case cases[] =
+   {
+      {"prisms", true, 0.0, 0, false},
+      {"prisms, perturbed", true, 3e-7, 0, false},
+      {"prisms, nodes of order 3", true, 0.0, 3, false},
+      {"cubes, nodes of order 2", false, 0.0, 2, false},
+      {"cubes, curved, nodes of order 2", false, 0.0, 2, true},
+      {"cubes, curved, nodes of order 3", false, 0.0, 3, true}
+   };
+   const Case &c = cases[GENERATE(0, 1, 2, 3, 4, 5)];
+   INFO(c.name);
+   Mesh serial = tet_marking::TetMesh(c.prisms, c.eps, c.order, c.deform);
+   Vector pmin, pmax, p(3);
+   serial.GetBoundingBox(pmin, pmax);
+   p(0) = 0.5*(pmin(0) + pmax(0));
+   p(1) = 0.5*(pmin(1) + pmax(1));
+   p(2) = pmin(2);
+   ParMesh pmesh(MPI_COMM_WORLD, serial);
+   serial.Clear();
+   auto Check = [&pmesh](bool marked)
+   {
+      REQUIRE(tet_marking::SharedEntitiesAgree(pmesh));
+      if (marked) { REQUIRE(tet_marking::LocalFacesAgree(pmesh)); }
+      REQUIRE(tet_marking::NDAndRTConforming(pmesh));
+   };
+   Check(true);
+   pmesh.UniformRefinement();
+   Check(false);
+   pmesh.Finalize(true);
+   Check(true);
+   for (int r = 0; r < 3; r++)
+   {
+      tet_marking::RefineNear(pmesh, p, 0.3*std::pow(0.5, r));
+      Check(true);
+   }
+}
+
 TEST_CASE("ParMesh marks shared triangles alike when their vertices differ by "
           "round-off", "[Parallel], [ParMesh]")
 {
@@ -993,9 +1047,8 @@ TEST_CASE("ParMesh marks and refines the same for any partition",
    // marked again and refined three times near a point is, element for element
    // (vertices in their order, marked edge first, refinement flags), the
    // serial mesh refined so. Meshes with many edges of equal length, in 2D and
-   // 3D; straight, with nodes of order 1, and with curved nodes of order 2,
-   // marked again only (before a parallel refinement, all the copies of the
-   // nodes are equal).
+   // 3D; straight, with nodes of order 1, with curved nodes of order 2, and
+   // periodic with discontinuous nodes of order 2 (2D and 3D).
    const int nranks = Mpi::WorldSize();
    struct M { const char *name; std::function<Mesh()> make; bool refine; };
    auto Curved2D = []
@@ -1038,10 +1091,45 @@ TEST_CASE("ParMesh marks and refines the same for any partition",
             return m;
          }, true
       },
-      {"2D curved, order 2", Curved2D, false},
+      {"2D curved, order 2", Curved2D, true},
       {
          "3D curved, order 2", []
-         { return tet_marking::TetMesh(true, 0.0, 2, true); }, false
+         { return tet_marking::TetMesh(true, 0.0, 2, true); }, true
+      },
+      {
+         "3D periodic prisms, discontinuous nodes of order 2", []
+         {
+            Mesh m = tet_marking::EquilateralPrisms(3);
+            m.Transform([](const Vector &x, Vector &y) { y = x; y *= 0.7; });
+            std::vector<Vector> t(3, Vector(3));
+            t[0] = 0.0; t[0](0) = 0.7;
+            t[1] = 0.0; t[1](0) = -0.35; t[1](1) = 0.7*std::sqrt(0.75);
+            t[2] = 0.0; t[2](2) = 0.7;
+            Mesh periodic =
+            Mesh::MakePeriodic(m, m.CreatePeriodicVertexMapping(t));
+            periodic.SetCurvature(2, true);
+            return periodic;
+         }, true
+      },
+      {
+         "2D periodic triangles, discontinuous nodes of order 2", []
+         {
+            Mesh m = Mesh::MakeCartesian2D(6, 6, Element::TRIANGLE);
+            for (int v = 0; v < m.GetNV(); v++)
+            {
+               real_t *x = m.GetVertex(v);
+               x[0] -= 0.5*x[1];
+               x[1] *= std::sqrt(real_t(0.75));
+            }
+            m.Finalize(true);
+            std::vector<Vector> t(2, Vector(2));
+            t[0] = 0.0; t[0](0) = 1.0;
+            t[1] = 0.0; t[1](0) = -0.5; t[1](1) = std::sqrt(real_t(0.75));
+            Mesh periodic =
+            Mesh::MakePeriodic(m, m.CreatePeriodicVertexMapping(t));
+            periodic.SetCurvature(2, true);
+            return periodic;
+         }, true
       }
    };
    for (const M &m : meshes)
