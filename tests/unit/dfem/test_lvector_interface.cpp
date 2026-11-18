@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -100,6 +100,14 @@ void l_vector_interface(const char *filename, int p)
    MultiVector mx{x, *nodes};
    MultiVector mz{z};
    dop.Mult(mx, mz);
+
+   // Sanity check to confirm that the two consecutive multiplications
+   // don't share memory with the previous output
+   ParGridFunction x2(&pfes), w(&pfes);
+   x2 = x;
+   x2 *= 2.0;
+   MultiVector mx2{x2, *nodes}, mw{w};
+   dop.Mult(mx2, mw);
 
    blf_fa.Mult(x, y);
 

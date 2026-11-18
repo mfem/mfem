@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -159,7 +159,7 @@ TEST_CASE("Collocated Derivative Kernels", "[QuadratureInterpolator]")
       Vector qp_der(nelem*vdim*nqp*(P ? sdim : dim));
       GK::Run(dim, L, P, vdim, nd, nq, nelem, maps.B.Read(), maps.G.Read(),
               geom->J.Read(), evec_values.Read(), qp_der.Write(), sdim, vdim,
-              nd, nq);
+              nd, nq, nullptr);
 
       Vector col_der(nelem*vdim*nqp*(P ? sdim : dim));
       CGK::Run(dim, L, P, vdim, nd, nelem, maps.G.Read(), geom->J.Read(),

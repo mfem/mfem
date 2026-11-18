@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -38,6 +38,7 @@ class DummyParameterSpace : public ParameterSpace
 public:
    class Bimpl : public Operator
    {
+   public:
       void Mult(const Vector &x, Vector &y) const override
       {
          const bool use_dev = x.UseDevice() || y.UseDevice();
@@ -52,6 +53,7 @@ public:
 
    class Btimpl : public Operator
    {
+   public:
       void Mult(const Vector &x, Vector &y) const override
       {
          const bool use_dev = x.UseDevice() || y.UseDevice();
@@ -395,7 +397,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
 
          auto derivatives = Derivatives<U> {};
          auto mass_diffusion_qfunc = mass_diffusion_global_qf{};
-         constexpr auto kernels = DerivativeKernels::Action;
+         constexpr auto kernels =
+            DerivativeKernels::Action | DerivativeKernels::ApplyTranspose;
          dop.AddDomainIntegrator<GlobalQFBackend, kernels>(
             mass_diffusion_qfunc,
             Inputs<Value<U>, Gradient<U>, Gradient<COORDINATES>, Identity<S>, Weight, Value<L>> {},
@@ -426,6 +429,27 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
 
          norm_l = Y0.Normlinf();
          norm_g = norm_l;
+         MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
+         REQUIRE(norm_g == MFEM_Approx(0.0));
+         MPI_Barrier(MPI_COMM_WORLD);
+
+         // Transpose. Both V outputs read the V block of the cotangent and the
+         // S block starts after it. out3 = J does not depend on U, so the S
+         // cotangent adds nothing and the result is mass + diffusion on wv.
+         Vector wv(xtvec.Size()), ws(yqdata.Size()), r(xtvec.Size());
+         wv.Randomize(1);
+         ws.Randomize(2);
+         MultiVector W{wv, ws}, R{r};
+         ddop->MultTranspose(W, R);
+
+         Vector wl(fes.GetVSize()), rl(fes.GetVSize()), rref(xtvec.Size());
+         fes.GetProlongationMatrix()->Mult(wv, wl);
+         blf.Mult(wl, rl);
+         fes.GetProlongationMatrix()->MultTranspose(rl, rref);
+
+         r.HostReadWrite();
+         r -= rref;
+         norm_l = r.Normlinf();
          MPI_Allreduce(&norm_l, &norm_g, 1, MPI_DOUBLE, MPI_MAX, pmesh.GetComm());
          REQUIRE(norm_g == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
@@ -570,7 +594,8 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
          auto qf = mass_diffusion_local_qf{};
          constexpr auto kernels =
             DerivativeKernels::AssembleMatrix |
-            DerivativeKernels::AssembleDiagonal;
+            DerivativeKernels::AssembleDiagonal |
+            DerivativeKernels::ApplyTranspose;
          dop.AddDomainIntegrator<LocalQFBackend, kernels>(
             qf,
             tuple{Value<U>{}, Gradient<U>{}, Gradient<COORDINATES>{}, Weight{}},
@@ -610,6 +635,29 @@ TEST_CASE("dFEM Multiple Outputs", "[Parallel][dFEM][GPU]")
             MPI_Allreduce(&dnorm_l, &dnorm_g, 1, MPI_DOUBLE, MPI_MAX,
                           pmesh.GetComm());
             REQUIRE(dnorm_g == MFEM_Approx(0.0));
+            MPI_Barrier(MPI_COMM_WORLD);
+         }
+
+         SECTION("Multiple Outputs MultTranspose")
+         {
+            // Both outputs live on V, so the cotangent is a single V block
+            // that each of them reads.
+            Vector W(fes.GetTrueVSize()), R(fes.GetTrueVSize());
+            W.Randomize(1);
+            MultiVector MW{W}, MR{R};
+            dRdU->MultTranspose(MW, MR);
+
+            Vector w_l(fes.GetVSize()), r_l(fes.GetVSize());
+            Vector R_ref(fes.GetTrueVSize());
+            fes.GetProlongationMatrix()->Mult(W, w_l);
+            blf_fa.SpMat().MultTranspose(w_l, r_l);
+            fes.GetProlongationMatrix()->MultTranspose(r_l, R_ref);
+
+            R -= R_ref;
+            real_t tnorm_l = R.Normlinf(), tnorm_g = tnorm_l;
+            MPI_Allreduce(&tnorm_l, &tnorm_g, 1, MPI_DOUBLE, MPI_MAX,
+                          pmesh.GetComm());
+            REQUIRE(tnorm_g == MFEM_Approx(0.0));
             MPI_Barrier(MPI_COMM_WORLD);
          }
       }

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -480,9 +480,16 @@ MFEM_HOST_DEVICE auto operator+(const tensor<S, n...>& A,
 tensor<decltype(S {} + T{}), n...>
 {
    tensor<decltype(S{} + T{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = A[i] + B[i];
+      C.values = A.values + B.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = A[i] + B[i];
+      }
    }
    return C;
 }
@@ -497,9 +504,16 @@ template <typename T, int... n>
 MFEM_HOST_DEVICE tensor<T, n...> operator-(const tensor<T, n...>& A)
 {
    tensor<T, n...> B{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      B[i] = -A[i];
+      B.values = -A.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         B[i] = -A[i];
+      }
    }
    return B;
 }
@@ -518,9 +532,16 @@ MFEM_HOST_DEVICE auto operator-(const tensor<S, n...>& A,
 tensor<decltype(S {} + T{}), n...>
 {
    tensor<decltype(S{} + T{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = A[i] - B[i];
+      C.values = A.values - B.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = A[i] - B[i];
+      }
    }
    return C;
 }
@@ -534,8 +555,8 @@ tensor<decltype(S {} + T{}), n...>
  * @param[in] A The tensor to be scaled
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator*(S scale, const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
@@ -563,8 +584,8 @@ tensor<decltype(S {} * T{}), n...>
  * @param[in] scale The scaling factor
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator*(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {
@@ -592,15 +613,22 @@ tensor<decltype(T {} * S{}), n...>
  * @param[in] A The tensor of denominators
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator/(S scale, const tensor<T, n...>& A) ->
 tensor<decltype(S {} * T{}), n...>
 {
    tensor<decltype(S{} * T{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = scale / A[i];
+      C.values = scale / A.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = scale / A[i];
+      }
    }
    return C;
 }
@@ -614,15 +642,22 @@ tensor<decltype(S {} * T{}), n...>
  * @param[in] scale The denominator
  */
 template <typename S, typename T, int... n,
-          typename = typename std::enable_if<std::is_arithmetic<S>::value ||
-                                             is_dual_number<S>::value>::type>
+          typename = std::enable_if_t<std::is_arithmetic_v<S> ||
+                                      is_dual_number_v<S>, bool>>
 MFEM_HOST_DEVICE auto operator/(const tensor<T, n...>& A, S scale) ->
 tensor<decltype(T {} * S{}), n...>
 {
    tensor<decltype(T{} * S{}), n...> C{};
-   for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      C[i] = A[i] / scale;
+      C.values = A.values / scale;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<T, n...>::first_dim; i++)
+      {
+         C[i] = A[i] / scale;
+      }
    }
    return C;
 }
@@ -639,9 +674,16 @@ template <typename S, typename T, int... n> MFEM_HOST_DEVICE
 tensor<S, n...>& operator+=(tensor<S, n...>& A,
                             const tensor<T, n...>& B)
 {
-   for (int i = 0; i < tensor<S, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      A[i] += B[i];
+      A.values += B.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<S, n...>::first_dim; i++)
+      {
+         A[i] += B[i];
+      }
    }
    return A;
 }
@@ -705,9 +747,16 @@ tensor<T, n...>& operator+=(tensor<T, n...>& A, zero)
 template <typename S, typename T, int... n> MFEM_HOST_DEVICE
 tensor<S, n...>& operator-=(tensor<S, n...>& A, const tensor<T, n...>& B)
 {
-   for (int i = 0; i < tensor<S, n...>::first_dim; i++)
+   if constexpr (sizeof...(n) == 0)
    {
-      A[i] -= B[i];
+      A.values -= B.values;
+   }
+   else
+   {
+      for (int i = 0; i < tensor<S, n...>::first_dim; i++)
+      {
+         A[i] -= B[i];
+      }
    }
    return A;
 }
@@ -736,7 +785,7 @@ constexpr tensor<T, n...>& operator-=(tensor<T, n...>& A, zero)
 template <typename S, typename T> MFEM_HOST_DEVICE
 auto outer(S A, T B) -> decltype(A * B)
 {
-   static_assert(std::is_arithmetic<S>::value && std::is_arithmetic<T>::value,
+   static_assert(std::is_arithmetic_v<S> && std::is_arithmetic_v<T>,
                  "outer product types must be tensor or arithmetic_type");
    return A * B;
 }
@@ -762,7 +811,7 @@ tensor<T, n * m> flatten(tensor<T, n, m> A)
 template <typename S, typename T, int n> MFEM_HOST_DEVICE
 tensor<decltype(S{} * T{}), n> outer(S A, tensor<T, n> B)
 {
-   static_assert(std::is_arithmetic<S>::value,
+   static_assert(std::is_arithmetic_v<S>,
                  "outer product types must be tensor or arithmetic_type");
    tensor<decltype(S{} * T{}), n> AB{};
    for (int i = 0; i < n; i++)
@@ -779,7 +828,7 @@ tensor<decltype(S{} * T{}), n> outer(S A, tensor<T, n> B)
 template <typename S, typename T, int m> MFEM_HOST_DEVICE
 tensor<decltype(S{} * T{}), m> outer(const tensor<S, m>& A, T B)
 {
-   static_assert(std::is_arithmetic<T>::value,
+   static_assert(std::is_arithmetic_v<T>,
                  "outer product types must be tensor or arithmetic_type");
    tensor<decltype(S{} * T{}), m> AB{};
    for (int i = 0; i < m; i++)
@@ -817,7 +866,7 @@ zero outer(const tensor<T, n>&, zero)
 template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
 tensor<decltype(S{} * T{}), m, n> outer(S A, const tensor<T, m, n>& B)
 {
-   static_assert(std::is_arithmetic<S>::value,
+   static_assert(std::is_arithmetic_v<S>,
                  "outer product types must be tensor or arithmetic_type");
    tensor<decltype(S{} * T{}), m, n> AB{};
    for (int i = 0; i < m; i++)
@@ -857,7 +906,7 @@ tensor<decltype(S{} * T{}), m, n> outer(const tensor<S, m>& A,
 template <typename S, typename T, int m, int n> MFEM_HOST_DEVICE
 tensor<decltype(S{} * T{}), m, n> outer(const tensor<S, m, n>& A, T B)
 {
-   static_assert(std::is_arithmetic<T>::value,
+   static_assert(std::is_arithmetic_v<T>,
                  "outer product types must be tensor or arithmetic_type");
    tensor<decltype(S{} * T{}), m, n> AB{};
    for (int i = 0; i < m; i++)
@@ -1351,7 +1400,8 @@ T sqnorm(const tensor<T, m, n>& A)
 template <typename T, int... n> MFEM_HOST_DEVICE
 T norm(const tensor<T, n...>& A)
 {
-   return std::sqrt(sqnorm(A));
+   using std::sqrt;
+   return sqrt(sqnorm(A));
 }
 
 template <typename T, int n, int m> MFEM_HOST_DEVICE
@@ -1373,7 +1423,8 @@ T weight(const tensor<T, n, m>& A)
       T E = A[0][0] * A[0][0] + A[1][0] * A[1][0] + A[2][0] * A[2][0];
       T G = A[0][1] * A[0][1] + A[1][1] * A[1][1] + A[2][1] * A[2][1];
       T F = A[0][0] * A[0][1] + A[1][0] * A[1][1] + A[2][0] * A[2][1];
-      return std::sqrt(E * G - F * F);
+      using std::sqrt;
+      return sqrt(E * G - F * F);
    }
    // Never reached because of the static_assert, but avoids compiler warning.
    return T{};
@@ -1389,6 +1440,57 @@ auto normalize(const tensor<T, n...>& A) ->
 decltype(A / norm(A))
 {
    return A / norm(A);
+}
+
+/**
+ * @brief Normal of a codimension-one entity from its Jacobian, scaled by the
+ * entity's measure, the counterpart of CalcOrtho
+ * @param[in] J The (n x n-1) Jacobian of the entity
+ * @param[in] s The orientation sign, +1 or -1, that makes the normal point in
+ * the intended direction, e.g. from
+ * DifferentiableOperator::GetBoundaryOrientation()
+ */
+template <typename T, int n, int m> MFEM_HOST_DEVICE
+tensor<T, n> ortho(const tensor<T, n, m>& J, const real_t s)
+{
+   static_assert(((n == 2) && (m == 1)) || ((n == 3) && (m == 2)),
+                 "unsupported combination of n and m");
+   if constexpr (n == 2)
+   {
+      return s * tensor<T, 2> {J[1][0], -J[0][0]};
+   }
+   else
+   {
+      return s * cross(tensor<T, 3> {J[0][0], J[1][0], J[2][0]},
+                       tensor<T, 3> {J[0][1], J[1][1], J[2][1]});
+   }
+}
+
+/**
+ * @brief Unit normal of a codimension-one entity from its Jacobian and
+ * orientation sign, see ortho()
+ */
+template <typename T, int n, int m> MFEM_HOST_DEVICE
+tensor<T, n> normal(const tensor<T, n, m>& J, const real_t s)
+{
+   return normalize(ortho(J, s));
+}
+
+/// The direction of the normal depends on the entity's parametrization, so
+/// ortho() and normal() require an explicit orientation sign.
+template <typename T, int n, int m>
+void ortho(const tensor<T, n, m>&)
+{
+   static_assert(sizeof(T) == 0,
+                 "ortho(J) needs the orientation sign, use ortho(J, s)");
+}
+
+/// @copydoc ortho(const tensor<T, n, m>&)
+template <typename T, int n, int m>
+void normal(const tensor<T, n, m>&)
+{
+   static_assert(sizeof(T) == 0,
+                 "normal(J) needs the orientation sign, use normal(J, s)");
 }
 
 /**
@@ -1573,7 +1675,7 @@ inline tuple<tensor<real_t, 2>, tensor<real_t, 2, 2>> eig_symm(
    {
       real_t t;
       const real_t zeta = (d3 - d0) / (2.0 * d2);
-      const real_t azeta = fabs(zeta);
+      const real_t azeta = std::fabs(zeta);
       if (azeta < std::sqrt(1.0/std::numeric_limits<real_t>::epsilon()))
       {
          t = copysign(1./(azeta + std::sqrt(1. + zeta*zeta)), zeta);
@@ -1779,34 +1881,40 @@ T calcsv(const tensor<T, 1, 1> A, [[maybe_unused]] const int i)
 template <typename T> MFEM_HOST_DEVICE
 T calcsv(const tensor<T, 2, 2> A, const int i)
 {
+   using std::abs, std::sqrt;
    real_t mult;
-   real_t d0, d1, d2, d3;
+   T d0, d1, d2, d3;
    d0 = A(0, 0);
    d1 = A(1, 0);
    d2 = A(0, 1);
    d3 = A(1, 1);
 
-   real_t d_max = fabs(d0);
-   if (d_max < fabs(d1)) { d_max = fabs(d1); }
-   if (d_max < fabs(d2)) { d_max = fabs(d2); }
-   if (d_max < fabs(d3)) { d_max = fabs(d3); }
+   // The scaling factor is a power of 2, without derivative
+   real_t d_max = abs(get_value(d0));
+   if (d_max < abs(get_value(d1))) { d_max = abs(get_value(d1)); }
+   if (d_max < abs(get_value(d2))) { d_max = abs(get_value(d2)); }
+   if (d_max < abs(get_value(d3))) { d_max = abs(get_value(d3)); }
 
    GetScalingFactor(d_max, mult);
 
-   d0 /= mult;
-   d1 /= mult;
-   d2 /= mult;
-   d3 /= mult;
+   d0 = d0 / mult;
+   d1 = d1 / mult;
+   d2 = d2 / mult;
+   d3 = d3 / mult;
 
-   real_t t = 0.5*((d0+d2)*(d0-d2)+(d1-d3)*(d1+d3));
-   real_t s = d0*d2 + d1*d3;
-   s = std::sqrt(0.5*(d0*d0 + d1*d1 + d2*d2 + d3*d3) + std::sqrt(t*t + s*s));
+   T t = 0.5*((d0+d2)*(d0-d2)+(d1-d3)*(d1+d3));
+   T s = d0*d2 + d1*d3;
+   // Repeated singular values: t*t + s*s is minimal at zero, where its square
+   // root has no derivative, taken as zero
+   const T q = t*t + s*s;
+   const T r = (q == 0.0) ? T{} : sqrt(q);
+   s = sqrt(0.5*(d0*d0 + d1*d1 + d2*d2 + d3*d3) + r);
 
    if (s == 0.0)
    {
-      return 0.0;
+      return T{};
    }
-   t = fabs(d0*d3 - d1*d2) / s;
+   t = abs(d0*d3 - d1*d2) / s;
    if (t > s)
    {
       if (i == 0)

@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -21,7 +21,8 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_EXAMPLES =
-PAR_EXAMPLES = dfem-minimal-surface dfem-hyperelasticity_energy
+PAR_EXAMPLES = dfem-minimal-surface dfem-hyperelasticity_energy \
+               dfem-runtime-materials
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
 else
@@ -50,6 +51,11 @@ RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 	@$(call mfem-test,$<, $(RUN_MPI), Parallel example)
 %-test-seq: %
 	@$(call mfem-test,$<,, Serial example)
+
+# Testing: Specific execution options. dfem-runtime-materials has no
+# visualization, so it is run without -no-vis.
+dfem-runtime-materials-test-par: dfem-runtime-materials
+	@$(call mfem-test,$<, $(RUN_MPI), Parallel example,-nm 13 -r 1,SKIP-NO-VIS)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 

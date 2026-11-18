@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,7 +34,7 @@ namespace functional_gradient_test
 template <int dim>
 struct EnergyFunctional
 {
-   MFEM_HOST_DEVICE inline MFEM_FUTURE_ALWAYS_INLINE
+   MFEM_HOST_DEVICE inline MFEM_FORCE_INLINE
    auto operator()(const real_t &u,
                    const tensor<real_t, dim> &dudxi,
                    const tensor<real_t, dim, dim> &J,

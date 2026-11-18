@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -471,30 +471,26 @@ public:
        parent. */
    int GetEdgeMaster(int v1, int v2) const;
 
-   /** Get a list of vertices (2D/3D), edges (3D) and faces (3D) that coincide
-       with boundary elements with the specified attributes (marked in
-       'bdr_attr_is_ess'). In 3D this function also reveals "hidden" boundary
-       edges. In parallel it helps identifying boundary vertices/edges/faces
-       affected by non-local boundary elements. Hidden faces can occur for an
-       internal boundary coincident to a processor boundary.
-       */
-
    /**
-    * @brief Get a list of vertices (2D/3D), edges (3D) and faces (3D) that
+    * @brief Get a list of vertices (2D/3D), edges (2D/3D) and faces (3D) that
     * coincide with boundary elements with the specified attributes (marked in
-    * 'bdr_attr_is_ess').
+    * 'bdr_attr_marked').
     *
-    * @details In 3D this function also reveals "hidden" boundary edges. In
-    * parallel it helps identifying boundary vertices/edges/faces affected by
-    * non-local boundary elements. Hidden faces can occur for an internal
-    * boundary coincident to a processor boundary.
+    * @details The lists also include "hidden" boundary entities, which are not
+    * boundary elements or their edges/vertices: the master edges (2D) or faces
+    * (3D) of slave boundary elements, e.g. on an internal boundary refined on
+    * one side only, and in 3D, the master edges of the edges of boundary
+    * elements, e.g. in re-entrant corners. In parallel it helps identifying
+    * boundary vertices/edges/faces affected by non-local boundary elements.
+    * Hidden faces can also occur for an internal boundary coincident to a
+    * processor boundary.
     *
-    * @param bdr_attr_is_ess Indicator if a given attribute is essential.
-    * @param bdr_vertices Array of vertices that are essential.
-    * @param bdr_edges Array of edges that are essential.
-    * @param bdr_faces Array of faces that are essential.
+    * @param bdr_attr_marked Indicator if a given boundary attribute is marked.
+    * @param bdr_vertices Array of vertices on the marked boundary.
+    * @param bdr_edges Array of edges on the marked boundary.
+    * @param bdr_faces Array of faces on the marked boundary.
     */
-   virtual void GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+   virtual void GetBoundaryClosure(const Array<int> &bdr_attr_marked,
                                    Array<int> &bdr_vertices,
                                    Array<int> &bdr_edges, Array<int> &bdr_faces);
 
@@ -558,7 +554,7 @@ public:
    static constexpr int MaxElemChildren =
       10;      ///< Number of children an element can have
    static constexpr int MaxFaceNodes =
-      4;      ///< Number of faces an element can have
+      4;      ///< Maximum number of nodes a face can have
 
    /**
     * @brief Given a node index, return the vertex index associated
@@ -602,7 +598,7 @@ protected: // implementation
        off" its nodes by decrementing the ref counts. */
    struct Node : public Hashed2
    {
-      char vert_refc, edge_refc;
+      std::uint16_t vert_refc, edge_refc;
       int vert_index, edge_index;
 
       Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1),
@@ -1333,7 +1329,7 @@ protected:
     * @param vn2 The second vertex making up the quad
     * @param vn3 The third vertex making up the quad
     * @param vn4 The fourth vertex making up the quad
-    * @return int The depth of splits of this triangle that are present in the
+    * @return int The depth of splits of this quad that are present in the
     * mesh. NB: An isotropic refinement has a level of 2, one horizontal split,
     * followed by a vertical split.
     */

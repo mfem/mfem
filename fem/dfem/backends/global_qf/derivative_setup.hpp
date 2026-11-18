@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,19 +17,76 @@
 namespace mfem::future::GlobalQFImpl
 {
 
+// nvcc does not allow extended host/device lambdas inside generic lambdas.
+static inline void seed_shadow_column(const int gnqp_local,
+                                      real_t *shadow_ptr,
+                                      const int c_shadow,
+                                      const int input_size_s)
+{
+   mfem::forall(gnqp_local, [=] MFEM_HOST_DEVICE(int gq)
+   {
+      shadow_ptr[c_shadow + input_size_s * gq] = 1.0;
+   });
+}
+
+// nvcc does not allow extended host/device lambdas inside generic lambdas.
+template<bool reset_shadow>
+static void store_cache_columns(const int gnqp_local,
+                                const int num_qp_local,
+                                const int trial_vdim_local,
+                                const int total_trial_op_dim_local,
+                                const int residual_size_local,
+                                const int test_vdim_o,
+                                const int test_op_dim_o,
+                                const int yq_out_size,
+                                const int out_offset_o,
+                                const int col,
+                                const int *d_entities,
+                                const real_t *yq_d,
+                                real_t *cache_d,
+                                real_t *shadow_ptr,
+                                const int c_shadow,
+                                const int input_size_s)
+{
+   // The cache is (q, cache_idx, e) with the quadrature index
+   // fastest, so gq is the fastest-varying thread index to keep
+   // the stores coalesced.
+   mfem::forall(gnqp_local * yq_out_size, [=] MFEM_HOST_DEVICE(int idx)
+   {
+      const int gq       = idx % gnqp_local;
+      const int c_out    = idx / gnqp_local;
+      const int q        = gq % num_qp_local;
+      const int entity   = d_entities[gq / num_qp_local];
+      const int out_comp = out_offset_o +
+                           (c_out % test_vdim_o) * test_op_dim_o +
+                           c_out / test_vdim_o;
+      const int cache_idx =
+         out_comp * trial_vdim_local * total_trial_op_dim_local + col;
+      cache_d[q + num_qp_local *
+                (cache_idx + residual_size_local * entity)] =
+                 yq_d[c_out + yq_out_size * gq];
+      if (reset_shadow && c_out == 0)
+      {
+         shadow_ptr[c_shadow + input_size_s * gq] = 0.0;
+      }
+   });
+}
+
 template<
    int derivative_id,
    typename qfunc_t,
    typename inputs_t,
    typename outputs_t,
+   typename entity_t,
    size_t ninputs = tuple_size<inputs_t>::value,
    size_t noutputs = tuple_size<outputs_t>::value>
 struct DerivativeSetup
 {
+
    using qfunc_shadow_t = detail::qfunc_shadow_t<qfunc_t>;
 
    DerivativeSetup(
-      IntegratorContext ctx,
+      IntegratorContext<entity_t> ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
@@ -47,15 +104,17 @@ struct DerivativeSetup
       check_consistency(inputs, input_to_infd, ctx.infds);
       check_consistency(outputs, output_to_outfd, ctx.outfds);
 
-      create_fieldbases(inputs, input_to_infd, ctx.infds, ctx.ir, input_bases);
-      create_fieldbases(outputs, output_to_outfd, ctx.outfds, ctx.ir, output_bases);
+      create_fieldbases<entity_t>(inputs, input_to_infd, ctx.infds, ctx,
+                                  input_bases);
+      create_fieldbases<entity_t>(outputs, output_to_outfd, ctx.outfds, ctx,
+                                  output_bases);
 
       create_qlayouts(inputs, ctx.in_qlayouts, input_qlayouts);
       create_qlayouts(outputs, ctx.out_qlayouts, output_qlayouts);
 
       const int nqp = ctx.ir.GetNPoints();
       num_qp = nqp;
-      nentities = ctx.nentities;
+      nentities = ctx.marked_entities.Size();
       gnqp = nqp * nentities;
 
       xq_offsets.SetSize(ninputs + 1);
@@ -65,11 +124,9 @@ struct DerivativeSetup
          xq_offsets[i + 1] = nqp * get<i>(inputs).size_on_qp * nentities;
       });
       xq_offsets.PartialSum();
-      InitBlockVector(xq, xq_offsets);
 
       shadow_xq_offsets.SetSize(xq_offsets.Size());
       shadow_xq_offsets = xq_offsets;
-      InitBlockVector(shadow_xq, shadow_xq_offsets);
 
       yq_offsets.SetSize(noutputs + 1);
       yq_offsets[0] = 0;
@@ -78,13 +135,6 @@ struct DerivativeSetup
          yq_offsets[o + 1] = nqp * get<o>(outputs).size_on_qp * nentities;
       });
       yq_offsets.PartialSum();
-      InitBlockVector(yq, yq_offsets);
-
-      constexpr_for<0, noutputs>([&](auto o)
-      {
-         primal_output_storage[o].UseDevice(true);
-         primal_output_storage[o].SetSize(yq.GetBlock(o).Size());
-      });
 
       total_out_size_on_qp = 0;
       constexpr_for<0, noutputs>([&](auto o)
@@ -112,25 +162,44 @@ struct DerivativeSetup
       });
 
       residual_size_on_qp = total_out_size_on_qp * trial_vdim * total_trial_op_dim;
-      qp_cache.SetSize(residual_size_on_qp * num_qp * nentities);
+      // The cache is indexed by entity, as the LocalQF kernels that read it
+      // expect; only the entities of ctx.marked_entities are set.
+      qp_cache.SetSize(residual_size_on_qp * num_qp * ctx.nentities);
       qp_cache.UseDevice(true);
+   }
+
+   /// Allocates the quadrature point buffers on the first call, so that the
+   /// copies made while registering this object do not duplicate them.
+   void InitBuffers()
+   {
+      if (buffers_ready) { return; }
+      InitBlockVector(xq, xq_offsets);
+      InitBlockVector(shadow_xq, shadow_xq_offsets);
+      InitBlockVector(yq, yq_offsets);
+      fill_constant_inputs<inputs_t>(input_bases, xq);
+      InitFromBlocks(primal_output_storage, yq);
+      buffers_ready = true;
    }
 
    void operator()(const std::vector<Vector *> &xe)
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
+      InitBuffers();
 
-      interpolate(input_to_infd, input_bases, xe, xq);
+      interpolate(input_to_infd, input_bases, xe, xq, interpolated_inputs);
+      shadow_xq = 0.0;
+      shadow_xq.SyncToBlocks();
 
       const int gnqp_local = gnqp;
       const int num_qp_local = num_qp;
       const int trial_vdim_local = trial_vdim;
       const int total_trial_op_dim_local = total_trial_op_dim;
       const int residual_size_local = residual_size_on_qp;
+      const int *d_entities = ctx.marked_entities.Read();
 
       for (int j = 0; j < trial_vdim; j++)
       {
-         int m_offset = 0;
+         int c_offset = 0;
          constexpr_for<0, ninputs>([&](auto s)
          {
             if (!activity_map[s]) { return; }
@@ -141,19 +210,11 @@ struct DerivativeSetup
 
             for (int m = 0; m < trial_op_dim_s; m++)
             {
-               shadow_xq = 0.0;
-               shadow_xq.SyncToBlocks();
-
                // Set component (j + input_vdim_s * m) to 1 at all QPs
                const int c_shadow = j + input_vdim_s * m;
                real_t *shadow_ptr = shadow_xq.GetBlock(s.value).ReadWrite();
-               mfem::forall(gnqp_local, [=] MFEM_HOST_DEVICE(int gq)
-               {
-                  shadow_ptr[c_shadow + input_size_s * gq] = 1.0;
-               });
-
-               yq = 0.0;
-               yq.SyncToBlocks();
+               seed_shadow_column(gnqp_local, shadow_ptr, c_shadow,
+                                  input_size_s);
 
                if constexpr (detail::qfunc_uses_scratch_v<qfunc_t>)
                {
@@ -162,6 +223,7 @@ struct DerivativeSetup
                             qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp,
                             input_qlayouts, output_qlayouts,
                             primal_output_storage,
+                            dual_input_storage, dual_output_storage,
                             std::make_index_sequence<ninputs> {},
                             std::make_index_sequence<noutputs> {});
                }
@@ -171,15 +233,16 @@ struct DerivativeSetup
                      qfunc, xq, shadow_xq, yq, gnqp,
                      input_qlayouts, output_qlayouts,
                      primal_output_storage,
+                     dual_input_storage, dual_output_storage,
                      std::make_index_sequence<ninputs> {},
                      std::make_index_sequence<noutputs> {});
                }
 
-               real_t *cache_d = qp_cache.ReadWrite();
+               shadow_ptr = shadow_xq.GetBlock(s.value).ReadWrite();
+               real_t *cache_d = qp_cache.Write();
 
                // Write yq into the cache column
-               const int m_global = m + m_offset;
-               const int j_cur    = j;
+               const int col = c_offset + c_shadow;
                int out_offset = 0;
                constexpr_for<0, noutputs>([&](auto o)
                {
@@ -189,36 +252,25 @@ struct DerivativeSetup
                   const int out_offset_o  = out_offset;
                   const real_t *yq_d      = yq.GetBlock(o.value).Read();
 
-                  // The cache is (q, cache_idx, e) with the quadrature index
-                  // fastest, so gq is the fastest-varying thread index to keep
-                  // the stores coalesced.
-                  mfem::forall(gnqp_local * yq_out_size, [=] MFEM_HOST_DEVICE(int idx)
-                  {
-                     const int gq       = idx % gnqp_local;
-                     const int c_out    = idx / gnqp_local;
-                     const int q        = gq % num_qp_local;
-                     const int entity   = gq / num_qp_local;
-                     const int out_comp = out_offset_o + c_out;
-                     const int cache_idx =
-                        out_comp * trial_vdim_local * total_trial_op_dim_local +
-                        j_cur * total_trial_op_dim_local +
-                        m_global;
-                     cache_d[q + num_qp_local *
-                               (cache_idx + residual_size_local * entity)] =
-                                yq_d[c_out + yq_out_size * gq];
-                  });
+                  store_cache_columns<o.value == 0>(
+                     gnqp_local, num_qp_local, trial_vdim_local,
+                     total_trial_op_dim_local, residual_size_local,
+                     test_vdim_o, test_op_dim_o, yq_out_size, out_offset_o,
+                     col, d_entities, yq_d, cache_d, shadow_ptr, c_shadow, input_size_s);
                   out_offset += yq_out_size;
                });
             }
-            m_offset += trial_op_dim_s;
+            c_offset += input_size_s;
          });
       }
    }
 
-   IntegratorContext ctx;
+   IntegratorContext<entity_t> ctx;
    qfunc_t qfunc;
    qfunc_shadow_t qfunc_shadow;
    inputs_t inputs;
+   /// The inputs interpolated on every call, the others are constant.
+   static constexpr auto interpolated_inputs = varying_inputs<inputs_t>();
    outputs_t outputs;
    Vector &qp_cache;
 
@@ -238,6 +290,9 @@ struct DerivativeSetup
    Array<int> xq_offsets, shadow_xq_offsets, yq_offsets;
    mutable BlockVector xq, shadow_xq, yq;
    mutable std::array<Vector, noutputs> primal_output_storage;
+   mutable std::array<Vector, ninputs> dual_input_storage;
+   mutable std::array<Vector, noutputs> dual_output_storage;
+   bool buffers_ready = false;
 
    int total_out_size_on_qp = 0;
    int trial_vdim = 0;

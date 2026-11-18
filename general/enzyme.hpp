@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -12,6 +12,7 @@
 #define MFEM_ENZYME_HPP
 
 #include "../config/config.hpp" // IWYU pragma: keep
+#include <cstddef>
 
 namespace mfem
 {
@@ -62,6 +63,23 @@ template <typename return_type, typename... Args>
 MFEM_HOST_DEVICE
 return_type __enzyme_fwddiff(Args...);
 
+// Type hint: the @a size bytes at @a ptr hold integers.
+extern "C" MFEM_HOST_DEVICE __attribute__((enzyme_nofree))
+void __enzyme_integer(void *ptr, std::size_t size);
+
+#define MFEM_ENZYME_INTEGER(x)   __enzyme_integer((void *)&(x), sizeof(x))
+
+// Type hint: the @a size bytes at @a ptr hold real_t values.
+#ifdef MFEM_USE_SINGLE
+extern "C" MFEM_HOST_DEVICE __attribute__((enzyme_nofree))
+void __enzyme_float(void *ptr, std::size_t size);
+#define MFEM_ENZYME_REAL(x)   __enzyme_float((void *)&(x), sizeof(x))
+#else
+extern "C" MFEM_HOST_DEVICE __attribute__((enzyme_nofree))
+void __enzyme_double(void *ptr, std::size_t size);
+#define MFEM_ENZYME_REAL(x)   __enzyme_double((void *)&(x), sizeof(x))
+#endif
+
 #define MFEM_ENZYME_INACTIVENOFREE   __attribute__((enzyme_inactive, enzyme_nofree))
 #define MFEM_ENZYME_INACTIVE   __attribute__((enzyme_inactive))
 #define MFEM_ENZYME_FN_LIKE(x)   __attribute__((enzyme_function_like(#x)))
@@ -71,6 +89,8 @@ return_type __enzyme_fwddiff(Args...);
 #define MFEM_ENZYME_INACTIVENOFREE
 #define MFEM_ENZYME_INACTIVE
 #define MFEM_ENZYME_FN_LIKE(x)
+#define MFEM_ENZYME_INTEGER(x)
+#define MFEM_ENZYME_REAL(x)
 
 #endif // MFEM_USE_ENZYME
 

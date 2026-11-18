@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,7 +25,8 @@ namespace mfem::future::LocalQFImpl
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 class DerivativeApply
 {
    static constexpr auto inout_tuple =
@@ -43,26 +44,18 @@ class DerivativeApply
    static_assert(n_inputs + n_outputs == tuple_size<qf_param_ts>::value,
                  "LocalQF: q-function arity must match inputs + outputs");
 
+   using Layout = QpCacheLayout<derivative_id, qfunc_t, inputs_t, outputs_t>;
+
    const inputs_t inputs;
    const outputs_t outputs;
-   const IntegratorContext ctx;
+   const IntegratorContext<entity_t> ctx;
    const Vector &qp_cache;
-   const std::vector<const DofToQuad *> dtqs;
-   // inputs: dtq, idx, B, G, d1d, q1d, vdim
-   const std::array<DofToQuadMap, n_inputs> input_dtq;
-   const std::array<size_t, n_inputs> input_idx;
-   const std::array<const real_t *, n_inputs> input_B, input_G, input_H;
-   const std::array<int, n_inputs> input_d1d, input_q1d, input_vdim;
-   // outputs: dtq, idx, B, G, d1d, q1d, vdim
-   const std::array<DofToQuadMap, n_outputs> output_dtq;
-   const std::array<size_t, n_outputs> output_idx;
-   const std::array<const real_t *, n_outputs> output_B, output_G, output_H;
-   const std::array<int, n_outputs> output_d1d, output_q1d, output_vdim;
+   // inputs/outputs: dtq, idx, B, G, d1d, q1d, vdim
+   const FieldMetadata<n_inputs> in_data;
+   const FieldMetadata<n_outputs> out_data;
    // Jacobian cache metadata
    const std::array<bool, n_inputs> input_is_dependent;
    const std::array<int, n_inputs> input_size_on_qp;
-   const std::array<int, n_outputs> out_op_dim;
-   const std::array<int, n_outputs> out_offsets;
    const int output_size_on_qp;
    const int trial_vdim;
    const int total_trial_op_dim;
@@ -71,187 +64,30 @@ class DerivativeApply
    const int dim, ne, nq, q1d;
    FieldDescriptor direction_fd;
    mutable Vector direction_e;
-   mutable RestrictionCache<Entity::Element> direction_rcache;
-
-   template <std::size_t slot>
-   static constexpr int ParamRank()
+   mutable RestrictionCache direction_rcache
    {
-      using param_t = typename qf_param_slot<qfunc_t, slot>::qf_decay_param_t;
-      return qf_param_shape<param_t>::rank;
-   }
-
-   template <std::size_t slot, int dim_idx>
-   static constexpr int ParamExtent()
-   {
-      using param_t = typename qf_param_slot<qfunc_t, slot>::qf_decay_param_t;
-      return qf_param_shape<param_t>::extents[dim_idx];
-   }
-
-   template <typename fop_t, std::size_t slot>
-   static constexpr int StaticVDim()
-   {
-      constexpr int rank = ParamRank<slot>();
-      if constexpr (is_gradient_fop_v<fop_t> || is_hessian_fop_v<fop_t>)
-      {
-         constexpr int op_rank = is_hessian_fop_v<fop_t> ? 2 : 1;
-         if constexpr (rank <= op_rank) { return 1; }
-         else { return ParamExtent<slot, 0>(); }
-      }
-      else
-      {
-         if constexpr (rank == 0) { return 1; }
-         else { return ParamExtent<slot, 0>(); }
-      }
-   }
-
-   template <typename fop_t, std::size_t slot>
-   static constexpr int StaticOpDim()
-   {
-      constexpr int rank = ParamRank<slot>();
-      if constexpr (is_hessian_fop_v<fop_t>)
-      {
-         if constexpr (rank < 2) { return 1; }
-         else
-         {
-            constexpr int first = rank == 2 ? 0 : 1;
-            return ParamExtent<slot, first>() * ParamExtent<slot, first + 1>();
-         }
-      }
-      else if constexpr (is_gradient_fop_v<fop_t>)
-      {
-         if constexpr (rank == 0) { return 1; }
-         else if constexpr (rank == 1) { return ParamExtent<slot, 0>(); }
-         else { return ParamExtent<slot, 1>(); }
-      }
-      else
-      {
-         if constexpr (rank <= 1) { return 1; }
-         else { return ParamExtent<slot, 1>(); }
-      }
-   }
-
-   template <std::size_t input_slot>
-   static constexpr bool StaticInputDep()
-   {
-      using fop_t = tuple_element_t<input_slot, inputs_t>;
-      return fop_t::GetFieldId() == derivative_id;
-   }
-
-   template <std::size_t input_slot>
-   static constexpr int StaticInputVDim()
-   {
-      using fop_t = tuple_element_t<input_slot, inputs_t>;
-      return StaticVDim<fop_t, input_slot>();
-   }
-
-   template <std::size_t input_slot>
-   static constexpr int StaticInputOpDim()
-   {
-      using fop_t = tuple_element_t<input_slot, inputs_t>;
-      return StaticOpDim<fop_t, input_slot>();
-   }
-
-   template <std::size_t output_slot>
-   static constexpr int StaticOutputVDim()
-   {
-      using fop_t = tuple_element_t<output_slot, outputs_t>;
-      return StaticVDim<fop_t, n_inputs + output_slot>();
-   }
-
-   template <std::size_t output_slot>
-   static constexpr int StaticOutputOpDim()
-   {
-      using fop_t = tuple_element_t<output_slot, outputs_t>;
-      return StaticOpDim<fop_t, n_inputs + output_slot>();
-   }
-
-   template <std::size_t output_slot>
-   static constexpr int StaticOutputOffset()
-   {
-      int offset = 0;
-      for_constexpr<output_slot>([&](auto oc)
-      {
-         constexpr size_t o = oc.value;
-         offset += StaticOutputVDim<o>() * StaticOutputOpDim<o>();
-      });
-      return offset;
-   }
-
-   template <std::size_t input_slot>
-   static constexpr int StaticInputOpOffset()
-   {
-      int offset = 0;
-      for_constexpr<input_slot>([&](auto sc)
-      {
-         constexpr size_t s = sc.value;
-         if constexpr (StaticInputDep<s>()) { offset += StaticInputOpDim<s>(); }
-      });
-      return offset;
-   }
-
-   static constexpr int StaticTrialVDim()
-   {
-      int vdim = 1;
-      for_constexpr<n_inputs>([&](auto sc)
-      {
-         constexpr size_t s = sc.value;
-         if constexpr (StaticInputDep<s>()) { vdim = StaticInputVDim<s>(); }
-      });
-      return vdim;
-   }
-
-   static constexpr int StaticTotalTrialOpDim()
-   {
-      int op_dim = 0;
-      for_constexpr<n_inputs>([&](auto sc)
-      {
-         constexpr size_t s = sc.value;
-         if constexpr (StaticInputDep<s>()) { op_dim += StaticInputOpDim<s>(); }
-      });
-      return op_dim;
-   }
+      EntityTraits<entity_t>::restriction
+   };
 
 public:
    DerivativeApply() = delete;
 
-   DerivativeApply(IntegratorContext ctx,
+   DerivativeApply(IntegratorContext<entity_t> ctx,
                    qfunc_t /*qfunc*/,
                    inputs_t inputs,
                    outputs_t outputs,
                    const Vector &qp_cache_in):
       inputs(inputs), outputs(outputs), ctx(ctx), qp_cache(qp_cache_in),
-      dtqs(make_dtqs(ctx)), input_dtq(create_dtq_maps<Entity::Element>(
-                                         inputs,
-                                         dtqs,
-                                         create_union_field_map_for_dtq(ctx, inputs),
-                                         ctx.unionfds,
-                                         ctx.ir)),
-      input_idx(create_input_vector_map(ctx, inputs)),
-      input_B(get_B(input_dtq)), input_G(get_G(input_dtq)),
-      input_H(get_H(input_dtq)),
-      input_d1d(get_D1D(input_dtq)), input_q1d(get_Q1D(input_dtq)),
-      input_vdim(get_vdim(inputs)),
-      output_dtq(create_dtq_maps<Entity::Element>(
-                    outputs,
-                    dtqs,
-                    create_union_field_map_for_dtq(ctx, outputs),
-                    ctx.unionfds,
-                    ctx.ir)),
-      output_idx(create_output_vector_map(ctx, outputs)),
-      output_B(get_B(output_dtq)), output_G(get_G(output_dtq)),
-      output_H(get_H(output_dtq)),
-      output_d1d(get_D1D(output_dtq)), output_q1d(get_Q1D(output_dtq)),
-      output_vdim(get_vdim(outputs)),
+      in_data(MakeFieldMetadata(ctx, inputs, ctx.infds)),
+      out_data(MakeFieldMetadata(ctx, outputs, ctx.outfds)),
       input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
       input_size_on_qp(
          get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs> {})),
-                           out_op_dim(compute_out_op_dim(outputs)),
-                           out_offsets(compute_out_offsets(output_vdim, out_op_dim)),
                            output_size_on_qp(
                               [&]
    {
       int s = 0;
-      for_constexpr<n_outputs>([&](auto o)
+      for_constexpr_host<n_outputs>([&](auto o)
       { s += get<o>(outputs).size_on_qp; });
       return s;
    }()),
@@ -259,11 +95,13 @@ public:
    total_trial_op_dim(compute_total_trial_op_dim(
                          inputs, input_is_dependent, input_size_on_qp)),
    residual_size_on_qp(output_size_on_qp * trial_vdim * total_trial_op_dim),
-   dim(ctx.mesh.Dimension()), ne(ctx.nentities), nq(ctx.ir.GetNPoints()),
+   dim(GetEntityDimension<entity_t>(ctx.mesh)), ne(ctx.nentities),
+   nq(ctx.ir.GetNPoints()),
    q1d(tensor_1d_size(nq, dim))
    {
-      MFEM_ASSERT(ctx.unionfds.size() == nfields,
-                  "LocalQFBackend: unionfds size mismatch");
+      MFEM_ASSERT(nfields <= ctx.unionfds.size(),
+                  "LocalQFBackend: the q-function uses more fields than the "
+                  "operator has");
 
       int direction_field_idx = -1;
       for (size_t uf = 0; uf < nfields; uf++)
@@ -282,7 +120,8 @@ public:
 
    /// Tile size the kernel must be built at: the shared B/G arrays are square
    /// [MQ1][MQ1] but hold a q1d x d1d matrix, so MQ1 must cover both extents.
-   int tile_size() const { return kernel_tile_size(q1d, input_d1d, output_d1d); }
+   int tile_size() const
+   { return kernel_tile_size(q1d, in_data.d1ds(), out_data.d1ds()); }
 
    template<typename Backend>
    void run_kernels(std::vector<Vector *> &ye) const
@@ -292,33 +131,17 @@ public:
                    ctx,
                    qp_cache,
                    // inputs
-                   input_idx,
-                   input_B,
-                   input_G,
-                   input_H,
-                   input_vdim,
-                   input_d1d,
-                   input_q1d,
+                   in_data,
                    input_size_on_qp,
                    input_is_dependent,
                    // outputs
-                   output_idx,
-                   output_B,
-                   output_G,
-                   output_H,
-                   output_vdim,
-                   output_d1d,
-                   output_q1d,
-                   out_op_dim,
-                   out_offsets,
+                   out_data,
                    trial_vdim,
                    total_trial_op_dim,
                    residual_size_on_qp,
-                   output_size_on_qp,
                    direction_e,
                    ye,
                    // fallback arguments
-                   dim,
                    q1d);
    }
 
@@ -327,7 +150,7 @@ public:
                    const Vector *direction_l,
                    std::vector<Vector *> &ye) const
    {
-      if (ctx.attr.Size() == 0) { return; }
+      if (ctx.marked_entities.Size() == 0) { return; }
 
       MFEM_ASSERT(direction_l != nullptr,
                   "LocalQF DerivativeApply: direction vector is null");
@@ -354,123 +177,72 @@ public:
    //////////////////////////////////////////////////////////////////
    template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
    static void
-   derivative_apply_callback(const IntegratorContext &ctx,
+   derivative_apply_callback(const IntegratorContext<entity_t> &ctx,
                              const Vector &qp_cache,
-                             // inputs: idx, B, G, vdim, d1d, q1d
-                             const std::array<size_t, n_inputs> & /*in_idx*/,
-                             const std::array<const real_t *, n_inputs> in_B,
-                             const std::array<const real_t *, n_inputs> in_G,
-                             const std::array<const real_t *, n_inputs> in_H,
-                             const std::array<int, n_inputs> &in_vdim,
-                             const std::array<int, n_inputs> &in_d1d,
-                             const std::array<int, n_inputs> &in_q1d,
+                             const FieldMetadata<n_inputs> &in,
                              const std::array<int, n_inputs> &in_size_on_qp,
                              const std::array<bool, n_inputs> &input_dep,
-                             // outputs: idx, B, G, vdim, d1d, q1d
-                             const std::array<size_t, n_outputs> &out_idx,
-                             const std::array<const real_t *, n_outputs> out_B,
-                             const std::array<const real_t *, n_outputs> out_G,
-                             const std::array<const real_t *, n_outputs> out_H,
-                             const std::array<int, n_outputs> &out_vdim,
-                             const std::array<int, n_outputs> &out_d1d,
-                             const std::array<int, n_outputs> &out_q1d,
-                             const std::array<int, n_outputs> &out_op_dim,
-                             const std::array<int, n_outputs> &out_offsets,
+                             const FieldMetadata<n_outputs> &out,
                              const int trial_vdim,
                              const int total_trial_op_dim,
                              const int residual_size_on_qp,
-                             const int output_size_on_qp,
                              const Vector &direction_e,
                              std::vector<Vector *> &ye,
                              // fallback arguments
-                             const int dim,
                              const int q1d)
    {
       MFEM_CONTRACT_VAR(input_dep);
       MFEM_CONTRACT_VAR(in_size_on_qp);
-      MFEM_CONTRACT_VAR(out_vdim);
-      MFEM_CONTRACT_VAR(out_op_dim);
-      MFEM_CONTRACT_VAR(out_offsets);
       MFEM_CONTRACT_VAR(trial_vdim);
       MFEM_CONTRACT_VAR(total_trial_op_dim);
-      MFEM_VERIFY(dim == ctx.mesh.Dimension(), "Dimension mismatch");
-      if (ctx.attr.Size() == 0) { return; }
+      MFEM_VERIFY(backend_t::DIM == GetEntityDimension<entity_t>(ctx.mesh),
+                  "Dimension mismatch");
 
-      static constexpr auto B2D = backend_t::DIM == 2;
+      // Check that the q-function parameter size matches the field size for each input
+      for_constexpr_host<n_inputs>([&](auto sc)
+      {
+         constexpr size_t s = sc.value;
+         if constexpr (Layout::template StaticInputDep<s>())
+         {
+            MFEM_ASSERT(Layout::template StaticInputComponents<s>() ==
+                        in_size_on_qp[s],
+                        "DerivativeApply: q-function parameter size does not "
+                        "match the field for input " << s);
+         }
+      });
+
+      MFEM_VERIFY(Layout::StaticCacheColumns() ==
+                  trial_vdim * total_trial_op_dim,
+                  "DerivativeApply: derivative cache row width mismatch");
+
+      if (ctx.marked_entities.Size() == 0) { return; }
+
+      static constexpr int DIM = backend_t::DIM;
       static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
       static constexpr auto MTPB = backend_t::MAX_THREADS_PER_BLOCK();
 
       const int ne = ctx.nentities;
       const int nq = ctx.ir.GetNPoints();
-      MFEM_CONTRACT_VAR(output_size_on_qp);
-
-      constexpr auto k_dim = [](const int k) { return k * k * (B2D ? 1 : k); };
 
       // --------------------------------------------------
       // DIRECTION (trial): XE_dir for the dependent inputs
-      // --------------------------------------------------
-      const auto d_direction = direction_e.Read();
-      std::array<DeviceTensor<3 + 1 + 1, const real_t>, n_inputs> in_XE_dir;
-      for_constexpr<n_inputs>([&](auto ic)
-      {
-         constexpr size_t i = ic.value;
-         const int d = in_d1d[i], q = in_q1d[i], v = in_vdim[i];
-         using FOP = tuple_element_t<i, inputs_t>;
-         if (!input_dep[i]) { return; }
-         if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
-                       is_hessian_fop_v<FOP>)
-         {
-            in_XE_dir[i] = Reshape(d_direction, d, d, B2D ? 1 : d, v, ne);
-         }
-         else if constexpr (is_identity_fop_v<FOP>)
-         {
-            in_XE_dir[i] = Reshape(d_direction, v, q, q, B2D ? 1 : q, ne);
-         }
-         else if constexpr (is_weight_fop_v<FOP>) { /* never a direction */ }
-         else
-         {
-            static_assert(false, "Unsupported");
-         }
-      });
-
-      // --------------------------------------------------
       // OUTPUTS: YE, 3(max DIM) + 1(VDIM) + 1(number of elements)
       // --------------------------------------------------
-      std::array<DeviceTensor<3 + 1 + 1, real_t>, n_outputs> out_YE;
-      for_constexpr<n_outputs>([&](auto ic)
-      {
-         constexpr size_t i = ic.value;
-         const size_t k = out_idx[i];
-         const int d = out_d1d[i], q = out_q1d[i], v = out_vdim[i];
-         using FOP = tuple_element_t<i, outputs_t>;
-         if constexpr (is_gradient_fop_v<FOP> || is_value_fop_v<FOP> ||
-                       is_hessian_fop_v<FOP>)
-         {
-            MFEM_VERIFY(ye[k]->Size() == k_dim(d) * v * ne, "Size mismatch");
-            out_YE[i] = Reshape(ye[k]->ReadWrite(), d, d, B2D ? 1 : d, v, ne);
-         }
-         else if constexpr (is_identity_fop_v<FOP>)
-         {
-            MFEM_VERIFY(ye[k]->Size() == k_dim(q) * v * ne, "Size mismatch");
-            out_YE[i] = Reshape(ye[k]->ReadWrite(), v, q, q, B2D ? 1 : q, ne);
-         }
-         else
-         {
-            static_assert(false, "Unsupported FieldOperator");
-         }
-      });
+      const auto in_XE_dir = TangentViews<DIM, inputs_t>(ctx, direction_e, in,
+                                                         input_dep);
+      const auto out_YE = OutputViews<DIM, outputs_t>(ctx, ye, out);
 
       auto cache_tensor = DeviceTensor<3, const real_t>(
                              qp_cache.Read(), nq, residual_size_on_qp, ne);
 
-      const auto d_attr = ctx.attr.Read();
-      const bool has_attr = ctx.attr.Size() > 0;
-      const auto d_elem_attr = ctx.elem_attr->Read();
+      const int *d_entities = ctx.marked_entities.Read();
 
       dfem::forall<MTPB>(
-         [=] MFEM_HOST_DEVICE(const int e, void *)
+         [=] MFEM_HOST_DEVICE(const int ek, void *) MFEM_FORCE_INLINE
       {
-         if (has_attr && !d_attr[d_elem_attr[e] - 1]) { return; }
+         const int e = d_entities[ek];
+
+         MFEM_CONTRACT_VAR(cache_tensor);
 
          // -----------------------------------------------
          // Output integration registers, trial direction (shadow) registers
@@ -488,47 +260,10 @@ public:
          for_constexpr<n_inputs>([&](auto ic)
          {
             constexpr size_t i = ic.value;
-            if constexpr (!StaticInputDep<i>()) { return; }
-            const auto &XE = in_XE_dir[i];
-            const int d = in_d1d[i], q = in_q1d[i], Q1D = q1d;
-            const real_t *B = in_B[i], *G = in_G[i], *H = in_H[i];
-            auto &sarg = get<i>(sargs);
+            if constexpr (!Layout::template StaticInputDep<i>()) { return; }
             using FOP = tuple_element_t<i, inputs_t>;
-            if constexpr (is_value_fop<FOP>::value)
-            {
-               backend_t::LoadValue(smem, e, d, q, Q1D, B, XE, sarg);
-            }
-            else if constexpr (is_gradient_fop_v<FOP>)
-            {
-               constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
-               using FieldParamT =
-                  typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
-               backend_t::template LoadGradient<RNK,
-                                                decltype(sarg),
-                                                decltype(XE),
-                                                FieldParamT>(
-                                                   smem, e, d, q, Q1D, B, G, XE, sarg);
-            }
-            else if constexpr (is_hessian_fop_v<FOP>)
-            {
-               constexpr auto RNK = qf_param_slot<qfunc_t, i>::extents.size();
-               using FieldParamT =
-                  typename qf_param_slot<qfunc_t, i>::qf_decay_param_t;
-               backend_t::template LoadHessian<RNK,
-                                               decltype(sarg),
-                                               decltype(XE),
-                                               FieldParamT>(
-                                                  smem, e, d, q, Q1D,
-                                                  B, G, H, XE, sarg);
-            }
-            else if constexpr (is_identity_fop_v<FOP> || is_weight_fop_v<FOP>)
-            {
-               // identity read at qp; weight is never a trial direction
-            }
-            else
-            {
-               static_assert(false, "Unsupported");
-            }
+            LoadField<backend_t, qfunc_t, i, FOP>(
+               smem, e, q1d, in.dtq[i], in_XE_dir[i], get<i>(sargs));
          });
          MFEM_SYNC_THREAD;
 
@@ -536,9 +271,9 @@ public:
          // Contract the cached Jacobian with the trial direction at each
          // quadrature point and push the result into the test registers.
          // -----------------------------------------------
-         MFEM_FOREACH_THREAD(qz, z, (B2D ? 1 : q1d))
+         MFEM_FOREACH_THREAD_BATCHED(qz, z, nz<DIM>(q1d), backend_t::BATCH)
          {
-            MFEM_FOREACH_THREAD_DIRECT(qy, y, q1d)
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, ny<DIM>(q1d))
             {
                MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
                {
@@ -552,7 +287,7 @@ public:
                   for_constexpr<n_inputs>([&](auto sc)
                   {
                      constexpr size_t s = sc.value;
-                     if constexpr (StaticInputDep<s>())
+                     if constexpr (Layout::template StaticInputDep<s>())
                      {
                         using SARG =
                            typename qf_param_slot<qfunc_t, s>::qf_reg_param_t;
@@ -567,12 +302,10 @@ public:
                      using FOP = tuple_element_t<o, outputs_t>;
                      using ARG =
                         typename qf_param_slot<qfunc_t, ao>::qf_reg_param_t;
-                     constexpr int orank = qf_op_rank_v<FOP>;
-                     constexpr int tv = StaticOutputVDim<o>();
-                     constexpr int to = StaticOutputOpDim<o>();
-                     constexpr int offset_o = StaticOutputOffset<o>();
-                     constexpr int trial_vdim_ct = StaticTrialVDim();
-                     constexpr int total_trial_op_dim_ct = StaticTotalTrialOpDim();
+                     constexpr int tv = Layout::template StaticOutputVDim<o>();
+                     constexpr int to = Layout::template StaticOutputOpDim<o>();
+                     constexpr int offset_o =
+                        Layout::template StaticOutputOffset<o>();
 
                      ARG fhat{};
                      MFEM_UNROLL(tv)
@@ -583,34 +316,31 @@ public:
                         {
                            const int row = offset_o + i * to + k;
                            const int cache_row =
-                              row * trial_vdim_ct * total_trial_op_dim_ct;
+                              row * Layout::StaticCacheColumns();
                            real_t sum = 0.0;
                            for_constexpr<n_inputs>([&](auto sc)
                            {
                               constexpr size_t s = sc.value;
-                              if constexpr (StaticInputDep<s>())
+                              constexpr bool dep_s =
+                                 Layout::template StaticInputDep<s>();
+                              if constexpr (dep_s)
                               {
-                                 constexpr int op_dim_s = StaticInputOpDim<s>();
-                                 constexpr int m_offset = StaticInputOpOffset<s>();
-                                 using SFOP = tuple_element_t<s, inputs_t>;
-                                 constexpr int orank = qf_op_rank_v<SFOP>;
+                                 constexpr int ncomp_s =
+                                    Layout::template StaticInputComponents<s>();
+                                 constexpr int c_offset_s =
+                                    Layout::template StaticInputCacheOffset<s>();
                                  const auto &dvec = get<s>(dvecs);
-                                 MFEM_UNROLL(trial_vdim_ct)
-                                 for (int j = 0; j < trial_vdim_ct; j++)
+                                 MFEM_UNROLL(ncomp_s)
+                                 for (int c = 0; c < ncomp_s; c++)
                                  {
-                                    MFEM_UNROLL(op_dim_s)
-                                    for (int m = 0; m < op_dim_s; m++)
-                                    {
-                                       const int cache_idx =
-                                          cache_row + j * total_trial_op_dim_ct +
-                                          (m + m_offset);
-                                       sum += cache_tensor(q, cache_idx, e) *
-                                              qf_value_at<orank>(dvec, j, m);
-                                    }
+                                    const int cache_idx =
+                                       cache_row + c_offset_s + c;
+                                    sum += cache_tensor(q, cache_idx, e) *
+                                           qf_flat_value(dvec, c);
                                  }
                               }
                            });
-                           qf_set_value_at<orank>(fhat, i, k, sum);
+                           qf_set_value_at(fhat, i, k, sum);
                         }
                      }
 
@@ -624,7 +354,7 @@ public:
                            for (int k = 0; k < to; k++)
                            {
                               YE(i + tv * k, qx, qy, qz, e) =
-                                 qf_value_at<orank>(fhat, i, k);
+                                 qf_value_at(fhat, i, k);
                            }
                         }
                      }
@@ -645,45 +375,15 @@ public:
          for_constexpr<n_outputs>([&](auto ic)
          {
             constexpr size_t i = ic.value, o = n_inputs + i;
-            const int d = out_d1d[i], q = out_q1d[i], Q1D = q1d;
-            const auto B = out_B[i], G = out_G[i], H = out_H[i];
-            auto &YE = out_YE[i];
-            auto &rarg = get<i>(rargs);
             using FOP = tuple_element_t<i, outputs_t>;
-            if constexpr (is_value_fop_v<FOP>)
-            {
-               backend_t::WriteValue(smem, e, d, q, Q1D, B, YE, rarg);
-            }
-            else if constexpr (is_gradient_fop_v<FOP>)
-            {
-               using YE_t = decltype(YE);
-               using rarg_t = decltype(rarg);
-               using qf_param_t =
-                  typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
-               constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
-               backend_t::template WriteGradient<RNK, rarg_t, YE_t, qf_param_t>(
-                  smem, e, d, q, Q1D, B, G, YE, rarg);
-            }
-            else if constexpr (is_hessian_fop_v<FOP>)
-            {
-               using YE_t = decltype(YE);
-               using rarg_t = decltype(rarg);
-               using qf_param_t =
-                  typename qf_param_slot<qfunc_t, o>::qf_decay_param_t;
-               constexpr auto RNK = qf_param_slot<qfunc_t, o>::extents.size();
-               backend_t::template WriteHessian<RNK, rarg_t, YE_t, qf_param_t>(
-                  smem, e, d, q, Q1D, B, G, H, YE, rarg);
-            }
-            else if constexpr (is_identity_fop_v<FOP>) { /* written at qp */ }
-            else
-            {
-               static_assert(false, "Unsupported");
-            }
+            WriteField<backend_t, qfunc_t, o, FOP>(
+               smem, e, q1d, out.dtq[i], out_YE[i], get<i>(rargs));
          });
       },
-      ne,
+      ctx.marked_entities.Size(),
       backend_t::thread_blocks(compute_kernel_thread_1d<inputs_t, outputs_t>(
-                                  q1d, in_d1d, out_d1d)),
+                                  q1d, in.d1ds(), out.d1ds()),
+                               backend_t::BATCH),
       0,
       nullptr);
    }
@@ -701,15 +401,18 @@ public:
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
-inline typename DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+inline typename
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 ApplyKernelType
-DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeApplyLO::Kernel()
 {
-   static_assert((DIM == 2 || DIM == 3) && Q1D <= 8);
-   using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   static_assert(DIM >= 1 && DIM <= 3 && Q1D <= 8);
+   using apply_t =
+      DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return apply_t::template derivative_apply_callback<
              LocalQFLOBackend<DIM, Q1D>>;
 }
@@ -717,13 +420,16 @@ DerivativeApplyLO::Kernel()
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
-inline typename DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+         typename outputs_t,
+         typename entity_t>
+inline typename
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 ApplyKernelType
-DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeApplyLO::Fallback(int dim, int q1d)
 {
-   using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using apply_t =
+      DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    using DerivativeApplyLO = typename apply_t::DerivativeApplyLO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
    return DispatchLOKernelByDim<DerivativeApplyLO, QFDIM>(dim, q1d);
@@ -732,14 +438,17 @@ DerivativeApplyLO::Fallback(int dim, int q1d)
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
+         typename outputs_t,
+         typename entity_t>
 template<int DIM, int Q1D>
-inline typename DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+inline typename
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 ApplyKernelType
-DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeApplyHO::Kernel()
 {
-   using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using apply_t =
+      DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    return apply_t::template derivative_apply_callback<LocalQFHOBackend<DIM, Q1D>,
                                                       Q1D>;
 }
@@ -747,13 +456,16 @@ DerivativeApplyHO::Kernel()
 template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
-         typename outputs_t>
-inline typename DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+         typename outputs_t,
+         typename entity_t>
+inline typename
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 ApplyKernelType
-DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>::
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
 DerivativeApplyHO::Fallback(int dim, int q1d)
 {
-   using apply_t = DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t>;
+   using apply_t =
+      DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
    using DerivativeApplyHO = typename apply_t::DerivativeApplyHO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
    return DispatchHOKernelByDim<DerivativeApplyHO, QFDIM>(dim, q1d);

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -89,7 +89,28 @@ struct GlobalDiffusion
                       tensor_array<const real_t> &w,
                       tensor_array<dscalar_t, DIM> &dvdxi) const
       {
-         mfem::forall(w.size(), [=] MFEM_HOST_DEVICE(int q)
+         mfem::forall<UseEnzyme>(w.size(), [=] MFEM_HOST_DEVICE(int q)
+         {
+            const auto invJ = inv(J(q));
+            dvdxi(q) = (dudxi(q) * invJ) * transpose(invJ) * det(J(q)) * w(q);
+         });
+      }
+   };
+};
+
+// ────────────────────────────────────────────────────────────────────────────
+// Global-QF vector diffusion.
+template <int DIM>
+struct GlobalVectorDiffusion
+{
+   struct MFApply
+   {
+      void operator()(tensor_array<const dscalar_t, DIM, DIM> &dudxi,
+                      tensor_array<const real_t, DIM, DIM> &J,
+                      tensor_array<const real_t> &w,
+                      tensor_array<dscalar_t, DIM, DIM> &dvdxi) const
+      {
+         mfem::forall<UseEnzyme>(w.size(), [=] MFEM_HOST_DEVICE(int q)
          {
             const auto invJ = inv(J(q));
             dvdxi(q) = (dudxi(q) * invJ) * transpose(invJ) * det(J(q)) * w(q);
@@ -118,6 +139,18 @@ template <int DIM> struct VectorDiffusion
       }
    };
 };
+
+// ────────────────────────────────────────────────────────────────────────────
+// Global max norm of (ref - val), scaled by max(1, |ref|/10)
+static real_t MaxError(const Vector &ref, const Vector &val, MPI_Comm comm)
+{
+   Vector diff(ref);
+   diff -= val;
+   real_t norms[2] = { diff.Normlinf(), ref.Normlinf() };
+   MPI_Allreduce(MPI_IN_PLACE, norms, 2,
+                 MPITypeMap<real_t>::mpi_type, MPI_MAX, comm);
+   return norms[0] / std::max(real_t(1), norms[1] / 10);
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 template <int DIM, typename QFBackend = LocalQFBackend>
@@ -160,9 +193,11 @@ void diffusion(const char *filename, int p)
       xtvec.Randomize(1);
       x.SetFromTrueDofs(xtvec);
 
+      // The legacy diffusion has no 1D element assembly
       ParBilinearForm blf_fa(&pfes);
       blf_fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
-      blf_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+      blf_fa.SetAssemblyLevel(DIM > 1 ? AssemblyLevel::FULL :
+                              AssemblyLevel::LEGACY);
       blf_fa.Assemble();
       blf_fa.Finalize();
 
@@ -195,14 +230,7 @@ void diffusion(const char *filename, int p)
 
          blf_fa.Mult(x, y);
          pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
-         ytvec -= ztvec;
-
-         real_t norm_global = 0.0;
-         real_t norm_local = ytvec.Normlinf();
-         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                       pmesh.GetComm());
-
-         REQUIRE(norm_global == MFEM_Approx(0.0));
+         REQUIRE(MaxError(ytvec, ztvec, pmesh.GetComm()) == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
 
@@ -259,14 +287,7 @@ void diffusion(const char *filename, int p)
 
          blf_fa.Mult(x, y);
          pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
-         ytvec -= ztvec;
-
-         real_t norm_global = 0.0;
-         real_t norm_local = ytvec.Normlinf();
-         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                       pmesh.GetComm());
-
-         REQUIRE(norm_global == MFEM_Approx(0.0));
+         REQUIRE(MaxError(ytvec, ztvec, pmesh.GetComm()) == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
 
@@ -301,14 +322,7 @@ void diffusion(const char *filename, int p)
          blf_fa.Mult(x, y);
          pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
 
-         ytvec -= dztvec;
-
-         real_t norm_global = 0.0;
-         real_t norm_local = ytvec.Normlinf();
-         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                       pmesh.GetComm());
-
-         REQUIRE(norm_global == MFEM_Approx(0.0));
+         REQUIRE(MaxError(ytvec, dztvec, pmesh.GetComm()) == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
 
@@ -360,16 +374,11 @@ void diffusion(const char *filename, int p)
          dRdU->AssembleDiagonal(dfem_diagonal);
 
          Vector mfem_diagonal(pfes.GetTrueVSize());
-         blf_fa.AssembleDiagonal(mfem_diagonal);
+         std::unique_ptr<HypreParMatrix> A(blf_fa.ParallelAssemble());
+         A->AssembleDiagonal(mfem_diagonal);
 
-         dfem_diagonal -= mfem_diagonal;
-
-         real_t norm_global = 0.0;
-         real_t norm_local = dfem_diagonal.Normlinf();
-         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                       pmesh.GetComm());
-
-         REQUIRE(norm_global == MFEM_Approx(0.0));
+         REQUIRE(MaxError(mfem_diagonal, dfem_diagonal, pmesh.GetComm()) ==
+                 MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
    }
@@ -416,13 +425,7 @@ void diffusion(const char *filename, int p)
          vblf_fa.Mult(vx, vy);
          vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
 
-         vY -= vZ;
-         real_t norm_global = 0.0;
-         real_t norm_local = vY.Normlinf();
-         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                       pmesh.GetComm());
-
-         REQUIRE(norm_global == MFEM_Approx(0.0));
+         REQUIRE(MaxError(vY, vZ, pmesh.GetComm()) == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
 
@@ -465,13 +468,7 @@ void diffusion(const char *filename, int p)
          vblf_fa.Mult(vx, vy);
          vpfes.GetProlongationMatrix()->MultTranspose(vy, vY);
 
-         vY -= vZ;
-         real_t norm_global = 0.0;
-         real_t norm_local = vY.Normlinf();
-         MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                       pmesh.GetComm());
-
-         REQUIRE(norm_global == MFEM_Approx(0.0));
+         REQUIRE(MaxError(vY, vZ, pmesh.GetComm()) == MFEM_Approx(0.0));
          MPI_Barrier(MPI_COMM_WORLD);
       }
 
@@ -542,10 +539,10 @@ TEST_CASE("dFEM Diffusion 2D", "[Parallel][dFEM][GPU]")
 // AssembleDiagonal are served by the LocalQF implementations (see
 // GlobalQFBackend::MakeDerivativeAssemble*), so writer and readers live in
 // different backends and must agree on the cache layout.
-template <int DIM>
+template <int DIM, int VDIM = 1>
 void diffusion_globalqf(const char *filename, int p)
 {
-   CAPTURE(filename, DIM, p);
+   CAPTURE(filename, DIM, VDIM, p);
 
    Mesh smesh(filename);
    ParMesh pmesh(MPI_COMM_WORLD, smesh);
@@ -568,7 +565,7 @@ void diffusion_globalqf(const char *filename, int p)
    const auto *ir = &IntRules.Get(pmesh.GetTypicalElementGeometry(), 2 * p);
 
    H1_FECollection fec(p, DIM);
-   ParFiniteElementSpace pfes(&pmesh, &fec);
+   ParFiniteElementSpace pfes(&pmesh, &fec, VDIM);
 
    static constexpr int U = 0, Coords = 1;
 
@@ -578,9 +575,21 @@ void diffusion_globalqf(const char *filename, int p)
    xtvec.Randomize(1);
    x.SetFromTrueDofs(xtvec);
 
+   // VectorDiffusionIntegrator, and DiffusionIntegrator in 1D, have no element
+   // assembly, so these references are assembled LEGACY; both levels give the
+   // same SpMat.
    ParBilinearForm blf_fa(&pfes);
-   blf_fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
-   blf_fa.SetAssemblyLevel(AssemblyLevel::FULL);
+   if constexpr (VDIM == 1)
+   {
+      blf_fa.AddDomainIntegrator(new DiffusionIntegrator(ir));
+      blf_fa.SetAssemblyLevel(DIM > 1 ? AssemblyLevel::FULL :
+                              AssemblyLevel::LEGACY);
+   }
+   else
+   {
+      blf_fa.AddDomainIntegrator(new VectorDiffusionIntegrator(ir));
+      blf_fa.SetAssemblyLevel(AssemblyLevel::LEGACY);
+   }
    blf_fa.Assemble();
    blf_fa.Finalize();
 
@@ -592,7 +601,11 @@ void diffusion_globalqf(const char *filename, int p)
    const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
 
    DifferentiableOperator dop(in_fds, out_fds, pmesh);
-   typename GlobalDiffusion<DIM>::MFApply global_qfn;
+   using global_qf_t =
+      std::conditional_t<VDIM == 1,
+      typename GlobalDiffusion<DIM>::MFApply,
+      typename GlobalVectorDiffusion<DIM>::MFApply>;
+   global_qf_t global_qfn;
    dop.AddDomainIntegrator<GlobalQFBackend>(
       global_qfn,
       Inputs<Gradient<U>, Gradient<Coords>, Weight> {},
@@ -606,22 +619,23 @@ void diffusion_globalqf(const char *filename, int p)
    MultiVector X{ xtvec, nodestv };
    auto dRdU = dop.GetDerivative(U, X);
 
-   const auto max_error = [&](const Vector &v)
-   {
-      real_t norm_global = 0.0, norm_local = v.Normlinf();
-      MPI_Allreduce(&norm_local, &norm_global, 1, MPI_DOUBLE, MPI_MAX,
-                    pmesh.GetComm());
-      return norm_global;
-   };
-
-   // GlobalQF setup writer -> GlobalQF apply reader
+   // Matrix-free derivative action.
    {
       MultiVector Z{ ztvec };
       dRdU->Mult(xtvec, Z);
       blf_fa.Mult(x, y);
       pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
-      ytvec -= ztvec;
-      REQUIRE(max_error(ytvec) == MFEM_Approx(0.0));
+      REQUIRE(MaxError(ytvec, ztvec, pmesh.GetComm()) == MFEM_Approx(0.0));
+   }
+
+   // GlobalQF PA action
+   {
+      auto dRdU_cached = dop.GetDerivative(U, X, true);
+      MultiVector Z{ ztvec };
+      dRdU_cached->Mult(xtvec, Z);
+      blf_fa.Mult(x, y);
+      pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
+      REQUIRE(MaxError(ytvec, ztvec, pmesh.GetComm()) == MFEM_Approx(0.0));
    }
 
    // GlobalQF setup writer -> GlobalQF apply-transpose reader
@@ -635,8 +649,7 @@ void diffusion_globalqf(const char *filename, int p)
       w.SetFromTrueDofs(wtvec);
       blf_fa.MultTranspose(w, y);
       pfes.GetProlongationMatrix()->MultTranspose(y, ytvec);
-      ytvec -= ztvec;
-      REQUIRE(max_error(ytvec) == MFEM_Approx(0.0));
+      REQUIRE(MaxError(ytvec, ztvec, pmesh.GetComm()) == MFEM_Approx(0.0));
    }
 
    // GlobalQF setup writer -> LocalQF assemble reader
@@ -651,35 +664,48 @@ void diffusion_globalqf(const char *filename, int p)
    {
       Vector dfem_diag(pfes.GetTrueVSize()), mfem_diag(pfes.GetTrueVSize());
       dRdU->AssembleDiagonal(dfem_diag);
-      blf_fa.AssembleDiagonal(mfem_diag);
-      dfem_diag -= mfem_diag;
-      REQUIRE(max_error(dfem_diag) == MFEM_Approx(0.0));
+      // A LEGACY form has no extension for the diagonal
+      std::unique_ptr<HypreParMatrix> A(blf_fa.ParallelAssemble());
+      A->AssembleDiagonal(mfem_diag);
+      REQUIRE(MaxError(mfem_diag, dfem_diag, pmesh.GetComm()) ==
+              MFEM_Approx(0.0));
    }
 
    MPI_Barrier(MPI_COMM_WORLD);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+TEST_CASE("dFEM Diffusion 1D", "[Parallel][dFEM][GPU]")
+{
+   // p = 9 exceeds the LO tile and runs the HO kernels
+   const auto p = GenAll({1, 9}, {2, 3});
+   const auto meshs = { "../../data/inline-segment.mesh" };
+   const auto extra = { "../../data/periodic-segment.mesh" };
+   SECTION("LocalQF") { diffusion<1>(GenAll(meshs, extra), p); }
+   SECTION("GlobalQF") { diffusion_globalqf<1>(GenAll(meshs, extra), p); }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Diffusion GlobalQF cache 2D", "[Parallel][dFEM]")
 {
-   if constexpr (!mfem_use_gpu)
    {
       const auto p = GenAll({1}, {2, 3});
       const auto meshs = { "../../data/inline-quad.mesh" };
       const auto extra = { "../../data/star.mesh" };
-      diffusion_globalqf<2>(GenAll(meshs, extra), p);
+      SECTION("Scalar") { diffusion_globalqf<2>(GenAll(meshs, extra), p); }
+      SECTION("Vector") { diffusion_globalqf<2, 2>(GenAll(meshs, extra), p); }
    }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM Diffusion GlobalQF cache 3D", "[Parallel][dFEM]")
 {
-   if constexpr (!mfem_use_gpu)
    {
       const auto p = GenAll({1}, {2, 3});
       const auto meshs = { "../../data/inline-hex.mesh" };
       const auto extra = { "../../data/fichera.mesh" };
-      diffusion_globalqf<3>(GenAll(meshs, extra), p);
+      SECTION("Scalar") { diffusion_globalqf<3>(GenAll(meshs, extra), p); }
+      SECTION("Vector") { diffusion_globalqf<3, 3>(GenAll(meshs, extra), p); }
    }
 }
 

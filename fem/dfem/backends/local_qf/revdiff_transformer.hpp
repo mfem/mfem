@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -217,7 +217,7 @@ collect_active_inputs(std::index_sequence<Is...>)
    std::array<size_t, num_active> idx{};
    size_t j = 0;
    (((Is < num_inputs && qf_param_is_active_v<activity_t, Is>)
-     ? (idx[j++] = Is) : size_t{0}), ...);
+     ? void(idx[j++] = Is) : void()), ...);
    return idx;
 }
 
@@ -338,7 +338,7 @@ struct RevDiff
    // configured qfunction instance, so it can be handed to Enzyme as a function
    // pointer without default-constructing away runtime qfunction state.
    template <size_t... Is>
-   MFEM_HOST_DEVICE static MFEM_FUTURE_ALWAYS_INLINE void
+   MFEM_HOST_DEVICE static MFEM_FORCE_INLINE void
    static_call(Func *func, tuple_element_t<Is, args_tuple>... args)
    {
       (*func)(args...);
@@ -357,7 +357,7 @@ struct RevDiff
    // Load primal inputs from the pointer tuple into a local qargs copy. Dual
    // gradient parts are implicitly zero because qargs is value-initialized.
    template <typename QArgs, typename AllPtrs, size_t... Is>
-   MFEM_HOST_DEVICE static MFEM_FUTURE_ALWAYS_INLINE void load_qargs(
+   MFEM_HOST_DEVICE static MFEM_FORCE_INLINE void load_qargs(
       QArgs &qargs, AllPtrs &ptrs, std::index_sequence<Is...>)
    {
       ((mfem::future::get<int(Is)>(qargs) =
@@ -365,7 +365,7 @@ struct RevDiff
    }
 
    template <typename QArgs, typename AllPtrs, size_t... Is>
-   MFEM_HOST_DEVICE static MFEM_FUTURE_ALWAYS_INLINE void
+   MFEM_HOST_DEVICE static MFEM_FORCE_INLINE void
    lift_qargs_to_nested_dual(QArgs &qargs, AllPtrs &ptrs,
                              std::index_sequence<Is...>)
    {
@@ -386,7 +386,7 @@ struct RevDiff
    //     over bytewise. A member that *did* depend on the scalar would change
    //     the size and land in the static_assert below instead.
    template <typename nested_func_t>
-   MFEM_HOST_DEVICE MFEM_FUTURE_ALWAYS_INLINE nested_func_t
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE nested_func_t
    make_nested_func() const
    {
       if constexpr (std::is_constructible_v<nested_func_t, const Func &>)
@@ -418,7 +418,7 @@ struct RevDiff
    // gradient block back out. This is the forward-mode dual-number stand-in for
    // one reverse-mode call: O(ncomp) evaluations instead of O(1).
    template <size_t S, typename AllPtrs>
-   MFEM_HOST_DEVICE MFEM_FUTURE_ALWAYS_INLINE void seed_active_input(
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE void seed_active_input(
       AllPtrs &ptrs) const
    {
       constexpr size_t input_idx = active_inputs[S];
@@ -479,7 +479,7 @@ struct RevDiff
    // Dual-number fallback for the whole reverse-mode call: one seeded sweep per
    // Active input.
    template <typename AllPtrs>
-   MFEM_HOST_DEVICE MFEM_FUTURE_ALWAYS_INLINE void call_dual_rev(
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE void call_dual_rev(
       AllPtrs &ptrs) const
    {
       for_constexpr<num_active_inputs>([&](auto s)
@@ -488,12 +488,31 @@ struct RevDiff
       });
    }
 
+   // Reference to the I-th argument of a pack.
+   template <size_t I, typename Head, typename... Tail>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE static auto &
+   pack_arg(Head &head, Tail &...tail)
+   {
+      if constexpr (I == 0) { return head; }
+      else { return pack_arg<I - 1>(tail...); }
+   }
+
+   // Zero all gradient outputs before the derivative call (Enzyme accumulates).
+   template <typename... Args, size_t... Ss>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE static void zero_grads(
+      std::index_sequence<Ss...>, Args &...args)
+   {
+      ((pack_arg<num_inputs + Ss>(args...) =
+           std::decay_t<decltype(pack_arg<num_inputs + Ss>(args...))> {}),
+       ...);
+   }
+
 #ifdef MFEM_USE_ENZYME
    // Recursive builder of the per-argument reverse-mode enzyme call.
-   template <size_t I = 0, typename AllPtrs, typename... Built>
-   MFEM_HOST_DEVICE MFEM_FUTURE_ALWAYS_INLINE void
-   call_enzyme_rev(AllPtrs &ptrs, output_view &scratch, output_view &adjoint,
-                   Built... built) const
+   template <size_t I, typename... Args, typename... Built>
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE void
+   call_enzyme_rev(output_view &scratch, output_view &adjoint,
+                   Args &...args, Built... built) const
    {
       if constexpr (I == arity)
       {
@@ -503,37 +522,25 @@ struct RevDiff
       else if constexpr (I == active_output)
       {
          // Output: primal written to scratch (unused), adjoint seeded to 1.
-         call_enzyme_rev<I + 1>(ptrs, scratch, adjoint, built...,
-                                enzyme_dupnoneed, &scratch, &adjoint);
+         call_enzyme_rev<I + 1, Args...>(scratch, adjoint, args..., built...,
+                                         enzyme_dupnoneed, &scratch, &adjoint);
       }
       else if constexpr (qf_param_is_active_v<activity, I>)
       {
          // Active input: gradient accumulates into its grad-output slot.
-         call_enzyme_rev<I + 1>(
-            ptrs, scratch, adjoint, built..., enzyme_dup,
-            mfem::future::get<int(I)>(ptrs),
-            mfem::future::get<int(num_inputs + slot_of<I>())>(ptrs));
+         constexpr size_t G = num_inputs + slot_of<I>();
+         call_enzyme_rev<I + 1, Args...>(scratch, adjoint, args..., built...,
+                                         enzyme_dup, &pack_arg<I>(args...),
+                                         &pack_arg<G>(args...));
       }
       else
       {
          // Const input: primal only, no shadow.
-         call_enzyme_rev<I + 1>(ptrs, scratch, adjoint, built...,
-                                enzyme_const, mfem::future::get<int(I)>(ptrs));
+         call_enzyme_rev<I + 1, Args...>(scratch, adjoint, args..., built...,
+                                         enzyme_const, &pack_arg<I>(args...));
       }
    }
 #endif // MFEM_USE_ENZYME
-
-   // Zero all gradient outputs before the enzyme call (Enzyme accumulates).
-   template <typename AllPtrs, size_t... Ss>
-   MFEM_HOST_DEVICE static
-   MFEM_FUTURE_ALWAYS_INLINE void zero_grads(
-      AllPtrs &ptrs,
-      std::index_sequence<Ss...>)
-   {
-      ((*mfem::future::get<int(num_inputs + Ss)>(ptrs) =
-           std::decay_t<decltype(*mfem::future::get<int(num_inputs + Ss)>(ptrs))> {}),
-       ...);
-   }
 
    // Called once per quadrature point. Arguments are, in order:
    //   * the primal value of every qfunction input (active and const), then
@@ -543,26 +550,27 @@ struct RevDiff
    // scratch (enzyme_dupnoneed). A single __enzyme_autodiff call yields all
    // gradient blocks simultaneously.
    template <typename... Args>
-   MFEM_HOST_DEVICE MFEM_FUTURE_ALWAYS_INLINE void operator()(
+   MFEM_HOST_DEVICE MFEM_FORCE_INLINE void operator()(
       Args &&...args) const
    {
       static_assert(sizeof...(Args) == num_inputs + num_active_inputs,
                     "expected one primal per input plus one gradient output per "
                     "Active input");
-      auto ptrs = mfem::future::make_tuple(&args...);
-      zero_grads(ptrs, std::make_index_sequence<num_active_inputs> {});
+      zero_grads(std::make_index_sequence<num_active_inputs> {}, args...);
 #ifdef MFEM_USE_ENZYME
       output_view out_scratch {};
       output_view out_adjoint{1.0}; // seed: d(output)/d(output) = 1
-      call_enzyme_rev(ptrs, out_scratch, out_adjoint);
+      call_enzyme_rev<0, std::remove_reference_t<Args>...>(
+         out_scratch, out_adjoint, args...);
 #else
+      auto ptrs = mfem::future::make_tuple(&args...);
       call_dual_rev(ptrs);
 #endif
    }
 
-   static MFEM_FUTURE_ALWAYS_INLINE void print() { print_impl(std::make_index_sequence<arity> {}); }
+   static MFEM_FORCE_INLINE void print() { print_impl(std::make_index_sequence<arity> {}); }
 
-   template <size_t... Is> static MFEM_FUTURE_ALWAYS_INLINE void print_impl(
+   template <size_t... Is> static MFEM_FORCE_INLINE void print_impl(
       std::index_sequence<Is...>)
    {
       mfem::out << "__enzyme_autodiff<void>(fptr";
