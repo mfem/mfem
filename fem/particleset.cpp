@@ -204,6 +204,9 @@ void ParticleSet::AddParticles(const Array<IDType> &new_ids,
       }
    }
    // Add new ids
+   // Fix: sync ids to the host before the append. Reason: after a device
+   // Redistribute() ids can be valid only on the device.
+   ids.HostReadWrite();
    ids.Append(new_ids);
 
    // Update data
@@ -548,7 +551,9 @@ Particle ParticleSet::GetParticle(int i) const
 
    for (int t = 0; t < GetNTags(); t++)
    {
-      p.Tag(t) = Tag(t)[i];
+      // Fix: read the tag from a host pointer. Reason: after a device
+      // Redistribute() a tag can be valid only on the device.
+      p.Tag(t) = Tag(t).HostRead()[i];
    }
    return p;
 }
@@ -604,7 +609,9 @@ void ParticleSet::SetParticle(int i, const Particle &p)
 
    for (int t = 0; t < GetNTags(); t++)
    {
-      Tag(t)[i] = p.Tag(t);
+      // Fix: sync the tag to the host before the write. Reason: after a
+      // device Redistribute() a tag can be valid only on the device.
+      Tag(t).HostReadWrite()[i] = p.Tag(t);
    }
 }
 
@@ -665,9 +672,17 @@ void ParticleSet::PrintCSV(const char *fname, const Array<int> &field_idxs,
 #ifdef MFEM_USE_MPI
    int rank = GetRank(comm);
 #endif // MFEM_USE_MPI
+   // Fix: sync ids and the printed tags to the host and read host pointers.
+   // Reason: after a device Redistribute() they can be valid only on device.
+   const IDType *h_ids = ids.HostRead();
+   Array<const int*> h_tags(tag_idxs.Size());
+   for (int t = 0; t < tag_idxs.Size(); t++)
+   {
+      h_tags[t] = tags[tag_idxs[t]]->HostRead();
+   }
    for (int i = 0; i < GetNParticles(); i++)
    {
-      ss_data << ids[i];
+      ss_data << h_ids[i];
 #ifdef MFEM_USE_MPI
       ss_data << "," << rank;
 #endif // MFEM_USE_MPI
@@ -686,7 +701,7 @@ void ParticleSet::PrintCSV(const char *fname, const Array<int> &field_idxs,
       }
       for (int t = 0; t < tag_idxs.Size(); t++)
       {
-         ss_data << "," << (*tags[tag_idxs[t]])[i];
+         ss_data << "," << h_tags[t][i];
       }
       ss_data << "\n";
    }

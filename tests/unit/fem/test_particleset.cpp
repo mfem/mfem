@@ -12,8 +12,11 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <cstdio>
+#include <fstream>
 #include <limits>
 #include <numeric>
+#include <sstream>
 
 using namespace std;
 using namespace mfem;
@@ -265,18 +268,15 @@ void TestRedistributeNative(Ordering::Type ordering)
 
       pset.Redistribute(rank_list);
 
-      // operator[] / GetParticle() don't sync, so bring everything back first
-      ids.HostRead();
-      pset.Coords().HostRead();
-      for (int f = 0; f < pset.GetNFields(); f++) { pset.Field(f).HostRead(); }
-      for (int t = 0; t < pset.GetNTags(); t++) { pset.Tag(t).HostRead(); }
-
       CHECK(static_cast<int>(pset.GetGlobalNParticles()) == N);
 
+      // Fix: no manual sync; read tags and ids by HostRead() pointers. Reason:
+      // GetParticle() syncs now, and non-const operator[] fails a debug check.
+      const int *h_tag = pset.Tag(target_tag).HostRead();
       int wrong_proc_count = 0;
       for (int i = 0; i < pset.GetNParticles(); i++)
       {
-         if (rank != pset.Tag(target_tag)[i])
+         if (rank != h_tag[i])
          {
             wrong_proc_count++;
          }
@@ -285,16 +285,17 @@ void TestRedistributeNative(Ordering::Type ordering)
                     MPI_COMM_WORLD);
       CHECK(wrong_proc_count == 0);
 
+      const ParticleSet::IDType *h_ids = pset.GetIDs().HostRead();
       int wrong_particle_count = 0;
       for (int i = 0; i < pset.GetNParticles(); i++)
       {
          // a poisoned id would index out of bounds
-         if (pset.GetIDs()[i] >= static_cast<ParticleSet::IDType>(N))
+         if (h_ids[i] >= static_cast<ParticleSet::IDType>(N))
          {
             wrong_particle_count++;
             continue;
          }
-         Particle &actual_p = all_particles[pset.GetIDs()[i]];
+         Particle &actual_p = all_particles[h_ids[i]];
          Particle pset_p = pset.GetParticle(i);
 
          if (actual_p != pset_p)
@@ -312,6 +313,153 @@ TEST_CASE("Particle Redistribution (native)", "[ParticleSet][Parallel][GPU]")
 {
    TestRedistributeNative(Ordering::byNODES);
    TestRedistributeNative(Ordering::byVDIM);
+}
+
+// Move all columns to the device, then send each particle to the next rank.
+static void RedistributeOnDevice(ParticleSet &pset)
+{
+   Array<unsigned int> rank_list(pset.GetNParticles());
+   rank_list = static_cast<unsigned int>((Mpi::WorldRank() + 1) %
+                                         Mpi::WorldSize());
+
+   // GetIDs() is const-only; the test needs it device-resident too
+   auto &ids = const_cast<Array<ParticleSet::IDType>&>(pset.GetIDs());
+   MoveToDevice(ids, ~0ull);
+   MoveToDevice(pset.Coords());
+   for (int f = 0; f < pset.GetNFields(); f++) { MoveToDevice(pset.Field(f)); }
+   for (int t = 0; t < pset.GetNTags(); t++) { MoveToDevice(pset.Tag(t), -1); }
+   MoveToDevice(rank_list, ~0u);
+
+   pset.Redistribute(rank_list);
+}
+
+// Fix: test for the host syncs in GetParticle(), SetParticle() and
+// AddParticles(). Reason: no test used them on device-only columns.
+TEST_CASE("ParticleSet accessors after device Redistribute",
+          "[ParticleSet][Parallel][GPU]")
+{
+   const int size = Mpi::WorldSize();
+   const int rank = Mpi::WorldRank();
+   constexpr int src_tag = 1; // holds the index in all_particles
+
+   // Same list on all ranks. Rank r adds the particles r, r+size, ... so the
+   // id of a particle is also its index in this list.
+   std::vector<Particle> all_particles;
+   for (int i = 0; i < N; i++)
+   {
+      all_particles.emplace_back(SpaceDim, FieldVDims, NumTags);
+      InitializeRandom(all_particles[i], 17 + i);
+      all_particles[i].Tag(src_tag) = i;
+   }
+
+   ParticleSet pset(MPI_COMM_WORLD, 0, SpaceDim, FieldVDims, NumTags);
+   for (int i = rank; i < N; i += size) { pset.AddParticle(all_particles[i]); }
+   const ParticleSet::IDType next_id = rank + size*pset.GetNParticles();
+
+   RedistributeOnDevice(pset);
+
+   // No manual host sync from here: the accessors must sync
+   const int np = pset.GetNParticles();
+   int wrong_get = 0, wrong_set = 0;
+   for (int i = 0; i < np; i++)
+   {
+      Particle p = pset.GetParticle(i);
+      const int src = p.Tag(src_tag);
+      if (src < 0 || src >= N || p != all_particles[src]) { wrong_get++; }
+
+      const int new_tag = -2 - i; // the source tags are not negative
+      p.Tag(0) = new_tag;
+      pset.SetParticle(i, p);
+      if (pset.GetParticle(i).Tag(0) != new_tag) { wrong_set++; }
+   }
+   CHECK(wrong_get == 0);
+   CHECK(wrong_set == 0);
+
+   // A device access drops a host write that was made with no sync, so the
+   // new tags must stay after a move to the device and back
+   pset.Tag(0).ReadWrite();
+   const int *h_tag0 = pset.Tag(0).HostRead();
+   int wrong_sync = 0;
+   for (int i = 0; i < np; i++)
+   {
+      if (h_tag0[i] != -2 - i) { wrong_sync++; }
+   }
+   CHECK(wrong_sync == 0);
+
+   Particle extra(SpaceDim, FieldVDims, NumTags);
+   InitializeRandom(extra, 17 + N);
+   pset.AddParticle(extra);
+   REQUIRE(pset.GetNParticles() == np + 1);
+   CHECK(pset.GetParticle(np) == extra);
+
+   // AddParticle() must keep the ids that were valid only on the device
+   const ParticleSet::IDType *h_ids = pset.GetIDs().HostRead();
+   const int *h_src = pset.Tag(src_tag).HostRead();
+   int wrong_ids = 0;
+   for (int i = 0; i < np; i++)
+   {
+      if (h_ids[i] != static_cast<ParticleSet::IDType>(h_src[i]))
+      {
+         wrong_ids++;
+      }
+   }
+   CHECK(wrong_ids == 0);
+   CHECK(h_ids[np] == next_id);
+}
+
+// Fix: test for the host sync of ids and tags in PrintCSV(). Reason: no test
+// printed columns that are valid only on the device.
+TEST_CASE("ParticleSet PrintCSV after device Redistribute",
+          "[ParticleSet][Parallel][GPU]")
+{
+   ParticleSet pset(MPI_COMM_WORLD, 0, SpaceDim, FieldVDims, NumTags);
+   for (int i = 0; i < 10; i++)
+   {
+      Particle p(SpaceDim, FieldVDims, NumTags);
+      InitializeRandom(p, 17 + i);
+      pset.AddParticle(p);
+   }
+
+   RedistributeOnDevice(pset);
+
+   // No host sync before PrintCSV(): it must sync ids and tags
+   const char *fname = "test_particleset_print.csv";
+   pset.PrintCSV(fname);
+
+   // The rows of rank 0 follow the header line. The columns are: id, rank,
+   // coords, fields, tags.
+   if (Mpi::Root())
+   {
+      const ParticleSet::IDType *h_ids = pset.GetIDs().HostRead();
+      const int ncols = 2 + SpaceDim + FieldVDims.Sum() + NumTags;
+      std::ifstream ifs(fname);
+      std::string line;
+      std::getline(ifs, line); // header
+      int wrong_rows = 0;
+      for (int i = 0; i < pset.GetNParticles(); i++)
+      {
+         std::vector<std::string> cols;
+         if (std::getline(ifs, line))
+         {
+            std::istringstream iss(line);
+            for (std::string c; std::getline(iss, c, ','); )
+            {
+               cols.push_back(c);
+            }
+         }
+         bool ok = static_cast<int>(cols.size()) == ncols &&
+                   std::stoull(cols[0]) == h_ids[i];
+         for (int t = 0; ok && t < NumTags; t++)
+         {
+            ok = std::stoi(cols[ncols - NumTags + t]) ==
+                 pset.Tag(t).HostRead()[i];
+         }
+         if (!ok) { wrong_rows++; }
+      }
+      CHECK(wrong_rows == 0);
+      ifs.close();
+      REQUIRE(std::remove(fname) == 0);
+   }
 }
 
 #endif // MFEM_USE_MPI
