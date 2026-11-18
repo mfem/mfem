@@ -35,6 +35,7 @@ public:
    {
       const TMOP_Integrator *ti = ker.ti;
       const real_t metric_normal = ti->metric_normal;
+      const bool integ_over_target = ti->integ_over_target;
       const int NE = ti->PA.ne, d1d = ker.Ndof(), q1d = ti->PA.maps->nqpt;
       const int D1D = T_D1D ? T_D1D : d1d, Q1D = T_Q1D ? T_Q1D : q1d;
       MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
@@ -78,7 +79,8 @@ public:
                MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
-                  const real_t detJtr = kernels::Det<3>(Jtr);
+                  const real_t detJtr =
+                     integ_over_target ? kernels::Det<3>(Jtr) : 1.0;
                   const real_t m_coef = const_m0 ?
                                         MC(0, 0, 0, 0) :
                                         MC(qx, qy, qz, e);
