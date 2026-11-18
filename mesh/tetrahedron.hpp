@@ -15,6 +15,8 @@
 #include "../config/config.hpp"
 #include "element.hpp"
 
+#include <array>
+
 namespace mfem
 {
 
@@ -71,10 +73,16 @@ public:
    /// Return 1 if the element needs refinement in order to get conforming mesh.
    int NeedRefinement(HashTable<Hashed2> &v_to_v) const override;
 
-   /** Reorder the vertices so that the longest edge is from vertex 0
-       to vertex 1. If called it should be once from the mesh constructor,
-       because the order may be used later for setting the edges. **/
-   void MarkEdge(const DSTable &v_to_v, const int *length) override;
+   /** Reorder the vertices so that the edge from vertex 0 to vertex 1 is the
+       longest, and set the refinement flag from the longest edges of the other
+       faces: the largest @a length, then the largest of @a keys (which
+       differ for the edges of a tetrahedron), both indexed by the edge numbers
+       of @a v_to_v. Mesh::Finalize() with refine = true calls this on each
+       tetrahedron, and Triangle::MarkEdge() on each boundary triangle, then
+       renumbers the edges and faces and reorders the nodes, which depend on
+       the vertex orders. **/
+   void MarkEdge(const DSTable &v_to_v, const Array<real_t> &length,
+                 const Array<std::array<real_t, 6>> &keys);
 
    void ResetTransform(int tr) override { transform = tr; }
    unsigned GetTransform() const override { return transform; }

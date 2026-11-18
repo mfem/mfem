@@ -272,6 +272,11 @@ protected:
    GridFunction *Nodes;
    int own_nodes;
 
+   /** While Finalize() marks a mesh whose orientations it has just fixed: the
+       vertices of each element in the order its #Nodes still follow; NULL
+       otherwise. */
+   const Table *nodes_elem_vert = NULL;
+
    static const int vtk_quadratic_tet[10];
    static const int vtk_quadratic_pyramid[13];
    static const int vtk_quadratic_wedge[18];
@@ -402,12 +407,22 @@ protected:
    /** Also, initializes #mesh_geoms. */
    void SetMeshGen();
 
-   /// Return the length of the segment from node i to node j.
-   real_t GetLength(int i, int j) const;
+   /** For each edge of @a v_to_v (GetVertexToVertexTable()): its key among
+       edges of equal length, the vector between its vertices with its first
+       nonzero component positive, then the lexicographically smaller of the
+       two vertices; and its squared length. The vertices are at their
+       coordinates or at the vertex DOFs of the #Nodes; for nodes without
+       vertex DOFs, at their images by the element of lowest index that
+       contains the edge. */
+   void GetEdgeLengths2(const DSTable &v_to_v, Array<real_t> &lengths,
+                        Array<std::array<real_t, 6>> &keys) const;
+
+   /// The squared lengths of the vectors of @a keys (see GetEdgeLengths2()).
+   static void EdgeLengths2(const Array<std::array<real_t, 6>> &keys,
+                            Array<real_t> &lengths);
 
    void MarkForRefinement();
-   void MarkTriMeshForRefinement();
-   void GetEdgeOrdering(const DSTable &v_to_v, Array<int> &order);
+   virtual void MarkTriMeshForRefinement(const DSTable &v_to_v);
    virtual void MarkTetMeshForRefinement(const DSTable &v_to_v);
 
    // Methods used to prepare and apply permutation of the mesh nodes assuming
@@ -1177,10 +1192,26 @@ public:
        - assume that #vertices are defined, if #Nodes == NULL
        - assume that #Nodes are defined, if #Nodes != NULL.
        @param[in] refine  If true, prepare the Mesh for conforming refinement of
-                          triangular or tetrahedral meshes.
+                          triangular or tetrahedral meshes, by marking the
+                          longest edge of each triangle and tetrahedron.
        @param[in] fix_orientation
                           If true, fix the orientation of inverted mesh elements
                           by permuting their vertices.
+
+       Each element marks its longest edge, lengths compared exactly; between
+       edges of equal length, the larger vector between the vertices (first
+       nonzero component positive), then the larger of their smaller vertices,
+       in lexicographic order. The positions of the vertices are the vertex
+       coordinates, the vertex DOFs of the nodes or, for nodes without vertex
+       DOFs, the images of the vertices by each element of the edge, which
+       takes the largest key over these elements and, in a ParMesh, the ranks.
+       In one build, the same positions thus give the same marked edges for any
+       numbering and partition, and the refined meshes are the same for any
+       partition and any renumbering of the elements and vertices that keeps the
+       vertex list of each element, with the default update operator of the
+       space of the nodes (see UpdateNodes()). A ParMesh built from a Mesh has
+       the positions of the Mesh, also after conforming refinements of both;
+       positions set per rank, or moved after the ParMesh is built, may differ.
 
        Before calling this method, call FinalizeTopology() and ensure that the
        Mesh vertices or nodes are set. */

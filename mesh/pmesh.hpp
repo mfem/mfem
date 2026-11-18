@@ -116,6 +116,14 @@ protected:
        shared node then take the largest of their values over the ranks. */
    void UpdateNodes() override;
 
+   /// Make the keys of the shared edges, and their @a lengths, the same on all
+   /// the ranks of their groups (see MarkTetMeshForRefinement()).
+   void ShareEdgeKeys(const DSTable &v_to_v, Array<real_t> &lengths,
+                      Array<std::array<real_t, 6>> &keys);
+
+   // Mark the triangles with the keys of ShareEdgeKeys().
+   void MarkTriMeshForRefinement(const DSTable &v_to_v) override;
+
    // Mark all tets to ensure consistency across MPI tasks; also mark the shared
    // and boundary triangle faces using the consistently marked tets.
    void MarkTetMeshForRefinement(const DSTable &v_to_v) override;
@@ -396,6 +404,9 @@ public:
        See @a Mesh::MakeSimplicial for more details. */
    static ParMesh MakeSimplicial(ParMesh &orig_mesh);
 
+   /** Finalize the mesh as Mesh::Finalize() does, with the same marking for
+       refinement on all ranks: on a mesh with triangles or tetrahedra,
+       Finalize(true) is collective. */
    void Finalize(bool refine = false, bool fix_orientation = false) override;
 
    void SetAttributes(bool elem_attrs_changed = true,

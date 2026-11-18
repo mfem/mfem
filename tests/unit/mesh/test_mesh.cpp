@@ -12,6 +12,11 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <vector>
+
 using namespace mfem;
 
 TEST_CASE("AttrToMarker", "[Mesh][AttributeSets]")
@@ -82,6 +87,68 @@ TEST_CASE("Element-wise construction", "[Mesh]")
 
       REQUIRE(numVertices == mesh.GetNV());
       REQUIRE(numElements == mesh.GetNE());
+   }
+}
+
+TEST_CASE("Simplex meshes built and finalized marked by their longest edge",
+          "[Mesh]")
+{
+   // FinalizeTriMesh() and FinalizeTetMesh() on a mesh built element by
+   // element (as in ex7) mark its simplices for refinement: the edge between
+   // the local vertices 0 and 1 of each is its longest, and a tetrahedron has
+   // a refinement flag. A conforming refinement then bisects them, through
+   // their longest edge, and keeps their volume.
+   Mesh tri(2, 3, 1);
+   tri.AddVertex(0.0, 0.0);
+   tri.AddVertex(1.0, 0.0);
+   tri.AddVertex(0.0, 3.0);
+   tri.AddTriangle(0, 1, 2);
+   tri.FinalizeTriMesh(1, 1, true);
+   const int *v = tri.GetElement(0)->GetVertices();
+   CHECK(((v[0] == 1 && v[1] == 2) || (v[0] == 2 && v[1] == 1)));
+
+   Mesh tet(3, 4, 1);
+   tet.AddVertex(0.0, 0.0, 0.0);
+   tet.AddVertex(1.0, 0.0, 0.0);
+   tet.AddVertex(0.0, 2.0, 0.0);
+   tet.AddVertex(0.0, 0.0, 4.0);
+   tet.AddTet(0, 1, 2, 3);
+   tet.FinalizeTetMesh(1, 1, true);
+   const int *w = tet.GetElement(0)->GetVertices();
+   CHECK(((w[0] == 2 && w[1] == 3) || (w[0] == 3 && w[1] == 2)));
+   const Tetrahedron *t = dynamic_cast<const Tetrahedron *>(tet.GetElement(0));
+   REQUIRE(t != nullptr);
+   CHECK(t->GetRefinementFlag() != 0);
+
+   // The midpoints of the longest edges, and the volumes.
+   const real_t mid[2][3] = {{0.5, 1.5, 0.0}, {0.0, 1.0, 2.0}};
+   const real_t volume[2] = {1.5, 4.0/3.0};
+   int m = 0;
+   for (Mesh *mesh : {&tri, &tet})
+   {
+      Array<int> marked(1);
+      marked[0] = 0;
+      mesh->GeneralRefinement(marked, 0);
+      CHECK(mesh->GetNE() > 1);
+      bool found = false;
+      for (int i = 0; i < mesh->GetNV(); i++)
+      {
+         const real_t *x = mesh->GetVertex(i);
+         real_t d = 0.0;
+         for (int k = 0; k < mesh->SpaceDimension(); k++)
+         {
+            d += (x[k] - mid[m][k])*(x[k] - mid[m][k]);
+         }
+         found = found || (d < 1e-24);
+      }
+      CHECK(found);
+      real_t vol = 0.0;
+      for (int e = 0; e < mesh->GetNE(); e++)
+      {
+         vol += mesh->GetElementVolume(e);
+      }
+      CHECK((vol - volume[m])*(vol - volume[m]) < 1e-24);
+      m++;
    }
 }
 
@@ -589,4 +656,345 @@ TEST_CASE("Mesh::Swap preserves named attribute sets", "[Mesh]")
    Array<int> b_bdr_result = b.bdr_attribute_sets.GetAttributeSet("bdr_set_a");
    REQUIRE(a_bdr_result == b_bdr_attrs);
    REQUIRE(b_bdr_result == a_bdr_attrs);
+}
+
+TEST_CASE("Tetrahedron and boundary triangle marked alike", "[Mesh]")
+{
+   // One tetrahedron, with a boundary triangle on each face. The edges of the
+   // face 0-1-2 have squared lengths 1, 1 + 0.6e-6 and 1 + 1.2e-6: a
+   // comparison with a relative tolerance of 1e-6 would take the first two
+   // and the last two as equal, but not the first and the last, and its
+   // result would depend on the order of the comparisons. Whatever the vertex
+   // order of the tetrahedron and of the triangles, the refinement edge of
+   // each boundary triangle must be the marked edge of its face in the
+   // tetrahedron, so that the mesh can be refined.
+   const real_t x = 0.5 - 0.3e-6;
+   const real_t y = std::sqrt(1.0 + 0.6e-6 - x*x);
+   const real_t p[4][3] = {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {x, y, 0.0},
+      {0.5, 0.3, 0.8}
+   };
+   int tv[4] = {0, 1, 2, 3};
+   int perms = 0, bad = 0;
+   do
+   {
+      for (int rot = 0; rot < 3; rot++)
+      {
+         Mesh mesh(3, 4, 1, 4);
+         for (int v = 0; v < 4; v++) { mesh.AddVertex(p[v]); }
+         mesh.AddTet(tv);
+         for (int f = 0; f < 4; f++)
+         {
+            const int *fv =
+               Geometry::Constants<Geometry::TETRAHEDRON>::FaceVert[f];
+            int bv[3];
+            for (int k = 0; k < 3; k++) { bv[k] = tv[fv[(k + rot) % 3]]; }
+            mesh.AddBdrTriangle(bv, 1 + f);
+         }
+         mesh.FinalizeTopology();
+         mesh.Finalize(true);
+         const Tetrahedron *tet =
+            static_cast<const Tetrahedron *>(mesh.GetElement(0));
+         Array<int> faces, ori;
+         mesh.GetElementFaces(0, faces, ori);
+         for (int b = 0; b < mesh.GetNBE(); b++)
+         {
+            const int *bv = mesh.GetBdrElement(b)->GetVertices();
+            const int j = faces.Find(mesh.GetBdrElementFaceIndex(b));
+            REQUIRE(j >= 0);
+            int mv[3];
+            tet->GetMarkedFace(j, mv);
+            const bool same = (bv[0] == mv[0] && bv[1] == mv[1]) ||
+                              (bv[0] == mv[1] && bv[1] == mv[0]);
+            bad += !same;
+         }
+         // Refine (three bisections), which needs the two to agree.
+         Array<int> marked(1);
+         marked[0] = 0;
+         mesh.GeneralRefinement(marked, 0);
+         CHECK(mesh.GetNE() == 8);
+         perms++;
+      }
+   }
+   while (std::next_permutation(tv, tv + 4));
+   INFO(bad << " boundary triangles marked differently, in " << perms
+        << " vertex orders");
+   CHECK(bad == 0);
+}
+
+TEST_CASE("Curved simplices with collinear corners marked alike", "[Mesh]")
+{
+   // The map z -> z^2 of the plane gives, on a straight simplex in the first
+   // quadrant, a valid quadratic element whose corners can be collinear: the
+   // triangle (1, 1), (2, 0.5), (0.5, 2) gets the corners (0, 2), (3.75, 2)
+   // and (-3.75, 2), and its two short edges the same vector and length (also
+   // in the tetrahedron with the fourth vertex (1, 1, 1)). Their keys differ
+   // by their smaller vertices: in every vertex order the element is marked
+   // (a debug build checks that the keys of an element differ), and the
+   // marked edges of the element and of its faces are the same.
+   for (int dim = 2; dim <= 3; dim++)
+   {
+      int order[4] = {0, 1, 2, 3};
+      std::vector<std::vector<int>> marks;
+      do
+      {
+         Mesh mesh(dim, dim + 1, 1, 0, dim);
+         mesh.AddVertex(1.0, 1.0, 0.0);
+         mesh.AddVertex(2.0, 0.5, 0.0);
+         mesh.AddVertex(0.5, 2.0, 0.0);
+         if (dim == 3)
+         {
+            mesh.AddVertex(1.0, 1.0, 1.0);
+            mesh.AddTet(order);
+         }
+         else { mesh.AddTriangle(order); }
+         mesh.FinalizeTopology();
+         mesh.Finalize(false, true);
+         mesh.SetCurvature(2);
+         mesh.Transform([](const Vector &x, Vector &y)
+         {
+            y = x;
+            y(0) = x(0)*x(0) - x(1)*x(1);
+            y(1) = 2.0*x(0)*x(1);
+         });
+         REQUIRE(mesh.CheckElementOrientation(false) == 0);
+         mesh.Finalize(true);
+         // The marked edge, then those of the faces in the order of their
+         // sorted vertices, as sorted pairs of vertex numbers.
+         const int *v = mesh.GetElement(0)->GetVertices();
+         std::vector<int> m = {std::min(v[0], v[1]), std::max(v[0], v[1])};
+         if (dim == 3)
+         {
+            const Tetrahedron *tet =
+               static_cast<const Tetrahedron *>(mesh.GetElement(0));
+            std::vector<std::array<int, 5>> faces;
+            for (int f = 0; f < 4; f++)
+            {
+               int fv[3];
+               tet->GetMarkedFace(f, fv);
+               std::array<int, 3> sv = {fv[0], fv[1], fv[2]};
+               std::sort(sv.begin(), sv.end());
+               faces.push_back({sv[0], sv[1], sv[2], std::min(fv[0], fv[1]),
+                                std::max(fv[0], fv[1])
+                               });
+            }
+            std::sort(faces.begin(), faces.end());
+            for (const auto &f : faces)
+            {
+               m.insert(m.end(), f.begin(), f.end());
+            }
+         }
+         marks.push_back(m);
+      }
+      while (std::next_permutation(order, order + dim + 1));
+      INFO("dimension " << dim << ", " << marks.size() << " vertex orders");
+      for (const auto &m : marks) { CHECK(m == marks[0]); }
+   }
+}
+
+namespace
+{
+
+/// The number of elements whose marked edge, between their local vertices 0
+/// and 1, is shorter than one of their other edges by more than round-off.
+/// The lengths are those of the chords between the vertices as mapped by each
+/// element.
+int MarkedNotLongest(const Mesh &mesh)
+{
+   int n = 0;
+   IsoparametricTransformation T;
+   DenseMatrix x;
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      const Element *el = mesh.GetElement(e);
+      mesh.GetElementTransformation(e, &T);
+      T.Transform(*Geometries.GetVertices(el->GetGeometryType()), x);
+      real_t longest = 0.0, marked = 0.0;
+      for (int k = 0; k < el->GetNEdges(); k++)
+      {
+         const int *ev = el->GetEdgeVertices(k);
+         real_t l = 0.0;
+         for (int d = 0; d < x.Height(); d++)
+         {
+            l += (x(d, ev[0]) - x(d, ev[1]))*(x(d, ev[0]) - x(d, ev[1]));
+         }
+         longest = std::max(longest, l);
+         if (ev[0] + ev[1] == 1) { marked = l; }
+      }
+      n += (marked < longest*(1.0 - 1e-12));
+   }
+   return n;
+}
+
+} // namespace
+
+TEST_CASE("Triangle with discontinuous nodes marked by its longest edge",
+          "[Mesh]")
+{
+   // Discontinuous (L2) nodes have no vertex DOFs: the lengths of the edges
+   // come from the elements. A triangle with sides of lengths 100, 1 and
+   // about 100.005 is marked by its longest side, also when Finalize() first
+   // fixes its orientation, which its nodes must then follow.
+   const bool inverted = GENERATE(false, true);
+   INFO((inverted ? "inverted" : "positive") << " triangle");
+   Mesh mesh(2, 3, 1);
+   mesh.AddVertex(0.0, 0.0);
+   mesh.AddVertex(100.0, 0.0);
+   mesh.AddVertex(inverted ? 100.0 : 0.0, inverted ? -1.0 : 1.0);
+   mesh.AddTriangle(0, 1, 2);
+   mesh.FinalizeTopology();
+   mesh.SetCurvature(2, true);
+   mesh.Finalize(true, true);
+   CHECK(MarkedNotLongest(mesh) == 0);
+   CHECK(std::abs(mesh.GetElementVolume(0) - 50.0) < 1e-10);
+}
+
+TEST_CASE("Mesh with discontinuous nodes marked as without nodes", "[Mesh]")
+{
+   // Straight discontinuous nodes give the vertices their positions in every
+   // element: marked again, the mesh is marked as the same mesh without
+   // nodes. Its vertices are moved so that no two edges have the same length.
+   const int dim = GENERATE(2, 3);
+   const int order = GENERATE(1, 2);
+   INFO(dim << "D, nodes of order " << order);
+   auto Make = [dim]()
+   {
+      Mesh mesh = (dim == 2) ?
+                  Mesh::MakeCartesian2D(4, 4, Element::TRIANGLE) :
+                  Mesh::MakeCartesian3D(3, 3, 3, Element::TETRAHEDRON);
+      for (int v = 0; v < mesh.GetNV(); v++)
+      {
+         real_t *x = mesh.GetVertex(v);
+         for (int d = 0; d < dim; d++)
+         {
+            x[d] += 0.02*std::sin(12.9898*v + 78.233*d);
+         }
+      }
+      return mesh;
+   };
+   Mesh plain = Make(), nodal = Make();
+   nodal.SetCurvature(order, true);
+   plain.Finalize(true);
+   nodal.Finalize(true);
+   REQUIRE(plain.GetNE() == nodal.GetNE());
+   REQUIRE(plain.GetNBE() == nodal.GetNBE());
+   auto Same = [](const Element *a, const Element *b)
+   {
+      const int n = a->GetNVertices();
+      return std::equal(a->GetVertices(), a->GetVertices() + n,
+                        b->GetVertices());
+   };
+   int differ = 0;
+   for (int e = 0; e < plain.GetNE(); e++)
+   {
+      differ += !Same(plain.GetElement(e), nodal.GetElement(e));
+   }
+   for (int b = 0; b < plain.GetNBE(); b++)
+   {
+      differ += !Same(plain.GetBdrElement(b), nodal.GetBdrElement(b));
+   }
+   CHECK(differ == 0);
+   CHECK(MarkedNotLongest(nodal) == 0);
+}
+
+TEST_CASE("Periodic meshes marked by the longest edge of each element",
+          "[Mesh]")
+{
+   // The nodes of a periodic mesh are discontinuous: a vertex on a periodic
+   // boundary has a position in each of its elements. The cells are long in
+   // one direction, so that the longest edge of each element is longer than
+   // the others by much more than round-off. Marked again, each element is
+   // marked by its longest edge.
+   const int dim = GENERATE(2, 3);
+   INFO(dim << "D");
+   Mesh base = (dim == 2) ?
+               Mesh::MakeCartesian2D(4, 3, Element::TRIANGLE, false, 1.0, 9.0) :
+               Mesh::MakeCartesian3D(3, 3, 3, Element::TETRAHEDRON, 1.0, 4.0,
+                                     13.0);
+   std::vector<Vector> translations;
+   for (int d = 0; d < dim; d++)
+   {
+      Vector t(dim);
+      t = 0.0;
+      t(d) = (d == 0) ? 1.0 : (d == 1) ? ((dim == 2) ? 9.0 : 4.0) : 13.0;
+      translations.push_back(t);
+   }
+   Mesh mesh = Mesh::MakePeriodic(
+                  base, base.CreatePeriodicVertexMapping(translations));
+   mesh.Finalize(true);
+   CHECK(MarkedNotLongest(mesh) == 0);
+}
+
+TEST_CASE("Inverted tetrahedra with discontinuous nodes marked by their "
+          "lengths", "[Mesh]")
+{
+   // Finalize() fixes the orientation of inverted tetrahedra before it marks
+   // them, and the marking reads discontinuous nodes through the elements: the
+   // nodes must follow the fixed vertex orders. Half of the tetrahedra of a
+   // mesh with moved vertices are inverted (two of their vertices swapped).
+   // With discontinuous nodes of orders 1 and 2, the mesh is fixed and marked
+   // as the same mesh without nodes, every tetrahedron is marked by its
+   // longest edge, none is inverted any more, and the nodes map the vertices
+   // of each tetrahedron to their coordinates.
+   const int order = GENERATE(1, 2);
+   INFO("nodes of order " << order);
+   auto Make = []()
+   {
+      Mesh mesh = Mesh::MakeCartesian3D(3, 3, 3, Element::TETRAHEDRON);
+      for (int v = 0; v < mesh.GetNV(); v++)
+      {
+         real_t *x = mesh.GetVertex(v);
+         for (int d = 0; d < 3; d++)
+         {
+            x[d] += 0.02*std::sin(12.9898*v + 78.233*d);
+         }
+      }
+      for (int e = 0; e < mesh.GetNE(); e += 2)
+      {
+         int *v = mesh.GetElement(e)->GetVertices();
+         std::swap(v[2], v[3]);
+      }
+      return mesh;
+   };
+   Mesh plain = Make(), nodal = Make();
+   nodal.SetCurvature(order, true);
+   REQUIRE(nodal.CheckElementOrientation(false) == nodal.GetNE()/2);
+   plain.Finalize(true, true);
+   nodal.Finalize(true, true);
+   REQUIRE(plain.GetNE() == nodal.GetNE());
+   REQUIRE(plain.GetNBE() == nodal.GetNBE());
+   auto Same = [](const Element *a, const Element *b)
+   {
+      const int n = a->GetNVertices();
+      return std::equal(a->GetVertices(), a->GetVertices() + n,
+                        b->GetVertices());
+   };
+   int differ = 0;
+   for (int e = 0; e < plain.GetNE(); e++)
+   {
+      differ += !Same(plain.GetElement(e), nodal.GetElement(e));
+   }
+   for (int b = 0; b < plain.GetNBE(); b++)
+   {
+      differ += !Same(plain.GetBdrElement(b), nodal.GetBdrElement(b));
+   }
+   CHECK(differ == 0);
+   CHECK(MarkedNotLongest(nodal) == 0);
+   CHECK(nodal.CheckElementOrientation(false) == 0);
+   real_t gap = 0.0;
+   IsoparametricTransformation T;
+   DenseMatrix x;
+   for (int e = 0; e < nodal.GetNE(); e++)
+   {
+      nodal.GetElementTransformation(e, &T);
+      T.Transform(*Geometries.GetVertices(Geometry::TETRAHEDRON), x);
+      const int *v = nodal.GetElement(e)->GetVertices();
+      for (int k = 0; k < 4; k++)
+      {
+         for (int d = 0; d < 3; d++)
+         {
+            gap = std::max(gap, std::abs(x(d, k) - plain.GetVertex(v[k])[d]));
+         }
+      }
+   }
+   CHECK(gap < 1e-12);
 }

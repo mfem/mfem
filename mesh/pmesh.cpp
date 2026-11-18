@@ -20,6 +20,8 @@
 #include "../general/text.hpp"
 #include "../general/globals.hpp"
 
+#include <cstdint>
+#include <limits>
 #include <iostream>
 #include <fstream>
 
@@ -762,8 +764,10 @@ void ParMesh::BuildSharedFaceElems(int ntri_faces, int nquad_faces,
             sface_lface[stria_counter] = lface;
             if (meshgen == 1) // Tet-only mesh
             {
-               Tetrahedron *tet = dynamic_cast<Tetrahedron *>
-                                  (elements[faces_info[lface].Elem1No]);
+               Element *elem = elements[faces_info[lface].Elem1No];
+               MFEM_ASSERT(dynamic_cast<Tetrahedron *>(elem),
+                           "Unexpected non-Tetrahedron element")
+               auto *tet = static_cast<Tetrahedron *>(elem);
                // mark the shared face for refinement by reorienting
                // it according to the refinement flag in the tetrahedron
                // to which this shared face belongs to.
@@ -1766,100 +1770,87 @@ void ParMesh::UpdateNodes()
    NodesUpdated();
 }
 
-void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
+void ParMesh::ShareEdgeKeys(const DSTable &v_to_v, Array<real_t> &lengths,
+                            Array<std::array<real_t, 6>> &keys)
 {
-   Array<int> order;
-   GetEdgeOrdering(v_to_v, order); // local edge ordering
-
-   // create a GroupCommunicator on the shared edges
+   // All the ranks of a group use the same keys of its shared edges, and the
+   // lengths of their vectors, as the ranks must compare the same numbers: with
+   // vertex positions (coordinates, or vertex DOFs of the nodes), the keys of
+   // the group master; with discontinuous nodes, where an edge takes the
+   // largest key of its local elements, the lexicographically largest key of
+   // the ranks (component by component: a rank contributes a component while
+   // its previous ones are the largest). The communicator uses the default
+   // layout: these arrays are indexed by shared edge.
    GroupCommunicator sedge_comm(gtopo);
    GetSharedEdgeCommunicator(0, sedge_comm);
-
-   Array<int> sedge_ord(shared_edges.Size());
-   Array<Pair<int,int> > sedge_ord_map(shared_edges.Size());
-   for (int k = 0; k < shared_edges.Size(); k++)
+   Array<real_t> sedge_key(shared_edges.Size());
+   const bool largest = (Nodes && Nodes->FESpace()->GetNVDofs() == 0);
+   Array<bool> match(shared_edges.Size());
+   match = true;
+   for (int k = 0; k < 6; k++)
    {
-      // sedge_ledge may be undefined -- use shared_edges and v_to_v instead
-      const int sedge = group_sedge.GetJ()[k];
-      const int *v = shared_edges[sedge]->GetVertices();
-      sedge_ord[k] = order[v_to_v(v[0], v[1])];
+      for (int i = 0; i < shared_edges.Size(); i++)
+      {
+         const int *v = shared_edges[i]->GetVertices();
+         const real_t c = keys[v_to_v(v[0], v[1])][k];
+         sedge_key[i] = (!largest || match[i]) ? c :
+                        -std::numeric_limits<real_t>::infinity();
+      }
+      if (largest)
+      {
+         sedge_comm.Reduce<real_t>(sedge_key, GroupCommunicator::Max);
+      }
+      sedge_comm.Bcast(sedge_key);
+      for (int i = 0; i < shared_edges.Size(); i++)
+      {
+         const int *v = shared_edges[i]->GetVertices();
+         real_t &c = keys[v_to_v(v[0], v[1])][k];
+         match[i] = match[i] && (c == sedge_key[i]);
+         c = sedge_key[i];
+      }
    }
+   EdgeLengths2(keys, lengths);
+}
 
-   sedge_comm.Bcast<int>(sedge_ord, 1);
-
-   for (int k = 0, gr = 1; gr < GetNGroups(); gr++)
+void ParMesh::MarkTriMeshForRefinement(const DSTable &v_to_v)
+{
+   // As Mesh::MarkTriMeshForRefinement(), with the keys of the shared edges
+   // that all the ranks of their groups use.
+   Array<real_t> lengths;
+   Array<std::array<real_t, 6>> keys;
+   GetEdgeLengths2(v_to_v, lengths, keys);
+   ShareEdgeKeys(v_to_v, lengths, keys);
+   for (int i = 0; i < NumOfElements; i++)
    {
-      const int n = group_sedge.RowSize(gr-1);
-      if (n == 0) { continue; }
-      sedge_ord_map.SetSize(n);
-      for (int j = 0; j < n; j++)
+      if (elements[i]->GetType() == Element::TRIANGLE)
       {
-         sedge_ord_map[j].one = sedge_ord[k+j];
-         sedge_ord_map[j].two = j;
+         MFEM_ASSERT(dynamic_cast<Triangle *>(elements[i]),
+                     "Unexpected non-Triangle element type");
+         static_cast<Triangle *>(elements[i])->MarkEdge(v_to_v, lengths, keys);
       }
-      SortPairs<int, int>(sedge_ord_map, n);
-      for (int j = 0; j < n; j++)
-      {
-         const int sedge_from = group_sedge.GetJ()[k+j];
-         const int *v = shared_edges[sedge_from]->GetVertices();
-         sedge_ord[k+j] = order[v_to_v(v[0], v[1])];
-      }
-      std::sort(&sedge_ord[k], &sedge_ord[k] + n);
-      for (int j = 0; j < n; j++)
-      {
-         const int sedge_to = group_sedge.GetJ()[k+sedge_ord_map[j].two];
-         const int *v = shared_edges[sedge_to]->GetVertices();
-         order[v_to_v(v[0], v[1])] = sedge_ord[k+j];
-      }
-      k += n;
    }
+}
 
-#ifdef MFEM_DEBUG
-   {
-      Array<Pair<int, real_t> > ilen_len(order.Size());
+void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
+{
+   // Mark the longest tetrahedral edge by rotating the indices so that vertex
+   // 0 - vertex 1 is the longest edge in the element; between edges of equal
+   // length, the larger key (GetEdgeLengths2()), the keys of the shared edges
+   // being those of ShareEdgeKeys().
+   Array<real_t> lengths;
+   Array<std::array<real_t, 6>> keys;
+   GetEdgeLengths2(v_to_v, lengths, keys);
+   ShareEdgeKeys(v_to_v, lengths, keys);
 
-      for (int i = 0; i < NumOfVertices; i++)
-      {
-         for (DSTable::RowIterator it(v_to_v, i); !it; ++it)
-         {
-            int j = it.Index();
-            ilen_len[j].one = order[j];
-            ilen_len[j].two = GetLength(i, it.Column());
-         }
-      }
-
-      SortPairs<int, real_t>(ilen_len, order.Size());
-
-      real_t d_max = 0.;
-      for (int i = 1; i < order.Size(); i++)
-      {
-         d_max = std::max(d_max, ilen_len[i-1].two-ilen_len[i].two);
-      }
-
-#if 0
-      // Debug message from every MPI rank.
-      mfem::out << "proc. " << MyRank << '/' << NRanks << ": d_max = " << d_max
-                << endl;
-#else
-      // Debug message just from rank 0.
-      real_t glob_d_max;
-      MPI_Reduce(&d_max, &glob_d_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, 0,
-                 MyComm);
-      if (MyRank == 0)
-      {
-         mfem::out << "glob_d_max = " << glob_d_max << endl;
-      }
-#endif
-   }
-#endif
-
-   // use 'order' to mark the tets, the boundary triangles, and the shared
-   // triangle faces
+   // Mark the tets, the boundary triangles, and the shared triangle faces
    for (int i = 0; i < NumOfElements; i++)
    {
       if (elements[i]->GetType() == Element::TETRAHEDRON)
       {
-         elements[i]->MarkEdge(v_to_v, order);
+         MFEM_ASSERT(dynamic_cast<Tetrahedron *>(elements[i]),
+                     "Unexpected non-Tetrahedron element type");
+         static_cast<Tetrahedron *>(elements[i])->MarkEdge(v_to_v, lengths,
+                                                           keys);
       }
    }
 
@@ -1867,13 +1858,15 @@ void ParMesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
    {
       if (boundary[i]->GetType() == Element::TRIANGLE)
       {
-         boundary[i]->MarkEdge(v_to_v, order);
+         MFEM_ASSERT(dynamic_cast<Triangle *>(boundary[i]),
+                     "Unexpected non-Triangle element type");
+         static_cast<Triangle *>(boundary[i])->MarkEdge(v_to_v, lengths, keys);
       }
    }
 
    for (int i = 0; i < shared_trias.Size(); i++)
    {
-      Triangle::MarkEdge(shared_trias[i].v, v_to_v, order);
+      Triangle::MarkEdge(shared_trias[i].v, v_to_v, lengths, keys);
    }
 }
 
@@ -3307,7 +3300,7 @@ void ParMesh::ReorientTetMesh()
    Array<int> svert_master_index(svert_lvert);
    for (int i = 0; i < group_svert.Size(); i++)
    {
-      int rank = gtopo.GetGroupMasterRank(i+1);
+      const int rank = gtopo.GetGroupMasterRank(i+1);
       for (int j = 0; j < group_svert.RowSize(i); j++)
       {
          svert_master_rank[group_svert.GetRow(i)[j]] = rank;

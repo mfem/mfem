@@ -11,6 +11,8 @@
 
 #include "mesh_headers.hpp"
 
+#include <array>
+
 namespace mfem
 {
 
@@ -50,63 +52,37 @@ void Triangle::SetVertices(const int *ind)
    }
 }
 
-void Triangle::MarkEdge(DenseMatrix &pmat)
+// static method
+void Triangle::MarkEdge(int *indices, const DSTable &v_to_v,
+                        const Array<real_t> &length,
+                        const Array<std::array<real_t, 6>> &keys)
 {
-   real_t d[3];
-   int shift, v;
-
-   d[0] = ( (pmat(0,1)-pmat(0,0))*(pmat(0,1)-pmat(0,0)) +
-            (pmat(1,1)-pmat(1,0))*(pmat(1,1)-pmat(1,0)) );
-   d[1] = ( (pmat(0,2)-pmat(0,1))*(pmat(0,2)-pmat(0,1)) +
-            (pmat(1,2)-pmat(1,1))*(pmat(1,2)-pmat(1,1)) );
-   d[2] = ( (pmat(0,2)-pmat(0,0))*(pmat(0,2)-pmat(0,0)) +
-            (pmat(1,2)-pmat(1,0))*(pmat(1,2)-pmat(1,0)) );
-
-   // if pmat has 3 rows, then use extra term in each sum
-   if (pmat.Height()==3)
+   int e, j, ind[3];
+   real_t l, L;
+   std::array<real_t, 6> l2, L2;
+   // The edges are ordered by their lengths, and edges of equal length by
+   // keys: a strict total order (the keys of the edges of an element differ
+   // unless two of its vertices coincide), so that the longest edge of a face
+   // is the same whatever the order in which its edges are compared (here and
+   // in Tetrahedron::MarkEdge()). A tolerance on the lengths would not be
+   // transitive.
+   auto Compare = [&length, &keys, &l, &l2, &L, &L2](int edge)
    {
-      d[0] += (pmat(2,1)-pmat(2,0))*(pmat(2,1)-pmat(2,0));
-      d[1] += (pmat(2,2)-pmat(2,1))*(pmat(2,2)-pmat(2,1));
-      d[2] += (pmat(2,2)-pmat(2,0))*(pmat(2,2)-pmat(2,0));
-   }
+      l = length[edge];
+      l2 = keys[edge];
+      MFEM_ASSERT(l2 != L2, "Two edges of an element have the same key: two of "
+                  "its vertices coincide to working precision");
+      return (l > L || (l == L && l2 > L2));
+   };
 
-   if (d[0] >= d[1])
-   {
-      if (d[0] >= d[2]) { shift = 0; }
-      else { shift = 2; }
-   }
-   else if (d[1] >= d[2]) { shift = 1; }
-   else { shift = 2; }
+   // Find j as the index of the longest edge, using the pair of metrics
+   e = v_to_v(indices[0], indices[1]);
+   L = length[e]; L2 = keys[e];
+   j = 0;
+   if (Compare(v_to_v(indices[1], indices[2]))) { L = l; L2 = l2; j = 1; }
+   if (Compare(v_to_v(indices[2], indices[0]))) { j = 2; }
 
-   switch (shift)
-   {
-      case 0:
-         break;
-      case 1:
-         v = indices[0];
-         indices[0] = indices[1];
-         indices[1] = indices[2];
-         indices[2] = v;
-         break;
-      case 2:
-         v = indices[0];
-         indices[0] = indices[2];
-         indices[2] = indices[1];
-         indices[1] = v;
-         break;
-   }
-}
-
-// Static method
-void Triangle::MarkEdge(int *indices, const DSTable &v_to_v, const int *length)
-{
-   int l, L, j, ind[3], i;
-
-   L = length[ v_to_v(indices[0], indices[1]) ]; j = 0;
-   if ( (l = length[ v_to_v(indices[1], indices[2]) ]) > L ) { L = l; j = 1; }
-   if ( (l = length[ v_to_v(indices[2], indices[0]) ]) > L ) { j = 2; }
-
-   for (i = 0; i < 3; i++)
+   for (int i = 0; i < 3; i++)
    {
       ind[i] = indices[i];
    }

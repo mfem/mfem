@@ -49,6 +49,21 @@ Meshing improvements
   or Mesh::SaveNURBSHDF5 for writing and the usual Mesh constructors or loaders
   for reading.
 
+- Fixed the parallel marking of tetrahedra for conforming refinement: a ParMesh
+  marked again on 3 ranks or more could mark a shared triangle differently on
+  its ranks, and the next conforming refinement did not match across them.
+
+- Fixed the parallel marking of periodic meshes (discontinuous nodes) for
+  conforming refinement: an element could be marked by an edge other than its
+  longest one.
+
+- Triangles and tetrahedra are marked by exact edge lengths, ties broken by edge
+  vector and endpoint; in one build the marked edges depend only on positions.
+
+- Meshes with edges of equal length, or equal up to round-off, may refine
+  differently from earlier releases: e.g. ex7 -e 0 -amr 1 now ends with 458
+  unknowns instead of 418.
+
 - After a conforming refinement, a mesh node shared by fine elements, or ranks,
   takes the componentwise largest of their values: in one build, the same for
   any partition and any renumbering that keeps the elements' vertex lists.
@@ -94,6 +109,12 @@ Miscellaneous
 
 - Removes the SidreDataCollection class from MFEM in favor of the
   MFEMSidreDataCollection class in the Axom library (https://github.com/llnl/axom).
+
+API changes
+-----------
+- Removed the virtual method Element::MarkEdge. The MarkEdge methods of
+  Triangle and Tetrahedron now take the exact edge lengths and keys instead of
+  int lengths or a DenseMatrix.
 
 
 Version 4.10, released on Sep 1, 2026

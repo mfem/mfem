@@ -25,6 +25,7 @@
 #include "../fem/quadinterpolator.hpp"
 
 // headers already included by mesh.hpp: <iostream>, <array>, <map>, <memory>
+#include <algorithm>
 #include <sstream>
 #include <fstream>
 #include <limits>
@@ -2582,10 +2583,12 @@ void Mesh::FinalizeTriMesh(int generate_edges, int refine, bool fix_orientation)
 {
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);
+   // MarkForRefinement() marks the simplices that SetMeshGen() finds.
+   SetMeshGen();
 
    if (refine)
    {
-      MarkTriMeshForRefinement();
+      MarkForRefinement();
    }
 
    if (generate_edges)
@@ -2603,8 +2606,6 @@ void Mesh::FinalizeTriMesh(int generate_edges, int refine, bool fix_orientation)
    NumOfFaces = 0;
 
    SetAttributes();
-
-   SetMeshGen();
 }
 
 void Mesh::FinalizeQuadMesh(int generate_edges, int refine,
@@ -3106,82 +3107,234 @@ void Mesh::ReorderElements(const Array<int> &ordering, bool reorder_vertices)
 }
 
 
+void Mesh::GetEdgeLengths2(const DSTable &v_to_v, Array<real_t> &lengths,
+                           Array<std::array<real_t, 6>> &keys) const
+{
+   // The key of the edge between the points pi and pj: their difference with
+   // its first nonzero component positive, then the lexicographically smaller
+   // point. Neither depends on the order of the two points.
+   auto Key = [](const std::array<real_t, 3> &pi,
+                 const std::array<real_t, 3> &pj)
+   {
+      std::array<real_t, 6> key;
+      std::array<real_t, 3> d;
+      for (int k = 0; k < 3; k++) { d[k] = pi[k] - pj[k]; }
+      for (int k = 0; k < 3; k++)
+      {
+         if (d[k] == 0.0) { continue; }
+         if (d[k] < 0.0)
+         {
+            for (real_t &c : d) { c = (c == 0.0) ? 0.0 : -c; }
+         }
+         break;
+      }
+      const std::array<real_t, 3> &p = (pj < pi) ? pj : pi;
+      for (int k = 0; k < 3; k++) { key[k] = d[k]; key[3+k] = p[k]; }
+      return key;
+   };
+   keys.SetSize(NumOfEdges);
+   const FiniteElementSpace *fes = Nodes ? Nodes->FESpace() : NULL;
+   if (fes == NULL || fes->GetNVDofs() > 0)
+   {
+      // The vertices have one position each: their coordinates, or the values
+      // of their DOFs in the nodes.
+      const real_t *nodes = Nodes ? Nodes->HostRead() : NULL;
+      Array<int> ivdofs, jvdofs;
+      for (int i = 0; i < NumOfVertices; i++)
+      {
+         std::array<real_t, 3> pi = {0.0, 0.0, 0.0}, pj;
+         if (nodes)
+         {
+            fes->GetVertexVDofs(i, ivdofs);
+            for (int k = 0; k < ivdofs.Size(); k++)
+            {
+               pi[k] = nodes[ivdofs[k]];
+            }
+         }
+         else
+         {
+            for (int k = 0; k < spaceDim; k++) { pi[k] = vertices[i](k); }
+         }
+         for (DSTable::RowIterator it(v_to_v, i); !it; ++it)
+         {
+            const int j = it.Column();
+            pj = {0.0, 0.0, 0.0};
+            if (nodes)
+            {
+               fes->GetVertexVDofs(j, jvdofs);
+               for (int k = 0; k < jvdofs.Size(); k++)
+               {
+                  pj[k] = nodes[jvdofs[k]];
+               }
+            }
+            else
+            {
+               for (int k = 0; k < spaceDim; k++) { pj[k] = vertices[j](k); }
+            }
+            keys[it.Index()] = Key(pi, pj);
+         }
+      }
+      EdgeLengths2(keys, lengths);
+      return;
+   }
+
+   // Nodes without vertex DOFs (discontinuous nodes, as those of periodic
+   // meshes): a vertex has a position in each of its elements. An edge takes
+   // the largest key of the chords between its two vertices as mapped by the
+   // elements that contain it, which does not depend on their order; the
+   // positions of the vertices are those of the element transformation at the
+   // reference vertices (the shape functions at the vertices computed once per
+   // element geometry).
+   Array<bool> done(NumOfEdges);
+   done = false;
+   const real_t *nodes = Nodes->HostRead();
+   const FiniteElement *vertex_fe[Geometry::NumGeom] = {};
+   DenseMatrix vertex_shape[Geometry::NumGeom];
+   Vector shape;
+   DenseMatrix pm, x;
+   Array<int> vdofs;
+   for (int e = 0; e < NumOfElements; e++)
+   {
+      const Element *el = elements[e];
+      const int *v = el->GetVertices();
+      const int ne = el->GetNEdges();
+      // The vertices of the element in the order that its nodes follow.
+      const int *node_v = nodes_elem_vert ? nodes_elem_vert->GetRow(e) : v;
+      const FiniteElement *fe = fes->GetFE(e);
+      const Geometry::Type geom = el->GetGeometryType();
+      const int nd = fe->GetDof(), nv = el->GetNVertices();
+      DenseMatrix &vs = vertex_shape[geom];
+      if (vertex_fe[geom] != fe)
+      {
+         const IntegrationRule &ir = *Geometries.GetVertices(geom);
+         vs.SetSize(nd, nv);
+         shape.SetSize(nd);
+         for (int k = 0; k < nv; k++)
+         {
+            fe->CalcShape(ir.IntPoint(k), shape);
+            vs.SetCol(k, shape);
+         }
+         vertex_fe[geom] = fe;
+      }
+      // As GetElementTransformation() and IsoparametricTransformation::
+      // Transform(): the same values, summed in the same order.
+      fes->GetElementVDofs(e, vdofs);
+      pm.SetSize(spaceDim, nd);
+      for (int d = 0; d < spaceDim; d++)
+      {
+         for (int j = 0; j < nd; j++) { pm(d, j) = nodes[vdofs[nd*d + j]]; }
+      }
+      x.SetSize(spaceDim, nv);
+      for (int k = 0; k < nv; k++)
+      {
+         for (int d = 0; d < spaceDim; d++)
+         {
+            x(d, k) = 0.0;
+            for (int j = 0; j < nd; j++) { x(d, k) += pm(d, j) * vs(j, k); }
+         }
+      }
+      for (int k = 0; k < ne; k++)
+      {
+         const int *ev = el->GetEdgeVertices(k);
+         const int edge = v_to_v(v[ev[0]], v[ev[1]]);
+         int a = ev[0], b = ev[1];
+         if (node_v != v)
+         {
+            a = static_cast<int>(std::find(node_v, node_v + nv, v[a]) - node_v);
+            b = static_cast<int>(std::find(node_v, node_v + nv, v[b]) - node_v);
+         }
+         std::array<real_t, 3> pa = {0.0, 0.0, 0.0}, pb = {0.0, 0.0, 0.0};
+         for (int c = 0; c < x.Height(); c++)
+         {
+            pa[c] = x(c, a);
+            pb[c] = x(c, b);
+         }
+         const std::array<real_t, 6> key = Key(pa, pb);
+         if (!done[edge] || keys[edge] < key) { keys[edge] = key; }
+         done[edge] = true;
+      }
+   }
+   EdgeLengths2(keys, lengths);
+}
+
+void Mesh::EdgeLengths2(const Array<std::array<real_t, 6>> &keys,
+                        Array<real_t> &lengths)
+{
+   // Explicit fused multiply-adds: the compiler contracted some of these
+   // products and not others (vectorized body, scalar tail), so the length of
+   // an edge depended on its index, and the marking on the numbering.
+   lengths.SetSize(keys.Size());
+   for (int i = 0; i < keys.Size(); i++)
+   {
+      const std::array<real_t, 6> &d = keys[i];
+      lengths[i] = std::fma(d[2], d[2], std::fma(d[1], d[1], d[0]*d[0]));
+   }
+}
+
 void Mesh::MarkForRefinement()
 {
    if (meshgen & 1)
    {
+      DSTable v_to_v(NumOfVertices);
+      GetVertexToVertexTable(v_to_v);
+      NumOfEdges = v_to_v.NumberOfEntries();
       if (Dim == 2)
       {
-         MarkTriMeshForRefinement();
+         MarkTriMeshForRefinement(v_to_v);
       }
       else if (Dim == 3)
       {
-         DSTable v_to_v(NumOfVertices);
-         GetVertexToVertexTable(v_to_v);
          MarkTetMeshForRefinement(v_to_v);
       }
    }
 }
 
-void Mesh::MarkTriMeshForRefinement()
+void Mesh::MarkTriMeshForRefinement(const DSTable &v_to_v)
 {
-   // Mark the longest triangle edge by rotating the indices so that
-   // vertex 0 - vertex 1 is the longest edge in the triangle.
-   DenseMatrix pmat;
+   // Mark the longest triangle edge by rotating the indices so that vertex 0 -
+   // vertex 1 is the longest edge in the triangle; between edges of equal
+   // length, the larger key (GetEdgeLengths2()).
+   Array<real_t> lengths;
+   Array<std::array<real_t, 6>> keys;
+   GetEdgeLengths2(v_to_v, lengths, keys);
+
    for (int i = 0; i < NumOfElements; i++)
    {
       if (elements[i]->GetType() == Element::TRIANGLE)
       {
-         GetPointMatrix(i, pmat);
-         static_cast<Triangle*>(elements[i])->MarkEdge(pmat);
+         MFEM_ASSERT(dynamic_cast<Triangle *>(elements[i]),
+                     "Unexpected non-Triangle element type");
+         static_cast<Triangle *>(elements[i])->MarkEdge(v_to_v, lengths, keys);
       }
-   }
-}
-
-void Mesh::GetEdgeOrdering(const DSTable &v_to_v, Array<int> &order)
-{
-   NumOfEdges = v_to_v.NumberOfEntries();
-   order.SetSize(NumOfEdges);
-   Array<Pair<real_t, int> > length_idx(NumOfEdges);
-
-   for (int i = 0; i < NumOfVertices; i++)
-   {
-      for (DSTable::RowIterator it(v_to_v, i); !it; ++it)
-      {
-         int j = it.Index();
-         length_idx[j].one = GetLength(i, it.Column());
-         length_idx[j].two = j;
-      }
-   }
-
-   // Sort by increasing edge-length.
-   length_idx.Sort();
-
-   for (int i = 0; i < NumOfEdges; i++)
-   {
-      order[length_idx[i].two] = i;
    }
 }
 
 void Mesh::MarkTetMeshForRefinement(const DSTable &v_to_v)
 {
-   // Mark the longest tetrahedral edge by rotating the indices so that
-   // vertex 0 - vertex 1 is the longest edge in the element.
-   Array<int> order;
-   GetEdgeOrdering(v_to_v, order);
+   // Mark the longest tetrahedral edge by rotating the indices so that vertex
+   // 0 - vertex 1 is the longest edge in the element; between edges of equal
+   // length, the larger key (GetEdgeLengths2()).
+   Array<real_t> lengths;
+   Array<std::array<real_t, 6>> keys;
+   GetEdgeLengths2(v_to_v, lengths, keys);
 
    for (int i = 0; i < NumOfElements; i++)
    {
       if (elements[i]->GetType() == Element::TETRAHEDRON)
       {
-         elements[i]->MarkEdge(v_to_v, order);
+         MFEM_ASSERT(dynamic_cast<Tetrahedron *>(elements[i]),
+                     "Unexpected non-Tetrahedron element type");
+         static_cast<Tetrahedron *>(elements[i])->MarkEdge(v_to_v, lengths,
+                                                           keys);
       }
    }
    for (int i = 0; i < NumOfBdrElements; i++)
    {
       if (boundary[i]->GetType() == Element::TRIANGLE)
       {
-         boundary[i]->MarkEdge(v_to_v, order);
+         MFEM_ASSERT(dynamic_cast<Triangle *>(boundary[i]),
+                     "Unexpected non-Triangle element type");
+         static_cast<Triangle *>(boundary[i])->MarkEdge(v_to_v, lengths, keys);
       }
    }
 }
@@ -3549,6 +3702,8 @@ void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
 {
    FinalizeCheck();
    CheckElementOrientation(fix_orientation);
+   // MarkForRefinement() marks the simplices that SetMeshGen() finds.
+   SetMeshGen();
 
    if (!HasBoundaryElements())
    {
@@ -3559,9 +3714,7 @@ void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
 
    if (refine)
    {
-      DSTable v_to_v(NumOfVertices);
-      GetVertexToVertexTable(v_to_v);
-      MarkTetMeshForRefinement(v_to_v);
+      MarkForRefinement();
    }
 
    GetElementToFaceTable();
@@ -3582,8 +3735,6 @@ void Mesh::FinalizeTetMesh(int generate_edges, int refine, bool fix_orientation)
    }
 
    SetAttributes();
-
-   SetMeshGen();
 }
 
 void Mesh::FinalizeWedgeMesh(int generate_edges, int refine,
@@ -3792,14 +3943,21 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
       PrepareNodeReorder(&old_v_to_v, &old_elem_vert);
    }
 
+   bool reoriented = false;
    if (check_orientation)
    {
       // check and optionally fix element orientation
-      CheckElementOrientation(fix_orientation);
+      reoriented = CheckElementOrientation(fix_orientation) > 0 &&
+                   fix_orientation;
    }
    if (refine)
    {
+      // Until DoNodeReorder() below, the nodes follow the vertex orders of
+      // old_elem_vert, not those that the check fixed: the marking reads nodes
+      // without vertex DOFs through the elements in that order.
+      nodes_elem_vert = reoriented ? old_elem_vert : NULL;
       MarkForRefinement();   // may change topology!
+      nodes_elem_vert = NULL;
    }
 
    if (may_change_topology)
@@ -3827,8 +3985,7 @@ void Mesh::Finalize(bool refine, bool fix_orientation)
    // only perform it when Dim == spaceDim.
    if (Dim >= 2 && Dim == spaceDim)
    {
-      const int num_faces = GetNumFaces();
-      for (int i = 0; i < num_faces; i++)
+      for (int i = 0; i < GetNumFaces(); i++)
       {
          MFEM_VERIFY(faces_info[i].Elem2No < 0 ||
                      faces_info[i].Elem2Inf%2 != 0, "Invalid mesh topology."
@@ -4531,8 +4688,6 @@ void Mesh::Make2D(int nx, int ny, Element::Type type,
          boundary[2*nx+j] = new Segment((j+1)*m, j*m, 4);
          boundary[2*nx+ny+j] = new Segment(j*m+nx, (j+1)*m+nx, 2);
       }
-
-      // MarkTriMeshForRefinement(); // done in Finalize(...)
    }
    else
    {
@@ -8512,24 +8667,12 @@ void Mesh::GetBdrPointMatrix(int i,DenseMatrix &pointmat) const
 
    pointmat.SetSize(spaceDim, nv);
    for (k = 0; k < spaceDim; k++)
+   {
       for (j = 0; j < nv; j++)
       {
          pointmat(k, j) = vertices[v[j]](k);
       }
-}
-
-real_t Mesh::GetLength(int i, int j) const
-{
-   const real_t *vi = vertices[i]();
-   const real_t *vj = vertices[j]();
-   real_t length = 0.;
-
-   for (int k = 0; k < spaceDim; k++)
-   {
-      length += (vi[k]-vj[k])*(vi[k]-vj[k]);
    }
-
-   return sqrt(length);
 }
 
 // static method
