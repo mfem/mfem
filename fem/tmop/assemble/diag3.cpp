@@ -34,7 +34,7 @@ void TMOP_AssembleDiagPA_3D(const int NE,
    mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t smem[3][3][MQ1][MQ1];
-      kernels::internal::vd_regs3d_t<3, 3, MQ1> rH, r0, r1;
+      kernels::internal::m_regs3d_t<3, 3, MQ1> rH, r0, r1;
 
       for (int v = 0; v < 3; ++v)
       {

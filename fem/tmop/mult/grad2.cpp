@@ -36,7 +36,7 @@ void TMOP_AddMultGradPA_2D(const int NE,
    {
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
-      kernels::internal::vd_regs2d_t<2, 2, MQ1> r0, r1;
+      kernels::internal::m_regs2d_t<2, 2, MQ1> r0, r1;
 
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadMatrix(D1D, Q1D, g, sG);

@@ -29,15 +29,28 @@ MFEM_HOST_DEVICE constexpr real_t Val(int c, int d, int z, int y, int x)
    return 10000_r * c + 1000_r * d + 100_r * z + 10_r * y + x;
 }
 
+// The deprecated vd_ aliases still name the same types as their m_ versions
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+static_assert(std::is_same_v<vd_regs2d_t<VDIM, DIM, N>,
+              m_regs2d_t<VDIM, DIM, N>>);
+static_assert(std::is_same_v<vd_regs3d_t<VDIM, DIM, N>,
+              m_regs3d_t<VDIM, DIM, N>>);
+#ifdef MFEM_HAVE_GCC_PRAGMA_DIAGNOSTIC
+#pragma GCC diagnostic pop
+#endif
+
 } // namespace
 
 TEST_CASE("Register tensors (host layout)", "[Kernels]")
 {
    // All types are trivial, so they can be declared uninitialized in kernels
    static_assert(std::is_trivial_v<s_regs2d_t<N>>);
-   static_assert(std::is_trivial_v<vd_regs3d_t<VDIM, DIM, N>>);
-   static_assert(std::is_trivial_v<regs2d_t<DIM, N>>);
-   static_assert(std::is_trivial_v<regs3d_vd_t<VDIM, DIM, N>>);
+   static_assert(std::is_trivial_v<m_regs3d_t<VDIM, DIM, N>>);
+   static_assert(std::is_trivial_v<regs2d_v_t<DIM, N>>);
+   static_assert(std::is_trivial_v<regs3d_m_t<VDIM, DIM, N>>);
 
    // On the host, all dimensions are stored in full, without padding. (The
    // device compilation pass of a CUDA/HIP compiler also parses this host
@@ -45,17 +58,17 @@ TEST_CASE("Register tensors (host layout)", "[Kernels]")
 #ifndef MFEM_DEVICE_COMPILE
    static_assert(sizeof(s_regs2d_t<N>) == N * N * sizeof(real_t));
    static_assert(sizeof(v_regs2d_t<VDIM, N>) == VDIM * N * N * sizeof(real_t));
-   static_assert(sizeof(vd_regs3d_t<VDIM, DIM, N>) ==
+   static_assert(sizeof(m_regs3d_t<VDIM, DIM, N>) ==
                  VDIM * DIM * N * N * N * sizeof(real_t));
-   static_assert(sizeof(regs2d_t<DIM, N>) == N * N * DIM * sizeof(real_t));
-   static_assert(sizeof(regs2d_vd_t<VDIM, DIM, N>) ==
+   static_assert(sizeof(regs2d_v_t<DIM, N>) == N * N * DIM * sizeof(real_t));
+   static_assert(sizeof(regs2d_m_t<VDIM, DIM, N>) ==
                  N * N * VDIM * DIM * sizeof(real_t));
-   static_assert(sizeof(regs3d_vd_t<VDIM, DIM, N>) ==
+   static_assert(sizeof(regs3d_m_t<VDIM, DIM, N>) ==
                  N * N * N * VDIM * DIM * sizeof(real_t));
 #endif
 
    // Trailing thread dimensions: distinct (y, x) entries do not alias
-   vd_regs2d_t<VDIM, DIM, N> A{};
+   m_regs2d_t<VDIM, DIM, N> A{};
    A[1][2][0][1] = 5_r;
    CHECK(A(1, 2, 0, 1) == 5_r);
    CHECK(A(1, 2, 0, 0) == 0_r);
@@ -69,7 +82,7 @@ TEST_CASE("Register tensors (host layout)", "[Kernels]")
    CHECK(cA(1, 2, 0, 1) == 6_r);
 
    // Leading thread dimensions: each (z, y, x) holds its own tensor
-   regs3d_vd_t<VDIM, DIM, N> R{};
+   regs3d_m_t<VDIM, DIM, N> R{};
    R[2][1][0][1][2] = 7_r;
    CHECK(R(2, 1, 0, 1, 2) == 7_r);
    CHECK(R(2, 1, 1, 1, 2) == 0_r);
@@ -78,11 +91,11 @@ TEST_CASE("Register tensors (host layout)", "[Kernels]")
    CHECK(m(1, 2) == 7_r);
    tensor<real_t, VDIM, DIM> &m2 = R(2, 1, 0);
    CHECK(&m2 == &m);
-   regs2d_t<DIM, N> Q{};
+   regs2d_v_t<DIM, N> Q{};
    Q(1, 1, 0) = 8_r;
    CHECK(Q[1][1][0] == 8_r);
    CHECK(Q[1][1][1] == 0_r);
-   regs2d_vd_t<VDIM, DIM, N> W{};
+   regs2d_m_t<VDIM, DIM, N> W{};
    W[0][2][1][2] = 9_r;
    CHECK(W(0, 2, 1, 2) == 9_r);
    CHECK(W(0, 1, 1, 2) == 0_r);
@@ -102,11 +115,11 @@ TEST_CASE("Register tensors (kernels)", "[Kernels][GPU]")
 #ifdef MFEM_DEVICE_COMPILE
       // On GPU, each thread owns one entry per thread tile
       static_assert(sizeof(s_regs2d_t<N>) == sizeof(real_t));
-      static_assert(sizeof(vd_regs2d_t<VDIM, DIM, N>) ==
+      static_assert(sizeof(m_regs2d_t<VDIM, DIM, N>) ==
                     VDIM * DIM * sizeof(real_t));
       static_assert(sizeof(s_regs3d_t<N>) == N * sizeof(real_t));
 #endif
-      vd_regs2d_t<VDIM, DIM, N> A;
+      m_regs2d_t<VDIM, DIM, N> A;
       s_regs3d_t<N> B;
       MFEM_FOREACH_THREAD_DIRECT(y, y, N)
       {
@@ -152,12 +165,12 @@ TEST_CASE("Register tensors (kernels)", "[Kernels][GPU]")
    mfem::forall_3D(1, N, N, N, [=] MFEM_HOST_DEVICE (int)
    {
 #ifdef MFEM_DEVICE_COMPILE
-      static_assert(sizeof(regs3d_t<DIM, N>) == DIM * sizeof(real_t));
-      static_assert(sizeof(regs3d_vd_t<VDIM, DIM, N>) ==
+      static_assert(sizeof(regs3d_v_t<DIM, N>) == DIM * sizeof(real_t));
+      static_assert(sizeof(regs3d_m_t<VDIM, DIM, N>) ==
                     VDIM * DIM * sizeof(real_t));
 #endif
-      regs3d_vd_t<VDIM, DIM, N> R;
-      regs3d_t<DIM, N> S;
+      regs3d_m_t<VDIM, DIM, N> R;
+      regs3d_v_t<DIM, N> S;
       MFEM_FOREACH_THREAD_DIRECT(z, z, N)
       {
          MFEM_FOREACH_THREAD_DIRECT(y, y, N)

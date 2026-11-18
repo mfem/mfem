@@ -51,7 +51,7 @@ inline void SmemPAConvectionNLGradDiagonal2D(const int NE,
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
       kernels::internal::v_regs2d_t<VDIM, MQ1> r0, r1;
-      kernels::internal::vd_regs2d_t<VDIM, DIM, MQ1> g0, g1;
+      kernels::internal::m_regs2d_t<VDIM, DIM, MQ1> g0, g1;
 
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
@@ -161,7 +161,7 @@ inline void SmemPAConvectionNLGradDiagonal3D(const int NE,
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
       kernels::internal::v_regs3d_t<VDIM, MQ1> r0, r1;
-      kernels::internal::vd_regs3d_t<VDIM, DIM, MQ1> g0, g1;
+      kernels::internal::m_regs3d_t<VDIM, DIM, MQ1> g0, g1;
 
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
