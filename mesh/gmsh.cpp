@@ -652,13 +652,14 @@ class GmshReader
    double bb_max[3] = {-inf, -inf, -inf};
    ///@}
 
-   /// Mesh order, i.e. the order of the elements of highest dimension. Variable
-   /// order meshes are not supported.
+   /// Mesh order, i.e. the order of the elements of highest dimension, which
+   /// must all have the same order. Variable order meshes are not supported.
    int mesh_order = -1;
-   /// Order of the elements of each dimension. Lower-dimensional (boundary)
-   /// elements may have a different order than the elements of highest
-   /// dimension, in which case their high-order nodes are ignored.
-   int el_order_by_dim[4] = {-1, -1, -1, -1};
+   /// Lowest and highest order of the elements of each dimension, or -1 if
+   /// there are no elements of that dimension. The lower-dimensional elements
+   /// may have different orders than the elements of highest dimension: their
+   /// high-order nodes are not used.
+   int min_order[4] = {-1, -1, -1, -1}, max_order[4] = {-1, -1, -1, -1};
    bool periodic = false; ///< Is the mesh periodic?
 
    /// Node indices of high-order elements, such that ho_el_nodes[dim][e][i] is
@@ -739,18 +740,12 @@ class GmshReader
       }
    }
 
-   /// Record the order @a el_order of an element of geometry @a geom. All
-   /// elements of the same dimension must have the same order.
-   void CheckElementOrder(Geometry::Type geom, int el_order)
+   /// Record the order @a el_order of an element of geometry @a geom.
+   void RecordElementOrder(Geometry::Type geom, int el_order)
    {
-      // We can encounter point elements if they are present in the mesh as
-      // "physical points". These always have order 1, so we don't use them to
-      // infer the order of the mesh.
-      if (geom == Geometry::POINT) { return; }
-      int &order = el_order_by_dim[Geometry::Dimension[geom]];
-      if (order < 0) { order = el_order; }
-      MFEM_VERIFY(order == el_order,
-                  "Variable order Gmsh meshes are not supported");
+      const int d = Geometry::Dimension[geom];
+      min_order[d] = min_order[d] < 0 ? el_order : min(min_order[d], el_order);
+      max_order[d] = max(max_order[d], el_order);
    }
 
    void AddElements(Mesh &mesh, vector<vector<unique_ptr<Element>>> &elems_by_dim)
@@ -759,8 +754,22 @@ class GmshReader
       else if (elems_by_dim[2].size() > 0) { mesh.Dim = 2; }
       else { mesh.Dim = 1; }
       // The mesh order is the order of the elements of highest dimension. The
-      // high-order nodes of the boundary elements, if any, are not used.
-      mesh_order = el_order_by_dim[mesh.Dim];
+      // geometry of the boundary elements is given by the elements of highest
+      // dimension: the high-order nodes of the boundary elements, if any, are
+      // not used.
+      MFEM_VERIFY(min_order[mesh.Dim] == max_order[mesh.Dim],
+                  "Variable order Gmsh meshes are not supported");
+      mesh_order = max_order[mesh.Dim];
+      if (max_order[mesh.Dim - 1] > mesh_order)
+      {
+         MFEM_WARNING("The Gmsh boundary elements have order "
+                      << max_order[mesh.Dim - 1] << " but the elements have "
+                      "order " << mesh_order << ": the high-order nodes of "
+                      "the boundary elements are ignored. Such meshes are "
+                      "produced, e.g., by optimizing a high-order Gmsh mesh "
+                      "with Netgen; calling gmsh.model.mesh.setOrder after "
+                      "the optimization gives a consistent high-order mesh.");
+      }
 
       mesh.NumOfElements = elems_by_dim[mesh.Dim].size();
       mesh.elements.SetSize(mesh.NumOfElements);
@@ -1014,7 +1023,7 @@ class GmshReader
                {
                   Skip<size_t>(input, 1, b); // Skip element tag
                   const auto [geom, el_order] = GetGeometryAndOrder(element_type);
-                  CheckElementOrder(geom, el_order);
+                  RecordElementOrder(geom, el_order);
 
                   const int n_elem_nodes = NumNodesInElement(geom, el_order);
                   vector<size_t> node_tags(n_elem_nodes);
@@ -1104,7 +1113,7 @@ class GmshReader
                auto add_element = [&](int el_type, int el_phys_tag, Geometry::Type geom,
                                       int el_order, const vector<int> &el_nodes)
                {
-                  CheckElementOrder(geom, el_order);
+                  RecordElementOrder(geom, el_order);
                   Element *e = NewElement(mesh, geom, el_order, el_nodes, el_phys_tag);
                   elems_by_dim[Geometry::Dimension[geom]].emplace_back(e);
                };
