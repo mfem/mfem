@@ -15,6 +15,8 @@
 
 namespace mfem
 {
+std::unique_ptr<CutQuadratureBackend> CreateMomentCutQuadratureBackend();
+
 namespace
 {
 using Region = CutQuadrature::Region;
@@ -699,6 +701,7 @@ private:
 std::unique_ptr<CutQuadratureBackend> CreateCutQuadratureBackend(
    const std::string &name)
 {
+   if (name == "moment") { return CreateMomentCutQuadratureBackend(); }
    if (name == "algoim-auto")
    {
       return std::unique_ptr<CutQuadratureBackend>

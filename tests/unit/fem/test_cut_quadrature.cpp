@@ -180,6 +180,85 @@ TEST_CASE("Cut polynomial conversion retains small interpolation entries", "[Cut
    }
 }
 
+#ifdef MFEM_USE_LAPACK
+TEST_CASE("Moment cut quadrature preserves one-dimensional measures",
+          "[CutQuadrature]")
+{
+   Mesh mesh = Mesh::MakeCartesian1D(1);
+   H1_FECollection collection(2, 1);
+   FiniteElementSpace space(&mesh, &collection);
+   FunctionCoefficient coefficient([](const Vector &point)
+   { return 0.55 - point(0); });
+   GridFunction field(&space);
+   field.ProjectCoefficient(coefficient);
+   PolynomialLevelSet level_set;
+   level_set.Set(field, 0);
+
+   auto backend = CreateCutQuadratureBackend("moment");
+   REQUIRE(backend != nullptr);
+   CutQuadratureGenerator generator(*backend);
+   CutQuadrature output;
+   auto report = generator.Generate(
+                    Geometry::SEGMENT, CutDomain::Positive(level_set), 2, output);
+   REQUIRE(report.Succeeded());
+   REQUIRE(report.moment_degree == 2);
+   REQUIRE(Measure(output.rule) == MFEM_Approx(0.55).margin(2e-12));
+
+   REQUIRE(generator.Generate(Geometry::SEGMENT,
+                              CutDomain::Negative(level_set), 2,
+                              output).Succeeded());
+   REQUIRE(Measure(output.rule) == MFEM_Approx(0.45).margin(2e-12));
+
+   REQUIRE(generator.Generate(Geometry::SEGMENT,
+                              CutDomain::Surface(level_set), 2,
+                              output).Succeeded());
+   REQUIRE(Measure(output.rule) == MFEM_Approx(1.0).margin(2e-12));
+   REQUIRE(output.conormals(0)(0, 0) == MFEM_Approx(-1.0));
+}
+
+TEST_CASE("Moment cut quadrature preserves prescribed volume nodes",
+          "[CutQuadrature]")
+{
+   FunctionLevelSet level_set(
+      Geometry::SQUARE,
+      [](const IntegrationPoint &point) { return point.x - 0.5; },
+      [](const IntegrationPoint &, Vector &gradient)
+      { gradient = 0.; gradient(0) = 1.; });
+   auto backend = CreateCutQuadratureBackend("moment");
+   REQUIRE(backend != nullptr);
+   CutQuadratureGenerator generator(*backend);
+   const IntegrationRule &points = IntRules.Get(Geometry::SQUARE, 4);
+   CutQuadrature output;
+   REQUIRE(generator.Generate(Geometry::SQUARE, CutDomain(), 1,
+                              output, &points).status ==
+           CutQuadratureReport::Status::Unsupported);
+   REQUIRE(output.GetNPoints() == 0);
+   REQUIRE(generator.Generate(Geometry::SQUARE,
+                              CutDomain::Positive(level_set), 1,
+                              output, &points).Succeeded());
+   REQUIRE(output.GetNPoints() == points.GetNPoints());
+   REQUIRE(Measure(output.rule) == MFEM_Approx(0.5).margin(2e-12));
+   for (int index = 0; index < output.GetNPoints(); ++index)
+   {
+      REQUIRE(output.rule.IntPoint(index).x == points.IntPoint(index).x);
+      REQUIRE(output.rule.IntPoint(index).y == points.IntPoint(index).y);
+   }
+
+   FunctionLevelSet full(
+      Geometry::SQUARE,
+      [](const IntegrationPoint &) { return 1.0; },
+      [](const IntegrationPoint &, Vector &gradient) { gradient = 0.; });
+   REQUIRE(generator.Generate(Geometry::SQUARE, CutDomain::Positive(full), 1,
+                              output, &points).Succeeded());
+   REQUIRE(Measure(output.rule) == MFEM_Approx(1.0).margin(2e-12));
+   for (int index = 0; index < output.GetNPoints(); ++index)
+   {
+      REQUIRE(output.rule.IntPoint(index).x == points.IntPoint(index).x);
+      REQUIRE(output.rule.IntPoint(index).y == points.IntPoint(index).y);
+   }
+}
+#endif
+
 TEST_CASE("Cut generator clears failures and supports simplex conormals", "[CutQuadrature]")
 {
    TestCutBackend backend;
@@ -615,7 +694,11 @@ TEST_CASE("ALGOIM classifies constants and rejects unsupported requests", "[CutQ
    REQUIRE(generator.Generate(Geometry::TRIANGLE, CutDomain(), 2, output).status ==
            CutQuadratureReport::Status::Unsupported);
    REQUIRE(output.GetNPoints() == 0);
+#ifdef MFEM_USE_LAPACK
+   REQUIRE(CreateCutQuadratureBackend("moment") != nullptr);
+#else
    REQUIRE(CreateCutQuadratureBackend("moment") == nullptr);
+#endif
 }
 
 TEST_CASE("ALGOIM curved interfaces converge", "[CutQuadrature]")

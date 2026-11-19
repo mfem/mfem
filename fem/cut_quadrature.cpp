@@ -10,6 +10,8 @@
 
 namespace mfem
 {
+std::unique_ptr<CutQuadratureBackend> CreateMomentCutQuadratureBackend();
+
 namespace
 {
 
@@ -40,10 +42,13 @@ bool ValidPoint(Geometry::Type geometry, const IntegrationPoint &point)
 bool SupportedElement(const FiniteElement &element)
 {
    const auto geometry = element.GetGeomType();
-   if (geometry != Geometry::SQUARE && geometry != Geometry::CUBE) { return false; }
+   if (geometry != Geometry::SEGMENT && geometry != Geometry::SQUARE &&
+       geometry != Geometry::CUBE) { return false; }
+   const auto expected_space = geometry == Geometry::SEGMENT ?
+                               FunctionSpace::Pk : FunctionSpace::Qk;
    if (element.GetRangeType() != FiniteElement::SCALAR ||
        element.GetMapType() != FiniteElement::VALUE ||
-       element.Space() != FunctionSpace::Qk || element.HasAnisotropicOrders() ||
+       element.Space() != expected_space || element.HasAnisotropicOrders() ||
        element.GetOrder() < 0 || element.GetOrder() == std::numeric_limits<int>::max())
    { return false; }
    int count = 1;
@@ -516,6 +521,10 @@ catch (const std::exception &error)
 }
 
 #ifndef MFEM_USE_ALGOIM
-std::unique_ptr<CutQuadratureBackend> CreateCutQuadratureBackend(const std::string &) { return nullptr; }
+std::unique_ptr<CutQuadratureBackend> CreateCutQuadratureBackend(
+   const std::string &name)
+{
+   return name == "moment" ? CreateMomentCutQuadratureBackend() : nullptr;
+}
 #endif
 }

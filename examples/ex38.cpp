@@ -3,21 +3,21 @@
 // Compile with: make ex38
 //
 // Sample runs:
-// (since all sample runs require ALGOIM, the * symbol is used to
+// (since all sample runs require LAPACK or ALGOIM, the * symbol is used to
 //  exclude them from the automatically generated internal MFEM tests).
 //              * ex38
-//              * ex38 -i volumetric1d  (unsupported by ALGOIM; aborts)
+//              * ex38 -i volumetric1d
 //              * ex38 -i surface2d
-//              * ex38 -i surface2d -o 4 -r 5
+//              * ex38 -i surface2d -o 4 -r 5 -m 1
 //              * ex38 -i volumetric2d
-//              * ex38 -i volumetric2d -o 4 -r 5
+//              * ex38 -i volumetric2d -o 4 -r 5 -m 1
 //              * ex38 -i surface3d
-//              * ex38 -i surface3d -o 3 -r 4
+//              * ex38 -i surface3d -o 3 -r 4 -m 1
 //              * ex38 -i volumetric3d
-//              * ex38 -i volumetric3d -o 3 -r 4
+//              * ex38 -i volumetric3d -o 3 -r 4 -m 1
 //
 // Description: Integrate functions over implicit interfaces and subdomains
-//              bounded by implicit interfaces using ALGOIM cut quadrature.
+//              bounded by implicit interfaces using cut quadrature.
 
 #include "mfem.hpp"
 #include <cmath>
@@ -133,12 +133,14 @@ real_t ExactVolumeIntegral(IntegrationType type)
 
 int main(int argc, char *argv[])
 {
-   int refinements = 3, order = 2;
+   int refinements = 3, order = 2, method = 0;
    const char *integration_type = "surface2d";
    bool visualization = false;
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order", "Nominal cut quadrature order.");
    args.AddOption(&refinements, "-r", "--refine", "Uniform refinement levels.");
+   args.AddOption(&method, "-m", "--method",
+                  "Cut integration method: 0 for moments, 1 for ALGOIM.");
    args.AddOption(&integration_type, "-i", "--integration-type",
                   "Integration type: volumetric1d, surface2d, volumetric2d, "
                   "surface3d, or volumetric3d.");
@@ -147,34 +149,36 @@ int main(int argc, char *argv[])
    args.Parse();
    IntegrationType type = IntegrationType::Surface2D;
    if (!args.Good() || refinements < 0 || order < 0 ||
+       (method != 0 && method != 1) ||
        !ParseIntegrationType(integration_type, type))
    {
       args.PrintUsage(cout);
       return 1;
    }
 
-   auto backend = CreateCutQuadratureBackend("algoim-auto");
+   auto backend = CreateCutQuadratureBackend(method ? "algoim-auto" : "moment");
    if (!backend)
    {
-      cerr << "Example 38 requires MFEM_USE_ALGOIM.\n";
+      cerr << "The selected cut-quadrature backend is unavailable.\n";
       return MFEM_SKIP_RETURN_VALUE;
    }
 
    const int dimension = Dimension(type);
-   if (dimension == 1)
+   if (dimension == 1 && method == 1)
    {
       MFEM_ABORT("The ALGOIM cut-quadrature backend does not support "
                  "one-dimensional elements.");
    }
-   Mesh mesh = dimension == 2 ?
-               Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL,
-                                     true, 3.2, 3.2) :
-               Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON,
-                                     3.2, 3.2, 3.2);
+   Mesh mesh = dimension == 1 ? Mesh::MakeCartesian1D(4) :
+               (dimension == 2 ?
+                Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL,
+                                      true, 3.2, 3.2) :
+                Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON,
+                                      3.2, 3.2, 3.2));
    for (int vertex = 0; vertex < mesh.GetNV(); ++vertex)
    {
       for (int axis = 0; axis < dimension; ++axis)
-      { mesh.GetVertex(vertex)[axis] -= 1.6; }
+      { mesh.GetVertex(vertex)[axis] -= dimension == 1 ? 0.0 : 1.6; }
    }
    for (int level = 0; level < refinements; ++level)
    { mesh.UniformRefinement(); }

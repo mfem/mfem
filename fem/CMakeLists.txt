@@ -93,6 +93,7 @@ set(SRCS
   intrules.cpp
   cut_quadrature.cpp
   cut_quadrature_algoim.cpp
+  cut_quadrature_moment.cpp
   ceed/interface/basis.cpp
   ceed/interface/restriction.cpp
   ceed/interface/operator.cpp
