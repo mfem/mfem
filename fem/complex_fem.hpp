@@ -54,6 +54,18 @@ public:
        FiniteElementSpace @a *f. */
    ComplexGridFunction(FiniteElementSpace *f);
 
+   /// Copy constructor. Only the data of the base class Vector is copied.
+   /** The FiniteElementSpace is shared and the copy owns neither the space nor
+       the collection, the way GridFunction(const GridFunction &) behaves, and
+       the real and imaginary parts of the copy point into the copy's own data.
+       The true-dof vector of those parts is not copied either, as with that
+       constructor.
+
+       @note If @a rhs owns its space, because it was constructed from a stream,
+       the copy references a space that @a rhs frees, so it must not outlive
+       it. */
+   ComplexGridFunction(const ComplexGridFunction &rhs);
+
    /** @brief Construct a ComplexGridFunction on the given Mesh, using the data
        from @a input.
 
@@ -719,6 +731,15 @@ public:
        ParFiniteElementSpace @a *pf. */
    ParComplexGridFunction(ParFiniteElementSpace *pf);
 
+   /// Copy constructor. Only the data of the base class Vector is copied.
+   /** The same as the ComplexGridFunction copy constructor: the
+       ParFiniteElementSpace is shared and not owned by the copy, the real and
+       imaginary parts point into the copy's own data, and a copy of an object
+       that owns its space must not outlive it. The true-dof vectors of the parts
+       are not copied, so call SetTrueVector() on them before use, as for a newly
+       constructed ParComplexGridFunction. */
+   ParComplexGridFunction(const ParComplexGridFunction &rhs);
+
    /** @brief Construct a ParComplexGridFunction on a given ParMesh,
        @a pmesh, reading from an std::istream.
 
@@ -745,6 +766,25 @@ public:
    /// Shortcut for calling FiniteElementSpace::GetVectorDim() on the
    /// underlying #pfes
    int VectorDim() const;
+
+   /// Copy assignment. Only the data of the base class Vector is copied.
+   /** It is assumed that this object and @a rhs use ParFiniteElementSpace%s
+       that have the same size.
+
+       @note Defining this method overwrites the implicitly defined copy
+       assignment operator. */
+   ParComplexGridFunction &operator=(const ParComplexGridFunction &rhs)
+   { return operator=((const Vector &)rhs); }
+
+   /// Copy the data from @a v.
+   /** The size of @a v must be equal to double of the size of the associated
+       ParFiniteElementSpace #pfes. */
+   ParComplexGridFunction &operator=(const Vector &v)
+   {
+      MFEM_ASSERT(pfes && v.Size() == 2*pfes->GetVSize(), "");
+      Vector::operator=(v);
+      return *this;
+   }
 
    /// Assign constant values to the ParComplexGridFunction data.
    ParComplexGridFunction &operator=(const std::complex<real_t> & value)
