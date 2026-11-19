@@ -2,6 +2,7 @@
 
 #include "mfem.hpp"
 #include <cmath>
+#include <memory>
 #include "../QuantityOfInterest.hpp"
 
 using namespace std;
@@ -60,19 +61,60 @@ public:
    }
 };
 
-// Heat diffusion solver: -div(k(rho~) grad T) = q  with homogeneous essential BC.
-// The conductivity k(rho~) changes every design iteration, so the system is
-// re-assembled from scratch in each Solve().
+// grad T . grad lambda coefficient.  Multiply by k'(rho~) in the caller to get
+// the adjoint sensitivity integrand  k'(rho~) grad T . grad lambda.
+class GradTGradLambdaCoefficient : public Coefficient
+{
+protected:
+   GridFunction *T, *lambda;
+   Vector gradT, gradL;
+
+public:
+   GradTGradLambdaCoefficient(GridFunction *T_, GridFunction *lambda_)
+      : T(T_), lambda(lambda_) { }
+
+   real_t Eval(ElementTransformation &Trans, const IntegrationPoint &ip) override
+   {
+      T->GetGradient(Trans, gradT);
+      lambda->GetGradient(Trans, gradL);
+      return gradT * gradL;
+   }
+};
+
+// Heat diffusion solver: -div(k(rho~) grad T) = q,  T = ess_value on the
+// essential boundary.  K(rho~) is symmetric, so the adjoint uses the same
+// matrix, AMG and PCG with homogeneous essential BC.
+//
+// Usage per design iteration:   Assemble();  FSolve();  [ASolve(rhs);]
+// Solve() = Assemble() + FSolve()  (kept for existing drivers).
 class DiffusionSolver
 {
 protected:
    ParFiniteElementSpace *fes;
-   FiniteElementCollection *fec;
+   FiniteElementCollection *fec = nullptr;
+   bool own_fes = true;
    Coefficient *kappa;        // SIMP conductivity k(rho~)   (not owned)
    Coefficient *q = nullptr;  // heat source                 (not owned)
    Array<int> ess_bdr;        // essential boundary marker
+   Array<int> ess_tdof_list;
    real_t ess_value = 0.0;
-   ParGridFunction T;
+   ParGridFunction T;         // forward solution
+   ParGridFunction lambda;    // adjoint solution
+
+   // Assembled system for the current design (rebuilt by Assemble()).
+   std::unique_ptr<ParBilinearForm> a;
+   std::unique_ptr<ParLinearForm> b;
+   OperatorPtr A;
+   Vector B, X;
+   std::unique_ptr<HypreBoomerAMG> amg;
+   std::unique_ptr<HyprePCG> pcg;
+
+   void ClearSystem()
+   {
+      pcg.reset();  amg.reset();   // reference A, release first
+      A.Clear();
+      b.reset();  a.reset();       // a owns the HypreParMatrix behind A
+   }
 
 public:
    DiffusionSolver(ParMesh *pmesh, int order, Coefficient &kappa_)
@@ -80,16 +122,26 @@ public:
    {
       fec = new H1_FECollection(order, pmesh->Dimension());
       fes = new ParFiniteElementSpace(pmesh, fec);
-      T.SetSpace(fes);
-      T = 0.0;
+      T.SetSpace(fes);       T = 0.0;
+      lambda.SetSpace(fes);  lambda = 0.0;
       ess_bdr.SetSize(pmesh->bdr_attributes.Max());
+      ess_bdr = 0;
+   }
+
+   // Use an externally owned (scalar H1) state space.
+   DiffusionSolver(ParFiniteElementSpace &state_fes, Coefficient &kappa_)
+      : fes(&state_fes), own_fes(false), kappa(&kappa_)
+   {
+      T.SetSpace(fes);       T = 0.0;
+      lambda.SetSpace(fes);  lambda = 0.0;
+      ess_bdr.SetSize(fes->GetParMesh()->bdr_attributes.Max());
       ess_bdr = 0;
    }
 
    ~DiffusionSolver()
    {
-      delete fes;
-      delete fec;
+      ClearSystem();
+      if (own_fes) { delete fes; delete fec; }
    }
 
    void SetEssentialBC(int attr, real_t value)
@@ -100,42 +152,64 @@ public:
 
    void SetHeatSource(Coefficient &q_) { q = &q_; }
 
-   // Assemble and solve  -div(k(rho~) grad T) = q  for the current design.
-   void Solve()
+   // Assemble K(rho~) and q for the current design and set up AMG/PCG.
+   void Assemble()
    {
-      Array<int> ess_tdof_list;
+      MFEM_VERIFY(q, "heat source not set");
+      ClearSystem();
       fes->GetEssentialTrueDofs(ess_bdr, ess_tdof_list);
 
-      ParBilinearForm a(fes);
-      a.AddDomainIntegrator(new DiffusionIntegrator(*kappa));
-      a.Assemble();
+      a.reset(new ParBilinearForm(fes));
+      a->AddDomainIntegrator(new DiffusionIntegrator(*kappa));
+      a->Assemble();
 
-      ParLinearForm b(fes);
-      b.AddDomainIntegrator(new DomainLFIntegrator(*q));
-      b.Assemble();
+      b.reset(new ParLinearForm(fes));
+      b->AddDomainIntegrator(new DomainLFIntegrator(*q));
+      b->Assemble();
 
       T = ess_value;
-
-      OperatorPtr A;
-      Vector B, X;
-      a.FormLinearSystem(ess_tdof_list, T, b, A, X, B);
+      a->FormLinearSystem(ess_tdof_list, T, *b, A, X, B);
 
       HypreParMatrix &Ah = *A.As<HypreParMatrix>();
-      HypreBoomerAMG amg(Ah);
-      amg.SetPrintLevel(0);
+      amg.reset(new HypreBoomerAMG(Ah));
+      amg->SetPrintLevel(0);
 
-      HyprePCG pcg(Ah);
-      pcg.SetTol(1e-12);
-      pcg.SetMaxIter(2000);
-      pcg.SetPrintLevel(0);
-      pcg.SetPreconditioner(amg);
-      pcg.Mult(B, X);
-
-      a.RecoverFEMSolution(X, b, T);
+      pcg.reset(new HyprePCG(Ah));
+      pcg->SetTol(1e-12);
+      pcg->SetMaxIter(2000);
+      pcg->SetPrintLevel(0);
+      pcg->SetPreconditioner(*amg);
    }
 
+   // Forward solve:  K T = q,  T = ess_value on the essential boundary.
+   void FSolve()
+   {
+      MFEM_VERIFY(pcg, "call Assemble() before FSolve()");
+      pcg->Mult(B, X);
+      a->RecoverFEMSolution(X, *b, T);
+   }
+
+   // Adjoint solve:  K lambda = rhs,  lambda = 0 on the essential boundary.
+   // rhs is a true-dof vector on GetFESpace(); its essential entries are
+   // ignored (set to zero).
+   void ASolve(const Vector &rhs)
+   {
+      MFEM_VERIFY(pcg, "call Assemble() before ASolve()");
+      MFEM_VERIFY(rhs.Size() == fes->GetTrueVSize(), "adjoint rhs size mismatch");
+      Vector R(rhs), L(rhs.Size());
+      R.SetSubVector(ess_tdof_list, 0.0);
+      L = 0.0;
+      pcg->Mult(R, L);
+      lambda.SetFromTrueDofs(L);
+   }
+
+   // Assemble and solve  -div(k(rho~) grad T) = q  for the current design.
+   void Solve() { Assemble(); FSolve(); }
+
    ParGridFunction& GetTemperature() { return T; }
+   ParGridFunction& GetAdjoint() { return lambda; }
    ParFiniteElementSpace* GetFESpace() { return fes; }
+   const Array<int>& GetEssentialTrueDofs() const { return ess_tdof_list; }
 };
 
 // Heat dissipation objective: J = ∫ k(rho~) |grad T|^2 dx
