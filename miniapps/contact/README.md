@@ -234,6 +234,26 @@ These are correctness checks on coarse meshes, rather than scaling benchmarks.
 
 ### GPU execution
 
+`run-contact-bound.sh` selects the launcher and runtime paths from the hostname.
+On `trike`, it uses OpenMPI (`mpirun`) for CPU and CUDA runs, with one rank and
+one CPU core per rank by default. Its saved case uses `-fa -d cuda` with MUMPS.
+CUDA ranks share the first visible GPU; `CUDA_VISIBLE_DEVICES` defaults to `0`
+and can be set before launching. On LC, the existing CPU/Flux and HIP/srun
+launch commands and affinity are retained, including the default four-rank
+HIP case with STRUMPACK. Explicit miniapp options are passed through unchanged;
+use `-d cuda` on Trike and `-d hip` on LC for GPU runs.
+
+For example, on Trike with the existing CUDA build:
+
+```bash
+./run-contact-bound.sh --ranks 1 -- \
+  -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4 \
+  -amgf -amgf-fsolver mumps -fa -d cuda -no-vis -no-paraview -pl 2
+```
+
+Use `-d cpu` for a host run. OpenMP and BLAS use one thread per rank on both
+hosts, and the launcher reports per-rank affinity and `TOTAL_WALL_SECONDS`.
+
 BoomerAMG uses Chebyshev smoothing by default (`-amg-relax-type 16`) for both
 AMG and AMGF. Select the previous l1-Jacobi smoother with
 `-amg-relax-type 18`. Coarsening 8, interpolation 6, and zero aggressive levels
@@ -284,7 +304,7 @@ its performance has not yet been measured under identical conditions. For
 the exact measured selective-memory command, see
 `../../../contact-scaling-investigation-20261117/REPRODUCE.md`.
 
-For host execution, specify `-d cpu`. The launcher accepts MPI rank counts
+For host execution on LC, specify `-d cpu`. The launcher accepts MPI rank counts
 above four, defaults to one CPU core per rank, requests no GPUs, and uses
 Flux per-task CPU affinity with local host-memory allocation. Rank count
 times `--cores` must fit the single-node CPU allocation. OpenMP and BLAS

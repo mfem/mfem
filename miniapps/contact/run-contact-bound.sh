@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Single-node CPU or Tuolumne HIP runs. CPU ranks use scheduler affinity;
+# Trike uses OpenMPI with CPU/CUDA. LC retains its CPU/Flux and HIP/srun paths;
 # HIP ranks bind GPU 0..3 to their local NUMA domains 0..3.
 contact_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 root=$(cd -- "$contact_dir/../../.." && pwd)
+host=$(hostname -s)
+trike=0
+default_ranks=4
+case $host in
+  trike|trike.*) trike=1; default_ranks=1 ;;
+esac
 cores=${CORES_PER_RANK:-}
-ranks=${CONTACT_RANKS:-4}
+ranks=${CONTACT_RANKS:-$default_ranks}
 worker=0
 if [[ ${1:-} == --rank ]]; then
   worker=1
@@ -34,16 +40,20 @@ else
         cat <<'EOF'
 Usage: ./run-contact-bound.sh [--ranks N] [--cores N] [--] [CONTACT_OPTIONS...]
 
-Run on one allocated node (default 4 MPI ranks).
-With -d cpu: any positive rank count that fits the allocation; no GPUs requested.
-With -d hip: 1 to 4 MPI ranks, one GPU per rank.
---cores sets CPU cores per rank (default 1 on CPU, 4 on HIP).
+On trike: OpenMPI with CPU/CUDA, default 1 rank and 1 core per rank.
+CUDA ranks share device 0 in CUDA_VISIBLE_DEVICES (default physical GPU 0).
+On LC: one allocated node, default 4 ranks; CPU uses Flux and HIP uses srun.
+LC HIP runs use 1 to 4 ranks, one GPU per rank, default 4 cores per rank.
+--cores sets CPU cores per rank (default 1 for CPU).
 All contact options are passed through verbatim.
 With no CONTACT_OPTIONS, the saved default case is used.
-The HYPRE GPU-aware MPI option automatically enables MPICH GPU support.
+On LC, the HYPRE GPU-aware MPI option automatically enables MPICH GPU support.
 
 Examples:
   ./run-contact-bound.sh
+  # Trike (CUDA):
+  ./run-contact-bound.sh --ranks 1 -- -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4 -amgf -amgf-fsolver mumps -fa -d cuda -no-vis -no-paraview
+  # LC (HIP):
   ./run-contact-bound.sh --ranks 4 -- -prob 2 -sr 1 -pr 0 -tr 2 -nsteps 4 -msteps 0 -amgf -amgf-fsolver strumpack -fa -d hip
   ./run-contact-bound.sh --ranks 2 --cores 8 -- -prob 2 -sr 1 -d hip
   ./run-contact-bound.sh --ranks 16 -- -prob 0 -sr 0 -pr 3 -amgf -amgf-fsolver mumps -d cpu
@@ -62,11 +72,21 @@ EOF
   done
 fi
 if (( $# == 0 )); then
-  set -- -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4 -msteps 0 \
-    -amgf -amgf-fsolver strumpack -fa -d hip
+  if (( trike )); then
+    set -- -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4 -msteps 0 \
+      -amgf -amgf-fsolver mumps -fa -d cuda
+  else
+    set -- -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4 -msteps 0 \
+      -amgf -amgf-fsolver strumpack -fa -d hip
+  fi
 fi
 
-export LD_LIBRARY_PATH="$root/local/slate-hip/lib:/opt/rocm-7.2.1/lib:/opt/rocm-7.2.1/llvm/lib:/opt/cray/pe/mpich/9.1.0/ofi/amd/7.0/lib:${LD_LIBRARY_PATH:-}"
+if (( trike )); then
+  export PATH="/usr/local/cuda-13.4/bin:/usr/lib64/openmpi/bin:/opt/rh/gcc-toolset-15/root/usr/bin:$PATH"
+  export LD_LIBRARY_PATH="$root/local/slate/lib:$root/local/cudss/lib:/usr/local/cuda-13.4/lib64:/usr/lib64/openmpi/lib:/opt/rh/gcc-toolset-15/root/usr/lib64:/opt/rh/gcc-toolset-15/root/usr/lib:${LD_LIBRARY_PATH:-}"
+else
+  export LD_LIBRARY_PATH="$root/local/slate-hip/lib:/opt/rocm-7.2.1/lib:/opt/rocm-7.2.1/llvm/lib:/opt/cray/pe/mpich/9.1.0/ofi/amd/7.0/lib:${LD_LIBRARY_PATH:-}"
+fi
 # Determine the actual backend before choosing resources and affinity.
 # MFEM_DEVICE, when set, overrides the miniapp's -d option in MFEM itself.
 device=cpu
@@ -87,14 +107,25 @@ for (( i=0; i<${#app_args[@]}; i++ )); do
   esac
 done
 device=${MFEM_DEVICE:-$device}
-case $device in
-  *cuda*)
-    echo "This Tuolumne launcher supports host and HIP backends, not CUDA" >&2
-    exit 2
-    ;;
-  *hip*) backend=hip ;;
-  *) backend=cpu ;;
-esac
+if (( trike )); then
+  case $device in
+    *hip*)
+      echo "Trike supports CPU and CUDA; use -d cuda for its GPU" >&2
+      exit 2
+      ;;
+    *cuda*|*gpu*) backend=cuda ;;
+    *) backend=cpu ;;
+  esac
+else
+  case $device in
+    *cuda*)
+      echo "This Tuolumne launcher supports host and HIP backends, not CUDA" >&2
+      exit 2
+      ;;
+    *hip*) backend=hip ;;
+    *) backend=cpu ;;
+  esac
+fi
 if [[ -z $cores ]]; then
   if [[ $backend == hip ]]; then cores=4; else cores=1; fi
 fi
@@ -114,23 +145,41 @@ export CORES_PER_RANK=$cores
 export CONTACT_RANKS=$ranks
 
 # Enabling HYPRE device-buffer communication also requires MPI GPU support.
-if [[ $backend == cpu ]]; then
-  export MPICH_GPU_SUPPORT_ENABLED=0
-elif (( hypre_gpu_mpi )); then
-  export MPICH_GPU_SUPPORT_ENABLED=1
-else
-  export MPICH_GPU_SUPPORT_ENABLED=${MPICH_GPU_SUPPORT_ENABLED:-0}
+if (( ! trike )); then
+  if [[ $backend == cpu ]]; then
+    export MPICH_GPU_SUPPORT_ENABLED=0
+  elif (( hypre_gpu_mpi )); then
+    export MPICH_GPU_SUPPORT_ENABLED=1
+  else
+    export MPICH_GPU_SUPPORT_ENABLED=${MPICH_GPU_SUPPORT_ENABLED:-0}
+  fi
+  export SPINDLE_FLUXOPT=disable
 fi
 export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1
-export SPINDLE_FLUXOPT=disable
 
 cd "$contact_dir"
 
 if (( worker )); then
-  rank=${FLUX_TASK_RANK:-${SLURM_LOCALID:-}}
+  if (( trike )); then
+    rank=${OMPI_COMM_WORLD_LOCAL_RANK:-}
+  else
+    rank=${FLUX_TASK_RANK:-${SLURM_LOCALID:-}}
+  fi
   if ! [[ $rank =~ ^[0-9]+$ ]] || (( rank >= ranks )); then
     echo "Expected local rank 0..$((ranks - 1)), got '${rank:-unset}'" >&2
     exit 2
+  fi
+
+  if (( trike )); then
+    gpu=none
+    if [[ $backend == cuda ]]; then
+      export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-0}
+      gpu=${CUDA_VISIBLE_DEVICES%%,*}
+    fi
+    cpu_list=$(awk '/^Cpus_allowed_list:/ {print $2}' /proc/self/status)
+    printf 'host=%s rank=%s gpu=%s cpus=%s mpi=openmpi hypre_gpu=%s\n' \
+      "$(hostname)" "$rank" "$gpu" "$cpu_list" "$hypre_gpu_mpi" >&2
+    exec ./contact "$@"
   fi
 
   if [[ $backend == cpu ]]; then
@@ -158,6 +207,12 @@ if (( worker )); then
     "$(hostname)" "$rank" "$ROCR_VISIBLE_DEVICES" "$rank" "$cpu_list" \
     "${MPICH_GPU_SUPPORT_ENABLED}" "$hypre_gpu_mpi" >&2
   exec numactl --membind="$rank" ./contact "$@"
+fi
+
+if (( trike )); then
+  exec /usr/bin/time -f 'TOTAL_WALL_SECONDS=%e exit_status=%x' \
+    mpirun -np "$ranks" --map-by "slot:PE=$cores" --bind-to core \
+    "$contact_dir/run-contact-bound.sh" --rank "$@"
 fi
 
 if [[ $backend == cpu ]]; then
