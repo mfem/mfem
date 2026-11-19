@@ -1205,6 +1205,161 @@ inline void EAMassAssemble1D(const int NE,
    });
 }
 
+// Assemble element-matrix block columns by successively applying B in each
+// tensor direction. DIM is compile-time so all buffer extents and loop bounds
+// remain constants in device code.
+template<int DIM, int D1D, int Q1D>
+inline void EAMassAssembleTensorSumFactorized(const int NE,
+                                              const Array<real_t> &basis,
+                                              const Vector &padata,
+                                              Vector &eadata,
+                                              const bool add)
+{
+   static_assert(DIM == 2 || DIM == 3, "only tensor 2D and 3D are supported");
+   static constexpr int ND = DIM == 2 ? D1D * D1D : D1D * D1D * D1D;
+   static constexpr int NQ = DIM == 2 ? Q1D * Q1D : Q1D * Q1D * Q1D;
+   static constexpr int T1Size = DIM == 2 ? D1D * Q1D : D1D * Q1D * Q1D;
+   static constexpr int T2Size = DIM == 2 ? 0 : D1D * D1D * Q1D;
+   static constexpr int TSize = T1Size + T2Size;
+   static constexpr int SharedBytesPerColumn = sizeof(real_t) * (NQ + TSize);
+   static constexpr int SharedBytesBase = sizeof(real_t) * Q1D * D1D;
+   static constexpr int MaxSharedBytes = 48 * 1024;
+   static constexpr int COLB =
+      (SharedBytesBase + 4 * SharedBytesPerColumn <= MaxSharedBytes) ? 4 :
+      (SharedBytesBase + 2 * SharedBytesPerColumn <= MaxSharedBytes) ? 2 : 1;
+
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   const auto B = basis.Read();
+   const auto D = padata.Read();
+   auto M = add ? eadata.ReadWrite() : eadata.Write();
+
+   mfem::forall_3D_grid(NE, 32, 1, 1, 0, [=] MFEM_HOST_DEVICE (int e)
+   {
+      MFEM_SHARED real_t s_B[Q1D][D1D];
+      MFEM_SHARED real_t uW[NQ * COLB];
+      MFEM_SHARED real_t transformed[TSize * COLB];
+
+      MFEM_FOREACH_THREAD(qb, x, Q1D * D1D)
+      {
+         s_B[qb % Q1D][qb / Q1D] = B[qb];
+      }
+      MFEM_SYNC_THREAD;
+
+      for (int j0 = 0; j0 < ND; j0 += COLB)
+      {
+         const int count = (j0 + COLB <= ND) ? COLB : ND - j0;
+         int j[COLB][DIM];
+         for (int c = 0; c < count; ++c)
+         {
+            int column = j0 + c;
+            for (int d = 0; d < DIM; ++d)
+            {
+               j[c][d] = column % D1D;
+               column /= D1D;
+            }
+         }
+
+         MFEM_FOREACH_THREAD(q, x, NQ)
+         {
+            int qcoord[DIM];
+            int quadrature = q;
+            for (int d = 0; d < DIM; ++d)
+            {
+               qcoord[d] = quadrature % Q1D;
+               quadrature /= Q1D;
+            }
+            for (int c = 0; c < count; ++c)
+            {
+               real_t value = D[q + NQ * e];
+               for (int d = 0; d < DIM; ++d)
+               {
+                  value *= s_B[qcoord[d]][j[c][d]];
+               }
+               uW[q + NQ * c] = value;
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         int previous_offset = 0;
+         int current_offset = 0;
+         for (int stage = 1; stage < DIM; ++stage)
+         {
+            const int stage_size = stage == 1 ? T1Size : T2Size;
+            MFEM_FOREACH_THREAD(a, x, stage_size)
+            {
+               int coord[DIM];
+               int index = a;
+               for (int d = 0; d < DIM; ++d)
+               {
+                  const int extent = d < stage ? D1D : Q1D;
+                  coord[d] = index % extent;
+                  index /= extent;
+               }
+               for (int c = 0; c < count; ++c)
+               {
+                  real_t sum = 0.0;
+                  for (int q = 0; q < Q1D; ++q)
+                  {
+                     int source = 0;
+                     int stride = 1;
+                     for (int d = 0; d < DIM; ++d)
+                     {
+                        const int entry = d == stage - 1 ? q : coord[d];
+                        const int extent = d < stage - 1 ? D1D : Q1D;
+                        source += entry * stride;
+                        stride *= extent;
+                     }
+                     const real_t input = stage == 1 ? uW[source + NQ * c] :
+                                          transformed[c * TSize + previous_offset + source];
+                     sum += s_B[q][coord[stage - 1]] * input;
+                  }
+                  transformed[c * TSize + current_offset + a] = sum;
+               }
+            }
+            MFEM_SYNC_THREAD;
+            previous_offset = current_offset;
+            current_offset += stage_size;
+         }
+
+         constexpr int LastStageSize = DIM == 2 ? T1Size : T2Size;
+         const int final_offset = TSize - LastStageSize;
+         for (int c = 0; c < count; ++c)
+         {
+            MFEM_FOREACH_THREAD(row, x, ND)
+            {
+               int icoord[DIM];
+               int index = row;
+               for (int d = 0; d < DIM; ++d)
+               {
+                  icoord[d] = index % D1D;
+                  index /= D1D;
+               }
+               real_t sum = 0.0;
+               for (int q = 0; q < Q1D; ++q)
+               {
+                  int prior;
+                  if constexpr (DIM == 2)
+                  {
+                     prior = icoord[0] + D1D * q;
+                  }
+                  else
+                  {
+                     prior = icoord[0] + D1D * (icoord[1] + D1D * q);
+                  }
+                  sum += s_B[q][icoord[DIM - 1]] *
+                         transformed[c * TSize + final_offset + prior];
+               }
+               const int column = j0 + c;
+               if (add) { M[row + ND * (column + ND * e)] += sum; }
+               else { M[row + ND * (column + ND * e)] = sum; }
+            }
+            MFEM_SYNC_THREAD;
+         }
+      }
+   });
+}
+
 template<int T_D1D = 0, int T_Q1D = 0>
 inline void EAMassAssemble2D(const int NE,
                              const Array<real_t> &basis,
@@ -1214,6 +1369,13 @@ inline void EAMassAssemble2D(const int NE,
                              const int d1d = 0,
                              const int q1d = 0)
 {
+   if constexpr (T_D1D > 0 && T_Q1D > 0)
+   {
+      EAMassAssembleTensorSumFactorized<2, T_D1D, T_Q1D>(
+         NE, basis, padata, eadata, add);
+      return;
+   }
+
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
@@ -1287,6 +1449,13 @@ inline void EAMassAssemble3D(const int NE,
                              const int d1d = 0,
                              const int q1d = 0)
 {
+   if constexpr (T_D1D > 0 && T_Q1D > 0)
+   {
+      EAMassAssembleTensorSumFactorized<3, T_D1D, T_Q1D>(
+         NE, basis, padata, eadata, add);
+      return;
+   }
+
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
