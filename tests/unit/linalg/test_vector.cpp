@@ -125,6 +125,57 @@ TEST_CASE("Vector Move Assignment", "[Vector]")
 
 
 
+TEST_CASE("Vector assignment preserves shared source data", "[Vector][GPU]")
+{
+   auto &inst = MemoryManager::Instance();
+   const auto d_mt = IsDeviceMemory(inst.GetDeviceMemoryType()) ?
+                     inst.GetDeviceMemoryType() : MemoryType::DEVICE_DEBUG;
+   Vector base(12, MemoryType::HOST);
+   base.GetMemory().SetDeviceMemoryType(d_mt);
+   auto ptr = base.Write(true);
+   forall(12, [=] MFEM_HOST_DEVICE(int i) { ptr[i] = -1.0; });
+   Vector source(base, 2, 4);
+   source.UseDevice(false);
+   auto host = source.HostWrite();
+   for (int i = 0; i < 4; ++i) { host[i] = 90.0 + i; }
+   int dst_offset = 2;
+
+   SECTION("Identical aliases with host-valid source") {}
+   SECTION("Identical aliases with fragmented source")
+   {
+      auto tail = source.GetMemory().Write(true, 2, 2);
+      forall(2, [=] MFEM_HOST_DEVICE(int i) { tail[i] = 92.0 + i; });
+      REQUIRE_FALSE(source.GetMemory().HostIsValid());
+      REQUIRE_FALSE(source.GetMemory().DeviceIsValid());
+   }
+   SECTION("Disjoint aliases")
+   {
+      dst_offset = 7;
+   }
+   SECTION("Self assignment")
+   {
+      source.UseDevice(true);
+      const Vector &same = source;
+      source = same;
+      const auto result = source.HostRead();
+      for (int i = 0; i < 4; ++i) { REQUIRE(result[i] == 90.0 + i); }
+      return;
+   }
+
+   Vector destination(base, dst_offset, 4);
+   destination.UseDevice(true);
+   destination = source;
+   REQUIRE_FALSE(source.UseDevice());
+   const auto result = base.HostRead();
+   for (int i = 0; i < 12; ++i)
+   {
+      const real_t expected = (i >= 2 && i < 6) ? 88.0 + i :
+                              (i >= dst_offset && i < dst_offset + 4) ?
+                              90.0 + i - dst_offset : -1.0;
+      REQUIRE(result[i] == expected);
+   }
+}
+
 TEST_CASE("Vector Tests", "[Vector]")
 {
    real_t tol = 1e-12;

@@ -440,11 +440,6 @@ void CuDSSSolver::ArrayMult(const Array<const Vector *> &X,
    MFEM_CUDSS_CHECK(cudssExecute(handle, CUDSS_PHASE_SOLVE, solverConfig,
                                  solverData, *Ac, yc, xc));
 
-   if (nrhs == 1)
-   {
-      SOL.SyncAliasMemory(*Y[0]);
-   }
-
    if (nrhs > 1)
    {
       // Get solution for each right-hand side

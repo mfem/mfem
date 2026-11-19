@@ -28,26 +28,23 @@ TEST_CASE("MemoryManager/Scopes",
          X.NewMemoryAndSize(x.GetMemory(), x.Size(), false);
          // from Vector::SetSubVectorComplement
          X.Read();
-         // from Operator::RecoverFEMSolution
-         x.SyncMemory(X);
       }
-      // Accessible Memory<double> to get the flags
-      struct MemoryDouble
+      // Accessible Memory<real_t> to get the flags
+      struct MemoryReal
       {
          real_t *h_ptr;
-         int capacity; ///< Size of the allocated memory
+         size_t size_; ///< Size of the allocated memory
+         size_t offset_;  ///< Size of the allocated memory
+         mutable size_t segment; /// registered segment
          MemoryType h_mt; ///< Host memory type
-         mutable unsigned flags;
+         mutable unsigned char flags;
       };
-      const MemoryDouble *mem = (MemoryDouble*) &x.GetMemory();
+      const MemoryReal *mem = (MemoryReal*) &x.GetMemory();
       const real_t *h_x = mem->h_ptr;
       REQUIRE(h_x == x.GetData());
-      REQUIRE(mem->capacity == x.Size());
+      REQUIRE(mem->size_ == static_cast<size_t>(x.Size()));
+      REQUIRE(mem->offset_ == 0);
       REQUIRE(mem->h_mt == Device::GetHostMemoryType());
-      constexpr unsigned Registered = 1 << 0;
-      const bool registered = mem->flags & Registered;
-      const bool registered_is_known = registered == mm.IsKnown(h_x);
-      REQUIRE(registered_is_known);
    }
 
    SECTION("WithMakeRef")
@@ -61,8 +58,6 @@ TEST_CASE("MemoryManager/Scopes",
          X.MakeRef(x, 0, x.Size());
          // from Vector::SetSubVectorComplement
          X.Read();
-         // from Operator::RecoverFEMSolution
-         x.SyncMemory(X);
       }
       REQUIRE((x_data == x.HostRead()));
    }

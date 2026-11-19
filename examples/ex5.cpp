@@ -151,13 +151,11 @@ int main(int argc, char *argv[])
    fform->AddDomainIntegrator(new VectorFEDomainLFIntegrator(fcoeff));
    fform->AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(fnatcoeff));
    fform->Assemble();
-   fform->SyncAliasMemory(rhs);
 
    LinearForm *gform(new LinearForm);
    gform->Update(W_space, rhs.GetBlock(1), 0);
    gform->AddDomainIntegrator(new DomainLFIntegrator(gcoeff));
    gform->Assemble();
-   gform->SyncAliasMemory(rhs);
 
    // 9. Assemble the finite element matrices for the Darcy operator
    //

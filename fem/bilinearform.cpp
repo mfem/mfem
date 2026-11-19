@@ -865,11 +865,6 @@ void BilinearForm::FormLinearSystem(const Array<int> &ess_tdof_list, Vector &x,
          {
             R->MultTranspose(conf_b, b); // store eliminated rhs in b
          }
-         else
-         {
-            b.SyncMemory(conf_b); // b was modified through its alias conf_b
-            x.SyncMemory(conf_x); // may save a copy when conf_x is on device
-         }
 
          hybridization->ReduceRHS(conf_b, B);
          X.SetSize(B.Size());
@@ -1011,14 +1006,6 @@ void BilinearForm::RecoverFEMSolution(const Vector &X,
       {
          // Primal unknowns recovery
          hybridization->ComputeSolution(b, X, x);
-      }
-      else
-      {
-         // X and x point to the same data
-
-         // If the validity flags of X's Memory were changed (e.g. if it was
-         // moved to device memory) then we need to tell x about that.
-         x.SyncMemory(X);
       }
    }
    else // non-conforming space
