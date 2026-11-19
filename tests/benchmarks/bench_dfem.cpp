@@ -1146,7 +1146,8 @@ struct BP : public BakeOff<BFI, VER, VDIM, GLL>
          MFEM_VERIFY(cg.GetConverged(), "❌ CG solver did not converge.");
          // mfem::out << (cg.GetConverged() ? "✅" : "❌") << std::endl;
       }
-      cg.SetRelTol(1e-8);
+      cg.SetAbsTol(0.0);
+      cg.SetRelTol(0.0);
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
 
