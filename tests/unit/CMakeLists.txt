@@ -160,6 +160,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_simplices.cpp
   fem/test_particleset.cpp
   fem/test_pgridfunc_save_serial.cpp
+  fem/test_pgridfunc_update.cpp
   fem/test_poly1d.cpp
   fem/test_dof_communicator.cpp
   fem/test_project_bdr_par.cpp
