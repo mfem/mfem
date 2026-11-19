@@ -49,6 +49,12 @@ Meshing improvements
   or Mesh::SaveNURBSHDF5 for writing and the usual Mesh constructors or loaders
   for reading.
 
+- Fixed inconsistent parallel finite element spaces on a ParSubMesh of a
+  ParMesh whose communication groups are not numbered in the same order on all
+  ranks, for example a ParMesh constructed from the parts of a MeshPartitioner.
+  The shared vertices, edges and faces of the ParSubMesh groups are now listed
+  in the same order on all ranks.
+
 Linear and nonlinear solvers
 ----------------------------
 - Fixed the AmgX resource shared by the AmgXSolver instances, which used the
