@@ -112,7 +112,22 @@ void NavierSolver::Setup(real_t dt)
 
    sw_setup.Start();
 
-   vfes->GetEssentialTrueDofs(vel_ess_attr, vel_ess_tdof);
+   vel_ess_tdof.SetSize(0);
+   Array<int> bc_ess_tdof;
+   for (auto &vel_dbc : vel_dbcs)
+   {
+      vfes->GetEssentialTrueDofs(vel_dbc.attr, bc_ess_tdof);
+      vel_ess_tdof.Append(bc_ess_tdof);
+   }
+   for (auto &vel_comp_dbc : vel_comp_dbcs)
+   {
+      vfes->GetEssentialTrueDofs(vel_comp_dbc.attr, bc_ess_tdof,
+                                 vel_comp_dbc.comp);
+      vel_ess_tdof.Append(bc_ess_tdof);
+   }
+   vel_ess_tdof.Sort();
+   vel_ess_tdof.Unique();
+
    pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
 
    Array<int> empty;
@@ -228,6 +243,16 @@ void NavierSolver::Setup(real_t dt)
          gbdr_bnlfi->SetIntRule(&ir_ni);
       }
       g_bdr_form->AddBoundaryIntegrator(gbdr_bnlfi, vel_dbc.attr);
+   }
+
+   for (auto &vel_comp_dbc : vel_comp_dbcs)
+   {
+      auto *gbdr_bnlfi = new BoundaryNormalLFIntegrator(*vel_comp_dbc.coeff);
+      if (numerical_integ)
+      {
+         gbdr_bnlfi->SetIntRule(&ir_ni);
+      }
+      g_bdr_form->AddBoundaryIntegrator(gbdr_bnlfi, vel_comp_dbc.attr);
    }
 
    f_form = new ParLinearForm(vfes);
@@ -373,6 +398,11 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
    for (auto &vel_dbc : vel_dbcs)
    {
       vel_dbc.coeff->SetTime(time + dt);
+   }
+
+   for (auto &vel_comp_dbc : vel_comp_dbcs)
+   {
+      vel_comp_dbc.coeff->SetTime(time + dt);
    }
 
    // Set current time for pressure Dirichlet boundary conditions.
@@ -559,6 +589,12 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
    for (auto &vel_dbc : vel_dbcs)
    {
       un_next_gf.ProjectBdrCoefficient(*vel_dbc.coeff, vel_dbc.attr);
+   }
+
+   for (auto &vel_comp_dbc : vel_comp_dbcs)
+   {
+      un_next_gf.ProjectBdrCoefficient(vel_comp_dbc.coeff->GetCoeffs(),
+                                       vel_comp_dbc.attr);
    }
 
    vfes->GetRestrictionMatrix()->MultTranspose(resu, resu_gf);
@@ -988,8 +1024,8 @@ void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
 
    for (int i = 0; i < attr.Size(); ++i)
    {
-      MFEM_ASSERT((vel_ess_attr[i] && attr[i]) == 0,
-                  "Duplicate boundary definition deteceted.");
+      MFEM_VERIFY((vel_ess_attr[i] && attr[i]) == 0,
+                  "Duplicate boundary definition detected.");
       if (attr[i] == 1)
       {
          vel_ess_attr[i] = 1;
@@ -1000,6 +1036,47 @@ void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr)
 void NavierSolver::AddVelDirichletBC(VecFuncT *f, Array<int> &attr)
 {
    AddVelDirichletBC(new VectorFunctionCoefficient(pmesh->Dimension(), f), attr);
+}
+
+void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attr,
+                                     int component)
+{
+   MFEM_VERIFY(component >= 0 && component < vfes->GetVDim(),
+               "Invalid velocity component.");
+
+   for (int i = 0; i < attr.Size(); ++i)
+   {
+      if (attr[i] == 1)
+      {
+         for (auto &bc : vel_dbcs)
+         {
+            MFEM_VERIFY(bc.attr[i] == 0,
+                        "Duplicate boundary definition detected.");
+         }
+         for (auto &bc : vel_comp_dbcs)
+         {
+            MFEM_VERIFY(bc.comp != component || bc.attr[i] == 0,
+                        "Duplicate boundary definition detected.");
+         }
+         vel_ess_attr[i] = 1;
+      }
+   }
+
+   vel_comp_dbcs.emplace_back(attr, coeff, component, vfes->GetVDim());
+
+   if (verbose && pmesh->GetMyRank() == 0)
+   {
+      mfem::out << "Adding Velocity Component " << component
+                << " Dirichlet BC to attributes ";
+      for (int i = 0; i < attr.Size(); ++i)
+      {
+         if (attr[i] == 1)
+         {
+            mfem::out << i << " ";
+         }
+      }
+      mfem::out << std::endl;
+   }
 }
 
 void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attr)
@@ -1022,7 +1099,7 @@ void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attr)
    for (int i = 0; i < attr.Size(); ++i)
    {
       MFEM_ASSERT((pres_ess_attr[i] && attr[i]) == 0,
-                  "Duplicate boundary definition deteceted.");
+                  "Duplicate boundary definition detected.");
       if (attr[i] == 1)
       {
          pres_ess_attr[i] = 1;

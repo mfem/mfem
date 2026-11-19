@@ -47,6 +47,35 @@ public:
    VectorCoefficient *coeff;
 };
 
+/// Container for a component-wise Dirichlet boundary condition of the velocity field.
+class VelComponentDirichletBC_T
+{
+public:
+   VelComponentDirichletBC_T(Array<int> attr, Coefficient *c, int comp,
+                             int vdim)
+      : attr(attr), comp(comp), coeff(new VectorArrayCoefficient(vdim))
+   {
+      coeff->Set(comp, c);
+   }
+
+   VelComponentDirichletBC_T(VelComponentDirichletBC_T &&obj)
+   {
+      // Deep copy the attribute array
+      this->attr = obj.attr;
+
+      // Move the coefficient pointer
+      this->comp = obj.comp;
+      this->coeff = obj.coeff;
+      obj.coeff = nullptr;
+   }
+
+   ~VelComponentDirichletBC_T() { delete coeff; }
+
+   Array<int> attr;
+   int comp;
+   VectorArrayCoefficient *coeff;
+};
+
 /// Container for a Dirichlet boundary condition of the pressure field.
 class PresDirichletBC_T
 {
@@ -198,6 +227,13 @@ public:
    void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attr);
 
    void AddVelDirichletBC(VecFuncT *f, Array<int> &attr);
+
+   /// Add a component-wise Dirichlet boundary condition to the velocity field.
+   /**
+    * Prescribe velocity @a component using @a coeff on the boundary
+    * attributes marked in @a attr.
+    */
+   void AddVelDirichletBC(Coefficient *coeff, Array<int> &attr, int component);
 
    /// Add a Dirichlet boundary condition to the pressure field.
    void AddPresDirichletBC(Coefficient *coeff, Array<int> &attr);
@@ -402,8 +438,9 @@ protected:
 
    ParGridFunction pn_gf, resp_gf;
 
-   // All essential attributes.
+   // All velocity essential attributes
    Array<int> vel_ess_attr;
+   // All pressure essential attributes
    Array<int> pres_ess_attr;
 
    // All essential true dofs.
@@ -412,6 +449,9 @@ protected:
 
    // Bookkeeping for velocity Dirichlet BCs.
    std::vector<VelDirichletBC_T> vel_dbcs;
+
+   // Bookkeeping for velocity component Dirichlet BCs.
+   std::vector<VelComponentDirichletBC_T> vel_comp_dbcs;
 
    // Bookkeeping for pressure Dirichlet BCs.
    std::vector<PresDirichletBC_T> pres_dbcs;
