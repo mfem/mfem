@@ -19,7 +19,8 @@
 // particles on a mesh, every particle is assigned a random target rank. That
 // target is stored in a tag so it travels with the particle through the
 // router, letting us verify afterwards that each particle landed on its
-// assigned rank.
+// assigned rank. The miniapp returns 1 if a particle is not on its assigned
+// rank, or if the global number of particles changes.
 //
 // Compile with: make particles_redist_native
 //
@@ -39,7 +40,9 @@ using namespace mfem::common;
 
 // Count, per rank, how many local particles carry a target-rank tag equal to
 // this rank ("owned") vs. destined elsewhere.
-void PrintRankCounts(const ParticleSet &pset);
+// Fix: return the global count of particles that are not on their target
+// rank (same value on all ranks). Reason: main needs it for the exit code.
+long long PrintRankCounts(const ParticleSet &pset);
 
 int main (int argc, char *argv[])
 {
@@ -126,6 +129,10 @@ int main (int argc, char *argv[])
    }
    PrintRankCounts(pset);
 
+   // Fix: keep the global count before Redistribute(). Reason: a router that
+   // loses particles has no particle on a wrong rank, so the check passed.
+   const ParticleSet::IDType n_before = pset.GetGlobalNParticles();
+
    // Redistribute using the native CrystalRouter (no GSLIB)
    pset.Redistribute(ranks);
 
@@ -133,7 +140,17 @@ int main (int argc, char *argv[])
    {
       mfem::out << "\nPost-Redistribute:\n";
    }
-   PrintRankCounts(pset);
+   // Fix: check the result and return 1 on failure. Reason: the miniapp
+   // always returned 0, so its test could not fail.
+   const long long misplaced = PrintRankCounts(pset);
+   const ParticleSet::IDType n_after = pset.GetGlobalNParticles();
+   const bool pass = (misplaced == 0 && n_after == n_before);
+   if (rank == 0)
+   {
+      mfem::out << "Redistribute " << (pass ? "PASSED" : "FAILED") << ": "
+                << misplaced << " particles are not on their target rank, "
+                << n_before << " particles before, " << n_after << " after\n";
+   }
 
    if (visualization)
    {
@@ -145,13 +162,13 @@ int main (int argc, char *argv[])
                          410, 0, 400, 400, pset.GetDim() == 2 ? "Rjbcb" : "cb");
    }
 
-   return 0;
+   return pass ? 0 : 1;
 }
 
 
 
 
-void PrintRankCounts(const ParticleSet &pset)
+long long PrintRankCounts(const ParticleSet &pset)
 {
    int rank = Mpi::WorldRank(),
        size = Mpi::WorldSize();
@@ -183,4 +200,9 @@ void PrintRankCounts(const ParticleSet &pset)
                    << all_off_rank[r] << " destined elsewhere\n";
       }
    }
+
+   long long off = off_rank, global_off = 0;
+   MPI_Allreduce(&off, &global_off, 1, MPI_LONG_LONG, MPI_SUM,
+                 MPI_COMM_WORLD);
+   return global_off;
 }
