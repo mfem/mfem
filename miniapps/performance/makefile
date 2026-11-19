@@ -128,8 +128,10 @@ MFEM_PERF_CXXFLAGS_icx := $(MFEM_PERF_CXXFLAGS_clang)
 SEQ_MINIAPPS = ex1
 PAR_MINIAPPS = ex1p
 ifeq ($(MFEM_USE_MPI),NO)
+   SEQ_MINIAPPS += white_noise_bench
    MINIAPPS = $(SEQ_MINIAPPS)
 else
+   PAR_MINIAPPS += white_noise_bench
    MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
@@ -156,6 +158,10 @@ ex1p-test-par: ex1p
 	@$(call mfem-test,$<, $(RUN_MPI), Performance miniapp,-rs 2)
 ex1-test-seq: ex1
 	@$(call mfem-test,$<,, Performance miniapp,-r 2)
+white_noise_bench-test-seq: white_noise_bench
+	@$(call mfem-test,$<,, White-noise benchmark,-n 1 -o 1 -ns 2 -nb 2 -nw 1 -nv 512,YES)
+white_noise_bench-test-par: white_noise_bench
+	@$(call mfem-test,$<, $(RUN_MPI), White-noise benchmark,-n 1 -o 1 -ns 2 -nb 2 -nw 1 -nv 512,YES)
 
 # Testing: "test" target and mfem-test* variables are defined in config/test.mk
 
@@ -166,7 +172,7 @@ $(MFEM_LIB_FILE):
 clean: clean-build clean-exec
 
 clean-build:
-	rm -f *.o *~ ex1 ex1p
+	rm -f *.o *~ ex1 ex1p white_noise_bench
 	rm -rf *.dSYM *.TVD.*breakpoints
 
 clean-exec:

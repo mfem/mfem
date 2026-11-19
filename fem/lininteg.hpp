@@ -35,6 +35,8 @@ public:
    /// Method probing for assembly on device
    virtual bool SupportsDevice() const { return false; }
 
+   virtual bool SupportsDevice(const FiniteElementSpace &fes) const;
+
    /// Method defining assembly on device
    virtual void AssembleDevice(const FiniteElementSpace &fes,
                                const Array<int> &markers,
@@ -787,6 +789,70 @@ public:
       }
       L.DeleteAll();
    }
+};
+
+
+/// Assemble white-noise loads from supplied standard-normal quadrature entries.
+class QuadratureWhiteNoiseLFIntegrator : public LinearFormIntegrator
+{
+   const FiniteElementSpace &space;
+   const QuadratureFunction &normal_q;
+   const QuadratureSpace *quadrature_space;
+   const long mesh_sequence;
+   const long space_sequence;
+   const int vector_dimension;
+   const int quadrature_size;
+   long nodes_sequence = -1;
+   const IntegrationRule *quadrature_rule = nullptr;
+   const DofToQuad *maps = nullptr;
+   const DofToQuad *ordinary_maps = nullptr;
+   bool use_basis_cache = true;
+   Vector shape;
+   Vector square_root_weights;
+   Vector first_work;
+   Vector second_work;
+
+   void VerifyBinding() const;
+   void Prepare();
+
+public:
+   /** @brief Bind the integrator to @a fes and @a normal_q without taking
+       ownership; both objects must outlive the integrator.
+
+       @warning For a parallel mesh, construct this integrator collectively on
+       every rank in the mesh communicator, including ranks with no elements.
+       Construction calls Mesh::EnsureNodes(), which may initialize distributed
+       nodal geometry and perform MPI collectives. Do not condition construction
+       on a nonzero local element count. This requirement applies to both
+       ordinary and fast assembly.
+   */
+   QuadratureWhiteNoiseLFIntegrator(const FiniteElementSpace &fes,
+                                   const QuadratureFunction &normal_q);
+
+   /** @brief Enable reference-basis cache use in ordinary assembly (default).
+
+       With @a use_cache false, ordinary assembly evaluates CalcShape() at each
+       quadrature point instead of reading the full basis table. This does not
+       change fast assembly, geometry/weight caching, or the maps and work
+       buffers created by common preparation (tensor maps on quads/hexes, full
+       maps on simplices). Disabling cache use does not free FE-owned maps
+       already allocated or prevent other users from creating them.
+   */
+   void UseBasisCache(bool use_cache) { use_basis_cache = use_cache; }
+
+   bool SupportsDevice() const override { return true; }
+   bool SupportsDevice(const FiniteElementSpace &fes) const override;
+
+   void AssembleDevice(const FiniteElementSpace &fes,
+                       const Array<int> &markers,
+                       Vector &element_rhs) override;
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+   void AssembleRHSElementVect(const FiniteElement &element,
+                               ElementTransformation &transformation,
+                               Vector &element_rhs) override;
+
+   void SetIntRule(const IntegrationRule *rule) override;
 };
 
 

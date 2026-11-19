@@ -113,11 +113,12 @@ bool LinearForm::SupportsDevice() const
    if (mesh.NURBSext != nullptr) { return false; }
 
    // scan integrators to verify that all can use device assembly
-   auto IntegratorsSupportDevice = [](const Array<LinearFormIntegrator*> &integ)
+   auto IntegratorsSupportDevice = [this](
+      const Array<LinearFormIntegrator*> &integ)
    {
       for (int k = 0; k < integ.Size(); k++)
       {
-         if (!integ[k]->SupportsDevice()) { return false; }
+         if (!integ[k]->SupportsDevice(*fes)) { return false; }
       }
       return true;
    };
@@ -153,8 +154,8 @@ bool LinearForm::SupportsDevice() const
    const int mesh_dim = mesh.Dimension();
    if (mesh_dim == 1 || mesh_dim != mesh.SpaceDimension()) { return false; }
 
-   // tensor-product finite element space only
-   if (!UsesTensorBasis(*fes)) { return false; }
+   if (mesh.GetNumGeometries(mesh_dim) > 1) { return false; }
+   if (!UsesTensorBasis(*fes) && boundary_integs.Size() > 0) { return false; }
 
    return true;
 }

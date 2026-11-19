@@ -66,6 +66,9 @@
 #include "mfem.hpp"
 #include <fstream>
 #include <iostream>
+#include <limits>
+#include <memory>
+#include <string>
 
 using namespace std;
 using namespace mfem;
@@ -87,6 +90,9 @@ int main(int argc, char *argv[])
    const char *device_config = "cpu";
    bool visualization = true;
    bool algebraic_ceed = false;
+   const char *rhs_type = "constant";
+   int noise_seed = 20261115;
+   bool fast_rhs = true;
 #ifdef MFEM_USE_CUDSS
    bool cudss_solver = false;
 #endif
@@ -97,6 +103,12 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
+   args.AddOption(&rhs_type, "-rhs", "--rhs",
+                  "Right-hand side: constant, cholesky, or quadrature.");
+   args.AddOption(&noise_seed, "-seed", "--seed",
+                  "Positive seed for the white-noise right-hand side.");
+   args.AddOption(&fast_rhs, "-frhs", "--fast-rhs", "-no-frhs",
+                  "--no-fast-rhs", "Use fast assembly for quadrature white noise.");
    args.AddOption(&static_cond, "-sc", "--static-condensation", "-no-sc",
                   "--no-static-condensation", "Enable static condensation.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
@@ -126,10 +138,20 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
-   if (myid == 0)
+   const string rhs_method(rhs_type);
+   if ((rhs_method != "constant" && rhs_method != "cholesky" &&
+        rhs_method != "quadrature") || noise_seed <= 0 ||
+       (rhs_method == "cholesky" &&
+        noise_seed > numeric_limits<int>::max() - (num_procs - 1)))
    {
-      args.PrintOptions(cout);
+      if (myid == 0)
+      {
+         cerr << "Choose --rhs constant, cholesky, or quadrature and --seed > 0;"
+              << " the Cholesky seed plus rank must fit in an int." << endl;
+      }
+      return 1;
    }
+   if (myid == 0) { args.PrintOptions(cout); }
 
    // 3. Enable hardware devices such as GPUs, and programming models such as
    //    CUDA, OCCA, RAJA and OpenMP based on command line options.
@@ -217,11 +239,37 @@ int main(int argc, char *argv[])
    }
 
    // 9. Set up the parallel linear form b(.) which corresponds to the
-   //    right-hand side of the FEM linear system, which in this case is
-   //    (1,phi_i) where phi_i are the basis functions in fespace.
+   //    right-hand side of the FEM linear system.
+   unique_ptr<QuadratureSpace> noise_space;
+   unique_ptr<QuadratureFunction> normal_q;
    ParLinearForm b(&fespace);
    ConstantCoefficient one(1.0);
-   b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   if (rhs_method == "constant")
+   {
+      b.AddDomainIntegrator(new DomainLFIntegrator(one));
+   }
+   else if (rhs_method == "cholesky")
+   {
+      b.AddDomainIntegrator(new WhiteGaussianNoiseDomainLFIntegrator(
+                              fespace.GetComm(), noise_seed));
+   }
+   else
+   {
+      const auto geometry = fespace.GetTypicalFE()->GetGeomType();
+      const int quadrature_order = 2 * fespace.GetTypicalFE()->GetOrder();
+      const bool simplex = geometry == Geometry::TRIANGLE ||
+                           geometry == Geometry::TETRAHEDRON;
+      const IntegrationRule &rule = simplex ?
+                                    StroudIntRules.Get(geometry, quadrature_order) :
+                                    IntRules.Get(geometry, quadrature_order);
+      noise_space.reset(new QuadratureSpace(pmesh, rule));
+      normal_q.reset(new QuadratureFunction(*noise_space));
+      QuadratureGaussianSampler sampler(noise_seed, myid);
+      sampler.Generate(0, *normal_q);
+      b.AddDomainIntegrator(new QuadratureWhiteNoiseLFIntegrator(fespace,
+                                                               *normal_q));
+      b.UseFastAssembly(fast_rhs);
+   }
    b.Assemble();
 
    // 10. Define the solution vector x as a parallel finite element grid
