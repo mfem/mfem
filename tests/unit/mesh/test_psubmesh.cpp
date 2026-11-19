@@ -588,6 +588,21 @@ TEST_CASE("ParSubMesh", "[Parallel],[SubMesh]")
    multidomain_test_3d(fec_type);
 }
 
+TEST_CASE("ParSubMesh boundary elements order", "[Parallel],[SubMesh]")
+{
+   auto type = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON,
+                        Element::QUADRILATERAL, Element::TRIANGLE);
+   auto attribute = GENERATE(1, 2);
+   auto curved = GENERATE(false, true);
+   CAPTURE(type, attribute, curved);
+   Mesh mesh = RotatedBoundaryElementsMesh(type, false, curved);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   auto submesh = ParSubMesh::CreateFromDomain(pmesh, Array<int> {attribute});
+   int ncompared = CheckSubMeshBoundaryElements(submesh);
+   MPI_Allreduce(MPI_IN_PLACE, &ncompared, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(ncompared > 0);
+}
+
 Array<int> count_be(ParMesh &mesh)
 {
    const int bdr_max = mesh.bdr_attributes.Size() > 0 ?
