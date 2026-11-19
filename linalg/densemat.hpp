@@ -1423,11 +1423,12 @@ public:
    /// Return the total number of entries in all layers.
    int TotalSize() const { return tsize; }
 
-   /** @brief Resize to @a k owning matrices of size @a i by @a j.
+   /** @brief Resize to @a k matrices of size @a i by @a j.
 
-       Existing owned storage is released and any existing data views or
-       pointers are invalidated. When @a mt_ is MemoryType::PRESERVE, the
-       current memory type is retained. */
+       Backing storage may be reused. If an external buffer is retained, it
+       remains caller-owned and must stay alive while the stack references it.
+       Existing data views and pointers are invalidated. When @a mt_ is
+       MemoryType::PRESERVE, the current memory type is retained. */
    void SetSize(int i, int j, int k, MemoryType mt_ = MemoryType::PRESERVE)
    {
       const MemoryType mt = mt_ == MemoryType::PRESERVE ?
