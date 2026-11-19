@@ -46,7 +46,8 @@ struct LinearFormExtTest
 {
    enum { DLFEval, QLFEval, DLFGrad, // scalar domain
           VDLFEval, VQLFEval, VDLFGrad, // vector domain
-          BLFEval, BNLFEval // boundary
+          BLFEval, BNLFEval, // boundary
+          VBFLFEval // vector boundary
         };
    const double abs_tol = 1e-14, rel_tol = 1e-14;
    const char *mesh_filename;
@@ -150,16 +151,23 @@ struct LinearFormExtTest
          lfi_dev = new BoundaryNormalLFIntegrator(dim_fn_coeff);
          lfi_std = new BoundaryNormalLFIntegrator(dim_fn_coeff);
       }
+      else if (problem == VBFLFEval)
+      {
+         lfi_dev = new VectorBoundaryFluxLFIntegrator(fn_coeff, -0.5);
+         lfi_std = new VectorBoundaryFluxLFIntegrator(fn_coeff, -0.5);
+      }
       else { REQUIRE(false); }
 
-      if (problem != QLFEval && problem != VQLFEval && problem != BLFEval &&
-          problem != BNLFEval)
+      const bool boundary = problem == BLFEval || problem == BNLFEval ||
+                            problem == VBFLFEval;
+
+      if (problem != QLFEval && problem != VQLFEval && !boundary)
       {
          lfi_dev->SetIntRule((qtype == Lobatto) ? irGLL : ir);
          lfi_std->SetIntRule((qtype == Lobatto) ? irGLL : ir);
       }
 
-      if (problem != BLFEval && problem != BNLFEval)
+      if (!boundary)
       {
          lf_dev.AddDomainIntegrator(lfi_dev, elem_marker);
          lf_std.AddDomainIntegrator(lfi_std, elem_marker);
@@ -231,6 +239,16 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [GPU]")
                                     LinearFormExtTest::VQLFEval,
                                     LinearFormExtTest::VDLFGrad);
       LinearFormExtTest(mesh_file, vdim, ordering, qtype, problem, p).Run();
+   }
+
+   SECTION("Vector boundary flux")
+   {
+      // The vector dimension must equal the mesh dimension. The quadrature
+      // type is not used by the boundary integrators.
+      const int dim = Mesh::LoadFromFile(mesh_file).Dimension();
+      const auto ordering = GENERATE(Ordering::byVDIM, Ordering::byNODES);
+      LinearFormExtTest(mesh_file, dim, ordering, Legendre,
+                        LinearFormExtTest::VBFLFEval, p).Run();
    }
 
    SECTION("SetIntPoint")
@@ -434,6 +452,31 @@ TEST_CASE("Fast Boundary LinearForm Empty Rank", "[Parallel][GPU]")
    ParGridFunction x(&fes);
    x = 1.0;
    REQUIRE(b(x) == MFEM_Approx(4.0));
+}
+
+TEST_CASE("Fast Vector Boundary Flux LinearForm Empty Rank", "[Parallel][GPU]")
+{
+   // Geometry setup must also run on ranks without boundary elements.
+   Mesh serial_mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+   Array<int> partitioning(serial_mesh.GetNE());
+   partitioning = 0;
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partitioning.GetData());
+
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   H1_FECollection fec(1, mesh.Dimension());
+   ParFiniteElementSpace fes(&mesh, &fec, mesh.Dimension(), ordering);
+
+   ConstantCoefficient one(1.0);
+   ParLinearForm b(&fes);
+   b.AddBoundaryIntegrator(new VectorBoundaryFluxLFIntegrator(one, -0.5));
+   b.UseFastAssembly(true);
+   b.Assemble();
+
+   // The flux of u = (x, y) through the unit square is 2.
+   VectorFunctionCoefficient u_coeff(2, [](const Vector &p, Vector &u) { u = p; });
+   ParGridFunction x(&fes);
+   x.ProjectCoefficient(u_coeff);
+   REQUIRE(b(x) == MFEM_Approx(-1.0));
 }
 
 TEST_CASE("Fast VectorFE Boundary LinearForm Empty Rank", "[Parallel][GPU]")

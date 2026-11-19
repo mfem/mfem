@@ -23,7 +23,7 @@ void TransposeIntegrator::AssembleEA(const FiniteElementSpace &fes,
       Vector ea_data_tmp(ea_data.Size());
       bfi->AssembleEA(fes, ea_data_tmp, false);
       const int ne = fes.GetNE();
-      const int dofs = fes.GetTypicalFE()->GetDof();
+      const int dofs = fes.GetTypicalFE()->GetDof() * fes.GetVDim();
       auto A = Reshape(ea_data_tmp.Read(), dofs, dofs, ne);
       auto AT = Reshape(ea_data.ReadWrite(), dofs, dofs, ne);
       mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
@@ -42,7 +42,7 @@ void TransposeIntegrator::AssembleEA(const FiniteElementSpace &fes,
    {
       bfi->AssembleEA(fes, ea_data, false);
       const int ne = fes.GetNE();
-      const int dofs = fes.GetTypicalFE()->GetDof();
+      const int dofs = fes.GetTypicalFE()->GetDof() * fes.GetVDim();
       auto A = Reshape(ea_data.ReadWrite(), dofs, dofs, ne);
       mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
       {

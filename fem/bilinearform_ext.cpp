@@ -862,7 +862,14 @@ void EABilinearFormExtension::Assemble()
    SetupRestrictionOperators(L2FaceValues::SingleValued);
 
    ne = trial_fes->GetMesh()->GetNE();
-   elemDofs = trial_fes->GetTypicalFE()->GetDof();
+   // For vector spaces, the element matrices couple all the vector components
+   // of the element dofs, ordered as in the E-vector (see ElementRestriction).
+   elemDofs = trial_fes->GetTypicalFE()->GetDof() * trial_fes->GetVDim();
+   MFEM_VERIFY(trial_fes->GetVDim() == 1 ||
+               (a->GetBBFI()->Size() == 0 && a->GetFBFI()->Size() == 0 &&
+                a->GetBFBFI()->Size() == 0),
+               "Element assembly of boundary and face integrators is not "
+               "supported for vector spaces.");
 
    Vector ea_data_tmp;
 
@@ -1263,6 +1270,8 @@ void EABilinearFormExtension::GetElementMatrices(
    if (ea_data.Size() == 0) { Assemble(); }
 
    const int ndofs = elemDofs;
+   const int vdim = trial_fes->GetVDim();
+   const int scalar_ndofs = ndofs / vdim;
    element_matrices.SetSize(ndofs, ndofs, ne);
    const int N = element_matrices.TotalSize();
 
@@ -1294,11 +1303,13 @@ void EABilinearFormExtension::GetElementMatrices(
          const int e = idx / ndofs / ndofs;
          const int i = idx % ndofs;
          const int j = (idx / ndofs) % ndofs;
-         const int ii_s = d_dof_map[i];
-         const int ii = (ii_s >= 0) ? ii_s : -1 - ii_s;
+         // The dof map acts on the scalar dofs of each vector component
+         const int ci = i / scalar_ndofs, cj = j / scalar_ndofs;
+         const int ii_s = d_dof_map[i % scalar_ndofs];
+         const int ii = ((ii_s >= 0) ? ii_s : -1 - ii_s) + ci*scalar_ndofs;
          const int s_i = (ii_s >= 0) ? 1 : -1;
-         const int jj_s = d_dof_map[j];
-         const int jj = (jj_s >= 0) ? jj_s : -1 - jj_s;
+         const int jj_s = d_dof_map[j % scalar_ndofs];
+         const int jj = ((jj_s >= 0) ? jj_s : -1 - jj_s) + cj*scalar_ndofs;
          const int s_j = (jj_s >= 0) ? 1 : -1;
          d_element_matrices(ii, jj, e) = s_i*s_j*d_ea_data(j, i, e);
       });
@@ -1409,6 +1420,9 @@ void FABilinearFormExtension::Assemble()
 {
    EABilinearFormExtension::Assemble();
    FiniteElementSpace &fes = *a->FESpace();
+   MFEM_VERIFY(!fes.IsDGSpace() || fes.GetVDim() == 1,
+               "Full assembly of DG spaces is not supported for vector "
+               "spaces.");
    int width = fes.GetVSize();
    int height = fes.GetVSize();
    bool keep_nbr_block = false;
