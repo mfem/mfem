@@ -56,6 +56,9 @@ public:
                      ElementDofOrdering. */
    void Mult(const Vector &x, Vector &y) const override;
 
+   /// The map of the boundary faces; interior faces are interpolated.
+   EntityDofMap GetEntityDofMap() const override;
+
    /** @brief Gather the degrees of freedom, i.e. goes from face E-Vector to
        L-Vector.
 
