@@ -23,12 +23,13 @@
 #include <cstdint>
 #include <initializer_list>
 #include <memory>
+#include <type_traits>
+#include <utility>
 #include <vector>
 #include "device.hpp"
 #include "forall.hpp"
 #include "../linalg/ordering.hpp"
 #include "../linalg/vector.hpp"
-#include "../linalg/particlevector.hpp"
 #include "array.hpp"
 
 namespace mfem
@@ -55,9 +56,6 @@ namespace internal
       the container's UseDevice() flag is set).
     - Pack(): copy leaving particles into the rows of a row buffer.
     - Unpack(): rebuild the column from the arrival rows and the old tail.
-
-    @note currently lots of repeated code and functions, attempting to cut down
-          and refactor shared methods in crystal-routing-testing branch
 */
 class Field
 {
@@ -111,28 +109,34 @@ MFEM_HOST_DEVICE inline int ElemIndex(int particle, int comp, int n_particles,
 
 //----------------------------------------------------------------------------
 
-/** @brief Field Class for mfem::Array
+/** @brief Field Class for one mfem container
 
-    @tparam T  Element type */
-template <typename T>
-class ArrayField : public Field
+    @tparam C  Container type: mfem::Array<T> or mfem::Vector */
+// Fix: one class template replaces the ArrayField and VectorField classes.
+// Reason: the two classes had the same code two times.
+template <typename C>
+class ContainerField : public Field
 {
-   mfem::Array<T> *arr;
+   /// Element type of the container
+   using T =
+      typename std::remove_reference<decltype(std::declval<C&>()[0])>::type;
+
+   C *col;
    int vdim;
    Ordering::Type ordering;
 
 public:
-   /** @brief Array -> ArrayField constructor
+   /** @brief Container -> ContainerField constructor
 
-       @param[in,out] a          Array to wrap
+       @param[in,out] c          Container to wrap
        @param[in]     vdim_      Number of values per particle
-       @param[in]     ordering_  Layout of the values in @a a */
-   ArrayField(mfem::Array<T> &a, int vdim_ = 1,
-              Ordering::Type ordering_ = Ordering::byNODES)
-      : arr(&a), vdim(vdim_), ordering(ordering_) { }
+       @param[in]     ordering_  Layout of the values in @a c */
+   ContainerField(C &c, int vdim_ = 1,
+                  Ordering::Type ordering_ = Ordering::byNODES)
+      : col(&c), vdim(vdim_), ordering(ordering_) { }
 
    /// @copydoc Field::GetNumParticles
-   int GetNumParticles() const override  { return arr->Size() / vdim; }
+   int GetNumParticles() const override  { return col->Size() / vdim; }
    /// @copydoc Field::GetParticleBytes
    std::size_t GetParticleBytes() const override
    { return (std::size_t)vdim * sizeof(T); }
@@ -140,7 +144,7 @@ public:
    std::size_t GetAlign() const override { return alignof(T); }
    /// @copydoc Field::OnDevice
    bool OnDevice() const override
-   { return Device::IsEnabled() && arr->UseDevice(); }
+   { return Device::IsEnabled() && col->UseDevice(); }
 
    /// @copydoc Field::Pack
    void Pack(const mfem::Array<int> &leaving_idx, char *buf, std::size_t stride,
@@ -153,7 +157,7 @@ public:
       const int n_particles = GetNumParticles();
       const int vd = vdim;
       const Ordering::Type col_ordering = ordering;
-      const T *old_data = arr->Read(use_dev);
+      const T *old_data = col->Read(use_dev);
       const int *leaving_idx_data = leaving_idx.Read(use_dev);
       mfem::forall_switch(use_dev, n_leaving, [=] MFEM_HOST_DEVICE (int k)
       {
@@ -179,19 +183,21 @@ public:
       const std::size_t need = (std::size_t)n_new*vd;
       MFEM_VERIFY(need <= (std::size_t)INT_MAX,
                   "CrystalRouter: column too large");
-      const std::size_t old_cap = (std::size_t)arr->Capacity();
+      const std::size_t old_cap = (std::size_t)col->Capacity();
+      // byNODES with vdim > 1: a count change moves each component. In place,
+      // the moves overlap in a parallel forall, so a new column is used.
       const bool in_place = (ordering == Ordering::byVDIM || vd == 1 ||
                              n_new == n) && need <= old_cap;
 
       T *out = nullptr;
       const T *src = nullptr;
 
-      mfem::Array<T> new_col;
+      C new_col;
       if (in_place)
       {
          const int max_n = std::max(n, n_new);
-         arr->SetSize(max_n*vd);
-         if (max_n*vd > 0) { out = arr->ReadWrite(use_dev); src = out; }
+         col->SetSize(max_n*vd);
+         if (max_n*vd > 0) { out = col->ReadWrite(use_dev); src = out; }
       }
       else
       {
@@ -201,10 +207,10 @@ public:
          {
             cap = std::min(std::max(need, 2*old_cap), (std::size_t)INT_MAX);
          }
-         new_col.SetSize((int)cap, arr->GetMemory().GetMemoryType());
+         new_col.SetSize((int)cap, col->GetMemory().GetMemoryType());
          new_col.SetSize(n_new*vd);
-         new_col.GetMemory().UseDevice(arr->UseDevice());
-         if (n > 0) { src = arr->Read(use_dev); }
+         new_col.GetMemory().UseDevice(col->UseDevice());
+         if (n > 0) { src = col->Read(use_dev); }
          if (n_new > 0) { out = new_col.Write(use_dev); }
          const int n_keep = std::min(n, n_new);
          if (n_keep > 0)
@@ -245,156 +251,17 @@ public:
          });
       }
 
-      if (in_place) { arr->SetSize((int)need); }
-      else { arr->Swap(new_col); }
+      if (in_place) { col->SetSize((int)need); }
+      else { col->Swap(new_col); }
    }
 };
 
+/// Field class for mfem::Array<T>
+template <typename T>
+using ArrayField = ContainerField<mfem::Array<T>>;
 
-
-//----------------------------------------------------------------------------
-
-
-
-/** @brief Field Class for mfem::Vector */
-class VectorField : public Field
-{
-   mfem::Vector *vec;
-   int vdim;
-   Ordering::Type ordering;
-
-public:
-   /** @brief mfem::Vector -> CR::VectorField constructor
-
-       @param[in,out] v          Vector to wrap
-       @param[in]     vdim_      Number of values per particle
-       @param[in]     ordering_  Layout of the values in @a v */
-   VectorField(mfem::Vector &v, int vdim_ = 1,
-               Ordering::Type ordering_ = Ordering::byNODES)
-      : vec(&v), vdim(vdim_), ordering(ordering_) { }
-
-   /// @copydoc Field::GetNumParticles
-   int GetNumParticles() const override { return vec->Size() / vdim; }
-   /// @copydoc Field::GetParticleBytes
-   std::size_t GetParticleBytes() const override
-   { return (std::size_t)vdim * sizeof(real_t); }
-   /// @copydoc Field::GetAlign
-   std::size_t GetAlign() const override { return alignof(real_t); }
-   /// @copydoc Field::OnDevice
-   bool OnDevice() const override
-   { return Device::IsEnabled() && vec->UseDevice(); }
-
-
-   /// @copydoc Field::Pack
-   void Pack(const mfem::Array<int> &leaving_idx, char *buf,
-             std::size_t stride, std::size_t off) const override
-   {
-      const int n_leaving = leaving_idx.Size();
-      if (n_leaving == 0) { return; }
-      const bool use_dev = OnDevice();
-      const int n_particles = GetNumParticles();
-      const int vd = vdim;
-      const Ordering::Type col_ordering = ordering;
-
-      const real_t *old_data = vec->Read(use_dev);
-      const int *leaving_idx_data = leaving_idx.Read(use_dev);
-
-      mfem::forall_switch(use_dev, n_leaving, [=] MFEM_HOST_DEVICE (int k)
-      {
-         real_t *row =
-            reinterpret_cast<real_t*>(buf + (std::size_t)k*stride + off);
-         const int particle = leaving_idx_data[k];
-         for (int comp = 0; comp < vd; comp++)
-         {
-            row[comp] = old_data[ElemIndex(particle, comp, n_particles, vd,
-                                           col_ordering)];
-         }
-      });
-   }
-
-   /// @copydoc Field::Unpack
-   void Unpack(const mfem::Array<int> &dst, const mfem::Array<int> &tail,
-               const char *buf, int n_arrivals, int n_new,
-               std::size_t stride, std::size_t off) override
-   {
-      const bool use_dev = OnDevice();
-      const int n = GetNumParticles();
-      const int vd = vdim;
-      const Ordering::Type col_ordering = ordering;
-
-      const std::size_t need = (std::size_t)n_new*vd;
-      MFEM_VERIFY(need <= (std::size_t)INT_MAX,
-                  "CrystalRouter: column too large");
-      const std::size_t old_cap = (std::size_t)vec->Capacity();
-      const bool in_place = (ordering == Ordering::byVDIM || vd == 1 ||
-                             n_new == n) && need <= old_cap;
-
-      real_t *out = nullptr;
-      const real_t *src = nullptr;
-
-      mfem::Vector new_col;
-      if (in_place)
-      {
-         const int max_n = std::max(n, n_new);
-         vec->SetSize(max_n*vd);
-         if (max_n*vd > 0) { out = vec->ReadWrite(use_dev); src = out; }
-      }
-      else
-      {
-         // capacity never shrinks
-         std::size_t cap = old_cap;
-         if (need > old_cap)
-         {
-            cap = std::min(std::max(need, 2*old_cap), (std::size_t)INT_MAX);
-         }
-         new_col.SetSize((int)cap, vec->GetMemory().GetMemoryType());
-         new_col.SetSize(n_new*vd);
-         new_col.UseDevice(vec->UseDevice());
-         if (n > 0) { src = vec->Read(use_dev); }
-         if (n_new > 0) { out = new_col.Write(use_dev); }
-         const int n_keep = std::min(n, n_new);
-         if (n_keep > 0)
-         {
-            mfem::forall_switch(use_dev, n_keep, [=] MFEM_HOST_DEVICE (int i)
-            {
-               for (int comp = 0; comp < vd; comp++)
-               {
-                  out[ElemIndex(i, comp, n_new, vd, col_ordering)] =
-                     src[ElemIndex(i, comp, n, vd, col_ordering)];
-               }
-            });
-         }
-      }
-
-      const int n_fill = dst.Size();
-      if (n_fill > 0)
-      {
-         const int *dst_data = dst.Read(use_dev);
-         const int *tail_data = tail.Size() > 0 ? tail.Read(use_dev) : nullptr;
-         mfem::forall_switch(use_dev, n_fill, [=] MFEM_HOST_DEVICE (int m)
-         {
-            for (int comp = 0; comp < vd; comp++)
-            {
-               real_t v;
-               if (m < n_arrivals)
-               {
-                  const char *row = buf + (std::size_t)m*stride + off;
-                  v = reinterpret_cast<const real_t*>(row)[comp];
-               }
-               else
-               {
-                  const int t = tail_data[m - n_arrivals];
-                  v = src[ElemIndex(t, comp, n, vd, col_ordering)];
-               }
-               out[ElemIndex(dst_data[m], comp, n_new, vd, col_ordering)] = v;
-            }
-         });
-      }
-
-      if (in_place) { vec->SetSize((int)need); }
-      else { vec->Swap(new_col); }
-   }
-};
+/// Field class for mfem::Vector
+using VectorField = ContainerField<mfem::Vector>;
 
 
 
@@ -436,22 +303,8 @@ inline internal::FieldGroup Vector(mfem::Vector &v, int vdim = 1,
    return {{std::make_shared<internal::VectorField>(v, vdim, ordering)}};
 }
 
-inline internal::FieldGroup ParticleVector(mfem::ParticleVector &pv)
-{
-   return Vector(pv, pv.GetVDim(), pv.GetOrdering());
-}
-
-inline internal::FieldGroup ParticleVector(
-   const std::vector<std::unique_ptr<mfem::ParticleVector>> &pvs)
-{
-   internal::FieldGroup g;
-   for (const auto &p : pvs)
-   {
-      g.cols.push_back(std::make_shared<internal::VectorField>(
-                          *p, p->GetVDim(), p->GetOrdering()));
-   }
-   return g;
-}
+// Fix: the CR::ParticleVector() wrappers are now in fem/particleset.hpp.
+// Reason: the router does not need the particle classes.
 
 /** @brief Wrap a list of int arrays as one FieldGroup for ParticleSet
 
@@ -506,9 +359,10 @@ public:
 
        @param[in]     rank_list     Destination rank of each particle
        @param[in,out] field_groups  Data to route, as a brace-enclosed list of
-                                    CR::Array(), CR::Vector() and
-                                    CR::ParticleVector() wrappers. Each field
-                                    must have rank_list.Size() particles.
+                                    CR::Array() and CR::Vector() wrappers.
+                                    CR::ParticleVector() is in
+                                    fem/particleset.hpp. Each field must have
+                                    rank_list.Size() particles.
 
        @note Collective on the communicator of the router */
    void Route(const Array<unsigned int> &rank_list,

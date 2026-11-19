@@ -184,6 +184,33 @@ public:
    void Print(std::ostream &os=mfem::out) const;
 };
 
+#ifdef MFEM_USE_MPI
+namespace CR
+{
+// Fix: the ParticleVector wrappers for CrystalRouter::Route() are here now.
+// Reason: the router in general/ must not depend on ParticleVector.
+
+/// Wrap a ParticleVector as one FieldGroup for CrystalRouter::Route().
+inline internal::FieldGroup ParticleVector(mfem::ParticleVector &pv)
+{
+   return Vector(pv, pv.GetVDim(), pv.GetOrdering());
+}
+
+/// Wrap a list of ParticleVector%s as one FieldGroup, one field for each.
+inline internal::FieldGroup ParticleVector(
+   const std::vector<std::unique_ptr<mfem::ParticleVector>> &pvs)
+{
+   internal::FieldGroup g;
+   for (const auto &p : pvs)
+   {
+      g.cols.push_back(std::make_shared<internal::VectorField>(
+                          *p, p->GetVDim(), p->GetOrdering()));
+   }
+   return g;
+}
+} // namespace CR
+#endif // MFEM_USE_MPI
+
 /** @brief ParticleSet initializes and manages data associated with particles.
  *
  *  @details Particles are inherently initialized to have a position and an ID,
