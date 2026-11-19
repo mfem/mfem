@@ -33,6 +33,10 @@ private:
    Vector local_state, element_state, local_gradient, element_gradient;
    Vector material_data, projected_gradients, energy_data, determinants;
    Vector element_hessian;
+   // On ordinary HYPRE builds, local_matrix owns the CSR storage and
+   // local_hessian is its non-owning assembly view. Declare the owner first
+   // so the view is destroyed before the storage it references.
+   std::unique_ptr<HypreParMatrix> local_matrix;
    SparseMatrix local_hessian;
    bool matrix_initialized = false;
 
@@ -40,10 +44,22 @@ public:
    DeviceNeoHookean(ParFiniteElementSpace &fes, Coefficient &shear,
                     Coefficient &bulk);
 
+   ~DeviceNeoHookean()
+   {
+#ifdef HYPRE_BIGINT
+      // The BIGINT wrapper borrows local_hessian's values instead of owning
+      // them; release it before the source storage is destroyed.
+      local_matrix.reset();
+#endif
+   }
+
    /// Evaluate energy and optionally its gradient and assembled true-dof Hessian.
    /// Coordinates are the deformed configuration in true dofs. Essential
    /// entries of the gradient are zero, and the Hessian uses DIAG_ONE.
    /// A null output pointer skips that output, including Hessian assembly.
+   /// With identity prolongation the Hessian handle borrows local_matrix;
+   /// it remains valid until the next Hessian evaluation or this object's
+   /// destruction. Otherwise the handle owns the parallel-assembled matrix.
    void Evaluate(const Vector &coordinates, const Array<int> &ess_tdofs,
                  real_t &energy, Vector *gradient = nullptr,
                  OperatorHandle *hessian = nullptr);

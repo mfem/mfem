@@ -266,6 +266,23 @@ void DeviceNeoHookean::Evaluate(const Vector &coordinates,
    }
 
    if (!hessian) { return; }
+   // Retire the previous true-dof matrix before rewriting any assembly data.
+   // In the identity case Clear() detaches a borrower of local_matrix.
+   hessian->Clear();
+#ifdef HYPRE_BIGINT
+   // ElementRestriction uses int indices. A BIGINT HYPRE wrapper must convert
+   // those indices, but it can still borrow the values without cloning them.
+   local_matrix.reset();
+#else
+   if (local_matrix)
+   {
+      // HYPRE may have updated the device data (e.g. essential BCs). Refresh
+      // the view's validity flags before the assembly kernels overwrite it.
+      local_hessian.GetMemoryI().Sync(local_matrix->GetDiagMemoryI());
+      local_hessian.GetMemoryJ().Sync(local_matrix->GetDiagMemoryJ());
+      local_hessian.GetMemoryData().Sync(local_matrix->GetDiagMemoryData());
+   }
+#endif
    if (!matrix_initialized)
    {
       restriction.FillSparseMatrix(element_hessian, local_hessian);
@@ -275,13 +292,63 @@ void DeviceNeoHookean::Evaluate(const Vector &coordinates,
    {
       restriction.FillJAndData(element_hessian, local_hessian);
    }
-   hessian->Clear();
-   ParBilinearForm assembler(&fes);
-   assembler.ParallelRAP(local_hessian, *hessian);
+#ifdef HYPRE_BIGINT
+   local_matrix = std::make_unique<HypreParMatrix>(
+                     fes.GetComm(), fes.GlobalVSize(), fes.GetDofOffsets(),
+                     &local_hessian);
+#else
+   if (!local_matrix)
+   {
+      // Transfer the existing CSR allocations, without copying their contents.
+      // The active HYPRE policy stays in effect throughout construction.
+      auto *diag = new SparseMatrix;
+      diag->Swap(local_hessian);
+      auto *offd = new SparseMatrix(fes.GetVSize(), 0);
+      offd->Finalize();
+      local_matrix = std::make_unique<HypreParMatrix>(
+                        fes.GetComm(), fes.GlobalVSize(), fes.GlobalVSize(),
+                        fes.GetDofOffsets(), fes.GetDofOffsets(),
+                        diag, offd, nullptr, true);
+      // GetDiag(SparseMatrix&) reads the full CSR on the host. Alias the
+      // Memory objects directly instead, preserving the active device data.
+      local_hessian.OverrideSize(fes.GetVSize(), fes.GetVSize());
+      local_hessian.GetMemoryI().MakeAlias(
+         local_matrix->GetDiagMemoryI(), 0, fes.GetVSize()+1);
+      local_hessian.GetMemoryJ().MakeAlias(
+         local_matrix->GetDiagMemoryJ(), 0,
+         local_matrix->GetDiagMemoryJ().Capacity());
+      local_hessian.GetMemoryData().MakeAlias(
+         local_matrix->GetDiagMemoryData(), 0,
+         local_matrix->GetDiagMemoryData().Capacity());
+   }
+   else
+   {
+      // FillJAndData rewrites I, J and values, including restoring I on the
+      // host. Propagate that state, then put each diagonal entry first again
+      // for HYPRE's diagonal extraction, smoothing and BC elimination.
+      local_matrix->GetDiagMemoryI().Sync(local_hessian.GetMemoryI());
+      local_matrix->GetDiagMemoryJ().Sync(local_hessian.GetMemoryJ());
+      local_matrix->GetDiagMemoryData().Sync(local_hessian.GetMemoryData());
+      local_matrix->HypreReadWrite();
+      auto *A = static_cast<hypre_ParCSRMatrix *>(*local_matrix);
+      MFEM_VERIFY(hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(A)) == 0,
+                  "Failed to restore tangent diagonal ordering.");
+   }
+#endif
+   local_matrix->CopyRowStarts();
+   local_matrix->CopyColStarts();
+   local_matrix->HypreRead();
    if (IsIdentityProlongation(fes.GetProlongationMatrix()))
    {
-      hessian->Reset(new HypreParMatrix(*hessian->As<HypreParMatrix>()));
+      hessian->Reset(local_matrix.get(), false);
    }
+   else
+   {
+      auto &P = *fes.Dof_TrueDof_Matrix();
+      P.HypreRead();
+      hessian->Reset(RAP(local_matrix.get(), &P));
+   }
+   hessian->As<HypreParMatrix>()->HypreRead();
    hessian->As<HypreParMatrix>()->EliminateBC(ess_tdofs, Operator::DIAG_ONE);
 }
 
