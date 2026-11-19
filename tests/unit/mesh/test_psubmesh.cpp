@@ -42,6 +42,37 @@ void CHECK_GLOBAL_NORM(Vector &v, bool small = true)
    }
 };
 
+real_t TransferTestCoefficient(const Vector &coords)
+{
+   const real_t x = coords(0);
+   const real_t y = coords(1);
+   const real_t z = coords.Size() == 3 ? coords(2) : 0.0;
+   return 0.02 * sin(y * 5.0 * M_PI)
+          + 0.03 * sin(x * 5.0 * M_PI)
+          + 0.05 * sin(z * 5.0 * M_PI);
+}
+
+void TransferTestVectorCoefficient(const Vector &coords, Vector &v)
+{
+   const int dim = coords.Size();
+   const real_t x = coords(0);
+   const real_t y = coords(1);
+   const real_t z = dim == 3 ? coords(2) : 0.0;
+   v.SetSize(dim);
+   v(0) = 0.02 * sin(y * 3.0 * M_PI)
+          + 0.03 * sin(x * 2.0 * M_PI)
+          + 0.05 * sin(z * 4.0 * M_PI);
+   v(1) = 0.02 * sin(z * 3.0 * M_PI)
+          + 0.03 * sin(y * 2.0 * M_PI)
+          + 0.05 * sin(x * 4.0 * M_PI);
+   if (dim == 3)
+   {
+      v(2) = 0.02 * sin(x * 3.0 * M_PI)
+             + 0.03 * sin(y * 2.0 * M_PI)
+             + 0.05 * sin(z * 4.0 * M_PI);
+   }
+}
+
 FiniteElementCollection *create_surf_fec(FECType fectype, int p, int dim)
 {
    switch (fectype)
@@ -716,6 +747,94 @@ TEST_CASE("ParSubMesh Interior Boundaries", "[Parallel],[SubMesh]")
       }
    }
 }
+
+TEST_CASE("Non-Contiguous ParSubMesh Transfers", "[Parallel],[SubMesh]")
+{
+   constexpr int order = 3; // Produce multiple DoFs per edge and face.
+   const int dim = GENERATE(2, 3);
+   const auto fec_type = GENERATE(FECType::H1, FECType::ND,
+                                  FECType::RT, FECType::L2);
+
+   // Construct and distribute the checkerboard parent mesh. Use the smallest
+   // side length of at least three that is divisible by the rank count. This
+   // prevents round-robin element ownership from aliasing with checkerboard
+   // parity in the usual complementary submesh split (in particular, with
+   // two ranks).
+   const int num_ranks = Mpi::WorldSize();
+   const int side_length = num_ranks * ((3 + num_ranks - 1) / num_ranks);
+   Mesh serial_mesh = CheckerboardMesh(dim, side_length);
+   Array<int> partitioning(serial_mesh.GetNE());
+   for (int el = 0; el < partitioning.Size(); el++)
+   {
+      partitioning[el] = el % Mpi::WorldSize();
+   }
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partitioning);
+
+   CAPTURE(dim);
+   CAPTURE(fec_type);
+
+   // Checkerboard pattern including corners
+   Array<int> attr13{1, 3};
+   ParSubMesh submesh13 = ParSubMesh::CreateFromDomain(mesh, attr13);
+
+   // Complementary checkerboard pattern excluding corners
+   Array<int> attr24(dim - 1);
+   attr24[0] = 2;
+   if (dim == 3) { attr24[1] = 4; }
+   ParSubMesh submesh24 = ParSubMesh::CreateFromDomain(mesh, attr24);
+   // Verify that every rank owns elements in both portions of the usual
+   // checkerboard split. This avoids a rank-local transfer test that never
+   // has to communicate data from one of its submeshes.
+   REQUIRE(submesh13.GetNE() > 0);
+   REQUIRE(submesh24.GetNE() > 0);
+
+   // Project a field onto the full domain
+   FiniteElementCollection *fec = create_fec(fec_type, order, dim);
+   ParFiniteElementSpace fes(&mesh, fec);
+   ParGridFunction gf0(&fes);
+   FunctionCoefficient coeff(TransferTestCoefficient);
+   VectorFunctionCoefficient vcoeff(dim, TransferTestVectorCoefficient);
+   if (fec_type == FECType::H1 || fec_type == FECType::L2)
+   {
+      gf0.ProjectCoefficient(coeff);
+   }
+   else
+   {
+      gf0.ProjectCoefficient(vcoeff);
+   }
+   const real_t nrm = GlobalLpNorm(2.0, gf0.Norml2(), mesh.GetComm());
+   REQUIRE(nrm != 0.0);
+
+   // Transfer portion of the parent field to its submesh
+   ParFiniteElementSpace fes13(&submesh13, fec);
+   ParGridFunction gf13(&fes13);
+   ParSubMesh::Transfer(gf0, gf13);
+
+   // Transfer complimentary portion of the parent field to its submesh
+   ParFiniteElementSpace fes24(&submesh24, fec);
+   ParGridFunction gf24(&fes24);
+   ParSubMesh::Transfer(gf0, gf24);
+
+   // Create a target field on the full domain
+   ParGridFunction gf1(&fes);
+   gf1 = 0.0;
+
+   // Transfer both portions and compare to original field
+   ParSubMesh::Transfer(gf13, gf1);
+   ParSubMesh::Transfer(gf24, gf1);
+   gf1 -= gf0;
+   REQUIRE(GlobalLpNorm(2.0, gf1.Norml2(), mesh.GetComm()) < 1e-10 * nrm);
+
+   // Transfer both portions in the opposite order and compare to original field
+   gf1 = 0.0;
+   ParSubMesh::Transfer(gf24, gf1);
+   ParSubMesh::Transfer(gf13, gf1);
+   gf1 -= gf0;
+   REQUIRE(GlobalLpNorm(2.0, gf1.Norml2(), mesh.GetComm()) < 1e-10 * nrm);
+
+   delete fec;
+}
+
 /**
  * @brief Helper class for testing a ParNCMesh
  *
@@ -755,34 +874,9 @@ void CheckProjectMatch(ParMesh &mesh, ParSubMesh &submesh, FECType fec_type,
    ParFiniteElementSpace sub_fes(&submesh, sub_fec.get());
    ParGridFunction gf(&fes), gf_ext(&fes);
    ParGridFunction sub_gf(&sub_fes), sub_gf_ext(&sub_fes);
-   auto coeff = FunctionCoefficient([](const Vector &coords)
-   {
-      real_t x = coords(0);
-      real_t y = coords(1);
-      real_t z = coords(2);
-      return 0.02 * sin(y * 5.0 * M_PI)
-             + 0.03 * sin(x * 5.0 * M_PI)
-             + 0.05 * sin(z * 5.0 * M_PI);
-   });
-
-   auto vcoeff = VectorFunctionCoefficient(mesh.SpaceDimension(),
-                                           [](const Vector &coords, Vector &V)
-   {
-      V.SetSize(3);
-      real_t x = coords(0);
-      real_t y = coords(1);
-      real_t z = coords(2);
-
-      V(0) = 0.02 * sin(y * 3.0 * M_PI)
-             + 0.03 * sin(x * 2.0 * M_PI)
-             + 0.05 * sin(z * 4.0 * M_PI);
-      V(1) = 0.02 * sin(z * 3.0 * M_PI)
-             + 0.03 * sin(y * 2.0 * M_PI)
-             + 0.05 * sin(x * 4.0 * M_PI);
-      V(2) = 0.02 * sin(x * 3.0 * M_PI)
-             + 0.03 * sin(y * 2.0 * M_PI)
-             + 0.05 * sin(z * 4.0 * M_PI);
-   });
+   FunctionCoefficient coeff(TransferTestCoefficient);
+   VectorFunctionCoefficient vcoeff(mesh.SpaceDimension(),
+                                    TransferTestVectorCoefficient);
 
    if (fec_type == FECType::H1 || fec_type == FECType::L2)
    {
