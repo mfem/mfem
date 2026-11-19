@@ -3028,6 +3028,13 @@ HypreParMatrix *Add(real_t alpha, const HypreParMatrix &A,
 #endif
    if (!hypre_ParCSRMatrixCommPkg(C)) { hypre_MatvecCommPkgCreate(C); }
 
+   if (A.M() == A.N())
+   {
+      /* If the matrix is square, make sure that the first entry in each
+         row is the diagonal one. */
+      hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(C));
+   }
+
    return new HypreParMatrix(C);
 }
 
@@ -3040,6 +3047,13 @@ HypreParMatrix * ParAdd(const HypreParMatrix *A, const HypreParMatrix *B)
    hypre_ParCSRMatrixAdd(1.0, *A, 1.0, *B, &C);
 #endif
    if (!hypre_ParCSRMatrixCommPkg(C)) { hypre_MatvecCommPkgCreate(C); }
+
+   if (A->M() == A->N())
+   {
+      /* If the matrix is square, make sure that the first entry in each
+         row is the diagonal one. */
+      hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(C));
+   }
 
    return new HypreParMatrix(C);
 }
@@ -3063,6 +3077,14 @@ HypreParMatrix * ParMult(const HypreParMatrix *A, const HypreParMatrix *B,
    hypre_ParCSRMatrixSetNumNonzeros(ab);
 
    if (!hypre_ParCSRMatrixCommPkg(ab)) { hypre_MatvecCommPkgCreate(ab); }
+
+   if (A->M() == B->N())
+   {
+      /* If the matrix is square, make sure that the first entry in each
+         row is the diagonal one. */
+      hypre_CSRMatrixReorder(hypre_ParCSRMatrixDiag(ab));
+   }
+
    HypreParMatrix *C = new HypreParMatrix(ab);
    if (own_matrix)
    {
