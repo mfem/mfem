@@ -243,7 +243,8 @@ public:
    /// and invalidation of both operators before use by the optimizer.
    HypreParMatrix *GetConstraintJacobianTranspose();
 
-   /// Return transfer operator from contact to displacement subspace.
+   /// Return transfer operator from contact to displacement subspace, or
+   /// nullptr if the global contact subspace is empty (use plain AMG).
    HypreParMatrix * GetContactSubspaceTransferOperator();
 
    /// Evaluate the affine gap function at the displacement.

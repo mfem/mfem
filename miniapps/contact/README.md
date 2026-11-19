@@ -23,12 +23,18 @@ correction restricted to degrees of freedom involved in active contact constrain
 This correction significantly improves solver convergence in late-stage IP iterations 
 where contact constraints dominate and classical AMG performance typically degrades.
 
-- **AMGF** requires a sparse direct solver for the filtered subspace. Build MFEM
-  with **MUMPS**, **CPardiso**, **SuperLU_DIST**, **STRUMPACK**, or **cuDSS**.
+- **AMGF** requires a sparse direct solver when the filtered subspace is nonempty.
+  Build MFEM with **MUMPS**, **CPardiso**, **SuperLU_DIST**, **STRUMPACK**, or **cuDSS**.
   Select one with `-amgf-fsolver mumps|cpardiso|superlu|strumpack|cudss`.
   `auto` prefers cuDSS on CUDA when available; otherwise it selects the first
   enabled host solver in the order MUMPS, SuperLU_DIST, STRUMPACK, CPardiso.
   With OpenMPI, `auto` also checks CUDA buffer support for multiple ranks.
+- When the **global contact subspace is empty**, `-amgf` automatically uses
+  ordinary BoomerAMG with the same AMG options. No filtered operator or direct
+  solver is constructed. Once candidate contact rows appear, AMGF is enabled
+  again. A rank with no local contact entries still participates if the global
+  subspace is nonempty. The driver checks the selected direct backend only when
+  it is needed.
 - **AMG** may be used when no direct solver is available, though it often exhibits 
 slower or stagnating convergence.
 
@@ -57,7 +63,8 @@ elasticity and **AMG with Filtering (AMGF)** preconditioning.
 - `-nonlin`: enables nonlinear elasticity. This option is available only for the 
 beam–sphere case (`-prob 2`). 
 - `-amgf` selects the AMGF preconditioner and requires one of the direct solvers
-  listed above. Use `-no-amgf` to select standard HypreBoomerAMG.
+  listed above when the contact subspace is nonempty. Use `-no-amgf` to select
+  standard HypreBoomerAMG.
 - `-nsteps` sets the number of incremental load steps (pseudo time-stepping)    
 - `-sr` sets the number of serial refinements
 - `-pr` sets the number of parallel refinements

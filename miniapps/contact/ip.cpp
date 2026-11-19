@@ -600,14 +600,20 @@ void IPSolver::FormNewtonBlocks(BlockVector &x, const Vector &zl,
    workspace.Huu = problem->GetEnergyHessian(x.GetBlock(0));
 
    workspace.Ju = problem->GetConstraintJacobian();
-   workspace.JuT = problem->GetConstraintJacobianTranspose();
+   const bool constrained = problem->GetGlobalNumConstraints() > 0;
+   workspace.JuT = constrained ? problem->GetConstraintJacobianTranspose()
+                   : nullptr;
 
    Vector &DiagLogBar = workspace.barrier_diagonal;
    FillBarrierDiagonal(x, Mlump, zl, delta, DiagLogBar);
 
    // The contact objective has no slack Hessian. Only the barrier and
    // slack regularization contribute to this diagonal block.
-   if (!workspace.Wmm)
+   if (!constrained)
+   {
+      workspace.Wmm.reset();
+   }
+   else if (!workspace.Wmm)
    {
       workspace.Wmm.reset(MakeDiagonalHypreParMatrix(
                              comm, problem->GetGlobalNumConstraints(),
@@ -667,7 +673,8 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    GetDxphi(x, mu, gradphi);
 
    b.GetBlock(0).Set(1.0, gradphi.GetBlock(0));
-   workspace.JuT->AddMult(l, b.GetBlock(0));
+   const bool constrained = problem->GetGlobalNumConstraints() > 0;
+   if (constrained) { workspace.JuT->AddMult(l, b.GetBlock(0)); }
    b.GetBlock(1).Set(1.0, gradphi.GetBlock(1));
    // The slack Jacobian is -I: Jm^T l = -l.
    b.GetBlock(1).Add(-1.0, l);
@@ -677,22 +684,31 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    b.SyncToBlocks();
 
    // Include the displacement regularization in the reduced system.
-   std::unique_ptr<HypreParMatrix> JuTDJu(RAP(workspace.Wmm.get(),
-                                              workspace.Ju)); // Ju^T D Ju
-   std::unique_ptr<HypreParMatrix> Areduced(ParAdd(workspace.Wuu.get(),
-                                                   JuTDJu.get()));
+   std::unique_ptr<HypreParMatrix> JuTDJu, Areduced;
+   if (constrained)
+   {
+      JuTDJu.reset(RAP(workspace.Wmm.get(), workspace.Ju)); // Ju^T D Ju
+      Areduced.reset(ParAdd(workspace.Wuu.get(), JuTDJu.get()));
+   }
 
    /* compute the reduced rhs */
    // breduced = bu + Ju^T (bm + Wmm bl)
    Vector &breduced = workspace.reduced_rhs;
    Vector &tempVec = workspace.slack_work;
-   workspace.Wmm->Mult(b.GetBlock(2), tempVec);
-   tempVec.Add(1.0, b.GetBlock(1));
-   workspace.JuT->Mult(tempVec, breduced);
-   breduced.Add(1.0, b.GetBlock(0));
+   if (constrained)
+   {
+      workspace.Wmm->Mult(b.GetBlock(2), tempVec);
+      tempVec.Add(1.0, b.GetBlock(1));
+      workspace.JuT->Mult(tempVec, breduced);
+      breduced.Add(1.0, b.GetBlock(0));
+   }
+   else
+   {
+      breduced.Set(1.0, b.GetBlock(0));
+   }
 
    // Solve the system with the given solver
-   solver->SetOperator(*Areduced);
+   solver->SetOperator(constrained ? *Areduced : *workspace.Wuu);
    solver->Mult(breduced, Xhat.GetBlock(0));
    auto itsolver = dynamic_cast<IterativeSolver *>(solver);
    int numit = (itsolver) ? itsolver->GetNumIterations() : -1;
@@ -713,19 +729,26 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
 
    // now propagate solved uhat to obtain mhat and lhat
    // xm = Ju xu - bl
-   workspace.Ju->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
-   Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
+   if (constrained)
+   {
+      workspace.Ju->Mult(Xhat.GetBlock(0), Xhat.GetBlock(1));
+      Xhat.GetBlock(1).Add(-1.0, b.GetBlock(2));
 
-   // xl = Wmm xm - bm
-   workspace.Wmm->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
-   Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
+      // xl = Wmm xm - bm
+      workspace.Wmm->Mult(Xhat.GetBlock(1), Xhat.GetBlock(2));
+      Xhat.GetBlock(2).Add(-1.0, b.GetBlock(1));
+   }
    direction.SyncFromNewton();
 
    JuTDJu.reset();
    Areduced.reset();
 
-   const bool passed_curvature_test = CurvatureTest(*workspace.Wuu, *workspace.Wmm,
-                                                    Xhat, l, b);
+   IdentityOperator empty_slack(0);
+   const Operator &slack_hessian = constrained ?
+                                  static_cast<const Operator &>(*workspace.Wmm) :
+                                  static_cast<const Operator &>(empty_slack);
+   const bool passed_curvature_test = CurvatureTest(
+                                         *workspace.Wuu, slack_hessian, Xhat, l, b);
 
    /* backsolve to determine zlhat */
    x.SyncFromBlocks();
@@ -1039,7 +1062,14 @@ void IPSolver::EvalLagrangianGradient(const BlockVector &x, const Vector &l,
    y.GetBlock(1).Set(-1.0, zl);
    y.GetBlock(1) *= Mlump;
 
-   problem->GetConstraintJacobianTranspose()->Mult(l, y.GetBlock(0));
+   if (problem->GetGlobalNumConstraints() > 0)
+   {
+      problem->GetConstraintJacobianTranspose()->Mult(l, y.GetBlock(0));
+   }
+   else
+   {
+      y.GetBlock(0) = 0.0;
+   }
    y.GetBlock(1).Add(-1.0, l);
 
    BlockVector &gradxf = workspace.objective_gradient;

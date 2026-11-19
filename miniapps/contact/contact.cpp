@@ -49,8 +49,8 @@
 //     the mesh is read from ./meshes/beam-sphere.mesh.
 //  3. AMGF requires a sparse direct solver for the filtered subspace; build
 //     MFEM with MUMPS, SuperLU_DIST, STRUMPACK, MKL CPardiso, or cuDSS.
-//     If unavailable, requesting -amgf aborts
-//     with an error.
+//     A direct solver is needed only when the global contact subspace is
+//     nonempty; an empty subspace falls back to ordinary AMG.
 //  4. This miniapp requires MFEM build with Tribol, an open source contact mechanics library
 //     available at https://github.com/LLNL/Tribol.
 
@@ -474,27 +474,6 @@ int main(int argc, char *argv[])
    MFEM_VERIFY(!hypre_gpu_aware_mpi,
                "The HYPRE GPU-aware MPI option requires HYPRE 2.31 or newer.");
 #endif
-   if (amgf)
-   {
-      std::string solver_name(amgf_fsolver);
-      for (char &c : solver_name)
-      {
-         c = std::tolower(static_cast<unsigned char>(c));
-      }
-      if (solver_name == "cudss" &&
-          !ParallelDirectSolver::CanUseCuDSS(MPI_COMM_WORLD))
-      {
-         if (myid == 0)
-         {
-            mfem::err.Enable();
-            mfem::err << "cuDSS requires MFEM_USE_CUDSS, an active CUDA device "
-                      << "(-d cuda), and CUDA-aware MPI for multiple ranks.\n"
-                      << "Use -amgf-fsolver auto to select an available solver "
-                      << "on CPU or HIP.\n";
-         }
-         return 1;
-      }
-   }
    if (myid == 0 && print_level >= 2)
    {
       args.PrintOptions(cout);
@@ -780,7 +759,9 @@ int main(int argc, char *argv[])
       // The preconditioner borrows the filtered solver, so it must die first.
       std::unique_ptr<ParallelDirectSolver> subspacesolver;
       std::unique_ptr<Solver> prec;
-      if (amgf)
+      HypreParMatrix *contact_transfer = amgf ?
+                                        contact.GetContactSubspaceTransferOperator() : nullptr;
+      if (amgf && contact_transfer)
       {
          auto amgfprec = std::make_unique<AMGFSolver>();
          ConfigureAMG(amgfprec->GetAMG(), amg_coarsen_type, amg_agg_levels,
@@ -794,12 +775,15 @@ int main(int argc, char *argv[])
                              MPI_COMM_WORLD, amgf_fsolver);
          subspacesolver->SetPrintLevel(0);
          amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
-         amgfprec->SetFilteredSubspaceTransferOperator(
-            *contact.GetContactSubspaceTransferOperator());
+         amgfprec->SetFilteredSubspaceTransferOperator(*contact_transfer);
          prec = std::move(amgfprec);
       }
       else
       {
+         if (amgf && myid == 0 && print_level >= 2)
+         {
+            cout << "AMGF: global contact subspace is empty; using AMG." << endl;
+         }
          auto amgprec = std::make_unique<HypreBoomerAMG>();
          ConfigureAMG(*amgprec, amg_coarsen_type, amg_agg_levels,
                       amg_interp_type, amg_relax_type);
