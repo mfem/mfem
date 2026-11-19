@@ -53,6 +53,7 @@ set(UNIT_TESTS_SRCS
   general/test_umpire_mem.cpp
   general/test_zlib.cpp
   linalg/test_amgfsolver.cpp
+  linalg/test_amgxsolver.cpp
   linalg/test_cg_indefinite.cpp
   linalg/test_chebyshev.cpp
   linalg/test_complex_dense_matrix.cpp
