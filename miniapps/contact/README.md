@@ -12,7 +12,8 @@ inequality-constrained minimization problem enforcing the non-penetration
 condition. Linear systems arising in the IP iterations are solved with 
 **Conjugate Gradient (CG)** preconditioned by the recently introduced
  **AMG with Filtering (AMGF)** solver. Benchmark examples include the two-block 
- compression, ironing, beam-sphere, and onion (nested spheres) contact tests. 
+ compression, ironing, beam-sphere, onion (nested spheres), folded-strip and ring
+ self-contact tests.
 
 ---
 
@@ -57,11 +58,14 @@ elasticity and **AMG with Filtering (AMGF)** preconditioning.
 ### Notes
 
 - `-prob` selects the problem: `0` two-block, `1` ironing, `2` beam–sphere,
-`3` onion (9 nested spherical shells under equal inner and outer pressure).  
+`3` onion (9 nested spherical shells under equal inner and outer pressure),
+`4` folded U-shaped strip, `5` compressed elastic ring (each a single connected
+deformable body).
 - The onion mesh is generated at startup; only the beam–sphere problem reads a
   mesh file from `meshes/`.
 - `-nonlin`: enables nonlinear elasticity. This option is available only for the 
-beam–sphere case (`-prob 2`). 
+beam–sphere case (`-prob 2`). The self-contact examples (`-prob 4/5`) always
+enable it.
 - `-amgf` selects the AMGF preconditioner and requires one of the direct solvers
   listed above when the contact subspace is nonempty. Use `-no-amgf` to select
   standard HypreBoomerAMG.
@@ -76,6 +80,157 @@ Each load step reports optimizer termination status and final stationarity,
 feasibility, complementarity, and optimality errors. A failed linear solve,
 line search, curvature test, or optimizer convergence check stops the load
 sequence and returns exit code 2.
+
+### Folded U-shaped strip: `-prob 4`
+
+The generated mesh is a single connected 3D hexahedral solid with two straight
+arms joined by a semicircular bend. Each arm is 6 units long, the bend's
+centerline radius is 0.72, the width is 0.9, and the thickness is 0.3. The initial
+gap between the straight arms is 1.14. The coarse mesh has 24 cells along each
+arm, 24 around the bend, and four across both width and thickness: 1152 hexes
+and 5475 displacement DOFs. `-sr` and `-pr` refine it using the usual options.
+
+A short patch at the center of the outer bend is clamped; both arm tips are
+free. A downward reference-surface pressure loads the outer face of the upper
+arm. Material parameters are
+Young's modulus 1000 and Poisson ratio 0.3, using the existing device-enabled
+Neo-Hookean model. The pressure is a dead load assembled on the reference mesh,
+not a follower pressure updated with the deformed normal.
+
+| Boundary attribute | Meaning |
+|---|---|
+| 1 | Clamped outer bend patch (all displacement components) |
+| 2 | Outer upper-arm surface: downward loading |
+| 3 | Facing surface of the lower arm: mortar |
+| 4 | Facing surface of the upper arm: non-mortar |
+| 5 | Free surfaces, including both tips, the remaining bend and width faces |
+
+This is frictionless self-contact between two prescribed, disjoint surface
+patches of the same body. The bend is excluded from contact pairing. It does
+not perform arbitrary whole-surface self-contact or neighboring-face exclusion.
+It uses the existing Tribol single-mortar formulation without library changes.
+
+For this problem, `-nsteps` defaults to **20 loading steps**, `-u-pressure`
+defaults to **0.06**, and `-tr` defaults to **2**. The other problems retain their
+previous defaults. Optional `-msteps N` adds N unloading steps, ending at zero
+pressure. A small noncontact test is `-u-pressure 0.0001 -nsteps 1 -sr 0`.
+
+Each load step repeats the quadratic IP solve while refreshing the
+Neo-Hookean tangent and the mortar geometry at the latest displacement. Updates
+are limited to 0.1 in the global displacement infinity norm. The step finishes
+when the undamped correction is at most `-contact-update-tol` (default 1e-6).
+`-contact-max-updates` defaults to 50; exceeding it returns exit code 2. These
+updates replace the beam-sphere displacement bounds, allowing contact release
+during unloading. `-opt-maxit` limits each individual IP solve, so use its
+default 100 for a complete physical loading cycle.
+
+At print level 2 the output includes geometry updates, global gap-row count,
+and minimum mortar gap. Gap rows count candidate constraints, including
+separated surfaces within the search distance; they do not count faces in
+physical contact. The minimum mortar gap is the normalized, integrated weak
+gap evaluated in the final contact linearization, not the minimum pointwise
+distance. `n/a` means there are no candidate pairs. A near-zero gap under load
+indicates contact. IP/Newton/CG counts sum all geometry updates for that load
+step; optimality errors are from the final IP solve, and the separate
+displacement-update error checks nonlinear/geometry convergence. Reported strip
+energies use the actual Neo-Hookean potential including the reference load.
+
+Inside a GPU allocation, run a loading/unloading cycle with:
+
+```bash
+./run-contact-bound.sh --ranks 4 --cores 4 -- \
+  -prob 4 -sr 0 -pr 0 -nsteps 12 -msteps 12 -u-pressure 0.06 \
+  -amgf -amgf-fsolver mumps -d hip -hypre-gpu-aware-mpi \
+  -no-vis -paraview -pl 2
+```
+
+Use `-d cpu` and omit `-hypre-gpu-aware-mpi` for a host run. Constitutive
+evaluation, element-matrix kernels, vector operations, and HYPRE solves use
+the selected device. Tangent assembly transfers ownership of the local CSR
+storage once and subsequently writes through a non-owning view of those same
+allocations. Each rebuild synchronizes the view's memory validity and restores
+HYPRE's diagonal-first ordering before using the matrix. This applies both to
+updates within a load step and to later load steps. Identity prolongation uses
+that matrix directly; otherwise parallel assembly computes `P^T K P` on HYPRE's
+active backend. There is no full CSR host staging copy or tangent clone. The
+existing element-assembly routine still restores its row offsets on the host,
+so the small row-offset array moves between host and device. HYPRE BIGINT builds
+use the existing index-conversion wrapper and borrow the numerical values.
+Tribol's implicit mortar search, integration, and contact CSR preparation also
+use the host. ParaView output is written under `ParaView/contact-problem_4_*`.
+
+The integration test uses four loading steps and two unloading steps. It checks
+a nonzero-load empty-subspace solve against plain
+AMG, contact onset, non-penetration of the weak mortar gap, geometry convergence,
+and contact release on unloading. It also requests the unavailable cuDSS backend
+in the empty case to verify that no direct solver is constructed:
+
+```bash
+python3 test-self-contact.py --device cpu
+python3 test-self-contact.py --device hip --gpu-aware-mpi \
+  --launcher './run-contact-bound.sh --ranks 4 --cores 4 --'
+```
+
+Use `--solver strumpack` to test the alternative filtered solver. Test logs are
+saved to a temporary directory, or to the directory supplied by `--output-dir`.
+
+### Compressed elastic ring: `-prob 5`
+
+The generated circular ring is one closed hexahedral solid, with shared vertices
+at the periodic seam. Its centerline radius is 1.0, radial thickness is 0.12, and
+width is 0.6. The coarse mesh has 64 circumferential cells, two through the
+thickness and two across the width: 256 hexes and 1728 displacement DOFs. The
+initial inner diameter is 1.88. `-sr` and `-pr` refine the mesh.
+
+The lower outer arc within 11.25 degrees of the bottom is clamped (attribute 1).
+Inward pressure loads the upper outer arc within 22.5 degrees of the top
+(attribute 6). This is a dead pressure load assembled using reference-surface
+normals; it is predominantly downward and also has horizontal components.
+The material is the same nonlinear Neo-Hookean material as the strip, with
+Young's modulus 1000 and Poisson ratio 0.3.
+
+The lower inner arc within 45 degrees of the bottom is the mortar patch
+(attribute 3); the opposing upper inner arc is the non-mortar patch
+(attribute 4). Lateral inner arcs and width faces are free (attribute 2), keeping
+the contact patches disjoint. This example models frictionless bore closure
+between prescribed patches, rather than unrestricted whole-surface self-contact.
+
+`-ring-pressure` sets maximum pressure (default 2.5). The example defaults to
+20 loading steps and search ratio `-tr 2`; `-msteps N` unloads to zero pressure.
+It shares the strip's nonlinear material/contact geometry updates, convergence
+checks, energy and weak-gap reporting, and empty-subspace AMG fallback. Geometry
+corrections are capped at 0.04, one third of the radial thickness. A small
+noncontact case is `-ring-pressure 0.005 -nsteps 1 -sr 0`.
+
+```bash
+./run-contact-bound.sh --ranks 4 --cores 4 -- \
+  -prob 5 -sr 0 -pr 0 -nsteps 4 -msteps 2 \
+  -amgf -amgf-fsolver mumps -d hip -hypre-gpu-aware-mpi \
+  -no-vis -paraview -pl 2
+
+python3 test-self-contact.py --problem ring --device cpu
+python3 test-self-contact.py --problem ring --device hip --gpu-aware-mpi \
+  --launcher './run-contact-bound.sh --ranks 4 --cores 4 --'
+```
+
+ParaView output is written under `ParaView/contact-problem_5_*`. The ring test
+checks empty-contact AMG fallback, bore closure without significant penetration
+of the weak mortar gap, convergence of every loading/unloading step, and release
+to the unloaded elastic state.
+
+The coarse four-loading/two-unloading cycles were verified with MUMPS: the
+updated folded strip on four HIP GPUs, and the ring on one CPU rank and on one
+and four HIP GPUs. Every physical step converged; both examples finished with
+zero contact rows and absolute elastic energy below 1e-12. The strip's unloaded
+energy was 1.90835e-13. The maximum-load results are:
+
+| Example | Configuration | Maximum pressure | Gap rows at maximum load | Minimum weak mortar gap |
+|---|---|---:|---:|---:|
+| Folded strip | HIP, 4 ranks | 0.06 | 85 | 1.2254e-7 |
+| Ring | CPU, 1 rank; HIP, 1 and 4 ranks | 2.5 | 45 | 4.38709e-9 |
+
+The unavailable-direct-backend empty-contact tests also passed on CPU and HIP.
+These are correctness checks on coarse meshes, rather than scaling benchmarks.
 
 ### GPU execution
 

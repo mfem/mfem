@@ -31,6 +31,15 @@
 // Problem 3: onion, 9 nested spherical shells (linear elasticity)
 // mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 2 -nsteps 1 -msteps 0 -amgf -amgf-fsolver auto
 // mpirun -np 4 ./contact -prob 3 -sr 0 -pr 0 -tr 2 -nsteps 1 -msteps 0 -no-amgf
+
+// Problem 4: folded U-shaped strip (nonlinear self-contact, loading/unloading)
+// mpirun -np 4 ./contact -prob 4 -sr 0 -pr 0 -tr 2 -nsteps 12 -msteps 12 -u-pressure 0.06 -amgf -amgf-fsolver auto -d cpu -no-vis
+// ./run-contact-bound.sh --ranks 4 --cores 4 -- -prob 4 -sr 0 -pr 0 -tr 2 -nsteps 12 -msteps 12 -u-pressure 0.06 -amgf -amgf-fsolver mumps -d hip -hypre-gpu-aware-mpi -no-vis -paraview
+
+// Problem 5: compressed elastic ring (nonlinear self-contact, loading/unloading)
+// mpirun -np 4 ./contact -prob 5 -sr 0 -pr 0 -tr 2 -nsteps 4 -msteps 2 -ring-pressure 2.5 -amgf -amgf-fsolver auto -d cpu -no-vis
+// ./run-contact-bound.sh --ranks 4 --cores 4 -- -prob 5 -sr 0 -pr 0 -tr 2 -nsteps 4 -msteps 2 -ring-pressure 2.5 -amgf -amgf-fsolver mumps -d hip -hypre-gpu-aware-mpi -no-vis -paraview
+
 // Output: -pl 0 for silence, -pl 1 for the final IP summary,
 //         -pl 2 for solver tables/results (default), -pl 3 for debug diagnostics.
 
@@ -43,9 +52,9 @@
 // subspace-correction step on a small subspace associated with the contact interface.
 
 // Notes:
-//  1. Non-linear elasticity is supported only for -prob 2. If -nonlin is
-//     requested for -prob 0/1/3, the app falls back to the linear model.
-//  2. The meshes for -prob 0,1,3 are generated on the fly. For -prob 2,
+//  1. Non-linear elasticity is supported for -prob 2 and the self-contact
+//     examples (-prob 4/5), which always use nonlinear elasticity.
+//  2. The meshes for -prob 0,1,3,4,5 are generated on the fly. For -prob 2,
 //     the mesh is read from ./meshes/beam-sphere.mesh.
 //  3. AMGF requires a sparse direct solver for the filtered subspace; build
 //     MFEM with MUMPS, SuperLU_DIST, STRUMPACK, MKL CPardiso, or cuDSS.
@@ -77,11 +86,29 @@ enum problem_name
    twoblock,
    ironing,
    beamsphere,
-   onion
+   onion,
+   foldedstrip,
+   ring
 };
 
 Mesh * GetProblemMesh(problem_name prob_name);
 Mesh * MakeOnionMesh();
+Mesh * MakeFoldedStripMesh();
+Mesh * MakeRingMesh();
+
+namespace folded_strip
+{
+constexpr real_t length = 6.0;
+constexpr real_t width = 0.9;
+constexpr real_t thickness = 0.3;
+constexpr real_t radius = 0.72;
+constexpr real_t gap = 2 * radius - thickness;
+constexpr int support = 1;
+constexpr int load = 2;
+constexpr int lower_contact = 3;
+constexpr int upper_contact = 4;
+constexpr int free_surface = 5;
+}
 
 template <typename T>
 void PrintAMGOption(const char *option, const T &value)
@@ -224,6 +251,8 @@ struct IPSolveSummary
    int ip_steps;
    int newton_solves;
    long long cg_iterations = 0;
+   int geometry_updates = 0;
+   real_t geometry_error = 0.0;
    real_t optimality_error;
    bool has_energy = false;
    real_t initial_energy = 0.0;
@@ -244,7 +273,7 @@ void PrintIPSolveResult(const IPSolver &optimizer, const IPSolveSummary &result)
    out << "  " << Center("IP SOLVE RESULT - LOAD STEP " +
                          std::to_string(result.load_step), report_width) << '\n';
    PrintLine(out);
-   PrintResultField(out, "Optimizer status", optimizer.GetTerminationReason());
+   PrintResultField(out, "Optimizer status", result.termination_reason);
    PrintResultField(out, "Accepted IP steps", result.ip_steps);
    PrintResultField(out, "Newton solves", result.newton_solves);
    PrintResultField(out, "CG iterations", result.cg_iterations);
@@ -255,6 +284,11 @@ void PrintIPSolveResult(const IPSolver &optimizer, const IPSolveSummary &result)
    PrintResultField(out, "Final complementarity error",
                     optimizer.GetComplementarityError());
    PrintResultField(out, "Final optimality error", result.optimality_error);
+   if (result.geometry_updates)
+   {
+      PrintResultField(out, "Contact geometry updates", result.geometry_updates);
+      PrintResultField(out, "Final displacement update", result.geometry_error);
+   }
    if (result.has_energy)
    {
       PrintResultField(out, "Initial Energy objective", result.initial_energy);
@@ -338,20 +372,24 @@ int main(int argc, char *argv[])
    bool visualization = true;
    // Enable/disable ParaView output
    bool paraview = false;
-   // Problem choice (0,1,2)
+   // Problem choice (0 through 5)
    int prob_no = 0;
    // number of times steps in the z-direction (problem 0)
-   int nsteps = 1;
+   int nsteps = -1; // resolved to 20 for self-contact, 1 otherwise
    // number of times steps in the x-direction (problem 1)
    int msteps = 0;
    // Maximum number of iterations for the optimizer
    int opt_maxit = 100;
    // Driver output: silent, final summary, solver tables/results, or debug.
    int print_level = 2;
-   // Use non-linear elasticity (only for problem 2)
+   // Use non-linear elasticity (the self-contact examples always enable it).
    bool nonlinear = false;
+   real_t strip_pressure = 0.06;
+   real_t ring_pressure = 2.5;
+   int contact_max_updates = 50;
+   real_t contact_update_tol = 1.e-6;
    // Tribol search proximity ratio
-   real_t tribol_ratio = 8.0;
+   real_t tribol_ratio = -1.0; // 2 for self-contact, 8 otherwise
    // Enable/disable AMGF preconditioner (default is AMG)
    bool amgf = false;
 
@@ -378,7 +416,9 @@ int main(int argc, char *argv[])
                   "0: two-block problem"
                   "1: ironing problem"
                   "2: beam-sphere problem"
-                  "3: onion problem");
+                  "3: onion problem "
+                  "4: folded U-shaped strip (nonlinear self-contact) "
+                  "5: compressed ring (nonlinear self-contact)");
    args.AddOption(&nonlinear, "-nonlin", "--nonlinear", "-lin",
                   "--linear", "Choice between linear and non-linear Elasticiy model.");
    args.AddOption(&sref, "-sr", "--serial-refinements",
@@ -391,7 +431,17 @@ int main(int argc, char *argv[])
    args.AddOption(&nsteps, "-nsteps", "--nsteps",
                   "Number of steps.");
    args.AddOption(&msteps, "-msteps", "--msteps",
-                  "Number of extra steps.");
+                  "Number of extra steps (unloading for the self-contact examples).");
+   args.AddOption(&strip_pressure, "-u-pressure", "--strip-pressure",
+                  "Maximum downward pressure on the folded strip's upper arm.");
+   args.AddOption(&ring_pressure, "-ring-pressure", "--ring-pressure",
+                  "Maximum inward reference pressure on the ring's upper outer arc.");
+   args.AddOption(&contact_max_updates, "-contact-max-updates",
+                  "--contact-max-updates",
+                  "Maximum geometry/material updates per self-contact load step.");
+   args.AddOption(&contact_update_tol, "-contact-update-tol",
+                  "--contact-update-tolerance",
+                  "Absolute displacement tolerance for self-contact updates.");
    args.AddOption(&pref, "-pr", "--parallel-refinements",
                   "Number of uniform refinements.");
    args.AddOption(&amgf, "-amgf", "--amgf", "-no-amgf",
@@ -452,6 +502,24 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+   const bool self_contact = prob_no == foldedstrip || prob_no == ring;
+   const char *self_contact_name = prob_no == ring ? "Ring" : "Folded strip";
+   if (nsteps == -1) { nsteps = self_contact ? 20 : 1; }
+   if (tribol_ratio == -1.0) { tribol_ratio = self_contact ? 2.0 : 8.0; }
+   if (self_contact) { nonlinear = true; }
+   if (nsteps < 1 || msteps < 0 || sref < 0 || pref < 0 ||
+       contact_max_updates < 1 || !IsFinite(contact_update_tol) ||
+       contact_update_tol <= 0.0 || !IsFinite(strip_pressure) ||
+       strip_pressure < 0.0 || !IsFinite(ring_pressure) || ring_pressure < 0.0 ||
+       !IsFinite(tribol_ratio) || tribol_ratio <= 0.0)
+   {
+      if (myid == 0)
+      {
+         mfem::err << "Require nsteps > 0, msteps/refinements >= 0, "
+                   << "contact updates/tolerance > 0 and pressures >= 0.\n";
+      }
+      return 1;
+   }
    if (print_level < 2)
    {
       mfem::out.Disable();
@@ -482,16 +550,16 @@ int main(int argc, char *argv[])
 
    // Validate selection and convert to enum.
    MFEM_VERIFY(prob_no >= 0 &&
-               prob_no <= 3, "Unknown test problem number: " << prob_no);
+               prob_no <= 5, "Unknown test problem number: " << prob_no);
 
    prob_name = (problem_name)prob_no;
 
-   // Only the beam–sphere supports non-linear elasticity; fall back if needed.
-   if (nonlinear && prob_name!=problem_name::beamsphere)
+   // The beam-sphere and self-contact examples support nonlinear elasticity.
+   if (nonlinear && prob_name != beamsphere && !self_contact)
    {
       if (myid == 0 && print_level >= 2)
       {
-         cout << "Non-linear elasticity is only supported for the beam-sphere problem"
+         cout << "Non-linear elasticity is supported for beam-sphere, folded strip and ring"
               << endl;
          cout << "Switching to the linear model ..." << endl;
       }
@@ -507,7 +575,9 @@ int main(int argc, char *argv[])
 
    // Bound constraints are used only for the non-linear case
    // (activated later after a few load steps).
-   bool bound_constraints = (nonlinear) ? true : false;
+   // Self-contact uses repeated geometry updates rather than the beam-sphere's
+   // displacement bounds, which would impede unloading/contact release.
+   bool bound_constraints = nonlinear && !self_contact;
 
 
    // 2. Get the problem mesh.
@@ -563,6 +633,19 @@ int main(int argc, char *argv[])
          E = 1.e3;
          nu = 0.33;
          break;
+      case foldedstrip:
+         // Clamp a short outer bend patch, leaving both arm tips free.
+         ess_bdr_attr.Append(folded_strip::support);
+         ess_bdr_attr_comp.Append(-1);
+         E = 1.e3;
+         nu = 0.3;
+         break;
+      case ring:
+         // Clamp a short lower outer arc, leaving the inner arc free to contact.
+         ess_bdr_attr.Append(1); ess_bdr_attr_comp.Append(-1);
+         E = 1.e3;
+         nu = 0.3;
+         break;
       default:
          MFEM_ABORT("Should be unreachable");
          break;
@@ -608,6 +691,17 @@ int main(int argc, char *argv[])
          {
             contact_interfaces.push_back({{a}, {a+1}});
          }
+         break;
+      case foldedstrip:
+         // Disjoint facing patches of ONE connected body. The bend is excluded
+         // so neighboring faces can never become spurious self-contact pairs.
+         contact_interfaces.push_back({{folded_strip::lower_contact},
+                                       {folded_strip::upper_contact}});
+         break;
+      case ring:
+         // Opposite inner arcs of one ring; lateral arcs separate the patches
+         // so neighboring elements are never paired against themselves.
+         contact_interfaces.push_back({{3}, {4}});
          break;
       default:
          MFEM_ABORT("Should be unreachable");
@@ -731,6 +825,22 @@ int main(int argc, char *argv[])
             }
             prob.SetNeumannPressureData(f,ess_bdr);
             break;
+         case foldedstrip:
+         case ring:
+         {
+            const real_t load_fraction = i < nsteps ? real_t(i+1)/nsteps
+                                         : 1.0 - real_t(i+1-nsteps)/msteps;
+            f.constant = -(prob_name == ring ? ring_pressure : strip_pressure)
+                         * load_fraction;
+            const int load_attr = prob_name == ring ? 6 : folded_strip::load;
+            ess_bdr = 0; ess_bdr[load_attr - 1] = 1;
+            prob.SetNeumannPressureData(f, ess_bdr);
+            if (myid == 0 && print_level >= 2)
+            {
+               cout << self_contact_name << " pressure = " << -f.constant << endl;
+            }
+            break;
+         }
          default:
             MFEM_ABORT("Should be unreachable");
             break;
@@ -743,95 +853,149 @@ int main(int argc, char *argv[])
       Vector xref;
       xref.UseDevice(true);
       x_gf.GetTrueDofs(xref);
+      const real_t self_contact_initial_energy = self_contact ?
+                                                 prob.GetEnergy(xref) : 0.0;
 
-      // 9(c). Form the contact system. This also builds the filtered subspace
-      // transfer used by AMGF.
-      contact.FormContactSystem(&new_coords, xref);
-
-      // 9(d). Activate bound constraints after a few steps in the non-linear case.
-      int activation_step = 2;
-      if (bound_constraints && i>activation_step)
-      {
-         contact.ActivateBoundConstraints();
-      }
-
-      // 9(e). Choose preconditioner: AMGF (with direct solver for subspace) or AMG.
-      // The preconditioner borrows the filtered solver, so it must die first.
       std::unique_ptr<ParallelDirectSolver> subspacesolver;
       std::unique_ptr<Solver> prec;
-      HypreParMatrix *contact_transfer = amgf ?
-                                        contact.GetContactSubspaceTransferOperator() : nullptr;
-      if (amgf && contact_transfer)
-      {
-         auto amgfprec = std::make_unique<AMGFSolver>();
-         ConfigureAMG(amgfprec->GetAMG(), amg_coarsen_type, amg_agg_levels,
-                      amg_interp_type, amg_relax_type);
-         if (amg_print_options && myid == 0 && print_level >= 2)
-         {
-            PrintAMGOptions(amgfprec->GetAMG(), "AMGF", amg_agg_levels,
-                            amgf_fsolver);
-         }
-         subspacesolver = std::make_unique<ParallelDirectSolver>(
-                             MPI_COMM_WORLD, amgf_fsolver);
-         subspacesolver->SetPrintLevel(0);
-         amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
-         amgfprec->SetFilteredSubspaceTransferOperator(*contact_transfer);
-         prec = std::move(amgfprec);
-      }
-      else
-      {
-         if (amgf && myid == 0 && print_level >= 2)
-         {
-            cout << "AMGF: global contact subspace is empty; using AMG." << endl;
-         }
-         auto amgprec = std::make_unique<HypreBoomerAMG>();
-         ConfigureAMG(*amgprec, amg_coarsen_type, amg_agg_levels,
-                      amg_interp_type, amg_relax_type);
-         if (amg_print_options && myid == 0 && print_level >= 2)
-         {
-            PrintAMGOptions(*amgprec, "AMG", amg_agg_levels);
-         }
-         prec = std::move(amgprec);
-      }
-
-      // 9(f). Linear solver used inside the IP optimizer.
+      std::unique_ptr<IPSolver> optimizer_ptr;
+      Vector x0(fes->GetTrueVSize()), xf(fes->GetTrueVSize());
+      x0.UseDevice(true);
+      xf.UseDevice(true);
       CGSolver cgsolver(MPI_COMM_WORLD);
       cgsolver.SetPrintLevel(0);
       cgsolver.SetRelTol(1e-10);
       cgsolver.SetMaxIter(10000);
-      cgsolver.SetPreconditioner(*prec);
+      const int max_updates = self_contact ? contact_max_updates : 1;
+      bool geometry_converged = !self_contact;
+      int total_ip_steps = 0, total_newton_solves = 0;
+      long long total_cg_iterations = 0;
+      int geometry_updates = 0;
+      real_t update_norm = infinity();
+      constexpr int activation_step = 2;
+      for (int update = 0; update < max_updates; update++)
+      {
+         // Destroy borrowers before rebuilding the contact layout/operators.
+         optimizer_ptr.reset();
+         prec.reset();
+         subspacesolver.reset();
+         // 9(c). Form the contact system. This also builds the filtered subspace
+         // transfer used by AMGF.
+         contact.FormContactSystem(&new_coords, xref);
 
-      // 9(g). Interior-Point optimizer driving contact resolution.
-      IPSolver optimizer(&contact);
-      optimizer.SetTol(1e-6);
-      optimizer.SetMaxIter(opt_maxit);
-      optimizer.SetLinearSolver(&cgsolver);
-      optimizer.SetPrintLevel(print_level == 3 ? 1 : 0);
-      optimizer.SetPrintLinearSolverStatistics(print_level >= 2);
+         // 9(d). Activate bound constraints after a few steps in the non-linear case.
+         if (bound_constraints && i>activation_step)
+         {
+            contact.ActivateBoundConstraints();
+         }
 
-      // Initial guess = previous reference configuration.
-      x_gf.SetTrueVector();
-      int ndofs = prob.GetFESpace()->GetTrueVSize();
-      Vector x0(ndofs); x0.UseDevice(true); x0 = 0.0;
-      x0.Set(1.0, xref);
+         // 9(e). Choose preconditioner: AMGF (with direct solver for subspace) or AMG.
+         // The preconditioner borrows the filtered solver, so it must die first.
+         HypreParMatrix *contact_transfer = amgf ?
+                                            contact.GetContactSubspaceTransferOperator() : nullptr;
+         if (amgf && contact_transfer)
+         {
+            auto amgfprec = std::make_unique<AMGFSolver>();
+            ConfigureAMG(amgfprec->GetAMG(), amg_coarsen_type, amg_agg_levels,
+                         amg_interp_type, amg_relax_type);
+            if (amg_print_options && myid == 0 && print_level >= 2)
+            {
+               PrintAMGOptions(amgfprec->GetAMG(), "AMGF", amg_agg_levels,
+                               amgf_fsolver);
+            }
+            subspacesolver = std::make_unique<ParallelDirectSolver>(
+                                MPI_COMM_WORLD, amgf_fsolver);
+            subspacesolver->SetPrintLevel(0);
+            amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
+            amgfprec->SetFilteredSubspaceTransferOperator(
+               *contact_transfer);
+            prec = std::move(amgfprec);
+         }
+         else
+         {
+            if (amgf && myid == 0 && print_level >= 2)
+            {
+               cout << "AMGF: global contact subspace is empty; using AMG." << endl;
+            }
+            auto amgprec = std::make_unique<HypreBoomerAMG>();
+            ConfigureAMG(*amgprec, amg_coarsen_type, amg_agg_levels,
+                         amg_interp_type, amg_relax_type);
+            if (amg_print_options && myid == 0 && print_level >= 2)
+            {
+               PrintAMGOptions(*amgprec, "AMG", amg_agg_levels);
+            }
+            prec = std::move(amgprec);
+         }
 
-      // Solve for the next step displacement (xf).
-      Vector xf(ndofs); xf.UseDevice(true); xf = 0.0;
-      optimizer.Mult(x0, xf);
+         // 9(f). Linear solver used inside the IP optimizer.
+         cgsolver.SetPreconditioner(*prec);
+
+         // 9(g). Interior-Point optimizer driving contact resolution.
+         optimizer_ptr = std::make_unique<IPSolver>(&contact);
+         IPSolver &optimizer = *optimizer_ptr;
+         optimizer.SetTol(1e-6);
+         optimizer.SetMaxIter(opt_maxit);
+         optimizer.SetLinearSolver(&cgsolver);
+         optimizer.SetPrintLevel(print_level == 3 ? 1 : 0);
+         optimizer.SetPrintLinearSolverStatistics(print_level >= 2);
+
+         // Initial guess = previous reference configuration.
+         x_gf.SetTrueVector();
+         x0.Set(1.0, xref);
+
+         // Solve for the next step displacement (xf).
+         xf = 0.0;
+         optimizer.Mult(x0, xf);
+         total_ip_steps += optimizer.GetNumIPSteps();
+         total_newton_solves += optimizer.GetNumIterations();
+         for (int iterations : optimizer.GetLinearSolverIterations())
+         {
+            total_cg_iterations += iterations;
+         }
+         if (!optimizer.GetConverged() || !self_contact) { break; }
+
+         // Sequential quadratic contact solves refresh both the Neo-Hookean
+         // tangent and the mortar search on the deformed configuration. Limit
+         // updates to a third of the body's thickness to keep large initial
+         // corrections from inverting elements before the next linearization.
+         Vector correction(xf); correction.UseDevice(true); correction -= xref;
+         update_norm = GlobalLpNorm(infinity(), correction.Normlinf(), MPI_COMM_WORLD);
+         geometry_updates = update + 1;
+         if (myid == 0 && print_level >= 2)
+         {
+            cout << "Contact geometry update " << update + 1
+                 << ": |du|_inf = " << update_norm
+                 << ", gap rows = " << contact.GetGlobalNumConstraints() << endl;
+         }
+         if (update_norm <= contact_update_tol)
+         {
+            geometry_converged = true;
+            break;
+         }
+         const real_t max_correction = prob_name == ring ? 0.04 : 0.1;
+         const real_t damping = std::min(real_t(1.0), max_correction/update_norm);
+         xf.Set(1.0, xref);
+         xf.Add(damping, correction);
+         xref.Set(1.0, xf);
+         x_gf.SetFromTrueDofs(xref);
+         add(ref_coords, x_gf, new_coords);
+      }
+      IPSolver &optimizer = *optimizer_ptr;
 
       IPSolveSummary result;
       result.load_step = i;
-      result.converged = optimizer.GetConverged();
-      result.termination_reason = optimizer.GetTerminationReason();
-      result.ip_steps = optimizer.GetNumIPSteps();
-      result.newton_solves = optimizer.GetNumIterations();
+      result.converged = optimizer.GetConverged() && geometry_converged;
+      result.termination_reason = optimizer.GetConverged() && !geometry_converged
+                                  ? "maximum contact geometry updates"
+                                  : optimizer.GetTerminationReason();
+      result.ip_steps = total_ip_steps;
+      result.newton_solves = total_newton_solves;
+      result.cg_iterations = total_cg_iterations;
       result.optimality_error = optimizer.GetOptimalityError();
-      for (int iterations : optimizer.GetLinearSolverIterations())
-      {
-         result.cg_iterations += iterations;
-      }
+      result.geometry_updates = geometry_updates;
+      result.geometry_error = update_norm;
 
-      if (!optimizer.GetConverged())
+      if (!result.converged)
       {
          if (Mpi::Root() && print_level > 0)
          {
@@ -855,8 +1019,29 @@ int main(int argc, char *argv[])
 
       // 9(h). Report objective values, dofs and IP iteration counts.
       int eval_err;
-      real_t Einitial = contact.GetEnergy(x0, eval_err);
-      real_t Efinal = contact.GetEnergy(xf, eval_err);
+      real_t Einitial = self_contact ? self_contact_initial_energy
+                        : contact.GetEnergy(x0, eval_err);
+      real_t Efinal = self_contact ? prob.GetEnergy(xf)
+                      : contact.GetEnergy(xf, eval_err);
+      if (self_contact)
+      {
+         Vector gap(contact.GetConstraintJacobian()->Height());
+         gap.UseDevice(true);
+         contact.EvaluateGap(xf, gap);
+         const real_t local_min_gap = gap.Size() ? gap.Min() : infinity();
+         real_t min_gap;
+         MPI_Allreduce(&local_min_gap, &min_gap, 1,
+                       MPITypeMap<real_t>::mpi_type, MPI_MIN, MPI_COMM_WORLD);
+         if (myid == 0 && print_level >= 2)
+         {
+            cout << self_contact_name << ": gap rows = " <<
+                 contact.GetGlobalNumConstraints()
+                 << ", minimum mortar gap = ";
+            if (IsFinite(min_gap)) { cout << min_gap; }
+            else { cout << "n/a (no candidate pairs)"; }
+            cout << endl;
+         }
+      }
 
       if (Mpi::Root() && print_level > 0)
       {
@@ -919,6 +1104,14 @@ Mesh * GetProblemMesh(problem_name prob_name)
    else if (prob_name == problem_name::onion)
    {
       return MakeOnionMesh();
+   }
+   else if (prob_name == foldedstrip)
+   {
+      return MakeFoldedStripMesh();
+   }
+   else if (prob_name == ring)
+   {
+      return MakeRingMesh();
    }
    else // construct the two-block or ironing mesh
    {
@@ -1037,6 +1230,145 @@ Mesh * GetProblemMesh(problem_name prob_name)
 
       return combined_mesh;
    }
+}
+
+// Map one Cartesian solid along the lower arm, around the bend, and along the
+// upper arm. Shared vertices at both transitions keep the body connected.
+Mesh * MakeFoldedStripMesh()
+{
+   constexpr int arm_cells = 24, bend_cells = 24;
+   constexpr int width_cells = 4, thickness_cells = 4;
+   constexpr int path_cells = 2 * arm_cells + bend_cells;
+   auto mesh = std::make_unique<Mesh>(Mesh::MakeCartesian3D(
+                                        path_cells, width_cells, thickness_cells,
+                                        Element::HEXAHEDRON, real_t(path_cells),
+                                        folded_strip::width,
+                                        folded_strip::thickness));
+
+   // Mark patches before mapping. The inner bend remains a free surface,
+   // keeping the two contact patches disjoint.
+   for (int i = 0; i < mesh->GetNBE(); i++)
+   {
+      const Element *boundary = mesh->GetBdrElement(i);
+      const int *vertices = boundary->GetVertices();
+      real_t path = 0.0;
+      for (int j = 0; j < boundary->GetNVertices(); j++)
+      {
+         path += mesh->GetVertex(vertices[j])[0];
+      }
+      path /= boundary->GetNVertices();
+      int attr = folded_strip::free_surface;
+      if (boundary->GetAttribute() == 1)
+      {
+         if (path < arm_cells) { attr = folded_strip::lower_contact; }
+         if (path > arm_cells + bend_cells)
+         {
+            attr = folded_strip::upper_contact;
+         }
+      }
+      if (boundary->GetAttribute() == 6)
+      {
+         if (path > arm_cells + bend_cells) { attr = folded_strip::load; }
+         if (std::abs(path - (arm_cells + bend_cells / 2)) < 2.0)
+         {
+            attr = folded_strip::support;
+         }
+      }
+      mesh->SetBdrAttribute(i, attr);
+   }
+   mesh->SetAttributes();
+
+   auto bend_map = [](const Vector &logical, Vector &physical)
+   {
+      const real_t path = logical[0];
+      const real_t radius = folded_strip::radius + logical[2] -
+                            folded_strip::thickness / 2;
+      physical.SetSize(3);
+      physical[1] = logical[1] - folded_strip::width / 2;
+      if (path <= arm_cells)
+      {
+         physical[0] = folded_strip::length * (1.0 - path / arm_cells);
+         physical[2] = -radius;
+      }
+      else if (path <= arm_cells + bend_cells)
+      {
+         const real_t theta = -M_PI / 2 -
+                              M_PI * (path - arm_cells) / bend_cells;
+         physical[0] = radius * std::cos(theta);
+         physical[2] = radius * std::sin(theta);
+      }
+      else
+      {
+         physical[0] = folded_strip::length *
+                       (path - arm_cells - bend_cells) / arm_cells;
+         physical[2] = radius;
+      }
+   };
+   mesh->Transform(bend_map);
+   return mesh.release();
+}
+
+// Circular elastic ring extruded across its width. Station indices wrap around
+// to share the seam vertices, producing one closed connected body. Clockwise
+// stations, increasing width and increasing radius give positive hex orientation.
+Mesh * MakeRingMesh()
+{
+   constexpr int angular_cells = 64, width_cells = 2, radial_cells = 2;
+   constexpr real_t radius = 1.0, thickness = 0.12, width = 0.6;
+   auto mesh = std::make_unique<Mesh>(3, 0, 0);
+   const auto vertex = [](int i, int j, int k)
+   {
+      return ((i % angular_cells) * (width_cells + 1) + j)
+             * (radial_cells + 1) + k;
+   };
+   for (int i = 0; i < angular_cells; i++)
+   {
+      const real_t theta = 2.0 * M_PI * i / angular_cells;
+      for (int j = 0; j <= width_cells; j++)
+      {
+         for (int k = 0; k <= radial_cells; k++)
+         {
+            const real_t r = radius + thickness * (real_t(k)/radial_cells - 0.5);
+            mesh->AddVertex(r * std::cos(theta),
+                            width * (real_t(j)/width_cells - 0.5),
+                            -r * std::sin(theta));
+         }
+      }
+   }
+   for (int i = 0; i < angular_cells; i++)
+   {
+      for (int j = 0; j < width_cells; j++)
+      {
+         for (int k = 0; k < radial_cells; k++)
+         {
+            const int v[8] = {vertex(i,j,k), vertex(i+1,j,k),
+                              vertex(i+1,j+1,k), vertex(i,j+1,k),
+                              vertex(i,j,k+1), vertex(i+1,j,k+1),
+                              vertex(i+1,j+1,k+1), vertex(i,j+1,k+1)
+                             };
+            mesh->AddHex(v, 1);
+            if (k == 0)
+            {
+               const int attr = i >= 8 && i < 24 ? 3 :
+                                i >= 40 && i < 56 ? 4 : 2;
+               mesh->AddBdrQuad(v[3], v[2], v[1], v[0], attr);
+            }
+            if (k == radial_cells - 1)
+            {
+               const int attr = i >= 14 && i < 18 ? 1 :
+                                i >= 44 && i < 52 ? 6 : 2;
+               mesh->AddBdrQuad(v[4], v[5], v[6], v[7], attr);
+            }
+            if (j == 0) { mesh->AddBdrQuad(v[0], v[1], v[5], v[4], 2); }
+            if (j == width_cells - 1)
+            {
+               mesh->AddBdrQuad(v[3], v[7], v[6], v[2], 2);
+            }
+         }
+      }
+   }
+   mesh->FinalizeHexMesh(1, 1);
+   return mesh.release();
 }
 
 // Generate nine disconnected spherical octant shells. Distinct surface meshes
