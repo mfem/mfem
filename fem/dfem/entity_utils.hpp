@@ -297,6 +297,16 @@ public:
       Transpose(outfds, out_rcache, out_e, y, used_outputs, written);
    }
 
+   /// Like TransposeOutputs(), ignoring the dof orientation signs of ND/RT
+   /// restrictions, as needed by the diagonal assembly, see
+   /// restriction_transpose_impl().
+   template <typename lvectors_t>
+   void AbsTransposeOutputs(const std::vector<FieldDescriptor> &outfds,
+                            lvectors_t &y, std::vector<bool> &written)
+   {
+      AbsTranspose(outfds, out_rcache, out_e, y, used_outputs, written);
+   }
+
    /// Like TransposeOutputs(), for in_result_e and the fields @a infds.
    template <typename lvectors_t>
    void TransposeInputResults(const std::vector<FieldDescriptor> &infds,
@@ -326,12 +336,14 @@ public:
    std::vector<bool> used_outputs;
 
 private:
-   template <typename lvectors_t>
-   void Transpose(const std::vector<FieldDescriptor> &fields,
-                  RestrictionCache &cache,
-                  const std::vector<Vector *> &x_e,
-                  lvectors_t &y, const std::vector<bool> &used,
-                  std::vector<bool> &written)
+   /// With @a ABS, the dof orientation signs of ND/RT restrictions are
+   /// ignored, see restriction_transpose_impl().
+   template <bool ABS, typename lvectors_t>
+   void TransposeImpl(const std::vector<FieldDescriptor> &fields,
+                      RestrictionCache &cache,
+                      const std::vector<Vector *> &x_e,
+                      lvectors_t &y, const std::vector<bool> &used,
+                      std::vector<bool> &written)
    {
       MFEM_ASSERT(written.size() == fields.size(),
                   "written mask should match the number of fields");
@@ -352,14 +364,38 @@ private:
       }
 
       // Transpose each field with its mode.
-      restriction_transpose(fields, cache, x_e, y, overwrite);
-      restriction_transpose_add(fields, cache, x_e, y, add);
+      restriction_transpose<ABS>(fields, cache, x_e, y, overwrite);
+      restriction_transpose_add<ABS>(fields, cache, x_e, y, add);
+   }
+
+   /// Signed transpose, see TransposeImpl().
+   template <typename lvectors_t>
+   void Transpose(const std::vector<FieldDescriptor> &fields,
+                  RestrictionCache &cache,
+                  const std::vector<Vector *> &x_e,
+                  lvectors_t &y, const std::vector<bool> &used,
+                  std::vector<bool> &written)
+   {
+      static constexpr bool ABS = false;
+      TransposeImpl<ABS>(fields, cache, x_e, y, used, written);
+   }
+
+   /// Unsigned transpose, see TransposeImpl().
+   template <typename lvectors_t>
+   void AbsTranspose(const std::vector<FieldDescriptor> &fields,
+                     RestrictionCache &cache,
+                     const std::vector<Vector *> &x_e,
+                     lvectors_t &y, const std::vector<bool> &used,
+                     std::vector<bool> &written)
+   {
+      static constexpr bool ABS = true;
+      TransposeImpl<ABS>(fields, cache, x_e, y, used, written);
    }
 
    RestrictionCache in_rcache;
    RestrictionCache out_rcache;
 
-   /// The fields Transpose() overwrites and adds to, kept as members so that
+   /// The fields TransposeImpl() overwrites and adds to, kept as members so that
    /// they are not allocated on every call.
    std::vector<bool> overwrite;
    std::vector<bool> add;
@@ -468,11 +504,13 @@ void ForgetEVectorAliases(const kinds_t &kinds, std::vector<Vector *> &y)
 /// EntityIntegrators @a kinds that have callbacks in @a member. The first
 /// entity type to use a field overwrites it, the others add to it, and the
 /// fields no entity type uses are set to zero. @a y is a
-/// std::vector<Vector *> or a MultiVector.
-template <typename kinds_t, typename member_t, typename lvectors_t>
-void TransposeOutputs(const kinds_t &kinds, member_t member,
-                      const std::vector<FieldDescriptor> &outfds,
-                      lvectors_t &y)
+/// std::vector<Vector *> or a MultiVector. With @a ABS, the dof orientation
+/// signs of ND/RT restrictions are ignored, see TransposeOutputs() and
+/// AbsTransposeOutputs().
+template <bool ABS, typename kinds_t, typename member_t, typename lvectors_t>
+void TransposeOutputsImpl(const kinds_t &kinds, member_t member,
+                          const std::vector<FieldDescriptor> &outfds,
+                          lvectors_t &y)
 {
    // Drop aliases of E-vectors left over from the previous call, so that
    // the overwriting transpose below never deletes or writes through them.
@@ -487,11 +525,35 @@ void TransposeOutputs(const kinds_t &kinds, member_t member,
    for (auto *k : kinds)
    {
       if ((k->callbacks.*member).empty()) { continue; }
-      k->ev.TransposeOutputs(outfds, y, written);
+      if constexpr (ABS) { k->ev.AbsTransposeOutputs(outfds, y, written); }
+      else { k->ev.TransposeOutputs(outfds, y, written); }
    }
 
    // Zero the fields no entity type wrote.
    ZeroUnwritten(outfds, written, y);
+}
+
+/// @brief Write to @a y the sum of the transposed output E-vectors of the
+/// EntityIntegrators @a kinds that have callbacks in @a member, see
+/// TransposeOutputsImpl().
+template <typename kinds_t, typename member_t, typename lvectors_t>
+void TransposeOutputs(const kinds_t &kinds, member_t member,
+                      const std::vector<FieldDescriptor> &outfds,
+                      lvectors_t &y)
+{
+   static constexpr bool ABS = false;
+   TransposeOutputsImpl<ABS>(kinds, member, outfds, y);
+}
+
+/// @brief Like TransposeOutputs(), ignoring the dof orientation signs of ND/RT
+/// restrictions, as needed by the diagonal assembly.
+template <typename kinds_t, typename member_t, typename lvectors_t>
+void AbsTransposeOutputs(const kinds_t &kinds, member_t member,
+                         const std::vector<FieldDescriptor> &outfds,
+                         lvectors_t &y)
+{
+   static constexpr bool ABS = true;
+   TransposeOutputsImpl<ABS>(kinds, member, outfds, y);
 }
 
 /// @brief Like TransposeOutputs(), for the input result E-vectors and the

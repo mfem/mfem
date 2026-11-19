@@ -959,10 +959,10 @@ public:
             f(static_cast<int>(out_field_id), *k->ev.out_e[diagonal_idx]);
          }
       }
-      // abs: the diagonal ignores the dof orientation signs of ND/RT spaces.
-      detail::TransposeOutputs(AllIntegrators(),
-                               &detail::DerivativeCallbacks::assemble_diagonal,
-                               outfds, daction_l, true);
+      // The diagonal ignores the dof orientation signs of ND/RT spaces.
+      detail::AbsTransposeOutputs(
+         AllIntegrators(), &detail::DerivativeCallbacks::assemble_diagonal,
+         outfds, daction_l);
       prolongation_transpose(outfds[diagonal_idx],
                              *daction_l[diagonal_idx], diag);
    }

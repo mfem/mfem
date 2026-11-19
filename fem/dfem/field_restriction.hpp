@@ -391,11 +391,47 @@ void prepare_residual(
    }
 }
 
+/// @brief Apply the transpose of @a R to @a x, writing @a y, or adding to it
+/// when @a ADD is set. Shared by the overwriting and adding transposes below.
+///
+/// With @a ABS, the signs that come from the dof orientation of ND/RT spaces
+/// are ignored, as needed by the diagonal assembly. Element and face
+/// restrictions provide the unsigned transposes (the signed ones for
+/// restrictions without signs, e.g. L2); any other operator uses the signed
+/// transpose.
+template <bool ADD, bool ABS>
+inline void restriction_transpose_impl(const Operator &R, const Vector &x,
+                                       Vector &y)
+{
+   // Unsigned transpose if ABS is true
+   if constexpr (ABS)
+   {
+      if (const auto *ER = dynamic_cast<const ElementRestrictionOperator *>(&R))
+      {
+         if constexpr (ADD) { ER->AddAbsMultTranspose(x, y); }
+         else { ER->AbsMultTranspose(x, y); }
+         return;
+      }
+      if (const auto *FR = dynamic_cast<const FaceRestriction *>(&R))
+      {
+         if constexpr (ADD) { FR->AddAbsMultTranspose(x, y); }
+         else { FR->AbsMultTranspose(x, y); }
+         return;
+      }
+   }
+
+   // Signed transpose otherwise
+   if constexpr (ADD) { R.AddMultTranspose(x, y); }
+   else { R.MultTranspose(x, y); }
+}
+
 /// @brief Apply the transposed restrictions of @a fields, using @a cache to
 /// avoid re-resolving them on every call.
 ///
 /// @see RestrictionCache
-/// Only the fields marked in @a used are processed.
+/// Only the fields marked in @a used are processed. With @a ABS, the dof
+/// orientation signs are ignored, see restriction_transpose_impl().
+template <bool ABS = false>
 inline
 void restriction_transpose(
    const std::vector<FieldDescriptor> &fields,
@@ -434,7 +470,8 @@ void restriction_transpose(
       }
       x_l[i]->SetSize(s);
 
-      R->MultTranspose(*x_e[i], *x_l[i]);
+      static constexpr bool ADD = false;
+      restriction_transpose_impl<ADD, ABS>(*R, *x_e[i], *x_l[i]);
    }
 }
 
@@ -442,7 +479,9 @@ void restriction_transpose(
 /// blocks of @a y, which keep their own memory.
 ///
 /// @see RestrictionCache
-/// Only the fields marked in @a used are processed.
+/// Only the fields marked in @a used are processed. With @a ABS, the dof
+/// orientation signs are ignored, see restriction_transpose_impl().
+template <bool ABS = false>
 inline
 void restriction_transpose(
    const std::vector<FieldDescriptor> &fields,
@@ -462,7 +501,9 @@ void restriction_transpose(
          continue;
       }
       y[i].SetSize(cache.Width(i));
-      R->MultTranspose(*x_e[i], y[i]);
+
+      static constexpr bool ADD = false;
+      restriction_transpose_impl<ADD, ABS>(*R, *x_e[i], y[i]);
    }
 }
 
@@ -474,7 +515,9 @@ void restriction_transpose(
 /// @a x_l must already have the L-vector sizes of @a fields.
 ///
 /// @see RestrictionCache
-/// Only the fields marked in @a used are processed.
+/// Only the fields marked in @a used are processed. With @a ABS, the dof
+/// orientation signs are ignored, see restriction_transpose_impl().
+template <bool ABS = false>
 inline
 void restriction_transpose_add(
    const std::vector<FieldDescriptor> &fields,
@@ -496,13 +539,16 @@ void restriction_transpose_add(
       MFEM_ASSERT(x_l[i]->Size() == cache.Width(i),
                   "L-vector size " << x_l[i]->Size() << " does not match the "
                   "restriction width " << cache.Width(i));
-      R->AddMultTranspose(*x_e[i], *x_l[i]);
+               
+      static constexpr bool ADD = true;
+      restriction_transpose_impl<ADD, ABS>(*R, *x_e[i], *x_l[i]);
    }
 }
 
 /// @brief Add the transposed restrictions of @a fields applied to @a x_e to
 /// the blocks of @a y, see the std::vector overload.
 /// Only the fields marked in @a used are processed.
+template <bool ABS = false>
 inline
 void restriction_transpose_add(
    const std::vector<FieldDescriptor> &fields,
@@ -525,7 +571,9 @@ void restriction_transpose_add(
       MFEM_ASSERT(y[i].Size() == cache.Width(i),
                   "L-vector size " << y[i].Size() << " does not match the "
                   "restriction width " << cache.Width(i));
-      R->AddMultTranspose(*x_e[i], y[i]);
+
+      static constexpr bool ADD = true;
+      restriction_transpose_impl<ADD, ABS>(*R, *x_e[i], y[i]);
    }
 }
 
