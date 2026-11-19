@@ -246,6 +246,21 @@ public:
        (default false) */
    void SetLookAheadElimTree(bool etree);
 
+   /** @brief Specify the maximum number of columns of a relaxed supernode
+       (default 30 in SuperLU_DIST 9.1 and newer, 60 before). Larger relaxed
+       supernodes mean fewer, larger blocks in the factors and fewer messages
+       in the distributed triangular solves, at the cost of more fill. The
+       value is capped by the maximum supernode size, and the environment
+       variable SUPERLU_RELAX takes precedence if set. Requires SuperLU_DIST 8.0
+       or newer. */
+   void SetRelaxedSupernodeSize(int relax);
+
+   /** @brief Specify the maximum number of columns of a supernode (default
+       256, at most MAX_SUPER_SIZE = 512). The environment variable
+       SUPERLU_MAXSUP takes precedence if set. Requires SuperLU_DIST 8.0 or
+       newer. */
+   void SetMaxSupernodeSize(int maxsup);
+
    /** @brief Specify whether the matrix has a symmetric pattern to avoid extra
        work (default false) */
    void SetSymmetricPattern(bool sym);
