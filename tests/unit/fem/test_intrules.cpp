@@ -100,9 +100,8 @@ TEST_CASE("Integration rule container with no refinement", "[IntegrationRules]")
 TEST_CASE("Integration rule ownership", "[IntegrationRules]")
 {
    IntegrationRules rules;
-   rules.SetOwnRules(0); // the rule is on the stack, so do not delete it
-   IntegrationRule user_rule(3);
-   rules.Set(Geometry::PRISM, 4, user_rule);
+   // The registry owns and deletes the rule.
+   rules.Set(Geometry::PRISM, 4, *new IntegrationRule(3));
 
    REQUIRE(rules.IsUserSet(Geometry::PRISM, 4));
    REQUIRE(!rules.IsUserSet(Geometry::PRISM, 5));
