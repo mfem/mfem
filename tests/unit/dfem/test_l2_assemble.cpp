@@ -260,6 +260,30 @@ void derivative_state_aliasing(const char *filename, int p)
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+TEST_CASE("dFEM Sparse Matrix Add", "[Parallel][dFEM]")
+{
+   // A has entries on columns B lacks and the other way around; both share
+   // one column per row.
+   const int n = 5;
+   SparseMatrix A(n, n), B(n, n);
+   for (int i = 0; i < n; i++)
+   {
+      A.Add(i, i, 1.0 + i);
+      A.Add(i, (i + 1) % n, 2.0);
+      B.Add(i, (i + 1) % n, 3.0);
+      B.Add(i, (i + 3) % n, 4.0 - i);
+   }
+   A.Finalize();
+   B.Finalize();
+
+   std::unique_ptr<SparseMatrix> C(
+      mfem::future::detail::AddSparseMatrices(A, B));
+   std::unique_ptr<SparseMatrix> expected(mfem::Add(A, B));
+   REQUIRE(C->NumNonZeroElems() == expected->NumNonZeroElems());
+   TestSameMatrices(*C, *expected);
+   TestSameMatrices(*expected, *C);
+}
+
 TEST_CASE("dFEM L2 Assemble 2D", "[Parallel][dFEM]")
 {
    const auto p = GenAll({1}, {2, 3});

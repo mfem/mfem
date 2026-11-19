@@ -217,7 +217,7 @@ collect_active_inputs(std::index_sequence<Is...>)
    std::array<size_t, num_active> idx{};
    size_t j = 0;
    (((Is < num_inputs && qf_param_is_active_v<activity_t, Is>)
-     ? (idx[j++] = Is) : size_t{0}), ...);
+     ? void(idx[j++] = Is) : void()), ...);
    return idx;
 }
 

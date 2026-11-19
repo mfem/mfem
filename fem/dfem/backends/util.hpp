@@ -11,6 +11,7 @@
 #pragma once
 
 #include "../../quadinterpolator.hpp"
+#include "../../quadinterpolator_face.hpp"
 #include "../../../general/enzyme.hpp"
 #include "../../../linalg/dual.hpp"
 
@@ -18,6 +19,8 @@
 
 #include "../fielddescriptor.hpp"
 #include "../util.hpp"
+#include "../entity_utils.hpp"
+#include "../integrator_ctx.hpp"
 
 #include "../tuple.hpp"
 using mfem::future::tuple;
@@ -48,6 +51,17 @@ inline void InitBlockVector(BlockVector &v, const Array<int> &offsets)
    v.SyncToBlocks();
 }
 
+/// Size each device Vector of @a v like the matching block of @a blocks.
+template <size_t n>
+inline void InitFromBlocks(std::array<Vector, n> &v, const BlockVector &blocks)
+{
+   for (size_t i = 0; i < n; i++)
+   {
+      v[i].UseDevice(true);
+      v[i].SetSize(blocks.GetBlock(i).Size());
+   }
+}
+
 struct FieldBasis
 {
    // E-vector -> Q-vector
@@ -57,59 +71,172 @@ struct FieldBasis
    std::function<void(const Vector &, Vector &)> transpose;
 };
 
+/// Copy the blocks of the @a marked entities between a full vector (all
+/// entities) and a compact one (marked entities only). Used by the Identity<>
+/// and ParameterSpace bases, which have no interpolator to select entities.
+///
+///   to_compact = true:   y[k] = x[marked[k]]   full x    -> compact y
+///   to_compact = false:  y[marked[k]] = x[k]   compact x -> full y
+///                        (blocks of unmarked entities left unchanged)
+inline void CopyMarkedEntities(const Vector &x, const Array<int> &marked,
+                               Vector &y, const bool to_compact)
+{
+   // Nothing to do if there are no marked entities
+   const int n = marked.Size();
+   if (n == 0) { return; }
+   const int compact_size = to_compact ? y.Size() : x.Size();
+   const int per_entity = compact_size / n;
+   MFEM_ASSERT(per_entity * n == compact_size,
+               "the compact vector does not hold whole entity blocks");
+
+   // Prepare vector pointers and entity indices
+   const real_t *X = x.Read();
+   real_t *Y = to_compact ? y.Write() : y.ReadWrite();
+   const int *E = marked.Read();
+
+   // Copy marked entities block between full and compact vectors: one block
+   // of threads per marked entity k, whose values are contiguous in both
+   // vectors. The block size is capped, the threads stride over the rest.
+   const int threads = std::min(per_entity, MFEM_CUDA_BLOCKS);
+   mfem::forall_2D(n, threads, 1, [=] MFEM_HOST_DEVICE(int k)
+   {
+      const int compact = per_entity * k, full = per_entity * E[k];
+      MFEM_FOREACH_THREAD(c, x, per_entity)
+      {
+         if (to_compact) { Y[compact + c] = X[full + c]; } // compact <- full
+         else { Y[full + c] = X[compact + c]; }            // full <- compact
+      }
+   });
+}
+
+/// The Q-vectors of the bases below hold the entities @a entities only, or
+/// all of them if it is nullptr, as for the interpolators.
 inline FieldBasis FromQI(const QuadratureInterpolator *qi,
-                         QuadratureInterpolator::EvalFlags mode)
+                         QuadratureInterpolator::EvalFlags mode,
+                         const Array<int> *entities)
 {
    return
    {
-      [qi, mode](const Vector &xe, Vector &xq)
+      [qi, mode, entities](const Vector &xe, Vector &xq)
       {
          qi->SetOutputLayout(QVectorLayout::byVDIM);
          if (mode == QuadratureInterpolator::VALUES)
          {
-            qi->Values(xe, xq);
+            qi->Values(xe, xq, entities);
          }
          else
          {
-            qi->Derivatives(xe, xq);
+            qi->Derivatives(xe, xq, entities);
          }
       },
-      [qi, mode](const Vector &yq, Vector &ye)
+      [qi, mode, entities](const Vector &yq, Vector &ye)
       {
          Vector empty;
          qi->SetOutputLayout(QVectorLayout::byVDIM);
          if (mode == QuadratureInterpolator::VALUES)
          {
-            qi->AddMultTranspose(QuadratureInterpolator::VALUES, yq, empty, ye);
+            qi->AddMultTranspose(QuadratureInterpolator::VALUES, yq, empty, ye,
+                                 entities);
          }
          else
          {
-            qi->AddMultTranspose(QuadratureInterpolator::DERIVATIVES, empty, yq, ye);
+            qi->AddMultTranspose(QuadratureInterpolator::DERIVATIVES, empty, yq,
+                                 ye, entities);
          }
       }
    };
 }
 
-// VectorQuadratureSpace identity copy
-inline FieldBasis FromQS()
+// The face counterpart of FromQI(), for face E-vectors. The derivatives are
+// the tangential ones, with respect to the reference coordinates of the face.
+inline FieldBasis FromFaceQI(const FaceQuadratureInterpolator *qi,
+                             QuadratureInterpolator::EvalFlags mode,
+                             const Array<int> *entities)
 {
+   const bool values = (mode == QuadratureInterpolator::VALUES);
+   const auto flag = values ? FaceQuadratureInterpolator::VALUES :
+                     FaceQuadratureInterpolator::DERIVATIVES;
    return
    {
-      [](const Vector &xe, Vector &xq)
+      [qi, values, flag, entities](const Vector &xe, Vector &xq)
       {
-         xq.NewMemoryAndSize(xe.GetMemory(), xe.Size(), false);
+         Vector empty;
+         qi->SetOutputLayout(QVectorLayout::byVDIM);
+         qi->Mult(xe, flag, values ? xq : empty, values ? empty : xq, empty,
+                  empty, entities);
       },
-      [](const Vector &yq, Vector &ye) { ye = yq; }
+      [qi, values, flag, entities](const Vector &yq, Vector &ye)
+      {
+         Vector empty;
+         qi->SetOutputLayout(QVectorLayout::byVDIM);
+         qi->AddMultTranspose(flag, values ? yq : empty, values ? empty : yq,
+                              ye, entities);
+      }
    };
 }
 
-// User-defined parameter space B
-inline FieldBasis FromPS(const Operator *B, const Operator *Bt)
+// VectorQuadratureSpace identity copy.
+// The field is already quadrature point, so with no entity restriction is
+// just aliased. If a list is provided, only the listed entities are copied
+// to the compact Q-vector.
+inline FieldBasis FromQS(const Array<int> *entities)
 {
+   if (!entities)
+   {
+      return
+      {
+         [](const Vector &xe, Vector &xq)
+         {
+            xq.NewMemoryAndSize(xe.GetMemory(), xe.Size(), false);
+         },
+         [](const Vector &yq, Vector &ye) { ye = yq; }
+      };
+   }
    return
    {
-      [B](const Vector &xe, Vector &xq) { B->Mult(xe, xq); },
-      [Bt](const Vector &yq, Vector &ye) { Bt->Mult(yq, ye); }
+      [entities](const Vector &xe, Vector &xq)
+      {
+         CopyMarkedEntities(xe, *entities, xq, true); // gather to compact
+      },
+      [entities](const Vector &yq, Vector &ye)
+      {
+         CopyMarkedEntities(yq, *entities, ye, false); // scatter from compact
+      }
+   };
+}
+
+// User-defined parameter space B, mapping the E-vector to the Q-vector of
+// all entities.
+// B has no entity list, so with a list it is applied to all entities
+// into a temporary, and then copied to the compact Q-vector.
+inline FieldBasis FromPS(const Operator *B, const Operator *Bt,
+                         const Array<int> *entities)
+{
+   if (!entities)
+   {
+      return
+      {
+         [B](const Vector &xe, Vector &xq) { B->Mult(xe, xq); },
+         [Bt](const Vector &yq, Vector &ye) { Bt->Mult(yq, ye); }
+      };
+   }
+   auto xq_all = std::make_shared<Vector>();
+   xq_all->UseDevice(true);
+   return
+   {
+      [B, entities, xq_all](const Vector &xe, Vector &xq)
+      {
+         xq_all->SetSize(B->Height());
+         B->Mult(xe, *xq_all);
+         CopyMarkedEntities(*xq_all, *entities, xq, true); // gather to compact
+      },
+      [Bt, entities, xq_all](const Vector &yq, Vector &ye)
+      {
+         xq_all->SetSize(Bt->Width());
+         *xq_all = 0.0;
+         CopyMarkedEntities(yq, *entities, *xq_all, false); // scatter from compact
+         Bt->Mult(*xq_all, ye);
+      }
    };
 }
 
@@ -134,29 +261,69 @@ inline FieldBasis FieldBasisFromWeight(const IntegrationRule &ir)
    };
 }
 
+/// Broadcasts the orientation sign of each entity to its quadrature points,
+/// to be consistent with tensor_arrays. The Q-vector holds the entities
+/// @a entities only, or all of them if it is nullptr.
+inline FieldBasis FieldBasisFromOrientation(const IntegrationRule &ir,
+                                            const Vector &orientation,
+                                            const Array<int> *entities)
+{
+   return
+   {
+      [&ir, &orientation, entities](const Vector &, Vector &xq)
+      {
+         const int nqp = ir.GetNPoints();
+         const int ne = entities ? entities->Size() : orientation.Size();
+         MFEM_ASSERT(xq.Size() == nqp * ne,
+                     "orientation block has unexpected size");
+         const auto s = orientation.Read();
+         const int *E = entities ? entities->Read() : nullptr;
+         auto xq_s = Reshape(xq.Write(), nqp, ne);
+         mfem::forall(ne * nqp, [=] MFEM_HOST_DEVICE(int eq)
+         {
+            const int q = eq % nqp, e = eq / nqp;
+            xq_s(q, e) = s[E ? E[e] : e];
+         });
+      },
+      [](const Vector &, Vector &) {}
+   };
+}
+
+/// The basis of the field @a f on the entities of type @a entity_t (see
+/// Entity), at the points of @a ir. Its Q-vectors hold the entities
+/// @a entities of the type, or all of them if it is nullptr.
+template <typename entity_t>
 inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
                                       const IntegrationRule &ir,
-                                      QuadratureInterpolator::EvalFlags mode)
+                                      QuadratureInterpolator::EvalFlags mode,
+                                      const Array<int> *entities)
 {
-   return std::visit([&ir, &mode](auto && arg) -> FieldBasis
+   return std::visit([&ir, &mode, entities](auto && arg) -> FieldBasis
    {
       using T = std::decay_t<decltype(arg)>;
 
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
+                    std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         return FromQI(arg->GetQuadratureInterpolator(ir), mode);
-      }
-      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         return FromQI(arg->GetQuadratureInterpolator(ir), mode);
+         constexpr RestrictionDescriptor r = EntityTraits<entity_t>::restriction;
+         if constexpr (r.is_face_restriction)
+         {
+            return FromFaceQI(
+               arg->GetFaceQuadratureInterpolator(ir, r.face_type), mode,
+               entities);
+         }
+         else
+         {
+            return FromQI(arg->GetQuadratureInterpolator(ir), mode, entities);
+         }
       }
       else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
-         return FromQS();
+         return FromQS(entities);
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return FromPS(arg->GetB(), arg->GetBt());
+         return FromPS(arg->GetB(), arg->GetBt(), entities);
       }
       else if constexpr (std::is_same_v<T, const IntegrationRule *>)
       {
@@ -169,14 +336,22 @@ inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
    }, f.data);
 }
 
-template <typename fops_t, size_t nfops>
+/// The bases of the field operators @a fops on the entities of @a ctx (see
+/// IntegratorContext::entities), see GetFieldBasis().
+template <typename entity_t, typename fops_t, size_t nfops>
 inline void create_fieldbases(
    fops_t &fops,
    const std::array<size_t, nfops> &fop_to_fd,
    const std::vector<FieldDescriptor> &fds,
-   const IntegrationRule &ir,
+   const IntegratorContext<entity_t> &ctx,
    std::array<FieldBasis, nfops> &bases)
 {
+   const IntegrationRule &ir = ctx.ir;
+   // The bases follow the convention of the interpolators: nullptr stands
+   // for all entities (a full list is 0, ..., nentities - 1), which keeps
+   // their direct, non-indexed path.
+   const bool all = ctx.marked_entities.Size() == ctx.nentities;
+   const Array<int> *entities = all ? nullptr : &ctx.marked_entities;
    constexpr_for<0, nfops>([&](auto i)
    {
       const auto fop = get<i>(fops);
@@ -188,20 +363,28 @@ inline void create_fieldbases(
          QuadratureInterpolator::VALUES;
       if constexpr (is_identity_fop<fop_t>::value)
       {
-         bases[i] = GetFieldBasis(fd, ir, dummy_mode);
+         bases[i] = GetFieldBasis<entity_t>(fd, ir, dummy_mode, entities);
       }
       else if constexpr (is_weight_fop<fop_t>::value)
       {
          bases[i] = FieldBasisFromWeight(ir);
       }
+      else if constexpr (is_orientation_fop<fop_t>::value)
+      {
+         MFEM_ASSERT(ctx.orientation, "orientation signs are missing");
+         bases[i] = FieldBasisFromOrientation(ir, *ctx.orientation, entities);
+      }
       else if constexpr (is_value_fop<fop_t>::value)
       {
-         bases[i] = GetFieldBasis(fd, ir, QuadratureInterpolator::VALUES);
+         bases[i] = GetFieldBasis<entity_t>(fd, ir,
+                                            QuadratureInterpolator::VALUES,
+                                            entities);
       }
       else if constexpr (is_gradient_fop<fop_t>::value || is_div_fop_v<fop_t>)
       {
          // QI DERIVATIVES: reference gradient for H1, divergence for H(div)
-         bases[i] = GetFieldBasis(fd, ir, QuadratureInterpolator::DERIVATIVES);
+         bases[i] = GetFieldBasis<entity_t>(
+                       fd, ir, QuadratureInterpolator::DERIVATIVES, entities);
       }
       else if constexpr (is_curl_fop_v<fop_t>)
       {
@@ -223,7 +406,7 @@ inline void check_consistency(
 
       const auto fd = fields[fop_to_fd[i]];
 
-      if constexpr (is_weight_fop_v<fop_t>)
+      if constexpr (is_weight_fop_v<fop_t> || is_orientation_fop_v<fop_t>)
       {
          MFEM_CONTRACT_VAR(fd);
       }
@@ -250,6 +433,42 @@ inline void interpolate(
    });
 }
 
+/// Whether the input @a fop_t has the same quadrature point data on every
+/// call, so that its block is filled once, see fill_constant_inputs().
+template <typename fop_t>
+constexpr bool is_constant_input_v =
+   is_weight_fop<fop_t>::value || is_orientation_fop<fop_t>::value;
+
+/// The inputs that interpolate() has to evaluate on every call.
+/// Constant ones are skipped during interpolation.
+template <typename inputs_t, size_t ninputs = tuple_size<inputs_t>::value>
+constexpr std::array<bool, ninputs> varying_inputs()
+{
+   std::array<bool, ninputs> result {};
+   constexpr_for<0, ninputs>([&](auto i)
+   {
+      using input_t = std::decay_t<decltype(get<i>(inputs_t {}))>;
+      result[i] = !is_constant_input_v<input_t>;
+   });
+   return result;
+}
+
+/// Fill the blocks of @a xq of the constant inputs, see varying_inputs().
+template <typename inputs_t, size_t ninputs>
+inline void fill_constant_inputs(const std::array<FieldBasis, ninputs> &bases,
+                                 BlockVector &xq)
+{
+   constexpr_for<0, ninputs>([&](auto i)
+   {
+      using input_t = std::decay_t<decltype(get<i>(inputs_t {}))>;
+      if constexpr (is_constant_input_v<input_t>)
+      {
+         Vector empty;
+         bases[i].forward(empty, xq.GetBlock(i));
+      }
+   });
+}
+
 template <size_t noutputs>
 inline void integrate(
    const std::array<size_t, noutputs> &output_to_outfd,
@@ -270,15 +489,16 @@ namespace detail
 template <typename T>
 struct is_tensor_array : std::false_type {};
 
-template <typename scalar_t, int... Dims>
-struct is_tensor_array<tensor_array<scalar_t, Dims...>> : std::true_type {};
+template <typename scalar_t, int ndims, int... Dims>
+struct is_tensor_array<tensor_ndarray<scalar_t, ndims, Dims...>> :
+                                                                 std::true_type {};
 
 template <typename T>
 struct is_tensor_array_mut : std::false_type {};
 
-template <typename scalar_t, int... Dims>
-struct is_tensor_array_mut<tensor_array<scalar_t, Dims...>> :
-                                                            std::bool_constant<!std::is_const_v<scalar_t>> {};
+template <typename scalar_t, int ndims, int... Dims>
+struct is_tensor_array_mut<tensor_ndarray<scalar_t, ndims, Dims...>> :
+                                                                     std::bool_constant<!std::is_const_v<scalar_t>> {};
 
 
 template <typename ndarray_t>
@@ -363,6 +583,67 @@ decltype(auto) make_tensor_array(ptr_scalar_t *ptr,
    if (layout) { set_layout(a, *layout); }
    else        { set_layout_default(a); }
    return a;
+}
+
+/// Number of dynamic (array) dimensions of a quadrature function argument
+/// type: tensor_array has one, tensor_ndarray<scalar_t, 2, ...> has two.
+template <typename T>
+struct qf_array_rank;
+
+template <typename scalar_t, int... sizes>
+struct qf_array_rank<tensor<scalar_t, sizes...>>
+{
+   static constexpr std::size_t value = 1;
+};
+
+template <typename scalar_t, int ndims, int... sizes>
+struct qf_array_rank<tensor_ndarray<scalar_t, ndims, sizes...>>
+{
+   static constexpr std::size_t value = ndims;
+};
+
+/// @brief Create the quadrature function view of a Q-vector block.
+///
+/// @a nscalars is the number of entries in the block, @a gnqp the number of
+/// quadrature points it spans.
+///
+/// - A tensor_array (one dynamic dimension) gets the dynamic size {gnqp}; its
+///   per point size is fixed by its tensor sizes.
+/// - A tensor_ndarray with two dynamic dimensions gets the dynamic sizes
+///   {n, gnqp}, with n = nscalars / (gnqp * tensor size). This allows a per
+///   point extent that is only known at runtime, e.g. the vdim of a field. In
+///   the default layout the tensor components are fastest, then n, then the
+///   quadrature point, matching the byVDIM Q-vector layout.
+template <typename T, typename ptr_scalar_t>
+decltype(auto) make_qf_tensor_array(ptr_scalar_t *ptr,
+                                    const std::vector<int>* layout,
+                                    const int gnqp,
+                                    const int nscalars)
+{
+   constexpr std::size_t rank = qf_array_rank<T>::value;
+   static_assert(rank == 1 || rank == 2,
+                 "quadrature function arguments support one or two dynamic "
+                 "dimensions");
+   if constexpr (rank == 1)
+   {
+      MFEM_CONTRACT_VAR(nscalars);
+      return make_tensor_array<T>(ptr, layout, gnqp);
+   }
+   else
+   {
+      using array_t = typename tensor_array_traits<T>::template array_type<1>;
+      constexpr int tsize = []
+      {
+         int p = 1;
+         for (auto sz : array_t::tensor_sizes_array()) { p *= static_cast<int>(sz); }
+         return p;
+      }();
+      const int extent = (gnqp > 0) ? nscalars / (gnqp * tsize) : 0;
+      MFEM_ASSERT(extent * gnqp * tsize == nscalars,
+                  "Q-vector block of size " << nscalars << " is not a multiple"
+                  " of " << gnqp << " points times tensor size " << tsize);
+      return make_tensor_array<T>(ptr, layout, extent, gnqp);
+   }
 }
 
 template <typename qfunc_t, typename inputs_t, typename outputs_t>
@@ -493,7 +774,7 @@ inline native_dual_t *native_dual_vector_w(Vector &v)
    return reinterpret_cast<native_dual_t *>(v.Write());
 }
 
-inline void pack_dual_from_primal_shadow(
+static inline void pack_dual_from_primal_shadow(
    const real_t *primal,
    const real_t *shadow,
    dual<real_t, real_t> *out,
@@ -508,7 +789,7 @@ inline void pack_dual_from_primal_shadow(
 }
 
 template <bool unpack_primal_values>
-inline void unpack_dual_to_real(
+static void unpack_dual_to_real(
    const dual<real_t, real_t> *dual_out,
    real_t *yq,
    const int n)
@@ -535,12 +816,13 @@ decltype(auto) make_native_dual_input(
       pack_dual_from_primal_shadow(
          xq.GetBlock(I).Read(), shadow_xq.GetBlock(I).Read(),
          native_dual_vector_w(dual_storage), sz, active);
-      return make_tensor_array<decay_t>(
-                native_dual_vector_rw(dual_storage), &layout, gnqp);
+      return make_qf_tensor_array<decay_t>(
+                native_dual_vector_rw(dual_storage), &layout, gnqp, sz);
    }
    else
    {
-      return make_tensor_array<decay_t>(xq.GetBlock(I).Read(), &layout, gnqp);
+      return make_qf_tensor_array<decay_t>(xq.GetBlock(I).Read(), &layout,
+                                           gnqp, xq.GetBlock(I).Size());
    }
 }
 
@@ -555,13 +837,13 @@ decltype(auto) make_native_dual_output(
    {
       const int sz = yq.GetBlock(O).Size();
       ensure_native_dual_vector(dual_storage, sz);
-      return make_tensor_array<decay_t>(
-                native_dual_vector_w(dual_storage), &layout, gnqp);
+      return make_qf_tensor_array<decay_t>(
+                native_dual_vector_w(dual_storage), &layout, gnqp, sz);
    }
    else
    {
-      return make_tensor_array<decay_t>(yq.GetBlock(O).ReadWrite(), &layout,
-                                        gnqp);
+      return make_qf_tensor_array<decay_t>(yq.GetBlock(O).ReadWrite(), &layout,
+                                           gnqp, yq.GetBlock(O).Size());
    }
 }
 
@@ -612,6 +894,8 @@ inline void native_dual_evaluate_qfunc(
    const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
    const std::array<bool, sizeof...(Is)> *input_active,
+   std::array<Vector, sizeof...(Is)> &dual_inputs,
+   std::array<Vector, sizeof...(Os)> &dual_outputs,
    std::index_sequence<Is...>,
    std::index_sequence<Os...>)
 {
@@ -620,9 +904,6 @@ inline void native_dual_evaluate_qfunc(
 
    using qf_signature = typename get_function_signature<qfunc_t>::type;
    using qf_param_ts = typename qf_signature::parameter_ts;
-
-   std::array<Vector, ninputs> dual_inputs {};
-   std::array<Vector, noutputs> dual_outputs {};
 
    using input_decay_ts = std::tuple<qf_param_decay_t<
                           typename tuple_element<Is, qf_param_ts>::type>...>;
@@ -661,6 +942,8 @@ inline void call_qfunc(
    int gnqp,
    const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
+   std::array<Vector, sizeof...(Is)> &dual_input_storage,
+   std::array<Vector, sizeof...(Os)> &dual_output_storage,
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
@@ -670,23 +953,28 @@ inline void call_qfunc(
    if constexpr (qf_signature_uses_dual_v<qf_param_ts>)
    {
       native_dual_evaluate_qfunc<true, qfunc_t>(
-         qfunc, xq, xq, yq, gnqp, in_layouts, out_layouts, nullptr, is, os);
+         qfunc, xq, xq, yq, gnqp, in_layouts, out_layouts, nullptr,
+         dual_input_storage, dual_output_storage, is, os);
    }
    else
    {
+      MFEM_CONTRACT_VAR(dual_input_storage);
+      MFEM_CONTRACT_VAR(dual_output_storage);
       constexpr std::size_t ninputs = sizeof...(Is);
 
       auto inputs =
          std::make_tuple(
-            make_tensor_array<qf_param_decay_t<
+            make_qf_tensor_array<qf_param_decay_t<
             typename tuple_element<Is, qf_param_ts>::type>>(
-               xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
+               xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp,
+               xq.GetBlock(Is).Size())...);
 
       auto outputs =
          std::make_tuple(
-            make_tensor_array<qf_param_decay_t<
+            make_qf_tensor_array<qf_param_decay_t<
             typename tuple_element<ninputs + Os, qf_param_ts>::type>>(
-               yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp)...);
+               yq.GetBlock(Os).ReadWrite(), &out_layouts[Os], gnqp,
+               yq.GetBlock(Os).Size())...);
 
       std::apply([&](auto &&...args) { qfunc(args...); },
       std::tuple_cat(inputs, outputs));
@@ -708,12 +996,15 @@ inline void native_dual_fwddiff(
    const int &gnqp,
    const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
+   std::array<Vector, sizeof...(Is)> &dual_input_storage,
+   std::array<Vector, sizeof...(Os)> &dual_output_storage,
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
    constexpr auto activity_map = make_activity_map<derivative_id>(inputs_t {});
    native_dual_evaluate_qfunc<false, qfunc_t>(
-      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, &activity_map, is, os);
+      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, &activity_map,
+      dual_input_storage, dual_output_storage, is, os);
 }
 
 #ifdef MFEM_USE_ENZYME
@@ -836,27 +1127,31 @@ inline void enzyme_fwddiff(
    static_assert(activity_map.size() == ninputs, "activity map size mismatch");
 
    auto inputs = std::make_tuple(
-                    make_tensor_array<std::remove_cv_t<std::remove_reference_t<
+                    make_qf_tensor_array<std::remove_cv_t<std::remove_reference_t<
                     typename tuple_element<Is, qf_param_ts>::type>>>(
-                       xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
+                       xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp,
+                       xq.GetBlock(Is).Size())...);
 
    auto shadows = std::make_tuple(
-                     make_tensor_array<std::remove_cv_t<std::remove_reference_t<
+                     make_qf_tensor_array<std::remove_cv_t<std::remove_reference_t<
                      typename tuple_element<Is, qf_param_ts>::type>>>(
-                        shadow_xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp)...);
+                        shadow_xq.GetBlock(Is).Read(), &in_layouts[Is], gnqp,
+                        shadow_xq.GetBlock(Is).Size())...);
 
    ((primal_storage[Os].UseDevice(true)), ...);
    ((primal_storage[Os].SetSize(yq.GetBlock(Os).Size())), ...);
 
    auto primals_out = std::make_tuple(
-                         make_tensor_array<std::remove_cv_t<std::remove_reference_t<
+                         make_qf_tensor_array<std::remove_cv_t<std::remove_reference_t<
                          typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
-                            primal_storage[Os].Write(), &out_layouts[Os], gnqp)...);
+                            primal_storage[Os].Write(), &out_layouts[Os], gnqp,
+                            primal_storage[Os].Size())...);
 
    auto derivs_out = std::make_tuple(
-                        make_tensor_array<std::remove_cv_t<std::remove_reference_t<
+                        make_qf_tensor_array<std::remove_cv_t<std::remove_reference_t<
                         typename tuple_element<ninputs + Os, qf_param_ts>::type>>>(
-                           yq.GetBlock(Os).Write(), &out_layouts[Os], gnqp)...);
+                           yq.GetBlock(Os).Write(), &out_layouts[Os], gnqp,
+                           yq.GetBlock(Os).Size())...);
 
    using wrapper_fn_t = qf_return_t (*)(
                            qfunc_t &,
@@ -943,10 +1238,14 @@ inline void fwddiff(
    const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
    std::array<Vector, sizeof...(Os)> &primal_storage,
+   std::array<Vector, sizeof...(Is)> &dual_input_storage,
+   std::array<Vector, sizeof...(Os)> &dual_output_storage,
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
 #ifdef MFEM_USE_ENZYME
+   MFEM_CONTRACT_VAR(dual_input_storage);
+   MFEM_CONTRACT_VAR(dual_output_storage);
    enzyme_fwddiff<derivative_id, qfunc_t, qfunc_shadow_t, inputs_t, outputs_t>(
       qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
       primal_storage, is, os);
@@ -954,7 +1253,8 @@ inline void fwddiff(
    MFEM_CONTRACT_VAR(qfunc_shadow);
    MFEM_CONTRACT_VAR(primal_storage);
    native_dual_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
-      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, is, os);
+      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
+      dual_input_storage, dual_output_storage, is, os);
 #endif
 }
 
@@ -974,6 +1274,8 @@ inline void fwddiff(
    const std::array<std::vector<int>, sizeof...(Is)> &in_layouts,
    const std::array<std::vector<int>, sizeof...(Os)> &out_layouts,
    std::array<Vector, sizeof...(Os)> &primal_storage,
+   std::array<Vector, sizeof...(Is)> &dual_input_storage,
+   std::array<Vector, sizeof...(Os)> &dual_output_storage,
    std::index_sequence<Is...> is,
    std::index_sequence<Os...> os)
 {
@@ -983,11 +1285,12 @@ inline void fwddiff(
    unused_qfunc_shadow qfunc_shadow;
    fwddiff<derivative_id, qfunc_t, unused_qfunc_shadow, inputs_t, outputs_t>(
       qfunc, qfunc_shadow, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
-      primal_storage, is, os);
+      primal_storage, dual_input_storage, dual_output_storage, is, os);
 #else
    MFEM_CONTRACT_VAR(primal_storage);
    native_dual_fwddiff<derivative_id, qfunc_t, inputs_t, outputs_t>(
-      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts, is, os);
+      qfunc, xq, shadow_xq, yq, gnqp, in_layouts, out_layouts,
+      dual_input_storage, dual_output_storage, is, os);
 #endif
 }
 
@@ -1015,7 +1318,8 @@ void create_fop_to_fd(const fops_t &fops,
       // Handle Weight type. There is no FieldDescriptor for the weight.
       // TODO: Create weight descriptor for the weight for internal use?
       // TODO: this is a hack...
-      if (is_weight_fop<std::remove_cv_t<decltype(fop)>>::value)
+      if (is_weight_fop<std::remove_cv_t<decltype(fop)>>::value ||
+          is_orientation_fop<std::remove_cv_t<decltype(fop)>>::value)
       {
          fop_to_fd[i] = 0;
       }
@@ -1160,7 +1464,7 @@ MFEM_HOST_DEVICE static void call_qfunc_no_move(const func_t &func,
 }
 
 template <typename qfunc_t, typename... Args>
-MFEM_FORCE_INLINE
+inline MFEM_FORCE_INLINE
 MFEM_HOST_DEVICE static void enzyme_fwddiff_wrapper(qfunc_t *qf, Args &...args)
 {
    (*qf)(args...);
@@ -1314,7 +1618,7 @@ MFEM_HOST_DEVICE static void call_enzyme_fwddiff_active(
 #endif // MFEM_USE_ENZYME
 
 template <typename qfunc_t, typename qfunc_shadow_t, typename args_t, int... Is>
-MFEM_FORCE_INLINE
+inline MFEM_FORCE_INLINE
 MFEM_HOST_DEVICE static void call_enzyme_fwddiff_impl(
    qfunc_t &qfunc,
    qfunc_shadow_t &qfunc_shadow,

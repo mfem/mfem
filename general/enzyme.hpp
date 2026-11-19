@@ -69,13 +69,15 @@ void __enzyme_integer(void *ptr, std::size_t size);
 
 #define MFEM_ENZYME_INTEGER(x)   __enzyme_integer((void *)&(x), sizeof(x))
 
-// Device-only type hint (need it for device, but on macos with libc++ can
-// cause issues on the host)
-#if (defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
-    (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__))
-#define MFEM_ENZYME_DEVICE_INTEGER(x)   MFEM_ENZYME_INTEGER(x)
+// Type hint: the @a size bytes at @a ptr hold real_t values.
+#ifdef MFEM_USE_SINGLE
+extern "C" MFEM_HOST_DEVICE __attribute__((enzyme_nofree))
+void __enzyme_float(void *ptr, std::size_t size);
+#define MFEM_ENZYME_REAL(x)   __enzyme_float((void *)&(x), sizeof(x))
 #else
-#define MFEM_ENZYME_DEVICE_INTEGER(x)
+extern "C" MFEM_HOST_DEVICE __attribute__((enzyme_nofree))
+void __enzyme_double(void *ptr, std::size_t size);
+#define MFEM_ENZYME_REAL(x)   __enzyme_double((void *)&(x), sizeof(x))
 #endif
 
 #define MFEM_ENZYME_INACTIVENOFREE   __attribute__((enzyme_inactive, enzyme_nofree))
@@ -88,7 +90,7 @@ void __enzyme_integer(void *ptr, std::size_t size);
 #define MFEM_ENZYME_INACTIVE
 #define MFEM_ENZYME_FN_LIKE(x)
 #define MFEM_ENZYME_INTEGER(x)
-#define MFEM_ENZYME_DEVICE_INTEGER(x)
+#define MFEM_ENZYME_REAL(x)
 
 #endif // MFEM_USE_ENZYME
 

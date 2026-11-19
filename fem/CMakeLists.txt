@@ -226,6 +226,9 @@ set(HDRS
   dgmassinv_kernels.hpp
   doftrans.hpp
   dfem/doperator.hpp
+  dfem/entity_utils.hpp
+  dfem/field_prolongation.hpp
+  dfem/field_restriction.hpp
   dfem/fielddescriptor.hpp
   dfem/fieldoperator.hpp
   dfem/integrator_ctx.hpp
@@ -352,11 +355,6 @@ set(HDRS
   bounds.hpp
   particleset.hpp
   )
-
-if (MFEM_USE_SIDRE)
-    list(APPEND SRCS sidredatacollection.cpp)
-    list(APPEND HDRS sidredatacollection.hpp)
-endif()
 
 if (MFEM_USE_CONDUIT)
     list(APPEND SRCS conduitdatacollection.cpp)

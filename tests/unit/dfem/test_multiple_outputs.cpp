@@ -38,6 +38,7 @@ class DummyParameterSpace : public ParameterSpace
 public:
    class Bimpl : public Operator
    {
+   public:
       void Mult(const Vector &x, Vector &y) const override
       {
          const bool use_dev = x.UseDevice() || y.UseDevice();
@@ -52,6 +53,7 @@ public:
 
    class Btimpl : public Operator
    {
+   public:
       void Mult(const Vector &x, Vector &y) const override
       {
          const bool use_dev = x.UseDevice() || y.UseDevice();

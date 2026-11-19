@@ -26,6 +26,18 @@ namespace mfem::kernels::internal
 // On GPU, the last two dimensions are set to 0 to match a 2D tile of threads
 #if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) ||       \
      (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
+template <int DIM, int N>
+struct regs1d_wrapper: mfem::future::tensor<real_t, 0, DIM> {};
+
+template <int DIM, int N>
+using regs1d_t = regs1d_wrapper<DIM, N>;
+
+template <int VDIM, int DIM, int N>
+struct regs1d_vd_wrapper: mfem::future::tensor<real_t, 0, VDIM, DIM> {};
+
+template <int VDIM, int DIM, int N>
+using regs1d_vd_t = regs1d_vd_wrapper<VDIM, DIM, N>;
+
 template <int N = 0>
 using s_regs2d_t = mfem::future::tensor<real_t, 0, 0>;
 
@@ -71,6 +83,12 @@ using regs3d_vd_t = regs3d_vd_wrapper<VDIM, DIM, N>;
 // on GPU, SetMaxOf is a no-op, for minimal register usage
 constexpr int SetMaxOf(int n) { return n; }
 #else
+template <int DIM, int N>
+using regs1d_t = mfem::future::tensor<real_t, N, DIM>;
+
+template <int VDIM, int DIM, int N>
+using regs1d_vd_t = mfem::future::tensor<real_t, N, VDIM, DIM>;
+
 template <int N>
 using s_regs2d_t = mfem::future::tensor<real_t, N, N>;
 
@@ -118,7 +136,8 @@ inline MFEM_HOST_DEVICE void LoadMatrix(const int d1d, const int q1d,
 {
    if (MFEM_THREAD_ID(z) == 0)
    {
-      MFEM_FOREACH_THREAD_DIRECT(dy, y, d1d)
+      // not DIRECT on y: 1D kernels run with a single y-thread
+      MFEM_FOREACH_THREAD(dy, y, d1d)
       {
          MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
          {
@@ -958,6 +977,110 @@ inline MFEM_HOST_DEVICE void GradTranspose3d(const int d1d, const int q1d,
    GradTranspose3d(d1d, q1d, smem, B, G, Z, Y);
 }
 
+
+///////////////////////////////////////////////////////////////////////////////
+/// 1D kernels
+/// One x-thread per dof or quadrature point of a single element. Callers may
+/// batch several elements per block along z, each with its own shared slot
+/// (see lo_ker_backend::BATCH in fem/dfem/backends/local_qf/kernels_lo.hpp).
+/// Eval1d and EvalTranspose1d also apply G for the gradient of a scalar field.
+
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void LoadDofs1d(const int e, const int d1d, const int c,
+                                        const DeviceTensor<5, const real_t> &XE,
+                                        real_t (&sm)[MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d) { sm[dx][0] = XE(dx, 0, 0, c, e); }
+   MFEM_SYNC_THREAD;
+}
+
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void Eval1d(const int d1d, const int q1d,
+                                    const real_t (*B)[MQ1],
+                                    const real_t (&sm)[MQ1][DIM],
+                                    regs1d_t<1,MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+   {
+      real_t u = 0.0;
+      MFEM_UNROLL(MQ1)
+      for (int dx = 0; dx < d1d; ++dx) { u = std::fma(B[dx][qx], sm[dx][0], u); }
+      reg[qx][0] = u;
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGrad1d(const int d1d, const int q1d,
+                                          const int c,
+                                          const real_t (*G)[MQ1],
+                                          const real_t (&sm)[MQ1][DIM],
+                                          regs1d_vd_t<VDIM, DIM, MQ1> &reg)
+{
+   MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d)
+   {
+      real_t u = 0.0;
+      MFEM_UNROLL(MQ1)
+      for (int dx = 0; dx < d1d; ++dx) { u = std::fma(G[dx][qx], sm[dx][0], u); }
+      reg[qx][c][0] = u;
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void EvalTranspose1d(const int d1d, const int q1d,
+                                             const real_t (*B)[MQ1],
+                                             regs1d_t<1,MQ1> &reg,
+                                             real_t (&sm)[MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d) { sm[qx][0] = reg[qx][0]; }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+   {
+      real_t u = 0.0;
+      MFEM_UNROLL(MQ1)
+      for (int qx = 0; qx < q1d; ++qx) { u = std::fma(B[dx][qx], sm[qx][0], u); }
+      reg[dx][0] = u;
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template <int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void VectorGradTranspose1d(
+   const int d1d, const int q1d, const int c,
+   const real_t (*G)[MQ1],
+   regs1d_vd_t<VDIM, DIM, MQ1> &reg,
+   real_t (&sm)[MQ1][DIM])
+{
+   MFEM_FOREACH_THREAD_DIRECT(qx,x,q1d) { sm[qx][0] = reg[qx][c][0]; }
+   MFEM_SYNC_THREAD;
+   MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d)
+   {
+      real_t u = 0.0;
+      MFEM_UNROLL(MQ1)
+      for (int qx = 0; qx < q1d; ++qx) { u = std::fma(G[dx][qx], sm[qx][0], u); }
+      reg[dx][c][0] = u;
+   }
+   MFEM_SYNC_THREAD;
+}
+
+template<int MQ1>
+inline MFEM_HOST_DEVICE void WriteEvalDofs1d(const int d1d,
+                                             const int c, const int e,
+                                             regs1d_t<1,MQ1> &reg,
+                                             const DeviceTensor<5, real_t> &YE)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d) { YE(dx, 0, 0, c, e) += reg[dx][0]; }
+}
+
+template<int VDIM, int DIM, int MQ1>
+inline MFEM_HOST_DEVICE void WriteGradDofs1d(const int d1d,
+                                             const int c, const int e,
+                                             regs1d_vd_t<VDIM, DIM, MQ1> &reg,
+                                             const DeviceTensor<5, real_t> &YE)
+{
+   MFEM_FOREACH_THREAD_DIRECT(dx,x,d1d) { YE(dx, 0, 0, c, e) += reg[dx][c][0]; }
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 /// Low-order 2D kernels

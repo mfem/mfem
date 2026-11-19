@@ -26,6 +26,7 @@ void TMOP_EnergyPA_C0_3D(const real_t lim_normal,
                          const int NE,
                          const DeviceTensor<6, const real_t> &J,
                          const ConstDeviceCube &W,
+                         const bool integ_over_target,
                          const real_t *b,
                          const real_t *bld,
                          const DeviceTensor<5, const real_t> &X0,
@@ -65,7 +66,8 @@ void TMOP_EnergyPA_C0_3D(const real_t lim_normal,
             MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
-               const real_t detJtr = kernels::Det<3>(Jtr);
+               const real_t detJtr =
+                  integ_over_target ? kernels::Det<3>(Jtr) : 1.0;
                const real_t weight = W(qx, qy, qz) * detJtr;
                const real_t coeff0 = const_c0
                                      ? C0(0, 0, 0, 0)
@@ -115,6 +117,7 @@ void TMOP_EnergyPA_AdaptLim_3D(const real_t lim_normal,
                                const int NE,
                                const DeviceTensor<6, const real_t> &J,
                                const ConstDeviceCube &W,
+                               const bool integ_over_target,
                                const real_t *b,
                                const DeviceTensor<4, const real_t> &ALFmF0,
                                DeviceTensor<4> &E,
@@ -144,7 +147,8 @@ void TMOP_EnergyPA_AdaptLim_3D(const real_t lim_normal,
             MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
-               const real_t detJtr = kernels::Det<3>(Jtr);
+               const real_t detJtr =
+                  integ_over_target ? kernels::Det<3>(Jtr) : 1.0;
                const real_t weight = W(qx, qy, qz) * detJtr;
 
                const real_t diff = ralf(qz, qy, qx) / adapt_lim_delta_max;
@@ -185,9 +189,8 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &x) const
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
 
-   TMOPEnergyPAC03D::Run(d, q,
-                         ln, LD, const_c0, C0, NE, J, W,
-                         b, bld, XL, X, E, exp_lim, d, q);
+   TMOPEnergyPAC03D::Run(d, q, ln, LD, const_c0, C0, NE, J, W,
+                         integ_over_target, b, bld, XL, X, E, exp_lim, d, q);
 
    return PA.E * PA.O;
 }
@@ -229,8 +232,8 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_3D() const
                        ? Reshape(ALC_all + c, 1, 1, 1, 1)
                        : Reshape(ALC_all + c * ALC_stride, q, q, q, NE);
       const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, d, NE);
-      TMOPEnergyAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, b,
-                                ALFmF0, E, d, q);
+      TMOPEnergyAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE,
+                                J, W, integ_over_target, b, ALFmF0, E, d, q);
       energy += PA.E * PA.O;
    }
 

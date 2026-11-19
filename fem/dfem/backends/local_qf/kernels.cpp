@@ -23,6 +23,9 @@ namespace mfem::future
 // ────────────────────────────────────────────────────────────────────────────
 // Low-order backends instantiations for (DIM, Q1D)
 // ────────────────────────────────────────────────────────────────────────────
+template struct lo_ker_backend<1, 8>;
+template struct lo_ker_backend<1, 16>;
+
 template struct lo_ker_backend<2, 2>;
 template struct lo_ker_backend<2, 3>;
 template struct lo_ker_backend<2, 4>;
@@ -38,6 +41,9 @@ template struct lo_ker_backend<3, 5>;
 template struct lo_ker_backend<3, 6>;
 template struct lo_ker_backend<3, 7>;
 template struct lo_ker_backend<3, 8>;
+
+template struct LocalQFLOBackend<1, 8>;
+template struct LocalQFLOBackend<1, 16>;
 
 template struct LocalQFLOBackend<2, 2>;
 template struct LocalQFLOBackend<2, 3>;
