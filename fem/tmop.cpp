@@ -4346,21 +4346,9 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
 
    const IntegrationRule &ir = EnergyIntegrationRule(el);
 
-   // Convert parametric coordinates to physical to compute Jpt.
-   // Needed as elfun has the surface parameters for some entries.
-   Vector convertedX(elfun);
-   if (tan_analytic_surf)
-   {
-      Array<int> vdofs;
-      fes_mesh->GetElementVDofs(T.ElementNo, vdofs);
-      tan_analytic_surf->ConvertParamToPhys(vdofs, elfun, convertedX);
-      // Use converted coordinates for PMatI
-      PMatI.UseExternalData(convertedX.GetData(), dof, dim);
-   }
-
    energy = 0.0;
    DenseTensor Jtr(dim, dim, ir.GetNPoints());
-   targetC->ComputeElementTargets(el_id, el, ir, convertedX, Jtr);
+   targetC->ComputeElementTargets(el_id, el, ir, elfun, Jtr);
 
    // Limited case.
    Vector shape, p, p0, d_vals;
@@ -4654,171 +4642,6 @@ real_t TMOP_Integrator::GetDerefinementElementEnergy(const FiniteElement &el,
    return energy;
 }
 
-// Helper functions used for computing derivatives in TMOP_Integrator.
-namespace
-{
-
-// Stores derivatives of param -> phys map.
-struct TangentialNodeDerivatives
-{
-   DenseMatrix jacobian;
-   DenseTensor hessian;
-
-   TangentialNodeDerivatives() = default;
-
-   explicit TangentialNodeDerivatives(int dim)
-      : jacobian(dim, dim), hessian(dim, dim, dim)
-   {
-      jacobian = 0.0;
-      hessian = 0.0;
-   }
-};
-
-// Extracts the parameter-space coordinates stored for one element node.
-void GetNodeParam(const Vector &elfun, int dof, int dim, int node,
-                  double *param)
-{
-   for (int d = 0; d < dim; d++)
-   {
-      param[d] = elfun(node + d * dof);
-   }
-}
-
-// Builds per-node surface Jacobian and Hessian data for tangential mapping.
-void BuildTangentialNodeDerivatives(const AnalyticCompositeSurface &surfaces,
-                                    const Array<int> &vdofs,
-                                    const Vector &elfun,
-                                    int dof,
-                                    int dim,
-                                    std::vector<TangentialNodeDerivatives> &data)
-{
-   data.assign(dof, TangentialNodeDerivatives(dim));
-
-   for (int i = 0; i < dof; i++)
-   {
-      TangentialNodeDerivatives &node = data[i];
-      const AnalyticSurface *surf = surfaces.GetSurface(vdofs[i]);
-      if (!surf)
-      {
-         for (int d = 0; d < dim; d++)
-         {
-            node.jacobian(d, d) = 1.0;
-         }
-         continue;
-      }
-
-      double param[3] = { 0.0, 0.0, 0.0 };
-      GetNodeParam(elfun, dof, dim, i, param);
-
-      DenseMatrix deriv_1;
-      DenseTensor deriv_2;
-      surf->Deriv_1(param, deriv_1);
-      surf->Deriv_2(param, deriv_2);
-
-      for (int r = 0; r < dim; r++)
-      {
-         for (int c = 0; c < surf->NumParams(); c++)
-         {
-            node.jacobian(r, c) = deriv_1(r, c);
-         }
-      }
-
-      for (int r = 0; r < dim; r++)
-      {
-         for (int c1 = 0; c1 < surf->NumParams(); c1++)
-         {
-            for (int c2 = 0; c2 < surf->NumParams(); c2++)
-            {
-               node.hessian(r, c1, c2) = deriv_2(r, c1, c2);
-            }
-         }
-      }
-   }
-}
-
-// Maps an element vector from physical coordinates to surface parameters.
-void TransformTangentialElementVector(
-   const std::vector<TangentialNodeDerivatives> &data,
-   int dof,
-   int dim,
-   const Vector &phys,
-   Vector &param)
-{
-   param.SetSize(dof * dim);
-   param = 0.0;
-
-   for (int i = 0; i < dof; i++)
-   {
-      for (int a = 0; a < dim; a++)
-      {
-         real_t val = 0.0;
-         for (int c = 0; c < dim; c++)
-         {
-            val += data[i].jacobian(c, a) * phys(i + c * dof);
-         }
-         param(i + a * dof) = val;
-      }
-   }
-}
-
-// Applies the tangential chain rule to convert element Hessian data.
-void TransformTangentialElementGrad(
-   const std::vector<TangentialNodeDerivatives> &data,
-   int dof,
-   int dim,
-   const DenseMatrix &phys_hess,
-   const Vector &phys_grad,
-   DenseMatrix &param_hess)
-{
-   param_hess.SetSize(dof * dim);
-   param_hess = 0.0;
-
-   for (int i = 0; i < dof; i++)
-   {
-      for (int a = 0; a < dim; a++)
-      {
-         for (int j = 0; j < dof; j++)
-         {
-            for (int b = 0; b < dim; b++)
-            {
-               real_t val = 0.0;
-               for (int c = 0; c < dim; c++)
-               {
-                  const real_t jac_ic = data[i].jacobian(c, a);
-                  if (jac_ic == 0.0) { continue; }
-                  for (int r = 0; r < dim; r++)
-                  {
-                     const real_t jac_jr = data[j].jacobian(r, b);
-                     if (jac_jr == 0.0) { continue; }
-                     val += jac_ic * phys_hess(i + c * dof, j + r * dof) *
-                            jac_jr;
-                  }
-               }
-               param_hess(i + a * dof, j + b * dof) += val;
-            }
-         }
-      }
-   }
-
-   for (int i = 0; i < dof; i++)
-   {
-      for (int a = 0; a < dim; a++)
-      {
-         for (int b = 0; b < dim; b++)
-         {
-            real_t val = 0.0;
-            for (int c = 0; c < dim; c++)
-            {
-               val += phys_grad(i + c * dof) * data[i].hessian(c, a, b);
-            }
-            param_hess(i + a * dof, i + b * dof) += val;
-         }
-      }
-   }
-}
-
-}
-
 void TMOP_Integrator::AssembleElementVector(const FiniteElement &el,
                                             ElementTransformation &T,
                                             const Vector &d_el, Vector &elvect)
@@ -4879,36 +4702,17 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    Jpt.SetSize(dim);
    P.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
-   Vector elvect_phys(dof * dim);
-   PMatO.UseExternalData(elvect_phys.GetData(), dof, dim);
+   elvect.SetSize(dof * dim);
+   PMatO.UseExternalData(elvect.GetData(), dof, dim);
 
    const IntegrationRule &ir = ActionIntegrationRule(el);
    const int nqp = ir.GetNPoints();
 
-   // Convert parametric coordinates to physical to compute Jpt.
-   // Needed as elfun has the surface parameters for some entries.
-   Vector convertedX(elfun);
-   Array<int> vdofs;
-   if (tan_analytic_surf)
-   {
-      fes_mesh->GetElementVDofs(T.ElementNo, vdofs);
-      tan_analytic_surf->ConvertParamToPhys(vdofs, elfun, convertedX);
-   }
-   // Use converted coordinates for PMatI
-   PMatI.UseExternalData(convertedX.GetData(), dof, dim);
-
-   std::vector<TangentialNodeDerivatives> tan_node_data;
-   if (tan_analytic_surf)
-   {
-      BuildTangentialNodeDerivatives(*tan_analytic_surf, vdofs, elfun, dof,
-                                     dim, tan_node_data);
-   }
-
-   elvect_phys = 0.0;
+   elvect = 0.0;
    Vector weights(nqp);
    DenseTensor Jtr(dim, dim, nqp);
    DenseTensor dJtr(dim, dim, dim*nqp);
-   targetC->ComputeElementTargets(T.ElementNo, el, ir, convertedX, Jtr);
+   targetC->ComputeElementTargets(T.ElementNo, el, ir, elfun, Jtr);
 
    // Limited case.
    DenseMatrix pos0;
@@ -4952,7 +4756,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       Tpr->GetPointMat().Transpose(PMatI); // PointMat = PMatI^T
       if (exact_action)
       {
-         targetC->ComputeElementTargetsGradient(ir, convertedX, *Tpr, dJtr);
+         targetC->ComputeElementTargetsGradient(ir, elfun, *Tpr, dJtr);
       }
    }
 
@@ -5055,16 +4859,6 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    if (adapt_lim_gf.Size() > 0) { AssembleElemVecAdaptLim(el, *Tpr, ir, weights, PMatO); }
    if (surf_fit_gf || surf_fit_pos) { AssembleElemVecSurfFit(el, *Tpr, PMatO); }
 
-   if (tan_analytic_surf)
-   {
-      TransformTangentialElementVector(tan_node_data, dof, dim, elvect_phys,
-                                       elvect);
-   }
-   else
-   {
-      elvect = elvect_phys;
-   }
-
    delete Tpr;
 }
 
@@ -5101,33 +4895,10 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
    const IntegrationRule &ir = GradientIntegrationRule(el);
    const int nqp = ir.GetNPoints();
 
-   // Convert parametric coordinates to physical to compute Jpt.
-   // Needed as elfun has the surface parameters for some entries.
-   Vector convertedX(elfun);
-   Array<int> vdofs;
-   if (tan_analytic_surf)
-   {
-      fes_mesh->GetElementVDofs(T.ElementNo, vdofs);
-      tan_analytic_surf->ConvertParamToPhys(vdofs, elfun, convertedX);
-   }
-   // Use converted coordinates for PMatI
-   PMatI.UseExternalData(convertedX.GetData(), dof, dim);
-
-   std::vector<TangentialNodeDerivatives> tan_node_data;
-   if (tan_analytic_surf)
-   {
-      BuildTangentialNodeDerivatives(*tan_analytic_surf, vdofs, elfun, dof,
-                                     dim, tan_node_data);
-   }
-
-   DenseMatrix elmat_phys(dof * dim);
-   elmat_phys = 0.0;
-   Vector elvect_phys(dof * dim);
-   DenseMatrix PMatGrad(elvect_phys.GetData(), dof, dim);
-   elvect_phys = 0.0;
+   elmat = 0.0;
    Vector weights(nqp);
    DenseTensor Jtr(dim, dim, nqp);
-   targetC->ComputeElementTargets(el_id, el, ir, convertedX, Jtr);
+   targetC->ComputeElementTargets(el_id, el, ir, elfun, Jtr);
 
    // Limited case.
    DenseMatrix pos0, hess;
@@ -5186,22 +4957,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
       if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
 
-      metric->AssembleH(Jpt, DS, weight_m, elmat_phys);
-
-      metric->EvalP(Jpt, P);
-      P *= weight_m;
-      for (int i = 0; i < dof; i++)
-      {
-         for (int c = 0; c < dim; c++)
-         {
-            real_t d = 0.0;
-            for (int k = 0; k < dim; k++)
-            {
-               d += DS(i, k) * P(c, k);
-            }
-            PMatGrad(i, c) += d;
-         }
-      }
+      metric->AssembleH(Jpt, DS, weight_m, elmat);
 
       // TODO: derivatives of adaptivity-based targets.
 
@@ -5211,10 +4967,6 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
          PMatI.MultTranspose(shape, p);
          pos0.MultTranspose(shape, p0);
          weight_m = weights(q) * lim_normal * lim_coeff->Eval(*Tpr, ip);
-         Vector grad_lim(dim);
-         lim_func->Eval_d1(p, p0, d_vals(q), grad_lim);
-         grad_lim *= weight_m;
-         AddMultVWt(shape, grad_lim, PMatGrad);
          lim_func->Eval_d2(p, p0, d_vals(q), hess);
          for (int i = 0; i < dof; i++)
          {
@@ -5226,7 +4978,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
                {
                   for (int d2 = 0; d2 < dim; d2++)
                   {
-                     elmat_phys(d1 * dof + i, d2 * dof + j) += w * hess(d1, d2);
+                     elmat(d1 * dof + i, d2 * dof + j) += w * hess(d1, d2);
                   }
                }
             }
@@ -5236,21 +4988,11 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
    if (adapt_lim_gf.Size() > 0)
    {
-      AssembleElemGradAdaptLim(el, *Tpr, ir, weights, elmat_phys);
+      AssembleElemGradAdaptLim(el, *Tpr, ir, weights, elmat);
    }
    if (surf_fit_gf || surf_fit_pos)
    {
-      AssembleElemGradSurfFit(el, *Tpr, elmat_phys);
-   }
-
-   if (tan_analytic_surf)
-   {
-      TransformTangentialElementGrad(tan_node_data, dof, dim, elmat_phys,
-                                     elvect_phys, elmat);
-   }
-   else
-   {
-      elmat = elmat_phys;
+      AssembleElemGradSurfFit(el, *Tpr, elmat);
    }
 
    delete Tpr;
@@ -6100,12 +5842,18 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
    Vector x_loc;
    if (periodic)
    {
+      MFEM_VERIFY(x_0, "Periodic updates require an initial mesh state.");
       GetPeriodicPositions(*x_0, d, *x_0->FESpace(), d_fes, x_loc);
    }
-   else
+   else if (x_0)
    {
       x_loc.SetSize(x_0->Size());
       add(*x_0, d, x_loc);
+   }
+   else
+   {
+      // The input is an absolute physical state, as used by a parametric form.
+      x_loc = d;
    }
 
    // Update the target constructor if it's a discrete one.

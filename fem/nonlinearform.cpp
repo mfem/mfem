@@ -222,18 +222,31 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    // serial, place the result directly in y (when there is no P).
    Vector &py = P ? aux2 : y;
 
+   MultGridFunction(px, py);
+
+   if (Serial())
+   {
+      if (cP) { cP->MultTranspose(py, y); }
+
+      y.HostReadWrite();
+      ess_tdof_list.HostRead();
+      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      {
+         y(ess_tdof_list[i]) = 0.0;
+      }
+      // y(ess_tdof_list[i]) = x(ess_tdof_list[i]);
+   }
+   // In parallel, the result is in 'py' which is an alias for 'aux2'.
+}
+
+void NonlinearForm::MultGridFunction(const Vector &x, Vector &y) const
+{
+   MFEM_VERIFY(x.Size() == fes->GetVSize(), "invalid input Vector size");
+   MFEM_VERIFY(y.Size() == fes->GetVSize(), "invalid output Vector size");
+
    if (ext)
    {
-      ext->Mult(px, py);
-      if (Serial())
-      {
-         if (cP) { cP->MultTranspose(py, y); }
-         const int N = ess_tdof_list.Size();
-         const auto tdof = ess_tdof_list.Read();
-         auto Y = y.ReadWrite();
-         mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { Y[tdof[i]] = 0.0; });
-      }
-      // In parallel, the result is in 'py' which is an alias for 'aux2'.
+      ext->Mult(x, y);
       return;
    }
 
@@ -243,7 +256,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    ElementTransformation *T;
    Mesh *mesh = fes->GetMesh();
 
-   py = 0.0;
+   y = 0.0;
 
    if (dnfi.Size())
    {
@@ -277,7 +290,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
          fe = fes->GetFE(i);
          fes->GetElementVDofs(i, vdofs, doftrans);
          T = fes->GetElementTransformation(i);
-         px.GetSubVector(vdofs, el_x);
+         x.GetSubVector(vdofs, el_x);
          doftrans.InvTransformPrimal(el_x);
          for (int k = 0; k < dnfi.Size(); k++)
          {
@@ -286,7 +299,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
             dnfi[k]->AssembleElementVector(*fe, *T, el_x, el_y);
             doftrans.TransformDual(el_y);
-            py.AddElementVector(vdofs, el_y);
+            y.AddElementVector(vdofs, el_y);
          }
       }
    }
@@ -324,7 +337,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
          fes->GetBdrElementVDofs(i, vdofs, doftrans);
          T = fes->GetBdrElementTransformation(i);
-         px.GetSubVector(vdofs, el_x);
+         x.GetSubVector(vdofs, el_x);
          doftrans.InvTransformPrimal(el_x);
          for (int k = 0; k < bnfi.Size(); k++)
          {
@@ -333,7 +346,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
             bnfi[k]->AssembleElementVector(*fe, *T, el_x, el_y);
             doftrans.TransformDual(el_y);
-            py.AddElementVector(vdofs, el_y);
+            y.AddElementVector(vdofs, el_y);
          }
       }
    }
@@ -353,7 +366,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
             fes->GetElementVDofs(tr->Elem2No, vdofs2);
             vdofs.Append (vdofs2);
 
-            px.GetSubVector(vdofs, el_x);
+            x.GetSubVector(vdofs, el_x);
 
             fe1 = fes->GetFE(tr->Elem1No);
             fe2 = fes->GetFE(tr->Elem2No);
@@ -361,7 +374,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
             for (int k = 0; k < fnfi.Size(); k++)
             {
                fnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
-               py.AddElementVector(vdofs, el_y);
+               y.AddElementVector(vdofs, el_y);
             }
          }
       }
@@ -402,7 +415,7 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
          if (tr != NULL)
          {
             fes->GetElementVDofs(tr->Elem1No, vdofs);
-            px.GetSubVector(vdofs, el_x);
+            x.GetSubVector(vdofs, el_x);
 
             fe1 = fes->GetFE(tr->Elem1No);
             // The fe2 object is really a dummy and not used on the boundaries,
@@ -415,25 +428,12 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
                    (*bfnfi_marker[k])[bdr_attr-1] == 0) { continue; }
 
                bfnfi[k]->AssembleFaceVector(*fe1, *fe2, *tr, el_x, el_y);
-               py.AddElementVector(vdofs, el_y);
+               y.AddElementVector(vdofs, el_y);
             }
          }
       }
    }
 
-   if (Serial())
-   {
-      if (cP) { cP->MultTranspose(py, y); }
-
-      y.HostReadWrite();
-      ess_tdof_list.HostRead();
-      for (int i = 0; i < ess_tdof_list.Size(); i++)
-      {
-         y(ess_tdof_list[i]) = 0.0;
-      }
-      // y(ess_tdof_list[i]) = x(ess_tdof_list[i]);
-   }
-   // In parallel, the result is in 'py' which is an alias for 'aux2'.
 }
 
 Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
@@ -450,6 +450,35 @@ Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
       return *hGrad;
    }
 
+   SparseMatrix &local_grad =
+      GetGridFunctionGradient(Prolongate(x), finalize);
+   if (!finalize) { return local_grad; }
+
+   SparseMatrix *mGrad = &local_grad;
+   if (Serial())
+   {
+      if (cP)
+      {
+         delete cGrad;
+         cGrad = RAP(*cP, local_grad, *cP);
+         mGrad = cGrad;
+      }
+      for (int i = 0; i < ess_tdof_list.Size(); i++)
+      {
+         mGrad->EliminateRowCol(ess_tdof_list[i]);
+      }
+   }
+
+   return *mGrad;
+}
+
+SparseMatrix &NonlinearForm::GetGridFunctionGradient(const Vector &x,
+                                                      bool finalize) const
+{
+   MFEM_VERIFY(ext == nullptr,
+               "local gradient assembly requires legacy assembly");
+   MFEM_VERIFY(x.Size() == fes->GetVSize(), "invalid input Vector size");
+
    const int skip_zeros = 0;
    Array<int> vdofs;
    Vector el_x;
@@ -457,7 +486,6 @@ Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
    const FiniteElement *fe;
    ElementTransformation *T;
    Mesh *mesh = fes->GetMesh();
-   const Vector &px = Prolongate(x);
 
    if (Grad == NULL)
    {
@@ -500,7 +528,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
          fe = fes->GetFE(i);
          fes->GetElementVDofs(i, vdofs, doftrans);
          T = fes->GetElementTransformation(i);
-         px.GetSubVector(vdofs, el_x);
+         x.GetSubVector(vdofs, el_x);
          doftrans.InvTransformPrimal(el_x);
          for (int k = 0; k < dnfi.Size(); k++)
          {
@@ -547,7 +575,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
          fe = fes->GetBE(i);
          fes->GetBdrElementVDofs(i, vdofs, doftrans);
          T = fes->GetBdrElementTransformation(i);
-         px.GetSubVector(vdofs, el_x);
+         x.GetSubVector(vdofs, el_x);
          doftrans.InvTransformPrimal(el_x);
          for (int k = 0; k < bnfi.Size(); k++)
          {
@@ -576,7 +604,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
             fes->GetElementVDofs(tr->Elem2No, vdofs2);
             vdofs.Append (vdofs2);
 
-            px.GetSubVector(vdofs, el_x);
+            x.GetSubVector(vdofs, el_x);
 
             fe1 = fes->GetFE(tr->Elem1No);
             fe2 = fes->GetFE(tr->Elem2No);
@@ -625,7 +653,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
          if (tr != NULL)
          {
             fes->GetElementVDofs(tr->Elem1No, vdofs);
-            px.GetSubVector(vdofs, el_x);
+            x.GetSubVector(vdofs, el_x);
 
             fe1 = fes->GetFE(tr->Elem1No);
             // The fe2 object is really a dummy and not used on the boundaries,
@@ -651,22 +679,7 @@ Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
       Grad->Finalize(skip_zeros);
    }
 
-   SparseMatrix *mGrad = Grad;
-   if (Serial())
-   {
-      if (cP)
-      {
-         delete cGrad;
-         cGrad = RAP(*cP, *Grad, *cP);
-         mGrad = cGrad;
-      }
-      for (int i = 0; i < ess_tdof_list.Size(); i++)
-      {
-         mGrad->EliminateRowCol(ess_tdof_list[i]);
-      }
-   }
-
-   return *mGrad;
+   return *Grad;
 }
 
 void NonlinearForm::Update()

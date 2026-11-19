@@ -76,6 +76,152 @@ void AnalyticCompositeSurface::ConvertParamToPhys(const Array<int> &vdofs,
    }
 }
 
+void AnalyticCompositeSurface::PushForwardTangent(const Vector &t,
+                                                   const Vector &dt,
+                                                   Vector &dx) const
+{
+   MFEM_VERIFY(t.Size() == dt.Size(), "incompatible state and direction");
+   MFEM_VERIFY(dof_to_surface.Size() > 0 &&
+               t.Size() % dof_to_surface.Size() == 0,
+               "invalid parametric state size");
+
+   const int ndof = dof_to_surface.Size();
+   const int dim = t.Size() / ndof;
+   dx.SetSize(t.Size());
+   dx = 0.0;
+
+   for (int i = 0; i < ndof; i++)
+   {
+      const AnalyticSurface *surface = GetSurface(i);
+      if (!surface)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            dx(i + d * ndof) = dt(i + d * ndof);
+         }
+         continue;
+      }
+
+      double param[3] = { 0.0, 0.0, 0.0 };
+      for (int d = 0; d < dim; d++) { param[d] = t(i + d * ndof); }
+
+      DenseMatrix deriv;
+      surface->Deriv_1(param, deriv);
+      MFEM_VERIFY(deriv.Height() == dim &&
+                  surface->NumParams() <= dim,
+                  "invalid analytic surface derivative");
+      for (int c = 0; c < dim; c++)
+      {
+         for (int a = 0; a < surface->NumParams(); a++)
+         {
+            dx(i + c * ndof) +=
+               deriv(c, a) * dt(i + a * ndof);
+         }
+      }
+   }
+}
+
+void AnalyticCompositeSurface::PullBackDual(const Vector &t,
+                                            const Vector &rx,
+                                            Vector &rt) const
+{
+   MFEM_VERIFY(t.Size() == rx.Size(), "incompatible state and dual vector");
+   MFEM_VERIFY(dof_to_surface.Size() > 0 &&
+               t.Size() % dof_to_surface.Size() == 0,
+               "invalid parametric state size");
+
+   const int ndof = dof_to_surface.Size();
+   const int dim = t.Size() / ndof;
+   rt.SetSize(t.Size());
+   rt = 0.0;
+
+   for (int i = 0; i < ndof; i++)
+   {
+      const AnalyticSurface *surface = GetSurface(i);
+      if (!surface)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            rt(i + d * ndof) = rx(i + d * ndof);
+         }
+         continue;
+      }
+
+      double param[3] = { 0.0, 0.0, 0.0 };
+      for (int d = 0; d < dim; d++) { param[d] = t(i + d * ndof); }
+
+      DenseMatrix deriv;
+      surface->Deriv_1(param, deriv);
+      MFEM_VERIFY(deriv.Height() == dim &&
+                  surface->NumParams() <= dim,
+                  "invalid analytic surface derivative");
+      for (int a = 0; a < surface->NumParams(); a++)
+      {
+         for (int c = 0; c < dim; c++)
+         {
+            rt(i + a * ndof) +=
+               deriv(c, a) * rx(i + c * ndof);
+         }
+      }
+   }
+}
+
+void AnalyticCompositeSurface::PullBackGradientAction(
+   const Vector &t, const Vector &rx, const Vector &dt,
+   const Vector &hx_dx, Vector &rt) const
+{
+   MFEM_VERIFY(t.Size() == rx.Size() && t.Size() == dt.Size() &&
+               t.Size() == hx_dx.Size(),
+               "incompatible gradient action vectors");
+   MFEM_VERIFY(dof_to_surface.Size() > 0 &&
+               t.Size() % dof_to_surface.Size() == 0,
+               "invalid parametric state size");
+
+   const int ndof = dof_to_surface.Size();
+   const int dim = t.Size() / ndof;
+   rt.SetSize(t.Size());
+   rt = 0.0;
+
+   for (int i = 0; i < ndof; i++)
+   {
+      const AnalyticSurface *surface = GetSurface(i);
+      if (!surface)
+      {
+         for (int d = 0; d < dim; d++)
+         {
+            rt(i + d * ndof) = hx_dx(i + d * ndof);
+         }
+         continue;
+      }
+
+      double param[3] = { 0.0, 0.0, 0.0 };
+      for (int d = 0; d < dim; d++) { param[d] = t(i + d * ndof); }
+
+      DenseMatrix deriv_1;
+      DenseTensor deriv_2;
+      surface->Deriv_1(param, deriv_1);
+      surface->Deriv_2(param, deriv_2);
+      const int nparam = surface->NumParams();
+      MFEM_VERIFY(deriv_1.Height() == dim && nparam <= dim,
+                  "invalid analytic surface derivative");
+
+      for (int a = 0; a < nparam; a++)
+      {
+         for (int c = 0; c < dim; c++)
+         {
+            rt(i + a * ndof) +=
+               deriv_1(c, a) * hx_dx(i + c * ndof);
+            for (int b = 0; b < nparam; b++)
+            {
+               rt(i + a * ndof) +=
+                  rx(i + c * ndof) * deriv_2(c, a, b) *
+                  dt(i + b * ndof);
+            }
+         }
+      }
+   }
+}
+
 void Analytic2DCurve::ConvertPhysCoordToParam(const Vector &coord_x,
                                               Vector &coord_t,
                                               const Array<int> &dof_to_surface,

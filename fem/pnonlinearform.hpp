@@ -71,6 +71,41 @@ public:
    virtual ~ParNonlinearForm() { }
 };
 
+/** @brief Parallel nonlinear form whose true-dof state is represented in
+    parametric coordinates. */
+/** The parameter-to-physical transformation is applied to the local vector,
+    after prolongation and before the element-level nonlinear integrators. */
+class ParametricParNonlinearForm : public ParNonlinearForm
+{
+protected:
+   ParametricStateTransformation *transformation; // not owned
+
+   mutable Vector param_state;
+   mutable Vector phys_state;
+   mutable Vector phys_residual;
+   mutable Vector param_residual;
+   mutable Operator *param_grad; // owned
+
+   void ProlongateAndTransform(const Vector &t) const;
+
+public:
+   ParametricParNonlinearForm(ParFiniteElementSpace *pf,
+                              ParametricStateTransformation &transformation_);
+
+   const ParametricStateTransformation &GetStateTransformation() const
+   { return *transformation; }
+
+   real_t GetEnergy(const Vector &t) const override;
+
+   void Mult(const Vector &t, Vector &r) const override;
+
+   Operator &GetGradient(const Vector &t) const override;
+
+   void Update() override;
+
+   ~ParametricParNonlinearForm() override;
+};
+
 
 /** @brief A class representing a general parallel block nonlinear operator
     defined on the Cartesian product of multiple ParFiniteElementSpace%s. */

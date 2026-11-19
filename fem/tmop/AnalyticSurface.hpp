@@ -17,7 +17,7 @@
 #ifndef MFEM_ANALYTIC_SURFACE
 #define MFEM_ANALYTIC_SURFACE
 
-#include "../gridfunc.hpp"
+#include "../nonlinearform.hpp"
 
 namespace mfem
 {
@@ -75,7 +75,7 @@ public:
    virtual void Deriv_2(const double *param, DenseTensor &deriv) const = 0;
 };
 
-class AnalyticCompositeSurface
+class AnalyticCompositeSurface : public ParametricStateTransformation
 {
 protected:
    const Array<AnalyticSurface *> &surfaces;
@@ -97,6 +97,22 @@ public:
    void ConvertParamToPhys(const Array<int> &vdofs,
                            const Vector &coord_t,
                            Vector &coord_x) const;
+
+   void TransformPrimal(const Vector &t, Vector &x) const override
+   { ConvertParamCoordToPhys(t, x); }
+
+   void TransformPrimalInverse(const Vector &x, Vector &t) override
+   { ConvertPhysCoordToParam(x, t); }
+
+   void PushForwardTangent(const Vector &t, const Vector &dt,
+                           Vector &dx) const override;
+
+   void PullBackDual(const Vector &t, const Vector &rx,
+                     Vector &rt) const override;
+
+   void PullBackGradientAction(const Vector &t, const Vector &rx,
+                               const Vector &dt, const Vector &hx_dx,
+                               Vector &rt) const override;
 };
 
 class Analytic2DCurve : public AnalyticSurface

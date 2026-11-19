@@ -463,12 +463,26 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
    }
 #endif
 
+   Vector physical_state;
+   const Vector *integrator_state = &d_loc;
+#ifdef MFEM_USE_MPI
+   const auto *param_nlf =
+      dynamic_cast<const ParametricParNonlinearForm *>(oper);
+   if (param_nlf)
+   {
+      param_nlf->GetStateTransformation().TransformPrimal(d_loc,
+                                                           physical_state);
+      integrator_state = &physical_state;
+   }
+#endif
+
    real_t scale = 1.0;
    bool fitting = IsSurfaceFittingEnabled();
    real_t init_fit_avg_err, init_fit_max_err = 0.0;
    if (fitting && surf_fit_converge_error)
    {
-      GetSurfaceFittingError(d_loc, init_fit_avg_err, init_fit_max_err);
+      GetSurfaceFittingError(*integrator_state, init_fit_avg_err,
+                             init_fit_max_err);
       // Check for convergence
       if (init_fit_max_err < surf_fit_max_err_limit)
       {
@@ -549,6 +563,14 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       else { fes->GetProlongationMatrix()->Mult(d_out, d_loc); }
 #endif
 
+#ifdef MFEM_USE_MPI
+      if (param_nlf)
+      {
+         param_nlf->GetStateTransformation().TransformPrimal(d_loc,
+                                                              physical_state);
+      }
+#endif
+
       // Check the changes in detJ.
       min_detT_out =
          detJpr_pos_bound ? ComputeDetJptLowerBound(d_loc, *fes)
@@ -585,7 +607,7 @@ real_t TMOPNewtonSolver::ComputeScalingFactor(const Vector &d_in,
       // converge based on error.
       if (fitting && surf_fit_converge_error)
       {
-         GetSurfaceFittingError(d_loc, avg_fit_err, max_fit_err);
+         GetSurfaceFittingError(*integrator_state, avg_fit_err, max_fit_err);
          if (max_fit_err >= 1.2*init_fit_max_err)
          {
             if (print_options.iterations)
@@ -695,40 +717,70 @@ void TMOPNewtonSolver::Mult(const Vector &b, Vector &x) const
       x_0 = x;
    }
 
-   // Pass down the initial position to the integrators.
    const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
+
+   // A parametric form transforms the absolute parametric state to physical
+   // coordinates before calling the integrators. The legacy PA path still
+   // performs its parametrization inside the TMOP integrator.
+   parametric_form = false;
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      parametric_form =
+         dynamic_cast<const ParametricParNonlinearForm *>(oper) != nullptr;
+   }
+#endif
+
+   auto integ = dynamic_cast<TMOP_Integrator *>(integs[0]);
+   parametric = parametric_form ||
+                (integ && integ->GetAnalyticSurface() != nullptr);
+
+   // Pass down the initial position for the displacement-based path. The
+   // parametric form passes absolute physical positions to the integrators.
    for (int i = 0; i < integs.Size(); i++)
    {
       auto ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
-      if (ti) { ti->SetInitialMeshPos(&x_0); }
+      if (ti) { ti->SetInitialMeshPos(parametric_form ? nullptr : &x_0); }
       auto co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
-      if (co) { co->SetInitialMeshPos(&x_0); }
+      if (co) { co->SetInitialMeshPos(parametric_form ? nullptr : &x_0); }
    }
-
-   // Check if there's a surface parametrization.
-   auto integ = dynamic_cast<TMOP_Integrator *>(integs[0]);
-   parametric = (integ->GetAnalyticSurface() == nullptr) ? false : true;
 
    MFEM_VERIFY((periodic && parametric) == false,
                "Periodic meshes + parametrization is not supported");
 
-   // Solve for the displacement, which always starts from zero.
-   Vector dx(height); dx = 0.0;
-   if (solver_type == 0)      { NewtonSolver::Mult(b, dx); }
-   else if (solver_type == 1) { LBFGSSolver::Mult(b, dx); }
-   else { MFEM_ABORT("Invalid solver_type"); }
-
-   // Form the final mesh using the computed displacement.
-   if (periodic)
+   if (parametric_form)
    {
-      Vector dx_loc(nlf->FESpace()->GetVSize());
-      const Operator *Pd = nlf->FESpace()->GetProlongationMatrix();
-      if (Pd) { Pd->Mult(dx, dx_loc); }
-      else    { dx_loc = dx; }
-
-      GetPeriodicPositions(x_0, dx_loc, *fes_mesh_nodes, *nlf->FESpace(), x);
+      // ParametricParNonlinearForm acts on the absolute parametric state.
+      // Preserve the caller's iterative-mode setting around this solve.
+      TMOPNewtonSolver *self = const_cast<TMOPNewtonSolver *>(this);
+      const bool old_iterative_mode = self->iterative_mode;
+      self->iterative_mode = true;
+      if (solver_type == 0)      { NewtonSolver::Mult(b, x); }
+      else if (solver_type == 1) { LBFGSSolver::Mult(b, x); }
+      else { MFEM_ABORT("Invalid solver_type"); }
+      self->iterative_mode = old_iterative_mode;
    }
-   else { x += dx; }
+   else
+   {
+      // Solve for the displacement, which always starts from zero.
+      Vector dx(height); dx = 0.0;
+      if (solver_type == 0)      { NewtonSolver::Mult(b, dx); }
+      else if (solver_type == 1) { LBFGSSolver::Mult(b, dx); }
+      else { MFEM_ABORT("Invalid solver_type"); }
+
+      // Form the final mesh using the computed displacement.
+      if (periodic)
+      {
+         Vector dx_loc(nlf->FESpace()->GetVSize());
+         const Operator *Pd = nlf->FESpace()->GetProlongationMatrix();
+         if (Pd) { Pd->Mult(dx, dx_loc); }
+         else    { dx_loc = dx; }
+
+         GetPeriodicPositions(x_0, dx_loc, *fes_mesh_nodes,
+                              *nlf->FESpace(), x);
+      }
+      else { x += dx; }
+   }
 
    // Make sure the pointers don't use invalid memory (x_0_loc is gone).
    for (int i = 0; i < integs.Size(); i++)
@@ -911,16 +963,28 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
    }
    else { dx_loc = dx; }
 
+   Vector physical_state;
+   const Vector *integrator_state = &dx_loc;
+#ifdef MFEM_USE_MPI
+   if (const auto *param_nlf =
+          dynamic_cast<const ParametricParNonlinearForm *>(oper))
+   {
+      param_nlf->GetStateTransformation().TransformPrimal(dx_loc,
+                                                           physical_state);
+      integrator_state = &physical_state;
+   }
+#endif
+
    const FiniteElementSpace *dx_fes = nlf->FESpace();
    for (int i = 0; i < integs.Size(); i++)
    {
       ti = dynamic_cast<TMOP_Integrator *>(integs[i]);
       if (ti)
       {
-         ti->UpdateAfterMeshPositionChange(dx_loc, *dx_fes);
+         ti->UpdateAfterMeshPositionChange(*integrator_state, *dx_fes);
          if (compute_metric_quantile_flag)
          {
-            ti->ComputeUntangleMetricQuantiles(dx_loc, *dx_fes);
+            ti->ComputeUntangleMetricQuantiles(*integrator_state, *dx_fes);
          }
       }
       co = dynamic_cast<TMOPComboIntegrator *>(integs[i]);
@@ -929,10 +993,11 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
          Array<TMOP_Integrator *> ati = co->GetTMOPIntegrators();
          for (int j = 0; j < ati.Size(); j++)
          {
-            ati[j]->UpdateAfterMeshPositionChange(dx_loc, *dx_fes);
+            ati[j]->UpdateAfterMeshPositionChange(*integrator_state, *dx_fes);
             if (compute_metric_quantile_flag)
             {
-               ati[j]->ComputeUntangleMetricQuantiles(dx_loc, *dx_fes);
+               ati[j]->ComputeUntangleMetricQuantiles(*integrator_state,
+                                                       *dx_fes);
             }
          }
       }
@@ -945,7 +1010,8 @@ void TMOPNewtonSolver::ProcessNewState(const Vector &dx) const
    if (surf_fit_coeff_update)
    {
       // Get surface fitting errors.
-      GetSurfaceFittingError(dx_loc, surf_fit_avg_err, surf_fit_max_err);
+      GetSurfaceFittingError(*integrator_state, surf_fit_avg_err,
+                             surf_fit_max_err);
       // Get array with surface fitting weights.
       Array<real_t> fitweights;
       GetSurfaceFittingWeight(fitweights);
@@ -1022,11 +1088,26 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
    real_t min_detJ = infinity();
    const int NE = fes.GetNE(), dim = fes.GetMesh()->Dimension();
    const bool mixed_mesh = fes.GetMesh()->GetNumGeometries(dim) > 1;
+
+   const ParametricStateTransformation *state_transformation = nullptr;
+#ifdef MFEM_USE_MPI
+   if (const auto *param_nlf =
+          dynamic_cast<const ParametricParNonlinearForm *>(oper))
+   {
+      state_transformation = &param_nlf->GetStateTransformation();
+   }
+#endif
+   Vector physical_state;
+   if (state_transformation)
+   {
+      state_transformation->TransformPrimal(d_loc, physical_state);
+   }
+
    if (parametric || dim == 1 || mixed_mesh ||
        UsesTensorBasis(fes) == false || fes.IsVariableOrder())
    {
       const AnalyticCompositeSurface *surf = nullptr;
-      if (parametric)
+      if (parametric && !state_transformation)
       {
          const NonlinearForm *nlf = dynamic_cast<const NonlinearForm *>(oper);
          const Array<NonlinearFormIntegrator*> &integs = *nlf->GetDNFI();
@@ -1043,23 +1124,31 @@ real_t TMOPNewtonSolver::ComputeMinDet(const Vector &d_loc,
          DenseMatrix dshape(dof, dim), pos(dof, dim);
          Vector posV(pos.Data(), dof * dim);
 
-         x_0.GetElementDofValues(i, posV);
-         if (periodic)
-         {
-            auto n_el = dynamic_cast<const NodalFiniteElement *>(fes.GetFE(i));
-            n_el->ReorderLexToNative(dim, posV);
-         }
-
-         Vector d_loc_el;
          fes.GetElementVDofs(i, xdofs);
-         d_loc.GetSubVector(xdofs, d_loc_el);
-         posV += d_loc_el;
-
-         Vector convertedX(posV.Size());
-         if (parametric)
+         if (state_transformation)
          {
-            surf->ConvertParamToPhys(xdofs, posV, convertedX);
-            posV = convertedX;
+            physical_state.GetSubVector(xdofs, posV);
+         }
+         else
+         {
+            x_0.GetElementDofValues(i, posV);
+            if (periodic)
+            {
+               auto n_el =
+                  dynamic_cast<const NodalFiniteElement *>(fes.GetFE(i));
+               n_el->ReorderLexToNative(dim, posV);
+            }
+
+            Vector d_loc_el;
+            d_loc.GetSubVector(xdofs, d_loc_el);
+            posV += d_loc_el;
+
+            if (parametric)
+            {
+               Vector convertedX(posV.Size());
+               surf->ConvertParamToPhys(xdofs, posV, convertedX);
+               posV = convertedX;
+            }
          }
 
          const IntegrationRule &irule = GetIntegrationRule(*fes.GetFE(i));
@@ -1105,6 +1194,20 @@ real_t TMOPNewtonSolver::ComputeDetJptLowerBound(const Vector &d_loc,
    DenseMatrix dshape, Jpr, pos;
    Vector d_loc_el, detvals;
 
+   const ParametricStateTransformation *state_transformation = nullptr;
+#ifdef MFEM_USE_MPI
+   if (const auto *param_nlf =
+          dynamic_cast<const ParametricParNonlinearForm *>(oper))
+   {
+      state_transformation = &param_nlf->GetStateTransformation();
+   }
+#endif
+   Vector physical_state;
+   if (state_transformation)
+   {
+      state_transformation->TransformPrimal(d_loc, physical_state);
+   }
+
    for (int e = 0; e < fes.GetNE(); e++)
    {
       const FiniteElement *fe = fes.GetFE(e);
@@ -1114,16 +1217,23 @@ real_t TMOPNewtonSolver::ComputeDetJptLowerBound(const Vector &d_loc,
       pos.SetSize(dof, dim);
       Vector posV(pos.Data(), dof * dim);
 
-      x_0.GetElementDofValues(e, posV);
-      if (periodic)
-      {
-         auto n_el = dynamic_cast<const NodalFiniteElement *>(fe);
-         n_el->ReorderLexToNative(dim, posV);
-      }
-
       fes.GetElementVDofs(e, xdofs);
-      d_loc.GetSubVector(xdofs, d_loc_el);
-      posV += d_loc_el;
+      if (state_transformation)
+      {
+         physical_state.GetSubVector(xdofs, posV);
+      }
+      else
+      {
+         x_0.GetElementDofValues(e, posV);
+         if (periodic)
+         {
+            auto n_el = dynamic_cast<const NodalFiniteElement *>(fe);
+            n_el->ReorderLexToNative(dim, posV);
+         }
+
+         d_loc.GetSubVector(xdofs, d_loc_el);
+         posV += d_loc_el;
+      }
 
       const IntegrationRule &irule = det_fes->GetFE(e)->GetNodes();
       const int nsp = irule.GetNPoints();

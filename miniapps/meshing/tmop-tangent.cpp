@@ -383,7 +383,7 @@ int main (int argc, char *argv[])
    }
 
    AnalyticCompositeSurface surfaces(surf_array, std::move(dof_to_surface));
-   surfaces.ConvertPhysCoordToParam(coord_x, coord_t);
+   surfaces.TransformPrimalInverse(coord_x, coord_t);
 
    if (glvis)
    {
@@ -401,7 +401,7 @@ int main (int argc, char *argv[])
                             pfes_mesh.GetComm());
    target.SetNodes(coord_x);
    auto integ = new TMOP_Integrator(metric, &target, nullptr);
-   integ->EnableTangentialMovement(surfaces, pfes_mesh);
+   if (pa) { integ->EnableTangentialMovement(surfaces, pfes_mesh); }
 
    ParFiniteElementSpace pfes_dist(&pmesh, pfes_mesh.FEColl(), 1);
    ParGridFunction dist(&pfes_dist);
@@ -416,15 +416,23 @@ int main (int argc, char *argv[])
    minres.SetAbsTol(0.0);
 
    // Nonlinear solver.
-   ParNonlinearForm nlf(&pfes_mesh);
-   if (pa) { nlf.SetAssemblyLevel(AssemblyLevel::PARTIAL); }
-   nlf.SetEssentialVDofs(ess_vdofs);
-   nlf.AddDomainIntegrator(integ);
-   if (pa) { nlf.Setup(); }
+   std::unique_ptr<ParNonlinearForm> nlf;
+   if (pa)
+   {
+      nlf.reset(new ParNonlinearForm(&pfes_mesh));
+      nlf->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
+   else
+   {
+      nlf.reset(new ParametricParNonlinearForm(&pfes_mesh, surfaces));
+   }
+   nlf->SetEssentialVDofs(ess_vdofs);
+   nlf->AddDomainIntegrator(integ);
+   if (pa) { nlf->Setup(); }
    const IntegrationRule &ir =
     IntRules.Get(pfes_mesh.GetFE(0)->GetGeomType(), quad_order);
    TMOPNewtonSolver solver(pfes_mesh.GetComm(), ir, 0);
-   solver.SetOperator(nlf);
+   solver.SetOperator(*nlf);
    solver.SetPreconditioner(minres);
    solver.SetPrintLevel(1);
    solver.SetMaxIter(50);
@@ -436,7 +444,7 @@ int main (int argc, char *argv[])
    coord_t.SetTrueVector();
    solver.Mult(zero, coord_t.GetTrueVector());
    coord_t.SetFromTrueVector();
-   surfaces.ConvertParamCoordToPhys(coord_t, coord_x);
+   surfaces.TransformPrimal(coord_t, coord_x);
    if(glvis)
    {
       socketstream vis2;
