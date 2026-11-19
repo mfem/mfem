@@ -267,7 +267,7 @@ public:
          constexpr size_t i = ic.value;
          using FOP = tuple_element_t<i, inputs_t>;
          LoadField<backend_t, qfunc_t, i, FOP>(
-            smem, e, q1d, in.dtq[i], in_XE[i], get<i>(rargs));
+            smem, e, in.dtq[i], in_XE[i], get<i>(rargs));
       });
 
       // -----------------------------------------------
@@ -280,7 +280,7 @@ public:
          if constexpr (input_activity[i])
          {
             LoadField<backend_t, qfunc_t, i, FOP>(
-               smem, e, q1d, in.dtq[i], in_XE_dir[i], get<i>(sargs));
+               smem, e, in.dtq[i], in_XE_dir[i], get<i>(sargs));
          }
       });
 
@@ -502,7 +502,7 @@ public:
          constexpr size_t i = ic.value, o = n_inputs + i;
          using FOP = tuple_element_t<i, outputs_t>;
          WriteField<backend_t, qfunc_t, o, FOP>(
-            smem, e, q1d, out.dtq[i], out_YE[i], get<o>(rargs));
+            smem, e, out.dtq[i], out_YE[i], get<o>(rargs));
       });
 
    }

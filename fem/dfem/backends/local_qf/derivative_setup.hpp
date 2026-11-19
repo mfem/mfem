@@ -245,7 +245,7 @@ public:
             constexpr size_t i = ic.value;
             using FOP = tuple_element_t<i, inputs_t>;
             LoadField<backend_t, qfunc_t, i, FOP>(
-               smem, e, q1d, in.dtq[i], in_XE[i], get<i>(rargs));
+               smem, e, in.dtq[i], in_XE[i], get<i>(rargs));
          });
          MFEM_SYNC_THREAD;
 

@@ -263,7 +263,7 @@ public:
             if constexpr (!Layout::template StaticInputDep<i>()) { return; }
             using FOP = tuple_element_t<i, inputs_t>;
             LoadField<backend_t, qfunc_t, i, FOP>(
-               smem, e, q1d, in.dtq[i], in_XE_dir[i], get<i>(sargs));
+               smem, e, in.dtq[i], in_XE_dir[i], get<i>(sargs));
          });
          MFEM_SYNC_THREAD;
 
@@ -377,7 +377,7 @@ public:
             constexpr size_t i = ic.value, o = n_inputs + i;
             using FOP = tuple_element_t<i, outputs_t>;
             WriteField<backend_t, qfunc_t, o, FOP>(
-               smem, e, q1d, out.dtq[i], out_YE[i], get<i>(rargs));
+               smem, e, out.dtq[i], out_YE[i], get<i>(rargs));
          });
       },
       ctx.marked_entities.Size(),

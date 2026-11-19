@@ -969,17 +969,6 @@ MFEM_HOST_DEVICE inline int derivative_cache_col(const int c_offset,
    return c_offset + j + vdim * m;
 }
 
-
-/// Column of the derivative qp cache that holds the response to component
-/// (j, m) of a dependent input: vdim index j, operator index m.
-MFEM_HOST_DEVICE inline int derivative_cache_col(const int c_offset,
-                                                 const int vdim,
-                                                 const int j,
-                                                 const int m)
-{
-   return c_offset + j + vdim * m;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 /// Per-output FOP layout metadata (shared by derivative setup / apply kernels).
 
@@ -1441,21 +1430,30 @@ using pick_byDIM = tuple_element_t<DIM - 1, tuple<Ts...>>;
 template <int DIM, typename FOP, size_t N>
 int ESize(const FieldMetadata<N> &m, const size_t i, const int ne)
 {
-   const bool dofs = is_value_fop_v<FOP> || is_gradient_fop_v<FOP>;
+   constexpr bool dofs = is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                         is_div_fop_v<FOP> || is_curl_fop_v<FOP>;
+   // ND/RT dofs have per-component extents, so they are counted flat
+   if (dofs && m.dtq[i].IsVectorFE()) { return m.dtq[i].ndof * ne; }
    const int n = dofs ? m.d1d(i) : m.q1d(i);
    return n * ny<DIM>(n) * nz<DIM>(n) * m.vdim[i] * ne;
 }
 
 /// Tensor view of the E-vector @a x of field @a i of @a m, with field operator
 /// @a FOP, on @a ne entities of dimension @a DIM: dofs (d, d, d, v, ne) for
-/// Value and Gradient, quadrature data (v, q, q, q, ne) otherwise. Axes beyond
-/// DIM have extent 1.
+/// Value, Gradient, Div and Curl, quadrature data (v, q, q, q, ne) otherwise.
+/// Axes beyond DIM have extent 1. ND/RT dofs are viewed flat (ndof, 1, 1, 1,
+/// ne), since their extents differ per component.
 template <int DIM, typename FOP, typename T, size_t N>
 auto ReshapeE(T *x, const FieldMetadata<N> &m, const size_t i, const int ne)
 {
    const int v = m.vdim[i];
-   if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP>)
+   if constexpr (is_value_fop_v<FOP> || is_gradient_fop_v<FOP> ||
+                 is_div_fop_v<FOP> || is_curl_fop_v<FOP>)
    {
+      if (m.dtq[i].IsVectorFE())
+      {
+         return Reshape(x, m.dtq[i].ndof, 1, 1, 1, ne);
+      }
       const int d = m.d1d(i);
       return Reshape(x, d, ny<DIM>(d), nz<DIM>(d), v, ne);
    }
@@ -1595,21 +1593,29 @@ CotangentViews(const IntegratorContext<entity_t> &ctx, const Vector &dir,
 template <typename backend_t, typename qfunc_t, size_t SLOT, typename FOP,
           typename XE_t, typename rarg_t>
 MFEM_HOST_DEVICE inline MFEM_FORCE_INLINE
-void LoadField(typename backend_t::Shared &smem, const int e, const int q1d,
+void LoadField(typename backend_t::Shared &smem, const int e,
                const DofToQuadMap &dtq, XE_t &XE, rarg_t &rarg)
 {
-   const int d = dtq.B.GetShape()[DofToQuadMap::DOF];
-   const int q = dtq.B.GetShape()[DofToQuadMap::QP];
    if constexpr (is_value_fop_v<FOP>)
    {
-      backend_t::LoadValue(smem, e, d, q, q1d, dtq.B, XE, rarg);
+      // Scalar or vector (ND/RT) element, dispatched on dtq
+      backend_t::LoadValue(smem, e, dtq, XE, rarg);
+   }
+   else if constexpr (is_div_fop_v<FOP>)
+   {
+      backend_t::LoadDiv(smem, e, dtq, XE, rarg);
+   }
+   else if constexpr (is_curl_fop_v<FOP>)
+   {
+      static_assert(dfem::always_false<FOP>,
+                    "LocalQF: Curl<> is not implemented yet");
    }
    else if constexpr (is_gradient_fop_v<FOP>)
    {
       using param_t = typename qf_param_slot<qfunc_t, SLOT>::qf_decay_param_t;
       constexpr auto RNK = qf_param_slot<qfunc_t, SLOT>::extents.size();
       backend_t::template LoadGradient<RNK, rarg_t, XE_t, param_t>(
-         smem, e, d, q, q1d, dtq.B, dtq.G, XE, rarg);
+         smem, e, dtq, XE, rarg);
    }
    else
    {
@@ -1625,21 +1631,29 @@ void LoadField(typename backend_t::Shared &smem, const int e, const int q1d,
 template <typename backend_t, typename qfunc_t, size_t SLOT, typename FOP,
           typename YE_t, typename rarg_t>
 MFEM_HOST_DEVICE inline MFEM_FORCE_INLINE
-void WriteField(typename backend_t::Shared &smem, const int e, const int q1d,
+void WriteField(typename backend_t::Shared &smem, const int e,
                 const DofToQuadMap &dtq, YE_t &YE, rarg_t &rarg)
 {
-   const int d = dtq.B.GetShape()[DofToQuadMap::DOF];
-   const int q = dtq.B.GetShape()[DofToQuadMap::QP];
    if constexpr (is_value_fop_v<FOP>)
    {
-      backend_t::WriteValue(smem, e, d, q, q1d, dtq.B, YE, rarg);
+      // Scalar or vector (ND/RT) element, dispatched on dtq
+      backend_t::WriteValue(smem, e, dtq, YE, rarg);
+   }
+   else if constexpr (is_div_fop_v<FOP>)
+   {
+      backend_t::WriteDiv(smem, e, dtq, YE, rarg);
+   }
+   else if constexpr (is_curl_fop_v<FOP>)
+   {
+      static_assert(dfem::always_false<FOP>,
+                    "LocalQF: Curl<> is not implemented yet");
    }
    else if constexpr (is_gradient_fop_v<FOP>)
    {
       using param_t = typename qf_param_slot<qfunc_t, SLOT>::qf_decay_param_t;
       constexpr auto RNK = qf_param_slot<qfunc_t, SLOT>::extents.size();
       backend_t::template WriteGradient<RNK, rarg_t, YE_t, param_t>(
-         smem, e, d, q, q1d, dtq.B, dtq.G, YE, rarg);
+         smem, e, dtq, YE, rarg);
    }
    else
    {

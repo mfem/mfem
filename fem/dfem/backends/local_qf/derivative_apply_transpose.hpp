@@ -287,7 +287,7 @@ public:
             constexpr size_t o = oc.value;
             using FOP = tuple_element_t<o, outputs_t>;
             LoadField<backend_t, qfunc_t, n_inputs + o, FOP>(
-               smem, e, q1d, out.dtq[o], out_XE_dir[o], get<o>(oargs));
+               smem, e, out.dtq[o], out_XE_dir[o], get<o>(oargs));
          });
          MFEM_SYNC_THREAD;
 
@@ -400,7 +400,7 @@ public:
             if constexpr (Layout::template StaticInputDep<s>())
             {
                WriteField<backend_t, qfunc_t, s, FOP>(
-                  smem, e, q1d, in.dtq[s], ye_XE, get<s>(iargs));
+                  smem, e, in.dtq[s], ye_XE, get<s>(iargs));
             }
          });
       },
