@@ -42,14 +42,20 @@ Uses the following GitHub Actions from <https://github.com/mfem/github-actions>:
 - `mfem/github-actions/build-mfem`
 - `mfem/github-actions/upload-coverage`
 
+## `codspeed.yml`
+
+Builds the benchmarks of `tests/benchmarks` and measures a subset of them with [CodSpeed](https://app.codspeed.io/mfem/mfem), which reports the performance changes of the pull requests.
+
+The benchmarks are built by setting `-DMFEM_USE_CODSPEED=YES` in the CMake configuration: Google Benchmark is then replaced by [CodSpeed's compatibility layer](https://github.com/CodSpeedHQ/codspeed-cpp), which is fetched automatically. The measured benchmarks are selected in `tests/benchmarks/codspeed.sh`.
+
 ## Sanitizer Workflow for MFEM Verification
 
 This workflow validates MFEM unit tests, examples, and miniapps using sanitizer tools.
 
 - `sanitizers.yml` orchestrates:
   - Building and caching dependencies: HYPRE, METIS, LSAN suppression file, and LLVM libcxx.
-  - Launching fine-grained jobs for serial (ASAN, MSAN, UBSAN) and parallel (ASAN, UBSAN) sanitizers.
-- `sanitize-tests.yml` is a reusable workflow accepting `par` mode (`true` for parallel) and `sanitizer` (ASAN, MSAN, or UBSAN) as inputs. It executes the following jobs:
+  - Launching fine-grained jobs for serial (ASAN+UBSAN, MSAN) and parallel (ASAN+UBSAN) sanitizers. UBSAN can be combined with ASAN in the same build, so the asan-ubsan pipelines test both sanitizers at once. MSAN cannot be combined with ASAN, and runs only serially because it requires every linked library to be MSAN-instrumented, which rules out MPI/HYPRE/METIS.
+- `sanitize-tests.yml` is a reusable workflow accepting `par` mode (`true` for parallel) and `sanitizer` (`asan-ubsan` or `msan`) as inputs. It executes the following jobs:
   - **Build**: Compiles the MFEM library with specified parallel and sanitizer settings.
   - **Check**: Runs verification checks.
   - Parallel jobs to test the following: **Examples**, **Miniapps** and **Unit tests**
