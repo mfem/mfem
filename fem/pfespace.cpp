@@ -4719,9 +4719,12 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
    HYPRE_BigInt old_offset = HYPRE_AssumedPartitionCheck()
                              ? old_dof_offsets[0] : old_dof_offsets[MyRank];
 
-   // Face orientations are only needed by spaces with DOF transformations.
+   // Face orientations are only needed by non-identity DOF transformations.
    bool doftrans = false;
-   for (const auto *t : DoFTransArray) { doftrans = doftrans || t; }
+   for (const auto *t : DoFTransArray)
+   {
+      doftrans = doftrans || (t && !t->IsIdentity());
+   }
    const Table *fos = doftrans ? old_elem_fos : nullptr;
 
    // send old DOFs of elements we used to own
@@ -4751,14 +4754,20 @@ ParFiniteElementSpace::RebalanceMatrix(int old_ndofs,
    {
       GetElementDofs(elem, dofs, new_doftrans);
       const int n = dofs.Size();
-      const auto *dt = DoFTransArray[mesh->GetElementBaseGeometry(elem)];
-      old_doftrans.SetDofTransformation(old_fo.Size() ? dt : nullptr);
-      old_doftrans.SetFaceOrientations(old_fo);
 
-      const bool identity = new_doftrans.IsIdentity() &&
-                            old_doftrans.IsIdentity();
+      // T_new T_old^{-1} is the identity if the face orientations are the same.
+      bool identity = new_doftrans.IsIdentity();
       if (!identity)
       {
+         const Array<int> &new_fo = new_doftrans.GetFaceOrientations();
+         identity = old_fo.Size() == new_fo.Size() &&
+                    std::equal(old_fo.begin(), old_fo.end(), new_fo.begin());
+      }
+      if (!identity)
+      {
+         const auto *dt = DoFTransArray[mesh->GetElementBaseGeometry(elem)];
+         old_doftrans.SetDofTransformation(old_fo.Size() ? dt : nullptr);
+         old_doftrans.SetFaceOrientations(old_fo);
          T.Diag(1.0, n);
          for (int j = 0; j < n; j++)
          {
