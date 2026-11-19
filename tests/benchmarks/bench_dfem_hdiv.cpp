@@ -9,11 +9,12 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// H(div) counterpart of bench_dfem: CG on the RT mass (u, v).
+// H(div) counterpart of bench_dfem: CG on the RT mass (u, v) and on the RT
+// div-div (div u, div v).
 //
 // Notation:
 //
-//   HDIV_MASS/<impl>/<p>/<n>/<k>:
+//   HDIV_<MASS|DIVDIV>/<impl>/<p>/<n>/<k>:
 //   - <impl> is the variant (local/global, cahced/mf, etc...)
 //   - p the order given to RT_FECollection
 //   - n, k the unit cube mesh: n^3 affine hexes, with n + 1 elements along
@@ -28,6 +29,7 @@
 //   GPU (CUDA; use device=hip on AMD):
 //     ./bench_dfem_hdiv --benchmark_context=device=cuda --benchmark_filter='HDIV_MASS/.*/3/32/0$'
 //     ./bench_dfem_hdiv --benchmark_context=device=cuda --benchmark_filter='HDIV_MASS/(mfem_std|PA_dfem_local_primal)/3/'
+//     ./bench_dfem_hdiv --benchmark_context=device=cuda --benchmark_filter='HDIV_DIVDIV/.*/3/32/0$'
 //
 
 #include "bench.hpp" // IWYU pragma: keep
@@ -69,6 +71,7 @@ using future::DifferentiableOperator;
 using future::FieldDescriptor;
 using future::Gradient;
 using future::Value;
+using future::Div;
 using future::Weight;
 using future::Identity;
 
@@ -76,10 +79,11 @@ using future::Identity;
 void info()
 {
    mfem::out << "\x1b[33m";
-   mfem::out << "name: HDIV_MASS/<impl>/<order>/<n>/<k>,"
+   mfem::out << "name: HDIV_<MASS|DIVDIV>/<impl>/<order>/<n>/<k>,"
              << " mesh (n + (k > 0)) x (n + (k > 1)) x n" << std::endl;
    mfem::out << "expression: braces mark kernel launch boundaries" << std::endl;
-   mfem::out << "            B: RT values" << std::endl;
+   mfem::out << "            B: RT values (MASS) or divergences (DIVDIV)"
+             << std::endl;
    mfem::out << "\x1b[m" << std::endl;
 }
 
@@ -101,44 +105,53 @@ enum class Version
    PA_dfem_local_derivative,
 };
 
+// Form: the bilinear form, which names the benchmark problem
+enum class Form { Mass, DivDiv };
+
+template <Form FORM>
+constexpr const char *FormPath() noexcept
+{
+   return FORM == Form::Mass ? "HDIV_MASS" : "HDIV_DIVDIV";
+}
+
 template <Version VER>
 constexpr const char *BenchmarkPath() noexcept
 {
    if constexpr (VER == Version::PA_mfem_std)
    {
-      return "HDIV_MASS/mfem_std";
+      return "mfem_std";
    }
    else if constexpr (VER == Version::MF_dfem_global_primal)
    {
-      return "HDIV_MASS/MF_dfem_global_primal";
+      return "MF_dfem_global_primal";
    }
    else if constexpr (VER == Version::PA_dfem_global_primal)
    {
-      return "HDIV_MASS/PA_dfem_global_primal";
+      return "PA_dfem_global_primal";
    }
    else if constexpr (VER == Version::MF_dfem_local_primal)
    {
-      return "HDIV_MASS/MF_dfem_local_primal";
+      return "MF_dfem_local_primal";
    }
    else if constexpr (VER == Version::PA_dfem_local_primal)
    {
-      return "HDIV_MASS/PA_dfem_local_primal";
+      return "PA_dfem_local_primal";
    }
    else if constexpr (VER == Version::MF_dfem_global_derivative)
    {
-      return "HDIV_MASS/MF_dfem_global_derivative";
+      return "MF_dfem_global_derivative";
    }
    else if constexpr (VER == Version::MF_dfem_local_derivative)
    {
-      return "HDIV_MASS/MF_dfem_local_derivative";
+      return "MF_dfem_local_derivative";
    }
    else if constexpr (VER == Version::PA_dfem_global_derivative)
    {
-      return "HDIV_MASS/PA_dfem_global_derivative";
+      return "PA_dfem_global_derivative";
    }
    else if constexpr (VER == Version::PA_dfem_local_derivative)
    {
-      return "HDIV_MASS/PA_dfem_local_derivative";
+      return "PA_dfem_local_derivative";
    }
    return "invalid";
 }
@@ -384,7 +397,8 @@ static void CustomArguments(bm::Benchmark *b) noexcept
 {
    constexpr int MAX_NDOFS = 8 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
-   // p <= 6: the registered MFEM, QuadratureInterpolator and dFEM kernels
+   // p <= 6: the registered MFEM, QuadratureInterpolator and dFEM kernels;
+   // MFEM's generic PA div-div kernel stops at p = 3 on GPU (HasMFEMPA)
    const auto orders = std::vector<int> { 6, 5, 4, 3, 2, 1, 0 };
 
    // Meshes n^3, (n+1) n^2 and (n+1)^2 n, kept when their dofs grow by at
@@ -427,6 +441,11 @@ void AddQIHdivSpecializations(std::integer_sequence<int, D1D...> = {})
     ...);
    (QI::TensorEvalHDivTransposeKernels::Specialization<3, L, QI::VALUES, D1D, D1D>::Add(),
     ...);
+   // Div<U> in the GlobalQF backend: reference divergence and its transpose
+   (QI::TensorEvalHDivDivKernels::Specialization<3, QI::DERIVATIVES, D1D, D1D>::Add(),
+    ...);
+   (QI::TensorEvalHDivTransposeKernels::Specialization<3, QVectorLayout::byNODES,
+    QI::DERIVATIVES, D1D, D1D>::Add(), ...);
    (QI::GradKernels::Specialization<3, L, false, 3, 2, D1D>::Add(), ...);
 }
 
@@ -548,16 +567,143 @@ struct PA_HdivMass_Apply_local_qf
    }
 };
 
+//-----------------------------------------------------------------------------------
+//<--- Q-Functions for H(div) DivDiv Operators
+//-----------------------------------------------------------------------------------
+
+// Piola transform for H(div), with div u in reference coordinates:
+//   (div u, div v) = \int (w / det J) div u div v
+
+// GLOBAL H(div) DivDiv Q-Functions
+template<int DIM>
+struct MF_HdivDivDiv_global_qf
+{
+   void operator()(tensor_array<const real_t> &div_u,
+                   tensor_array<const real_t, DIM, DIM> &J,
+                   tensor_array<const real_t> &weight,
+                   tensor_array<real_t> &div_v) const
+   {
+      mfem::forall<UseEnzyme>(weight.size(), [=] MFEM_HOST_DEVICE (int q)
+      {
+         const tensor<real_t, DIM, DIM> Jq = J(q);
+         const real_t div_uq = div_u(q);
+         div_v(q) = (weight(q) / det(Jq)) * div_uq;
+      });
+   }
+};
+
+template<int DIM>
+struct PA_HdivDivDiv_Setup_global_qf
+{
+   void operator()(tensor_array<const real_t, DIM, DIM> &J,
+                   tensor_array<const real_t> &weight,
+                   tensor_array<real_t> &D) const
+   {
+      mfem::forall(weight.size(), [=] MFEM_HOST_DEVICE (int q)
+      {
+         const tensor<real_t, DIM, DIM> Jq = J(q);
+         D(q) = weight(q) / det(Jq);
+      });
+   }
+};
+
+template<int DIM>
+struct PA_HdivDivDiv_Apply_global_qf
+{
+   void operator()(tensor_array<const real_t> &div_u,
+                   tensor_array<const real_t> &D,
+                   tensor_array<real_t> &div_v) const
+   {
+      mfem::forall(div_u.size(), [=] MFEM_HOST_DEVICE (int q)
+      {
+         const real_t div_uq = div_u(q), Dq = D(q);
+         div_v(q) = Dq * div_uq;
+      });
+   }
+};
+
+// LOCAL H(div) DivDiv Q-Functions
+template<int DIM>
+struct MF_HdivDivDiv_local_qf
+{
+   MFEM_HOST_DEVICE inline
+   void operator()(const real_t &div_u,
+                   const tensor<real_t, DIM, DIM> &J,
+                   const real_t &weight,
+                   real_t &div_v) const
+   {
+      div_v = (weight / det(J)) * div_u;
+   }
+};
+
+template<int DIM>
+struct PA_HdivDivDiv_Setup_local_qf
+{
+   MFEM_HOST_DEVICE inline
+   void operator()(const tensor<real_t, DIM, DIM> &J,
+                   const real_t &weight,
+                   real_t &D) const
+   {
+      D = weight / det(J);
+   }
+};
+
+template<int DIM>
+struct PA_HdivDivDiv_Apply_local_qf
+{
+   MFEM_HOST_DEVICE inline
+   void operator()(const real_t &div_u,
+                   const real_t &D,
+                   real_t &div_v) const
+   {
+      div_v = D * div_u;
+   }
+};
+
+//-----------------------------------------------------------------------------------
+//<--- H(div) forms: what each form changes in the BakeOff
+//-----------------------------------------------------------------------------------
+
+template <Form FORM, int DIM> struct HdivForm;
+
+template <int DIM> struct HdivForm<Form::Mass, DIM>
+{
+   using Integrator = VectorFEMassIntegrator;
+   template <int U> using UOp = Value<U>; // u at the quadrature points
+   static constexpr int qdata_vdim = DIM * DIM; // PA data D = c Jᵀ J
+   using MF_global_qf = MF_HdivMass_global_qf<DIM>;
+   using PA_Setup_global_qf = PA_HdivMass_Setup_global_qf<DIM>;
+   using PA_Apply_global_qf = PA_HdivMass_Apply_global_qf<DIM>;
+   using MF_local_qf = MF_HdivMass_local_qf<DIM>;
+   using PA_Setup_local_qf = PA_HdivMass_Setup_local_qf<DIM>;
+   using PA_Apply_local_qf = PA_HdivMass_Apply_local_qf<DIM>;
+};
+
+template <int DIM> struct HdivForm<Form::DivDiv, DIM>
+{
+   using Integrator = DivDivIntegrator;
+   template <int U> using UOp = Div<U>; // div u at the quadrature points
+   static constexpr int qdata_vdim = 1; // PA data D = c
+   using MF_global_qf = MF_HdivDivDiv_global_qf<DIM>;
+   using PA_Setup_global_qf = PA_HdivDivDiv_Setup_global_qf<DIM>;
+   using PA_Apply_global_qf = PA_HdivDivDiv_Apply_global_qf<DIM>;
+   using MF_local_qf = MF_HdivDivDiv_local_qf<DIM>;
+   using PA_Setup_local_qf = PA_HdivDivDiv_Setup_local_qf<DIM>;
+   using PA_Apply_local_qf = PA_HdivDivDiv_Apply_local_qf<DIM>;
+};
 
 //-----------------------------------------------------------------------------------
 //<--- BakeOff problem
 //-----------------------------------------------------------------------------------
 
-template <Version VER>
+template <Form FORM, Version VER>
 struct HdivBakeOff
 {
    static constexpr Version version = VER;
    static constexpr int DIM = 3;
+   static constexpr int U = 0, Coords = 1, Q = 2;
+   using F = HdivForm<FORM, DIM>;
+   using UOp = typename F::template UOp<U>;
    const int p, n, k, q, nx, ny, nz;
    Mesh smesh;
    ParMesh pmesh;
@@ -579,7 +725,6 @@ struct HdivBakeOff
    Vector B, X;
    OperatorPtr A;
 
-   static constexpr int U = 0, Coords = 1, Q = 2;
    std::unique_ptr<DifferentiableOperator> dop;
    std::unique_ptr<DifferentiableOperator> qdata_setup_dop;
    std::shared_ptr<future::DerivativeOperator> ddop;
@@ -625,14 +770,28 @@ struct HdivBakeOff
 
    void AddHdivIntegrators(ParBilinearForm &form)
    {
-      auto *mass = new VectorFEMassIntegrator();
-      mass->SetIntRule(ir);
-      form.AddDomainIntegrator(mass);
+      auto *integ = new typename F::Integrator();
+      integ->SetIntRule(ir);
+      form.AddDomainIntegrator(integ);
    }
 
-   // Check a dFEM L-vector operator against MFEM PA on a random vector
+   // MFEM's PA div-div kernel is generic, limited to D1D = Q1D = p + 2 <=
+   // HDIV_MAX_D1D, HDIV_MAX_Q1D: p <= 3 on GPU
+   static bool HasMFEMPA(int order)
+   {
+      if constexpr (FORM == Form::DivDiv)
+      {
+         const auto &limits = DeviceDofQuadLimits::Get();
+         return order + 2 <= std::min(limits.HDIV_MAX_D1D, limits.HDIV_MAX_Q1D);
+      }
+      return true;
+   }
+
+   // Check a dFEM L-vector operator against MFEM PA on a random vector, when
+   // MFEM PA supports this order
    void VerifyAgainstMFEM(const Operator &op)
    {
+      if (!HasMFEMPA(p)) { return; }
       ParBilinearForm ref(&pfes);
       AddHdivIntegrators(ref);
       ref.SetAssemblyLevel(AssemblyLevel::PARTIAL);
@@ -670,7 +829,7 @@ struct HdivBakeOff
       B(pfes.GetVSize()),
       X(x),
       qspace(pmesh, *ir),
-      vqspace(qspace, DIM*DIM),
+      vqspace(qspace, F::qdata_vdim),
       qfct(vqspace)
    {
       smesh.Clear();
@@ -732,12 +891,12 @@ struct HdivBakeOff
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          dop->template AddDomainIntegrator<backend_t>(
             qfunction,
-            tuple{Value<U>{}, Gradient<Coords>{}, Weight{}},
-            tuple{Value<U>{}},
+            tuple{UOp{}, Gradient<Coords>{}, Weight{}},
+            tuple{UOp{}},
             *ir, dom_attr);
          using QT = decltype(qfunction);
-         using IT = decltype(tuple{Value<U>{}, Gradient<Coords>{}, Weight{}});
-         using OT = decltype(tuple{Value<U>{}});
+         using IT = decltype(tuple{UOp{}, Gradient<Coords>{}, Weight{}});
+         using OT = decltype(tuple{UOp{}});
          AddLocalQFActionSpecializations<backend_t, DIM, QT, IT, OT>(Q1Ds{});
          formLinearSystem(nodes);
          VerifyAgainstMFEM(*wop);
@@ -753,12 +912,12 @@ struct HdivBakeOff
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          dop->template AddDomainIntegrator<backend_t>(
             qfunction,
-            tuple{Value<U>{}, Gradient<Coords>{}, Weight{}},
-            tuple{Value<U>{}},
+            tuple{UOp{}, Gradient<Coords>{}, Weight{}},
+            tuple{UOp{}},
             *ir, dom_attr, future::Derivatives<U> {});
          using QT = decltype(qfunction);
-         using IT = decltype(tuple{Value<U>{}, Gradient<Coords>{}, Weight{}});
-         using OT = decltype(tuple{Value<U>{}});
+         using IT = decltype(tuple{UOp{}, Gradient<Coords>{}, Weight{}});
+         using OT = decltype(tuple{UOp{}});
          AddLocalQFDerivativeSpecializations<backend_t, DIM, U, QT, IT, OT>(Q1Ds{});
          MultiVector state{x, nodes};
          ddop = dop->GetDerivative(U, state, use_cached_setup);
@@ -803,12 +962,12 @@ struct HdivBakeOff
          dop->SetMultLevel(DifferentiableOperator::MultLevel::LVECTOR);
          dop->template AddDomainIntegrator<backend_t>(
             apply_qf,
-            tuple{Value<U>{}, Identity<Q>{}},
-            tuple{Value<U>{}},
+            tuple{UOp{}, Identity<Q>{}},
+            tuple{UOp{}},
             *ir, dom_attr);
          using ApplyQT = decltype(apply_qf);
-         using ApplyIT = decltype(tuple{Value<U>{}, Identity<Q>{}});
-         using ApplyOT = decltype(tuple{Value<U>{}});
+         using ApplyIT = decltype(tuple{UOp{}, Identity<Q>{}});
+         using ApplyOT = decltype(tuple{UOp{}});
          AddLocalQFActionSpecializations<backend_t, DIM, ApplyQT, ApplyIT, ApplyOT>
          (Q1Ds{});
          timeSetup([&] { formLinearSystem(qfct); });
@@ -823,40 +982,40 @@ struct HdivBakeOff
       // dFEM Global versions
       else if constexpr (VER == Version::MF_dfem_global_primal)
       {
-         dMFSetup(global_backend{}, MF_HdivMass_global_qf<DIM> {});
+         dMFSetup(global_backend{}, typename F::MF_global_qf {});
       }
       else if constexpr (VER == Version::MF_dfem_global_derivative)
       {
-         dMFGetDerivativeSetup(global_backend{}, MF_HdivMass_global_qf<DIM> {}, false);
+         dMFGetDerivativeSetup(global_backend{}, typename F::MF_global_qf {}, false);
       }
       else if constexpr (VER == Version::PA_dfem_global_derivative)
       {
-         dMFGetDerivativeSetup(global_backend{}, MF_HdivMass_global_qf<DIM> {}, true);
+         dMFGetDerivativeSetup(global_backend{}, typename F::MF_global_qf {}, true);
       }
       else if constexpr (VER == Version::PA_dfem_global_primal)
       {
          dPASetup(global_backend{},
-                  PA_HdivMass_Setup_global_qf<DIM> {},
-                  PA_HdivMass_Apply_global_qf<DIM> {});
+                  typename F::PA_Setup_global_qf {},
+                  typename F::PA_Apply_global_qf {});
       }
       // dFEM Local versions
       else if constexpr (VER == Version::MF_dfem_local_primal)
       {
-         dMFSetup(local_backend{}, MF_HdivMass_local_qf<DIM> {});
+         dMFSetup(local_backend{}, typename F::MF_local_qf {});
       }
       else if constexpr (VER == Version::MF_dfem_local_derivative)
       {
-         dMFGetDerivativeSetup(local_backend{}, MF_HdivMass_local_qf<DIM> {}, false);
+         dMFGetDerivativeSetup(local_backend{}, typename F::MF_local_qf {}, false);
       }
       else if constexpr (VER == Version::PA_dfem_local_derivative)
       {
-         dMFGetDerivativeSetup(local_backend{}, MF_HdivMass_local_qf<DIM> {}, true);
+         dMFGetDerivativeSetup(local_backend{}, typename F::MF_local_qf {}, true);
       }
       else if constexpr (VER == Version::PA_dfem_local_primal)
       {
          dPASetup(local_backend{},
-                  PA_HdivMass_Setup_local_qf<DIM> {},
-                  PA_HdivMass_Apply_local_qf<DIM> {});
+                  typename F::PA_Setup_local_qf {},
+                  typename F::PA_Apply_local_qf {});
       }
       else { static_assert(false, "Invalid version"); }
    }
@@ -875,15 +1034,15 @@ struct HdivBakeOff
    }
 };
 
-// CG on the H(div) mass problem, with a fixed iteration count
-template <Version VER>
-struct HDIV : public HdivBakeOff<VER>
+// CG on the H(div) problem, with a fixed iteration count
+template <Form FORM, Version VER>
+struct HDIV : public HdivBakeOff<FORM, VER>
 {
    const int max_it = 32, print_lvl = -1;
 
    CGSolver cg;
 
-   using base = HdivBakeOff<VER>;
+   using base = HdivBakeOff<FORM, VER>;
    using base::A;
    using base::B;
    using base::X;
@@ -914,6 +1073,13 @@ struct HDIV : public HdivBakeOff<VER>
 template <typename T>
 static void Benchmark(bm::State& state) noexcept
 {
+   // mfem_std: MFEM's PA div-div kernel only supports p + 2 <= HDIV_MAX_D1D
+   // (p <= 3 on GPU)
+   if (T::version == Version::PA_mfem_std && !T::HasMFEMPA(state.range(0)))
+   {
+      state.SkipWithMessage("p + 2 > HDIV_MAX_D1D");
+      return;
+   }
    std::unique_ptr<T> run;
    for ([[maybe_unused]] auto _ : state)
    {
@@ -934,9 +1100,11 @@ static void Benchmark(bm::State& state) noexcept
    state.counters["k"] = bm::Counter(state.range(2));
    state.SetLabel(BenchmarkExpression<T::version>());
 }
-#define REGISTER(VER) \
-   BENCHMARK_TEMPLATE(Benchmark, HDIV<Version::VER>) \
-   ->Name(BenchmarkPath<Version::VER>())->Apply(CustomArguments)->Unit(bm::kMillisecond)
+#define REGISTER_FORM(FORM, VER) \
+   BENCHMARK_TEMPLATE(Benchmark, HDIV<Form::FORM, Version::VER>) \
+   ->Name(std::string(FormPath<Form::FORM>()) + "/" + BenchmarkPath<Version::VER>()) \
+   ->Apply(CustomArguments)->Unit(bm::kMillisecond)
+#define REGISTER(VER) REGISTER_FORM(Mass, VER); REGISTER_FORM(DivDiv, VER)
 
 // {Bᵀ D B u}
 REGISTER(PA_mfem_std);
