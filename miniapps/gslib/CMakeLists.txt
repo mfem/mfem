@@ -61,17 +61,12 @@ if (MFEM_USE_GSLIB)
       MAIN pfindpts.cpp
       LIBRARIES mfem)
 
-  add_mfem_miniapp(particles_redist
-    MAIN particles_redist.cpp
-    LIBRARIES mfem-common)
-
-  add_mfem_miniapp(particles_redist_native
-    MAIN particles_redist_native.cpp
-    LIBRARIES mfem-common)
+    add_mfem_miniapp(particles_redist
+      MAIN particles_redist.cpp
+      LIBRARIES mfem-common)
 
     if (MFEM_ENABLE_TESTING)
-      foreach (test "schwarz_ex1p" "pfindpts" "particles_redist"
-               "particles_redist_native")
+      foreach (test "schwarz_ex1p" "pfindpts" "particles_redist")
         add_test(NAME ${test}_np${MFEM_MPI_NP}
           COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
           ${MPIEXEC_PREFLAGS}
@@ -79,5 +74,21 @@ if (MFEM_USE_GSLIB)
           ${MPIEXEC_POSTFLAGS})
       endforeach()
     endif()
+  endif()
+endif()
+
+# Fix: build and test particles_redist_native without GSLIB. Reason: it needs
+# only MPI, and the GSLIB check kept it out of builds that have no GSLIB.
+if (MFEM_USE_MPI)
+  add_mfem_miniapp(particles_redist_native
+    MAIN particles_redist_native.cpp
+    LIBRARIES mfem-common)
+
+  if (MFEM_ENABLE_TESTING)
+    add_test(NAME particles_redist_native_np${MFEM_MPI_NP}
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+      ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:particles_redist_native> -no-vis
+      ${MPIEXEC_POSTFLAGS})
   endif()
 endif()

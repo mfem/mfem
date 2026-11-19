@@ -20,13 +20,20 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
+# Fix: list the GSLIB miniapps with no condition. Reason: the error rule
+# below needs their names when MFEM is configured without GSLIB.
+GSLIB_SEQ_MINIAPPS = findpts field-diff field-interp schwarz_ex1
+GSLIB_PAR_MINIAPPS = pfindpts schwarz_ex1p particles_redist
 ifeq ($(MFEM_USE_GSLIB),YES)
-   SEQ_MINIAPPS = findpts field-diff field-interp schwarz_ex1
-   PAR_MINIAPPS = pfindpts schwarz_ex1p particles_redist particles_redist_native
+   SEQ_MINIAPPS = $(GSLIB_SEQ_MINIAPPS)
+   PAR_MINIAPPS = $(GSLIB_PAR_MINIAPPS)
 else
    SEQ_MINIAPPS =
    PAR_MINIAPPS =
 endif
+# Fix: add particles_redist_native after the GSLIB check. Reason: it needs
+# only MPI, so it must build and test with or without GSLIB.
+PAR_MINIAPPS += particles_redist_native
 
 ifeq ($(MFEM_USE_MPI),NO)
    MINIAPPS = $(SEQ_MINIAPPS)
@@ -73,8 +80,10 @@ meshing-data:
 	$(MAKE) -C ../meshing copy-data
 endif
 
+# Fix: use the GSLIB miniapp names as targets, not $(MINIAPPS). Reason:
+# without GSLIB, $(MINIAPPS) has no GSLIB name, so the error never occurred.
 ifeq ($(MFEM_USE_GSLIB),NO)
-$(MINIAPPS):
+$(GSLIB_SEQ_MINIAPPS) $(GSLIB_PAR_MINIAPPS):
 	$(error MFEM is not configured with GSLIB)
 endif
 
