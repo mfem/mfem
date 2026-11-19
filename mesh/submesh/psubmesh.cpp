@@ -16,7 +16,7 @@
 #include <iostream>
 #include <unordered_set>
 #include <algorithm>
-#include <vector>
+#include <utility>
 #include "psubmesh.hpp"
 #include "pncsubmesh.hpp"
 #include "submesh_utils.hpp"
@@ -666,26 +666,19 @@ namespace
 // entities of a group must be listed in the same order on all of its ranks, but
 // the local numbering of the parent groups is not the same on all ranks (it
 // depends on how the parent ParMesh was constructed). Therefore, visit the
-// parent groups in the order of their sets of ranks, which is the same on all
-// ranks.
+// parent groups in the order of (master rank, index of the group on its
+// master), which identifies a group on all of its ranks, as in
+// GroupCommunicator::Finalize.
 Array<int> GloballyOrderedParentGroups(const ParMesh &parent)
 {
-   const int ngroups = parent.GetNGroups();
-   std::vector<std::vector<int>> group_ranks(ngroups);
-   Array<int> groups(ngroups > 0 ? ngroups - 1 : 0);
-   for (int g = 1; g < ngroups; g++)
+   const GroupTopology &gt = parent.gtopo;
+   Array<int> groups(std::max(parent.GetNGroups() - 1, 0));
+   for (int g = 1; g < parent.GetNGroups(); g++) { groups[g - 1] = g; }
+   std::sort(groups.begin(), groups.end(), [&gt](int a, int b)
    {
-      const int group_sz = parent.gtopo.GetGroupSize(g);
-      const int *group_lproc = parent.gtopo.GetGroup(g);
-      for (int i = 0; i < group_sz; i++)
-      {
-         group_ranks[g].push_back(parent.gtopo.GetNeighborRank(group_lproc[i]));
-      }
-      std::sort(group_ranks[g].begin(), group_ranks[g].end());
-      groups[g - 1] = g;
-   }
-   std::sort(groups.begin(), groups.end(), [&group_ranks](int a, int b)
-   { return group_ranks[a] < group_ranks[b]; });
+      return std::make_pair(gt.GetGroupMasterRank(a), gt.GetGroupMasterGroup(a))
+             < std::make_pair(gt.GetGroupMasterRank(b), gt.GetGroupMasterGroup(b));
+   });
    return groups;
 }
 
