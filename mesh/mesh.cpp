@@ -5320,7 +5320,12 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       Nodes = new GridFunction(this, input);
 
       own_nodes = 1;
-      spaceDim = Nodes->VectorDim();
+      // Query the collection because a parallel partition may have no
+      // elements here (meshgen is reduced later in ParMesh::Load()). Mesh
+      // assumes a scalar nodal space, see NewNodes().
+      MFEM_VERIFY(Nodes->FESpace()->FEColl()->GetRangeType(Dim) ==
+                  FiniteElement::SCALAR, "the nodal space must be scalar");
+      spaceDim = Nodes->FESpace()->GetVDim();
       if (ncmesh) { ncmesh->spaceDim = spaceDim; }
 
       // Set vertex coordinates from the 'Nodes'
