@@ -159,8 +159,7 @@ public:
       const bool integ_over_target = ker.integ_over_target;
       auto E = Reshape(ker.E.Write(), Q1D, Q1D, Q1D, NE);
       auto L = Reshape(ker.L.Write(), Q1D, Q1D, Q1D, NE);
-
-      mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+      mfem::forall_2D(NE, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D, const_m0, use_detA) MFEM_HOST_DEVICE(int e)
       {
          MFEM_SHARED real_t smem[MQ1][MQ1];
          MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
@@ -208,7 +207,7 @@ public:
                }
             }
          }
-      });
+      }));
 
       ker.metric_energy = ker.E * ker.O;
       MFEM_VERIFY(std::isfinite(ker.metric_energy), "Metric energy error");

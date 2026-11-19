@@ -19,6 +19,68 @@
 #include "device.hpp"
 #include "mem_manager.hpp"
 #include "../linalg/dtensor.hpp"
+#ifdef MFEM_USE_PROTEUS
+#include "proteus/JitInterface.h"
+#endif
+
+// Expand to the full capture list for a host/device lambda. The JIT build gets
+// explicit Proteus captures; an ahead-of-time build gets the ordinary `[=]`.
+// The AOT registration macro keeps the lambda parenthesized to match the
+// call-site grouping without invoking a pass-through function.
+#ifdef MFEM_USE_PROTEUS
+#define MFEM_JIT_DETAIL_CAPTURE_1(a) \
+   , a = proteus::jit_variable(a)
+#define MFEM_JIT_DETAIL_CAPTURE_2(a, b) \
+   MFEM_JIT_DETAIL_CAPTURE_1(a), b = proteus::jit_variable(b)
+#define MFEM_JIT_DETAIL_CAPTURE_3(a, b, c) \
+   MFEM_JIT_DETAIL_CAPTURE_2(a, b), c = proteus::jit_variable(c)
+#define MFEM_JIT_DETAIL_CAPTURE_4(a, b, c, d) \
+   MFEM_JIT_DETAIL_CAPTURE_3(a, b, c), d = proteus::jit_variable(d)
+#define MFEM_JIT_DETAIL_CAPTURE_5(a, b, c, d, e) \
+   MFEM_JIT_DETAIL_CAPTURE_4(a, b, c, d), e = proteus::jit_variable(e)
+#define MFEM_JIT_DETAIL_CAPTURE_6(a, b, c, d, e, f) \
+   MFEM_JIT_DETAIL_CAPTURE_5(a, b, c, d, e), f = proteus::jit_variable(f)
+#define MFEM_JIT_DETAIL_CAPTURE_7(a, b, c, d, e, f, g) \
+   MFEM_JIT_DETAIL_CAPTURE_6(a, b, c, d, e, f), g = proteus::jit_variable(g)
+#define MFEM_JIT_DETAIL_CAPTURE_8(a, b, c, d, e, f, g, h) \
+   MFEM_JIT_DETAIL_CAPTURE_7(a, b, c, d, e, f, g), h = proteus::jit_variable(h)
+#define MFEM_JIT_DETAIL_CAPTURE_9(a, b, c, d, e, f, g, h, i) \
+   MFEM_JIT_DETAIL_CAPTURE_8(a, b, c, d, e, f, g, h), i = proteus::jit_variable(i)
+#define MFEM_JIT_DETAIL_CAPTURE_10(a, b, c, d, e, f, g, h, i, j) \
+   MFEM_JIT_DETAIL_CAPTURE_9(a, b, c, d, e, f, g, h, i), j = proteus::jit_variable(j)
+#define MFEM_JIT_DETAIL_CAPTURE_11(a, b, c, d, e, f, g, h, i, j, k) \
+   MFEM_JIT_DETAIL_CAPTURE_10(a, b, c, d, e, f, g, h, i, j), k = proteus::jit_variable(k)
+#define MFEM_JIT_DETAIL_CAPTURE_12(a, b, c, d, e, f, g, h, i, j, k, l) \
+   MFEM_JIT_DETAIL_CAPTURE_11(a, b, c, d, e, f, g, h, i, j, k), l = proteus::jit_variable(l)
+#define MFEM_JIT_DETAIL_CAPTURE_13(a, b, c, d, e, f, g, h, i, j, k, l, m) \
+   MFEM_JIT_DETAIL_CAPTURE_12(a, b, c, d, e, f, g, h, i, j, k, l), m = proteus::jit_variable(m)
+#define MFEM_JIT_DETAIL_CAPTURE_14(a, b, c, d, e, f, g, h, i, j, k, l, m, n) \
+   MFEM_JIT_DETAIL_CAPTURE_13(a, b, c, d, e, f, g, h, i, j, k, l, m), n = proteus::jit_variable(n)
+#define MFEM_JIT_DETAIL_CAPTURE_15(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o) \
+   MFEM_JIT_DETAIL_CAPTURE_14(a, b, c, d, e, f, g, h, i, j, k, l, m, n), o = proteus::jit_variable(o)
+#define MFEM_JIT_DETAIL_CAPTURE_16(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p) \
+   MFEM_JIT_DETAIL_CAPTURE_15(a, b, c, d, e, f, g, h, i, j, k, l, m, n, o), p = proteus::jit_variable(p)
+
+#define MFEM_JIT_DETAIL_NARG_( \
+   _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12, _13, _14, _15, _16, n, ...) n
+#define MFEM_JIT_DETAIL_NARG(...) \
+   MFEM_JIT_DETAIL_NARG_( \
+      __VA_ARGS__, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+#define MFEM_JIT_DETAIL_CAT_(a, b) a##b
+#define MFEM_JIT_DETAIL_CAT(a, b) MFEM_JIT_DETAIL_CAT_(a, b)
+#define MFEM_JIT_DETAIL_EXPAND(x) x
+#define MFEM_JIT_DETAIL_CAPTURE_SELECT(count) \
+   MFEM_JIT_DETAIL_CAT(MFEM_JIT_DETAIL_CAPTURE_, count)
+#define MFEM_JIT_DETAIL_CAPTURE_APPLY(count, ...) \
+   MFEM_JIT_DETAIL_EXPAND(MFEM_JIT_DETAIL_CAPTURE_SELECT(count)(__VA_ARGS__))
+#define MFEM_JIT_CAPTURE_LIST(...) \
+   [= MFEM_JIT_DETAIL_CAPTURE_APPLY(MFEM_JIT_DETAIL_NARG(__VA_ARGS__), __VA_ARGS__)]
+#define MFEM_JIT_REGISTER_LAMBDA(...) proteus::register_lambda(__VA_ARGS__)
+#else
+#define MFEM_JIT_CAPTURE_LIST(...) [=]
+#define MFEM_JIT_REGISTER_LAMBDA(...) (__VA_ARGS__)
+#endif
+
 #ifdef MFEM_USE_MPI
 #include <_hypre_utilities.h>
 #endif

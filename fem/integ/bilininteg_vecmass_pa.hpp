@@ -51,7 +51,8 @@ void SmemPAVectorMassApply2D(const int NE,
    const auto X = Reshape(x.Read(), D1D, D1D, VDIM, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, VDIM, NE);
 
-   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D,
+                                MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D, const_coeff, vector_coeff, matrix_coeff) MFEM_HOST_DEVICE(int e)
    {
       constexpr int MD1 = T_D1D > 0 ? SetMaxOf(T_D1D) : DofQuadLimits::MAX_T1D;
       constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : DofQuadLimits::MAX_T1D;
@@ -93,7 +94,7 @@ void SmemPAVectorMassApply2D(const int NE,
       }
       kernels::internal::EvalTranspose2d(D1D, Q1D, smem, sB, r0, r1);
       kernels::internal::WriteDofs2d(e, D1D, r1, Y);
-   });
+   }));
 }
 
 template <int T_D1D = 0, int T_Q1D = 0>
@@ -119,7 +120,8 @@ void SmemPAVectorMassApply3D(const int NE,
    const auto X = Reshape(x.Read(), D1D, D1D, D1D, VDIM, NE);
    auto Y = Reshape(y.ReadWrite(), D1D, D1D, D1D, VDIM, NE);
 
-   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D<T_Q1D*T_Q1D>(NE, Q1D, Q1D,
+                                MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D, const_coeff, vector_coeff, matrix_coeff) MFEM_HOST_DEVICE(int e)
    {
       constexpr int MD1 = T_D1D > 0 ? SetMaxOf(T_D1D) : DofQuadLimits::MAX_T1D;
       constexpr int MQ1 = T_Q1D > 0 ? SetMaxOf(T_Q1D) : DofQuadLimits::MAX_T1D;
@@ -173,7 +175,7 @@ void SmemPAVectorMassApply3D(const int NE,
       }
       kernels::internal::EvalTranspose3d(D1D, Q1D, smem, sB, r0, r1);
       kernels::internal::WriteDofs3d(e, D1D, r1, Y);
-   });
+   }));
 }
 
 template <int T_Q1D = 0, int T_MDQ = 16>

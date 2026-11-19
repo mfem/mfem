@@ -38,8 +38,7 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D, const_c0, exp_lim) MFEM_HOST_DEVICE(int e)
    {
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1];
@@ -115,7 +114,7 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
       MFEM_SYNC_THREAD;
       kernels::internal::EvalTranspose3d(D1D, Q1D, smem, sB, r00, r01);
       kernels::internal::WriteDofs3d(e, D1D, r01, Y);
-   });
+   }));
 }
 
 MFEM_TMOP_MDQ_REGISTER(TMOPMultCoefKernels3D, TMOP_AddMultPA_C0_3D);

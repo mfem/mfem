@@ -122,7 +122,7 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
    auto d_x = Reshape(x.Read(), t?vd:ndofs, t?ndofs:vd);
    auto d_y = Reshape(y.Write(), nd, vd, ne);
    auto d_gather_map = gather_map.Read();
-   mfem::forall(dof*ne, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall(dof*ne, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(nd, vd, t) MFEM_HOST_DEVICE (int i)
    {
       const int gid = d_gather_map[i];
       const bool plus = gid >= 0;
@@ -132,7 +132,7 @@ void ElementRestriction::Mult(const Vector& x, Vector& y) const
          const real_t dof_value = d_x(t?c:j, t?j:c);
          d_y(i % nd, c, i / nd) = plus ? dof_value : -dof_value;
       }
-   });
+   }));
 }
 
 void ElementRestriction::AbsMult(const Vector& x, Vector& y) const
@@ -167,7 +167,7 @@ void ElementRestriction::TAddMultTranspose(const Vector& x, Vector& y) const
    auto d_indices = indices.Read();
    auto d_x = Reshape(x.Read(), nd, vd, ne);
    auto d_y = Reshape(ADD ? y.ReadWrite() : y.Write(), t?vd:ndofs, t?ndofs:vd);
-   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
+   mfem::forall(ndofs, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(nd, vd, t) MFEM_HOST_DEVICE (int i)
    {
       const int offset = d_offsets[i];
       const int next_offset = d_offsets[i + 1];
@@ -183,7 +183,7 @@ void ElementRestriction::TAddMultTranspose(const Vector& x, Vector& y) const
          if (ADD) { d_y(t?c:i,t?i:c) += dof_value; }
          else { d_y(t?c:i,t?i:c) = dof_value; }
       }
-   });
+   }));
 }
 
 void ElementRestriction::MultTranspose(const Vector& x, Vector& y) const
