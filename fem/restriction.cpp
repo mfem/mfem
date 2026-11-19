@@ -157,7 +157,7 @@ void ElementRestriction::AbsMult(const Vector& x, Vector& y) const
    });
 }
 
-template <bool ADD>
+template <bool ADD, bool ABS>
 void ElementRestriction::TAddMultTranspose(const Vector& x, Vector& y) const
 {
    // Assumes all elements have the same number of dofs
@@ -178,7 +178,8 @@ void ElementRestriction::TAddMultTranspose(const Vector& x, Vector& y) const
          for (int j = offset; j < next_offset; ++j)
          {
             const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
-            dof_value += ((d_indices[j] >= 0) ? d_x(idx_j % nd, c, idx_j / nd) :
+            dof_value += ((ABS || d_indices[j] >= 0) ?
+                          d_x(idx_j % nd, c, idx_j / nd) :
                           -d_x(idx_j % nd, c, idx_j / nd));
          }
          if (ADD) { d_y(t?c:i,t?i:c) += dof_value; }
@@ -203,29 +204,14 @@ void ElementRestriction::AddMultTranspose(const Vector& x, Vector& y,
 
 void ElementRestriction::AbsMultTranspose(const Vector& x, Vector& y) const
 {
-   // Assumes all elements have the same number of dofs
-   const int nd = dof;
-   const int vd = vdim;
-   const bool t = byvdim;
-   auto d_offsets = offsets.Read();
-   auto d_indices = indices.Read();
-   auto d_x = Reshape(x.Read(), nd, vd, ne);
-   auto d_y = Reshape(y.Write(), t?vd:ndofs, t?ndofs:vd);
-   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
-   {
-      const int offset = d_offsets[i];
-      const int next_offset = d_offsets[i + 1];
-      for (int c = 0; c < vd; ++c)
-      {
-         real_t dof_value = 0;
-         for (int j = offset; j < next_offset; ++j)
-         {
-            const int idx_j = (d_indices[j] >= 0) ? d_indices[j] : -1 - d_indices[j];
-            dof_value += d_x(idx_j % nd, c, idx_j / nd);
-         }
-         d_y(t?c:i,t?i:c) = dof_value;
-      }
-   });
+   constexpr bool ADD = false, ABS = true;
+   TAddMultTranspose<ADD, ABS>(x, y);
+}
+
+void ElementRestriction::AddAbsMultTranspose(const Vector& x, Vector& y) const
+{
+   constexpr bool ADD = true, ABS = true;
+   TAddMultTranspose<ADD, ABS>(x, y);
 }
 
 void ElementRestriction::MultLeftInverse(const Vector& x, Vector& y) const

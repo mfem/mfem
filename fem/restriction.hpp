@@ -63,6 +63,17 @@ public:
    void AddMultTranspose(const Vector &x, Vector &y,
                          const real_t a = 1.0) const override = 0;
 
+   /// @brief Compute MultTranspose ignoring the signs from DOF orientation.
+   /// The default, for restrictions without signs, is MultTranspose.
+   void AbsMultTranspose(const Vector &x, Vector &y) const override
+   { MultTranspose(x, y); }
+
+   /// @brief Add the E-vector degrees of freedom @a x to the L-vector degrees
+   /// of freedom @a y ignoring the signs from DOF orientation. The default,
+   /// for restrictions without signs, is AddMultTranspose.
+   virtual void AddAbsMultTranspose(const Vector &x, Vector &y) const
+   { AddMultTranspose(x, y); }
+
    /// The map between the element dofs and the dofs of the space.
    virtual EntityDofMap GetEntityDofMap() const = 0;
 };
@@ -96,6 +107,10 @@ public:
 
    /// Compute MultTranspose without applying signs based on DOF orientations.
    void AbsMultTranspose(const Vector &x, Vector &y) const override;
+
+   /// Compute AddMultTranspose without applying signs based on DOF
+   /// orientations.
+   void AddAbsMultTranspose(const Vector &x, Vector &y) const override;
 
    /// @deprecated Use AbsMult() instead.
    MFEM_DEPRECATED void MultUnsigned(const Vector &x, Vector &y) const
@@ -131,8 +146,10 @@ public:
    /// @private Not part of the public interface (device kernel limitation).
    ///
    /// Performs either MultTranspose or AddMultTranspose depending on the
-   /// boolean template parameter @a ADD.
-   template <bool ADD> void TAddMultTranspose(const Vector &x, Vector &y) const;
+   /// boolean template parameter @a ADD, ignoring the DOF orientation signs
+   /// when @a ABS is set.
+   template <bool ADD, bool ABS = false>
+   void TAddMultTranspose(const Vector &x, Vector &y) const;
 
    /// @name Low-level access to the underlying element-dof mappings
    ///@{
