@@ -710,12 +710,13 @@ void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
    Array<unsigned int> send_ranks;
    send_idxs.Reserve(rank_list.Size());
    send_ranks.Reserve(rank_list.Size());
+   const auto *h_ranks = rank_list.HostRead();
    for (int i = 0; i < rank_list.Size(); i++)
    {
-      if (rank != static_cast<int>(rank_list[i]))
+      if (rank != static_cast<int>(h_ranks[i]))
       {
          send_idxs.Append(i);
-         send_ranks.Append(rank_list[i]);
+         send_ranks.Append(h_ranks[i]);
       }
    }
 
