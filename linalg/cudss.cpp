@@ -76,6 +76,10 @@ CuDSSSolver::CuDSSSolver(MPI_Comm comm_) : mpi_comm(comm_)
    MFEM_CUDSS_CHECK(cudssSetCommLayer(handle, comm_lib));
 
 #if CUDSS_VERSION >= 800
+   // cuDSS 0.8 has separate communicators for the host and device buffers, and
+   // the MGMN mode needs both
+   MFEM_CUDSS_CHECK(cudssDataSet(handle, solverData, CUDSS_DATA_COMM_DEVICE,
+                                 &mpi_comm, sizeof(MPI_Comm *)));
    MFEM_CUDSS_CHECK(cudssDataSet(handle, solverData, CUDSS_DATA_COMM_HOST,
                                  &mpi_comm, sizeof(MPI_Comm *)));
 #else
