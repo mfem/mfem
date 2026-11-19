@@ -42,11 +42,13 @@ protected:
 
    /// Auxiliary method called by Mult() when using H(div)-conforming space
    void MultHDiv(const Vector &e_vec, unsigned eval_flags,
-                 Vector &q_val, Vector &q_div) const;
+                 Vector &q_val, Vector &q_div,
+                 const Array<int> *elist = nullptr) const;
 
    /// Auxiliary method called by AddMultTranspose() when using H(div)-conforming space
    void AddMultTransposeHDiv(unsigned eval_flags, const Vector &q_val,
-                             const Vector &q_div, Vector &e_vec) const;
+                             const Vector &q_div, Vector &e_vec,
+                             const Array<int> *elist = nullptr) const;
 
 public:
    static const int MAX_NQ2D = 100;
@@ -230,10 +232,12 @@ public:
 
    using TensorEvalHDivKernelType =
       void(*)(const int, const real_t *, const real_t *, const real_t *,
-              const real_t *, real_t *, const int, const int);
+              const real_t *, real_t *, const int, const int,
+              const Array<int> *elist);
    using TensorEvalHDivDivKernelType =
       void(*)(const int, const real_t *, const real_t *, const real_t *,
-              const real_t *, real_t *, const int, const int);
+              const real_t *, real_t *, const int, const int,
+              const Array<int> *elist);
    using TensorEvalTransposeKernelType = void(*)(const int, const real_t *,
                                                  const real_t *,
                                                  real_t *, const int, const int, const int,

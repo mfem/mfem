@@ -616,6 +616,83 @@ void hdiv_mixed_assembly(const char *filename, int p)
 
 }
 
+// Test for H(div) using Global backend and partially marked elements
+template <int DIM>
+void hdiv_marked_global_vs_local(const char *filename, int p)
+{
+   CAPTURE(filename, DIM, p);
+   HdivSetup setup(filename, DIM, p);
+   ParMesh &pmesh = setup.pmesh;
+   ParFiniteElementSpace &pfes = setup.pfes;
+   const int tvsize = pfes.GetTrueVSize();
+   const MPI_Comm comm = pmesh.GetComm();
+
+   // Attribute 2 on every third element, and integrate over those only
+   for (int e = 0; e < pmesh.GetNE(); e++)
+   {
+      pmesh.SetAttribute(e, (e % 3 == 1) ? 2 : 1);
+   }
+   pmesh.SetAttributes();
+   Array<int> marker(2);
+   marker = 0;
+   marker[1] = 1;
+
+   static constexpr int U = 0, Coords = 1;
+   using IT = Inputs<Value<U>, Div<U>, Gradient<Coords>, Weight>;
+   using OT = Outputs<Value<U>, Div<U>>;
+   const auto in_fds = std::vector
+   {
+      FieldDescriptor{ U, &pfes },
+      FieldDescriptor{ Coords, setup.nodes->ParFESpace() }
+   };
+   const auto out_fds = std::vector{ FieldDescriptor{ U, &pfes } };
+
+   Vector X(tvsize), dX(tvsize);
+   X.Randomize(1);
+   dX.Randomize(2);
+   MultiVector MX{ X, setup.N };
+
+   constexpr auto kernels = DerivativeKernels::Action;
+   hdiv_mass_divdiv_qf<DIM> local_qf;
+   DifferentiableOperator local(in_fds, out_fds, pmesh);
+   local.AddDomainIntegrator<LocalQFBackend, kernels>(
+      local_qf, IT {}, OT {}, *setup.ir, marker, Derivatives<U> {});
+   hdiv_mass_divdiv_global_qf<DIM> global_qf;
+   DifferentiableOperator global(in_fds, out_fds, pmesh);
+   global.AddDomainIntegrator<GlobalQFBackend, kernels>(
+      global_qf, IT {}, OT {}, *setup.ir, marker, Derivatives<U> {});
+
+   SECTION("Action")
+   {
+      Vector Y(tvsize), Z(tvsize);
+      MultiVector MY{ Y }, MZ{ Z };
+      local.Mult(MX, MY);
+      global.Mult(MX, MZ);
+      REQUIRE(Y.Normlinf() > 1e-8); 
+      REQUIRE(HdivMaxError(comm, Y, Z) == MFEM_Approx(0.0, 1e-10, 1e-10));
+   }
+
+   SECTION("Derivative action")
+   {
+      Vector dY(tvsize), dZ(tvsize);
+      MultiVector MdY{ dY }, MdZ{ dZ };
+      local.GetDerivative(U, MX, false)->Mult(dX, MdY);
+      global.GetDerivative(U, MX, false)->Mult(dX, MdZ);
+      REQUIRE(dY.Normlinf() > 1e-8);
+      REQUIRE(HdivMaxError(comm, dY, dZ) == MFEM_Approx(0.0, 1e-10, 1e-10));
+   }
+}
+
+TEST_CASE("dFEM H(div) GlobalQF markers", "[Parallel][dFEM][VectorFE][GPU]")
+{
+   const auto p = GenAll({ 0 }, { 1 });
+   SECTION("2D") { hdiv_marked_global_vs_local<2>("../../data/star.mesh", p); }
+   SECTION("3D")
+   {
+      hdiv_marked_global_vs_local<3>("../../data/inline-hex.mesh", p);
+   }
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 TEST_CASE("dFEM H(div) 2D", "[Parallel][dFEM][VectorFE][GPU]")
 {

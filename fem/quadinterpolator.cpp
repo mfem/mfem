@@ -250,9 +250,8 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
 
    if (fe->GetMapType() == FiniteElement::MapType::H_DIV)
    {
-      MFEM_VERIFY(!elist, "element lists are not supported for H(div) spaces yet");
       // q_der == q_div
-      return MultHDiv(e_vec, eval_flags, q_val, q_der);
+      return MultHDiv(e_vec, eval_flags, q_val, q_der, elist);
    }
 
    const int vdim = fespace->GetVDim();
@@ -361,10 +360,12 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
 void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
                                       unsigned eval_flags,
                                       Vector &q_val,
-                                      Vector &q_div) const
+                                      Vector &q_div,
+                                      const Array<int> *elist) const
 {
    const int ne = fespace->GetNE();
-   if (ne == 0) { return; }
+   const int ne_marked = elist ? elist->Size() : ne;
+   if (ne_marked == 0) { return; }
    MFEM_VERIFY(fespace->IsVariableOrder() == false,
                "variable order spaces are not supported yet!");
    const FiniteElement *fe = fespace->GetFE(0);
@@ -427,7 +428,7 @@ void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
          // runtime params, see the arguments of EvalHDiv2D/3D:
          ne, maps_o.B.Read(), maps_c.B.Read(),
          need_J ? geom->J.Read() : nullptr, e_vec.Read(), q_val.Write(),
-         nd, nq);
+         nd, nq, elist);
    }
    const unsigned div_eval_mode = eval_flags & (DERIVATIVES |
                                                 PHYSICAL_DERIVATIVES);
@@ -439,18 +440,20 @@ void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
          // runtime params, see the arguments of EvalHDivDiv2D/3D:
          ne, maps_o.B.Read(), maps_c.G.Read(),
          need_detJ ? geom->detJ.Read() : nullptr, e_vec.Read(), q_div.Write(),
-         nd, nq);
+         nd, nq, elist);
    }
 }
 
 void QuadratureInterpolator::AddMultTransposeHDiv(unsigned eval_flags,
                                                   const Vector &q_val,
                                                   const Vector &q_div,
-                                                  Vector &e_vec) const
+                                                  Vector &e_vec,
+                                                  const Array<int> *elist) const
 {
    // Checks
    const int ne = fespace->GetNE();
-   if (ne == 0) { return; }
+   const int ne_marked = elist ? elist->Size() : ne;
+   if (ne_marked == 0) { return; }
    const FiniteElement *fe = fespace->GetFE(0);
    const int dim = fespace->GetMesh()->Dimension();
    const int sdim = fespace->GetMesh()->SpaceDimension();
@@ -483,7 +486,7 @@ void QuadratureInterpolator::AddMultTransposeHDiv(unsigned eval_flags,
       TensorEvalHDivTransposeKernels::Run(
          dim, q_layout, VALUES, nd, nq,
          ne, maps_o.B.Read(), maps_c.B.Read(), nullptr, q_val.Read(),
-         e_vec.ReadWrite(), nd, nq);
+         e_vec.ReadWrite(), nd, nq, elist);
    }
 
    // AddMultTranspose for H(div) DERIVATIVES (physical or not)
@@ -500,7 +503,7 @@ void QuadratureInterpolator::AddMultTransposeHDiv(unsigned eval_flags,
       TensorEvalHDivTransposeKernels::Run(
          dim, QVectorLayout::byNODES, div_mode, nd, nq,
          ne, maps_o.B.Read(), maps_c.G.Read(), detJ, q_div.Read(),
-         e_vec.ReadWrite(), nd, nq);
+         e_vec.ReadWrite(), nd, nq, elist);
    }
 }
 
@@ -516,7 +519,7 @@ void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,
    const FiniteElement *fe = fespace->GetFE(0);
    if (fe->GetMapType() == FiniteElement::MapType::H_DIV)
    {
-      return AddMultTransposeHDiv(eval_flags, q_val, q_der, e_vec);
+      return AddMultTransposeHDiv(eval_flags, q_val, q_der, e_vec, elist);
    }
    const int vdim = fespace->GetVDim();
    const int sdim = fespace->GetMesh()->SpaceDimension();

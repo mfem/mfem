@@ -922,3 +922,113 @@ TEST_CASE("QuadratureInterpolator entity list",
    transpose(q_none, y, &empty);
    REQUIRE(max_diff(y, e_vec) == 0.0);
 }
+
+
+// Counterpart of the test above on QI with partial entity lists
+// but for Hdiv
+TEST_CASE("QuadratureInterpolator H(div) entity list",
+          "[QuadratureInterpolator][GPU]")
+{
+   // Curved meshes, so that the geometric factors differ between elements
+   const auto mesh_fname = GENERATE("../../data/star-q2.mesh",
+                                    "../../data/fichera-q2.mesh");
+   const int order = GENERATE(0, 2);
+   const auto l = GENERATE(QVectorLayout::byNODES, QVectorLayout::byVDIM);
+   using QI = QuadratureInterpolator;
+   const unsigned flag = GENERATE(QI::VALUES, QI::PHYSICAL_VALUES,
+                                  QI::PHYSICAL_MAGNITUDES, QI::DERIVATIVES,
+                                  QI::PHYSICAL_DERIVATIVES);
+   CAPTURE(mesh_fname, order, l, flag);
+
+   Mesh mesh = Mesh::LoadFromFile(mesh_fname);
+   const int dim = mesh.Dimension();
+   RT_FECollection fec(order, dim);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction gf(&fes);
+   gf.Randomize(5);
+
+   const ElementDofOrdering ordering = mesh.MeshGenerator() == 2 ?
+                                       ElementDofOrdering::LEXICOGRAPHIC :
+                                       ElementDofOrdering::NATIVE;
+   const Operator *R = fes.GetElementRestriction(ordering);
+   Vector e_vec(R->Height());
+   e_vec.UseDevice(true);
+   R->Mult(gf, e_vec);
+
+   const int n_all = mesh.GetNE();
+   const IntegrationRule &ir =
+      IntRules.Get(mesh.GetTypicalElementGeometry(), 2 * (order + 1));
+   const QI *qi = fes.GetQuadratureInterpolator(ir);
+   qi->SetOutputLayout(l);
+
+   // Values are vectors, magnitudes and divergences scalars
+   const bool der = flag & (QI::DERIVATIVES | QI::PHYSICAL_DERIVATIVES);
+   const bool vec = flag & (QI::VALUES | QI::PHYSICAL_VALUES);
+   const int q_size = ir.GetNPoints() * (vec ? dim : 1);
+
+   auto forward = [&](const Vector &x, Vector &q, const Array<int> *list)
+   {
+      Vector u; // unused outputs
+      qi->Mult(x, flag, der ? u : q, der ? q : u, u, list);
+   };
+
+   // The transpose supports reference values and (physical) divergences
+   const bool has_transpose = flag & (QI::VALUES | QI::DERIVATIVES |
+                                      QI::PHYSICAL_DERIVATIVES);
+   auto transpose = [&](const Vector &q, Vector &y, const Array<int> *list)
+   {
+      Vector u;
+      qi->AddMultTranspose(flag, der ? u : q, der ? q : u, y, list);
+   };
+
+   auto max_diff = [](const Vector &a, const Vector &b)
+   {
+      Vector d(a);
+      d -= b;
+      return d.Normlinf();
+   };
+
+   // Subset of elements, not contiguous and not in mesh order
+   Array<int> list;
+   for (int e = n_all - 1; e >= 0; e--) { if (e % 3 == 1) { list.Append(e); } }
+   const int n = list.Size();
+
+   // E -> Q: element k of the compact Q-vector is element list[k] of the full
+   // one; the element index is the slowest in both layouts.
+   Vector q_full(q_size * n_all), q_list(q_size * n), q_ref(q_size * n);
+   q_full.UseDevice(true);
+   q_list.UseDevice(true);
+   forward(e_vec, q_full, nullptr);
+   forward(e_vec, q_list, &list);
+   {
+      const real_t *f = q_full.HostRead();
+      real_t *r = q_ref.HostWrite();
+      for (int j = 0; j < q_size * n; j++)
+      {
+         r[j] = f[j % q_size + q_size * list[j / q_size]];
+      }
+   }
+   REQUIRE(max_diff(q_list, q_ref) == MFEM_Approx(0.0));
+
+   if (!has_transpose) { return; }
+
+   // Q -> E: the same as the full transpose of the compact Q-vector scattered
+   // into zeros, so the other elements of the E-vector are unchanged.
+   Vector q_rnd(q_size * n), q_scattered(q_size * n_all);
+   q_rnd.UseDevice(true);
+   q_rnd.Randomize(7);
+   q_scattered.UseDevice(true);
+   q_scattered = 0.0;
+   {
+      const real_t *c = q_rnd.HostRead();
+      real_t *f = q_scattered.HostReadWrite();
+      for (int j = 0; j < q_size * n; j++)
+      {
+         f[j % q_size + q_size * list[j / q_size]] = c[j];
+      }
+   }
+   Vector y_list(e_vec), y_ref(e_vec);
+   transpose(q_rnd, y_list, &list);
+   transpose(q_scattered, y_ref, nullptr);
+   REQUIRE(max_diff(y_list, y_ref) == MFEM_Approx(0.0));
+}

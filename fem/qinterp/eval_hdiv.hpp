@@ -38,12 +38,15 @@ inline void EvalHDiv2D(const int NE,
                        const real_t *x_,
                        real_t *y_,
                        const int d1d = 0,
-                       const int q1d = 0)
+                       const int q1d = 0,
+                       const Array<int> *elist = nullptr)
 {
    static constexpr int DIM = 2;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int NM = elist ? elist->Size() : NE; // entities processed
+   const int *d_elist = elist ? elist->Read() : nullptr;
    const int M1D = (Q1D > D1D) ? Q1D : D1D;
 
    const auto bo = Reshape(Bo_, Q1D, D1D-1);
@@ -54,12 +57,13 @@ inline void EvalHDiv2D(const int NE,
    auto y = (FLAGS & (QuadratureInterpolator::VALUES |
                       QuadratureInterpolator::PHYSICAL_VALUES)) ?
             ((Q_LAYOUT == QVectorLayout::byNODES) ?
-             Reshape(y_, Q1D, Q1D, DIM, NE) :
-             Reshape(y_, DIM, Q1D, Q1D, NE)) :
-            Reshape(y_, Q1D, Q1D, 1, NE);
+             Reshape(y_, Q1D, Q1D, DIM, NM) :
+             Reshape(y_, DIM, Q1D, Q1D, NM)) :
+            Reshape(y_, Q1D, Q1D, 1, NM);
 
-   mfem::forall_3D(NE, M1D, M1D, DIM, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NM, M1D, M1D, DIM, [=] MFEM_HOST_DEVICE (int e)
    {
+      const int ex = d_elist ? d_elist[e] : e;
       const int tidz = MFEM_THREAD_ID(z);
 
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -91,7 +95,7 @@ inline void EvalHDiv2D(const int NE,
             {
                if (qx < D1D && dy < (D1D-1))
                {
-                  X(qx + dy*D1D,vd) = x(qx+dy*D1D,vd,e);
+                  X(qx + dy*D1D,vd) = x(qx+dy*D1D,vd,ex);
                }
                if (tidz == 0 && qx < Q1D)
                {
@@ -172,7 +176,7 @@ inline void EvalHDiv2D(const int NE,
                      MFEM_UNROLL(DIM)
                      for (int sd = 0; sd < DIM; sd++)
                      {
-                        J_loc[sd+DIM*d] = J(qx,qy,sd,d,e);
+                        J_loc[sd+DIM*d] = J(qx,qy,sd,d,ex);
                      }
                   }
                   const real_t detJ = kernels::Det<DIM>(J_loc);
@@ -215,12 +219,15 @@ inline void EvalHDiv3D(const int NE,
                        const real_t *x_,
                        real_t *y_,
                        const int d1d = 0,
-                       const int q1d = 0)
+                       const int q1d = 0,
+                       const Array<int> *elist = nullptr)
 {
    static constexpr int DIM = 3;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int NM = elist ? elist->Size() : NE; // entities processed
+   const int *d_elist = elist ? elist->Read() : nullptr;
 
    const auto bo = Reshape(Bo_, Q1D, D1D-1);
    const auto bc = Reshape(Bc_, Q1D, D1D);
@@ -230,12 +237,13 @@ inline void EvalHDiv3D(const int NE,
    auto y = (FLAGS & (QuadratureInterpolator::VALUES |
                       QuadratureInterpolator::PHYSICAL_VALUES)) ?
             ((Q_LAYOUT == QVectorLayout::byNODES) ?
-             Reshape(y_, Q1D, Q1D, Q1D, DIM, NE) :
-             Reshape(y_, DIM, Q1D, Q1D, Q1D, NE)) :
-            Reshape(y_, Q1D, Q1D, Q1D, 1, NE);
+             Reshape(y_, Q1D, Q1D, Q1D, DIM, NM) :
+             Reshape(y_, DIM, Q1D, Q1D, Q1D, NM)) :
+            Reshape(y_, Q1D, Q1D, Q1D, 1, NM);
 
-   mfem::forall_3D(NE, Q1D, Q1D, DIM, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NM, Q1D, Q1D, DIM, [=] MFEM_HOST_DEVICE (int e)
    {
+      const int ex = d_elist ? d_elist[e] : e;
       const int tidz = MFEM_THREAD_ID(z);
 
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -268,7 +276,7 @@ inline void EvalHDiv3D(const int NE,
                MFEM_UNROLL(MD1)
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  X(dx+(dy+dz*(D1D-1))*D1D,vd) = x(dx+(dy+dz*(D1D-1))*D1D,vd,e);
+                  X(dx+(dy+dz*(D1D-1))*D1D,vd) = x(dx+(dy+dz*(D1D-1))*D1D,vd,ex);
                }
             }
          }
@@ -409,7 +417,7 @@ inline void EvalHDiv3D(const int NE,
                      MFEM_UNROLL(DIM)
                      for (int sd = 0; sd < DIM; sd++)
                      {
-                        J_loc[sd+DIM*d] = J(qx,qy,qz,sd,d,e);
+                        J_loc[sd+DIM*d] = J(qx,qy,qz,sd,d,ex);
                      }
                   }
                   const real_t detJ = kernels::Det<DIM>(J_loc);
@@ -454,13 +462,16 @@ inline void EvalHDivDiv2D(const int NE,
                           const real_t *x_,
                           real_t *div_,
                           const int d1d = 0,
-                          const int q1d = 0)
+                          const int q1d = 0,
+                          const Array<int> *elist = nullptr)
 {
    static constexpr int DIM = 2;
    constexpr bool PHYSICAL = FLAGS & QuadratureInterpolator::PHYSICAL_DERIVATIVES;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int NM = elist ? elist->Size() : NE; // entities processed
+   const int *d_elist = elist ? elist->Read() : nullptr;
    const int M1D = (Q1D > D1D) ? Q1D : D1D;
 
    const auto bo = Reshape(Bo_, Q1D, D1D-1);
@@ -468,10 +479,11 @@ inline void EvalHDivDiv2D(const int NE,
    // detJ is used only when PHYSICAL is true, otherwise detJ_ can be nullptr.
    const auto detJ = Reshape(detJ_, Q1D, Q1D, NE);
    const auto x = Reshape(x_, D1D*(D1D-1), DIM, NE);
-   auto div = Reshape(div_, Q1D, Q1D, NE);
+   auto div = Reshape(div_, Q1D, Q1D, NM);
 
-   mfem::forall_3D(NE, M1D, M1D, DIM, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NM, M1D, M1D, DIM, [=] MFEM_HOST_DEVICE (int e)
    {
+      const int ex = d_elist ? d_elist[e] : e;
       const int tidz = MFEM_THREAD_ID(z);
 
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -503,7 +515,7 @@ inline void EvalHDivDiv2D(const int NE,
             {
                if (qx < D1D && dy < (D1D-1))
                {
-                  X(qx + dy*D1D,vd) = x(qx+dy*D1D,vd,e);
+                  X(qx + dy*D1D,vd) = x(qx+dy*D1D,vd,ex);
                }
                if (tidz == 0 && qx < Q1D)
                {
@@ -564,7 +576,7 @@ inline void EvalHDivDiv2D(const int NE,
                real_t q_div = 0.0;
                MFEM_UNROLL(DIM)
                for (int vd = 0; vd < DIM; ++vd) { q_div += QQ(qx,qy,vd); }
-               if constexpr (PHYSICAL) { q_div /= detJ(qx,qy,e); }
+               if constexpr (PHYSICAL) { q_div /= detJ(qx,qy,ex); }
                div(qx,qy,e) = q_div;
             }
          }
@@ -582,23 +594,27 @@ inline void EvalHDivDiv3D(const int NE,
                           const real_t *x_,
                           real_t *div_,
                           const int d1d = 0,
-                          const int q1d = 0)
+                          const int q1d = 0,
+                          const Array<int> *elist = nullptr)
 {
    static constexpr int DIM = 3;
    constexpr bool PHYSICAL = FLAGS & QuadratureInterpolator::PHYSICAL_DERIVATIVES;
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int NM = elist ? elist->Size() : NE; // entities processed
+   const int *d_elist = elist ? elist->Read() : nullptr;
 
    const auto bo = Reshape(Bo_, Q1D, D1D-1);
    const auto gc = Reshape(Gc_, Q1D, D1D);
    // detJ is used only when PHYSICAL is true, otherwise detJ_ can be nullptr.
    const auto detJ = Reshape(detJ_, Q1D, Q1D, Q1D, NE);
    const auto x = Reshape(x_, D1D*(D1D-1)*(D1D-1), DIM, NE);
-   auto div = Reshape(div_, Q1D, Q1D, Q1D, NE);
+   auto div = Reshape(div_, Q1D, Q1D, Q1D, NM);
 
-   mfem::forall_3D(NE, Q1D, Q1D, DIM, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NM, Q1D, Q1D, DIM, [=] MFEM_HOST_DEVICE (int e)
    {
+      const int ex = d_elist ? d_elist[e] : e;
       const int tidz = MFEM_THREAD_ID(z);
 
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -631,7 +647,7 @@ inline void EvalHDivDiv3D(const int NE,
                MFEM_UNROLL(MD1)
                for (int dx = 0; dx < D1D; ++dx)
                {
-                  X(dx+(dy+dz*(D1D-1))*D1D,vd) = x(dx+(dy+dz*(D1D-1))*D1D,vd,e);
+                  X(dx+(dy+dz*(D1D-1))*D1D,vd) = x(dx+(dy+dz*(D1D-1))*D1D,vd,ex);
                }
             }
          }
@@ -750,7 +766,7 @@ inline void EvalHDivDiv3D(const int NE,
                real_t q_div = 0.0;
                MFEM_UNROLL(DIM)
                for (int vd = 0; vd < DIM; ++vd) { q_div += QQQ(qx,qy,qz,vd); }
-               if constexpr (PHYSICAL) { q_div /= detJ(qx,qy,qz,e); }
+               if constexpr (PHYSICAL) { q_div /= detJ(qx,qy,qz,ex); }
                div(qx,qy,qz,e) = q_div;
             }
          }
@@ -771,7 +787,8 @@ inline void EvalHDivTranspose2D(const int NE,
                                 const real_t *y_,
                                 real_t *x_,
                                 const int d1d = 0,
-                                const int q1d = 0)
+                                const int q1d = 0,
+                                const Array<int> *elist = nullptr)
 {
    static constexpr int DIM = 2;
    constexpr bool DIV = FLAGS & (QuadratureInterpolator::DERIVATIVES |
@@ -780,20 +797,23 @@ inline void EvalHDivTranspose2D(const int NE,
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int NM = elist ? elist->Size() : NE; // entities processed
+   const int *d_elist = elist ? elist->Read() : nullptr;
    const int M1D = (Q1D > D1D) ? Q1D : D1D;
 
    const auto bo = Reshape(Bo_, Q1D, D1D-1);
    const auto bc = Reshape(Bc_, Q1D, D1D);
    // detJ is used only when PHYSICAL is true, otherwise detJ_ can be nullptr.
    const auto detJ = Reshape(detJ_, Q1D, Q1D, NE);
-   const auto y = DIV ? Reshape(y_, Q1D, Q1D, 1, NE) :
+   const auto y = DIV ? Reshape(y_, Q1D, Q1D, 1, NM) :
                   ((Q_LAYOUT == QVectorLayout::byNODES) ?
-                   Reshape(y_, Q1D, Q1D, DIM, NE) :
-                   Reshape(y_, DIM, Q1D, Q1D, NE));
+                   Reshape(y_, Q1D, Q1D, DIM, NM) :
+                   Reshape(y_, DIM, Q1D, Q1D, NM));
    auto x = Reshape(x_, D1D*(D1D-1), DIM, NE);
 
-   mfem::forall_3D(NE, M1D, M1D, DIM, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NM, M1D, M1D, DIM, [=] MFEM_HOST_DEVICE (int e)
    {
+      const int ex = d_elist ? d_elist[e] : e;
       const int tidz = MFEM_THREAD_ID(z);
 
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -828,7 +848,7 @@ inline void EvalHDivTranspose2D(const int NE,
                   if constexpr (DIV)
                   {
                      v = y(qx,qy,0,e);
-                     if constexpr (PHYSICAL) { v /= detJ(qx,qy,e); }
+                     if constexpr (PHYSICAL) { v /= detJ(qx,qy,ex); }
                   }
                   else if (Q_LAYOUT == QVectorLayout::byNODES)
                   {
@@ -888,7 +908,7 @@ inline void EvalHDivTranspose2D(const int NE,
                {
                   dd += QD(qx,dy,vd) * Bx(dx,qx);
                }
-               x(dx + dy*nx,vd,e) += dd;
+               x(dx + dy*nx,vd,ex) += dd;
             }
          }
       }
@@ -904,7 +924,8 @@ inline void EvalHDivTranspose3D(const int NE,
                                 const real_t *y_,
                                 real_t *x_,
                                 const int d1d = 0,
-                                const int q1d = 0)
+                                const int q1d = 0,
+                                const Array<int> *elist = nullptr)
 {
    static constexpr int DIM = 3;
    constexpr bool DIV = FLAGS & (QuadratureInterpolator::DERIVATIVES |
@@ -913,19 +934,22 @@ inline void EvalHDivTranspose3D(const int NE,
 
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
+   const int NM = elist ? elist->Size() : NE; // entities processed
+   const int *d_elist = elist ? elist->Read() : nullptr;
 
    const auto bo = Reshape(Bo_, Q1D, D1D-1);
    const auto bc = Reshape(Bc_, Q1D, D1D);
    // detJ is used only when PHYSICAL is true, otherwise detJ_ can be nullptr.
    const auto detJ = Reshape(detJ_, Q1D, Q1D, Q1D, NE);
-   const auto y = DIV ? Reshape(y_, Q1D, Q1D, Q1D, 1, NE) :
+   const auto y = DIV ? Reshape(y_, Q1D, Q1D, Q1D, 1, NM) :
                   ((Q_LAYOUT == QVectorLayout::byNODES) ?
-                   Reshape(y_, Q1D, Q1D, Q1D, DIM, NE) :
-                   Reshape(y_, DIM, Q1D, Q1D, Q1D, NE));
+                   Reshape(y_, Q1D, Q1D, Q1D, DIM, NM) :
+                   Reshape(y_, DIM, Q1D, Q1D, Q1D, NM));
    auto x = Reshape(x_, D1D*(D1D-1)*(D1D-1), DIM, NE);
 
-   mfem::forall_3D(NE, Q1D, Q1D, DIM, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NM, Q1D, Q1D, DIM, [=] MFEM_HOST_DEVICE (int e)
    {
+      const int ex = d_elist ? d_elist[e] : e;
       const int tidz = MFEM_THREAD_ID(z);
 
       const int D1D = T_D1D ? T_D1D : d1d;
@@ -961,7 +985,7 @@ inline void EvalHDivTranspose3D(const int NE,
                   if constexpr (DIV)
                   {
                      v = y(qx,qy,qz,0,e);
-                     if constexpr (PHYSICAL) { v /= detJ(qx,qy,qz,e); }
+                     if constexpr (PHYSICAL) { v /= detJ(qx,qy,qz,ex); }
                   }
                   else if (Q_LAYOUT == QVectorLayout::byNODES)
                   {
@@ -1076,7 +1100,7 @@ inline void EvalHDivTranspose3D(const int NE,
                MFEM_UNROLL(MD1)
                for (int dz = 0; dz < nz; ++dz)
                {
-                  x(dx + (dy + dz*ny)*nx,vd,e) += u[dz];
+                  x(dx + (dy + dz*ny)*nx,vd,ex) += u[dz];
                }
             }
          }
