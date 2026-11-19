@@ -12,14 +12,6 @@
 #include "gpu_blas.hpp"
 #include "../../general/forall.hpp"
 
-#if defined(MFEM_USE_CUDA)
-#define MFEM_cu_or_hip(stub) cu##stub
-#define MFEM_CU_or_HIP(stub) CU##stub
-#elif defined(MFEM_USE_HIP)
-#define MFEM_cu_or_hip(stub) hip##stub
-#define MFEM_CU_or_HIP(stub) HIP##stub
-#endif
-
 #define MFEM_CONCAT(x, y, z) MFEM_CONCAT_(x, y, z)
 #define MFEM_CONCAT_(x, y, z) x ## y ## z
 

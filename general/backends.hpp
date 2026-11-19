@@ -27,6 +27,22 @@
 #endif
 #include "hip.hpp"
 
+// Paste a CUDA or HIP prefix: cuda/cu/Cu/CU/CUDA or hip/Hip/HIP.
+// cuda_or_hip is the runtime API (cudaMemcpy). cu_or_hip is cuBLAS/cuSPARSE.
+#if defined(MFEM_USE_CUDA)
+#define MFEM_cuda_or_hip(stub) cuda##stub
+#define MFEM_cu_or_hip(stub) cu##stub
+#define MFEM_Cu_or_Hip(stub) Cu##stub
+#define MFEM_CU_or_HIP(stub) CU##stub
+#define MFEM_CUDA_or_HIP(stub) CUDA##stub
+#elif defined(MFEM_USE_HIP)
+#define MFEM_cuda_or_hip(stub) hip##stub
+#define MFEM_cu_or_hip(stub) hip##stub
+#define MFEM_Cu_or_Hip(stub) Hip##stub
+#define MFEM_CU_or_HIP(stub) HIP##stub
+#define MFEM_CUDA_or_HIP(stub) HIP##stub
+#endif
+
 #ifdef MFEM_USE_OCCA
 #include "occa.hpp"
 #endif
@@ -52,6 +68,7 @@
 #endif
 
 #if !defined(MFEM_USE_CUDA_OR_HIP_LANG)
+#define MFEM_DEVICE_CONSTANT
 #define MFEM_DEVICE
 #define MFEM_HOST
 #define MFEM_LAMBDA
@@ -62,6 +79,9 @@
 #if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
       (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
 #define MFEM_SHARED
+#ifndef MFEM_DEVICE_SYMBOL
+#define MFEM_DEVICE_SYMBOL(...) (__VA_ARGS__)
+#endif
 #define MFEM_SYNC_THREAD
 #define MFEM_BLOCK_ID(k) 0
 #define MFEM_THREAD_ID(k) 0

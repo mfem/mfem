@@ -37,11 +37,15 @@
 // Macros defined only when compiling with HIP language
 #if defined(__HIP__)
 #define MFEM_USE_CUDA_OR_HIP_LANG
+#define MFEM_DEVICE_CONSTANT __constant__
 #define MFEM_DEVICE __device__
 #define MFEM_HOST __host__
 #define MFEM_LAMBDA __host__ __device__
 #define MFEM_LAUNCH_BOUNDS __launch_bounds__
 // #define MFEM_HOST_DEVICE __host__ __device__ // defined in config/config.hpp
+
+// Per the HIP docs, hipMemcpyToSymbol must wrap the symbol in HIP_SYMBOL().
+#define MFEM_DEVICE_SYMBOL(...) HIP_SYMBOL((__VA_ARGS__))
 
 // Define the MFEM inner threading macros
 #if defined(__HIP_DEVICE_COMPILE__)
