@@ -21,7 +21,8 @@ MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
 SEQ_TESTS = bench_assembly_levels bench_ceed bench_dg_amr bench_elasticity \
-            bench_nlvc bench_tmop bench_vector bench_virtuals
+            bench_nlvc bench_tmop bench_vector bench_virtuals \
+            bench_ceed_jit bench_tmop_jit
 PAR_TESTS = 
 ifeq ($(MFEM_USE_MPI),NO)
    TESTS = $(SEQ_TESTS)
