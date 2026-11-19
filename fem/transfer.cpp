@@ -2170,12 +2170,6 @@ bool L2ProjectionGridTransfer::SupportsEA() const
       }
    }
 #ifdef MFEM_USE_MPI
-   else if (Parallel())
-   {
-      // The parallel EA implementation does not handle empty local meshes.
-      supported = false;
-   }
-
    if (Parallel())
    {
       bool global_supported;

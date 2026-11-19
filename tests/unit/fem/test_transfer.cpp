@@ -1440,6 +1440,48 @@ TEST_CASE("H1 L2 projection on a nonconforming mesh", "[Transfer]")
 
 #ifdef MFEM_USE_MPI
 
+TEST_CASE("Parallel L2 projection EA with an empty rank",
+          "[Transfer][Parallel]")
+{
+   if (Mpi::WorldSize() != 2)
+   {
+      SUCCEED("Run with two MPI ranks");
+      return;
+   }
+
+   Mesh mesh = Mesh::MakeCartesian3D(
+                  1, 1, 1, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   ParMesh coarse_mesh(MPI_COMM_WORLD, mesh);
+   ParMesh fine_mesh(coarse_mesh);
+   fine_mesh.UniformRefinement();
+
+   int local_ne = coarse_mesh.GetNE();
+   int min_ne, max_ne;
+   MPI_Allreduce(&local_ne, &min_ne, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+   MPI_Allreduce(&local_ne, &max_ne, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+   // One rank has no parent elements.
+   REQUIRE(min_ne == 0);
+   // The other rank owns the sole hexahedron.
+   REQUIRE(max_ne == 1);
+
+   H1_FECollection fec(1, 3);
+   ParFiniteElementSpace coarse_fes(&coarse_mesh, &fec);
+   ParFiniteElementSpace fine_fes(&fine_mesh, &fec);
+   L2ProjectionGridTransfer transfer(coarse_fes, fine_fes);
+   transfer.UseEA(true);
+   Vector coarse(coarse_fes.GetTrueVSize());
+   Vector fine(fine_fes.GetTrueVSize());
+   coarse = 1.0;
+   transfer.TrueForwardOperator().Mult(coarse, fine);
+   fine -= 1.0;
+   real_t local_error = fine.Normlinf();
+   real_t global_error;
+   MPI_Allreduce(&local_error, &global_error, 1, MFEM_MPI_REAL_T,
+                 MPI_MAX, MPI_COMM_WORLD);
+   // EA preserves a constant even when a rank has no local elements.
+   REQUIRE(global_error == Approx(0.0).margin(1e-12));
+}
+
 TEST_CASE("Parallel H1 L2 projection on a nonconforming mesh",
           "[Transfer][Parallel]")
 {

@@ -200,10 +200,7 @@ struct CoefficientWithOrder
     @note Element assembly currently requires uniform parent and child element
     layouts. When element assembly is requested for an unsupported layout,
     such as a pyramid refined into pyramid and tetrahedron children, standard
-    assembly is used and a warning is issued.
-
-    @note Element assembly in parallel does not currently handle distributed
-    meshes with empty local mesh partitions. */
+    assembly is used and a warning is issued. */
 class L2ProjectionGridTransfer : public GridTransfer
 {
    // Must be public due to host device lambdas
