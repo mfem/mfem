@@ -43,6 +43,8 @@ struct tensor<T>
    MFEM_HOST_DEVICE const T& operator[](int /*unused*/) const { return values; }
    MFEM_HOST_DEVICE T& operator()(int /*unused*/) { return values; }
    MFEM_HOST_DEVICE const T& operator()(int /*unused*/) const { return values; }
+   MFEM_HOST_DEVICE T& operator()() { return values; }
+   MFEM_HOST_DEVICE const T& operator()() const { return values; }
    MFEM_HOST_DEVICE operator T() const { return values; }
    T values;
 };
@@ -729,14 +731,14 @@ auto outer(S A, T B) -> decltype(A * B)
 }
 
 template <typename T, int n, int m> MFEM_HOST_DEVICE
-tensor<T, n + m> flatten(tensor<T, n, m> A)
+tensor<T, n * m> flatten(tensor<T, n, m> A)
 {
-   tensor<T, n + m> B{};
+   tensor<T, n * m> B{};
    for (int i = 0; i < n; i++)
    {
       for (int j = 0; j < m; j++)
       {
-         B(i + j * m) = A(i, j);
+         B(i + j * n) = A(i, j);
       }
    }
    return B;
