@@ -1136,7 +1136,7 @@ IntegrationRules IntRules(0, Quadrature1D::GaussLegendre);
 IntegrationRules RefinedIntRules(1, Quadrature1D::GaussLegendre);
 
 IntegrationRules::IntegrationRules(int ref, int type)
-   : quad_type(type)
+   : quad_type(type), user_set_rules(Geometry::NUM_GEOMETRIES)
 {
    refined = ref;
 
@@ -1262,7 +1262,7 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
 
    (*ir_array)[Order] = &IntRule;
 
-   user_set_rules.emplace(GeomType, Order);
+   user_set_rules[GeomType].insert(Order);
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    omp_unset_lock(&IntRuleLocks[GeomType]);
@@ -1284,7 +1284,7 @@ bool IntegrationRules::IsUserSet(int GeomType, int Order) const
 #endif
 
    const bool is_user_set =
-      user_set_rules.find({GeomType, order}) != user_set_rules.end();
+      user_set_rules[GeomType].count(order) > 0;
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    omp_unset_lock(&IntRuleLocks[GeomType]);
