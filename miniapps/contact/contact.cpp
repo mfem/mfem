@@ -696,7 +696,7 @@ int main(int argc, char *argv[])
          // Disjoint facing patches of ONE connected body. The bend is excluded
          // so neighboring faces can never become spurious self-contact pairs.
          contact_interfaces.push_back({{folded_strip::lower_contact},
-                                       {folded_strip::upper_contact}});
+            {folded_strip::upper_contact}});
          break;
       case ring:
          // Opposite inner arcs of one ring; lateral arcs separate the patches
@@ -1240,10 +1240,10 @@ Mesh * MakeFoldedStripMesh()
    constexpr int width_cells = 4, thickness_cells = 4;
    constexpr int path_cells = 2 * arm_cells + bend_cells;
    auto mesh = std::make_unique<Mesh>(Mesh::MakeCartesian3D(
-                                        path_cells, width_cells, thickness_cells,
-                                        Element::HEXAHEDRON, real_t(path_cells),
-                                        folded_strip::width,
-                                        folded_strip::thickness));
+                                         path_cells, width_cells, thickness_cells,
+                                         Element::HEXAHEDRON, real_t(path_cells),
+                                         folded_strip::width,
+                                         folded_strip::thickness));
 
    // Mark patches before mapping. The inner bend remains a free surface,
    // keeping the two contact patches disjoint.

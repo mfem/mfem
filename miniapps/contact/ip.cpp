@@ -745,8 +745,8 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
 
    IdentityOperator empty_slack(0);
    const Operator &slack_hessian = constrained ?
-                                  static_cast<const Operator &>(*workspace.Wmm) :
-                                  static_cast<const Operator &>(empty_slack);
+                                   static_cast<const Operator &>(*workspace.Wmm) :
+                                   static_cast<const Operator &>(empty_slack);
    const bool passed_curvature_test = CurvatureTest(
                                          *workspace.Wuu, slack_hessian, Xhat, l, b);
 
