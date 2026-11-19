@@ -27,9 +27,47 @@
 #include "linalg/strumpack.hpp"
 #endif
 
+#ifdef MFEM_USE_CUDSS
+#include "linalg/cudss.hpp"
+#if defined(OMPI_MAJOR_VERSION) && __has_include(<mpi-ext.h>)
+#include <mpi-ext.h>
+#endif
+#endif
+
 
 namespace mfem
 {
+
+HypreParMatrix *MakeDiagonalHypreParMatrix(MPI_Comm comm,
+                                           HYPRE_BigInt global_size,
+                                           HYPRE_BigInt *row_starts,
+                                           const Vector &diag)
+{
+   const int n = diag.Size();
+
+   SparseMatrix diag_spmat;
+   diag_spmat.OverrideSize(n, n);
+   diag_spmat.GetMemoryI().New(n + 1, Device::GetDeviceMemoryType());
+   diag_spmat.GetMemoryJ().New(n, Device::GetDeviceMemoryType());
+   diag_spmat.GetMemoryData().New(n, Device::GetDeviceMemoryType());
+
+   int *I = diag_spmat.WriteI();
+   int *J = diag_spmat.WriteJ();
+   real_t *A = diag_spmat.WriteData();
+   const real_t *D = diag.Read();
+
+   MFEM_FORALL(i, n + 1, { I[i] = i; });
+   MFEM_FORALL(i, n,
+   {
+      J[i] = i;
+      A[i] = D[i];
+   });
+
+   HypreParMatrix *Dmat =
+      new HypreParMatrix(comm, global_size, row_starts, &diag_spmat);
+   HypreStealOwnership(*Dmat, diag_spmat);
+   return Dmat;
+}
 
 static ParallelDirectSolver::Type ParseType(const std::string &name_in)
 {
@@ -40,10 +78,27 @@ static ParallelDirectSolver::Type ParseType(const std::string &name_in)
    if (name == "superlu")    { return ParallelDirectSolver::Type::SUPERLU; }
    if (name == "strumpack")  { return ParallelDirectSolver::Type::STRUMPACK; }
    if (name == "cpardiso")   { return ParallelDirectSolver::Type::CPARDISO; }
+   if (name == "cudss")      { return ParallelDirectSolver::Type::CUDSS; }
    if (name == "auto")       { return ParallelDirectSolver::Type::AUTO; }
 
    MFEM_ABORT("Unknown ParallelDirectSolver type string: " + name_in);
    return ParallelDirectSolver::Type::AUTO; // unreachable
+}
+
+bool ParallelDirectSolver::CanUseCuDSS(MPI_Comm comm)
+{
+   (void) comm;
+#ifdef MFEM_USE_CUDSS
+   if (!Device::Allows(Backend::CUDA_MASK)) { return false; }
+#if defined(OMPI_HAVE_MPI_EXT_CUDA) && OMPI_HAVE_MPI_EXT_CUDA
+   int ranks;
+   MPI_Comm_size(comm, &ranks);
+   if (ranks > 1 && !MPIX_Query_cuda_support()) { return false; }
+#endif
+   return true;
+#else
+   return false;
+#endif
 }
 
 ParallelDirectSolver::ParallelDirectSolver(MPI_Comm comm_, Type type_)
@@ -51,17 +106,26 @@ ParallelDirectSolver::ParallelDirectSolver(MPI_Comm comm_, Type type_)
 {
    if (type == Type::AUTO)
    {
-#ifdef MFEM_USE_MUMPS
-      type = Type::MUMPS;
-#elif defined(MFEM_USE_SUPERLU)
-      type = Type::SUPERLU;
-#elif defined(MFEM_USE_STRUMPACK)
-      type = Type::STRUMPACK;
-#elif defined(MFEM_USE_MKL_CPARDISO)
-      type = Type::CPARDISO;
-#else
-      MFEM_ABORT("No parallel direct solver was enabled in MFEM.");
+#ifdef MFEM_USE_CUDSS
+      if (CanUseCuDSS(comm))
+      {
+         type = Type::CUDSS;
+      }
+      else
 #endif
+      {
+#ifdef MFEM_USE_MUMPS
+         type = Type::MUMPS;
+#elif defined(MFEM_USE_SUPERLU)
+         type = Type::SUPERLU;
+#elif defined(MFEM_USE_STRUMPACK)
+         type = Type::STRUMPACK;
+#elif defined(MFEM_USE_MKL_CPARDISO)
+         type = Type::CPARDISO;
+#else
+         MFEM_ABORT("No parallel direct solver was enabled in MFEM.");
+#endif
+      }
    }
 
    InitSolver();
@@ -75,6 +139,21 @@ void ParallelDirectSolver::InitSolver()
 {
    switch (type)
    {
+      case Type::CUDSS:
+#ifdef MFEM_USE_CUDSS
+      {
+         MFEM_VERIFY(CanUseCuDSS(comm),
+                     "cuDSS requires a CUDA device (-d cuda) and, for "
+                     "multiple ranks, CUDA-aware MPI.");
+         auto *cudss = new CuDSSSolver(comm);
+         cudss->SetMatrixSymType(CuDSSSolver::SYMMETRIC_POSITIVE_DEFINITE);
+         solver.reset(cudss);
+      }
+      break;
+#else
+      MFEM_ABORT("cuDSS requested but MFEM_USE_CUDSS is not defined.");
+#endif
+
       case Type::MUMPS:
 #ifdef MFEM_USE_MUMPS
       {
@@ -136,6 +215,7 @@ void ParallelDirectSolver::SetOperator(const Operator &op)
    {
       case Type::MUMPS:
       case Type::CPARDISO:
+      case Type::CUDSS:
          // These accept HypreParMatrix directly (or Operator that dynamic_casts to it)
          solver->SetOperator(op);
          break;

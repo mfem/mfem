@@ -17,6 +17,8 @@
 namespace mfem
 {
 
+class DeviceNeoHookean;
+
 /**
  *  @class ElasticityOperator
  *  @brief Parallel finite element operator for linear and nonlinear elasticity.
@@ -32,6 +34,12 @@ private:
 
    /// Toggle for nonlinear formulation (true = Neo-Hookean, false = linear elasticity).
    bool nonlinear = false;
+
+   /// Use full assembly for the linear elasticity stiffness matrix.
+   bool use_fa = false;
+
+   /// Use fast/device assembly for linear-form RHS terms.
+   bool use_rhs_fa = false;
 
    /// Tracks whether the linear system has been formed.
    bool formsystem = false;
@@ -56,8 +64,8 @@ private:
    /// Parallel finite element space for displacement.
    ParFiniteElementSpace * fes = nullptr;
 
-   /// Underlying operator: bilinear form (linear) or nonlinear form (nonlinear).
-   Operator * op = nullptr;
+   /// Bilinear form for linear elasticity.
+   ParBilinearForm * op = nullptr;
 
    /// Linear form for RHS assembly.
    ParLinearForm * b = nullptr;
@@ -65,14 +73,21 @@ private:
    /// Current solution
    ParGridFunction x;
 
-   // System matrix
-   HypreParMatrix *K=nullptr;
+   /// Cached stiffness matrix: owned for full assembly, otherwise borrowed
+   /// from the bilinear form. The mesh, material and essential DOFs stay fixed.
+   OperatorHandle K{Operator::Hypre_ParCSR};
 
    /// Right-hand side (B) and solution vector (X).
    Vector B, X;
 
-   /// Neumann pressure coefficient (for traction BCs).
-   ConstantCoefficient pressure_cf;
+   /// Reusable buffers for energy and nonlinear state evaluation.
+   mutable Vector state_work, action_work;
+
+   /// Neumann pressure coefficients and boundary markers (for traction BCs),
+   /// one per call to SetNeumannPressureData. The linear form keeps pointers
+   /// to both, so they are owned here and released with the linear form.
+   Array<ConstantCoefficient *> pressure_cf;
+   Array<Array<int> *> pressure_bdr_marker;
 
    /// Material parameters:
    /// - Linear: c1 = λ (1ˢᵗ Lame parameter), c2 = μ (2ⁿᵈ Lame parameter or shear modulus)
@@ -80,8 +95,8 @@ private:
    Vector c1, c2;
    PWConstCoefficient c1_cf, c2_cf;
 
-   /// Hyperelastic material model (only for nonlinear case).
-   NeoHookeanModel * material_model = nullptr;
+   /// Portable hyperelastic material evaluation on CPU and device backends.
+   std::unique_ptr<DeviceNeoHookean> material;
 
    /// Reference configuration displacement
    Vector xref;
@@ -90,6 +105,7 @@ private:
    void Init();
    void SetEssentialBC();
    void SetUpOperator();
+   void ResetLinearForm();
 
 public:
    /**  @brief Construct an ElasticityOperator.
@@ -99,10 +115,12 @@ public:
     *   @param E Vector of Young’s modulus values (per attribute).
     *   @param nu Vector of Poisson’s ratio values (per attribute).
     *   @param nonlinear_ If true, setup nonlinear hyperelasticity.
+    *   @param use_fa_ If true, use full assembly for linear elasticity.
     */
    ElasticityOperator(ParMesh * pmesh_, Array<int> & ess_bdr_attr_,
                       Array<int> & ess_bdr_attr_comp_,
-                      const Vector & E, const Vector & nu, bool nonlinear_ = false);
+                      const Vector & E, const Vector & nu,
+                      bool nonlinear_ = false, bool use_fa_ = false);
 
    /// Set material parameters from vectors of Young’s modulus (E) and Poisson’s ratio (ν).
    void SetParameters(const Vector & E, const Vector & nu);
@@ -140,8 +158,16 @@ public:
    /// Get the Hessian (stiffness matrix) at a given displacement vector.
    HypreParMatrix * GetHessian(const Vector & u);
 
+   /// Evaluate reference data together on the selected CPU or device backend.
+   /// The returned Hessian is owned by this object.
+   void GetReferenceData(const Vector &u, real_t &energy, Vector &gradient,
+                         HypreParMatrix *&hessian);
+
    /// Check if the operator is nonlinear.
    bool IsNonlinear() { return nonlinear; }
+
+   /// Check if the RHS linear form uses fast/device assembly.
+   bool UsesFastRHSAssembly() const { return use_rhs_fa; }
 
    /// Destructor (cleans up FE space, operator, and material model).
    ~ElasticityOperator();

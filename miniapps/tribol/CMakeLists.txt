@@ -15,6 +15,14 @@ if (MFEM_USE_TRIBOL AND MFEM_USE_MPI)
     MAIN contact-patch-test.cpp
     LIBRARIES mfem)
 
+  if (MFEM_USE_CUDA OR MFEM_USE_HIP)
+    target_compile_features(ContactPatchTest PRIVATE cxx_std_20)
+    if (MFEM_USE_CUDA)
+      set_property(TARGET ContactPatchTest PROPERTY CUDA_STANDARD 20)
+      set_property(TARGET ContactPatchTest PROPERTY CUDA_STANDARD_REQUIRED ON)
+    endif()
+  endif()
+
 # The way the libraries are included, by default, in the command line is based
 # on the idea that MFEM depends on the other libraries. Here, the setting is
 # such that Tribol, in fact, depends on MFEM, while MFEM does not depend on
