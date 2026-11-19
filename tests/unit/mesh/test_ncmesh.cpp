@@ -391,6 +391,63 @@ TEST_CASE("NCMesh root transforms", "[NCMesh]")
    CheckRootTransforms(root_mesh, mesh);
 }
 
+TEST_CASE("NCMesh refinement transforms through pyramids", "[NCMesh]")
+{
+   // With nc_limit = 1, LimitNCLevel refines again some tetrahedral children
+   // of the pyramids refined in the third step: their paths are two levels.
+   Mesh mesh = MakeHexPyramidMesh();
+   mesh.EnsureNCMesh(true);
+   int two_level_tets = 0;
+   const real_t centers[3][3] = {{0.426, 0.455, 0.412}, {0.186, 0.489, 0.467},
+      {0.198, 0.153, 0.115}
+   };
+   for (const auto &p : centers)
+   {
+      const Mesh coarse(mesh);
+      Array<Refinement> refs;
+      Vector c;
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         mesh.GetElementCenter(e, c);
+         const real_t d0 = c(0) - p[0], d1 = c(1) - p[1], d2 = c(2) - p[2];
+         if (d0*d0 + d1*d1 + d2*d2 < 0.0625) { refs.Append(Refinement(e)); }
+      }
+      mesh.GeneralRefinement(refs, 1, 1);
+
+      const CoarseFineTransformations &tr = mesh.GetRefinementTransforms();
+      IsoparametricTransformation T;
+      IntegrationPoint ip;
+      Vector x;
+      Array<int> v;
+      for (int i = 0; i < mesh.GetNE(); i++)
+      {
+         // the point matrices are stored under the coarse element geometry
+         const Embedding &emb = tr.embeddings[i];
+         const Geometry::Type geom = coarse.GetElementGeometry(emb.parent);
+         const DenseMatrix &pm = tr.point_matrices[geom](emb.matrix);
+         if (geom == Geometry::PYRAMID &&
+             mesh.ncmesh->GetElementDepth(i) ==
+             coarse.ncmesh->GetElementDepth(emb.parent) + 2)
+         {
+            two_level_tets += (mesh.GetElementGeometry(i) ==
+                               Geometry::TETRAHEDRON);
+         }
+         coarse.GetElementTransformation(emb.parent, &T);
+         mesh.GetElementVertices(i, v);
+         for (int j = 0; j < v.Size(); j++)
+         {
+            ip.Set(pm.GetColumn(j), pm.Height());
+            T.Transform(ip, x);
+            for (int d = 0; d < 3; d++)
+            {
+               CHECK(x(d) == MFEM_Approx(mesh.GetVertex(v[j])[d]));
+            }
+         }
+      }
+   }
+   REQUIRE(two_level_tets > 0);
+}
+
 
 #ifdef MFEM_USE_MPI
 
