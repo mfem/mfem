@@ -614,7 +614,7 @@ protected: // implementation
        off" its nodes by decrementing the ref counts. */
    struct Node : public Hashed2
    {
-      char vert_refc, edge_refc;
+      std::uint16_t vert_refc, edge_refc;
       int vert_index, edge_index;
 
       Node() : vert_refc(0), edge_refc(0), vert_index(-1), edge_index(-1),
@@ -943,8 +943,6 @@ protected:
                    int attr, int eattr0, int eattr1, int eattr2);
 
    int NewSegment(int n0, int n1, int attr, int vattr1, int vattr2);
-
-   mfem::Element* NewMeshElement(int geom) const;
 
    /**
     * @brief Given a quad face defined by four vertices, establish which edges

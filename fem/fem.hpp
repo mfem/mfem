@@ -62,10 +62,6 @@
 #include "pnonlinearform.hpp"
 #endif
 
-#ifdef MFEM_USE_SIDRE
-#include "sidredatacollection.hpp"
-#endif
-
 #ifdef MFEM_USE_CONDUIT
 #include "conduitdatacollection.hpp"
 #endif
