@@ -30,6 +30,9 @@
 #ifdef MFEM_USE_ADIOS2
 #include "general/adios2stream.hpp"
 #endif // MFEM_USE_ADIOS2
+#ifdef MFEM_USE_GLVIS
+#include "general/glvis_stream.hpp"
+#endif // MFEM_USE_GLVIS
 #include "general/isockstream.hpp"
 #include "general/osockstream.hpp"
 #include "general/socketstream.hpp"
