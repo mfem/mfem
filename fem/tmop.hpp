@@ -280,7 +280,7 @@ public:
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override {P=0.0;}
 
    void AssembleH(const DenseMatrix &Jpt, const DenseMatrix &DS,
-                  const real_t weight, DenseMatrix &A) const override {A=0.0;}
+                  const real_t weight, DenseMatrix &A) const override { }
 
    int Id() const override { return 0; }
 };
@@ -670,7 +670,7 @@ public:
    virtual ~TMOP_Metric_080() { delete sh_metric; delete sz_metric; }
 };
 
-/// 2D barrier Shape+Orientation (OS) metric (polyconvex).
+/// 2D non-barrier Shape+Orientation (OS) metric (polyconvex).
 class TMOP_Metric_085 : public TMOP_QualityMetric
 {
 public:
@@ -904,7 +904,7 @@ protected:
 public:
    TMOP_Metric_313(real_t &mindet) : min_detT(mindet) { }
 
-   // W = 1/3 |J|^2 / [det(J)-tau0]^(-2/3).
+   // W = 1/3 |J|^2 / [det(J)-tau0]^(2/3).
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
@@ -1003,10 +1003,10 @@ protected:
    mutable InvariantsEvaluator3D<real_t> ie;
 
 public:
-   // W = |J - adjJ^-t|^2.
+   // W = |J - adj(J)^T|^2 / (6 det(J)).
    real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
-   // W = I1b / (I3b^-1/3) / 6 + I2b (I3b^1/3) / 6 - 1
+   // W = I1b / (I3b^1/3) / 6 + I2b (I3b^1/3) / 6 - 1
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
@@ -1213,10 +1213,10 @@ protected:
    mutable InvariantsEvaluator3D<real_t> ie;
 
 public:
-   // W = |J|^3 / 3^(3/2) - det(J).
+   // W = |J|^3 / (3 sqrt(3)) - det(J).
    real_t EvalWMatrixForm(const DenseMatrix &Jpt) const override;
 
-   // W = (I1b/3)^3/2 - 1.
+   // W = |J|^3 / (3 sqrt(3)) - det(J) = (I1/3)^(3/2) - I3b.
    real_t EvalW(const DenseMatrix &Jpt) const override;
 
    void EvalP(const DenseMatrix &Jpt, DenseMatrix &P) const override;
@@ -2062,7 +2062,7 @@ protected:
    real_t surf_fit_normal;                  // Normalization factor.
    GridFunction *surf_fit_grad, *surf_fit_hess; // Owned. Created internally.
    AdaptivityEvaluator *surf_fit_eval_grad, *surf_fit_eval_hess; // Not owned.
-   Array<int> surf_fit_dof_count;            // Number of dofs per node.
+   Array<int> surf_fit_dof_count;            // # of elements sharing each vdof.
    Array<int> surf_fit_marker_dof_index;     // Indices of nodes to fit.
 
    DiscreteAdaptTC *discr_tc;
@@ -2501,6 +2501,17 @@ public:
        @param[in] coeff   Coefficient c for the above integral. */
    void EnableSurfaceFitting(const GridFunction &pos,
                              const Array<bool> &smarker, Coefficient &coeff);
+
+   /** @brief Disables surface fitting and releases its data.
+
+       Deletes the objects owned for fitting (level-set copy, its gradient and
+       Hessian, the position limiter), nulls the pointers to user objects
+       (positions, marker, coefficient, adaptivity evaluators) and empties the
+       DOF counts and marked-DOF indices. Every EnableSurfaceFitting* call does
+       this before its setup, so state from an earlier call is never reused.
+       The normalization factor is not changed. */
+   void ResetSurfaceFitting();
+
    void GetSurfaceFittingErrors(const Vector &d_loc,
                                 real_t &err_avg, real_t &err_max);
    bool IsSurfaceFittingEnabled()
