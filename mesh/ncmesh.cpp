@@ -2025,6 +2025,7 @@ int NCMesh::RetrieveNode(const Element &el, int index) const
 
       case Geometry::TETRAHEDRON:
       case Geometry::TRIANGLE:
+      case Geometry::SEGMENT:
          ch = el.child[index];
          break;
 

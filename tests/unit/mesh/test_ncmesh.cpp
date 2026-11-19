@@ -367,13 +367,14 @@ TEST_CASE("NCMesh 3D Derefined Volume", "[NCMesh]")
 
 TEST_CASE("NCMesh root transforms", "[NCMesh]")
 {
-   auto type = GENERATE(Element::TRIANGLE, Element::QUADRILATERAL,
-                        Element::TETRAHEDRON, Element::HEXAHEDRON,
-                        Element::WEDGE, Element::PYRAMID);
+   auto type = GENERATE(Element::SEGMENT, Element::TRIANGLE,
+                        Element::QUADRILATERAL, Element::TETRAHEDRON,
+                        Element::HEXAHEDRON, Element::WEDGE, Element::PYRAMID);
    CAPTURE(type);
    const bool tri_or_quad = (type == Element::TRIANGLE ||
                              type == Element::QUADRILATERAL);
-   Mesh mesh = tri_or_quad ? Mesh::MakeCartesian2D(2, 2, type) :
+   Mesh mesh = (type == Element::SEGMENT) ? Mesh::MakeCartesian1D(2) :
+               tri_or_quad ? Mesh::MakeCartesian2D(2, 2, type) :
                (type == Element::PYRAMID) ? MakeHexPyramidMesh() :
                Mesh::MakeCartesian3D(2, 2, 2, type);
    const Mesh root_mesh(mesh);
