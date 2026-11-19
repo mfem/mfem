@@ -1781,8 +1781,16 @@ H1_FECollection::H1_FECollection(const int p, const int dim, const int btype,
                      Quadrature1D::Invalid,
                      "unsupported BasisType: " << BasisType::Name(btype));
 
-         snprintf(h1_name, 32, "H1@%c_%dD_P%d",
-                  (int)BasisType::GetChar(btype), dim, p);
+         if (pyr_type == ScalarPyramid::DefaultType)
+         {
+            snprintf(h1_name, 32, "H1@%c_%dD_P%d",
+                     (int)BasisType::GetChar(btype), dim, p);
+         }
+         else
+         {
+            snprintf(h1_name, 32, "H1@%c_%dD_P%d_Pyr%d",
+                     (int)BasisType::GetChar(btype), dim, p, pyr_type);
+         }
       }
    }
 
