@@ -1002,21 +1002,56 @@ TEST_CASE("Non-Contiguous SubMesh Transfers", "[SubMesh]")
    const int dim = GENERATE(2, 3);
    const auto fec_type = GENERATE(FECType::H1, FECType::ND,
                                   FECType::RT, FECType::L2);
+   const int refinement_mode = GENERATE(0, 1, 2, 3);
+   const bool nc_submesh = refinement_mode == 3;
+   const int refinement_attribute =
+      refinement_mode == 0 ? 0 : (refinement_mode == 2 ? 2 : 1);
 
    // Construct a checkerboard mesh of the requested dimension
    Mesh mesh = CheckerboardMesh(dim);
+   if (refinement_attribute != 0)
+   {
+      // Refine one checkerboard region. Modes 1 and 2 introduce hanging
+      // interfaces only at the boundary between the two test submeshes. Mode
+      // 3 selects attributes 1 and 2 in the first submesh, so these interfaces
+      // are internal to that submesh as well as nonconforming in the parent.
+      mesh.EnsureNCMesh(true);
+      Array<int> elements_to_refine;
+      for (int el = 0; el < mesh.GetNE(); el++)
+      {
+         if (mesh.GetAttribute(el) == refinement_attribute)
+         {
+            elements_to_refine.Append(el);
+         }
+      }
+      REQUIRE(elements_to_refine.Size() > 0);
+      mesh.GeneralRefinement(elements_to_refine);
+   }
 
    CAPTURE(dim);
    CAPTURE(fec_type);
+   CAPTURE(refinement_mode);
+   CAPTURE(refinement_attribute);
 
-   // Checkerboard pattern including corners
-   Array<int> attr13(2); attr13[0] = 1; attr13[1] = 3;
+   // The usual pair separates checkerboard corners from their neighbors. For
+   // mode 3, include attributes 1 and 2 in the first submesh so that refining
+   // attribute 1 creates hanging interfaces within a non-contiguous submesh.
+   Array<int> attr13(nc_submesh && dim == 3 ? 3 : 2);
+   attr13[0] = 1;
+   attr13[1] = nc_submesh ? 2 : 3;
+   if (nc_submesh && dim == 3) { attr13[2] = 4; }
    SubMesh submesh13 = SubMesh::CreateFromDomain(mesh, attr13);
 
-   // Checkerboard pattern excluding corners
-   Array<int> attr24(dim-1); attr24[0] = 2;
-   if (dim == 3) { attr24[1] = 4; }
+   // The second submesh contains the complementary checkerboard attributes.
+   Array<int> attr24(nc_submesh ? 1 : dim-1);
+   attr24[0] = nc_submesh ? 3 : 2;
+   if (!nc_submesh && dim == 3) { attr24[1] = 4; }
    SubMesh submesh24 = SubMesh::CreateFromDomain(mesh, attr24);
+   if (nc_submesh)
+   {
+      REQUIRE(mesh.Nonconforming());
+      REQUIRE(submesh13.Nonconforming());
+   }
 
    // Project random field onto full domain
    FiniteElementCollection *fec = create_fec(fec_type, order, dim);
@@ -1028,6 +1063,12 @@ TEST_CASE("Non-Contiguous SubMesh Transfers", "[SubMesh]")
 
    // Transfer portion of random field to submesh
    FiniteElementSpace fes13(&submesh13, fec);
+   if (nc_submesh && fec_type != FECType::L2)
+   {
+      // The selected attributes meet at the refined interface, so this is not
+      // merely an NC mesh object inherited from the parent: it has constraints.
+      REQUIRE(fes13.GetConformingProlongation() != nullptr);
+   }
    GridFunction gf13(&fes13);
    SubMesh::Transfer(gf0, gf13);
 
