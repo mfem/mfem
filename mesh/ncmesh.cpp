@@ -4959,7 +4959,7 @@ void NCMesh::GetPointMatrix(Geometry::Type geom, const char* ref_path,
 
          // the next refinements of a tetrahedral child are those of a
          // tetrahedron
-         if (child >= 6) { geom = Geometry::TETRAHEDRON; }
+         if (pm.np == 4) { geom = Geometry::TETRAHEDRON; }
       }
       else if (geom == Geometry::TETRAHEDRON)
       {
