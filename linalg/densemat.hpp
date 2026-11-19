@@ -1329,8 +1329,9 @@ public:
     have exactly @a k entries.
 
     Matrix views and raw data pointers obtained from this object do not own the
-    stack data. They remain valid only until this stack is resized, assigned,
-    reset to different external data, cleared, or destroyed. */
+    stack data. Reacquire views after resizing or assignment: dimensions can
+    change even when the backing buffer is reused. A raw pointer remains valid
+    only while the stack still uses the same allocation. */
 class DenseMatrixStack
 {
 private:
@@ -1364,9 +1365,9 @@ public:
    /** @brief Construct a non-owning stack that views external host data.
 
        The caller retains ownership of @a d and must keep a buffer containing
-       TotalSize() entries alive until the stack is resized, reset, cleared, or
-       destroyed. The data are interpreted as contiguous column-major layers
-       with dimensions @a ik[l] by @a jk[l]. */
+       TotalSize() entries alive while the stack references it, including after
+       a resize that retains the buffer. The data are interpreted as
+       contiguous column-major layers with dimensions @a ik[l] by @a jk[l]. */
    DenseMatrixStack(real_t *d, const Array<int>& ik, const Array<int>& jk,
                     int k)
       : ni(ik), nj(jk), nk(k)
@@ -1423,11 +1424,14 @@ public:
    /// Return the total number of entries in all layers.
    int TotalSize() const { return tsize; }
 
-   /** @brief Resize to @a k owning matrices of size @a i by @a j.
+   /** @brief Resize to @a k matrices of size @a i by @a j.
 
-       Existing owned storage is released and any existing data views or
-       pointers are invalidated. When @a mt_ is MemoryType::PRESERVE, the
-       current memory type is retained. */
+       Backing storage is reused when its capacity and memory type suffice.
+       An external buffer then remains caller-owned and must stay alive while
+       the stack references it. Otherwise, the stack allocates owned storage.
+       Reacquire matrix views after resizing; raw pointers may be invalidated
+       if the buffer changes. When @a mt_ is MemoryType::PRESERVE, the current
+       memory type is retained. */
    void SetSize(int i, int j, int k, MemoryType mt_ = MemoryType::PRESERVE)
    {
       const MemoryType mt = mt_ == MemoryType::PRESERVE ?
@@ -1443,10 +1447,10 @@ public:
       tdata.SetSize(tsize, mt);
    }
 
-   /** @brief Resize to @a k owning matrices with @a i rows each.
+   /** @brief Resize to @a k matrices with @a i rows each.
 
-       Layer @a l has @a jk[l] columns. Existing data views and pointers are
-       invalidated; see the uniform-size overload for memory-type behavior. */
+       Layer @a l has @a jk[l] columns. See the uniform-size overload for
+       buffer reuse, ownership, and view lifetime. */
    void SetSize(int i, const Array<int>& jk, int k,
                 MemoryType mt_ = MemoryType::PRESERVE)
    {
@@ -1463,10 +1467,10 @@ public:
       tdata.SetSize(tsize, mt);
    }
 
-   /** @brief Resize to @a k owning matrices with @a j columns each.
+   /** @brief Resize to @a k matrices with @a j columns each.
 
-       Layer @a l has @a ik[l] rows. Existing data views and pointers are
-       invalidated; see the uniform-size overload for memory-type behavior. */
+       Layer @a l has @a ik[l] rows. See the uniform-size overload for buffer
+       reuse, ownership, and view lifetime. */
    void SetSize(const Array<int>& ik, int j, int k,
                 MemoryType mt_ = MemoryType::PRESERVE)
    {
@@ -1483,11 +1487,10 @@ public:
       tdata.SetSize(tsize, mt);
    }
 
-   /** @brief Resize to @a k owning matrices with per-layer dimensions.
+   /** @brief Resize to @a k matrices with per-layer dimensions.
 
-       Layer @a l has @a ik[l] rows and @a jk[l] columns. Existing data views
-       and pointers are invalidated; see the uniform-size overload for
-       memory-type behavior. */
+       Layer @a l has @a ik[l] rows and @a jk[l] columns. See the uniform-size
+       overload for buffer reuse, ownership, and view lifetime. */
    void SetSize(const Array<int>& ik, const Array<int>& jk, int k,
                 MemoryType mt_ = MemoryType::PRESERVE)
    {
@@ -1508,8 +1511,9 @@ public:
 
        Each matrix has @a i rows and @a j columns. The caller retains ownership
        of @a ext_data and must keep its buffer of at least `i*j*k` entries alive
-       until this stack is resized, reset, cleared, or destroyed. Existing owned
-       storage is released and existing data views and pointers are invalidated. */
+       while this stack references it, including after a resize that retains
+       the buffer. Existing owned storage is released and existing data views
+       must be reacquired. */
    void UseExternalData(real_t *ext_data, int i, int j, int k)
    {
       ni.SetSize(k);
@@ -1527,8 +1531,9 @@ public:
 
        Layer @a l has @a ik[l] rows and @a jk[l] columns. The caller retains
        ownership of @a ext_data and must keep its TotalSize()-entry buffer alive
-       until this stack is resized, reset, cleared, or destroyed. Existing owned
-       storage is released and existing data views and pointers are invalidated. */
+       while this stack references it, including after a resize that retains
+       the buffer. Existing owned storage is released and existing data views
+       must be reacquired. */
    void UseExternalData(real_t *ext_data,
                         const Array<int>& ik, const Array<int>& jk, int k)
    {
@@ -1550,8 +1555,8 @@ public:
        invalidated.
 
        If @a own_mem is false, the stack is an alias and does not own any
-       pointer in @a mem. The caller must keep @a mem and its data valid until
-       the stack is resized, reset, cleared, or destroyed.
+       pointer in @a mem. The caller must keep the backing allocation valid
+       while the stack references it, including after a resize that retains it.
 
        If @a own_mem is true, ownership of every pointer owned by @a mem is
        transferred to this stack. The caller must not call `mem.Delete()` after
@@ -1720,9 +1725,11 @@ public:
        is scattered into row @a k of @a range_dof. The dimensions of @a A_k
        must be `range_dof.RowSize(k)` by `domain_dof.RowSize(k)`.
 
-       This supports, for example, local coarse-to-fine transfer matrices. The
-       two tables must have one row for every stack layer; for a child matrix,
-       the corresponding row of @a domain_dof identifies its parent DOFs.
+       Contributions to repeated range indices are added. Applying local
+       coarse-to-fine interpolation matrices therefore does not by itself
+       produce a conforming global prolongation operator. The two tables must
+       have one row for every stack layer; for a child matrix, the corresponding
+       row of @a domain_dof identifies its parent DOFs.
        As above, table entries are assumed to be direct vector indices. */
    void AddMult(const Table &domain_dof, const Vector &x,
                 const Table &range_dof, Vector &y) const;
@@ -1747,58 +1754,22 @@ public:
    }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
-   const real_t *Read(bool on_dev = true) const
-   {
-      off.Read(on_dev);
-      ni.Read(on_dev);
-      nj.Read(on_dev);
-      return tdata.Read(on_dev);
-   }
+   const real_t *Read(bool on_dev = true) const { return tdata.Read(on_dev); }
 
    /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
-   const real_t *HostRead() const
-   {
-      off.HostRead();
-      ni.HostRead();
-      nj.HostRead();
-      return tdata.HostRead();
-   }
+   const real_t *HostRead() const { return tdata.HostRead(); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
-   real_t *Write(bool on_dev = true)
-   {
-      off.Write(on_dev);
-      ni.Write(on_dev);
-      nj.Write(on_dev);
-      return tdata.Write(on_dev);
-   }
+   real_t *Write(bool on_dev = true) { return tdata.Write(on_dev); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
-   real_t *HostWrite()
-   {
-      off.HostWrite();
-      ni.HostWrite();
-      nj.HostWrite();
-      return tdata.HostWrite();
-   }
+   real_t *HostWrite() { return tdata.HostWrite(); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
-   real_t *ReadWrite(bool on_dev = true)
-   {
-      off.ReadWrite(on_dev);
-      ni.ReadWrite(on_dev);
-      nj.ReadWrite(on_dev);
-      return tdata.ReadWrite(on_dev);
-   }
+   real_t *ReadWrite(bool on_dev = true) { return tdata.ReadWrite(on_dev); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
-   real_t *HostReadWrite()
-   {
-      off.HostReadWrite();
-      ni.HostReadWrite();
-      nj.HostReadWrite();
-      return tdata.HostReadWrite();
-   }
+   real_t *HostReadWrite() { return tdata.HostReadWrite(); }
 
    /** @brief Exchange the data and dimensions with @a t.
 

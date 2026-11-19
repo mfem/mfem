@@ -803,6 +803,41 @@ TEST_CASE("DenseMatrixStack external Memory alias",
    REQUIRE(storage[3] == -1.0);
 }
 
+TEST_CASE("DenseMatrixStack SetSize with external data",
+          "[DenseMatrix][DenseMatrixStack]")
+{
+   real_t external_data[8] = {};
+   DenseMatrixStack matrices;
+   matrices.UseExternalData(external_data, 2, 2, 2);
+
+   matrices.SetSize(1, 2, 2);
+   REQUIRE(matrices.Data() == external_data);
+   REQUIRE_FALSE(matrices.GetMemory().OwnsHostPtr());
+   REQUIRE(matrices.TotalSize() == 4);
+
+   Array<int> widths{1, 3};
+   matrices.SetSize(2, widths, 2);
+   REQUIRE(matrices.Data() == external_data);
+   REQUIRE_FALSE(matrices.GetMemory().OwnsHostPtr());
+   REQUIRE(matrices.GetData(1) == external_data + 2);
+
+   Array<int> heights{1, 2};
+   matrices.SetSize(heights, 2, 2);
+   REQUIRE(matrices.Data() == external_data);
+   REQUIRE_FALSE(matrices.GetMemory().OwnsHostPtr());
+   REQUIRE(matrices.GetData(1) == external_data + 2);
+
+   matrices.SetSize(heights, widths, 2);
+   REQUIRE(matrices.Data() == external_data);
+   REQUIRE_FALSE(matrices.GetMemory().OwnsHostPtr());
+   REQUIRE(matrices.GetData(1) == external_data + 1);
+
+   matrices.SetSize(3, 3, 1);
+   REQUIRE(matrices.Data() != external_data);
+   REQUIRE(matrices.GetMemory().OwnsHostPtr());
+   REQUIRE(matrices.TotalSize() == 9);
+}
+
 TEST_CASE("DenseMatrixStack AddMult", "[DenseMatrix][DenseMatrixStack]")
 {
    Array<int> n{2, 3};
