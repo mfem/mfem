@@ -26,7 +26,7 @@ else
    MINIAPPS = $(PAR_MINIAPPS) $(SEQ_MINIAPPS)
 endif
 
-PLASMA_SUBDIRS = pic
+PLASMA_SUBDIRS = diffusion pic
 
 SUBDIRS_ALL = $(addsuffix /all,$(PLASMA_SUBDIRS))
 SUBDIRS_TEST = $(addsuffix /test,$(PLASMA_SUBDIRS))
