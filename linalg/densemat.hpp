@@ -1747,58 +1747,22 @@ public:
    }
 
    /// Shortcut for mfem::Read( GetMemory(), TotalSize(), on_dev).
-   const real_t *Read(bool on_dev = true) const
-   {
-      off.Read(on_dev);
-      ni.Read(on_dev);
-      nj.Read(on_dev);
-      return tdata.Read(on_dev);
-   }
+   const real_t *Read(bool on_dev = true) const { return tdata.Read(on_dev); }
 
    /// Shortcut for mfem::Read(GetMemory(), TotalSize(), false).
-   const real_t *HostRead() const
-   {
-      off.HostRead();
-      ni.HostRead();
-      nj.HostRead();
-      return tdata.HostRead();
-   }
+   const real_t *HostRead() const { return tdata.HostRead(); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), on_dev).
-   real_t *Write(bool on_dev = true)
-   {
-      off.Write(on_dev);
-      ni.Write(on_dev);
-      nj.Write(on_dev);
-      return tdata.Write(on_dev);
-   }
+   real_t *Write(bool on_dev = true) { return tdata.Write(on_dev); }
 
    /// Shortcut for mfem::Write(GetMemory(), TotalSize(), false).
-   real_t *HostWrite()
-   {
-      off.HostWrite();
-      ni.HostWrite();
-      nj.HostWrite();
-      return tdata.HostWrite();
-   }
+   real_t *HostWrite() { return tdata.HostWrite(); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), on_dev).
-   real_t *ReadWrite(bool on_dev = true)
-   {
-      off.ReadWrite(on_dev);
-      ni.ReadWrite(on_dev);
-      nj.ReadWrite(on_dev);
-      return tdata.ReadWrite(on_dev);
-   }
+   real_t *ReadWrite(bool on_dev = true) { return tdata.ReadWrite(on_dev); }
 
    /// Shortcut for mfem::ReadWrite(GetMemory(), TotalSize(), false).
-   real_t *HostReadWrite()
-   {
-      off.HostReadWrite();
-      ni.HostReadWrite();
-      nj.HostReadWrite();
-      return tdata.HostReadWrite();
-   }
+   real_t *HostReadWrite() { return tdata.HostReadWrite(); }
 
    /** @brief Exchange the data and dimensions with @a t.
 
