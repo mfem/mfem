@@ -456,6 +456,32 @@ void SuperLUSolver::SetLookAheadElimTree(bool etree)
    options->lookahead_etree = opt;
 }
 
+void SuperLUSolver::SetRelaxedSupernodeSize(int relax)
+{
+#if SUPERLU_DIST_MAJOR_VERSION >= 8
+   MFEM_VERIFY(relax > 0, "The relaxed supernode size must be positive!");
+   superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;
+   options->superlu_relax = relax;
+#else
+   MFEM_CONTRACT_VAR(relax);
+   MFEM_ABORT("SetRelaxedSupernodeSize requires SuperLU_DIST 8.0 or newer!");
+#endif
+}
+
+void SuperLUSolver::SetMaxSupernodeSize(int maxsup)
+{
+#if SUPERLU_DIST_MAJOR_VERSION >= 8
+   MFEM_VERIFY(maxsup > 0 && maxsup <= MAX_SUPER_SIZE,
+               "The maximum supernode size must be between 1 and "
+               << MAX_SUPER_SIZE << "!");
+   superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;
+   options->superlu_maxsup = maxsup;
+#else
+   MFEM_CONTRACT_VAR(maxsup);
+   MFEM_ABORT("SetMaxSupernodeSize requires SuperLU_DIST 8.0 or newer!");
+#endif
+}
+
 void SuperLUSolver::SetSymmetricPattern(bool sym)
 {
    superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;

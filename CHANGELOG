@@ -44,6 +44,7 @@ Meshing improvements
   refined on one side only: on parallel meshes, the edges on the unrefined side
   of essential boundaries were not essential, and on serial meshes, those of
   all interior boundaries were.
+
 - NURBS mesh HDF5 file I/O is now supported, by using mesh-explorer (option 'S')
   or Mesh::SaveNURBSHDF5 for writing and the usual Mesh constructors or loaders
   for reading.
@@ -58,6 +59,10 @@ Linear and nonlinear solvers
 - Fixed HypreParaSails::SetOperator, which read the communicator of the
   previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
   in a NewtonSolver.
+
+- Added SuperLUSolver::SetRelaxedSupernodeSize and
+  SuperLUSolver::SetMaxSupernodeSize to set the maximum sizes of the relaxed
+  supernodes and of the supernodes in SuperLU_DIST 8.0 or newer.
 
 - Fixed the PETSc wrappers on GPUs when the device memory type is an Umpire
   one (the default when MFEM is built with Umpire): the vectors given to PETSc
@@ -74,6 +79,7 @@ Miscellaneous
 - Added continuous benchmarking of selected tests/benchmarks in GitHub CI
   using CodSpeed (https://codspeed.io), enabled by the new CMake option
   MFEM_USE_CODSPEED.
+
 - Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
   column so the inner loop vectorizes. This roughly doubles the speed of full
   assembly for DiffusionIntegrator at higher orders.
