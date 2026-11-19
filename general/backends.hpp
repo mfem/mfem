@@ -59,8 +59,15 @@
 #define MFEM_LAUNCH_BOUNDS(...)
 #endif
 
-#if !((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
-      (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
+// MFEM_DEVICE_COMPILE is defined during the device compilation pass of a CUDA
+// or HIP translation unit, i.e. when the code being compiled will run on the
+// device. In the host pass (and in non-GPU builds) it is not defined.
+#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
+     (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
+#define MFEM_DEVICE_COMPILE
+#endif
+
+#ifndef MFEM_DEVICE_COMPILE
 #define MFEM_SHARED
 #define MFEM_SYNC_THREAD
 #define MFEM_BLOCK_ID(k) 0
@@ -115,8 +122,7 @@ MFEM_DEVICE inline mfem::real_t atomicAdd(mfem::real_t *add, mfem::real_t val)
 template <typename T>
 MFEM_HOST_DEVICE T AtomicAdd(T &add, const T val)
 {
-#if ((defined(MFEM_USE_CUDA) && defined(__CUDA_ARCH__)) || \
-     (defined(MFEM_USE_HIP) && defined(__HIP_DEVICE_COMPILE__)))
+#ifdef MFEM_DEVICE_COMPILE
    return atomicAdd(&add,val);
 #else
    T old;

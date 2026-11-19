@@ -200,7 +200,7 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
       kernels::internal::LoadMatrix(D1D, Q1D, B, sB_q);
 
       // Compute the physical Jacobian at DOF nodes.
-      kernels::internal::vd_regs3d_t<3, 3, MD1> r_X, r_J;
+      kernels::internal::m_regs3d_t<3, 3, MD1> r_X, r_J;
       kernels::internal::LoadDofs3d(e, D1D, X, r_X);
       kernels::internal::Grad3d(D1D, D1D, smem.d, sB_nodes, sG_nodes, r_X, r_J);
 
@@ -230,7 +230,7 @@ void TMOP_AssembleGradPA_AdaptLim_3D(const int NE,
          kernels::internal::s_regs3d_t<MD1> dd_dxi_n, dd_deta_n, dd_dzeta_n;
 
          // Precompute the inverse of the physical Jacobian.
-         kernels::internal::vd_regs3d_t<3, 3, MD1> Jpr_inv;
+         kernels::internal::m_regs3d_t<3, 3, MD1> Jpr_inv;
          for (int dz = 0; dz < D1D; dz++)
          {
             MFEM_FOREACH_THREAD_DIRECT(dy, y, D1D)

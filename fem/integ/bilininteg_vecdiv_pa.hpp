@@ -59,7 +59,7 @@ inline void SmemPADivergenceApply2D(const int NE,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
 
-      kernels::internal::vd_regs2d_t<2, 2, MQ1> g0, g1;
+      kernels::internal::m_regs2d_t<2, 2, MQ1> g0, g1;
       kernels::internal::v_regs2d_t<1, MQ1> r0, r1;
 
       kernels::internal::LoadMatrix(TR_D1D, Q1D, B, sB);
@@ -121,7 +121,7 @@ inline void SmemPADivergenceApplyTranspose2D(const int NE,
       MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
 
       kernels::internal::v_regs2d_t<1, MQ1> r0, r1;
-      kernels::internal::vd_regs2d_t<2, 2, MQ1> g0, g1;
+      kernels::internal::m_regs2d_t<2, 2, MQ1> g0, g1;
 
       kernels::internal::LoadMatrix(TE_D1D, Q1D, B, sB);
       kernels::internal::LoadDofs2d(e, TE_D1D, X, r0);
@@ -180,7 +180,7 @@ inline void SmemPADivergenceApplyTranspose3D(const int NE,
       MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
 
       kernels::internal::v_regs3d_t<1, MQ1> r0, r1;
-      kernels::internal::vd_regs3d_t<3, 3, MQ1> g0, g1;
+      kernels::internal::m_regs3d_t<3, 3, MQ1> g0, g1;
 
       kernels::internal::LoadMatrix(TE_D1D, Q1D, B, sB);
       kernels::internal::LoadDofs3d(e, TE_D1D, X, r0);
@@ -249,7 +249,7 @@ inline void SmemPADivergenceApply3D(const int NE,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MQ1][MQ1], sG[MQ1][MQ1];
 
-      kernels::internal::vd_regs3d_t<3, 3, MQ1> g0, g1;
+      kernels::internal::m_regs3d_t<3, 3, MQ1> g0, g1;
       kernels::internal::v_regs3d_t<1, MQ1> r0, r1;
 
       kernels::internal::LoadMatrix(TR_D1D, Q1D, B, sB);
