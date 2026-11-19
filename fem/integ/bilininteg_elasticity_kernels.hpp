@@ -47,6 +47,14 @@ namespace mfem
 namespace internal
 {
 
+/// Thread block size cap for the generic kernels: element-local extents
+/// (nDofs, numPoints) are unbounded, the MFEM_FOREACH_THREAD loops stride.
+#ifdef MFEM_USE_HIP
+constexpr int ELASTICITY_BLOCKS = MFEM_HIP_BLOCKS;
+#else
+constexpr int ELASTICITY_BLOCKS = MFEM_CUDA_BLOCKS;
+#endif
+
 /// Precompute compact elasticity PA data at every element quadrature point.
 /// Layout: [invJ(0,0), ..., invJ(d-1,d-1), lambda*detJ*w,
 ///          mu*detJ*w], with quadrature point as the fastest index.
@@ -96,10 +104,10 @@ void ElasticitySetupPAData_(const IntegrationRule &ir,
    auto D = Reshape(pa_data.Write(), numPoints, entries, numEls);
    const real_t *weights = ir.GetWeights().Read();
 
-   mfem::forall_2D(numEls, numPoints, 1,
+   mfem::forall_2D(numEls, std::min(numPoints, ELASTICITY_BLOCKS), 1,
                    [=] MFEM_HOST_DEVICE (int e)
    {
-      MFEM_FOREACH_THREAD_DIRECT(p, x, numPoints)
+      MFEM_FOREACH_THREAD(p, x, numPoints)
       {
          const auto invJ = inv(make_tensor<d, d>(
          [&](int i, int j) { return J(p, i, j, e); }));
@@ -150,7 +158,7 @@ void ElasticityAddMultPA_(const int nDofs,
 
    const int numPoints = ir.GetNPoints();
    const int numEls = fespace.GetNE();
-   const int ntx = nDofs > numPoints ? nDofs : numPoints;
+   const int ntx = std::min(std::max(nDofs, numPoints), 128);
    const int nqad = numPoints * qSize * d * numEls;
    auto *q_mem = QVec.ReadWrite();
    const auto Q = Reshape(q_mem, numPoints, qSize, d, numEls);
@@ -164,9 +172,9 @@ void ElasticityAddMultPA_(const int nDofs,
    mfem::forall_2D(numEls, ntx, qSize,
                    [=] MFEM_HOST_DEVICE (int e)
    {
-      MFEM_FOREACH_THREAD_DIRECT(p, x, numPoints)
+      MFEM_FOREACH_THREAD(p, x, numPoints)
       {
-         MFEM_FOREACH_THREAD_DIRECT(a, y, qSize)
+         MFEM_FOREACH_THREAD(a, y, qSize)
          {
             const auto invJ = make_tensor<d, d>([&](int i, int j)
             {
@@ -256,9 +264,9 @@ void ElasticityAddMultPA_(const int nDofs,
 
       MFEM_SYNC_THREAD;
 
-      MFEM_FOREACH_THREAD_DIRECT(i, x, nDofs)
+      MFEM_FOREACH_THREAD(i, x, nDofs)
       {
-         MFEM_FOREACH_THREAD_DIRECT(a, y, qSize)
+         MFEM_FOREACH_THREAD(a, y, qSize)
          {
             real_t value = 0.0;
             for (int m = 0; m < d; ++m)
@@ -293,10 +301,10 @@ void ElasticityAssembleDiagonalPA_(const int nDofs,
    const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
    auto diagDev = Reshape(diag.ReadWrite(), nDofs, d, numEls);
 
-   mfem::forall_2D(numEls, nDofs, 1,
+   mfem::forall_2D(numEls, std::min(nDofs, ELASTICITY_BLOCKS), 1,
                    [=] MFEM_HOST_DEVICE (int e)
    {
-      MFEM_FOREACH_THREAD_DIRECT(i, x, nDofs)
+      MFEM_FOREACH_THREAD(i, x, nDofs)
       {
          for (int p = 0; p < numPoints; ++p)
          {
@@ -357,10 +365,10 @@ void ElasticityAssembleEA_(const int i_block,
    phys_grad.SetSize(numEls * numPoints * d * nDofs);
    auto g = Reshape(phys_grad.Write(), numPoints, d, nDofs, numEls);
 
-   mfem::forall_2D(numEls, nDofs, 1,
+   mfem::forall_2D(numEls, std::min(nDofs, ELASTICITY_BLOCKS), 1,
                    [=] MFEM_HOST_DEVICE (int e)
    {
-      MFEM_FOREACH_THREAD_DIRECT(i, x, nDofs)
+      MFEM_FOREACH_THREAD(i, x, nDofs)
       {
          for (int p = 0; p < numPoints; ++p)
          {
@@ -383,12 +391,13 @@ void ElasticityAssembleEA_(const int i_block,
 
    const auto gR = Reshape(phys_grad.Read(), numPoints, d, nDofs, numEls);
 
-   mfem::forall_2D(numEls, nDofs, nDofs,
+   const int nt = std::min(nDofs, 16);
+   mfem::forall_2D(numEls, nt, nt,
                    [=] MFEM_HOST_DEVICE (int e)
    {
-      MFEM_FOREACH_THREAD_DIRECT(trial, y, nDofs)
+      MFEM_FOREACH_THREAD(trial, y, nDofs)
       {
-         MFEM_FOREACH_THREAD_DIRECT(test, x, nDofs)
+         MFEM_FOREACH_THREAD(test, x, nDofs)
          {
             real_t sum = 0.0;
             for (int p = 0; p < numPoints; ++p)

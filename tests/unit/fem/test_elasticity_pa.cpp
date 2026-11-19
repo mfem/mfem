@@ -418,6 +418,51 @@ TEST_CASE("Elasticity component EA", "[PartialAssembly][ElasticityPA][GPU]")
    }
 }
 
+// Element-local extents above 1024: numPoints on hexes (generic kernels for
+// an unspecialized Q1D) and nDofs^2 on tetrahedra (element assembly)
+TEST_CASE("Elasticity PA large extents", "[PartialAssembly][ElasticityPA][GPU]")
+{
+   const auto type = GENERATE(Element::HEXAHEDRON, Element::TETRAHEDRON);
+   const bool hex = type == Element::HEXAHEDRON;
+   Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, type, 1.2, 0.9, 1.1);
+   H1_FECollection fec(hex ? 2 : 4, 3);
+   FiniteElementSpace scalar_fes(&mesh, &fec, 1, Ordering::byNODES);
+   FiniteElementSpace vector_fes(&mesh, &fec, 3, Ordering::byNODES);
+   const IntegrationRule &ir =
+      IntRules.Get(mesh.GetTypicalElementGeometry(), hex ? 20 : 12);
+   FunctionCoefficient material(MaterialFunction);
+   ElasticityIntegrator parent(material, q_lambda, q_mu);
+   parent.SetIntRule(&ir);
+
+   BilinearForm pa_form(&vector_fes), full_form(&vector_fes);
+   pa_form.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   for (BilinearForm *form : {&pa_form, &full_form})
+   {
+      auto *integ = new ElasticityIntegrator(material, q_lambda, q_mu);
+      integ->SetIntRule(&ir);
+      form->AddDomainIntegrator(integ);
+      form->Assemble();
+   }
+   full_form.Finalize();
+
+   Vector x(vector_fes.GetVSize()), y_pa(x.Size()), y_full(x.Size());
+   FillVector(x, 5);
+   pa_form.Mult(x, y_pa);
+   full_form.Mult(x, y_full);
+   RequireClose(y_pa, y_full);
+   pa_form.AssembleDiagonal(y_pa);
+   full_form.SpMat().GetDiag(y_full);
+   RequireClose(y_pa, y_full);
+
+   BilinearForm block(&scalar_fes);
+   block.SetAssemblyLevel(AssemblyLevel::ELEMENT);
+   block.AddDomainIntegrator(new ElasticityComponentIntegrator(parent, 0, 1));
+   block.Assemble();
+   Vector x_scalar(scalar_fes.GetVSize());
+   FillVector(x_scalar, 7);
+   RequireBlockAction(block, full_form, x_scalar, vector_fes, 0, 1);
+}
+
 TEST_CASE("Elasticity PA empty mesh",
           "[PartialAssembly][ElasticityPA][GPU]")
 {
