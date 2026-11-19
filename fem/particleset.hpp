@@ -362,16 +362,8 @@ protected:
    CrystalRouter *crystal_router = nullptr; // used by Redistribute()
 #endif // MFEM_USE_MPI
 
-   /** @brief  Update global ID of a particle.
-    *
-    *  @details This method updates the global ID of the particle at given
-    *  local index after Redistribute().
-    *
-    *  @note This method must be used very carefully as it updates global
-    *  ID of a particle.
-    */
-   void UpdateID(int local_idx, IDType new_global_id)
-   { ids[local_idx] = new_global_id; }
+   // Fix: UpdateID() is removed. Reason: it has no caller after the removal
+   // of the old transfer code.
 
    /** @brief Create a Particle object with the same spatial dimension,
     *  number of fields and field vdims, and number of tags as this ParticleSet.
