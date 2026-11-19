@@ -35,6 +35,68 @@ TEST_CASE("DenseMatrix init-list construction", "[DenseMatrix]")
    }
 }
 
+TEST_CASE("DenseMatrix singular values", "[DenseMatrix]")
+{
+   // Rectangular matrices with known singular values, including the single
+   // value cases. Reading the leading square block as if the matrix were
+   // square gives the wrong answer here.
+   DenseMatrix column({ {3.0}, {4.0} });
+   DenseMatrix row(column, 'T');
+   REQUIRE(column.CalcSingularvalue(0) == MFEM_Approx(5.0));
+   REQUIRE(row.CalcSingularvalue(0) == MFEM_Approx(5.0));
+
+   // Rank one, so sigma = (sqrt(70), 0).
+   DenseMatrix tall(
+   {
+      {1.0, 2.0},
+      {2.0, 4.0},
+      {3.0, 6.0}
+   });
+   DenseMatrix wide(tall, 'T');
+   for (const DenseMatrix *A : {&tall, &wide})
+   {
+      REQUIRE(A->CalcSingularvalue(0) == MFEM_Approx(std::sqrt(70.0)));
+      REQUIRE(A->CalcSingularvalue(1) == MFEM_Approx(0.0));
+   }
+
+   // Full rank, so sigma = (4, 3).
+   DenseMatrix tall2(
+   {
+      {3.0, 0.0},
+      {0.0, 4.0},
+      {0.0, 0.0}
+   });
+   REQUIRE(tall2.CalcSingularvalue(0) == MFEM_Approx(4.0));
+   REQUIRE(tall2.CalcSingularvalue(1) == MFEM_Approx(3.0));
+
+   // Square matrices keep using the existing kernels.
+   DenseMatrix square(
+   {
+      {1.0, 0.0, 0.0},
+      {0.0, 2.0, 0.0},
+      {0.0, 0.0, 3.0}
+   });
+   REQUIRE(square.CalcSingularvalue(0) == MFEM_Approx(3.0));
+   REQUIRE(square.CalcSingularvalue(1) == MFEM_Approx(2.0));
+   REQUIRE(square.CalcSingularvalue(2) == MFEM_Approx(1.0));
+
+#ifdef MFEM_USE_LAPACK
+   // Compare with the LAPACK reference for a general rectangular matrix.
+   DenseMatrix A(
+   {
+      {1.0, 2.0, 3.0},
+      {4.0, 5.0, 6.0}
+   });
+   Vector sv;
+   A.SingularValues(sv);
+   REQUIRE(sv.Size() == std::min(A.Height(), A.Width()));
+   for (int i = 0; i < sv.Size(); i++)
+   {
+      REQUIRE(A.CalcSingularvalue(i) == MFEM_Approx(sv(i), 1e-10, 1e-10));
+   }
+#endif
+}
+
 TEST_CASE("DenseMatrix LinearSolve methods",
           "[DenseMatrix]")
 {
