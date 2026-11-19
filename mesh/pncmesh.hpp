@@ -565,6 +565,9 @@ protected: // implementation
    public:
       void AddElement(int elem, int rank, int attribute)
       { Add(elem, {rank, attribute}); }
+      /// Return the number of elements assigned to @a rank in a message
+      /// received with RecvData() and not decoded yet.
+      int CountElements(int rank) const;
       typedef std::map<int, RebalanceMessage> Map;
    };
 

@@ -42,6 +42,12 @@ Meshing improvements
   or Mesh::SaveNURBSHDF5 for writing and the usual Mesh constructors or loaders
   for reading.
 
+- Fixed run-to-run variations in the numbering of parallel non-conforming
+  meshes after refinement, derefinement and rebalancing, e.g. in the order of
+  the boundary elements and of the shared entities: ParNCMesh processed the
+  messages of these operations in their arrival order, and now processes them
+  in the order of the source ranks.
+
 Linear and nonlinear solvers
 ----------------------------
 - Fixed the AmgX resource shared by the AmgXSolver instances, which used the
