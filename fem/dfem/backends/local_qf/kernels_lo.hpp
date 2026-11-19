@@ -1104,13 +1104,15 @@ struct LocalQFLOBackend
       // the contraction buffers: two Q1D^3 slabs in 3D, one Q1D^2 in 2D.
       auto W = reinterpret_cast<real_t(*)[Q1D][Q1D]>(
                   base + (DIM == 3 ? 2 * Q1D * Q1D * Q1D : Q1D * Q1D));
-      static_assert(sizeof(s.M) >= sizeof(real_t) *
+      // 1D reads wt * wi directly: no staging, and its z threads hold
+      // different elements.
+      static_assert(DIM == 1 || sizeof(s.M) >= sizeof(real_t) *
                     (DIM == 3 ? 2 * Q1D * Q1D * Q1D + 3 * Q1D * Q1D
                      : 3 * Q1D * Q1D), "DiagContract shared scratch too small");
       // Unrolled so nd[a] stays in registers; one z slice writes, the
       // others would store the same values.
       const int nd[3] = { ndx, ndy, ndz_in };
-      if (MFEM_THREAD_ID(z) == 0)
+      if (DIM > 1 && MFEM_THREAD_ID(z) == 0)
       {
          MFEM_UNROLL(DIM)
          for (int a = 0; a < DIM; a++)
@@ -1202,7 +1204,7 @@ struct LocalQFLOBackend
       else
       {
          // reduce qx → dx : Y(dx,0,0)
-         MFEM_FOREACH_THREAD(dx, x, num_dof_1d)
+         MFEM_FOREACH_THREAD(dx, x, ndx)
          {
             real_t u = 0.0;
             for (int qx = 0; qx < q1d; qx++)
