@@ -1721,9 +1721,11 @@ public:
        is scattered into row @a k of @a range_dof. The dimensions of @a A_k
        must be `range_dof.RowSize(k)` by `domain_dof.RowSize(k)`.
 
-       This supports, for example, local coarse-to-fine transfer matrices. The
-       two tables must have one row for every stack layer; for a child matrix,
-       the corresponding row of @a domain_dof identifies its parent DOFs.
+       Contributions to repeated range indices are added. Applying local
+       coarse-to-fine interpolation matrices therefore does not by itself
+       produce a conforming global prolongation operator. The two tables must
+       have one row for every stack layer; for a child matrix, the corresponding
+       row of @a domain_dof identifies its parent DOFs.
        As above, table entries are assumed to be direct vector indices. */
    void AddMult(const Table &domain_dof, const Vector &x,
                 const Table &range_dof, Vector &y) const;
