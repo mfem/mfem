@@ -1537,6 +1537,12 @@ void FABilinearFormExtension::RAP(OperatorHandle &A)
    if ( auto pa = dynamic_cast<ParBilinearForm*>(a) )
    {
       pa->ParallelRAP(*pa->mat, A);
+      if (IsIdentityProlongation(GetProlongation()))
+      {
+         // ParallelRAP may alias the local matrix on one rank. Keep boundary
+         // elimination from modifying the operator used to form later RHSs.
+         A.Reset(new HypreParMatrix(*A.As<HypreParMatrix>()));
+      }
    }
    else
 #endif
