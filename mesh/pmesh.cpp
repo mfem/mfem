@@ -3223,6 +3223,9 @@ int ParMesh::GetNFbyType(FaceType type) const
 
 void ParMesh::GenerateBoundaryElements()
 {
+   MFEM_VERIFY(!pncmesh, "GenerateBoundaryElements() is not supported for "
+               "nonconforming meshes.");
+
    for (auto &b : boundary)
    {
       FreeElement(b);

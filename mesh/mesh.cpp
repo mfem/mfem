@@ -2454,6 +2454,9 @@ int Mesh::AddBdrPoint(int v, int attr)
 
 void Mesh::GenerateBoundaryElements()
 {
+   MFEM_VERIFY(!ncmesh, "GenerateBoundaryElements() is not supported for "
+               "nonconforming meshes.");
+
    for (auto &b : boundary)
    {
       FreeElement(b);
