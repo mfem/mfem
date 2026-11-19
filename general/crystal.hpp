@@ -48,7 +48,8 @@ namespace internal
     routing. Subclasses implement specific functionalities for routing.
     Each row slice of a field is the attribute that belongs to one particle.
 
-    Each Field has six functions:
+    Each Field has seven functions:
+    - OwnsData(): true if the container owns its data, or has no data.
     - GetNumParticles(): number of particles in the column.
     - GetParticleBytes(): bytes per particle, vdim * sizeof(T).
     - GetAlign(): alignment in bytes of one component.
@@ -61,6 +62,10 @@ class Field
 {
 public:
    virtual ~Field() = default;
+   // Fix: tell if the container owns its data. Reason: Route() must reject
+   // an alias or a view, because Unpack() can replace the memory.
+   /// True if the container owns its data, or has no data (null pointer)
+   virtual bool OwnsData() const = 0;
    virtual int GetNumParticles() const = 0;
    virtual std::size_t GetParticleBytes() const = 0;
    virtual std::size_t GetAlign() const = 0;
@@ -133,8 +138,22 @@ public:
        @param[in]     ordering_  Layout of the values in @a c */
    ContainerField(C &c, int vdim_ = 1,
                   Ordering::Type ordering_ = Ordering::byNODES)
-      : col(&c), vdim(vdim_), ordering(ordering_) { }
+      : col(&c), vdim(vdim_), ordering(ordering_)
+   {
+      // Fix: check vdim and the size. Reason: Size()/vdim hides a partial
+      // particle, and vdim 0 divides by zero.
+      MFEM_VERIFY(vdim > 0,
+                  "CrystalRouter: vdim must be positive, vdim = " << vdim);
+      MFEM_VERIFY(col->Size() % vdim == 0,
+                  "CrystalRouter: column size " << col->Size()
+                  << " is not a multiple of vdim " << vdim);
+   }
 
+   /// @copydoc Field::OwnsData
+   // Fix: accept an empty container only if its pointer is null. Reason: a
+   // view of length 0 has capacity 0, but arrivals detach it from its base.
+   bool OwnsData() const override
+   { return col->GetMemory().OwnsHostPtr() || col->GetMemory().Empty(); }
    /// @copydoc Field::GetNumParticles
    int GetNumParticles() const override  { return col->Size() / vdim; }
    /// @copydoc Field::GetParticleBytes
@@ -357,12 +376,17 @@ public:
 
    /** @brief Send each particle to its destination rank
 
-       @param[in]     rank_list     Destination rank of each particle
+       @param[in]     rank_list     Destination rank of each particle. Each
+                                    value must be less than the number of
+                                    ranks.
        @param[in,out] field_groups  Data to route, as a brace-enclosed list of
                                     CR::Array() and CR::Vector() wrappers.
                                     CR::ParticleVector() is in
                                     fem/particleset.hpp. Each field must have
-                                    rank_list.Size() particles.
+                                    rank_list.Size() particles. A routed
+                                    container must own its data. An alias or a
+                                    MakeRef() view is rejected, because
+                                    Unpack() can replace the memory.
 
        @note Collective on the communicator of the router */
    void Route(const Array<unsigned int> &rank_list,

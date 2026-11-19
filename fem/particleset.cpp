@@ -227,6 +227,10 @@ void ParticleSet::AddParticles(const Array<IDType> &new_ids,
 
 void ParticleSet::Redistribute(const Array<unsigned int> &rank_list)
 {
+   // Fix: stop with a clear error when there is no router. Reason: a serial
+   // constructor does not make one, and the call used a null pointer.
+   MFEM_VERIFY(crystal_router, "Redistribute() needs a ParticleSet made with "
+               "an MPI constructor.");
    MFEM_ASSERT(rank_list.Size() == GetNParticles(),
                "rank_list must be of size GetNParticles().");
 

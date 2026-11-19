@@ -585,6 +585,19 @@ TEST_CASE("CrystalRouter reuse one router",
    CHECK(keys.Size() == (rank == size - 1 ? total : 0));
 }
 
+// particles on this rank whose TargetRank is a different rank
+static int CountMisplaced(const Array<unsigned long long> &keys)
+{
+   const int size = Mpi::WorldSize();
+   const int rank = Mpi::WorldRank();
+   int misplaced = 0;
+   for (int i = 0; i < keys.Size(); i++)
+   {
+      if (TargetRank(keys[i], size) != rank) { misplaced++; }
+   }
+   return misplaced;
+}
+
 // Fix: test the index list after a device pack. Reason: Route() read
 // leaving_idx with operator[] while only the device copy was usable.
 TEST_CASE("CrystalRouter host index list after device pack",
@@ -688,6 +701,113 @@ TEST_CASE("CrystalRouter reuse after a large arrival",
    {
       CHECK(keys.Size() == (size > 1 ? n + 3500*(size - 1) - 1 : n));
    }
+}
+
+// Fix: test columns with capacity 0 that own no data. Reason: the check for
+// data ownership must still permit an empty default container.
+TEST_CASE("CrystalRouter empty default columns",
+          "[CrystalRouter][Parallel][GPU]")
+{
+   const int size = Mpi::WorldSize();
+   const int rank = Mpi::WorldRank();
+   // an odd rank has 0 particles and passes default-constructed columns
+   const int n = rank % 2 ? 0 : 20 + rank;
+   int total = 0;
+   for (int r = 0; r < size; r += 2) { total += 20 + r; }
+
+   Array<unsigned long long> keys;
+   Array<int> ai;
+   Vector v;
+   Array<unsigned int> rank_list;
+   if (n > 0)
+   {
+      MakeColumns(n, keys, ai, v);
+      rank_list.SetSize(n);
+      for (int i = 0; i < n; i++)
+      {
+         rank_list[i] = TargetRank(1000ull*rank + i, size);
+      }
+      CrDev(keys, ~0ull); CrDev(ai, -1); CrDev(v);
+   }
+
+   CrystalRouter router(MPI_COMM_WORLD);
+   router.Route(rank_list,
+   {
+      CR::Array(keys), CR::Array(ai, 3, Ordering::byNODES),
+      CR::Vector(v, 2, Ordering::byVDIM)
+   });
+
+   CrHost(keys); CrHost(ai); CrHost(v);
+   const int wrong = CrSum(CountWrong(keys, ai, v));
+   const int misplaced = CrSum(CountMisplaced(keys));
+   const int global = CrSum(keys.Size());
+   CHECK(wrong == 0);
+   CHECK(misplaced == 0);
+   CHECK(global == total);
+}
+
+// Fix: test the input checks of the router. Reason: bad input was accepted
+// with no error.
+TEST_CASE("CrystalRouter rejects bad input",
+          "[CrystalRouter][Parallel][GPU]")
+{
+#ifdef MFEM_USE_EXCEPTIONS
+   // Each rank passes the same bad input and each check runs before the
+   // first MPI call, so all ranks throw together.
+   const int size = Mpi::WorldSize();
+   const int rank = Mpi::WorldRank();
+
+   Array<unsigned int> rank_list(4);
+   rank_list = static_cast<unsigned int>(rank);
+   Array<int> a(4);
+   a = 0;
+
+   CrystalRouter router(MPI_COMM_WORLD);
+   const ErrorAction old_action = get_error_action();
+   set_error_action(MFEM_ERROR_THROW);
+
+   // a destination rank equal to the number of ranks
+   Array<unsigned int> bad_ranks(4);
+   bad_ranks = static_cast<unsigned int>(rank);
+   bad_ranks[3] = static_cast<unsigned int>(size);
+   REQUIRE_THROWS_AS(router.Route(bad_ranks, {CR::Array(a)}),
+                     ErrorException);
+
+   // a size that is not a multiple of vdim
+   // Fix: use size 9. Reason: 9/2 is 4, the size of rank_list, so only the
+   // new size check can reject this input.
+   Array<int> a9(9);
+   a9 = 0;
+   REQUIRE_THROWS_AS(router.Route(rank_list, {CR::Array(a9, 2)}),
+                     ErrorException);
+
+   // vdim 0
+   REQUIRE_THROWS_AS(router.Route(rank_list, {CR::Array(a, 0)}),
+                     ErrorException);
+
+   // a view that does not own its data
+   Vector base(8);
+   base = 0.0;
+   Vector view;
+   view.MakeRef(base, 0, 4);
+   REQUIRE_THROWS_AS(router.Route(rank_list, {CR::Vector(view)}),
+                     ErrorException);
+
+   // a view of length 0 on a base that has data
+   Vector view0;
+   view0.MakeRef(base, 0, 0);
+   Array<unsigned int> rank_list0;
+   REQUIRE_THROWS_AS(router.Route(rank_list0, {CR::Vector(view0)}),
+                     ErrorException);
+
+   // a particle count that differs from rank_list.Size()
+   Array<unsigned int> rank_list5(5);
+   rank_list5 = static_cast<unsigned int>(rank);
+   REQUIRE_THROWS_AS(router.Route(rank_list5, {CR::Array(a)}),
+                     ErrorException);
+
+   set_error_action(old_action);
+#endif
 }
 
 #endif // MFEM_USE_MPI

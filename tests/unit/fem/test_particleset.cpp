@@ -462,6 +462,23 @@ TEST_CASE("ParticleSet PrintCSV after device Redistribute",
    }
 }
 
+// Fix: test for the router check in Redistribute(). Reason: a serial
+// ParticleSet has no router, and the old code used a null pointer.
+TEST_CASE("ParticleSet Redistribute needs an MPI constructor",
+          "[ParticleSet][Parallel][GPU]")
+{
+#ifdef MFEM_USE_EXCEPTIONS
+   // All ranks pass the bad set, and the check runs before any MPI call
+   ParticleSet pset(4, 2);
+   Array<unsigned int> rl(4);
+   rl = 0;
+   const ErrorAction old_action = get_error_action();
+   set_error_action(MFEM_ERROR_THROW);
+   REQUIRE_THROWS_AS(pset.Redistribute(rl), ErrorException);
+   set_error_action(old_action);
+#endif
+}
+
 #endif // MFEM_USE_MPI
 
 #if defined(MFEM_USE_MPI) && defined(MFEM_USE_GSLIB)

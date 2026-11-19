@@ -45,6 +45,11 @@ void CrystalRouter::Route(
    }
    for (std::size_t i = 0; i < fields.size(); i++)
    {
+      // Fix: reject a container that does not own its data. Reason: Swap()
+      // in Unpack() detaches an alias from its base with no error.
+      MFEM_VERIFY(fields[i]->OwnsData(),
+                  "CrystalRouter: field " << i << " does not own its data, "
+                  "an alias or a MakeRef() view cannot be routed");
       MFEM_VERIFY(fields[i]->GetNumParticles() == rank_list.Size(),
                   "CrystalRouter: field " << i << " has size "
                   << fields[i]->GetNumParticles() << " but rank_list has size "
@@ -68,16 +73,18 @@ void CrystalRouter::Route(
    const std::size_t hdr = align_up(pos, alignof(unsigned int));
    const std::size_t stride = align_up(hdr + sizeof(unsigned int), max_align);
 
-   MPI_Datatype row_t;
-   MPI_Type_contiguous((int)stride, MPI_BYTE, &row_t);
-   MPI_Type_commit(&row_t);
-
    // split into leaving/staying
    const int n = rank_list.Size();
    const unsigned int *h_ranks = n > 0 ? rank_list.HostRead() : nullptr;
    Array<int> leaving_idx;
    for (int i = 0; i < n; i++)
    {
+      // Fix: check each destination rank. Reason: a rank >= nprocs moved to
+      // the last rank with no error.
+      MFEM_VERIFY(h_ranks[i] < (unsigned int)nprocs,
+                  "CrystalRouter: rank_list[" << i << "] = " << h_ranks[i]
+                  << " is not a valid rank, the number of ranks is "
+                  << nprocs);
       if (h_ranks[i] != (unsigned int)rank) { leaving_idx.Append(i); }
    }
    const int n_leave = leaving_idx.Size();
@@ -125,6 +132,12 @@ void CrystalRouter::Route(
                      &h_ranks[h_leaving[k]], sizeof(unsigned int));
       }
    }
+
+   // Fix: make the MPI row type directly before its use. Reason: an input
+   // check that fails before this point must not leak the type.
+   MPI_Datatype row_t;
+   MPI_Type_contiguous((int)stride, MPI_BYTE, &row_t);
+   MPI_Type_commit(&row_t);
 
    // route: afterwards buf holds the n_arr arrivals
    const int n_arr = RouteInternal(n_leave, stride, hdr, row_t);
