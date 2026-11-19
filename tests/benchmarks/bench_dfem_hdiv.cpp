@@ -436,7 +436,8 @@ void AddLocalQFActionSpecializations(std::integer_sequence<int, Q1D...> = {})
 {
    if constexpr (std::is_same_v<backend_t, local_backend>)
    {
-      (mfem::future::AddAction<DIM, Q1D, QT, IT, OT>(), ...);
+      using ET = mfem::future::Entity::Element;
+      (mfem::future::AddAction<DIM, Q1D, QT, IT, OT, ET>(), ...);
    }
 }
 
@@ -446,9 +447,10 @@ void AddLocalQFDerivativeSpecializations(std::integer_sequence<int, Q1D...> = {}
 {
    if constexpr (std::is_same_v<backend_t, local_backend>)
    {
-      (mfem::future::AddDerivativeAction<DIM, Q1D, DID, QT, IT, OT>(), ...);
-      (mfem::future::AddDerivativeSetup<DIM, Q1D, DID, QT, IT, OT>(), ...);
-      (mfem::future::AddDerivativeApply<DIM, Q1D, DID, QT, IT, OT>(), ...);
+      using ET = mfem::future::Entity::Element;
+      (mfem::future::AddDerivativeAction<DIM, Q1D, DID, QT, IT, OT, ET>(), ...);
+      (mfem::future::AddDerivativeSetup<DIM, Q1D, DID, QT, IT, OT, ET>(), ...);
+      (mfem::future::AddDerivativeApply<DIM, Q1D, DID, QT, IT, OT, ET>(), ...);
    }
 }
 
@@ -890,8 +892,8 @@ struct HDIV : public HdivBakeOff<VER>
    HDIV(int p, int n, int k) noexcept: base(p, n, k), cg(MPI_COMM_WORLD)
    {
       cg.SetOperator(*A);
-      cg.SetAbsTol(1e-12);
-      cg.SetRelTol(1e-8);
+      cg.SetAbsTol(0.0);
+      cg.SetRelTol(0.0);
       cg.SetMaxIter(max_it);
       cg.SetPrintLevel(print_lvl);
       cg.iterative_mode = false;
@@ -928,6 +930,8 @@ static void Benchmark(bm::State& state) noexcept
    state.counters["MDof/s"] = bm::Counter(run->SumMdofs(), bm::Counter::kIsRate);
    state.counters["Setup"] = bm::Counter(run->SetupTimeMilliseconds());
    state.counters["p"] = bm::Counter(state.range(0));
+   state.counters["n"] = bm::Counter(state.range(1));
+   state.counters["k"] = bm::Counter(state.range(2));
    state.SetLabel(BenchmarkExpression<T::version>());
 }
 #define REGISTER(VER) \
