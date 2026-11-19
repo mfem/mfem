@@ -1329,8 +1329,9 @@ public:
     have exactly @a k entries.
 
     Matrix views and raw data pointers obtained from this object do not own the
-    stack data. They remain valid only until this stack is resized, assigned,
-    reset to different external data, cleared, or destroyed. */
+    stack data. Reacquire views after resizing or assignment: dimensions can
+    change even when the backing buffer is reused. A raw pointer remains valid
+    only while the stack still uses the same allocation. */
 class DenseMatrixStack
 {
 private:
@@ -1364,9 +1365,9 @@ public:
    /** @brief Construct a non-owning stack that views external host data.
 
        The caller retains ownership of @a d and must keep a buffer containing
-       TotalSize() entries alive until the stack is resized, reset, cleared, or
-       destroyed. The data are interpreted as contiguous column-major layers
-       with dimensions @a ik[l] by @a jk[l]. */
+       TotalSize() entries alive while the stack references it, including after
+       a resize that retains the buffer. The data are interpreted as
+       contiguous column-major layers with dimensions @a ik[l] by @a jk[l]. */
    DenseMatrixStack(real_t *d, const Array<int>& ik, const Array<int>& jk,
                     int k)
       : ni(ik), nj(jk), nk(k)
@@ -1425,10 +1426,12 @@ public:
 
    /** @brief Resize to @a k matrices of size @a i by @a j.
 
-       Backing storage may be reused. If an external buffer is retained, it
-       remains caller-owned and must stay alive while the stack references it.
-       Existing data views and pointers are invalidated. When @a mt_ is
-       MemoryType::PRESERVE, the current memory type is retained. */
+       Backing storage is reused when its capacity and memory type suffice.
+       An external buffer then remains caller-owned and must stay alive while
+       the stack references it. Otherwise, the stack allocates owned storage.
+       Reacquire matrix views after resizing; raw pointers may be invalidated
+       if the buffer changes. When @a mt_ is MemoryType::PRESERVE, the current
+       memory type is retained. */
    void SetSize(int i, int j, int k, MemoryType mt_ = MemoryType::PRESERVE)
    {
       const MemoryType mt = mt_ == MemoryType::PRESERVE ?
@@ -1444,10 +1447,10 @@ public:
       tdata.SetSize(tsize, mt);
    }
 
-   /** @brief Resize to @a k owning matrices with @a i rows each.
+   /** @brief Resize to @a k matrices with @a i rows each.
 
-       Layer @a l has @a jk[l] columns. Existing data views and pointers are
-       invalidated; see the uniform-size overload for memory-type behavior. */
+       Layer @a l has @a jk[l] columns. See the uniform-size overload for
+       buffer reuse, ownership, and view lifetime. */
    void SetSize(int i, const Array<int>& jk, int k,
                 MemoryType mt_ = MemoryType::PRESERVE)
    {
@@ -1464,10 +1467,10 @@ public:
       tdata.SetSize(tsize, mt);
    }
 
-   /** @brief Resize to @a k owning matrices with @a j columns each.
+   /** @brief Resize to @a k matrices with @a j columns each.
 
-       Layer @a l has @a ik[l] rows. Existing data views and pointers are
-       invalidated; see the uniform-size overload for memory-type behavior. */
+       Layer @a l has @a ik[l] rows. See the uniform-size overload for buffer
+       reuse, ownership, and view lifetime. */
    void SetSize(const Array<int>& ik, int j, int k,
                 MemoryType mt_ = MemoryType::PRESERVE)
    {
@@ -1484,11 +1487,10 @@ public:
       tdata.SetSize(tsize, mt);
    }
 
-   /** @brief Resize to @a k owning matrices with per-layer dimensions.
+   /** @brief Resize to @a k matrices with per-layer dimensions.
 
-       Layer @a l has @a ik[l] rows and @a jk[l] columns. Existing data views
-       and pointers are invalidated; see the uniform-size overload for
-       memory-type behavior. */
+       Layer @a l has @a ik[l] rows and @a jk[l] columns. See the uniform-size
+       overload for buffer reuse, ownership, and view lifetime. */
    void SetSize(const Array<int>& ik, const Array<int>& jk, int k,
                 MemoryType mt_ = MemoryType::PRESERVE)
    {
@@ -1509,8 +1511,9 @@ public:
 
        Each matrix has @a i rows and @a j columns. The caller retains ownership
        of @a ext_data and must keep its buffer of at least `i*j*k` entries alive
-       until this stack is resized, reset, cleared, or destroyed. Existing owned
-       storage is released and existing data views and pointers are invalidated. */
+       while this stack references it, including after a resize that retains
+       the buffer. Existing owned storage is released and existing data views
+       must be reacquired. */
    void UseExternalData(real_t *ext_data, int i, int j, int k)
    {
       ni.SetSize(k);
@@ -1528,8 +1531,9 @@ public:
 
        Layer @a l has @a ik[l] rows and @a jk[l] columns. The caller retains
        ownership of @a ext_data and must keep its TotalSize()-entry buffer alive
-       until this stack is resized, reset, cleared, or destroyed. Existing owned
-       storage is released and existing data views and pointers are invalidated. */
+       while this stack references it, including after a resize that retains
+       the buffer. Existing owned storage is released and existing data views
+       must be reacquired. */
    void UseExternalData(real_t *ext_data,
                         const Array<int>& ik, const Array<int>& jk, int k)
    {
@@ -1551,8 +1555,8 @@ public:
        invalidated.
 
        If @a own_mem is false, the stack is an alias and does not own any
-       pointer in @a mem. The caller must keep @a mem and its data valid until
-       the stack is resized, reset, cleared, or destroyed.
+       pointer in @a mem. The caller must keep the backing allocation valid
+       while the stack references it, including after a resize that retains it.
 
        If @a own_mem is true, ownership of every pointer owned by @a mem is
        transferred to this stack. The caller must not call `mem.Delete()` after
