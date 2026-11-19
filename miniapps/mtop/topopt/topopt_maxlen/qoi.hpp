@@ -138,61 +138,6 @@ public:
     }
 };
 
-// Max-temperature slack residual
-//     G = 1/2 ||T - α||²_{L2(Ω)},
-// with α a slack field in the temperature space, bounded 0 ≤ α ≤ T_max.
-// Uses the assembled true-dof mass matrix M, so  G = 1/2 rᵀ M r  with
-// r = T − α, and the gradients below are its exact derivatives.
-class MaxTempResidual : public QuantityOfInterest
-{
-protected:
-    MPI_Comm comm;
-    ParFiniteElementSpace *fes;     // temperature space (T and α)
-    ParGridFunction *T, *alpha;     // borrowed, live
-    std::unique_ptr<HypreParMatrix> M;
-    Vector r, Mr;                   // r = T − α (true dofs),  M r
-
-    void Update()
-    {
-        Vector a_tv;
-        T->GetTrueDofs(r);
-        alpha->GetTrueDofs(a_tv);
-        r -= a_tv;
-        Mr.SetSize(r.Size());
-        M->Mult(r, Mr);
-    }
-
-public:
-    MaxTempResidual(ParGridFunction &T_, ParGridFunction &alpha_)
-    : comm(T_.ParFESpace()->GetComm()), fes(T_.ParFESpace()),
-      T(&T_), alpha(&alpha_)
-    {
-        MFEM_VERIFY(alpha_.ParFESpace() == fes, "T and alpha must share a space");
-
-        ParBilinearForm m(fes);
-        m.AddDomainIntegrator(new MassIntegrator);
-        m.Assemble();
-        m.Finalize();
-        M.reset(m.ParallelAssemble());
-    }
-
-    // G = 1/2 (T − α)ᵀ M (T − α) = 1/2 ||T − α||²_{L²}
-    real_t Eval() override
-    {
-        Update();
-        return 0.5 * InnerProduct(comm, r, Mr);
-    }
-
-    // dG/dT = M (T − α),   dG/dα = −M (T − α)   (true-dof vectors)
-    void GetGrad(Vector &dGdT, Vector &dGdalpha) override
-    {
-        Update();
-        dGdT = Mr;
-        dGdalpha = dGdT;
-        dGdalpha.Neg();
-    }
-};
-
 #ifdef MFEM_USE_GSLIB
 class ThicknessResidual : public QuantityOfInterest
 {

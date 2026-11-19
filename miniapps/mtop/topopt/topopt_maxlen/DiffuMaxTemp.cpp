@@ -4,7 +4,7 @@
 //    min_{ρ, α}   V(ρ~) = ∫ ρ~ dx / |Ω|
 //    s.t.         (r_f^2 K + M) ρ~ = M_fc ρ                  (PDE filter)
 //                 -div(k(ρ~) grad T) = q,   T = 0 on Γ_s     (heat sink)
-//                 G = 1/2 ||T − α||^2 ≤ ε
+//                 G = 1/(2 T_max^2 |Ω|) ||T − α||^2 ≤ ε
 //                 0 ≤ ρ ≤ 1,   0 ≤ α ≤ T_max
 //
 // Sample run:  mpirun -np 8 ./DiffuMaxTemp
@@ -34,15 +34,16 @@ int main(int argc, char *argv[])
     int    order        = 2;
     real_t r_f          = 0.03;       // min filter length
     real_t T_max        = 20.0;       // max temperature
-    real_t rho0         = 0.5;        // initial design
+    real_t rho0         = 0.5;        // initial design (mean, +/- 0.05 random perturbation)
     const int seed      = 0;          // random perturbation of the initial design
     int    max_it       = 200;
     real_t tol          = 1e-3;       // stopping tol on iteration error
-    real_t move         = 0.02;        // MMA move limit (α uses move * T_max)
+    real_t move         = 0.1;        // MMA move limit (α uses move * T_max)
     real_t epsilon      = 1e-2;       // T − α tolerance
 
     bool visualization = false;
     bool paraview      = false;
+    int  paraview_interval = 0;       // intermediate output interval; 0 disables it
 
     const real_t k_min    = 1e-3;     // SIMP void conductivity
     const real_t k_max    = 1.0;      // SIMP max conductivity
@@ -68,6 +69,8 @@ int main(int argc, char *argv[])
     args.AddOption(&move, "-mv", "--move", "MMA move limit");
     args.AddOption(&paraview, "-pv", "--paraview", "-no-pv", "--no-paraview",
                     "store solution in paraview");
+    args.AddOption(&paraview_interval, "-pvi", "--paraview-interval",
+                    "write ParaView fields every N optimization iterations; 0 disables intermediate output");
     args.AddOption(&visualization, "-vis", "--visualization",
                     "-no-vis", "--no-visualization", "enable GLVis visualization");
     args.Parse();
@@ -77,6 +80,8 @@ int main(int argc, char *argv[])
         return 1;
     }
     if (myid == 0) { args.PrintOptions(cout); }
+    MFEM_VERIFY(paraview_interval >= 0,
+                "ParaView output interval must be nonnegative.");
 
     // 2. Build the mesh: 2 x 2 square.
     //    Heat sink (T = 0) on the bottom edge, x ∈ [0.95, 1.05].
@@ -185,8 +190,8 @@ int main(int argc, char *argv[])
     // volume of rho~ relative to |Omega|  (vol_fraction = 1 so V* = |Omega|)
     VolumeResidual vol_qoi(MPI_COMM_WORLD, &filter_fes, &rho_filter_cf, &one_cf, 1.0);
 
-    // max-temperature constraint residual:  1/2 ||T − α||^2
-    MaxTempResidual temp_residual(T, alpha);
+    // max-temperature constraint residual:  1/(2 T_max^2 |Ω|) ||T − α||^2
+    MaxTempResidual temp_residual(T, alpha, T_max);
 
     // 8. MMA optimizer and its per-iteration work vectors.
     const int n = control_fes.GetTrueVSize();
@@ -287,8 +292,6 @@ int main(int argc, char *argv[])
 
     // 10. Optimization loop.
     real_t iterationError = 1.0;
-    real_t init_vol = 1.0;
-    real_t init_G   = 1.0;            // constraint scaling, set at it = 1
 
     // Track next iteration for epsilon decay
     int next_epsilon_decay = init_it;
@@ -314,11 +317,11 @@ int main(int argc, char *argv[])
         // (3) max-temperature constraint and gradient:
         //     heat forward, constraint value, heat backward, backward filter
         //     forward:   K(ρ~) T = q,                     T = 0 on Γ_s
-        //     G = 1/2 ||T − α||^2 ≤ ε
+        //     G = 1/(2s) ||T − α||^2 ≤ ε,   s = T_max^2 |Ω|
         //     adjoint:   K(ρ~) λ = −dG/dT,   λ = 0 on Γ_s   (same K as the forward solve)
         //     dG/drho~  = ∫ k'(ρ~) ∇T·∇λ φ_i
         //     dG/drho   = M_fc^T (r_f^2 K + M)^{-1} dG/drho~
-        //     dG/dalpha = −M (T − α)
+        //     dG/dalpha = −M (T − α) / s
         heat.Assemble();            // K(ρ~) changes every iteration
         heat.FSolve();
 
@@ -339,12 +342,18 @@ int main(int argc, char *argv[])
         std::unique_ptr<HypreParVector> sens_rhs_tv(sens_rhs.ParallelAssemble());
         filter.MultTranspose(*sens_rhs_tv, dgtemp.GetBlock(0));
 
-        // normalize the constraint by its initial value:  (G − ε)/G_0 ≤ 0
-        // (G_0 = 0 when T ≤ T_max initially, since α = clip(T); fall back to ε)
-        if (it == 1) { init_G = (tres > 0.0) ? tres : epsilon; }
-        fival(0) = (tres - epsilon) / init_G;           // update constraint value
-        dgtemp /= init_G;
+        // constraint (unnormalized):  G − ε ≤ 0
+        fival(0) = tres - epsilon;                      // update constraint value
         dfidx[0] = dgtemp;                              // update constraint gradient
+
+        // intermediate ParaView output, written before the MMA update so that
+        // rho, rho~, T, alpha all belong to the same (current) design
+        if (paraview && paraview_interval > 0 && it % paraview_interval == 0)
+        {
+            paraview_dc.SetCycle(it);
+            paraview_dc.SetTime(it);
+            paraview_dc.Save();
+        }
 
         // (4) box constraints:  rho ∈ [0,1],  ɑ ∈ [0, T_max]  (move limits)
         for (int i = 0; i < n; i++)
@@ -363,12 +372,8 @@ int main(int argc, char *argv[])
         tx_local.GetBlock(1) = alpha_tv;
         rho_old = rho_tv;
 
-        // Normalize volume and gradient by initial value
-        if (it == 1) { init_vol = vol; }
-        real_t obj = vol / init_vol;
-        df0dx /= init_vol;
-
-        mma.Update(tx_local, df0dx, obj, fival, dfidx, tx_min, tx_max);
+        // objective: volume fraction V = ∫ρ~/|Ω| ∈ [0,1], already O(1), unscaled
+        mma.Update(tx_local, df0dx, vol, fival, dfidx, tx_min, tx_max);
         rho.SetFromTrueDofs(tx_local.GetBlock(0));
         alpha.SetFromTrueDofs(tx_local.GetBlock(1));
 
@@ -428,12 +433,42 @@ int main(int argc, char *argv[])
         mfem::out << "\nfinished after " << (it - 1) << " iterations\n";
     }
 
-    // Option: save only the final solution instead of all iterations
-    if (paraview)
+    // Post-process the final design. The last MMA update produced rho, alpha
+    // that were never evaluated: refilter and re-solve so rho, rho~, T, alpha
+    // in the final output all belong to the same design.
     {
-        paraview_dc.SetCycle(it - 1);
-        paraview_dc.SetTime(it - 1);
-        paraview_dc.Save();
+        rho.GetTrueDofs(rho_tv);
+        Vector rho_filter_tv(filter_fes.GetTrueVSize());
+        filter.Mult(rho_tv, rho_filter_tv);
+        rho_filter.SetFromTrueDofs(rho_filter_tv);
+
+        heat.Assemble();
+        heat.FSolve();
+
+        T.GetTrueDofs(T_tv);
+        real_t maxT_loc = T_tv.Max(), maxT;
+        MPI_Allreduce(&maxT_loc, &maxT, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, MPI_COMM_WORLD);
+
+        const real_t vol  = vol_qoi.Eval();
+        const real_t tres = temp_residual.Eval();
+
+        if (myid == 0)
+        {
+            mfem::out << "\nfinal design (after last MMA update)\n"
+                      << "  volume = " << fixed      << setprecision(4) << vol  << '\n'
+                      << "  res    = " << scientific << setprecision(3) << tres << '\n'
+                      << "  eps    = " << epsilon << '\n'
+                      << "  fival  = " << tres - epsilon << '\n'
+                      << "  maxT   = " << fixed      << setprecision(4) << maxT
+                      << "  (T_max = " << T_max << ")" << endl;
+        }
+
+        if (paraview)
+        {
+            paraview_dc.SetCycle(it);
+            paraview_dc.SetTime(it);
+            paraview_dc.Save();
+        }
     }
 
     return 0;

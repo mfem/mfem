@@ -237,3 +237,70 @@ public:
       return val;
    }
 };
+
+// Max-temperature slack residual
+//     G = 1/(2s) ||T - α||²_{L2(Ω)},    s = T_max² |Ω|,
+// with α a slack field in the temperature space, bounded 0 ≤ α ≤ T_max.
+// Uses the assembled true-dof mass matrix M, so  G = 1/(2s) rᵀ M r  with
+// r = T − α, and the gradients below are its exact derivatives.
+class MaxTempResidual : public QuantityOfInterest
+{
+protected:
+    MPI_Comm comm;
+    ParFiniteElementSpace *fes;     // temperature space (T and α)
+    ParGridFunction *T, *alpha;     // borrowed, live
+    std::unique_ptr<HypreParMatrix> M;
+    real_t scale;                   // s = T_max² |Ω|
+    Vector r, Mr;                   // r = T − α (true dofs),  M r
+
+    void Update()
+    {
+        Vector a_tv;
+        T->GetTrueDofs(r);
+        alpha->GetTrueDofs(a_tv);
+        r -= a_tv;
+        Mr.SetSize(r.Size());
+        M->Mult(r, Mr);
+    }
+
+public:
+    MaxTempResidual(ParGridFunction &T_, ParGridFunction &alpha_, real_t T_max)
+    : comm(T_.ParFESpace()->GetComm()), fes(T_.ParFESpace()),
+      T(&T_), alpha(&alpha_)
+    {
+        MFEM_VERIFY(alpha_.ParFESpace() == fes, "T and alpha must share a space");
+
+        ParBilinearForm m(fes);
+        m.AddDomainIntegrator(new MassIntegrator);
+        m.Assemble();
+        m.Finalize();
+        M.reset(m.ParallelAssemble());
+
+        ConstantCoefficient one(1.0);
+        ParLinearForm vol(fes);
+        vol.AddDomainIntegrator(new DomainLFIntegrator(one));
+        vol.Assemble();
+        std::unique_ptr<HypreParVector> v(vol.ParallelAssemble());
+        real_t loc = v->Sum(), domain_volume;
+        MPI_Allreduce(&loc, &domain_volume, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+
+        scale = T_max * T_max * domain_volume;
+    }
+
+    // G = 1/(2s) (T − α)ᵀ M (T − α)
+    real_t Eval() override
+    {
+        Update();
+        return 0.5 * InnerProduct(comm, r, Mr) / scale;
+    }
+
+    // dG/dT = M (T − α)/s,   dG/dα = −M (T − α)/s   (true-dof vectors)
+    void GetGrad(Vector &dGdT, Vector &dGdalpha) override
+    {
+        Update();
+        dGdT = Mr;
+        dGdT /= scale;
+        dGdalpha = dGdT;
+        dGdalpha.Neg();
+    }
+};
