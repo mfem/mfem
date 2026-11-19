@@ -13,6 +13,8 @@
 
 #include "mesh_headers.hpp"
 
+#include <array>
+
 namespace mfem
 {
 
@@ -185,19 +187,38 @@ void Tetrahedron::SetVertices(const int *ind)
    }
 }
 
-void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length)
+void Tetrahedron::MarkEdge(const DSTable &v_to_v, const Array<real_t> &length,
+                           const Array<std::array<real_t, 6>> &keys)
 {
-   int ind[4], i, j, l, L, type;
+   int e, j, ind[4], type;
+   real_t l, L;
+   std::array<real_t, 6> l2, L2;
+   // The edges are ordered by their lengths, and edges of equal length by
+   // keys: a strict total order (the keys of the edges of an element differ
+   // unless two of its vertices coincide), so that the longest edge of a face
+   // is the same whatever the order in which its edges are compared (here and
+   // in Triangle::MarkEdge()). A tolerance on the lengths would not be
+   // transitive.
+   auto Compare = [&length, &keys, &l, &l2, &L, &L2](int edge)
+   {
+      l = length[edge];
+      l2 = keys[edge];
+      MFEM_ASSERT(l2 != L2, "Two edges of an element have the same key: two of "
+                  "its vertices coincide to working precision");
+      return (l > L || (l == L && l2 > L2));
+   };
 
-   // determine the longest edge
-   L = length[v_to_v(indices[0], indices[1])]; j = 0;
-   if ((l = length[v_to_v(indices[1], indices[2])]) > L) { L = l; j = 1; }
-   if ((l = length[v_to_v(indices[2], indices[0])]) > L) { L = l; j = 2; }
-   if ((l = length[v_to_v(indices[0], indices[3])]) > L) { L = l; j = 3; }
-   if ((l = length[v_to_v(indices[1], indices[3])]) > L) { L = l; j = 4; }
-   if ((l = length[v_to_v(indices[2], indices[3])]) > L) { j = 5; }
+   // Find j as the index of the longest edge, using the pair of metrics
+   e = v_to_v(indices[0], indices[1]);
+   L = length[e]; L2 = keys[e];
+   j = 0;
+   if (Compare(v_to_v(indices[1], indices[2]))) { L = l; L2 = l2; j = 1; }
+   if (Compare(v_to_v(indices[2], indices[0]))) { L = l; L2 = l2; j = 2; }
+   if (Compare(v_to_v(indices[0], indices[3]))) { L = l; L2 = l2; j = 3; }
+   if (Compare(v_to_v(indices[1], indices[3]))) { L = l; L2 = l2; j = 4; }
+   if (Compare(v_to_v(indices[2], indices[3]))) { j = 5; }
 
-   for (i = 0; i < 4; i++)
+   for (int i = 0; i < 4; i++)
    {
       ind[i] = indices[i];
    }
@@ -226,16 +247,17 @@ void Tetrahedron::MarkEdge(const DSTable &v_to_v, const int *length)
          break;
    }
 
-   // Determine the two longest edges for the other two faces and
-   // store them in ind[0] and ind[1]
+   // Determine the two longest edges for the other two faces and store them in
+   // ind[0] and ind[1]
    ind[0] = 2; ind[1] = 1;
-   L = length[v_to_v(indices[0], indices[2])];
-   if ((l = length[v_to_v(indices[0], indices[3])]) > L) { L = l; ind[0] = 3; }
-   if ((l = length[v_to_v(indices[2], indices[3])]) > L) { ind[0] = 5; }
 
-   L = length[v_to_v(indices[1], indices[2])];
-   if ((l = length[v_to_v(indices[1], indices[3])]) > L) { L = l; ind[1] = 4; }
-   if ((l = length[v_to_v(indices[2], indices[3])]) > L) { ind[1] = 5; }
+   e = v_to_v(indices[0], indices[2]); L = length[e]; L2 = keys[e];
+   if (Compare(v_to_v(indices[0], indices[3]))) { L = l; L2 = l2; ind[0] = 3; }
+   if (Compare(v_to_v(indices[2], indices[3]))) { L = l; L2 = l2; ind[0] = 5; }
+
+   e = v_to_v(indices[1], indices[2]); L = length[e]; L2 = keys[e];
+   if (Compare(v_to_v(indices[1], indices[3]))) { L = l; L2 = l2; ind[1] = 4; }
+   if (Compare(v_to_v(indices[2], indices[3]))) { L = l; L2 = l2; ind[1] = 5; }
 
    j = 0;
    switch (ind[0])

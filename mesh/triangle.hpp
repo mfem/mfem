@@ -16,6 +16,8 @@
 #include "../fem/fe.hpp"
 #include "element.hpp"
 
+#include <array>
+
 namespace mfem
 {
 
@@ -44,16 +46,20 @@ public:
    /// Return 1 if the element needs refinement in order to get conforming mesh.
    int NeedRefinement(HashTable<Hashed2> &v_to_v) const override;
 
-   /** Reorder the vertices so that the longest edge is from vertex 0
-       to vertex 1. If called it should be once from the mesh constructor,
-       because the order may be used later for setting the edges. **/
-   void MarkEdge(DenseMatrix & pmat);
+   /** Reorder the vertices so that the edge from vertex 0 to vertex 1 is the
+       longest: the largest @a length, then the largest of @a keys (which
+       differ for the edges of a triangle), both indexed by the edge numbers of
+       @a v_to_v. Mesh::Finalize() with refine = true calls this on each
+       triangle, then renumbers the edges and reorders the nodes, which depend
+       on the vertex orders. **/
+   void MarkEdge(const DSTable &v_to_v, const Array<real_t> &length,
+                 const Array<std::array<real_t, 6>> &keys)
+   { MarkEdge(indices, v_to_v, length, keys); }
 
-   static void MarkEdge(int *indices, const DSTable &v_to_v, const int *length);
-
-   /// Mark the longest edge by assuming/changing the order of the vertices.
-   void MarkEdge(const DSTable &v_to_v, const int *length) override
-   { MarkEdge(indices, v_to_v, length); }
+   /// MarkEdge() for the triangle of vertices @a indices.
+   static void MarkEdge(int *indices, const DSTable &v_to_v,
+                        const Array<real_t> &length,
+                        const Array<std::array<real_t, 6>> &keys);
 
    void ResetTransform(int tr) override { transform = tr; }
    unsigned GetTransform() const override { return transform; }

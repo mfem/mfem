@@ -212,6 +212,7 @@ class FiniteElementSpace
    friend class PRefinementTransferOperator;
    friend void Mesh::Swap(Mesh &, bool);
    friend class LORBase;
+   friend class Mesh;
    friend struct DerefineMatrixOp;
 
 protected:
@@ -497,6 +498,7 @@ protected:
 
       Array<StatelessDofTransformation*> old_DoFTransArray;
       mutable DofTransformation old_DoFTrans;
+      bool shared_maximum = false;
 
       void ConstructDoFTransArray();
 
@@ -509,9 +511,20 @@ protected:
       RefinementOperator(const FiniteElementSpace *fespace,
                          const FiniteElementSpace *coarse_fes);
       virtual void Mult(const Vector &x, Vector &y) const;
+      /** In Mult(), a DOF shared by several fine elements takes the
+          componentwise largest of their values, whatever the order of the
+          elements (spaces without DOF transformations). */
+      void UseSharedMaximum(bool use) { shared_maximum = use; }
       virtual void MultTranspose(const Vector &x, Vector &y) const;
       virtual ~RefinementOperator();
    };
+
+   /** After a refinement, let the update operator give a DOF shared by several
+       fine elements the componentwise largest of their values (for the nodes,
+       see Mesh::UpdateNodes()). Returns false, and does nothing, if the update
+       operator is not a RefinementOperator (no refinement, or a matrix, see
+       SetUpdateOperatorType()). */
+   bool UseSharedMaximum(bool use);
 
    /// Derefinement operator, used by the friend class InterpolationGridTransfer.
    class DerefinementOperator : public Operator

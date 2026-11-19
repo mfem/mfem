@@ -5329,7 +5329,9 @@ void CoarseFineTransformations::Clear()
 {
    for (int i = 0; i < Geometry::NumGeom; i++)
    {
-      point_matrices[i].SetSize(0, 0, 0);
+      // Release the data, which may be external (the static point matrices of
+      // uniform refinement): resized, it would be overwritten.
+      point_matrices[i].Clear();
    }
    embeddings.DeleteAll();
 }

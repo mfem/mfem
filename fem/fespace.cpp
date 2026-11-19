@@ -1959,6 +1959,14 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
    IsoparametricTransformation isotr;
    DofTransformation doftrans;
 
+   // With shared_maximum: which DOFs have a value.
+   Array<bool> written;
+   if (shared_maximum)
+   {
+      written.SetSize(height);
+      written = false;
+   }
+
    for (int k = 0; k < mesh_ref->GetNE(); k++)
    {
       const Embedding &emb = trans_ref.embeddings[k];
@@ -1992,7 +2000,14 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
 
             x.GetSubVector(old_vdofs, subX);
             lP.Mult(subX, subY);
-            y.SetSubVector(vdofs, subY);
+            if (!shared_maximum) { y.SetSubVector(vdofs, subY); continue; }
+            for (int i = 0; i < vdofs.Size(); i++)
+            {
+               const int j = (vdofs[i] >= 0) ? vdofs[i] : -1 - vdofs[i];
+               const real_t v = (vdofs[i] >= 0) ? subY(i) : -subY(i);
+               y(j) = written[j] ? std::max(y(j), v) : v;
+               written[j] = true;
+            }
          }
       }
       else
@@ -2018,6 +2033,13 @@ void FiniteElementSpace::RefinementOperator::Mult(const Vector &x,
          doftrans.SetVDim(rvdim, fespace->GetOrdering());
       }
    }
+}
+
+bool FiniteElementSpace::UseSharedMaximum(bool use)
+{
+   RefinementOperator *R = dynamic_cast<RefinementOperator *>(Th.Ptr());
+   if (R) { R->UseSharedMaximum(use); }
+   return R != nullptr;
 }
 
 void FiniteElementSpace::RefinementOperator::MultTranspose(const Vector &x,
