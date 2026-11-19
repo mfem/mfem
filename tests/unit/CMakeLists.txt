@@ -92,6 +92,7 @@ set(UNIT_TESTS_SRCS
   mesh/test_nurbs.cpp
   mesh/test_periodic_mesh.cpp
   mesh/test_pmesh.cpp
+  mesh/test_pmesh_rebalance.cpp
   mesh/test_psubmesh.cpp
   mesh/test_submesh.cpp
   mesh/test_vtu.cpp
@@ -160,6 +161,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_simplices.cpp
   fem/test_particleset.cpp
   fem/test_pgridfunc_save_serial.cpp
+  fem/test_pgridfunc_update.cpp
   fem/test_poly1d.cpp
   fem/test_dof_communicator.cpp
   fem/test_project_bdr_par.cpp
