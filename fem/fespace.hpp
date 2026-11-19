@@ -498,7 +498,10 @@ protected:
       Array<StatelessDofTransformation*> old_DoFTransArray;
       mutable DofTransformation old_DoFTrans;
 
-      void ConstructDoFTransArray();
+      /** Build DOF transformations using the collection @a coarse_fec of the
+          geometrically coarse source space. Its polynomial order may be lower
+          than, equal to, or higher than that of the fine space. */
+      void ConstructDoFTransArray(const FiniteElementCollection *coarse_fec);
 
    public:
       /** Construct the operator based on the elem_dof table of the original

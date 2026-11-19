@@ -1087,3 +1087,40 @@ TEST_CASE("Trace PRefinement Parallel TrueTransfer", "[Transfer][Parallel]")
 
 
 #endif
+
+
+TEST_CASE("ND geometric transfer", "[Transfer]")
+{
+   const int coarse_order = GENERATE(1, 2);
+   const int fine_order = GENERATE(1, 2, 3);
+   const auto type = GENERATE(Element::TETRAHEDRON, Element::WEDGE);
+   CAPTURE(coarse_order, fine_order, type);
+   Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, type);
+   Mesh fine_mesh(mesh);
+   fine_mesh.UniformRefinement();
+   ND_FECollection coarse_fec(coarse_order, 3), fine_fec(fine_order, 3);
+   FiniteElementSpace coarse(&mesh, &coarse_fec), fine(&fine_mesh, &fine_fec);
+   VectorFunctionCoefficient coefficient(3, [=](const Vector &p, Vector &v)
+   {
+      // A rotation is in ND1; multiplying by a linear factor is in ND2.
+      const real_t s =
+         (coarse_order > 1 && fine_order > 1) ? 1.0 + p(0) : 1.0;
+      v(0) = 0.75 - p(1)*s;
+      v(1) = -1.25 + p(0)*s;
+      v(2) = 2.5;
+   });
+   GridFunction x(&coarse), actual(&fine), expected(&fine);
+   x.ProjectCoefficient(coefficient);
+   expected.ProjectCoefficient(coefficient);
+   InterpolationGridTransfer transfer(coarse, fine);
+   const Operator &P = transfer.ForwardOperator();
+   P.Mult(x, actual);
+   actual -= expected;
+   REQUIRE(actual.Norml2() < 1e-10*expected.Norml2());
+   Vector y(fine.GetVSize()), Px(fine.GetVSize()), Pty(coarse.GetVSize());
+   x.Randomize(2);
+   y.Randomize(1);
+   P.Mult(x, Px);
+   P.MultTranspose(y, Pty);
+   REQUIRE(Px*y == MFEM_Approx(x*Pty));
+}
