@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -22,6 +22,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>
+#include <unordered_map>
+#include <unordered_set>
 
 using namespace std;
 
@@ -2219,21 +2221,18 @@ void GetCoarseToFineMap(const CoarseFineTransformations &cft,
 
    ref_type_to_matrix.MakeI((int)ref_type_map.size());
    ref_type_to_geom.SetSize((int)ref_type_map.size());
-   for (map<RefType,int>::iterator it = ref_type_map.begin();
-        it != ref_type_map.end(); ++it)
+   for (const auto &[rt, index] : ref_type_map)
    {
-      ref_type_to_matrix.AddColumnsInRow(it->second, it->first.num_children);
-      ref_type_to_geom[it->second] = it->first.geom;
+      ref_type_to_matrix.AddColumnsInRow(index, rt.num_children);
+      ref_type_to_geom[index] = rt.geom;
    }
 
    ref_type_to_matrix.MakeJ();
-   for (map<RefType,int>::iterator it = ref_type_map.begin();
-        it != ref_type_map.end(); ++it)
+   for (const auto &[rt, index] : ref_type_map)
    {
-      const RefType &rt = it->first;
       for (int j = 0; j < rt.num_children; j++)
       {
-         ref_type_to_matrix.AddConnection(it->second, rt.children[j].one);
+         ref_type_to_matrix.AddConnection(index, rt.children[j].one);
       }
    }
    ref_type_to_matrix.ShiftUpI();
@@ -2242,12 +2241,11 @@ void GetCoarseToFineMap(const CoarseFineTransformations &cft,
 } // namespace internal
 
 
-/// TODO: Implement DofTransformation support
 FiniteElementSpace::DerefinementOperator::DerefinementOperator(
    const FiniteElementSpace *f_fes, const FiniteElementSpace *c_fes,
    BilinearFormIntegrator *mass_integ)
    : Operator(c_fes->GetVSize(), f_fes->GetVSize()),
-     fine_fes(f_fes)
+     fine_fes(f_fes), coarse_fes(c_fes)
 {
    MFEM_VERIFY(c_fes->GetOrdering() == f_fes->GetOrdering() &&
                c_fes->GetVDim() == f_fes->GetVDim(),
@@ -2334,14 +2332,6 @@ FiniteElementSpace::DerefinementOperator::DerefinementOperator(
          lPtMP_inv.Mult(lR); // lR <- (P^T M P)^{-1} P^T M
       }
    }
-
-   // Make a copy of the coarse element-to-dof Table.
-   coarse_elem_dof = new Table(c_fes->GetElementToDofTable());
-}
-
-FiniteElementSpace::DerefinementOperator::~DerefinementOperator()
-{
-   delete coarse_elem_dof;
 }
 
 void FiniteElementSpace::DerefinementOperator::Mult(const Vector &x,
@@ -2350,12 +2340,15 @@ void FiniteElementSpace::DerefinementOperator::Mult(const Vector &x,
    Array<int> c_vdofs, f_vdofs;
    Vector loc_x, loc_y;
    DenseMatrix loc_x_mat, loc_y_mat;
+   DofTransformation c_doftrans, f_doftrans;
    const int fine_vdim = fine_fes->GetVDim();
    const int coarse_ndofs = height/fine_vdim;
    for (int coarse_el = 0; coarse_el < coarse_to_fine.Size(); coarse_el++)
    {
-      coarse_elem_dof->GetRow(coarse_el, c_vdofs);
+      coarse_fes->GetElementDofs(coarse_el, c_vdofs, c_doftrans);
       fine_fes->DofsToVDofs(c_vdofs, coarse_ndofs);
+      // Local vdofs are grouped by vector component, regardless of ordering.
+      c_doftrans.SetVDim(fine_vdim, Ordering::byNODES);
       loc_y.SetSize(c_vdofs.Size());
       loc_y = 0.0;
       loc_y_mat.UseExternalData(loc_y.GetData(), c_vdofs.Size()/fine_vdim,
@@ -2368,12 +2361,16 @@ void FiniteElementSpace::DerefinementOperator::Mult(const Vector &x,
       for (int s = 0; s < num_fine_elems; s++)
       {
          const DenseMatrix &lR = localR[geom](lR_offset+s);
-         fine_fes->GetElementVDofs(fine_elems[s], f_vdofs);
+         fine_fes->GetElementVDofs(fine_elems[s], f_vdofs, f_doftrans);
+         f_doftrans.SetVDim(fine_vdim, Ordering::byNODES);
          x.GetSubVector(f_vdofs, loc_x);
+         // The local restriction acts on reference-element dofs.
+         f_doftrans.InvTransformPrimal(loc_x);
          loc_x_mat.UseExternalData(loc_x.GetData(), f_vdofs.Size()/fine_vdim,
                                    fine_vdim);
          mfem::AddMult(lR, loc_x_mat, loc_y_mat);
       }
+      c_doftrans.TransformPrimal(loc_y);
       y.SetSubVector(c_vdofs, loc_y);
    }
 }
@@ -4064,8 +4061,6 @@ void FiniteElementSpace::Destroy()
       delete [] bdofs;
    }
    ceed::RemoveBasisAndRestriction(this);
-
-
 }
 
 void FiniteElementSpace::DestroyDoFTransArray()
@@ -4527,6 +4522,210 @@ void FiniteElementSpace
    }
 }
 
+void FiniteElementSpace::GetBoundaryLoopEdgeDofs(
+   const Array<int> &boundary_element_indices,
+   Array<int> &boundary_edge_dofs,
+   Array<int> *dof_edges,
+   Array<int> *dof_boundary_elements) const
+{
+   MFEM_VERIFY(mesh->Dimension() >= 2,
+               "GetBoundaryLoopEdgeDofs requires 2D or 3D meshes to find edge objects");
+
+   boundary_edge_dofs.SetSize(0);
+   if (dof_edges) { dof_edges->SetSize(0); }
+   if (dof_boundary_elements) { dof_boundary_elements->SetSize(0); }
+
+   // A DOF that appears in exactly one selected boundary element lies on the
+   // bounding loop; one appearing in two or more is interior to the boundary
+   // region and is dropped. Count occurrences of each DOF (using scratch maps,
+   // exposed only as parallel-indexed Array<int> below) and record, on first
+   // sight, the local edge and boundary element carrying it.
+   //
+   // The count is over GetEdgeDofs, which returns endpoint vertex DOFs as well
+   // as edge-interior DOFs (relevant for collections such as ND_R2D that carry
+   // vertex DOFs). Edge-interior DOFs occur once per edge, so the count mainly
+   // resolves vertex DOFs: a vertex shared by several elements is interior and
+   // dropped, while a genuine loop-corner (open-curve endpoint) vertex is kept.
+   // This is why we count GetEdgeDofs rather than collecting GetEdgeInteriorDofs,
+   // which would omit the endpoint vertex DOFs the method is documented to keep.
+   // The 3D removal criterion (any edge in two or more faces) matches the
+   // parallel version rather than a parity toggle.
+   std::unordered_map<int, int> dof_count, dof_edge, dof_belem;
+   Array<int> edge_dofs, edges, edge_orientations;
+
+   const int dim = mesh->Dimension();
+   for (int i = 0; i < boundary_element_indices.Size(); ++i)
+   {
+      const int boundary_element_idx = boundary_element_indices[i];
+      std::unordered_set<int> boundary_element_dofs;
+
+      if (dim == 3)
+      {
+         // Boundary elements are 2D faces; extract their 1D edges.
+         int face_index, face_orientation;
+         mesh->GetBdrElementFace(boundary_element_idx, &face_index,
+                                 &face_orientation);
+         mesh->GetFaceEdges(face_index, edges, edge_orientations);
+      }
+      else
+      {
+         // Boundary elements are 1D segments, each being a single edge.
+         mesh->GetBdrElementEdges(boundary_element_idx, edges, edge_orientations);
+         MFEM_VERIFY(edges.Size() == 1,
+                     "2D boundary element should have exactly one edge");
+      }
+
+      for (int j = 0; j < edges.Size(); ++j)
+      {
+         GetEdgeDofs(edges[j], edge_dofs);
+         for (int k = 0; k < edge_dofs.Size(); ++k)
+         {
+            const int dof = edge_dofs[k];
+            // Count each DOF once per boundary element and record metadata the
+            // first time it is seen, so H1 DOFs shared by multiple edges of the
+            // same element are not double counted.
+            if (boundary_element_dofs.insert(dof).second &&
+                dof_count[dof]++ == 0)
+            {
+               dof_edge[dof] = edges[j];
+               dof_belem[dof] = boundary_element_idx;
+            }
+         }
+      }
+   }
+
+   // Emit the DOFs seen in exactly one selected boundary element, in a
+   // deterministic (increasing DOF index) order shared by all output arrays.
+   std::vector<int> kept;
+   kept.reserve(dof_count.size());
+   for (const auto &[dof, count] : dof_count)
+   {
+      if (count == 1) { kept.push_back(dof); }
+   }
+   std::sort(kept.begin(), kept.end());
+
+   boundary_edge_dofs.Reserve(static_cast<int>(kept.size()));
+   if (dof_edges) { dof_edges->Reserve(static_cast<int>(kept.size())); }
+   if (dof_boundary_elements)
+   {
+      dof_boundary_elements->Reserve(static_cast<int>(kept.size()));
+   }
+   for (int dof : kept)
+   {
+      boundary_edge_dofs.Append(dof);
+      if (dof_edges) { dof_edges->Append(dof_edge[dof]); }
+      if (dof_boundary_elements) { dof_boundary_elements->Append(dof_belem[dof]); }
+   }
+}
+
+void FiniteElementSpace::GetBoundaryElementsByAttribute(
+   const Array<int> &bdr_attrs,
+   std::vector<Array<int>> &attr_to_elements) const
+{
+   // One (initially empty) list of boundary elements per requested attribute,
+   // indexed to match bdr_attrs.
+   attr_to_elements.assign(bdr_attrs.Size(), Array<int>());
+
+   // Map attribute value -> position in bdr_attrs for quick lookup.
+   std::unordered_map<int, int> attr_to_index;
+   for (int i = 0; i < bdr_attrs.Size(); ++i)
+   {
+      attr_to_index[bdr_attrs[i]] = i;
+   }
+
+   // Bucket boundary elements by their attribute.
+   for (int i = 0; i < mesh->GetNBE(); ++i)
+   {
+      int attr = mesh->GetBdrElement(i)->GetAttribute();
+      auto it = attr_to_index.find(attr);
+      if (it != attr_to_index.end())
+      {
+         attr_to_elements[it->second].Append(i);
+      }
+   }
+}
+
+void FiniteElementSpace::GetBoundaryElementsByAttribute(
+   int bdr_attr, Array<int> &boundary_elements) const
+{
+   boundary_elements.SetSize(0);
+
+   for (int i = 0; i < mesh->GetNBE(); ++i)
+   {
+      if (mesh->GetBdrElement(i)->GetAttribute() == bdr_attr)
+      {
+         boundary_elements.Append(i);
+      }
+   }
+}
+
+void FiniteElementSpace::ComputeLoopEdgeOrientations(
+   const Array<int> &dof_edges,
+   const Array<int> &dof_boundary_elements,
+   const Vector &loop_normal,
+   Array<int> &dof_orientations) const
+{
+   MFEM_VERIFY(dof_edges.Size() == dof_boundary_elements.Size(),
+               "dof_edges and dof_boundary_elements must be parallel-indexed");
+
+   const int ndof = dof_edges.Size();
+   dof_orientations.SetSize(ndof);
+
+   Array<int> edge_verts, bdr_elem_verts;
+   Vector edge_vec(3), to_edge_vec(3), cross_product(3);
+   for (int i = 0; i < ndof; i++)
+   {
+      const int edge_id = dof_edges[i];
+      const int bdr_elem_idx = dof_boundary_elements[i];
+
+      // Get edge vertices
+      mesh->GetEdgeVertices(edge_id, edge_verts);
+
+      const real_t *v0 = mesh->GetVertex(edge_verts[0]);
+      const real_t *v1 = mesh->GetVertex(edge_verts[1]);
+
+      // Get boundary element vertices
+      mesh->GetBdrElement(bdr_elem_idx)->GetVertices(bdr_elem_verts);
+
+      // Find the third vertex (not part of the edge)
+      int third_vertex = -1;
+      for (int j = 0; j < bdr_elem_verts.Size(); j++)
+      {
+         int v = bdr_elem_verts[j];
+         if (v != edge_verts[0] && v != edge_verts[1])
+         {
+            third_vertex = v;
+            break;
+         }
+      }
+
+      if (third_vertex == -1)
+      {
+         MFEM_ABORT("Boundary element " << bdr_elem_idx << " has only 2 vertices, "
+                    "but 3D boundary elements must have at least 3 vertices");
+      }
+
+      const real_t *v2 = mesh->GetVertex(third_vertex);
+
+      // Edge vector
+      for (int j = 0; j < 3; j++) { edge_vec[j] = v1[j] - v0[j]; }
+
+      // Vector from third vertex to edge (use edge midpoint)
+      for (int j = 0; j < 3; j++)
+      {
+         real_t edge_midpoint = (v0[j] + v1[j]) * 0.5;
+         to_edge_vec[j] = edge_midpoint - v2[j];
+      }
+
+      // Cross product: to_edge × edge
+      to_edge_vec.cross3D(edge_vec, cross_product);
+
+      // Check alignment with loop normal
+      real_t dot_product = cross_product * loop_normal;
+      dof_orientations[i] = (dot_product > 0) ? 1 : -1;
+   }
+}
+
 FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
 {
    string buff;
@@ -4631,9 +4830,8 @@ FiniteElementCollection *FiniteElementSpace::Load(Mesh *m, std::istream &input)
 
 ElementDofOrdering GetEVectorOrdering(const FiniteElementSpace& fes)
 {
-   return UsesTensorBasis(fes)?
+   return (UsesTensorBasis(fes) || fes.UsesRaggedTensorBasis()) ?
           ElementDofOrdering::LEXICOGRAPHIC:
           ElementDofOrdering::NATIVE;
 }
-
 } // namespace mfem

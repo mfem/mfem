@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -34,10 +34,10 @@ namespace mfem
     - HDF5 library, https://support.hdfgroup.org/HDF5
 
     @note The ConduitDataCollection only wraps the mfem objects to save them and
-    creates them on load, Conduit does not own any of the data. The
-    SidreDataCollection provides more features, for example the
-    SidreDataCollection allocates and will own the data backing the mfem objects
-    in the data collection.
+    creates them on load, Conduit does not own any of the data.
+    The MFEMSidreDataCollection in the Axom package (https://github.com/LLNL/axom)
+    derives from mfem::DataCollection and provides more features, for example
+    it allocates and will own the data backing the mfem objects in the data collection.
 
     This class also provides public static methods that convert between MFEM
     Meshes and GridFunctions and Conduit Mesh Blueprint descriptions.

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -328,7 +328,7 @@ TEST_CASE("Linear Form Extension", "[LinearFormExtension], [GPU]")
    }
 }
 
-TEST_CASE("H(div) Linear Form Extension", "[LinearFormExtension], [GPU]")
+TEST_CASE("Vector FE Linear Form Extension", "[LinearFormExtension], [GPU]")
 {
    const bool all = launch_all_non_regression_tests;
 
@@ -341,26 +341,44 @@ TEST_CASE("H(div) Linear Form Extension", "[LinearFormExtension], [GPU]")
    Mesh mesh(mesh_file);
    const int dim = mesh.Dimension();
 
-   CAPTURE(mesh_file, dim, p);
+   {
+      const auto space_type =
+         dim == 3 ? GENERATE(FiniteElement::DIV, FiniteElement::CURL)
+         : FiniteElement::DIV;
 
-   RT_FECollection fec(p, dim);
-   FiniteElementSpace fes(&mesh, &fec);
+      CAPTURE(mesh_file, dim, p, space_type);
 
-   VectorFunctionCoefficient coeff(dim, fvec_dim);
+      std::unique_ptr<FiniteElementCollection> fec;
 
-   LinearForm d1(&fes);
-   d1.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
-   d1.UseFastAssembly(true);
-   d1.Assemble();
+      switch (space_type)
+      {
+         case FiniteElement::DIV:
+            fec.reset(new RT_FECollection(p, dim));
+            break;
+         case FiniteElement::CURL:
+            fec.reset(new ND_FECollection(p, dim));
+            break;
+         default:
+            MFEM_ABORT("unsupported space type");
+      }
+      FiniteElementSpace fes(&mesh, fec.get());
 
-   LinearForm d2(&fes);
-   d2.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
-   d2.UseFastAssembly(false);
-   d2.Assemble();
+      VectorFunctionCoefficient coeff(dim, fvec_dim);
 
-   CAPTURE(d1.Norml2(), d2.Norml2());
-   d1 -= d2;
-   REQUIRE(d1.Norml2() == MFEM_Approx(0.0));
+      LinearForm d1(&fes);
+      d1.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
+      d1.UseFastAssembly(true);
+      d1.Assemble();
+
+      LinearForm d2(&fes);
+      d2.AddDomainIntegrator(new VectorFEDomainLFIntegrator(coeff));
+      d2.UseFastAssembly(false);
+      d2.Assemble();
+
+      CAPTURE(d1.Norml2(), d2.Norml2());
+      d1 -= d2;
+      REQUIRE(d1.Norml2() == MFEM_Approx(0.0));
+   }
 }
 
 #ifdef MFEM_USE_MPI
@@ -394,6 +412,52 @@ TEST_CASE("Parallel Fast LinearForm Assembly",
    b.AddBoundaryIntegrator(new BoundaryLFIntegrator(one), ess_bdr);
    b.UseFastAssembly(true);
    b.Assemble();
+}
+
+TEST_CASE("Fast Boundary LinearForm Empty Rank", "[Parallel][GPU]")
+{
+   // All elements are on rank 0, other ranks are empty.
+   Mesh serial_mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+   Array<int> partitioning(serial_mesh.GetNE());
+   partitioning = 0;
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partitioning.GetData());
+
+   H1_FECollection fec(1, mesh.Dimension());
+   ParFiniteElementSpace fes(&mesh, &fec);
+
+   ConstantCoefficient one(1.0);
+   ParLinearForm b(&fes);
+   b.AddBoundaryIntegrator(new BoundaryLFIntegrator(one));
+   b.UseFastAssembly(true);
+   b.Assemble();
+
+   ParGridFunction x(&fes);
+   x = 1.0;
+   REQUIRE(b(x) == MFEM_Approx(4.0));
+}
+
+TEST_CASE("Fast VectorFE Boundary LinearForm Empty Rank", "[Parallel][GPU]")
+{
+   // All elements are on rank 0, other ranks are empty.
+   Mesh serial_mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
+   Array<int> partitioning(serial_mesh.GetNE());
+   partitioning = 0;
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partitioning.GetData());
+
+   RT_FECollection fec(0, mesh.Dimension());
+   ParFiniteElementSpace fes(&mesh, &fec);
+
+   ConstantCoefficient one(1.0);
+   ParLinearForm b(&fes);
+   b.AddBoundaryIntegrator(new VectorFEBoundaryFluxLFIntegrator(one));
+   b.UseFastAssembly(true);
+   b.Assemble();
+
+   // Flux of u = (x, y, z) through the boundary of the unit cube is 3
+   VectorFunctionCoefficient u_coeff(3, [](const Vector &p, Vector &u) { u = p; });
+   ParGridFunction x(&fes);
+   x.ProjectCoefficient(u_coeff);
+   REQUIRE(b(x) == MFEM_Approx(3.0));
 }
 
 #endif

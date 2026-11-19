@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -24,8 +24,13 @@
 
 #include "pderefmat_op.hpp"
 
+#include <algorithm>
+#include <array>
 #include <limits>
+#include <map>
 #include <list>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace mfem
 {
@@ -129,9 +134,6 @@ void ParFiniteElementSpace::ParInit(ParMesh *pm)
    {
       ApplyLDofSigns(*elem_dof);
    }
-
-   // Check for shared triangular faces with interior Nedelec DoFs
-   CheckNDSTriaDofs();
 }
 
 void ParFiniteElementSpace::CommunicateGhostOrder()
@@ -199,8 +201,9 @@ void ParFiniteElementSpace::Construct()
       // In the process, the array 'ldof_ltdof' is also initialized (for the cut
       // space) and used; however, it will be overwritten below with the real
       // true dofs. Also, 'ldof_sign' and 'ldof_group' are constructed for the
-      // cut space.
-      ConstructTrueDofs();
+      // cut space. Variable-order H1 DOFs are renumbered by
+      // BuildParallelConformingInterpolation, so 'gcomm' is built after it.
+      if (!IsVariableOrderH1()) { ConstructTrueDofs(); }
 
       ngedofs = ngfdofs = 0;
 
@@ -278,10 +281,16 @@ void ParFiniteElementSpace::Construct()
       ltdof_size = BuildParallelConformingInterpolation(
                       &P, &R, dof_offsets, tdof_offsets, &ldof_ltdof, false);
 
+      if (IsVariableOrderH1()) { ConstructVarOrderGroupComm(); }
+
       // TODO future: split BuildParallelConformingInterpolation into two parts
       // to overlap its communication with processing between this constructor
       // and the point where the P matrix is actually needed.
    }
+
+   // Check for shared triangular faces with interior Nedelec DoFs:
+   // initializes 'nd_strias'.
+   CheckNDSTriaDofs();
 }
 
 void ParFiniteElementSpace::PrintPartitionStats()
@@ -326,6 +335,14 @@ void ParFiniteElementSpace::PrintPartitionStats()
 void ParFiniteElementSpace::GetGroupComm(
    GroupCommunicator &gc, int ldof_type, Array<int> *g_ldof_sign)
 {
+   if (IsVariableOrderH1())
+   {
+      GetVarOrderGroupComm(gc, ldof_type);
+      // H1 DOFs have no sign flips.
+      if (g_ldof_sign) { g_ldof_sign->DeleteAll(); }
+      return;
+   }
+
    int gr;
    int ng = pmesh->GetNGroups();
    int nvd, ned, ntd = 0, nqd = 0;
@@ -349,6 +366,7 @@ void ParFiniteElementSpace::GetGroupComm(
       }
    }
 
+   bool have_sign_flips = false;
    if (g_ldof_sign)
    {
       g_ldof_sign->SetSize(GetNDofs());
@@ -428,6 +446,7 @@ void ParFiniteElementSpace::GetGroupComm(
                   if (g_ldof_sign)
                   {
                      (*g_ldof_sign)[dofs[l]] = -1;
+                     have_sign_flips = true;
                   }
                }
                else
@@ -466,6 +485,7 @@ void ParFiniteElementSpace::GetGroupComm(
                   if (g_ldof_sign)
                   {
                      (*g_ldof_sign)[dofs[l]] = -1;
+                     have_sign_flips = true;
                   }
                }
                else
@@ -504,6 +524,7 @@ void ParFiniteElementSpace::GetGroupComm(
                   if (g_ldof_sign)
                   {
                      (*g_ldof_sign)[dofs[l]] = -1;
+                     have_sign_flips = true;
                   }
                }
                else
@@ -527,12 +548,277 @@ void ParFiniteElementSpace::GetGroupComm(
       group_ldof.GetI()[gr+1] = group_ldof_counter;
    }
 
+   if (g_ldof_sign && have_sign_flips == false)
+   {
+      g_ldof_sign->DeleteAll();
+   }
+
    gc.Finalize();
+}
+
+// Calls f(entity, index, ori, geom, pos) for the edges (entity = 1) and faces
+// (entity = 2) of group 'gr'; 'pos' is the same on all ranks of the group.
+template <typename F>
+static void ForEachGroupEdgeFace(const ParMesh &pmesh, int gr, F &&f)
+{
+   int k, o, pos = 0;
+   for (int j = 0; j < pmesh.GroupNEdges(gr); j++, pos++)
+   {
+      pmesh.GroupEdge(gr, j, k, o);
+      f(1, k, o, Geometry::SEGMENT, pos);
+   }
+   if (pmesh.Dimension() < 3) { return; }
+   for (int j = 0; j < pmesh.GroupNTriangles(gr); j++, pos++)
+   {
+      pmesh.GroupTriangle(gr, j, k, o);
+      f(2, k, o, Geometry::TRIANGLE, pos);
+   }
+   for (int j = 0; j < pmesh.GroupNQuadrilaterals(gr); j++, pos++)
+   {
+      pmesh.GroupQuadrilateral(gr, j, k, o);
+      f(2, k, o, Geometry::SQUARE, pos);
+   }
+}
+
+void ParFiniteElementSpace::GetVarOrderGroupComm(GroupCommunicator &gc,
+                                                 int ldof_type) const
+{
+   MFEM_VERIFY(var_gtopo, "variable-order groups are not set");
+
+   const GroupTopology &mesh_gt = pmesh->gtopo;
+   const int nvd = fec->DofForGeometry(Geometry::POINT);
+
+   // Entries {group, mesh group master rank, mesh group in the master, entity
+   // position, order, DOF index, DOF}, sorted to the same order on all ranks.
+   std::vector<std::array<int, 7>> entries;
+   for (int gr = 1; gr < mesh_gt.NGroups(); gr++)
+   {
+      const int mrank = mesh_gt.GetGroupMasterRank(gr);
+      const int mgroup = mesh_gt.GetGroupMasterGroup(gr);
+      for (int j = 0; j < pmesh->GroupNVertices(gr); j++)
+      {
+         const int k = pmesh->GroupVertex(gr, j);
+         for (int l = 0; l < nvd; l++)
+         {
+            entries.push_back({gr, mrank, mgroup, -1 - j, 0, l, nvd*k + l});
+         }
+      }
+      ForEachGroupEdgeFace(*pmesh, gr, [&](int entity, int index, int ori,
+                                           Geometry::Type geom, int pos)
+      {
+         const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
+         const Array<int> &var_group = (entity == 1) ? edge_var_group :
+                                       face_var_group;
+         const int first = (entity == 1) ? nvdofs : nvdofs + nedofs;
+         for (int var = 0; var < GetNVariants(entity, index); var++)
+         {
+            const int g = var_group[ent_dofs.GetI()[index] + var];
+            const int p = (entity == 1) ? GetEdgeOrder(index, var) :
+                          GetFaceOrder(index, var);
+            const int nd = fec->GetNumDof(geom, p);
+            if (g == 0 || nd == 0) { continue; }
+
+            const int *ind = fec->GetDofOrdering(geom, p, ori);
+            const int base = first + ent_dofs.GetRow(index)[var];
+            for (int l = 0; l < nd; l++)
+            {
+               MFEM_ASSERT(ind[l] >= 0, "unexpected H1 DOF sign flip");
+               entries.push_back({g, mrank, mgroup, pos, p, l, base + ind[l]});
+            }
+         }
+      });
+   }
+   std::sort(entries.begin(), entries.end());
+
+   Table &group_ldof = gc.GroupLDofTable();
+   group_ldof.MakeI(var_gtopo->NGroups());
+   for (const auto &e : entries)
+   {
+      group_ldof.AddColumnsInRow(e[0], ldof_type ? vdim : 1);
+   }
+   group_ldof.MakeJ();
+   Array<int> dofs;
+   for (std::size_t b = 0, e; b < entries.size(); b = e)
+   {
+      dofs.SetSize(0);
+      for (e = b; e < entries.size() && entries[e][0] == entries[b][0]; e++)
+      {
+         dofs.Append(entries[e][6]);
+      }
+      if (ldof_type) { DofsToVDofs(dofs); }
+      group_ldof.AddConnections(entries[b][0], dofs.GetData(), dofs.Size());
+   }
+   group_ldof.ShiftUpI();
+
+   gc.Finalize();
+}
+
+void ParFiniteElementSpace::SetVarOrderGroups()
+{
+   // Each edge/face variant is communicated among the ranks having it. To find
+   // them, the local order masks (as 32-bit halves) are exchanged in the group.
+   const GroupTopology &mesh_gt = pmesh->gtopo;
+   const int ng = mesh_gt.NGroups();
+   const int nedges = mesh->GetNEdges();
+   const int nfaces = (mesh->Dimension() >= 3) ? mesh->GetNFaces() : 0;
+
+   std::vector<Array<int>> ranks(ng);
+   for (int gr = 0; gr < ng; gr++)
+   {
+      ranks[gr].SetSize(mesh_gt.GetGroupSize(gr));
+      for (int i = 0; i < ranks[gr].Size(); i++)
+      {
+         ranks[gr][i] = mesh_gt.GetNeighborRank(mesh_gt.GetGroup(gr)[i]);
+      }
+      ranks[gr].Sort();
+   }
+
+   auto local_orders = [&](int entity, int index)
+   {
+      VarOrderBits orders = 0;
+      for (int var = 0; var < GetNVariants(entity, index); var++)
+      {
+         const int p = (entity == 1) ? GetEdgeOrder(index, var) :
+                       GetFaceOrder(index, var);
+         orders |= VarOrderBits(1) << p;
+      }
+      return orders;
+   };
+
+   // Two mask slots per rank of the group, for each shared edge/face.
+   GroupCommunicator ent_comm(mesh_gt);
+   Table &group_slots = ent_comm.GroupLDofTable();
+   group_slots.MakeI(ng);
+   Array<int> slot(nedges + nfaces);
+   int nslots = 0;
+   for (int gr = 1; gr < ng; gr++)
+   {
+      ForEachGroupEdgeFace(*pmesh, gr, [&](int entity, int index, int,
+                                           Geometry::Type, int)
+      {
+         slot[entity == 1 ? index : nedges + index] = nslots;
+         nslots += 2*ranks[gr].Size();
+         group_slots.AddColumnsInRow(gr, 2*ranks[gr].Size());
+      });
+   }
+   group_slots.MakeJ();
+
+   Array<int> masks(nslots);
+   masks = 0;
+   for (int gr = 1; gr < ng; gr++)
+   {
+      const int me = ranks[gr].Find(MyRank);
+      ForEachGroupEdgeFace(*pmesh, gr, [&](int entity, int index, int,
+                                           Geometry::Type, int)
+      {
+         const int s = slot[entity == 1 ? index : nedges + index];
+         const VarOrderBits orders = local_orders(entity, index);
+         masks[s + 2*me] = static_cast<int>(static_cast<std::uint32_t>(orders));
+         masks[s + 2*me + 1] =
+            static_cast<int>(static_cast<std::uint32_t>(orders >> 32));
+         for (int i = 0; i < 2*ranks[gr].Size(); i++)
+         {
+            group_slots.AddConnection(gr, s + i);
+         }
+      });
+   }
+   group_slots.ShiftUpI();
+   ent_comm.Finalize();
+
+   ent_comm.Reduce<int>(masks, GroupCommunicator::BitOR);
+   ent_comm.Bcast(masks);
+
+   // The mesh groups keep their indices, followed by the rank subsets.
+   ListOfIntegerSets groups;
+   IntegerSet iset;
+   for (int gr = 0; gr < ng; gr++)
+   {
+      iset.Recreate(ranks[gr].Size(), ranks[gr].GetData());
+      groups.Insert(iset);
+   }
+
+   edge_var_group.SetSize(var_edge_orders.Size());
+   face_var_group.SetSize(var_face_orders.Size());
+   edge_var_group = 0;
+   face_var_group = 0;
+   std::map<std::vector<int>, int> subset_group;
+   std::vector<int> var_ranks;
+   for (int gr = 1; gr < ng; gr++)
+   {
+      ForEachGroupEdgeFace(*pmesh, gr, [&](int entity, int index, int,
+                                           Geometry::Type, int)
+      {
+         const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
+         Array<int> &var_group = (entity == 1) ? edge_var_group :
+                                 face_var_group;
+         const int s = slot[entity == 1 ? index : nedges + index];
+         for (int var = 0; var < GetNVariants(entity, index); var++)
+         {
+            const int p = (entity == 1) ? GetEdgeOrder(index, var) :
+                          GetFaceOrder(index, var);
+            var_ranks.clear();
+            for (int i = 0; i < ranks[gr].Size(); i++)
+            {
+               const auto half = static_cast<std::uint32_t>(masks[s+2*i+p/32]);
+               if ((half >> (p % 32)) & 1)
+               {
+                  var_ranks.push_back(ranks[gr][i]);
+               }
+            }
+            int &g = var_group[ent_dofs.GetI()[index] + var];
+            const int nr = static_cast<int>(var_ranks.size());
+            if (nr == ranks[gr].Size()) { g = gr; }
+            else if (nr > 1)
+            {
+               auto it = subset_group.find(var_ranks);
+               if (it == subset_group.end())
+               {
+                  iset.Recreate(nr, var_ranks.data());
+                  const int new_g = groups.Insert(iset);
+                  it = subset_group.emplace(var_ranks, new_g).first;
+               }
+               g = it->second;
+            }
+         }
+      });
+   }
+
+   var_gtopo.reset(new GroupTopology(MyComm));
+   var_gtopo->Create(groups, 823);
+}
+
+void ParFiniteElementSpace::ConstructVarOrderGroupComm()
+{
+   SetVarOrderGroups();
+
+   gcomm = new GroupCommunicator(*var_gtopo);
+   GetGroupComm(*gcomm, 1, &ldof_sign);
+
+   const Table &group_ldof = gcomm->GroupLDofTable();
+   ldof_group.SetSize(GetVSize());
+   ldof_group = 0;
+   for (int gr = 1; gr < group_ldof.Size(); gr++)
+   {
+      const int *ldofs = group_ldof.GetRow(gr);
+      for (int i = 0; i < group_ldof.RowSize(gr); i++)
+      {
+         ldof_group[ldofs[i]] = gr;
+      }
+   }
+
+   // Local true DOFs of the cut space, as for fixed-order spaces.
+   Array<int> cut_ltdof(GetVSize());
+   for (int i = 0, n = 0; i < cut_ltdof.Size(); i++)
+   {
+      cut_ltdof[i] = var_gtopo->IAmMaster(ldof_group[i]) ? n++ : -1;
+   }
+   gcomm->SetLTDofTable(cut_ltdof);
 }
 
 void ParFiniteElementSpace::ApplyLDofSigns(Array<int> &dofs) const
 {
    MFEM_ASSERT(Conforming(), "wrong code path");
+   if (!HaveDofSigns()) { return; }
 
    for (int i = 0; i < dofs.Size(); i++)
    {
@@ -557,6 +843,24 @@ void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
 {
    Array<int> all_dofs(el_dof.GetJ(), el_dof.Size_of_connections());
    ApplyLDofSigns(all_dofs);
+}
+
+void ParFiniteElementSpace::ApplyDofSigns(real_t *h_data) const
+{
+   if (!HaveDofSigns()) { return; }
+
+   const bool byvdim = (ordering == Ordering::byVDIM);
+   for (int i = 0; i < ndofs; i++)
+   {
+      if (ldof_sign[i] < 0)
+      {
+         for (int d = 0; d < vdim; d++)
+         {
+            const int idx = byvdim ? d+vdim*i : i+ndofs*d;
+            h_data[idx] = -h_data[idx];
+         }
+      }
+   }
 }
 
 void ParFiniteElementSpace::GetElementDofs(int i, Array<int> &dofs,
@@ -1255,6 +1559,342 @@ void ParFiniteElementSpace::GetExteriorVDofs(Array<int> &ext_dofs,
    // Make sure that processors without boundary elements mark
    // their boundary dofs (if they have any).
    Synchronize(ext_dofs);
+}
+
+void ParFiniteElementSpace::GetBoundaryLoopEdgeDofs(
+   const Array<int> &boundary_element_indices,
+   Array<int> &ess_tdof_list,
+   Array<int> &boundary_edge_dofs_out,
+   Array<int> *ldof_marker,
+   Array<int> *dof_edges,
+   Array<int> *dof_boundary_elements,
+   Array<int> *ess_edge_list)
+{
+   MFEM_VERIFY(!pmesh->Nonconforming(),
+               "GetBoundaryLoopEdgeDofs does not support nonconforming meshes");
+   MFEM_VERIFY(pmesh->Dimension() >= 2,
+               "GetBoundaryLoopEdgeDofs requires 2D or 3D meshes to find 1D edge objects");
+
+   // Call the serial version, then rebuild scratch maps/set from the returned
+   // arrays for the O(1) lookups the parallel reconciliation below needs.
+   Array<int> loc_dofs, loc_edges, loc_belems;
+   FiniteElementSpace::GetBoundaryLoopEdgeDofs(boundary_element_indices, loc_dofs,
+                                               &loc_edges, &loc_belems);
+
+   std::unordered_set<int> boundary_edge_dofs;
+   std::unordered_map<int, int> dof_to_edge_map;
+   std::unordered_map<int, int> dof_to_boundary_element;
+   boundary_edge_dofs.reserve(loc_dofs.Size());
+   dof_to_edge_map.reserve(loc_dofs.Size());
+   dof_to_boundary_element.reserve(loc_dofs.Size());
+   for (int i = 0; i < loc_dofs.Size(); i++)
+   {
+      const int dof = loc_dofs[i];
+      boundary_edge_dofs.insert(dof);
+      dof_to_edge_map[dof] = loc_edges[i];
+      dof_to_boundary_element[dof] = loc_belems[i];
+   }
+
+   // Parallel processing: Build edge sharing lookup table
+   std::unordered_map<int, int> edge_to_group_size;
+   int num_groups = pmesh->GetNGroups();
+
+   int total_shared_edges = 0;
+   for (int group = 1; group < num_groups; group++)
+   {
+      total_shared_edges += pmesh->GroupNEdges(group);
+   }
+   edge_to_group_size.reserve(total_shared_edges);
+
+   for (int group = 1; group < num_groups; group++)
+   {
+      int group_size = pmesh->gtopo.GetGroupSize(group);
+      int num_edges_in_group = pmesh->GroupNEdges(group);
+
+      for (int i = 0; i < num_edges_in_group; i++)
+      {
+         edge_to_group_size.emplace(pmesh->GroupEdge(group, i), group_size);
+      }
+   }
+
+   // Get global indices
+   Array<HYPRE_BigInt> global_edge_indices;
+   pmesh->GetGlobalEdgeIndices(global_edge_indices);
+
+   // Handle dimension-specific boundary element relationships
+   Array<HYPRE_BigInt> global_face_indices;
+   std::unordered_map<int, int> boundary_element_to_companion;
+   std::unordered_set<int> dofs_to_remove;
+
+   const int dim = pmesh->Dimension();
+   if (dim == 3)
+   {
+      // In 3D: boundary elements are faces, we track which face each boundary element is
+      pmesh->GetGlobalFaceIndices(global_face_indices);
+      for (int boundary_element_idx : boundary_element_indices)
+      {
+         int face_index, face_orientation;
+         pmesh->GetBdrElementFace(boundary_element_idx, &face_index, &face_orientation);
+         boundary_element_to_companion[boundary_element_idx] = face_index;
+      }
+
+      std::vector<HYPRE_BigInt> local_data;
+      local_data.reserve(boundary_edge_dofs.size() * 2);
+
+      std::unordered_set<int> processed_edges;
+      processed_edges.reserve(boundary_edge_dofs.size());
+
+      for (const auto& [dof, local_edge] : dof_to_edge_map)
+      {
+         // Skip if already processed this edge
+         if (!processed_edges.insert(local_edge).second) { continue; }
+
+         // Check if edge is shared (fast lookup)
+         auto it = edge_to_group_size.find(local_edge);
+         if (it != edge_to_group_size.end() && it->second > 1)
+         {
+            // Get boundary element and companion index directly from pre-computed map
+            int boundary_element_idx = dof_to_boundary_element[dof];
+            int companion_index = boundary_element_to_companion[boundary_element_idx];
+
+            // Store edge-face pair for 3D artificial boundary detection
+            local_data.push_back(global_edge_indices[local_edge]);
+            local_data.push_back(global_face_indices[companion_index]);
+         }
+      }
+
+      // MPI communication for 3D artificial boundary detection
+      int num_procs = pmesh->GetNRanks();
+      int local_size = local_data.size();
+
+      std::vector<int> mpi_arrays(num_procs * 4);
+      int* all_sizes = mpi_arrays.data();
+      int* displs = all_sizes + num_procs;
+      int* byte_sizes = displs + num_procs;
+      int* byte_displs = byte_sizes + num_procs;
+
+      MPI_Allgather(&local_size, 1, MPI_INT, all_sizes, 1, MPI_INT, pmesh->GetComm());
+
+      int total_size = 0;
+      constexpr int hypre_size = sizeof(HYPRE_BigInt);
+      for (int i = 0; i < num_procs; i++)
+      {
+         displs[i] = total_size;
+         byte_displs[i] = total_size * hypre_size;
+         total_size += all_sizes[i];
+         byte_sizes[i] = all_sizes[i] * hypre_size;
+      }
+
+      if (total_size > 0)
+      {
+         std::vector<HYPRE_BigInt> all_data(total_size);
+         MPI_Allgatherv(local_data.data(), local_size * hypre_size, MPI_BYTE,
+                        all_data.data(), byte_sizes, byte_displs, MPI_BYTE, pmesh->GetComm());
+
+         // Build global-to-local edge mapping
+         std::unordered_map<HYPRE_BigInt, int> global_to_local_edge;
+         global_to_local_edge.reserve(global_edge_indices.Size());
+         for (int i = 0; i < global_edge_indices.Size(); ++i)
+         {
+            global_to_local_edge[global_edge_indices[i]] = i;
+         }
+
+         // Process collected data to find edges in multiple faces (artificial boundaries)
+         std::unordered_map<HYPRE_BigInt, std::unordered_set<HYPRE_BigInt>>edge_to_faces;
+         edge_to_faces.reserve(total_size / 2);
+
+         for (size_t i = 0; i < all_data.size(); i += 2)
+         {
+            edge_to_faces[all_data[i]].insert(all_data[i + 1]);
+         }
+
+         // Mark DOFs from artificial edges for removal
+         dofs_to_remove.reserve(local_data.size() / 4);
+
+         for (size_t i = 0; i < local_data.size(); i += 2)
+         {
+            HYPRE_BigInt global_edge_id = local_data[i];
+
+            // If this edge appears in 2+ distinct faces, it's artificial
+            if (edge_to_faces[global_edge_id].size() >= 2)
+            {
+               int local_edge = global_to_local_edge[global_edge_id];
+               Array<int> local_edge_dofs;
+               GetEdgeDofs(local_edge, local_edge_dofs);
+
+               // Mark boundary DOFs of this edge for removal
+               for (int k = 0; k < local_edge_dofs.Size(); ++k)
+               {
+                  int dof = local_edge_dofs[k];
+                  if (boundary_edge_dofs.count(dof))
+                  {
+                     dofs_to_remove.insert(dof);
+                  }
+               }
+            }
+         }
+      }
+   }
+   else if (dim == 2)
+   {
+      // In 2D the boundary elements are themselves the edges, so there are no
+      // artificial boundary edges to detect. However, for collections with
+      // vertex DOFs (e.g. ND_R2D), a vertex shared by two boundary segments is
+      // interior to the boundary curve and must be dropped. The serial code
+      // does this by erasing a DOF on its second occurrence, which only sees
+      // the occurrences local to this rank. When the two segments meeting at a
+      // vertex live on different ranks, each rank sees a single occurrence and
+      // wrongly keeps the DOF. Reconcile the occurrence parity across each
+      // sharing group: membership in boundary_edge_dofs is the local parity,
+      // and the parities sum (mod 2) to the global occurrence parity.
+      Array<int> boundary_dof_count(GetVSize());
+      boundary_dof_count = 0;
+      for (const int dof : boundary_edge_dofs)
+      {
+         boundary_dof_count[dof] = 1;
+      }
+
+      // implement allreduce(+) as reduce(+) + broadcast
+      gcomm->Reduce<int>(boundary_dof_count, GroupCommunicator::Sum);
+      gcomm->Bcast(boundary_dof_count);
+
+      for (const int dof : boundary_edge_dofs)
+      {
+         if (boundary_dof_count[dof] % 2 == 0)
+         {
+            dofs_to_remove.insert(dof);
+         }
+      }
+   }
+
+   // Remove artificial DOFs
+   for (int dof : dofs_to_remove)
+   {
+      boundary_edge_dofs.erase(dof);
+      dof_to_edge_map.erase(dof);
+      dof_to_boundary_element.erase(dof);
+   }
+
+   // Convert to true DOFs and output
+   ess_tdof_list.SetSize(0);
+   ess_tdof_list.Reserve(boundary_edge_dofs.size());
+   if (ess_edge_list)
+   {
+      // Reset as well, so that it stays in correspondence with ess_tdof_list
+      // when the same output array is reused across calls.
+      ess_edge_list->SetSize(0);
+      ess_edge_list->Reserve(boundary_edge_dofs.size());
+   }
+   // Marker of the boundary edge DOFs. Always computed locally because the
+   // parallel reconciliation below needs it; only copied to the caller's output
+   // if requested (see the ldof_marker parameter).
+   Array<int> local_ldof_marker(GetVSize());
+   local_ldof_marker = 0;
+
+   for (int dof : boundary_edge_dofs)
+   {
+      local_ldof_marker[dof] = 1; // Mark all boundary edge dofs
+   }
+
+   // Make sure that a selected shared DOF is marked on every rank of its
+   // sharing group, including ranks holding none of the selected boundary
+   // elements. Only the group master owns the corresponding true DOF, so
+   // without this the true DOF would be emitted by no rank at all: the
+   // non-master ranks get -1 from GetLocalTDofNumber(), while the master may
+   // not have selected the DOF locally.
+   Synchronize(local_ldof_marker);
+
+   // A DOF marked only through the synchronization above has no local
+   // dof_to_edge_map entry, but the shared edge carrying it is still present in
+   // the local mesh. Build the missing DOF -> edge entries from the shared
+   // edges of the groups, so that ess_edge_list stays in correspondence with
+   // ess_tdof_list. Note that a vertex DOF is not associated with a unique
+   // edge, so it is only resolved when it is an interior DOF of an edge.
+   std::unordered_map<int, int> shared_dof_to_edge;
+   Array<int> shared_edge_dofs;
+   for (int group = 1; group < num_groups; group++)
+   {
+      const int num_edges_in_group = pmesh->GroupNEdges(group);
+      for (int i = 0; i < num_edges_in_group; i++)
+      {
+         const int edge = pmesh->GroupEdge(group, i);
+         GetEdgeInteriorDofs(edge, shared_edge_dofs);
+         for (int k = 0; k < shared_edge_dofs.Size(); k++)
+         {
+            shared_dof_to_edge.emplace(shared_edge_dofs[k], edge);
+         }
+      }
+   }
+
+   // Build parallel arrays for DOFs and corresponding edges
+   std::vector<std::pair<int, int>> tdof_edge_pairs;
+   tdof_edge_pairs.reserve(boundary_edge_dofs.size());
+
+   for (int dof = 0; dof < local_ldof_marker.Size(); dof++)
+   {
+      if (!local_ldof_marker[dof]) { continue; }
+
+      const int tdof = GetLocalTDofNumber(dof);
+      if (tdof < 0) { continue; } // tdof == -1 means not owned by this rank
+
+      int edge = -1;
+      auto it = dof_to_edge_map.find(dof);
+      if (it != dof_to_edge_map.end())
+      {
+         edge = it->second;
+      }
+      else
+      {
+         auto shared_it = shared_dof_to_edge.find(dof);
+         if (shared_it != shared_dof_to_edge.end())
+         {
+            edge = shared_it->second;
+         }
+      }
+      tdof_edge_pairs.push_back({tdof, edge});
+   }
+
+   // Sort by true DOF index to maintain consistent ordering
+   std::sort(tdof_edge_pairs.begin(), tdof_edge_pairs.end());
+
+   // Extract sorted true DOFs and edges
+   for (const auto& pair : tdof_edge_pairs)
+   {
+      ess_tdof_list.Append(pair.first);
+      if (ess_edge_list)
+      {
+         ess_edge_list->Append(pair.second);
+      }
+   }
+
+   // Emit the local boundary-loop DOFs in a deterministic (increasing DOF
+   // index) order shared by all output arrays.
+   std::vector<int> kept(boundary_edge_dofs.begin(), boundary_edge_dofs.end());
+   std::sort(kept.begin(), kept.end());
+
+   boundary_edge_dofs_out.SetSize(0);
+   boundary_edge_dofs_out.Reserve(static_cast<int>(kept.size()));
+   if (dof_edges)
+   {
+      dof_edges->SetSize(0);
+      dof_edges->Reserve(static_cast<int>(kept.size()));
+   }
+   if (dof_boundary_elements)
+   {
+      dof_boundary_elements->SetSize(0);
+      dof_boundary_elements->Reserve(static_cast<int>(kept.size()));
+   }
+   for (int dof : kept)
+   {
+      boundary_edge_dofs_out.Append(dof);
+      if (dof_edges) { dof_edges->Append(dof_to_edge_map[dof]); }
+      if (dof_boundary_elements)
+      {
+         dof_boundary_elements->Append(dof_to_boundary_element[dof]);
+      }
+   }
+
+   if (ldof_marker) { ldof_marker->Swap(local_ldof_marker); }
 }
 
 void ParFiniteElementSpace::GetExteriorTrueDofs(Array<int> &ext_tdof_list,
@@ -3731,6 +4371,7 @@ int ParFiniteElementSpace
                constexpr int variant = 0;
                const int q = GetEntityDofs(entity, sf.index, slave_dofs, mf.Geom(), variant);
                if (q < 0) { break; }
+               if (slave_dofs.Size() == 0) { continue; }
 
                list.OrientedPointMatrix(sf, T.GetPointMat());
 
@@ -4525,7 +5166,7 @@ ParFiniteElementSpace::ParallelDerefinementMatrix(int old_ndofs,
    const Array<int> &old_ranks = old_pncmesh->GetDerefineOldRanks();
 
    // key: other rank
-   // value: send or recieve buffer
+   // value: send or receive buffer
    std::map<int, std::vector<HYPRE_BigInt>> to_send;
    std::map<int, std::vector<HYPRE_BigInt>> to_recv;
    // key: index into dtrans.embeddings
@@ -4758,6 +5399,8 @@ void ParFiniteElementSpace::Destroy()
    tdof_nb_offsets.DeleteAll();
    // preserve old_dof_offsets
    ldof_sign.DeleteAll();
+   edge_var_group.DeleteAll();
+   face_var_group.DeleteAll();
 
    delete P; P = NULL;
    delete Pconf; Pconf = NULL;
@@ -4765,6 +5408,7 @@ void ParFiniteElementSpace::Destroy()
    delete R; R = NULL;
 
    delete gcomm; gcomm = NULL;
+   var_gtopo.reset();
 
    num_face_nbr_dofs = -1;
    face_nbr_element_dof.Clear();
@@ -5202,7 +5846,7 @@ void ConformingProlongationOperator::Mult(const Vector &x, Vector &y) const
    const int in_layout = 2; // 2 - input is ltdofs array
    if (local)
    {
-      y = 0.0;
+      y.SetSubVector(external_ldofs, 0.0);
    }
    else
    {
@@ -5257,277 +5901,49 @@ void ConformingProlongationOperator::MultTranspose(
 }
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
-   const GroupCommunicator &gc_, const SparseMatrix *R, bool local_)
-   : ConformingProlongationOperator(R->Width(), gc_, local_),
-     mpi_gpu_aware(Device::GetGPUAwareMPI())
-{
-   MFEM_ASSERT(R->Finalized(), "");
-   const int tdofs = R->Height();
-   MFEM_ASSERT(tdofs == R->HostReadI()[tdofs], "");
-   ltdof_ldof.SetSize(tdofs);
-   ltdof_ldof.CopyFrom(R->HostReadJ());
-   {
-      Table nbr_ltdof;
-      gc.GetNeighborLTDofTable(nbr_ltdof);
-      const int nb_connections = nbr_ltdof.Size_of_connections();
-      shr_ltdof.SetSize(nb_connections);
-      if (nb_connections > 0) { shr_ltdof.CopyFrom(nbr_ltdof.GetJ()); }
-      shr_buf.SetSize(nb_connections);
-      shr_buf.UseDevice(true);
-      shr_buf_offsets = nbr_ltdof.GetIMemory();
-      {
-         Array<int> shared_ltdof(nbr_ltdof.GetJ(), nb_connections);
-         Array<int> unique_ltdof(shared_ltdof);
-         unique_ltdof.Sort();
-         unique_ltdof.Unique();
-         // Note: the next loop modifies the J array of nbr_ltdof
-         for (int i = 0; i < shared_ltdof.Size(); i++)
-         {
-            shared_ltdof[i] = unique_ltdof.FindSorted(shared_ltdof[i]);
-            MFEM_ASSERT(shared_ltdof[i] != -1, "internal error");
-         }
-         Table unique_shr;
-         Transpose(shared_ltdof, unique_shr, unique_ltdof.Size());
-         unq_ltdof = unique_ltdof;
-         // Steal I and J arrays from the unique_shr table.
-         unq_shr_i.GetMemory() = unique_shr.GetIMemory();
-         unq_shr_i.SetSize(unique_shr.Size()+1);
-         unq_shr_j.GetMemory() = unique_shr.GetJMemory();
-         unq_shr_j.SetSize(unique_shr.Size_of_connections());
-         unique_shr.LoseData();
-      }
-      nbr_ltdof.GetJMemory().Delete();
-      nbr_ltdof.LoseData();
-   }
-   {
-      Table nbr_ldof;
-      gc.GetNeighborLDofTable(nbr_ldof);
-      const int nb_connections = nbr_ldof.Size_of_connections();
-      ext_ldof.SetSize(nb_connections);
-      if (nb_connections > 0) { ext_ldof.CopyFrom(nbr_ldof.GetJ()); }
-      ext_ldof.GetMemory().UseDevice(true);
-      ext_buf.SetSize(nb_connections);
-      ext_buf.UseDevice(true);
-      ext_buf_offsets = nbr_ldof.GetIMemory();
-      nbr_ldof.GetJMemory().Delete();
-      nbr_ldof.LoseData();
-   }
-   const GroupTopology &gtopo = gc.GetGroupTopology();
-   int req_counter = 0;
-   for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
-   {
-      const int send_offset = shr_buf_offsets[nbr];
-      const int send_size = shr_buf_offsets[nbr+1] - send_offset;
-      if (send_size > 0) { req_counter++; }
+   int lsize, const GroupCommunicator &gc_, bool local_)
+   : ConformingProlongationOperator(lsize, gc_, local_)
+{ }
 
-      const int recv_offset = ext_buf_offsets[nbr];
-      const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
-      if (recv_size > 0) { req_counter++; }
-   }
-   requests = new MPI_Request[req_counter];
-}
+DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
+   const GroupCommunicator &gc_, const SparseMatrix *R, bool local_)
+   : ConformingProlongationOperator(R->Width(), gc_, local_)
+{ }
 
 DeviceConformingProlongationOperator::DeviceConformingProlongationOperator(
    const ParFiniteElementSpace &pfes, bool local_)
-   : DeviceConformingProlongationOperator(pfes.GroupComm(),
-                                          pfes.GetRestrictionMatrix(),
+   : DeviceConformingProlongationOperator(pfes.GetVSize(),
+                                          pfes.GroupComm(),
                                           local_)
 {
    MFEM_ASSERT(pfes.Conforming(), "internal error");
-   MFEM_ASSERT(pfes.GetRestrictionMatrix()->Height() == pfes.GetTrueVSize(), "");
-}
-
-static void ExtractSubVector(const Array<int> &indices,
-                             const Vector &vin, Vector &vout)
-{
-   MFEM_ASSERT(indices.Size() == vout.Size(), "incompatible sizes!");
-   auto y = vout.Write();
-   const auto x = vin.Read();
-   const auto I = indices.Read();
-   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      y[i] = x[I[i]];
-   }); // indices can be repeated
-}
-
-void DeviceConformingProlongationOperator::BcastBeginCopy(
-   const Vector &x) const
-{
-   // shr_buf[i] = src[shr_ltdof[i]]
-   if (shr_ltdof.Size() == 0) { return; }
-   ExtractSubVector(shr_ltdof, x, shr_buf);
-   // If the above kernel is executed asynchronously, we should wait for it to
-   // complete
-   if (mpi_gpu_aware) { MFEM_STREAM_SYNC; }
-}
-
-static void SetSubVector(const Array<int> &indices,
-                         const Vector &vin, Vector &vout)
-{
-   MFEM_ASSERT(indices.Size() == vin.Size(), "incompatible sizes!");
-   // Use ReadWrite() since we modify only a subset of the indices:
-   auto y = vout.ReadWrite();
-   const auto x = vin.Read();
-   const auto I = indices.Read();
-   mfem::forall(indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      y[I[i]] = x[i];
-   });
-}
-
-void DeviceConformingProlongationOperator::BcastLocalCopy(
-   const Vector &x, Vector &y) const
-{
-   // dst[ltdof_ldof[i]] = src[i]
-   if (ltdof_ldof.Size() == 0) { return; }
-   SetSubVector(ltdof_ldof, x, y);
-}
-
-void DeviceConformingProlongationOperator::BcastEndCopy(
-   Vector &y) const
-{
-   // dst[ext_ldof[i]] = ext_buf[i]
-   if (ext_ldof.Size() == 0) { return; }
-   SetSubVector(ext_ldof, ext_buf, y);
 }
 
 void DeviceConformingProlongationOperator::Mult(const Vector &x,
                                                 Vector &y) const
 {
-   const GroupTopology &gtopo = gc.GetGroupTopology();
-   int req_counter = 0;
-   // Make sure 'y' is marked as valid on device and for use on device.
-   // This ensures that there is no unnecessary host to device copy when the
-   // input 'y' is valid on host (in 'y.SetSubVector(ext_ldof, 0.0)' when local
-   // is true) or BcastLocalCopy (when local is false).
-   y.Write();
-   if (local)
+   if (!local)
    {
-      // done on device since we've marked ext_ldof for use on device:
-      y.SetSubVector(ext_ldof, 0.0);
+      gc.GetDeviceComm().Prolongate(*x.GetArrayView(), *y.GetArrayView());
    }
    else
    {
-      BcastBeginCopy(x); // copy to 'shr_buf'
-      for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
-      {
-         const int send_offset = shr_buf_offsets[nbr];
-         const int send_size = shr_buf_offsets[nbr+1] - send_offset;
-         if (send_size > 0)
-         {
-            auto send_buf = mpi_gpu_aware ? shr_buf.Read() : shr_buf.HostRead();
-            MPI_Isend(send_buf + send_offset, send_size, MPITypeMap<real_t>::mpi_type,
-                      gtopo.GetNeighborRank(nbr), 41822,
-                      gtopo.GetComm(), &requests[req_counter++]);
-         }
-         const int recv_offset = ext_buf_offsets[nbr];
-         const int recv_size = ext_buf_offsets[nbr+1] - recv_offset;
-         if (recv_size > 0)
-         {
-            auto recv_buf = mpi_gpu_aware ? ext_buf.Write() : ext_buf.HostWrite();
-            MPI_Irecv(recv_buf + recv_offset, recv_size, MPITypeMap<real_t>::mpi_type,
-                      gtopo.GetNeighborRank(nbr), 41822,
-                      gtopo.GetComm(), &requests[req_counter++]);
-         }
-      }
+      gc.GetDeviceComm().RestrictTranspose(*x.GetArrayView(),
+                                           *y.GetArrayView());
    }
-   BcastLocalCopy(x, y);
-   if (!local)
-   {
-      MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
-      BcastEndCopy(y); // copy from 'ext_buf'
-   }
-}
-
-DeviceConformingProlongationOperator::~DeviceConformingProlongationOperator()
-{
-   delete [] requests;
-   ext_buf_offsets.Delete();
-   shr_buf_offsets.Delete();
-}
-
-void DeviceConformingProlongationOperator::ReduceBeginCopy(
-   const Vector &x) const
-{
-   // ext_buf[i] = src[ext_ldof[i]]
-   if (ext_ldof.Size() == 0) { return; }
-   ExtractSubVector(ext_ldof, x, ext_buf);
-   // If the above kernel is executed asynchronously, we should wait for it to
-   // complete
-   if (mpi_gpu_aware) { MFEM_STREAM_SYNC; }
-}
-
-void DeviceConformingProlongationOperator::ReduceLocalCopy(
-   const Vector &x, Vector &y) const
-{
-   // dst[i] = src[ltdof_ldof[i]]
-   if (ltdof_ldof.Size() == 0) { return; }
-   ExtractSubVector(ltdof_ldof, x, y);
-}
-
-static void AddSubVector(const Array<int> &unique_dst_indices,
-                         const Array<int> &unique_to_src_offsets,
-                         const Array<int> &unique_to_src_indices,
-                         const Vector &src,
-                         Vector &dst)
-{
-   auto y = dst.ReadWrite();
-   const auto x = src.Read();
-   const auto DST_I = unique_dst_indices.Read();
-   const auto SRC_O = unique_to_src_offsets.Read();
-   const auto SRC_I = unique_to_src_indices.Read();
-   mfem::forall(unique_dst_indices.Size(), [=] MFEM_HOST_DEVICE (int i)
-   {
-      const int dst_idx = DST_I[i];
-      real_t sum = y[dst_idx];
-      const int end = SRC_O[i+1];
-      for (int j = SRC_O[i]; j != end; ++j) { sum += x[SRC_I[j]]; }
-      y[dst_idx] = sum;
-   });
-}
-
-void DeviceConformingProlongationOperator::ReduceEndAssemble(Vector &y) const
-{
-   // dst[shr_ltdof[i]] += shr_buf[i]
-   if (unq_ltdof.Size() == 0) { return; }
-   AddSubVector(unq_ltdof, unq_shr_i, unq_shr_j, shr_buf, y);
 }
 
 void DeviceConformingProlongationOperator::MultTranspose(const Vector &x,
                                                          Vector &y) const
 {
-   const GroupTopology &gtopo = gc.GetGroupTopology();
-   int req_counter = 0;
    if (!local)
    {
-      ReduceBeginCopy(x); // copy to 'ext_buf'
-      for (int nbr = 1; nbr < gtopo.GetNumNeighbors(); nbr++)
-      {
-         const int send_offset = ext_buf_offsets[nbr];
-         const int send_size = ext_buf_offsets[nbr+1] - send_offset;
-         if (send_size > 0)
-         {
-            auto send_buf = mpi_gpu_aware ? ext_buf.Read() : ext_buf.HostRead();
-            MPI_Isend(send_buf + send_offset, send_size, MPITypeMap<real_t>::mpi_type,
-                      gtopo.GetNeighborRank(nbr), 41823,
-                      gtopo.GetComm(), &requests[req_counter++]);
-         }
-         const int recv_offset = shr_buf_offsets[nbr];
-         const int recv_size = shr_buf_offsets[nbr+1] - recv_offset;
-         if (recv_size > 0)
-         {
-            auto recv_buf = mpi_gpu_aware ? shr_buf.Write() : shr_buf.HostWrite();
-            MPI_Irecv(recv_buf + recv_offset, recv_size, MPITypeMap<real_t>::mpi_type,
-                      gtopo.GetNeighborRank(nbr), 41823,
-                      gtopo.GetComm(), &requests[req_counter++]);
-         }
-      }
+      gc.GetDeviceComm().ProlongateTranspose(*x.GetArrayView(),
+                                             *y.GetArrayView());
    }
-   ReduceLocalCopy(x, y);
-   if (!local)
+   else
    {
-      MPI_Waitall(req_counter, requests, MPI_STATUSES_IGNORE);
-      ReduceEndAssemble(y); // assemble from 'shr_buf'
+      gc.GetDeviceComm().Restrict(*x.GetArrayView(), *y.GetArrayView());
    }
 }
 

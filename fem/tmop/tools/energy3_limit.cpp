@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -26,6 +26,7 @@ void TMOP_EnergyPA_C0_3D(const real_t lim_normal,
                          const int NE,
                          const DeviceTensor<6, const real_t> &J,
                          const ConstDeviceCube &W,
+                         const bool integ_over_target,
                          const real_t *b,
                          const real_t *bld,
                          const DeviceTensor<5, const real_t> &X0,
@@ -65,7 +66,8 @@ void TMOP_EnergyPA_C0_3D(const real_t lim_normal,
             MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
-               const real_t detJtr = kernels::Det<3>(Jtr);
+               const real_t detJtr =
+                  integ_over_target ? kernels::Det<3>(Jtr) : 1.0;
                const real_t weight = W(qx, qy, qz) * detJtr;
                const real_t coeff0 = const_c0
                                      ? C0(0, 0, 0, 0)
@@ -115,6 +117,7 @@ void TMOP_EnergyPA_AdaptLim_3D(const real_t lim_normal,
                                const int NE,
                                const DeviceTensor<6, const real_t> &J,
                                const ConstDeviceCube &W,
+                               const bool integ_over_target,
                                const real_t *b,
                                const DeviceTensor<4, const real_t> &ALFmF0,
                                DeviceTensor<4> &E,
@@ -144,7 +147,8 @@ void TMOP_EnergyPA_AdaptLim_3D(const real_t lim_normal,
             MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
             {
                const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
-               const real_t detJtr = kernels::Det<3>(Jtr);
+               const real_t detJtr =
+                  integ_over_target ? kernels::Det<3>(Jtr) : 1.0;
                const real_t weight = W(qx, qy, qz) * detJtr;
 
                const real_t diff = ralf(qz, qy, qx) / adapt_lim_delta_max;
@@ -185,9 +189,8 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &x) const
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
 
-   TMOPEnergyPAC03D::Run(d, q,
-                         ln, LD, const_c0, C0, NE, J, W,
-                         b, bld, XL, X, E, exp_lim, d, q);
+   TMOPEnergyPAC03D::Run(d, q, ln, LD, const_c0, C0, NE, J, W,
+                         integ_over_target, b, bld, XL, X, E, exp_lim, d, q);
 
    return PA.E * PA.O;
 }
@@ -198,26 +201,43 @@ MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyAdaptLim3D);
 real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_3D() const
 {
    const real_t ln = lim_normal;
-   const real_t delta_max = PA.al_delta;
    const int NE = PA.ne, d = PA.maps->ndof, q = PA.maps->nqpt;
 
    MFEM_VERIFY(d <= DeviceDofQuadLimits::Get().MAX_D1D, "");
    MFEM_VERIFY(q <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
 
-   const bool const_coeff = PA.ALC.Size() == 1;
-   const auto ALC = const_coeff
-                    ? Reshape(PA.ALC.Read(), 1, 1, 1, 1)
-                    : Reshape(PA.ALC.Read(), q, q, q, NE);
    const auto J = Reshape(PA.Jtr.Read(), 3, 3, q, q, q, NE);
    const auto *b = PA.maps->B.Read();
    const auto W = Reshape(PA.ir->GetWeights().Read(), q, q, q);
-   const auto ALFmF0 = Reshape(PA.ALFmF0.Read(), d, d, d, NE);
    auto E = Reshape(PA.E.Write(), q, q, q, NE);
 
-   TMOPEnergyAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W, b,
-                             ALFmF0, E, d, q);
+   const int nal = PA.nal;
+   MFEM_VERIFY(nal > 0, "internal error");
+   MFEM_VERIFY(PA.ALD.Size() == nal, "internal error");
+   PA.ALD.HostRead();
 
-   return PA.E * PA.O;
+   const int ndof_el = d * d * d;
+   const int nqp_el = q * q * q;
+   const int ALF_stride = ndof_el * NE;
+
+   const bool const_coeff = (PA.ALC.Size() == nal);
+   const int ALC_stride = const_coeff ? 1 : (nqp_el * NE);
+   const real_t *ALC_all = PA.ALC.Read();
+   const real_t *ALFmF0_all = PA.ALFmF0.Read();
+   real_t energy = 0.0;
+   for (int c = 0; c < nal; c++)
+   {
+      const real_t delta_max = PA.ALD(c);
+      const auto ALC = const_coeff
+                       ? Reshape(ALC_all + c, 1, 1, 1, 1)
+                       : Reshape(ALC_all + c * ALC_stride, q, q, q, NE);
+      const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, d, NE);
+      TMOPEnergyAdaptLim3D::Run(d, q, ln, delta_max, const_coeff, ALC, NE,
+                                J, W, integ_over_target, b, ALFmF0, E, d, q);
+      energy += PA.E * PA.O;
+   }
+
+   return energy;
 }
 
 } // namespace mfem

@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -75,6 +75,7 @@ public:
    virtual ~Wedge() = default;
 };
 
+// Defined in fe.cpp to ensure construction before 'mfem::Geometries'.
 extern MFEM_EXPORT class LinearWedgeFiniteElement WedgeFE;
 
 }
