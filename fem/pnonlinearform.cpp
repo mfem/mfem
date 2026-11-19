@@ -366,70 +366,14 @@ void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    if (fnfi.Size() > 0)
    {
-      // Terms over shared interior faces in parallel.
-      ParMesh *pmesh = ParFESpace(0)->GetParMesh();
-      FaceElementTransformations *tr;
-
-      Array<Array<int> *>vdofs(fes.Size());
-      Array<Array<int> *>vdofs2(fes.Size());
-      Array<Vector *> el_x(fes.Size());
-      Array<const Vector *> el_x_const(fes.Size());
-      Array<Vector *> el_y(fes.Size());
-      Array<const FiniteElement *> fe(fes.Size());
-      Array<const FiniteElement *> fe2(fes.Size());
-      Array<ParGridFunction *> pgfs(fes.Size());
-      for (int s=0; s<fes.Size(); ++s)
+      Array<const Vector *> lx(fes.Size());
+      Array<Vector *> ly(fes.Size());
+      for (int s = 0; s < fes.Size(); ++s)
       {
-         el_x_const[s] = el_x[s] = new Vector();
-         el_y[s] = new Vector();
-         vdofs[s] = new Array<int>;
-         vdofs2[s] = new Array<int>;
-         pgfs[s] = new ParGridFunction(const_cast<ParFiniteElementSpace*>(ParFESpace(s)),
-                                       xs.GetBlock(s));
-         pgfs[s]->ExchangeFaceNbrData();
+         lx[s] = &xs.GetBlock(s);
+         ly[s] = &ys.GetBlock(s);
       }
-
-      const int n_shared_faces = pmesh->GetNSharedFaces();
-      for (int i = 0; i < n_shared_faces; i++)
-      {
-         tr = pmesh->GetSharedFaceTransformations(i, true);
-         int Elem2NbrNo = tr->Elem2No - pmesh->GetNE();
-
-         for (int s=0; s<fes.Size(); ++s)
-         {
-            const ParFiniteElementSpace *pfes = ParFESpace(s);
-            fe[s] = pfes->GetFE(tr->Elem1No);
-            fe2[s] = pfes->GetFaceNbrFE(Elem2NbrNo);
-
-            pfes->GetElementVDofs(tr->Elem1No, *(vdofs[s]));
-            pfes->GetFaceNbrElementVDofs(Elem2NbrNo, *(vdofs2[s]));
-
-            el_x[s]->SetSize(vdofs[s]->Size() + vdofs2[s]->Size());
-            xs.GetBlock(s).GetSubVector(*(vdofs[s]), el_x[s]->GetData());
-            pgfs[s]->FaceNbrData().GetSubVector(*(vdofs2[s]),
-                                                el_x[s]->GetData() + vdofs[s]->Size());
-         }
-
-         for (int k = 0; k < fnfi.Size(); ++k)
-         {
-            fnfi[k]->AssembleFaceVector(fe, fe2, *tr, el_x_const, el_y);
-
-            for (int s=0; s<fes.Size(); ++s)
-            {
-               if (el_y[s]->Size() == 0) { continue; }
-               ys.GetBlock(s).AddElementVector(*(vdofs[s]), *el_y[s]);
-            }
-         }
-      }
-
-      for (int s=0; s<fes.Size(); ++s)
-      {
-         delete pgfs[s];
-         delete vdofs2[s];
-         delete vdofs[s];
-         delete el_y[s];
-         delete el_x[s];
-      }
+      MultSharedFaces(lx, ly);
    }
 
    for (int s=0; s<fes.Size(); ++s)
@@ -442,6 +386,151 @@ void ParBlockNonlinearForm::Mult(const Vector &x, Vector &y) const
 
    ys_true.SyncFromBlocks();
    y.SyncMemory(ys_true);
+}
+
+void ParBlockNonlinearForm::Mult(const Array<const Vector *> &x,
+                                 const Array<Vector *> &y) const
+{
+   MFEM_VERIFY(x.Size() == fes.Size() && y.Size() == fes.Size(),
+               "the input and output arrays must have one entry per space");
+
+   // In parallel every given block needs an L-vector
+   aux_x.resize(fes.Size());
+   aux_y.resize(fes.Size());
+   Array<const Vector *> px(fes.Size());
+   Array<Vector *> py(fes.Size());
+
+   for (int s = 0; s < fes.Size(); s++)
+   {
+      MFEM_ASSERT(!x[s] || x[s]->Size() == fes[s]->GetTrueVSize(),
+                  "invalid input Vector size for block " << s);
+      MFEM_ASSERT(!y[s] || y[s]->Size() == fes[s]->GetTrueVSize(),
+                  "invalid output Vector size for block " << s);
+
+      if (x[s])
+      {
+         aux_x[s].SetSize(fes[s]->GetVSize());
+         fes[s]->GetProlongationMatrix()->Mult(*x[s], aux_x[s]);
+         px[s] = &aux_x[s];
+      }
+      else
+      {
+         px[s] = nullptr;
+      }
+
+      if (y[s])
+      {
+         aux_y[s].SetSize(fes[s]->GetVSize());
+         py[s] = &aux_y[s];
+      }
+      else
+      {
+         py[s] = nullptr;
+      }
+   }
+
+   BlockNonlinearForm::MultBlocked(px, py);
+
+   if (fnfi.Size() > 0)
+   {
+      MultSharedFaces(px, py);
+   }
+
+   for (int s = 0; s < fes.Size(); s++)
+   {
+      if (!y[s]) { continue; }
+      fes[s]->GetProlongationMatrix()->MultTranspose(*py[s], *y[s]);
+      y[s]->SetSubVector(*ess_tdofs[s], 0.0);
+   }
+}
+
+void ParBlockNonlinearForm::MultSharedFaces(const Array<const Vector *> &lx,
+                                            const Array<Vector *> &ly) const
+{
+   // Terms over shared interior faces in parallel.
+   ParMesh *pmesh = ParFESpace(0)->GetParMesh();
+   FaceElementTransformations *tr;
+
+   Array<Array<int> *>vdofs(fes.Size());
+   Array<Array<int> *>vdofs2(fes.Size());
+   Array<Vector *> el_x(fes.Size());
+   Array<const Vector *> el_x_const(fes.Size());
+   Array<Vector *> el_y(fes.Size());
+   Array<const FiniteElement *> fe(fes.Size());
+   Array<const FiniteElement *> fe2(fes.Size());
+   Array<ParGridFunction *> pgfs(fes.Size());
+
+   // Only allocate element and face-neighbor data for the blocks that are
+   // given; the missing ones are passed to the integrators as NULL.
+   for (int s=0; s<fes.Size(); ++s)
+   {
+      el_x_const[s] = el_x[s] = lx[s] ? new Vector() : nullptr;
+      el_y[s] = ly[s] ? new Vector() : nullptr;
+      vdofs[s] = (lx[s] || ly[s]) ? new Array<int> : nullptr;
+      vdofs2[s] = lx[s] ? new Array<int> : nullptr;
+      pgfs[s] = nullptr;
+      if (lx[s])
+      {
+         pgfs[s] = new ParGridFunction(
+            const_cast<ParFiniteElementSpace*>(ParFESpace(s)),
+            const_cast<Vector&>(*lx[s]));
+         pgfs[s]->ExchangeFaceNbrData();
+      }
+      else
+      {
+         // Else still ensure face-neighbor mesh data is available
+         // (This is done in pgfs[s]->ExchangeFaceNbrData()).
+         pmesh->ExchangeFaceNbrData();
+      }
+   }
+
+   const int n_shared_faces = pmesh->GetNSharedFaces();
+   for (int i = 0; i < n_shared_faces; i++)
+   {
+      tr = pmesh->GetSharedFaceTransformations(i, true);
+      int Elem2NbrNo = tr->Elem2No - pmesh->GetNE();
+
+      for (int s=0; s<fes.Size(); ++s)
+      {
+         const ParFiniteElementSpace *pfes = ParFESpace(s);
+         fe[s] = pfes->GetFE(tr->Elem1No);
+         fe2[s] = pfes->GetFaceNbrFE(Elem2NbrNo);
+
+         if (vdofs[s])
+         {
+            pfes->GetElementVDofs(tr->Elem1No, *(vdofs[s]));
+         }
+         if (lx[s])
+         {
+            pfes->GetFaceNbrElementVDofs(Elem2NbrNo, *(vdofs2[s]));
+
+            el_x[s]->SetSize(vdofs[s]->Size() + vdofs2[s]->Size());
+            lx[s]->GetSubVector(*(vdofs[s]), el_x[s]->GetData());
+            pgfs[s]->FaceNbrData().GetSubVector(*(vdofs2[s]),
+                                                el_x[s]->GetData() + vdofs[s]->Size());
+         }
+      }
+
+      for (int k = 0; k < fnfi.Size(); ++k)
+      {
+         fnfi[k]->AssembleFaceVector(fe, fe2, *tr, el_x_const, el_y);
+
+         for (int s=0; s<fes.Size(); ++s)
+         {
+            if (!el_y[s] || el_y[s]->Size() == 0) { continue; }
+            ly[s]->AddElementVector(*(vdofs[s]), *el_y[s]);
+         }
+      }
+   }
+
+   for (int s=0; s<fes.Size(); ++s)
+   {
+      delete pgfs[s];
+      delete vdofs2[s];
+      delete vdofs[s];
+      delete el_y[s];
+      delete el_x[s];
+   }
 }
 
 /// Return the local gradient matrix for the given true-dof vector x

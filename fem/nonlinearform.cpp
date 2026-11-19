@@ -957,6 +957,23 @@ real_t BlockNonlinearForm::GetEnergy(const Vector &x) const
 void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
                                      BlockVector &by) const
 {
+   Array<const Vector *> lx(fes.Size());
+   Array<Vector *> ly(fes.Size());
+   for (int s = 0; s < fes.Size(); ++s)
+   {
+      lx[s] = &bx.GetBlock(s);
+      ly[s] = &by.GetBlock(s);
+   }
+
+   by.UseDevice(true);
+   by.SyncToBlocks();
+   MultBlocked(lx, ly);
+   by.SyncFromBlocks();
+}
+
+void BlockNonlinearForm::MultBlocked(const Array<const Vector *> &lx,
+                                     const Array<Vector *> &ly) const
+{
    Array<Array<int> *>vdofs(fes.Size());
    Array<Array<int> *>vdofs2(fes.Size());
    Array<Vector *> el_x(fes.Size());
@@ -968,15 +985,15 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
    std::vector<DofTransformation> doftrans(fes.Size());
    Mesh *mesh = fes[0]->GetMesh();
 
-   by.UseDevice(true);
-   by = 0.0;
-   by.SyncToBlocks();
+   // Only allocate element data for the blocks that are given; the missing
+   // ones are passed to the integrators as NULL.
    for (int s=0; s<fes.Size(); ++s)
    {
-      el_x_const[s] = el_x[s] = new Vector();
-      el_y[s] = new Vector();
-      vdofs[s] = new Array<int>;
-      vdofs2[s] = new Array<int>;
+      el_x_const[s] = el_x[s] = lx[s] ? new Vector() : nullptr;
+      el_y[s] = ly[s] ? new Vector() : nullptr;
+      vdofs[s] = (lx[s] || ly[s]) ? new Array<int> : nullptr;
+      vdofs2[s] = (lx[s] || ly[s]) ? new Array<int> : nullptr;
+      if (ly[s]) { *ly[s] = 0.0; }
    }
 
    if (dnfi.Size())
@@ -1010,10 +1027,16 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
          T = fes[0]->GetElementTransformation(i);
          for (int s = 0; s < fes.Size(); ++s)
          {
-            fes[s]->GetElementVDofs(i, *(vdofs[s]), doftrans[s]);
             fe[s] = fes[s]->GetFE(i);
-            bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
-            doftrans[s].InvTransformPrimal(*el_x[s]);
+            if (vdofs[s])
+            {
+               fes[s]->GetElementVDofs(i, *(vdofs[s]), doftrans[s]);
+            }
+            if (lx[s])
+            {
+               lx[s]->GetSubVector(*(vdofs[s]), *el_x[s]);
+               doftrans[s].InvTransformPrimal(*el_x[s]);
+            }
          }
 
          for (int k = 0; k < dnfi.Size(); ++k)
@@ -1026,9 +1049,9 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
 
             for (int s=0; s<fes.Size(); ++s)
             {
-               if (el_y[s]->Size() == 0) { continue; }
+               if (!el_y[s] || el_y[s]->Size() == 0) { continue; }
                doftrans[s].TransformDual(*el_y[s]);
-               by.GetBlock(s).AddElementVector(*(vdofs[s]), *el_y[s]);
+               ly[s]->AddElementVector(*(vdofs[s]), *el_y[s]);
             }
          }
       }
@@ -1065,10 +1088,16 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
          T = fes[0]->GetBdrElementTransformation(i);
          for (int s = 0; s < fes.Size(); ++s)
          {
-            fes[s]->GetBdrElementVDofs(i, *(vdofs[s]), doftrans[s]);
             fe[s] = fes[s]->GetBE(i);
-            bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
-            doftrans[s].InvTransformPrimal(*el_x[s]);
+            if (vdofs[s])
+            {
+               fes[s]->GetBdrElementVDofs(i, *(vdofs[s]), doftrans[s]);
+            }
+            if (lx[s])
+            {
+               lx[s]->GetSubVector(*(vdofs[s]), *el_x[s]);
+               doftrans[s].InvTransformPrimal(*el_x[s]);
+            }
          }
 
          for (int k = 0; k < bnfi.Size(); k++)
@@ -1080,9 +1109,9 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
 
             for (int s=0; s<fes.Size(); ++s)
             {
-               if (el_y[s]->Size() == 0) { continue; }
+               if (!el_y[s] || el_y[s]->Size() == 0) { continue; }
                doftrans[s].TransformDual(*el_y[s]);
-               by.GetBlock(s).AddElementVector(*(vdofs[s]), *el_y[s]);
+               ly[s]->AddElementVector(*(vdofs[s]), *el_y[s]);
             }
          }
       }
@@ -1103,12 +1132,17 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
                fe[s] = fes[s]->GetFE(tr->Elem1No);
                fe2[s] = fes[s]->GetFE(tr->Elem2No);
 
-               fes[s]->GetElementVDofs(tr->Elem1No, *(vdofs[s]));
-               fes[s]->GetElementVDofs(tr->Elem2No, *(vdofs2[s]));
+               if (vdofs[s])
+               {
+                  fes[s]->GetElementVDofs(tr->Elem1No, *(vdofs[s]));
+                  fes[s]->GetElementVDofs(tr->Elem2No, *(vdofs2[s]));
 
-               vdofs[s]->Append(*(vdofs2[s]));
-
-               bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
+                  vdofs[s]->Append(*(vdofs2[s]));
+               }
+               if (lx[s])
+               {
+                  lx[s]->GetSubVector(*(vdofs[s]), *el_x[s]);
+               }
             }
 
             for (int k = 0; k < fnfi.Size(); ++k)
@@ -1118,8 +1152,8 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
 
                for (int s=0; s<fes.Size(); ++s)
                {
-                  if (el_y[s]->Size() == 0) { continue; }
-                  by.GetBlock(s).AddElementVector(*(vdofs[s]), *el_y[s]);
+                  if (!el_y[s] || el_y[s]->Size() == 0) { continue; }
+                  ly[s]->AddElementVector(*(vdofs[s]), *el_y[s]);
                }
             }
          }
@@ -1164,8 +1198,14 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
                fe[s] = fes[s]->GetFE(tr->Elem1No);
                fe2[s] = fes[s]->GetFE(tr->Elem1No);
 
-               fes[s]->GetElementVDofs(tr->Elem1No, *(vdofs[s]));
-               bx.GetBlock(s).GetSubVector(*(vdofs[s]), *el_x[s]);
+               if (vdofs[s])
+               {
+                  fes[s]->GetElementVDofs(tr->Elem1No, *(vdofs[s]));
+               }
+               if (lx[s])
+               {
+                  lx[s]->GetSubVector(*(vdofs[s]), *el_x[s]);
+               }
             }
 
             for (int k = 0; k < bfnfi.Size(); ++k)
@@ -1177,8 +1217,8 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
 
                for (int s=0; s<fes.Size(); ++s)
                {
-                  if (el_y[s]->Size() == 0) { continue; }
-                  by.GetBlock(s).AddElementVector(*(vdofs[s]), *el_y[s]);
+                  if (!el_y[s] || el_y[s]->Size() == 0) { continue; }
+                  ly[s]->AddElementVector(*(vdofs[s]), *el_y[s]);
                }
             }
          }
@@ -1192,8 +1232,6 @@ void BlockNonlinearForm::MultBlocked(const BlockVector &bx,
       delete el_y[s];
       delete el_x[s];
    }
-
-   by.SyncFromBlocks();
 }
 
 const BlockVector &BlockNonlinearForm::Prolongate(const BlockVector &bx) const
@@ -1246,6 +1284,60 @@ void BlockNonlinearForm::Mult(const Vector &x, Vector &y) const
          by.GetBlock(s) = pby.GetBlock(s);
       }
       by.GetBlock(s).SetSubVector(*ess_tdofs[s], 0.0);
+   }
+}
+
+void BlockNonlinearForm::Mult(const Array<const Vector *> &x,
+                              const Array<Vector *> &y) const
+{
+   MFEM_VERIFY(x.Size() == fes.Size() && y.Size() == fes.Size(),
+               "the input and output arrays must have one entry per space");
+
+   aux_x.resize(fes.Size());
+   aux_y.resize(fes.Size());
+   Array<const Vector *> px(fes.Size());
+   Array<Vector *> py(fes.Size());
+
+   for (int s = 0; s < fes.Size(); s++)
+   {
+      MFEM_ASSERT(!x[s] || x[s]->Size() == fes[s]->GetTrueVSize(),
+                  "invalid input Vector size for block " << s);
+      MFEM_ASSERT(!y[s] || y[s]->Size() == fes[s]->GetTrueVSize(),
+                  "invalid output Vector size for block " << s);
+
+      if (x[s] && P[s])
+      {
+         aux_x[s].SetSize(fes[s]->GetVSize());
+         P[s]->Mult(*x[s], aux_x[s]);
+         px[s] = &aux_x[s];
+      }
+      else
+      {
+         px[s] = x[s];
+      }
+
+
+      if (y[s] && cP[s])
+      {
+         aux_y[s].SetSize(fes[s]->GetVSize());
+         py[s] = &aux_y[s];
+      }
+      else
+      {
+         py[s] = y[s];
+      }
+   }
+
+   MultBlocked(px, py);
+
+   for (int s = 0; s < fes.Size(); s++)
+   {
+      if (!y[s]) { continue; }
+      if (cP[s])
+      {
+         cP[s]->MultTranspose(*py[s], *y[s]);
+      }
+      y[s]->SetSubVector(*ess_tdofs[s], 0.0);
    }
 }
 

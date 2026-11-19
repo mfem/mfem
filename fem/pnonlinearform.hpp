@@ -85,6 +85,12 @@ protected:
 
    void GradientSharedFaces(const BlockVector &xs, int skip_zeros) const;
 
+   /// Add the terms over shared interior faces to the given L-Vector%s.
+   /** Entries of @a lx and @a ly may be NULL, in which case that block is
+       skipped and NULL is passed to the integrators in its place. */
+   void MultSharedFaces(const Array<const Vector *> &lx,
+                        const Array<Vector *> &ly) const;
+
 public:
    /// Computes the energy of the system
    real_t GetEnergy(const Vector &x) const override;
@@ -142,6 +148,14 @@ public:
 
    /// Block T-Vector to Block T-Vector
    void Mult(const Vector &x, Vector &y) const override;
+
+   /** @brief Block T-Vector to Block T-Vector, with the blocks given as arrays
+       of pointers, one per space.
+
+       See BlockNonlinearForm::Mult(const Array<const Vector *> &,
+       const Array<Vector *> &) const. */
+   void Mult(const Array<const Vector *> &x,
+             const Array<Vector *> &y) const override;
 
    /// Return the local block gradient matrix for the given true-dof vector x
    const BlockOperator &GetLocalGradient(const Vector &x) const;
