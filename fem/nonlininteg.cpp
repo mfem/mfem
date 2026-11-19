@@ -371,16 +371,25 @@ void NeoHookeanModel::AssembleH(const DenseMatrix &J, const DenseMatrix &DS,
 
    a *= (-2.0/dim);
 
-   // 2.
-   for (int i = 0; i < dof; i++)
-      for (int j = 0; j < dim; j++)
-         for (int k = 0; k < dof; k++)
-            for (int l = 0; l < dim; l++)
+   // 2. Row index innermost so the stores and the C, G reads are unit stride.
+   // Each entry of A is still updated once, with the same expression.
+   for (int l = 0; l < dim; l++)
+      for (int k = 0; k < dof; k++)
+      {
+         const real_t Ckl = C(k,l), Gkl = G(k,l);
+         const real_t *Gl = G.GetColumn(l);
+         for (int j = 0; j < dim; j++)
+         {
+            real_t *Aj = A.GetColumn(k+l*dof) + j*dof;
+            const real_t *Cj = C.GetColumn(j), *Gj = G.GetColumn(j);
+            const real_t Gkj = G(k,j);
+            for (int i = 0; i < dof; i++)
             {
-               A(i+j*dof,k+l*dof) +=
-                  a*(C(i,j)*G(k,l) + G(i,j)*C(k,l)) +
-                  b*G(i,l)*G(k,j) + c*G(i,j)*G(k,l);
+               Aj[i] += a*(Cj[i]*Gkl + Gj[i]*Ckl) +
+                        b*Gl[i]*Gkj + c*Gj[i]*Gkl;
             }
+         }
+      }
 }
 
 const IntegrationRule* HyperelasticNLFIntegrator::GetDefaultIntegrationRule(
@@ -669,41 +678,39 @@ void IncompressibleNeoHookeanIntegrator::AssembleElementGrad(
 
       CalcInverseTranspose(F, FinvT);
 
-      // u,u block
-      for (int i_u = 0; i_u < dof_u; ++i_u)
+      // u,u block. Row index innermost so the stores and the DS_u reads are
+      // unit stride. Each entry gets the same updates in the same order.
+      const real_t ipw = ip.weight;
+      const real_t trw = Tr.Weight();
+      const real_t c2 = dJ * mu;
+      DenseMatrix &Auu = *elmats(0,0);
+      for (int j_dim = 0; j_dim < dim; ++j_dim)
       {
-         for (int i_dim = 0; i_dim < dim; ++i_dim)
+         for (int j_u = 0; j_u < dof_u; ++j_u)
          {
-            for (int j_u = 0; j_u < dof_u; ++j_u)
+            for (int i_dim = 0; i_dim < dim; ++i_dim)
             {
-               for (int j_dim = 0; j_dim < dim; ++j_dim)
+               real_t *Aj = Auu.GetColumn(j_u + j_dim*dof_u) + i_dim*dof_u;
+               for (int n=0; n<dim; ++n)
                {
-
-                  // m = j_dim;
-                  // k = i_dim;
-
-                  for (int n=0; n<dim; ++n)
+                  const real_t DSjn = DS_u(j_u, n);
+                  for (int l=0; l<dim; ++l)
                   {
-                     for (int l=0; l<dim; ++l)
+                     const real_t *DSl = DS_u.GetColumn(l);
+                     const real_t c1 =
+                        dJ * (mu * F(i_dim, l) - pres * FinvT(i_dim,l)) *
+                        FinvT(j_dim,n);
+                     const real_t c3 = dJ * pres * FinvT(i_dim, n) *
+                                       FinvT(j_dim,l);
+                     const bool diag = (j_dim == i_dim && n==l);
+                     for (int i_u = 0; i_u < dof_u; ++i_u)
                      {
-                        (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) +=
-                           dJ * (mu * F(i_dim, l) - pres * FinvT(i_dim,l)) *
-                           FinvT(j_dim,n) * DS_u(i_u,l) * DS_u(j_u, n) *
-                           ip.weight * Tr.Weight();
-
-                        if (j_dim == i_dim && n==l)
+                        Aj[i_u] += c1 * DSl[i_u] * DSjn * ipw * trw;
+                        if (diag)
                         {
-                           (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) +=
-                              dJ * mu * DS_u(i_u, l) * DS_u(j_u,n) *
-                              ip.weight * Tr.Weight();
+                           Aj[i_u] += c2 * DSl[i_u] * DSjn * ipw * trw;
                         }
-
-                        // a = n;
-                        // b = m;
-                        (*elmats(0,0))(i_u + i_dim*dof_u, j_u + j_dim*dof_u) +=
-                           dJ * pres * FinvT(i_dim, n) *
-                           FinvT(j_dim,l) * DS_u(i_u,l) * DS_u(j_u,n) *
-                           ip.weight * Tr.Weight();
+                        Aj[i_u] += c3 * DSl[i_u] * DSjn * ipw * trw;
                      }
                   }
                }
