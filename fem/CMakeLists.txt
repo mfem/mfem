@@ -123,6 +123,8 @@ set(SRCS
   qinterp/eval_hdiv.cpp
   qinterp/grad_by_nodes.cpp
   qinterp/grad_by_vdim.cpp
+  qinterp/eval_transpose.cpp
+  qinterp/eval_transpose_by_vdim.cpp
   qspace.cpp
   quadinterpolator.cpp
   quadinterpolator_face.cpp
@@ -291,6 +293,7 @@ set(HDRS
   qfunction.hpp
   qinterp/det.hpp
   qinterp/eval.hpp
+  qinterp/eval_transpose.hpp
   qinterp/eval_hdiv.hpp
   qinterp/grad.hpp
   qspace.hpp

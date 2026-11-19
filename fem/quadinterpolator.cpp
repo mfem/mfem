@@ -31,6 +31,7 @@ void InitDetKernels();
 template <bool P> void InitGradByNodesKernels();
 template <bool P> void InitGradByVDimKernels();
 void InitTensorEvalHDivKernels();
+void InitEvalTransposeByVDimKernels();
 struct Kernels
 {
    Kernels()
@@ -51,6 +52,7 @@ struct Kernels
       InitEvalKernels();
       // Tensor (quad,hex) H(div)
       InitTensorEvalHDivKernels();
+      InitEvalTransposeByVDimKernels();
    }
 };
 }
@@ -415,16 +417,49 @@ void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
    MFEM_CONTRACT_VAR(q_div);
 }
 
-void QuadratureInterpolator::MultTranspose(unsigned eval_flags,
-                                           const Vector &q_val,
-                                           const Vector &q_der,
-                                           Vector &e_vec) const
+void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,
+                                              const Vector &q_val,
+                                              const Vector &q_der,
+                                              Vector &e_vec,
+                                              const Array<int> *elist) const
 {
-   MFEM_CONTRACT_VAR(eval_flags);
-   MFEM_CONTRACT_VAR(q_val);
+   const int ne = fespace->GetNE();
+   const int ne_marked = elist ? elist->Size() : ne;
+   if (ne_marked == 0) { return; }
+   const FiniteElement *fe = fespace->GetFE(0);
+   MFEM_VERIFY(fe->GetMapType() == FiniteElement::MapType::VALUE,
+               "AddMultTranspose supports only spaces with a VALUE map type");
+   MFEM_VERIFY(!(eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES)),
+               "AddMultTranspose supports only VALUES and PHYSICAL_VALUES");
    MFEM_CONTRACT_VAR(q_der);
-   MFEM_CONTRACT_VAR(e_vec);
-   MFEM_ABORT("this method is not implemented yet");
+   const int vdim = fespace->GetVDim();
+
+   const bool use_tensor_eval =
+      use_tensor_products &&
+      dynamic_cast<const TensorBasisElement*>(fe) != nullptr;
+   const IntegrationRule *ir =
+      IntRule ? IntRule : &qspace->GetElementIntRule(0);
+   const DofToQuad::Mode mode =
+      use_tensor_eval ? DofToQuad::TENSOR : DofToQuad::FULL;
+   const DofToQuad &maps = fe->GetDofToQuad(*ir, mode);
+   const int dim = maps.FE->GetDim();
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
+
+   if (use_tensor_eval)
+   {
+      if (eval_flags & (VALUES | PHYSICAL_VALUES))
+      {
+         TensorEvalTransposeKernels::Run(dim, q_layout, vdim, nd, nq, ne,
+                                         maps.B.Read(), q_val.Read(),
+                                         e_vec.ReadWrite(), vdim, nd, nq,
+                                         elist);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("Non-tensor MultTranspose not yet implemented");
+   }
 }
 
 void QuadratureInterpolator::Values(const Vector &e_vec,
