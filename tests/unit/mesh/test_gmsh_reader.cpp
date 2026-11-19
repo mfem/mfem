@@ -63,6 +63,56 @@ const std::string gmsh22_tet10_tri3 = gmsh22_header_and_nodes + R"($Elements
 $EndElements
 )";
 
+// Linear tetrahedron with boundary triangles of mixed order (one linear, three
+// second-order), and edges of mixed order (one linear, one second-order).
+const std::string gmsh22_tet4_mixed_bdr = gmsh22_header_and_nodes + R"($Elements
+7
+1 4 2 1 1 1 2 3 4
+2 2 2 2 1 1 3 2
+3 9 2 3 2 1 2 4 5 10 8
+4 9 2 4 3 1 4 3 8 9 7
+5 9 2 5 4 2 3 4 6 9 10
+6 1 2 6 1 1 2
+7 8 2 6 1 1 3 7
+$EndElements
+)";
+
+// Nodes of the reference triangle (tags 1-3) and of its edge midpoints (tags
+// 4-6), in Gmsh 2.2 format.
+const std::string gmsh22_tri_header_and_nodes = R"($MeshFormat
+2.2 0 8
+$EndMeshFormat
+$Nodes
+6
+1 0 0 0
+2 1 0 0
+3 0 1 0
+4 0.5 0 0
+5 0.5 0.5 0
+6 0 0.5 0
+$EndNodes
+)";
+
+// Linear triangle with second-order (3-node) boundary segments.
+const std::string gmsh22_tri3_line3 = gmsh22_tri_header_and_nodes +
+                                      R"($Elements
+4
+1 2 2 1 1 1 2 3
+2 8 2 2 1 1 2 4
+3 8 2 3 1 2 3 5
+4 8 2 4 1 3 1 6
+$EndElements
+)";
+
+// Linear triangle and second-order triangle with the same vertices: the
+// elements of highest dimension have different orders.
+const std::string gmsh22_tri3_tri6 = gmsh22_tri_header_and_nodes + R"($Elements
+2
+1 2 2 1 1 1 2 3
+2 9 2 1 1 1 2 3 4 5 6
+$EndElements
+)";
+
 // Linear tetrahedron with second-order boundary triangles in Gmsh 4.1 format,
 // with the boundary elements listed before the volume element.
 const std::string gmsh41_tet4_tri6 = R"($MeshFormat
@@ -123,6 +173,7 @@ TEST_CASE("Gmsh mesh with boundary elements of different order",
    SECTION("Linear volume, second-order boundary")
    {
       const std::string &mesh_str = GENERATE(gmsh22_tet4_tri6,
+                                             gmsh22_tet4_mixed_bdr,
                                              gmsh41_tet4_tri6);
       Mesh mesh = ReadMesh(mesh_str);
 
@@ -133,6 +184,18 @@ TEST_CASE("Gmsh mesh with boundary elements of different order",
       REQUIRE(mesh.GetNV() == 4);
       REQUIRE(mesh.GetNodes() == nullptr);
       REQUIRE(mesh.GetElementVolume(0) == MFEM_Approx(1.0/6.0));
+   }
+
+   SECTION("Linear 2D mesh, second-order boundary")
+   {
+      Mesh mesh = ReadMesh(gmsh22_tri3_line3);
+
+      REQUIRE(mesh.Dimension() == 2);
+      REQUIRE(mesh.GetNE() == 1);
+      REQUIRE(mesh.GetNBE() == 3);
+      REQUIRE(mesh.GetNV() == 3);
+      REQUIRE(mesh.GetNodes() == nullptr);
+      REQUIRE(mesh.GetElementVolume(0) == MFEM_Approx(0.5));
    }
 
    SECTION("Second-order volume, linear boundary")
@@ -148,4 +211,12 @@ TEST_CASE("Gmsh mesh with boundary elements of different order",
       REQUIRE(mesh.GetNodes()->FESpace()->GetMaxElementOrder() == 2);
       REQUIRE(mesh.GetElementVolume(0) == MFEM_Approx(1.0/6.0));
    }
+
+#ifdef MFEM_USE_EXCEPTIONS
+   SECTION("Variable order volume")
+   {
+      // The elements of highest dimension must all have the same order.
+      REQUIRE_THROWS(ReadMesh(gmsh22_tri3_tri6));
+   }
+#endif
 }
