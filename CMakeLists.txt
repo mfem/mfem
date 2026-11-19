@@ -757,7 +757,7 @@ if (MINGW)
   target_link_libraries(mfem PRIVATE ws2_32)
 endif()
 if (MSVC)
-  target_compile_options(mfem PUBLIC "/wd4819")
+  target_compile_options(mfem PUBLIC "/wd4819" "/bigobj")
 endif()
 message(STATUS "TPL_INCLUDE_DIRS = ${TPL_INCLUDE_DIRS}")
 target_include_directories(mfem
@@ -784,10 +784,13 @@ set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")
 set_target_properties(mfem PROPERTIES SOVERSION "${mfem_VERSION}")
 
 # If building out-of-source, define MFEM_CONFIG_FILE to point to the config file
-# inside the build directory.
+# inside the build directory. The definition is public, so that targets in the
+# build tree that include individual MFEM headers (instead of the generated
+# mfem.hpp) read the same config file. It is not exported to the install tree,
+# which has its own config/_config.hpp.
 if (NOT ("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}"))
-  target_compile_definitions(mfem PRIVATE
-    "MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\"")
+  target_compile_definitions(mfem PUBLIC
+    "$<BUILD_INTERFACE:MFEM_CONFIG_FILE=\"${PROJECT_BINARY_DIR}/config/_config.hpp\">")
 endif()
 
 # Generate configuration file in the build directory: config/_config.hpp.
