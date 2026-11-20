@@ -3044,6 +3044,9 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
 
    const bool localVar = elem_order.Size() == mesh->GetNE();
    const int baseOrder = fec->GetOrder();
+   // In 3D, normal continuity constrains faces, not their boundary edges.
+   const bool normal_faces = mesh->Dimension() == 3 &&
+                             fec->GetContType() == FiniteElementCollection::NORMAL;
 
    ApplyGhostElementOrdersToEdgesAndFaces(edge_orders, face_orders);
 
@@ -3182,6 +3185,7 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
                {
                   continue;  // Skip ghost faces
                }
+               if (normal_faces) { continue; }
 
                mesh->GetFaceEdges(slave.index, E, ori);
                for (int j = 0; j < E.Size(); j++)
@@ -3192,7 +3196,10 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
             else
             {
                // degenerate face (i.e., edge-face constraint)
-               slave_orders |= edge_orders[FlipIndexSign(slave.index)];
+               if (!normal_faces)
+               {
+                  slave_orders |= edge_orders[FlipIndexSign(slave.index)];
+               }
             }
          }
 

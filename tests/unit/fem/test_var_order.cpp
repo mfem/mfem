@@ -43,6 +43,93 @@ Mesh MakeCartesianMesh(int nx, int dim)
    }
 }
 
+namespace var_order_test
+{
+
+// The requested order is the collection order; RT constructors take one less.
+static std::unique_ptr<RT_FECollection> MakeRTCollection(
+   int kind, int order, int dim, int cb_type, int ob_type, int map_type)
+{
+   if (kind == 0)
+   {
+      return std::unique_ptr<RT_FECollection>(
+                new RT_FECollection(order - 1, dim, cb_type, ob_type));
+   }
+   if (kind == 1)
+   {
+      return std::unique_ptr<RT_FECollection>(
+                new RT_Trace_FECollection(order - 1, dim, map_type, ob_type));
+   }
+   return std::unique_ptr<RT_FECollection>(
+             new DG_Interface_FECollection(order - 1, dim, map_type, ob_type));
+}
+
+} // namespace var_order_test
+
+TEST_CASE("RT collection cloning preserves the requested collection order",
+          "[FiniteElementCollection][RT][RTCloneOrder]")
+{
+   using namespace var_order_test;
+   const int kind = GENERATE(0, 1, 2);
+   const int dim = GENERATE(2, 3);
+   const int base_order = GENERATE(1, 3);
+   const int order = GENERATE(1, 2, 3);
+   const int ob_type = GENERATE(BasisType::GaussLegendre,
+                                BasisType::IntegratedGLL);
+   const int map_type = GENERATE(FiniteElement::VALUE, FiniteElement::INTEGRAL);
+   const int cb_type = BasisType::GaussLobatto;
+   CAPTURE(kind, dim, base_order, order, ob_type, map_type);
+   auto source = MakeRTCollection(kind, base_order, dim, cb_type, ob_type,
+                                  map_type);
+   auto expected = MakeRTCollection(kind, order, dim, cb_type, ob_type,
+                                    map_type);
+   std::unique_ptr<FiniteElementCollection> clone(source->Clone(order));
+   REQUIRE(clone->GetOrder() == order);
+   REQUIRE(clone->GetConstructorOrder() == order - 1);
+   REQUIRE(std::string(clone->Name()) == expected->Name());
+   const auto trace_geom = dim == 2 ? Geometry::SEGMENT : Geometry::SQUARE;
+   const auto cell_geom = dim == 2 ? Geometry::SQUARE : Geometry::CUBE;
+   for (auto geom : {trace_geom, kind == 0 ? cell_geom : trace_geom})
+   {
+      const FiniteElement &fe = *source->GetFE(geom, order);
+      const FiniteElement &ref = *expected->FiniteElementForGeometry(geom);
+      REQUIRE(fe.GetOrder() == ref.GetOrder());
+      REQUIRE(fe.GetDof() == ref.GetDof());
+      REQUIRE(fe.GetMapType() == ref.GetMapType());
+      REQUIRE(source->GetNumDof(geom, order) == expected->DofForGeometry(geom));
+   }
+   const int *actual = source->GetDofOrdering(trace_geom, order, 1);
+   const int *reference = expected->DofOrderForOrientation(trace_geom, 1);
+   for (int i = 0; i < expected->DofForGeometry(trace_geom); i++)
+   {
+      REQUIRE(actual[i] == reference[i]);
+   }
+}
+
+TEST_CASE("RT LOR retains the lowest-order space after collection cloning",
+          "[FiniteElementCollection][RT][LOR][RTLOROrder]")
+{
+   const int dim = GENERATE(2, 3);
+   const int order = GENERATE(1, 2, 3);
+   CAPTURE(dim, order);
+   Mesh mesh = MakeCartesianMesh(1, dim);
+   RT_FECollection high(order - 1, dim, BasisType::GaussLobatto,
+                        BasisType::IntegratedGLL);
+   FiniteElementSpace high_space(&mesh, &high);
+   LORDiscretization lor(high_space);
+   FiniteElementSpace &low_space = lor.GetFESpace();
+   REQUIRE(low_space.FEColl()->GetOrder() == 1);
+   REQUIRE(low_space.FEColl()->GetConstructorOrder() == 0);
+   RT_FECollection reference(0, dim, BasisType::GaussLobatto,
+                             BasisType::IntegratedGLL);
+   FiniteElementSpace reference_space(low_space.GetMesh(), &reference);
+   REQUIRE(low_space.GetTrueVSize() == reference_space.GetTrueVSize());
+   for (int e = 0; e < low_space.GetNE(); e++)
+   {
+      REQUIRE(low_space.GetFE(e)->GetOrder() == 1);
+   }
+}
+
 // Check basic functioning of variable order spaces, hp interpolation and
 // some corner cases.
 TEST_CASE("Variable Order FiniteElementSpace",
@@ -288,21 +375,21 @@ TEST_CASE("Variable Order FiniteElementSpace",
       {
          // Standard RT space with order 0 elements
          fec.reset(new RT_FECollection(0, dim));
-
-         if (dim == 2)
-         {
-            ndof0 = 40;
-            ndof1 = 62;
-            ncdof1 = 56;
-            ncdof2 = 312;
-         }
-         else
-         {
-            ndof0 = 36;
-            ndof1 = 141;
-            ncdof1 = 114;
-            ncdof2 = 756;
-         }
+         ndof0 = dim == 2 ? 40 : 36;
+         // A direct RT_1 construction is independent of the variable-order
+         // Clone path. The first Cartesian cell has dim boundary faces and
+         // dim shared faces. Boundary traces gain (nf-1) modes; shared faces
+         // keep their RT_0 trace and add an nf-DOF local variant. Cell-interior
+         // modes are all free. This gives 50/46 DOFs in 2D and 69/57 in 3D.
+         RT_FECollection reference(1, dim);
+         FiniteElementSpace reference_space(&mesh, &reference);
+         const auto face_geom = dim == 2 ? Geometry::SEGMENT : Geometry::SQUARE;
+         const auto cell_geom = dim == 2 ? Geometry::SQUARE : Geometry::CUBE;
+         const int nf = reference.DofForGeometry(face_geom);
+         const int ni = reference.DofForGeometry(cell_geom);
+         ncdof1 = ndof0 + dim*(nf - 1) + ni;
+         ndof1 = ncdof1 + dim*nf;
+         ncdof2 = reference_space.GetTrueVSize();
       }
       else
       {
@@ -345,8 +432,509 @@ TEST_CASE("Variable Order FiniteElementSpace",
       fespace.Update(false);
 
       REQUIRE(fespace.GetNConformingDofs() == ncdof2);
+      for (int e = 0; e < fespace.GetNE(); e++)
+      {
+         REQUIRE(fespace.GetFE(e)->GetOrder() == fespace.GetElementOrder(e));
+      }
 
       TestSolveVec(fespace);
+   }
+}
+
+namespace var_order_test
+{
+
+// Hex mesh 2x2x1 with the element at x > 1/2, y > 1/2 refined once: the coarse
+// neighbors see master faces normal to x and to y, whose slave faces have
+// interior edges in both directions of the master face.
+static Mesh MakeLocallyRefinedHexMesh()
+{
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 1, Element::HEXAHEDRON);
+   mesh.EnsureNCMesh();
+   Array<int> refine;
+   Vector center(3);
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      mesh.GetElementCenter(e, center);
+      if (center(0) > 0.5 && center(1) > 0.5) { refine.Append(e); }
+   }
+   mesh.GeneralRefinement(refine);
+   return mesh;
+}
+
+// A low-order grandchild can restrict an edge inside another master face.
+static Mesh MakeInternalEdgeMesh(bool rotated)
+{
+   Mesh mesh(3, 12, 2, 0, 3);
+   for (int z = 0; z < 2; z++)
+   {
+      for (int y = 0; y < 2; y++)
+      {
+         for (int x = 0; x < 3; x++)
+         {
+            mesh.AddVertex(real_t(x), real_t(y), real_t(z));
+         }
+      }
+   }
+   for (int x = 0; x < 2; x++)
+   {
+      int hex[8] = {x, x+1, x+4, x+3, x+6, x+7, x+10, x+9};
+      if (rotated && x == 1)
+      {
+         const int perm[8] = {0, 4, 5, 1, 3, 7, 6, 2};
+         int copy[8];
+         std::copy(hex, hex+8, copy);
+         for (int i = 0; i < 8; i++) { hex[i] = copy[perm[i]]; }
+      }
+      mesh.AddHex(hex);
+   }
+   mesh.FinalizeHexMesh(1, 1, true);
+   mesh.EnsureNCMesh();
+   Vector center(3);
+   for (int level = 0; level < 2; level++)
+   {
+      Array<int> marked;
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         mesh.GetElementCenter(e, center);
+         if (level == 0 ? center(0) > 1 :
+             (center(0) > 1 && center(0) < 1.5 &&
+              center(1) > 0.5 && center(2) < 0.5))
+         {
+            marked.Append(e);
+         }
+      }
+      REQUIRE(marked.Size() == 1);
+      mesh.GeneralRefinement(marked, 1, 0);
+   }
+   REQUIRE(mesh.GetNE() == 16);
+   return mesh;
+}
+
+static void SetInternalEdgeOrders(FiniteElementSpace &fes, int high)
+{
+   Vector center(3);
+   for (int e = 0; e < fes.GetNE(); e++)
+   {
+      fes.GetMesh()->GetElementCenter(e, center);
+      const bool low = center(0) == 1.375 && center(1) == 0.625 &&
+                       center(2) == 0.125;
+      fes.SetElementOrder(e, low ? high - 1 : high);
+   }
+   fes.Update(false);
+}
+
+// Maximum jump of H1 values, ND tangential or RT normal components across faces
+// shared by two elements of an axis-aligned hex mesh (conforming or
+// nonconforming), sampled inside the overlap of the two faces.
+static real_t MaxTraceJump(GridFunction &x, int &npoints)
+{
+   Mesh &mesh = *x.FESpace()->GetMesh();
+   const bool scalar = x.FESpace()->GetFE(0)->GetRangeType() ==
+                       FiniteElement::SCALAR;
+   const bool normal = x.FESpace()->FEColl()->GetContType() ==
+                       FiniteElementCollection::NORMAL;
+   const int ne = mesh.GetNE();
+   const real_t eps = 1e-12;
+   std::vector<Vector> lo(ne), hi(ne);
+   for (int e = 0; e < ne; e++)
+   {
+      Array<int> v;
+      mesh.GetElementVertices(e, v);
+      lo[e].SetSize(3); lo[e] = infinity();
+      hi[e].SetSize(3); hi[e] = -infinity();
+      for (int i : v)
+      {
+         const real_t *c = mesh.GetVertex(i);
+         for (int d = 0; d < 3; d++)
+         {
+            lo[e](d) = std::min(lo[e](d), c[d]);
+            hi[e](d) = std::max(hi[e](d), c[d]);
+         }
+      }
+   }
+   real_t jump = 0.0;
+   npoints = 0;
+   // enough points per direction to detect any nonzero polynomial jump
+   const int n = x.FESpace()->GetMaxElementOrder() + 2;
+   Vector pt(3), va(3), vb(3);
+   IntegrationPoint ipa, ipb;
+   for (int a = 0; a < ne; a++)
+   {
+      for (int b = a + 1; b < ne; b++)
+      {
+         for (int d = 0; d < 3; d++)
+         {
+            real_t plane;
+            if (std::abs(hi[a](d) - lo[b](d)) < eps) { plane = hi[a](d); }
+            else if (std::abs(hi[b](d) - lo[a](d)) < eps) { plane = lo[a](d); }
+            else { continue; }
+            const int t1 = (d + 1) % 3, t2 = (d + 2) % 3;
+            const real_t l1 = std::max(lo[a](t1), lo[b](t1));
+            const real_t h1 = std::min(hi[a](t1), hi[b](t1));
+            const real_t l2 = std::max(lo[a](t2), lo[b](t2));
+            const real_t h2 = std::min(hi[a](t2), hi[b](t2));
+            if (h1 - l1 < eps || h2 - l2 < eps) { continue; }
+            for (int i = 1; i < n; i++)
+            {
+               for (int j = 1; j < n; j++)
+               {
+                  pt(d) = plane;
+                  pt(t1) = l1 + (h1 - l1) * i / n;
+                  pt(t2) = l2 + (h2 - l2) * j / n;
+                  InverseElementTransformation inv_a(
+                     mesh.GetElementTransformation(a));
+                  REQUIRE(inv_a.Transform(pt, ipa) ==
+                          InverseElementTransformation::Inside);
+                  x.GetVectorValue(a, ipa, va);
+                  InverseElementTransformation inv_b(
+                     mesh.GetElementTransformation(b));
+                  REQUIRE(inv_b.Transform(pt, ipb) ==
+                          InverseElementTransformation::Inside);
+                  x.GetVectorValue(b, ipb, vb);
+                  REQUIRE(va.CheckFinite() == 0);
+                  REQUIRE(vb.CheckFinite() == 0);
+                  if (scalar) { jump = std::max(jump, std::abs(va(0) - vb(0))); }
+                  else if (normal) { jump = std::max(jump, std::abs(va(d) - vb(d))); }
+                  else
+                  {
+                     jump = std::max({jump, std::abs(va(t1) - vb(t1)),
+                                      std::abs(va(t2) - vb(t2))});
+                  }
+                  npoints++;
+               }
+            }
+         }
+      }
+   }
+   return jump;
+}
+
+} // namespace var_order_test
+
+TEST_CASE("RT face orders are independent of interior edge orders",
+          "[FiniteElementSpace][NCMesh][RTFaceOrder]")
+{
+   using namespace var_order_test;
+   const int high = GENERATE(2, 3);
+   const int ob = GENERATE(BasisType::GaussLegendre, BasisType::IntegratedGLL);
+   const bool rotated = GENERATE(false, true);
+   CAPTURE(high, ob, rotated);
+   Mesh mesh = MakeInternalEdgeMesh(rotated);
+   RT_FECollection fec(high-1, 3, BasisType::GaussLobatto, ob);
+   RT_FECollection lower(high-2, 3, BasisType::GaussLobatto, ob);
+   FiniteElementSpace fixed(&mesh, &fec), variable(&mesh, &fec);
+   SetInternalEdgeOrders(variable, high);
+   // Normal traces on distinct faces are independent. Lowering one element
+   // removes its interior modes and the degree difference on its six faces;
+   // it does not constrain a second face merely meeting one of those edges.
+   const int removed = fec.FiniteElementForGeometry(Geometry::CUBE)->GetDof() -
+                       lower.FiniteElementForGeometry(Geometry::CUBE)->GetDof();
+   REQUIRE(fixed.GetTrueVSize() == (high == 2 ? 416 : 1368));
+   REQUIRE(variable.GetTrueVSize() == fixed.GetTrueVSize() - removed);
+   Vector tdofs(variable.GetTrueVSize());
+   tdofs.Randomize(1);
+   GridFunction field(&variable);
+   field.SetFromTrueDofs(tdofs);
+   int npoints;
+   REQUIRE(MaxTraceJump(field, npoints) < 1e-11);
+   REQUIRE(npoints > 0);
+}
+
+#ifdef MFEM_USE_MPI
+TEST_CASE("Parallel RT face orders are independent of interior edge orders",
+          "[FiniteElementSpace][NCMesh][RTFaceOrder][Parallel]")
+{
+   using namespace var_order_test;
+   const int high = GENERATE(2, 3);
+   const int ob = GENERATE(BasisType::GaussLegendre, BasisType::IntegratedGLL);
+   const bool rotated = GENERATE(false, true);
+   CAPTURE(high, ob, rotated);
+   Mesh serial = MakeInternalEdgeMesh(rotated);
+   Array<int> partition(serial.GetNE());
+   int size, rank;
+   MPI_Comm_size(MPI_COMM_WORLD, &size);
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   for (int e = 0; e < serial.GetNE(); e++) { partition[e] = e % size; }
+   ParMesh mesh(MPI_COMM_WORLD, serial, partition.GetData());
+   RT_FECollection fec(high-1, 3, BasisType::GaussLobatto, ob);
+   RT_FECollection lower(high-2, 3, BasisType::GaussLobatto, ob);
+   ParFiniteElementSpace fixed(&mesh, &fec), variable(&mesh, &fec);
+   SetInternalEdgeOrders(variable, high);
+   const int removed = fec.FiniteElementForGeometry(Geometry::CUBE)->GetDof() -
+                       lower.FiniteElementForGeometry(Geometry::CUBE)->GetDof();
+   REQUIRE(fixed.GlobalTrueVSize() == (high == 2 ? 416 : 1368));
+   REQUIRE(variable.GlobalTrueVSize() == fixed.GlobalTrueVSize() - removed);
+   Vector tdofs(variable.GetTrueVSize());
+   tdofs.Randomize(rank+1);
+   ParGridFunction field(&variable);
+   field.SetFromTrueDofs(tdofs);
+   int npoints;
+   REQUIRE(MaxTraceJump(field, npoints) < 1e-11);
+}
+#endif
+TEST_CASE("Integrated ND p-coarsening preserves the mean",
+          "[FiniteElement][ND][L2Transfer]")
+{
+   ND_SegmentElement source(3, BasisType::IntegratedGLL);
+   ND_SegmentElement target(1, BasisType::IntegratedGLL);
+   IsoparametricTransformation identity;
+   identity.SetIdentityTransformation(Geometry::SEGMENT);
+   VectorFunctionCoefficient square(1, [](const Vector &x, Vector &v)
+   {
+      v(0) = x(0) * x(0);
+   });
+   Vector source_dofs(source.GetDof()), target_dofs(target.GetDof());
+   source.Project(square, identity, source_dofs);
+   DenseMatrix transfer;
+   target.GetTransferMatrix(source, identity, transfer);
+   transfer.Mult(source_dofs, target_dofs);
+   // The target basis is the constant one on the unit segment.
+   REQUIRE(target_dofs.CheckFinite() == 0);
+   REQUIRE(target_dofs(0) == MFEM_Approx(real_t(1.0 / 3.0)));
+}
+
+TEST_CASE("Integrated vector p-transfer is L2 orthogonal",
+          "[FiniteElement][ND][RT][L2Transfer]")
+{
+   const int dim = GENERATE(2, 3);
+   const bool nd = GENERATE(true, false);
+   const int low = GENERATE(1, 2);
+   const bool coarsen = GENERATE(true, false);
+   const bool scaled = GENERATE(false, true);
+   CAPTURE(dim, nd, low, coarsen, scaled);
+   const int source_order = coarsen ? low + 2 : low;
+   const int target_order = coarsen ? low : low + 2;
+   std::unique_ptr<FiniteElementCollection> source_fec, target_fec;
+   if (nd)
+   {
+      source_fec.reset(new ND_FECollection(source_order, dim,
+                                           BasisType::GaussLobatto,
+                                           BasisType::IntegratedGLL));
+      target_fec.reset(new ND_FECollection(target_order, dim,
+                                           BasisType::GaussLobatto,
+                                           BasisType::IntegratedGLL));
+   }
+   else
+   {
+      source_fec.reset(new RT_FECollection(source_order - 1, dim,
+                                           BasisType::GaussLobatto,
+                                           BasisType::IntegratedGLL));
+      target_fec.reset(new RT_FECollection(target_order - 1, dim,
+                                           BasisType::GaussLobatto,
+                                           BasisType::IntegratedGLL));
+   }
+   const auto geom = dim == 2 ? Geometry::SQUARE : Geometry::CUBE;
+   const FiniteElement &source = *source_fec->FiniteElementForGeometry(geom);
+   const FiniteElement &target = *target_fec->FiniteElementForGeometry(geom);
+   IsoparametricTransformation trans;
+   trans.SetIdentityTransformation(geom);
+   const real_t scale[3] = {0.5, 0.75, 0.25};
+   real_t det = 1.0;
+   if (scaled)
+   {
+      for (int d = 0; d < dim; d++)
+      {
+         det *= scale[d];
+         for (int j = 0; j < trans.GetPointMat().Width(); j++)
+         {
+            trans.GetPointMat()(d, j) *= scale[d];
+         }
+      }
+   }
+   DenseMatrix transfer;
+   target.GetTransferMatrix(source, trans, transfer);
+   REQUIRE(transfer.CheckFinite() == 0);
+
+   // Check every source basis column against every target test function.
+   // This separate, deliberately overintegrated rule checks the defining
+   // orthogonality rather than comparing two transfer implementations.
+   DenseMatrix residual(target.GetDof(), source.GetDof());
+   DenseMatrix ts(target.GetDof(), dim), ss(source.GetDof(), dim);
+   DenseMatrix transferred(source.GetDof(), dim);
+   Vector point(dim);
+   const IntegrationRule &ir = IntRules.Get(geom, 16);
+   for (int q = 0; q < ir.GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip = ir.IntPoint(q);
+      IntegrationPoint source_ip;
+      trans.Transform(ip, point);
+      source_ip.Set(point.GetData(), dim);
+      target.CalcVShape(ip, ts);
+      source.CalcVShape(source_ip, ss);
+      MultAtB(transfer, ts, transferred);
+      for (int d = 0; d < dim; d++)
+      {
+         // Analytic covariant/contravariant pullback for a diagonal map.
+         const real_t pullback = !scaled ? 1.0 :
+                                 (nd ? scale[d] : det / scale[d]);
+         for (int j = 0; j < source.GetDof(); j++)
+         {
+            transferred(j, d) -= pullback * ss(j, d);
+         }
+      }
+      AddMult_a_ABt(ip.weight, ts, transferred, residual);
+   }
+   REQUIRE(residual.CheckFinite() == 0);
+   REQUIRE(residual.MaxMaxNorm() < 1e-11);
+}
+
+TEST_CASE("ND Transfer Matrix Pulls Back Covariantly",
+          "[FiniteElement][ND]")
+{
+   // The transfer matrix from a coarse ND element to a fine one must map the
+   // coarse reference field u_c to J^T u_c(F(x)), where F is the map from the
+   // fine reference element into the coarse one and J its Jacobian, also when
+   // J is not symmetric (a face whose axes are swapped) and when the fine
+   // element is an edge inside a face (J of size 2x1).
+   const int p = GENERATE(1, 2, 3);
+   const int ob_type = GENERATE(BasisType::GaussLegendre,
+                                BasisType::IntegratedGLL);
+   CAPTURE(p, ob_type);
+   ND_FECollection fec(p, 3, BasisType::GaussLobatto, ob_type);
+   const FiniteElement &quad = *fec.FiniteElementForGeometry(Geometry::SQUARE);
+   const FiniteElement &seg = *fec.FiniteElementForGeometry(Geometry::SEGMENT);
+
+   IsoparametricTransformation id;
+   id.SetFE(&QuadrilateralFE);
+   id.GetPointMat().SetSize(2, 4);
+   const real_t unit[2][4] = {{0, 1, 1, 0}, {0, 0, 1, 1}};
+   for (int i = 0; i < 2; i++)
+   {
+      for (int j = 0; j < 4; j++) { id.GetPointMat()(i, j) = unit[i][j]; }
+   }
+
+   const int comp = GENERATE(0, 1);
+   CAPTURE(comp);
+   {
+      Vector u(2);
+      u = 0.0;
+      u(comp) = 1.0;
+      VectorConstantCoefficient uc(u);
+      Vector cdofs(quad.GetDof());
+      quad.Project(uc, id, cdofs);
+
+      SECTION("Face into face, axes swapped and halved")
+      {
+         // F(s,t) = (t/2, s): J = [0 1/2; 1 0]
+         IsoparametricTransformation T;
+         T.SetFE(&QuadrilateralFE);
+         T.GetPointMat().SetSize(2, 4);
+         const real_t pm[2][4] = {{0, 0, 0.5, 0.5}, {0, 1, 1, 0}};
+         for (int i = 0; i < 2; i++)
+         {
+            for (int j = 0; j < 4; j++) { T.GetPointMat()(i, j) = pm[i][j]; }
+         }
+         DenseMatrix I;
+         quad.GetTransferMatrix(quad, T, I);
+         Vector fdofs(quad.GetDof());
+         I.Mult(cdofs, fdofs);
+         // J^T u
+         const real_t expect[2] = {comp == 1 ? 1.0 : 0.0,
+                                   comp == 0 ? 0.5 : 0.0
+                                  };
+         DenseMatrix vs(quad.GetDof(), 2);
+         IntegrationPoint ip;
+         for (int i = 1; i <= p + 1; i++)
+         {
+            for (int j = 1; j <= p + 1; j++)
+            {
+               ip.Set2(real_t(i) / (p + 2), real_t(j) / (p + 2));
+               quad.CalcVShape(ip, vs);
+               for (int d = 0; d < 2; d++)
+               {
+                  real_t v = 0.0;
+                  for (int k = 0; k < quad.GetDof(); k++)
+                  {
+                     v += fdofs(k) * vs(k, d);
+                  }
+                  REQUIRE(std::abs(v - expect[d]) < 1e-12);
+               }
+            }
+         }
+      }
+
+      SECTION("Edge inside a face")
+      {
+         // horizontal, vertical and reversed vertical edges inside the face
+         const real_t ends[3][2][2] = {{{0.25, 0.5}, {0.75, 0.5}},
+            {{0.5, 0.25}, {0.5, 0.75}},
+            {{0.5, 0.75}, {0.5, 0.25}}
+         };
+         for (const auto &e : ends)
+         {
+            IsoparametricTransformation T;
+            T.SetFE(&SegmentFE);
+            T.GetPointMat().SetSize(2, 2);
+            for (int i = 0; i < 2; i++)
+            {
+               for (int j = 0; j < 2; j++) { T.GetPointMat()(i, j) = e[j][i]; }
+            }
+            DenseMatrix I;
+            seg.GetTransferMatrix(quad, T, I);
+            Vector fdofs(seg.GetDof());
+            I.Mult(cdofs, fdofs);
+            // u . (J t) with J t = b - a
+            const real_t expect = e[1][comp] - e[0][comp];
+            DenseMatrix vs(seg.GetDof(), 1);
+            IntegrationPoint ip;
+            for (int i = 1; i <= p + 1; i++)
+            {
+               ip.x = real_t(i) / (p + 2);
+               seg.CalcVShape(ip, vs);
+               real_t v = 0.0;
+               for (int k = 0; k < seg.GetDof(); k++) { v += fdofs(k) * vs(k, 0); }
+               REQUIRE(std::abs(v - expect) < 1e-12);
+            }
+         }
+      }
+   }
+}
+
+TEST_CASE("Variable Order ND on Nonconforming Hex Mesh",
+          "[FiniteElementSpace][NCMesh]")
+{
+   using namespace var_order_test;
+   const int p = GENERATE(1, 2, 3);
+   // IntegratedGLL (used by LOR) makes the elements non-nodal, so that the
+   // transfer matrices come from the local L2 projection instead.
+   const int ob_type = GENERATE(BasisType::GaussLegendre,
+                                BasisType::IntegratedGLL);
+   CAPTURE(p, ob_type);
+
+   Mesh mesh = MakeLocallyRefinedHexMesh();
+   ND_FECollection fec(p, 3, BasisType::GaussLobatto, ob_type);
+
+   SECTION("Equal orders give the fixed-order space")
+   {
+      FiniteElementSpace fixed(&mesh, &fec);
+      FiniteElementSpace var(&mesh, &fec);
+      for (int e = 0; e < mesh.GetNE(); e++) { var.SetElementOrder(e, p); }
+      var.Update(false);
+      REQUIRE(var.IsVariableOrder());
+      REQUIRE(var.GetNDofs() == fixed.GetNDofs());
+      REQUIRE(var.GetNConformingDofs() == fixed.GetNConformingDofs());
+   }
+
+   SECTION("Mixed orders: tangential continuity")
+   {
+      FiniteElementSpace fespace(&mesh, &fec);
+      Vector center(3);
+      for (int e = 0; e < mesh.GetNE(); e++)
+      {
+         mesh.GetElementCenter(e, center);
+         fespace.SetElementOrder(e, center(0) > 0.5 && center(1) > 0.5 ?
+                                 p + 1 : p);
+      }
+      fespace.Update(false);
+
+      Vector tdofs(fespace.GetTrueVSize());
+      tdofs.Randomize(1);
+      GridFunction x(&fespace);
+      fespace.GetProlongationMatrix()->Mult(tdofs, x);
+      int npoints;
+      REQUIRE(MaxTraceJump(x, npoints) < 1e-12);
+      REQUIRE(npoints > 0);
    }
 }
 
@@ -539,17 +1127,12 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
       {
          // Standard RT space with order 0 elements
          fec.reset(new RT_FECollection(0, dim));
-
-         if (dim == 2)
-         {
-            ndof0 = 40;
-            ncdof2 = 312;
-         }
-         else
-         {
-            ndof0 = 36;
-            ncdof2 = 756;
-         }
+         ndof0 = dim == 2 ? 40 : 36;
+         // Compare to fixed RT_1 rather than encoding the erroneous RT_2
+         // counts produced by Clone before the collection-order fix.
+         RT_FECollection reference(1, dim);
+         ParFiniteElementSpace reference_space(&pmesh, &reference);
+         ncdof2 = reference_space.GlobalTrueVSize();
       }
       else
       {
@@ -581,6 +1164,10 @@ TEST_CASE("Parallel Variable Order FiniteElementSpace",
       fespace.Update(false);
 
       REQUIRE(fespace.GlobalTrueVSize() == ncdof2);
+      for (int e = 0; e < fespace.GetNE(); e++)
+      {
+         REQUIRE(fespace.GetFE(e)->GetOrder() == fespace.GetElementOrder(e));
+      }
 
       TestSolveParVec(fespace);
    }

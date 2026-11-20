@@ -85,8 +85,7 @@ int PRefinementHierarchy::GetFESpaceMinimumOrder(const ParFiniteElementSpace
                                                  *pfespace)
 const
 {
-   return (dynamic_cast<const L2_FECollection*>(pfespace->FEColl()) ||
-           dynamic_cast<const RT_FECollection*>(pfespace->FEColl())) ? 0 : 1;
+   return dynamic_cast<const L2_FECollection*>(pfespace->FEColl()) ? 0 : 1;
 }
 
 void PRefinementHierarchy::BuildSpaceHierarchy(int mgmaxlevels)
@@ -95,7 +94,8 @@ void PRefinementHierarchy::BuildSpaceHierarchy(int mgmaxlevels)
    Array<int> levels(nblocks);
    for (int i = 0; i < nblocks; i++)
    {
-      orders[i] = pfes[i]->FEColl()->GetConstructorOrder();
+      // Clone() takes collection orders, including order 1 for RT_0.
+      orders[i] = pfes[i]->FEColl()->GetOrder();
       levels[i] = orders[i] - GetFESpaceMinimumOrder(pfes[i]);
    }
 

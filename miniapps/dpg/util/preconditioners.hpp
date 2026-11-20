@@ -66,7 +66,7 @@ Solver * MakeFESpaceDefaultSolver(
 class PRefinementHierarchy
 {
 public:
-   Array<int> orders;
+   Array<int> orders; ///< Collection orders, as returned by FEColl()->GetOrder().
    const Array<ParFiniteElementSpace*> &pfes;
    std::vector<Array<int>> ess_bdr_marker;
    std::vector<Array<int>> ess_tdof_list;
