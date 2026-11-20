@@ -13,6 +13,7 @@
 // the ideal shape scaled to match the initial Jacobian determinant at each
 // quadrature point. The optimized mesh is saved in MFEM format, and a VisIt
 // collection records the initial and optimized meshes at cycles 0 and 1.
+// The labeled mesh copy and VisIt collection include the input mesh stem.
 //
 // Compile with: make pmesh-optimize-size
 // Sample runs:
@@ -33,9 +34,12 @@
 // Boundary movement
 // Tangential movement on Cartesian boundary faces can be enabled with
 // the -mod-bndr-attr and -bnd options.
+// -psb (default) also preserves curves between original surface labels.
+// Use -no-psb to disable these additional constraints.
 
 #include "mfem.hpp"
 #include "mesh-fitting.hpp"
+#include "tmop-size-helper.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -43,6 +47,7 @@
 #include <fstream>
 #include <limits>
 #include <memory>
+#include <system_error>
 
 using namespace mfem;
 using namespace std;
@@ -80,6 +85,8 @@ int main(int argc, char *argv[])
    int verbosity = 0;
    bool move_bnd = true;
    bool mod_bdr_attr = true;
+   bool preserve_surface_boundaries = true;
+   bool allow_seam_sliding = false;
    bool normalization = false;
    bool integ_over_target = true;
    bool visualization = false;
@@ -88,7 +95,11 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    args.AddOption(&mesh_file, "-m", "--mesh", "Input mesh file.");
-   args.AddOption(&output_file, "-out", "--output", "Optimized mesh file.");
+   args.AddOption(&output_file, "-out", "--output",
+                  "Output stem for the optimized MFEM mesh (.mesh). "
+                  "Also save a copy with the input mesh "
+                  "stem, metric ID, target ID and maximum Newton iterations "
+                  "in its name.");
    args.AddOption(&order, "-o", "--order", "Order of the mesh nodes.");
    args.AddOption(&rs_levels, "-rs", "--refine-serial",
                   "Number of uniform refinements before partitioning.");
@@ -110,8 +121,7 @@ int main(int argc, char *argv[])
                   "Size weight in [0,1] for metrics 80 and 334. "
                   "The shape weight is 1 - gamma.");
    args.AddOption(&target_id, "-tid", "--target-id",
-                  "Ideal shape with unit (1), equal (2), or initial (3) size. "
-                  "Use 4 for the analytic Jacobian from pmesh-optimizer.");
+                  "Ideal shape with unit (1), equal (2), or initial (3) size.");
    args.AddOption(&quad_order, "-qo", "--quad_order",
                   "Quadrature order (Gauss-Lobatto on tensor products).");
    args.AddOption(&lim_const, "-lc", "--limit-const",
@@ -139,6 +149,16 @@ int main(int argc, char *argv[])
                   "Temporarily assign boundary attributes 1/2/3 to constant "
                   "x/y/z and 4 elsewhere. Use with -bnd to slide along "
                   "aligned boundaries. Saved meshes retain the input attributes.");
+   args.AddOption(&preserve_surface_boundaries, "-psb",
+                  "--preserve-surface-boundaries", "-no-psb",
+                  "--no-preserve-surface-boundaries",
+                  "Preserve boundaries between original surface attributes. "
+                  "Fix all interface coordinate DOFs unless -slide-sb is set.");
+   args.AddOption(&allow_seam_sliding, "-slide-sb", "--slide-surface-boundaries",
+                  "-fix-sb", "--fix-surface-boundaries",
+                  "With -psb, allow sliding along straight Cartesian seams "
+                  "in 3D; keep corners, junctions and other seams fixed. "
+                  "By default, fix all interface coordinate DOFs.");
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization", "Normalize the TMOP functional.");
    args.AddOption(&integ_over_target, "-it", "--integ-over-target",
@@ -163,7 +183,7 @@ int main(int argc, char *argv[])
                "Use a nonnegative number of random refinement passes and a "
                "probability in [0,1].");
    MFEM_VERIFY(gamma >= 0.0 && gamma <= 1.0, "Use -gamma in [0,1].");
-   MFEM_VERIFY(target_id >= 1 && target_id <= 4, "Use -tid 1, 2, 3 or 4.");
+   MFEM_VERIFY(target_id >= 1 && target_id <= 3, "Use -tid 1, 2 or 3.");
    MFEM_VERIFY(lin_solver >= 1 && lin_solver <= 3, "Use -ls 1, 2 or 3.");
    MFEM_VERIFY(newton_iter >= 0 && newton_rtol > 0.0 && lin_iter > 0 &&
                adaptive_rtol >= 0 && adaptive_rtol <= 2 && lim_const >= 0.0,
@@ -232,11 +252,7 @@ int main(int argc, char *argv[])
    auto target_type = TargetConstructor::IDEAL_SHAPE_GIVEN_SIZE;
    if (target_id == 1) { target_type = TargetConstructor::IDEAL_SHAPE_UNIT_SIZE; }
    if (target_id == 2) { target_type = TargetConstructor::IDEAL_SHAPE_EQUAL_SIZE; }
-   TargetConstructor ideal_target(target_type, comm);
-   HessianCoefficient analytic_jacobian(dim, metric_id);
-   AnalyticAdaptTC analytic_target(TargetConstructor::GIVEN_FULL);
-   analytic_target.SetAnalyticTargetSpec(nullptr, nullptr, &analytic_jacobian);
-   TargetConstructor &target = target_id == 4 ? analytic_target : ideal_target;
+   TargetConstructor target(target_type, comm);
    target.SetNodes(x0);
 
    real_t min_det = infinity();
@@ -292,9 +308,34 @@ int main(int argc, char *argv[])
                pmesh->bdr_attributes.Find(3) < 0,
                "Attribute 3 fixes z. In 2D use -mod-bndr-attr or -fix-bnd.");
 
-   const filesystem::path mesh_path(output_file);
-   const auto visit_path = mesh_path.parent_path() /
-                           ("visit-" + mesh_path.stem().string());
+   const filesystem::path output_path(output_file);
+   const auto labeled_mesh_stem = output_path.stem().string() +
+                                  "-" + filesystem::path(mesh_file).stem().string() +
+                                  "-mid" + to_string(metric_id) +
+                                  "-tid" + to_string(target_id) +
+                                  "-ni" + to_string(newton_iter);
+   auto primary_output = output_path;
+   primary_output.replace_extension(".mesh");
+   const auto labeled_output = output_path.parent_path() /
+                               (labeled_mesh_stem + ".mesh");
+   int separate_outputs = 1;
+   if (root)
+   {
+      for (const auto &destination : {primary_output, labeled_output})
+      {
+         error_code ec;
+         if (filesystem::equivalent(mesh_file, destination, ec))
+         {
+            cerr << "Output would overwrite the input: "
+                 << destination.string() << endl;
+            separate_outputs = 0;
+         }
+      }
+   }
+   MPI_Bcast(&separate_outputs, 1, MPI_INT, 0, comm);
+   MFEM_VERIFY(separate_outputs, "Choose an output stem separate from the input.");
+   const auto visit_path = output_path.parent_path() /
+                           ("visit-" + labeled_mesh_stem);
    const int output_precision = numeric_limits<real_t>::max_digits10;
    VisItDataCollection visit_dc(visit_path.generic_string(), pmesh.get());
    visit_dc.SetPrecision(output_precision);
@@ -315,6 +356,19 @@ int main(int argc, char *argv[])
       vis_tmop_metric_p(order, *metric, target, *pmesh, title, 0);
    }
    save_visit(0);
+
+   Array<int> surface_essential;
+   if (preserve_surface_boundaries && move_bnd)
+   {
+      tmop_size::GetEssentialTrueDofs(x, surface_essential, allow_seam_sliding);
+      long long count = surface_essential.Size();
+      MPI_Allreduce(MPI_IN_PLACE, &count, 1, MPI_LONG_LONG, MPI_SUM, comm);
+      if (root)
+      {
+         cout << "Surface-boundary constrained coordinate DOFs: " << count
+              << endl;
+      }
+   }
 
    Array<int> original_bdr_attrs;
    if (mod_bdr_attr)
@@ -340,7 +394,7 @@ int main(int argc, char *argv[])
       }
       else
       {
-         Array<int> essential, component_dofs;
+         Array<int> essential(surface_essential), component_dofs;
          for (int d = 0; d < dim; d++)
          {
             marker = 0;
@@ -349,6 +403,8 @@ int main(int argc, char *argv[])
             fes.GetEssentialTrueDofs(marker, component_dofs, d);
             essential.Append(component_dofs);
          }
+         essential.Sort();
+         essential.Unique();
          form.SetEssentialTrueDofs(essential);
       }
    }
@@ -425,12 +481,12 @@ int main(int argc, char *argv[])
    int saved = 1;
    if (root)
    {
-      output.open(output_file);
+      output.open(primary_output);
       output.precision(output_precision);
       saved = output.good();
    }
    MPI_Bcast(&saved, 1, MPI_INT, 0, comm);
-   MFEM_VERIFY(saved, "Unable to open output mesh " << output_file);
+   MFEM_VERIFY(saved, "Unable to open output mesh " << primary_output.string());
    pmesh->PrintAsSerial(output);
    if (root)
    {
@@ -438,10 +494,20 @@ int main(int argc, char *argv[])
       saved = output.good();
    }
    MPI_Bcast(&saved, 1, MPI_INT, 0, comm);
-   MFEM_VERIFY(saved, "Unable to write output mesh " << output_file);
+   MFEM_VERIFY(saved, "Unable to write output mesh " << primary_output.string());
    if (root)
    {
-      cout << "Wrote " << output_file << " and VisIt collection "
+      error_code copy_error;
+      saved = filesystem::copy_file(primary_output, labeled_output,
+                                    filesystem::copy_options::overwrite_existing,
+                                    copy_error);
+   }
+   MPI_Bcast(&saved, 1, MPI_INT, 0, comm);
+   MFEM_VERIFY(saved, "Unable to write output mesh " << labeled_output.string());
+   if (root)
+   {
+      cout << "Wrote " << primary_output.string() << " and "
+           << labeled_output.string() << " and VisIt collection "
            << visit_path.string() << endl;
    }
    return 0;
