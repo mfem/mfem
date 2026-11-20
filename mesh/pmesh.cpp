@@ -1279,7 +1279,13 @@ void ParMesh::MakeRefined_(ParMesh &orig_mesh, int ref_factor, int ref_type)
 
          for (int f = 0; f < orig_nt; f++)
          {
-            rfes.GetSharedTriangleDofs(gr, f, rdofs);
+            // GetFaceDofs of the local face: GetSharedTriangleDofs composed
+            // with GetDofMap is not a geometric symmetry of the refined
+            // face at order 4 and above.
+            int l_face, ori;
+            orig_mesh.GroupTriangle(gr, f, l_face, ori);
+            rfes.GetFaceDofs(l_face, rdofs);
+            MFEM_CONTRACT_VAR(ori);
             MFEM_ASSERT(rdofs.Size() == RG.RefPts.Size(), "");
             // add the internal face 'rdofs' as shared vertices
             for (int j = rdofs.Size()-num_int_verts; j < rdofs.Size(); j++)
