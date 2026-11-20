@@ -108,7 +108,9 @@ protected:
    /** @brief Synchronize marked containing-element counts before weighting.
 
        The serial implementation leaves @a counts unchanged. Parallel derived
-       classes override this hook to sum counts across ranks. */
+       classes override this hook to sum counts across ranks, which makes it
+       collective: every rank must have the same delta integrators, in the same
+       order. */
    virtual void SyncDeltaCounts(Array<int> &counts);
 
 private:
@@ -240,6 +242,7 @@ public:
 
    /// Assembles delta functions of the linear form. A delta on a shared mesh
    /// entity is split uniformly over the elements containing its center.
+   /** For a ParLinearForm this is collective, see ParLinearForm::Assemble(). */
    virtual void AssembleDelta();
 
    /// Update the object according to the associated FE space #fes.

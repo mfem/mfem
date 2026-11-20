@@ -116,11 +116,19 @@ public:
    /// Assembles the ParLinearForm i.e. sums over all domain/bdr integrators.
    /** When @ref LinearForm::UseFastAssembly "UseFastAssembly(true)" has been
        called and the linear form assembly is compatible with device execution,
-       the assembly will be executed on the device. */
+       the assembly will be executed on the device.
+
+       @note Assembly of domain integrators with delta coefficients is
+       collective: every rank must add the same delta integrators, in the same
+       order, including ranks whose local mesh does not contain the delta
+       centers. */
    void Assemble();
 
 protected:
-   /** @brief Sum marked containing-element counts across ranks. */
+   /** @brief Sum marked containing-element counts across ranks.
+
+       Collective: @a counts must have the same size, and entry `i` must refer
+       to the same delta integrator, on every rank. */
    void SyncDeltaCounts(Array<int> &counts) override;
 
    /** @brief Locate delta centers in this rank's local mesh.
