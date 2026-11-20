@@ -222,6 +222,21 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
    // serial, place the result directly in y (when there is no P).
    Vector &py = P ? aux2 : y;
 
+   if (ext)
+   {
+      ext->Mult(px, py);
+      if (Serial())
+      {
+         if (cP) { cP->MultTranspose(py, y); }
+         const int N = ess_tdof_list.Size();
+         const auto tdof = ess_tdof_list.Read();
+         auto Y = y.ReadWrite();
+         mfem::forall(N, [=] MFEM_HOST_DEVICE (int i) { Y[tdof[i]] = 0.0; });
+      }
+      // In parallel, the result is in 'py' which is an alias for 'aux2'.
+      return;
+   }
+
    MultGridFunction(px, py);
 
    if (Serial())
@@ -241,14 +256,10 @@ void NonlinearForm::Mult(const Vector &x, Vector &y) const
 
 void NonlinearForm::MultGridFunction(const Vector &x, Vector &y) const
 {
+   MFEM_VERIFY(ext == nullptr,
+               "local action requires legacy assembly");
    MFEM_VERIFY(x.Size() == fes->GetVSize(), "invalid input Vector size");
    MFEM_VERIFY(y.Size() == fes->GetVSize(), "invalid output Vector size");
-
-   if (ext)
-   {
-      ext->Mult(x, y);
-      return;
-   }
 
    Array<int> vdofs;
    Vector el_x, el_y;
@@ -452,7 +463,6 @@ Operator &NonlinearForm::GetGradient(const Vector &x, bool finalize) const
 
    SparseMatrix &local_grad =
       GetGridFunctionGradient(Prolongate(x), finalize);
-   if (!finalize) { return local_grad; }
 
    SparseMatrix *mGrad = &local_grad;
    if (Serial())
