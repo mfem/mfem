@@ -66,6 +66,7 @@ int main(int argc, char *argv[])
    bool reduction = false;
    bool hybridization = false;
    bool trace_h1 = false;
+   bool trace_ess_bc = false;
    bool pa = false;
    const char *device_config = "cpu";
    bool visualization = 1;
@@ -87,6 +88,8 @@ int main(int argc, char *argv[])
                   "--no-hybridization", "Enable hybridization.");
    args.AddOption(&trace_h1, "-trh1", "--trace-H1", "-trdg",
                   "--trace-DG", "Switch between H1 and DG trace spaces (default DG).");
+   args.AddOption(&trace_ess_bc, "-trbc", "--trace-ess-bc", "-no-trbc",
+                  "--no-trace-ess-bc", "Switch between essential and weak trace BC.");
    args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
                   "--no-partial-assembly", "Enable Partial Assembly.");
    args.AddOption(&device_config, "-d", "--device",
@@ -191,8 +194,11 @@ int main(int argc, char *argv[])
 
    LinearForm *fform = darcy->GetFluxRHS();
    fform->AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
-   fform->AddBdrFaceIntegrator(new VectorBoundaryTangentialLFIntegrator(
-                                    Bcoeff), bdr_B);
+   if (!hybridization || !trace_ess_bc)
+   {
+      fform->AddBdrFaceIntegrator(new VectorBoundaryTangentialLFIntegrator(
+                                     Bcoeff), bdr_B);
+   }
 
    LinearForm *gform = darcy->GetPotentialRHS();
    if (dim_curl > 1)
@@ -227,6 +233,13 @@ int main(int argc, char *argv[])
    mbVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(invsigmacoeff, td));
    cVarf->AddBdrFaceIntegrator(new TransposeIntegrator(
                                   new DGTangentialTraceIntegrator(+2.)), bdr_E);
+   if (hybridization && trace_ess_bc)
+   {
+      cVarf->AddBdrFaceIntegrator(new TransposeIntegrator(
+                                     new DGTangentialTraceIntegrator(+2.)), bdr_B);
+      mbVarf->AddBdrFaceIntegrator(new HDGCurlCurlIntegrator(invsigmacoeff, td),
+                                   bdr_B);
+   }
 
    if (dim_curl > 1)
    {
@@ -243,6 +256,7 @@ int main(int argc, char *argv[])
 
    unique_ptr<FiniteElementCollection> trace_coll;
    unique_ptr<FiniteElementSpace> trace_space;
+   Vector X;
 
    chrono.Clear();
    chrono.Start();
@@ -262,6 +276,19 @@ int main(int argc, char *argv[])
       darcy->EnableHybridization(trace_space.get(),
                                  new TangentTraceJumpIntegrator(-1.),
                                  ess_flux_tdofs_list);
+      // Set essential BC
+      if (trace_ess_bc && mesh.bdr_attributes.Size() > 0)
+      {
+         X.SetSize(trace_space->GetTrueVSize());
+         // Project essential BC
+         GridFunction Bhat;
+         Bhat.MakeTRef(trace_space.get(), X, 0);
+         Bhat = 0.;
+         Bhat.ProjectBdrCoefficient(Bcoeff, bdr_B);
+         Bhat.SetTrueVector();
+
+         darcy->GetHybridization()->SetEssentialBC(bdr_B);
+      }
    }
    else if (reduction)
    {
@@ -273,9 +300,9 @@ int main(int argc, char *argv[])
    darcy->Assemble();
 
    OperatorPtr A;
-   Vector X, RHS;
+   Vector RHS;
    x = 0.;
-   darcy->FormLinearSystem(ess_flux_tdofs_list, x, A, X, RHS);
+   darcy->FormLinearSystem(ess_flux_tdofs_list, x, A, X, RHS, true);
 
    chrono.Stop();
    std::cout << "Assembly took " << chrono.RealTime() << "s.\n";
