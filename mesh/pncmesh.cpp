@@ -1439,7 +1439,7 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
       // so a constant tag suffices. It differs from the tag 0 of the face
       // neighbor exchanges of ParMesh, ParFiniteElementSpace and
       // ParGridFunction that follow.
-      constexpr int tag = 294;
+      constexpr int tag = MessageTag::NC_FACE_NBR_ORIENTATIONS;
 
       // Loop over send elems, compute the orientation and place in the
       // buffer to send to each processor. Note elements are
