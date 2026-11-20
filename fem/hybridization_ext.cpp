@@ -120,7 +120,7 @@ struct LocalMemory<T,0>
 {
    MFEM_HOST_DEVICE inline operator T *() const { return (T*)nullptr; }
 };
-};
+}
 
 template <int MID, int MBD>
 void HybridizationExtension::FactorElementMatrices(Vector &AhatInvCt_mat)

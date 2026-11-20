@@ -75,10 +75,10 @@ public:
    /// The caller does not assume ownership, and must not delete the returned
    /// objects.
 
-   HypreParMatrix *GetGradientMatrix() const { return G; };
-   HypreParVector *GetXCoordinate() const { return x; };
-   HypreParVector *GetYCoordinate() const { return y; };
-   HypreParVector *GetZCoordinate() const { return z; };
+   HypreParMatrix *GetGradientMatrix() const { return G; }
+   HypreParVector *GetXCoordinate() const { return x; }
+   HypreParVector *GetYCoordinate() const { return y; }
+   HypreParVector *GetZCoordinate() const { return z; }
 
    ///@}
 

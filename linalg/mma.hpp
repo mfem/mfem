@@ -222,10 +222,10 @@ public:
     * \brief Change the iteration number
     * \param iterationNumber    the new iteration number
     */
-   void SetIteration( int iterationNumber ) { iter = iterationNumber; };
+   void SetIteration( int iterationNumber ) { iter = iterationNumber; }
 
    /// Return the current iteration number
-   int GetIteration() const { return iter; };
+   int GetIteration() const { return iter; }
 
    /**
     * \brief change the print level

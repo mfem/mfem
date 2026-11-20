@@ -56,7 +56,7 @@ public:
    /// @brief Return the discrete curl matrix.
    ///
    /// The caller does not assume ownership, and must not delete the object.
-   HypreParMatrix *GetCurlMatrix() const { return C; };
+   HypreParMatrix *GetCurlMatrix() const { return C; }
    /// Return the associated BatchedLOR_AMS object.
    BatchedLOR_AMS &GetAMS() { return ams; }
 

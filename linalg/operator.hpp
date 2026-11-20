@@ -714,7 +714,7 @@ public:
    {}
 
    /// Destructor
-   virtual ~TimeDependentAdjointOperator() {};
+   virtual ~TimeDependentAdjointOperator() {}
 
    /**
       \brief Provide the operator integration of a quadrature equation
@@ -722,7 +722,7 @@ public:
       \param[in] y The current value at time t
       \param[out] qdot The current quadrature rate value at t
    */
-   virtual void QuadratureIntegration(const Vector &y, Vector &qdot) const {};
+   virtual void QuadratureIntegration(const Vector &y, Vector &qdot) const {}
 
    /** @brief Perform the action of the operator:
        @a yBdot = k = f(@a y,@2 yB, t), where

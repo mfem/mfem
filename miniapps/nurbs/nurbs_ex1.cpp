@@ -55,7 +55,7 @@ class Data
 {
 public:
    real_t x,val;
-   Data(real_t x_, real_t val_) {x=x_; val=val_;};
+   Data(real_t x_, real_t val_) {x=x_; val=val_;}
 };
 
 inline bool operator==(const Data& d1,const Data& d2) { return (d1.x == d2.x); }

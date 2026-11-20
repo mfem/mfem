@@ -42,7 +42,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
 
          I =  0.0;
          I(0,0) = I(1,1) = 1.0;
-      };
+      }
 
       void Mult(const Vector &u, Vector &dudt)  const override
       {
@@ -65,7 +65,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
          T.Mult(r,dudt);
       }
 
-      ~ODE() override {};
+      ~ODE() override {}
    };
 
    // Class for checking order of convergence of first order ODE.
@@ -88,7 +88,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
 
          t_final = 3*M_PI;
          dt = t_final/real_t(ti_steps);
-      };
+      }
 
       void init_hist(ODESolverWithStates* ode_solver,real_t dt_)
       {
@@ -239,7 +239,7 @@ TEST_CASE("First order ODE methods", "[ODE]")
          return order;
       }
 
-      virtual ~CheckODE() {delete oper;};
+      virtual ~CheckODE() {delete oper;}
    };
    CheckODE check;
 

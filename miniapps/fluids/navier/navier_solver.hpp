@@ -268,7 +268,7 @@ public:
    void UpdateTimestepHistory(real_t dt);
 
    /// Set the maximum order to use for the BDF method.
-   void SetMaxBDFOrder(int maxbdforder) { max_bdf_order = maxbdforder; };
+   void SetMaxBDFOrder(int maxbdforder) { max_bdf_order = maxbdforder; }
 
    /// Compute CFL
    real_t ComputeCFL(ParGridFunction &u, real_t dt);

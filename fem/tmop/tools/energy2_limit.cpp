@@ -145,8 +145,8 @@ void TMOP_EnergyPA_AdaptLim_2D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPEnergyCoef2D, TMOP_EnergyPA_C0_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyCoef2D);
+MFEM_TMOP_MDQ_REGISTER(TMOPEnergyCoef2D, TMOP_EnergyPA_C0_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyCoef2D)
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
 {
@@ -180,8 +180,8 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_2D(const Vector &x) const
    return PA.E * PA.O;
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPEnergyAdaptLim2D, TMOP_EnergyPA_AdaptLim_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyAdaptLim2D);
+MFEM_TMOP_MDQ_REGISTER(TMOPEnergyAdaptLim2D, TMOP_EnergyPA_AdaptLim_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyAdaptLim2D)
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_2D() const
 {

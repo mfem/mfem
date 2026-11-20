@@ -113,8 +113,8 @@ void TMOP_AssembleDiagPA_C0_3D(const int NE,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiagCoef3D, TMOP_AssembleDiagPA_C0_3D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiagCoef3D);
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiagCoef3D, TMOP_AssembleDiagPA_C0_3D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiagCoef3D)
 
 void TMOP_Integrator::AssembleDiagonalPA_C0_3D(Vector &diagonal) const
 {
@@ -261,8 +261,8 @@ void TMOP_AssembleDiagPA_AdaptLim_3D(const real_t lim_normal,
 }
 
 MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiagAdaptLim3D,
-                       TMOP_AssembleDiagPA_AdaptLim_3D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiagAdaptLim3D);
+                       TMOP_AssembleDiagPA_AdaptLim_3D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiagAdaptLim3D)
 
 void TMOP_Integrator::AssembleDiagonalPA_AdaptLim_3D(Vector &diagonal) const
 {

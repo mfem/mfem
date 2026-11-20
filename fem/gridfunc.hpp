@@ -93,7 +93,7 @@ protected:
        determined from the element with maximal attribute. */
    virtual void ProjectDiscCoefficient(
       std::variant<Coefficient*, VectorCoefficient*> coeff)
-   { Array<int> dof_attr; ProjectDiscCoefficient(coeff, dof_attr); };
+   { Array<int> dof_attr; ProjectDiscCoefficient(coeff, dof_attr); }
 
    /** Helper function for ProjectCoefficientElementL2 */
    void ProjectCoefficientElementL2_(Coefficient &coeff, Vector &sol, Vector &Va);

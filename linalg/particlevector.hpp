@@ -51,7 +51,7 @@ public:
    using Vector::operator=;
    using Vector::operator();
 
-   ParticleVector() : vdim(1), ordering(Ordering::byNODES) {};
+   ParticleVector() : vdim(1), ordering(Ordering::byNODES) {}
 
    /// Initialize an empty ParticleVector of vdim \p vdim_ with
    /// ordering \p ordering_.

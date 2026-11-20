@@ -154,8 +154,8 @@ void TMOP_AssembleDiagPA_AdaptLim_2D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiagCoef2D, TMOP_AssembleDiagPA_C0_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiagCoef2D);
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiagCoef2D, TMOP_AssembleDiagPA_C0_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiagCoef2D)
 
 void TMOP_Integrator::AssembleDiagonalPA_C0_2D(Vector &diagonal) const
 {
@@ -171,8 +171,8 @@ void TMOP_Integrator::AssembleDiagonalPA_C0_2D(Vector &diagonal) const
 }
 
 MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiagAdaptLim2D,
-                       TMOP_AssembleDiagPA_AdaptLim_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiagAdaptLim2D);
+                       TMOP_AssembleDiagPA_AdaptLim_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiagAdaptLim2D)
 
 void TMOP_Integrator::AssembleDiagonalPA_AdaptLim_2D(Vector &diagonal) const
 {
