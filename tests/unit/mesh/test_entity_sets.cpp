@@ -492,4 +492,72 @@ TEST_CASE("Parallel entity sets retain shared descendants through rebalance",
    REQUIRE(GlobalEntitySetSize(mesh, EntitySets::ELEMENT) == serial_mesh.GetNE());
 }
 
+TEST_CASE("Parallel 3D face sets retain shared descendants",
+          "[Parallel][Mesh][NCMesh]")
+{
+   Mesh serial_mesh = Mesh::MakeCartesian3D(2, 2, 1, Element::HEXAHEDRON);
+   int shared_face = -1;
+   int neighbor = -1;
+   for (int face = 0; face < serial_mesh.GetNumFaces(); face++)
+   {
+      int element1, element2;
+      serial_mesh.GetFaceElements(face, &element1, &element2);
+      if (element1 == 0 && element2 >= 0)
+      {
+         shared_face = face;
+         neighbor = element2;
+         break;
+      }
+   }
+   REQUIRE(shared_face >= 0);
+
+   Mesh expected = Mesh::MakeCartesian3D(2, 2, 1, Element::HEXAHEDRON);
+   EntitySets &expected_sets = expected.GetOrCreateEntitySets();
+   expected_sets.AddSet(EntitySets::FACE, "shared face");
+   expected_sets.AddEntity(EntitySets::FACE, 0, shared_face);
+   expected.EnsureNCMesh(true);
+   Array<Refinement> expected_refinements(2);
+   expected_refinements[0].Set(0, Refinement::XYZ);
+   expected_refinements[1].Set(neighbor, Refinement::XYZ);
+   expected.GeneralRefinement(expected_refinements, 1);
+   const int refined_faces = expected.ent_sets->GetNumEntities(EntitySets::FACE, 0);
+   REQUIRE(refined_faces == 4);
+
+   EntitySets &serial_sets = serial_mesh.GetOrCreateEntitySets();
+   serial_sets.AddSet(EntitySets::FACE, "shared face");
+   serial_sets.AddEntity(EntitySets::FACE, 0, shared_face);
+   serial_mesh.EnsureNCMesh(true);
+   Array<int> partitioning(serial_mesh.GetNE());
+   for (int i = 0; i < partitioning.Size(); i++)
+   {
+      partitioning[i] = i % Mpi::WorldSize();
+   }
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partitioning.GetData());
+   REQUIRE(GlobalEntitySetSize(mesh, EntitySets::FACE) == 1);
+
+   Array<Refinement> refinements;
+   int local_element = 0;
+   for (int element = 0; element < partitioning.Size(); element++)
+   {
+      if (partitioning[element] == Mpi::WorldRank())
+      {
+         if (element == 0 || element == neighbor)
+         {
+            refinements.Append(Refinement(local_element, Refinement::XYZ));
+         }
+         local_element++;
+      }
+   }
+   mesh.GeneralRefinement(refinements, 1);
+   REQUIRE(GlobalEntitySetSize(mesh, EntitySets::FACE) == refined_faces);
+
+   mesh.Rebalance();
+   REQUIRE(GlobalEntitySetSize(mesh, EntitySets::FACE) == refined_faces);
+
+   Array<real_t> error(mesh.GetNE());
+   error = 0.0;
+   REQUIRE(mesh.DerefineByError(error, 1.0));
+   REQUIRE(GlobalEntitySetSize(mesh, EntitySets::FACE) == 1);
+}
+
 #endif
