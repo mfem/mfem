@@ -84,11 +84,9 @@ protected:
    mutable Vector phys_state;
    mutable Vector phys_residual;
    mutable Vector param_residual;
-   NonlinearForm *local_form; // owned
    mutable Operator *param_grad; // owned
 
-   void ProlongateAndTransform(const Vector &t) const;
-   void SyncLocalForm() const;
+   const Vector &Prolongate(const Vector &t) const override;
 
 public:
    ParametricParNonlinearForm(ParFiniteElementSpace *pf,

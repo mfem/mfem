@@ -108,7 +108,7 @@ protected:
    const SparseMatrix *cP; // not owned
 
    bool Serial() const { return (!P || cP); }
-   const Vector &Prolongate(const Vector &x) const;
+   virtual const Vector &Prolongate(const Vector &x) const;
 
 public:
    /// Construct a NonlinearForm on the given FiniteElementSpace, @a f.

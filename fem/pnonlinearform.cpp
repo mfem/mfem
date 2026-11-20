@@ -245,50 +245,6 @@ void ParNonlinearForm::Update()
 namespace
 {
 
-class LocalNonlinearForm : public NonlinearForm
-{
-private:
-   void UseLocalVectors()
-   {
-      height = width = fes->GetVSize();
-      P = nullptr;
-      cP = nullptr;
-      ess_tdof_list.SetSize(0);
-   }
-
-public:
-   explicit LocalNonlinearForm(FiniteElementSpace *fespace)
-      : NonlinearForm(fespace)
-   {
-      UseExternalIntegrators();
-      UseLocalVectors();
-   }
-
-   void SetIntegrators(
-      const Array<NonlinearFormIntegrator*> &domain,
-      const Array<Array<int>*> &domain_markers,
-      const Array<NonlinearFormIntegrator*> &boundary,
-      const Array<Array<int>*> &boundary_markers,
-      const Array<NonlinearFormIntegrator*> &interior_faces,
-      const Array<NonlinearFormIntegrator*> &boundary_faces,
-      const Array<Array<int>*> &boundary_face_markers)
-   {
-      dnfi = domain;
-      dnfi_marker = domain_markers;
-      bnfi = boundary;
-      bnfi_marker = boundary_markers;
-      fnfi = interior_faces;
-      bfnfi = boundary_faces;
-      bfnfi_marker = boundary_face_markers;
-   }
-
-   void Update() override
-   {
-      NonlinearForm::Update();
-      UseLocalVectors();
-   }
-};
-
 class ParametricGradientOperator : public Operator
 {
 private:
@@ -347,49 +303,40 @@ public:
 }
 
 ParametricParNonlinearForm::ParametricParNonlinearForm(
-   ParFiniteElementSpace *pf,
-   ParametricStateTransformation &transformation_)
-   : ParNonlinearForm(pf), transformation(&transformation_),
-     local_form(new LocalNonlinearForm(pf)), param_grad(nullptr)
+   ParFiniteElementSpace *pf, ParametricStateTransformation &transformation_)
+   : ParNonlinearForm(pf), transformation(&transformation_), param_grad(nullptr)
 {
    MFEM_VERIFY(P != nullptr, "parallel prolongation operator is required");
 }
 
-void ParametricParNonlinearForm::ProlongateAndTransform(const Vector &t) const
+const Vector &ParametricParNonlinearForm::Prolongate(const Vector &t) const
 {
    MFEM_VERIFY(ext == nullptr,
                "ParametricParNonlinearForm currently supports only full "
                "assembly");
-   MFEM_VERIFY(t.Size() == Width(), "invalid input Vector size");
 
-   param_state.SetSize(P->Height());
-   P->Mult(t, param_state);
+   param_state = NonlinearForm::Prolongate(t);
    transformation->TransformPrimal(param_state, phys_state);
    MFEM_VERIFY(phys_state.Size() == fes->GetVSize(),
                "invalid transformed state size");
-}
-
-void ParametricParNonlinearForm::SyncLocalForm() const
-{
-   static_cast<LocalNonlinearForm *>(local_form)->SetIntegrators(
-      dnfi, dnfi_marker, bnfi, bnfi_marker, fnfi, bfnfi, bfnfi_marker);
+   return phys_state;
 }
 
 real_t ParametricParNonlinearForm::GetEnergy(const Vector &t) const
 {
-   ProlongateAndTransform(t);
-   return GetParGridFunctionEnergy(phys_state);
+   return GetParGridFunctionEnergy(Prolongate(t));
 }
 
 void ParametricParNonlinearForm::Mult(const Vector &t, Vector &r) const
 {
    MFEM_VERIFY(!fnfi.Size(),
                "shared face terms are not implemented for parametric forms");
-   ProlongateAndTransform(t);
 
-   phys_residual.SetSize(fes->GetVSize());
-   SyncLocalForm();
-   local_form->Mult(phys_state, phys_residual);
+   NonlinearForm::Mult(t, r);
+   phys_residual = aux2;
+   MFEM_VERIFY(param_state.Size() == phys_residual.Size(),
+               "incompatible local state and residual sizes: "
+               << param_state.Size() << " != " << phys_residual.Size());
    transformation->PullBackDual(param_state, phys_residual, param_residual);
 
    r.SetSize(Width());
@@ -404,12 +351,10 @@ Operator &ParametricParNonlinearForm::GetGradient(const Vector &t) const
 {
    MFEM_VERIFY(!fnfi.Size(),
                "shared face terms are not implemented for parametric forms");
-   ProlongateAndTransform(t);
 
-   phys_residual.SetSize(fes->GetVSize());
-   SyncLocalForm();
-   local_form->Mult(phys_state, phys_residual);
-   Operator &phys_gradient = local_form->GetGradient(phys_state);
+   NonlinearForm::Mult(t, param_residual);
+   phys_residual = aux2;
+   Operator &phys_gradient = NonlinearForm::GetGradient(t);
 
    delete param_grad;
    param_grad = new ParametricGradientOperator(
@@ -423,13 +368,11 @@ void ParametricParNonlinearForm::Update()
    delete param_grad;
    param_grad = nullptr;
    ParNonlinearForm::Update();
-   local_form->Update();
 }
 
 ParametricParNonlinearForm::~ParametricParNonlinearForm()
 {
    delete param_grad;
-   delete local_form;
 }
 
 
