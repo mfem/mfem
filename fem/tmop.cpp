@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-/* AD related definitions below ========================================*/
+/* AD related definitions below */
 
 /// MFEM native AD-type for first derivatives
 using AD1Type = future::dual<real_t, real_t>;
@@ -3734,6 +3734,12 @@ void TMOP_Integrator::ReleasePADeviceMemory(bool copy_to_host)
          PA.Jtr_needs_update = true;
       }
       PA.Jtr.GetMemory().DeleteDevice(copy_to_host);
+      PA.tan_X.GetMemory().DeleteDevice(copy_to_host);
+      PA.tan_R.GetMemory().DeleteDevice(copy_to_host);
+      PA.tan_J.GetMemory().DeleteDevice(copy_to_host);
+      PA.tan_H.GetMemory().DeleteDevice(copy_to_host);
+      PA.tan_D.GetMemory().DeleteDevice(copy_to_host);
+      PA.tan_C.GetMemory().DeleteDevice(copy_to_host);
    }
 }
 
@@ -4169,6 +4175,8 @@ void TMOP_Integrator::GetSurfaceFittingErrors(const Vector &d_loc,
 {
    MFEM_VERIFY(periodic == false,
                "Fitting is not supported for periodic meshes.");
+   MFEM_VERIFY(tan_analytic_surf == nullptr,
+               "Fitting is not supported for parametrized optimization.");
 
    Vector pos(d_loc.Size());
    if (x_0) { add(*x_0, d_loc, pos); }
@@ -4669,6 +4677,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
                                                  Vector &elvect)
 {
    const int dof = el.GetDof(), dim = el.GetDim();
+
    const int el_id = T.ElementNo;
 
    // Form the Vector of node positions, depending on what's the input.
@@ -4693,7 +4702,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    Jpt.SetSize(dim);
    P.SetSize(dim);
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
-   elvect.SetSize(dof*dim);
+   elvect.SetSize(dof * dim);
    PMatO.UseExternalData(elvect.GetData(), dof, dim);
 
    const IntegrationRule &ir = ActionIntegrationRule(el);
@@ -4703,7 +4712,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
    Vector weights(nqp);
    DenseTensor Jtr(dim, dim, nqp);
    DenseTensor dJtr(dim, dim, dim*nqp);
-   targetC->ComputeElementTargets(el_id, el, ir, elfun, Jtr);
+   targetC->ComputeElementTargets(T.ElementNo, el, ir, elfun, Jtr);
 
    // Limited case.
    DenseMatrix pos0;
@@ -4770,7 +4779,21 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
       if (metric_coeff) { weight_m *= metric_coeff->Eval(*Tpr, ip); }
       P *= weight_m;
-      AddMultABt(DS, P, PMatO); // w_q det(W) dmu/dx : dA/dx Winv
+
+      // Assemble the physical-coordinate residual first. The constrained
+      // parameter residual is obtained by a local chain-rule transform below.
+      for (int i = 0; i < dof; i++)
+      {
+         for (int c = 0; c < dim; c++)
+         {
+            real_t d = 0.0;
+            for (int k = 0; k < dim; k++)
+            {
+               d += DS(i, k) * P(c, k);
+            }
+            PMatO(i, c) += d;
+         }
+      }
 
       if (exact_action)
       {
@@ -4955,7 +4978,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
                {
                   for (int d2 = 0; d2 < dim; d2++)
                   {
-                     elmat(d1*dof + i, d2*dof + j) += w * hess(d1, d2);
+                     elmat(d1 * dof + i, d2 * dof + j) += w * hess(d1, d2);
                   }
                }
             }
@@ -4963,8 +4986,14 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       }
    }
 
-   if (adapt_lim_gf.Size() > 0) { AssembleElemGradAdaptLim(el, *Tpr, ir, weights, elmat); }
-   if (surf_fit_gf || surf_fit_pos) { AssembleElemGradSurfFit(el, *Tpr, elmat);}
+   if (adapt_lim_gf.Size() > 0)
+   {
+      AssembleElemGradAdaptLim(el, *Tpr, ir, weights, elmat);
+   }
+   if (surf_fit_gf || surf_fit_pos)
+   {
+      AssembleElemGradSurfFit(el, *Tpr, elmat);
+   }
 
    delete Tpr;
 }
@@ -5813,12 +5842,18 @@ UpdateAfterMeshPositionChange(const Vector &d, const FiniteElementSpace &d_fes)
    Vector x_loc;
    if (periodic)
    {
+      MFEM_VERIFY(x_0, "Periodic updates require an initial mesh state.");
       GetPeriodicPositions(*x_0, d, *x_0->FESpace(), d_fes, x_loc);
    }
-   else
+   else if (x_0)
    {
       x_loc.SetSize(x_0->Size());
       add(*x_0, d, x_loc);
+   }
+   else
+   {
+      // The input is an absolute physical state, as used by a parametric form.
+      x_loc = d;
    }
 
    // Update the target constructor if it's a discrete one.
