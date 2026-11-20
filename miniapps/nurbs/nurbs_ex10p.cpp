@@ -264,7 +264,7 @@ int main(int argc, char *argv[])
    //    parallel degrees of freedom, with offsets given by array true_offset.
    FiniteElementCollection *fec = nullptr;
    NURBSExtension *NURBSext = nullptr;
-   if (mesh->NURBSext)
+   if (pmesh->NURBSext)
    {
       NURBSext = new NURBSExtension(pmesh->NURBSext, order);
       fec = new NURBSFECollection(order);

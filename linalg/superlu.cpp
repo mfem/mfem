@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -291,6 +291,13 @@ SuperLUSolver::~SuperLUSolver()
 
       if (APtr_)
       {
+#if SUPERLU_DIST_MAJOR_VERSION >= 9
+         // All process layers hold the L and U factors (2D distribution of
+         // their part of the elimination tree) and the 3D solve structures
+         SolveFinalize(options, SOLVEstruct);
+         Destroy_LU(APtr_->GetGlobalNumColumns(), &(grid3d->grid2d),
+                    LUstruct);
+#else
          if (grid3d->zscp.Iam == 0)
          {
             // Process layer 0
@@ -304,6 +311,7 @@ SuperLUSolver::~SuperLUSolver()
             DeAllocLlu_3d(APtr_->GetGlobalNumColumns(), LUstruct, grid3d);
             DeAllocGlu_3d(LUstruct);
          }
+#endif
          Destroy_A3d_gathered_on_2d(SOLVEstruct, grid3d);
          ScalePermstructFree(ScalePermstruct);
          LUstructFree(LUstruct);
@@ -363,14 +371,19 @@ void SuperLUSolver::Init(MPI_Comm comm)
    // Set default options:
    //    options.Fact = DOFACT;
    //    options.Equil = YES;
+   //    options.ParSymbFact = NO;
    //    options.ColPerm = METIS_AT_PLUS_A;
    //    options.RowPerm = LargeDiag_MC64;
    //    options.ReplaceTinyPivot = NO;
-   //    options.Trans = NOTRANS;
    //    options.IterRefine = SLU_DOUBLE;
+   //    options.Trans = NOTRANS;
    //    options.SolveInitialized = NO;
    //    options.RefineInitialized = NO;
    //    options.PrintStat = YES;
+   //    options.lookahead_etree = NO;
+   //    options.num_lookaheads = 10;
+   //    options.superlu_acc_offload = 1;
+   //    options.SymPattern = NO;
    superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;
    set_default_options_dist(options);
 #if SUPERLU_DIST_MAJOR_VERSION > 7 || \
@@ -451,6 +464,32 @@ void SuperLUSolver::SetLookAheadElimTree(bool etree)
    options->lookahead_etree = opt;
 }
 
+void SuperLUSolver::SetRelaxedSupernodeSize(int relax)
+{
+#if SUPERLU_DIST_MAJOR_VERSION >= 8
+   MFEM_VERIFY(relax > 0, "The relaxed supernode size must be positive!");
+   superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;
+   options->superlu_relax = relax;
+#else
+   MFEM_CONTRACT_VAR(relax);
+   MFEM_ABORT("SetRelaxedSupernodeSize requires SuperLU_DIST 8.0 or newer!");
+#endif
+}
+
+void SuperLUSolver::SetMaxSupernodeSize(int maxsup)
+{
+#if SUPERLU_DIST_MAJOR_VERSION >= 8
+   MFEM_VERIFY(maxsup > 0 && maxsup <= MAX_SUPER_SIZE,
+               "The maximum supernode size must be between 1 and "
+               << MAX_SUPER_SIZE << "!");
+   superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;
+   options->superlu_maxsup = maxsup;
+#else
+   MFEM_CONTRACT_VAR(maxsup);
+   MFEM_ABORT("SetMaxSupernodeSize requires SuperLU_DIST 8.0 or newer!");
+#endif
+}
+
 void SuperLUSolver::SetSymmetricPattern(bool sym)
 {
    superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;
@@ -470,6 +509,12 @@ void SuperLUSolver::SetFact(superlu::Fact fact)
    superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;
    fact_t opt = (fact_t)fact;
    options->Fact = opt;
+}
+
+void SuperLUSolver::SetDeviceOffload(bool offload)
+{
+   superlu_dist_options_t *options = (superlu_dist_options_t *)optionsPtr_;
+   options->superlu_acc_offload = offload;
 }
 
 void SuperLUSolver::SetOperator(const Operator &op)
@@ -532,9 +577,9 @@ void SuperLUSolver::SetOperator(const Operator &op)
             {
                if (grid3d->zscp.Iam == 0)
                {
-                  ZeroLblocks(grid3d->iam, APtr_->GetGlobalNumColumns(),
+                  ZeroLblocks(grid3d->grid2d.iam, APtr_->GetGlobalNumColumns(),
                               &(grid3d->grid2d), LUstruct);
-                  ZeroUblocks(grid3d->iam, APtr_->GetGlobalNumColumns(),
+                  ZeroUblocks(grid3d->grid2d.iam, APtr_->GetGlobalNumColumns(),
                               &(grid3d->grid2d), LUstruct);
                }
             }
@@ -556,6 +601,10 @@ void SuperLUSolver::SetOperator(const Operator &op)
 (SUPERLU_DIST_MAJOR_VERSION == 7 && SUPERLU_DIST_MINOR_VERSION >= 2)
             if (npdep_ > 1)
             {
+#if SUPERLU_DIST_MAJOR_VERSION >= 9
+               Destroy_LU(APtr_->GetGlobalNumColumns(), &(grid3d->grid2d),
+                          LUstruct);
+#else
                if (grid3d->zscp.Iam == 0)
                {
                   Destroy_LU(APtr_->GetGlobalNumColumns(), &(grid3d->grid2d),
@@ -567,6 +616,7 @@ void SuperLUSolver::SetOperator(const Operator &op)
                                 grid3d);
                   DeAllocGlu_3d(LUstruct);
                }
+#endif
             }
             else
 #endif

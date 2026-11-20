@@ -3,30 +3,30 @@
 //
 // Compile with: make ex1p
 //
-// Sample runs:  mpirun -np 4 ex1p -m ../data/square-disc.mesh
-//               mpirun -np 4 ex1p -m ../data/star.mesh
-//               mpirun -np 4 ex1p -m ../data/star-mixed.mesh
-//               mpirun -np 4 ex1p -m ../data/escher.mesh
-//               mpirun -np 4 ex1p -m ../data/fichera.mesh
-//               mpirun -np 4 ex1p -m ../data/fichera-mixed.mesh
-//               mpirun -np 4 ex1p -m ../data/toroid-wedge.mesh
-//               mpirun -np 4 ex1p -m ../data/periodic-annulus-sector.msh
-//               mpirun -np 4 ex1p -m ../data/periodic-torus-sector.msh
-//               mpirun -np 4 ex1p -m ../data/square-disc-p2.vtk -o 2
-//               mpirun -np 4 ex1p -m ../data/square-disc-p3.mesh -o 3
-//               mpirun -np 4 ex1p -m ../data/square-disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../data/star-mixed-p2.mesh -o 2
-//               mpirun -np 4 ex1p -m ../data/disc-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../data/pipe-nurbs.mesh -o -1
-//               mpirun -np 4 ex1p -m ../data/ball-nurbs.mesh -o 2
-//               mpirun -np 4 ex1p -m ../data/fichera-mixed-p2.mesh -o 2
-//               mpirun -np 4 ex1p -m ../data/star-surf.mesh
-//               mpirun -np 4 ex1p -m ../data/square-disc-surf.mesh
-//               mpirun -np 4 ex1p -m ../data/inline-segment.mesh
-//               mpirun -np 4 ex1p -m ../data/amr-quad.mesh
-//               mpirun -np 4 ex1p -m ../data/amr-hex.mesh
-//               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh
-//               mpirun -np 4 ex1p -m ../data/mobius-strip.mesh -o -1 -sc
+// Sample runs:  mpirun -np 4 ex1p -m ../../data/square-disc.mesh
+//               mpirun -np 4 ex1p -m ../../data/star.mesh
+//               mpirun -np 4 ex1p -m ../../data/star-mixed.mesh
+//               mpirun -np 4 ex1p -m ../../data/escher.mesh
+//               mpirun -np 4 ex1p -m ../../data/fichera.mesh
+//               mpirun -np 4 ex1p -m ../../data/fichera-mixed.mesh
+//               mpirun -np 4 ex1p -m ../../data/toroid-wedge.mesh
+//               mpirun -np 4 ex1p -m ../../data/periodic-annulus-sector.msh
+//               mpirun -np 4 ex1p -m ../../data/periodic-torus-sector.msh
+//               mpirun -np 4 ex1p -m ../../data/square-disc-p2.vtk -o 2
+//               mpirun -np 4 ex1p -m ../../data/square-disc-p3.mesh -o 3
+//               mpirun -np 4 ex1p -m ../../data/square-disc-nurbs.mesh -o -1
+//               mpirun -np 4 ex1p -m ../../data/star-mixed-p2.mesh -o 2
+//               mpirun -np 4 ex1p -m ../../data/disc-nurbs.mesh -o -1
+//               mpirun -np 4 ex1p -m ../../data/pipe-nurbs.mesh -o -1
+//               mpirun -np 4 ex1p -m ../../data/ball-nurbs.mesh -o 2
+//               mpirun -np 4 ex1p -m ../../data/fichera-mixed-p2.mesh -o 2
+//               mpirun -np 4 ex1p -m ../../data/star-surf.mesh
+//               mpirun -np 4 ex1p -m ../../data/square-disc-surf.mesh
+//               mpirun -np 4 ex1p -m ../../data/inline-segment.mesh
+//               mpirun -np 4 ex1p -m ../../data/amr-quad.mesh
+//               mpirun -np 4 ex1p -m ../../data/amr-hex.mesh
+//               mpirun -np 4 ex1p -m ../../data/mobius-strip.mesh
+//               mpirun -np 4 ex1p -m ../../data/mobius-strip.mesh -o -1 -sc
 //
 // Device sample runs:
 //               mpirun -np 4 ex1p -pa -d cuda
@@ -35,10 +35,10 @@
 //               mpirun -np 4 ex1p -pa -d ceed-cpu
 //             * mpirun -np 4 ex1p -pa -d ceed-cuda
 //               mpirun -np 4 ex1p -pa -d ceed-cuda:/gpu/cuda/shared
-//               mpirun -np 4 ex1p -m ../data/beam-tet.mesh -pa -d ceed-cpu
+//               mpirun -np 4 ex1p -m ../../data/beam-tet.mesh -pa -d ceed-cpu
 //
 // Description: This example is a copy of Example 1 instrumented with the
-//              Caliper performance profilinh library. Any option supported by
+//              Caliper performance profiling library. Any option supported by
 //              the Caliper ConfigManager can be passed to the code using a
 //              configuration string after -p or --caliper flag. For more
 //              information, see the Caliper documentation.

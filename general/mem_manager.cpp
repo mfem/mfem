@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <algorithm> // std::max
 #include <cstdint>
+#include <memory> // std::unique_ptr
 
 // Uncomment to try _WIN32 platform
 //#define _WIN32
@@ -759,7 +760,9 @@ private:
    {
       switch (mt)
       {
-         case MT::HOST_DEBUG: return new MmuHostMemorySpace();
+         case MT::HOST_DEBUG:
+            if (GetEnv("MFEM_MMU_STD")) { return new StdHostMemorySpace(); }
+            return new MmuHostMemorySpace();
 #ifdef MFEM_USE_UMPIRE
          case MT::HOST_UMPIRE:
             return new UmpireHostMemorySpace(
@@ -788,7 +791,9 @@ private:
          case MT::DEVICE_UMPIRE: return new NoDeviceMemorySpace();
          case MT::DEVICE_UMPIRE_2: return new NoDeviceMemorySpace();
 #endif
-         case MT::DEVICE_DEBUG: return new MmuDeviceMemorySpace();
+         case MT::DEVICE_DEBUG:
+            if (GetEnv("MFEM_MMU_STD")) { return new StdDeviceMemorySpace(); }
+            return new MmuDeviceMemorySpace();
          case MT::DEVICE:
          {
 #if defined(MFEM_USE_CUDA)
@@ -1735,16 +1740,15 @@ int MemoryManager::CompareHostAndDevice_(void *h_ptr, size_t size,
    void *d_ptr = (flags & Mem::ALIAS) ?
                  mm.GetAliasDevicePtr(h_ptr, size, false) :
                  mm.GetDevicePtr(h_ptr, size, false);
-   char *h_buf = new char[size];
+   std::unique_ptr<char[]> h_buf(new char[size]);
 #if defined(MFEM_USE_CUDA)
-   CuMemcpyDtoH(h_buf, d_ptr, size);
+   CuMemcpyDtoH(h_buf.get(), d_ptr, size);
 #elif defined(MFEM_USE_HIP)
-   HipMemcpyDtoH(h_buf, d_ptr, size);
+   HipMemcpyDtoH(h_buf.get(), d_ptr, size);
 #else
-   std::memcpy(h_buf, d_ptr, size);
+   std::memcpy(h_buf.get(), d_ptr, size);
 #endif
-   int res = std::memcmp(h_ptr, h_buf, size);
-   delete [] h_buf;
+   int res = std::memcmp(h_ptr, h_buf.get(), size);
    return res;
 }
 

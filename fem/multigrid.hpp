@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -187,8 +187,7 @@ public:
    /// mesh boundary element attributes that define the essential DOFs.
    ///
    /// If @a ess_bdr is empty, or all its entries are 0, then no essential
-   /// boundary conditions are imposed and the protected array essentialTrueDofs
-   /// remains empty.
+   /// boundary conditions are imposed.
    GeometricMultigrid(const FiniteElementSpaceHierarchy& fespaces_,
                       const Array<int> &ess_bdr);
 

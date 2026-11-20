@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -113,6 +113,10 @@ void ConduitDataCollection::Save()
       QuadratureFunctionToBlueprintField(qf,
                                          n_mesh["fields"][name]);
    }
+
+   // TODO: in parallel, we need to call ParFiniteElementSpace::ApplyDofSigns
+   // for all ParGridFunction objects before and after saving, see
+   // ParGridFunction::Save.
 
    // save mesh data
    SaveMeshAndFields(myid,
@@ -1453,8 +1457,6 @@ ConduitDataCollection::LoadMeshAndFields(int domain_id,
 std::string
 ConduitDataCollection::ElementTypeToShapeName(Element::Type element_type)
 {
-   // Adapted from SidreDataCollection
-
    // Note -- the mapping from Element::Type to string is based on
    //   enum Element::Type { POINT, SEGMENT, TRIANGLE, QUADRILATERAL,
    //                        TETRAHEDRON, HEXAHEDRON };

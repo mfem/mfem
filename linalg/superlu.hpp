@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -78,7 +78,7 @@ typedef enum
 /// Define how to do iterative refinement
 typedef enum
 {
-   /// No interative refinement
+   /// No iterative refinement
    NOREFINE,
    /// Iterative refinement accumulating residuals in a float.
    SLU_SINGLE=1,
@@ -97,8 +97,8 @@ typedef enum
    /** @brief Matrix A will be factored assuming the sparsity is the same as a
        previous factorization.  Column permutations will be reused. */
    SamePattern,
-   /** @brief Matrix A will be factored assuming the sparsity is the same and
-       the matrix as a previous are similar as a previous factorization.  Column
+   /** @brief Matrix A will be factored assuming the sparsity is the same as, and
+       the matrix values are similar to, a previous factorization.  Column
        permutations and row permutations will be reused. */
    SamePattern_SameRowPerm,
    /** @brief The matrix A was provided in fully factored form and no
@@ -205,7 +205,7 @@ public:
    /// Specify whether to print the solver statistics (default true)
    void SetPrintStatistics(bool print_stat);
 
-   /** @brief Specify whether to equibrate the system scaling to make
+   /** @brief Specify whether to equilibrate the system scaling to make
       the rows and columns have unit norms.  (default true) */
    void SetEquilibriate(bool equil);
 
@@ -246,11 +246,27 @@ public:
        (default false) */
    void SetLookAheadElimTree(bool etree);
 
+   /** @brief Specify the maximum number of columns of a relaxed supernode
+       (default 30 in SuperLU_DIST 9.1 and newer, 60 before). Larger relaxed
+       supernodes mean fewer, larger blocks in the factors and fewer messages
+       in the distributed triangular solves, at the cost of more fill. The
+       value is capped by the maximum supernode size, and the environment
+       variable SUPERLU_RELAX takes precedence if set. Requires SuperLU_DIST 8.0
+       or newer. */
+   void SetRelaxedSupernodeSize(int relax);
+
+   /** @brief Specify the maximum number of columns of a supernode (default
+       256, at most MAX_SUPER_SIZE = 512). The environment variable
+       SUPERLU_MAXSUP takes precedence if set. Requires SuperLU_DIST 8.0 or
+       newer. */
+   void SetMaxSupernodeSize(int maxsup);
+
    /** @brief Specify whether the matrix has a symmetric pattern to avoid extra
        work (default false) */
    void SetSymmetricPattern(bool sym);
 
-   /** @brief Specify whether to perform parallel symbolic factorization.
+   /** @brief Specify whether to perform parallel symbolic factorization
+       (default false)
        @note If true SuperLU will use superlu::PARMETIS for the Column
        Permutation regardless of the setting */
    void SetParSymbFact(bool par);
@@ -262,6 +278,10 @@ public:
        superlu::DOFACT, superlu::SamePattern, superlu::SamePattern_SameRowPerm,
        superlu::FACTORED*/
    void SetFact(superlu::Fact fact);
+
+   /** @brief Specify whether to offload numerical factorization onto the device
+       (default true if SuperLU_DIST has been compiled with GPU support) */
+   void SetDeviceOffload(bool offload);
 
    // Processor grid for SuperLU_DIST.
    const int nprow_, npcol_, npdep_;

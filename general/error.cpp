@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -171,7 +171,7 @@ void mfem_error(const char *msg)
 #ifdef MFEM_USE_EXCEPTIONS
    if (mfem_error_action == MFEM_ERROR_THROW)
    {
-      throw ErrorException(msg);
+      throw ErrorException(msg ? msg : "");
    }
 #endif
 

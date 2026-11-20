@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -272,6 +272,23 @@ public:
    void EnableStaticCondensation();
 
    Vector & ComputeResidual(const Vector & x);
+
+   void GetTraceFESpaces(Array<FiniteElementSpace *> & trace_fes) const
+   {
+      trace_fes.SetSize(0);
+      Array<FiniteElementSpace *> trace_fes_all;
+      if (static_cond)
+      {
+         static_cond->GetTraceFESpaces(trace_fes_all);
+         for (int i = 0; i < trace_fes_all.Size(); i++)
+         {
+            if (trace_fes_all[i])
+            {
+               trace_fes.Append(trace_fes_all[i]);
+            }
+         }
+      }
+   }
 
    /// Destroys bilinear form.
    virtual ~ComplexDPGWeakForm();

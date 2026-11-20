@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -320,8 +320,12 @@ TEST_CASE("NormalTraceJumpIntegrator Element Assembly", "[AssemblyLevel][GPU]")
 {
    const auto fname = GENERATE(
                          "../../data/inline-quad.mesh",
+                         "../../data/amr-quad.mesh",
+                         "../../data/beam-quad-amr.mesh",
                          "../../data/star-q3.mesh",
                          "../../data/inline-hex.mesh",
+                         "../../data/amr-hex.mesh",
+                         "../../data/fichera-amr.mesh",
                          "../../data/fichera-q3.mesh"
                       );
    const int order = GENERATE(1, 2, 3);
@@ -356,7 +360,7 @@ TEST_CASE("NormalTraceJumpIntegrator Element Assembly", "[AssemblyLevel][GPU]")
    for (int f = 0; f < mesh.GetNumFaces(); ++f)
    {
       const Mesh::FaceInformation info = mesh.GetFaceInformation(f);
-      if (!info.IsInterior()) { continue; }
+      if (!info.IsInterior() || info.IsNonconformingCoarse()) { continue; }
 
       const int el1 = info.element[0].index;
       const int el2 = info.element[1].index;

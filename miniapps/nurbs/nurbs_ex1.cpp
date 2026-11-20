@@ -18,7 +18,15 @@
 //               nurbs_ex1 -m meshes/two-cubes-nurbs-rot.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
 //               nurbs_ex1 -m meshes/two-cubes-nurbs-autoedge.mesh -o 1 -r 3 -rf meshes/two-cubes.ref
 //               nurbs_ex1 -m ../../data/segment-nurbs.mesh -r 2 -o 2 -lod 3
-//
+//               nurbs_ex1 -m meshes/square-nurbs-deformed.mesh -o 2
+//               nurbs_ex1 -m meshes/square-nurbs-deformed.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m meshes/cube-nurbs-deformed.mesh -o 2
+//               nurbs_ex1 -m meshes/cube-nurbs-deformed.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m ../../data/disc-nurbs-single-patch.mesh -o 2
+//               nurbs_ex1 -m ../../data/disc-nurbs-single-patch.mesh -o 2 -no-ibp
+//               nurbs_ex1 -m ../../data/ball-nurbs-single-patch.mesh -o 4 -r 2
+//               nurbs_ex1 -m ../../data/ball-nurbs-single-patch.mesh -o 4 -r 2 -no-ibp
+
 // Description:  This example code demonstrates the use of MFEM to define a
 //               simple finite element discretization of the Poisson problem
 //               -Delta u = 1 with homogeneous Dirichlet boundary conditions.
@@ -191,7 +199,7 @@ int main(int argc, char *argv[])
                   "Boundaries with Neumann BCs");
    args.AddOption(&homogenousBC, "-h", "--hom",
                   "-nh", "--no-hom",
-                  "Selection for using homogenous Dirichelet boundary conditions.");
+                  "Selection for using homogeneous Dirichelet boundary conditions.");
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree) or -1 for"
                   " isoparametric space.");
@@ -553,9 +561,18 @@ int main(int argc, char *argv[])
    }
 
    // 14. Save data in the VisIt format
-   VisItDataCollection visit_dc("Example1", mesh);
-   visit_dc.RegisterField("solution", &x);
-   visit_dc.Save();
+   if (ibp)
+   {
+      VisItDataCollection visit_dc("Example1", mesh);
+      visit_dc.RegisterField("solution", &x);
+      visit_dc.Save();
+   }
+   else
+   {
+      VisItDataCollection visit_dc("Example1_nibp", mesh);
+      visit_dc.RegisterField("solution", &x);
+      visit_dc.Save();
+   }
 
    // 15. Free the used memory.
    delete a;

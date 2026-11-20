@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -453,8 +453,15 @@ QuadratureInterpolator::TensorEvalHDivKernels::Kernel()
 {
    using namespace internal::quadrature_interpolator;
    static_assert(DIM == 2 || DIM == 3, "only DIM=2 and DIM=3 are implemented!");
-   if (DIM == 2) { return EvalHDiv2D<Q_LAYOUT, FLAGS, D1D, Q1D>; }
-   return EvalHDiv3D<Q_LAYOUT, FLAGS, D1D, Q1D>;
+   if constexpr (DIM == 2)
+   {
+      return EvalHDiv2D<Q_LAYOUT, FLAGS, D1D, Q1D>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return EvalHDiv3D<Q_LAYOUT, FLAGS, D1D, Q1D>;
+   }
+   MFEM_ABORT("only DIM=2 and DIM=3 are implemented!");
 }
 
 /// @endcond

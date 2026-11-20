@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -13,6 +13,10 @@
 using namespace mfem;
 
 #include "unit_tests.hpp"
+#include <cstdio>
+#include <iomanip>
+#include <limits>
+#include <sstream>
 
 TEST_CASE("NURBS knot insertion and removal", "[NURBS]")
 {
@@ -132,6 +136,138 @@ TEST_CASE("NURBS mesh reconstruction", "[NURBS]")
    for (auto *p : patches) { delete p; }
 }
 
+#ifdef MFEM_USE_HDF5
+TEST_CASE("Native NURBS HDF5 round trip", "[NURBS][HDF5]")
+{
+   struct TestCase
+   {
+      const char *input;
+      const char *output;
+      const char *format;
+      bool nc_patch;
+   };
+
+   const TestCase test = GENERATE(
+                            (TestCase{"../../data/pipe-nurbs.mesh", "nurbs-v10-test.h5",
+                                      "MFEM NURBS mesh v1.0", false}),
+                            (TestCase{"../../miniapps/nurbs/meshes/two-squares-nurbs.mesh",
+                                      "nurbs-patches-v10-test.h5", "MFEM NURBS mesh v1.0", false}),
+                            (TestCase{"../../data/beam-quad-nurbs-sf.mesh", "nurbs-v11-test.h5",
+                                      "MFEM NURBS mesh v1.1", false}),
+                            (TestCase{"../../data/nc-nurbs3d.mesh", "nurbs-nc-v10-test.h5",
+                                      "MFEM NURBS NC-patch mesh v1.0", true}));
+
+   Mesh original(test.input, 1, 1);
+   REQUIRE(original.NURBSext != nullptr);
+   REQUIRE(original.NURBSext->NonconformingPatches() == test.nc_patch);
+
+   original.SaveNURBSHDF5(test.output);
+   Mesh restored(test.output, 1, 1);
+   Mesh restored2 = Mesh::LoadFromFile(test.output, 1, 1);
+
+   REQUIRE(restored.NURBSext != nullptr);
+   REQUIRE(restored2.NURBSext != nullptr);
+   REQUIRE(restored.NURBSext->NonconformingPatches() == test.nc_patch);
+   REQUIRE(restored.Dimension() == original.Dimension());
+   REQUIRE(restored.SpaceDimension() == original.SpaceDimension());
+   REQUIRE(restored.GetNE() == original.GetNE());
+   REQUIRE(restored.GetNBE() == original.GetNBE());
+   REQUIRE(restored.NURBSext->GetNP() == original.NURBSext->GetNP());
+   REQUIRE(restored.NURBSext->GetNKV() == original.NURBSext->GetNKV());
+   REQUIRE(restored2.GetNE() == original.GetNE());
+
+   Vector weight_difference = restored.NURBSext->GetWeights();
+   weight_difference -= original.NURBSext->GetWeights();
+   REQUIRE(weight_difference.Normlinf() == MFEM_Approx(0.0));
+
+   Vector node_difference = *restored.GetNodes();
+   node_difference -= *original.GetNodes();
+   REQUIRE(node_difference.Normlinf() == MFEM_Approx(0.0));
+
+   std::ostringstream original_text, restored_text;
+   const int precision = std::numeric_limits<real_t>::max_digits10;
+   original_text << std::setprecision(precision);
+   restored_text << std::setprecision(precision);
+   original.Print(original_text);
+   restored.Print(restored_text);
+   REQUIRE(original_text.str().find(std::string(test.format) + "\n") == 0);
+   REQUIRE(restored_text.str() == original_text.str());
+
+   REQUIRE(std::remove(test.output) == 0);
+}
+#endif
+
+TEST_CASE("NURBSPatch skips comments while loading", "[NURBS]")
+{
+   SECTION("Homogeneous control points")
+   {
+      std::stringstream input(R"(
+# before knotvectors
+knotvectors
+1
+# before first knotvector
+1 2 0 0 1 1
+
+# before dimension
+dimension
+2
+
+# before controlpoints
+controlpoints
+# before first control point
+0.0 0.0 1.0
+# before second control point
+1.0 0.0 1.0
+)");
+
+      NURBSPatch patch(input);
+      REQUIRE(patch.GetNKV() == 1);
+      REQUIRE(patch.GetNC() == 3);
+      REQUIRE(patch.GetKV(0)->GetOrder() == 1);
+      REQUIRE(patch.GetKV(0)->GetNCP() == 2);
+      REQUIRE(patch(0, 0) == MFEM_Approx(0.0));
+      REQUIRE(patch(0, 1) == MFEM_Approx(0.0));
+      REQUIRE(patch(0, 2) == MFEM_Approx(1.0));
+      REQUIRE(patch(1, 0) == MFEM_Approx(1.0));
+      REQUIRE(patch(1, 1) == MFEM_Approx(0.0));
+      REQUIRE(patch(1, 2) == MFEM_Approx(1.0));
+   }
+
+   SECTION("Cartesian control points")
+   {
+      std::stringstream input(R"(
+# before knotvectors
+knotvectors
+1
+# before first knotvector
+1 2 0 0 1 1
+
+# before dimension
+dimension
+2
+
+# before controlpoints
+controlpoints_cartesian
+# before first control point
+0.0 0.0 1.0
+# before second control point
+2.0 4.0 0.5
+)");
+
+      NURBSPatch patch(input);
+      REQUIRE(patch.GetNKV() == 1);
+      REQUIRE(patch.GetNC() == 3);
+      REQUIRE(patch.GetKV(0)->GetOrder() == 1);
+      REQUIRE(patch.GetKV(0)->GetNCP() == 2);
+      REQUIRE(patch(0, 0) == MFEM_Approx(0.0));
+      REQUIRE(patch(0, 1) == MFEM_Approx(0.0));
+      REQUIRE(patch(0, 2) == MFEM_Approx(1.0));
+      REQUIRE(patch(1, 0) == MFEM_Approx(1.0));
+      REQUIRE(patch(1, 1) == MFEM_Approx(2.0));
+      REQUIRE(patch(1, 2) == MFEM_Approx(0.5));
+   }
+}
+
 TEST_CASE("Location conversion check", "[NURBS]")
 {
 
@@ -222,13 +358,13 @@ TEST_CASE("Greville, Botella and Demko points", "[NURBS]")
       mfem::out<<"Knotvector : "; kvp.Print(mfem::out);
 
       kvp.GetGreville(xi);
-      mfem::out<<"Greville points : "; xi.Print(std::cout,999);
+      mfem::out<<"Greville points : "; xi.Print(mfem::out,999);
 
       kvp.GetBotella(xi);
-      mfem::out<<"Botella  points : "; xi.Print(std::cout,999);
+      mfem::out<<"Botella  points : "; xi.Print(mfem::out,999);
 
       kvp.GetDemko(xi);
-      mfem::out<<"Demko    points : "; xi.Print(std::cout,999);
+      mfem::out<<"Demko    points : "; xi.Print(mfem::out,999);
    }
 
    KnotVector kv(3, Vector({0.0, 0.3, 0.3, 0.3, 0.6, 1.0}));

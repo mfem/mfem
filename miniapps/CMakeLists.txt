@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -35,6 +35,7 @@ add_subdirectory(multidomain)
 add_subdirectory(nurbs)
 add_subdirectory(parelag)
 add_subdirectory(performance)
+add_subdirectory(plasma)
 add_subdirectory(shifted)
 add_subdirectory(solvers)
 add_subdirectory(spde)

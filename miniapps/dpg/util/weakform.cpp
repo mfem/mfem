@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -106,9 +106,9 @@ void DPGWeakForm::AddTrialIntegrator(
    BilinearFormIntegrator *bfi, int n, int m)
 {
    MFEM_VERIFY(n>=0 && n<trial_fes.Size(),
-               "DPGWeakFrom::AddTrialIntegrator: trial fespace index out of bounds");
+               "DPGWeakForm::AddTrialIntegrator: trial fespace index out of bounds");
    MFEM_VERIFY(m>=0 && m<test_fecols.Size(),
-               "DPGWeakFrom::AddTrialIntegrator: test fecol index out of bounds");
+               "DPGWeakForm::AddTrialIntegrator: test fecol index out of bounds");
    trial_integs(n,m)->Append(bfi);
 }
 
@@ -117,7 +117,7 @@ void DPGWeakForm::AddTestIntegrator
 (BilinearFormIntegrator *bfi, int n, int m)
 {
    MFEM_VERIFY(n>=0 && n<test_fecols.Size() && m>=0 && m<test_fecols.Size(),
-               "DPGWeakFrom::AdTestIntegrator: test fecol index out of bounds");
+               "DPGWeakForm::AddTestIntegrator: test fecol index out of bounds");
    test_integs(n,m)->Append(bfi);
 }
 
@@ -126,7 +126,7 @@ void DPGWeakForm::AddDomainLFIntegrator(
    LinearFormIntegrator *lfi, int n)
 {
    MFEM_VERIFY(n>=0 && n<test_fecols.Size(),
-               "DPGWeakFrom::AddDomainLFIntegrator: test fecol index out of bounds");
+               "DPGWeakForm::AddDomainLFIntegrator: test fecol index out of bounds");
    lfis[n]->Append(lfi);
 }
 

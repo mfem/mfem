@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -19,6 +19,7 @@ set(SRCS
   mesh.cpp
   mesh_operators.cpp
   mesh_readers.cpp
+  mesh_hdf5.cpp
   ncmesh.cpp
   ncnurbs.cpp
   nurbs.cpp
@@ -37,13 +38,13 @@ set(SRCS
   submesh/ncsubmesh.cpp
   submesh/submesh_utils.cpp
   submesh/transfermap.cpp
+  bb_grid_map.cpp
   )
 
 set(HDRS
   attribute_sets.hpp
   element.hpp
   face_nbr_geom.hpp
-  gmsh.hpp
   hexahedron.hpp
   mesh.hpp
   mesh_headers.hpp
@@ -68,6 +69,7 @@ set(HDRS
   submesh/submesh_utils.hpp
   submesh/transfer_category.hpp
   submesh/transfermap.hpp
+  bb_grid_map.hpp
   )
 
 if (MFEM_USE_MPI)

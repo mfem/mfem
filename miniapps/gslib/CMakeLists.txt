@@ -1,4 +1,4 @@
-# Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 # at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 # LICENSE and NOTICE for details. LLNL-CODE-806117.
 #
@@ -46,8 +46,16 @@ if (MFEM_USE_GSLIB)
 
   if (MFEM_ENABLE_TESTING)
     foreach (test "schwarz_ex1" "field-diff" "findpts" "field-interp")
-      add_test(NAME ${test}
-        COMMAND $<TARGET_FILE:${test}> -no-vis)
+      if (MFEM_USE_MPI)
+        add_test(NAME ${test}
+          COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 1
+          ${MPIEXEC_PREFLAGS}
+          $<TARGET_FILE:${test}> -no-vis
+          ${MPIEXEC_POSTFLAGS})
+      else()
+        add_test(NAME ${test}
+          COMMAND $<TARGET_FILE:${test}> -no-vis)
+      endif()
     endforeach()
   endif()
 
