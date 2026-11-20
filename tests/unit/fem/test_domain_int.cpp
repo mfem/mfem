@@ -284,6 +284,18 @@ void ShiftedGenericField(const Vector &x, Vector &v)
    v(0) += 1.0;
 }
 
+/** @brief Evaluate a smooth nonpolynomial 3D vector field.
+
+    No Nedelec space contains the field, so its ND projection has a
+    discontinuous normal trace across element faces at every order. */
+void NonpolynomialField(const Vector &x, Vector &v)
+{
+   v.SetSize(3);
+   v(0) = std::sin(3.0 * x(1)) + x(2);
+   v(1) = std::cos(2.0 * x(0)) * x(2);
+   v(2) = 1.0 + std::sin(4.0 * x(0) + 2.0 * x(1));
+}
+
 /** @brief Evaluate the 3D scalar linear field used by scalar delta tests. */
 real_t ScalarLinearField(const Vector &x)
 {
@@ -935,6 +947,85 @@ TEST_CASE("Domain Integration (Vector Delta on Hex Nonconforming Interface)",
    REQUIRE(err / ref < 1e-12);
 }
 
+/** @brief Return points on entities of the centered 24-tet hex mesh.
+
+    0 the shared center vertex (24 tets), 1 the midpoint of an edge to a face
+    center (4 tets), 2 the midpoint of an edge to a corner (6 tets), 3 the
+    centroid of an interior face (2 tets), and 4 an interior point (1 tet).
+    @a n_elems receives the number of tets containing the point. */
+Vector Hex24TetsPoint(int entity_type, int &n_elems)
+{
+   Vector p(3);
+   p = 0.0;
+   switch (entity_type)
+   {
+      case 0: n_elems = 24; break;
+      case 1: n_elems = 4; p(0) = 0.5; break;
+      case 2: n_elems = 6; p = 0.5; break;
+      case 3:
+         n_elems = 2; p(0) = 2.0 / 3.0; p(1) = 1.0 / 3.0; p(2) = 1.0 / 3.0;
+         break;
+      default: n_elems = 1; p(0) = 0.3; p(1) = 0.1; p(2) = -0.2; break;
+   }
+   return p;
+}
+
+/** @brief Average `dir . g` over the elements containing @a x0.
+
+    @a n_elems receives the number of containing elements. */
+real_t AverageDeltaAction(const GridFunction &g, const Vector &x0,
+                          const Vector &dir, int &n_elems)
+{
+   Mesh &mesh = *g.FESpace()->GetMesh();
+   real_t sum = 0.0;
+   n_elems = 0;
+   Vector gx;
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      IntegrationPoint ip;
+      if (!ElementContainsByHand(mesh, e, x0, ip)) { continue; }
+      g.GetVectorValue(e, ip, gx);
+      sum += dir * gx;
+      n_elems++;
+   }
+   return (n_elems > 0) ? sum / n_elems : 0.0;
+}
+
+TEST_CASE("Domain Integration (High-Order Vector Delta on Shared Entity)",
+          "[ND_FECollection]"
+          "[LinearForm]"
+          "[DeltaCoefficient]")
+{
+   // The load vector b of d delta(x - x0) satisfies b . g = average of d . g
+   // over the elements containing x0. For Nedelec order >= 2 on tetrahedra,
+   // the face dofs need the DofTransformation of each element.
+   const int order = GENERATE(1, 2, 3);
+   const int entity_type = GENERATE(0, 1, 2, 3, 4);
+   int n_expected;
+   const Vector x0 = Hex24TetsPoint(entity_type, n_expected);
+   const Vector dir({0.3, -0.5, 0.8});
+
+   Mesh mesh = MakeCenteredHex24Tets();
+   ND_FECollection fec(order, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   VectorFunctionCoefficient field(3, NonpolynomialField);
+   GridFunction g(&fes);
+   g.ProjectCoefficient(field);
+
+   VectorDeltaCoefficient vdc(dir, x0(0), x0(1), x0(2), 1.0);
+   LinearForm rhs(&fes);
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vdc));
+   rhs.Assemble();
+
+   int n_elems;
+   const real_t avg = AverageDeltaAction(g, x0, dir, n_elems);
+   INFO("order = " << order << ", entity_type = " << entity_type
+        << ", rhs(g) = " << rhs(g) << ", average = " << avg);
+   REQUIRE(n_elems == n_expected);
+   REQUIRE(rhs(g) == MFEM_Approx(avg));
+}
+
 #ifdef MFEM_USE_MPI
 
 TEST_CASE("Domain Integration in Parallel (Scalar Field)",
@@ -1219,6 +1310,53 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta, Scattered Partition)",
         << ", par_action = " << par_action);
    REQUIRE(par_norm == MFEM_Approx(ref_norm));
    REQUIRE(par_action == MFEM_Approx(ref_action));
+}
+
+TEST_CASE("Domain Integration in Parallel (High-Order Vector Delta)",
+          "[ParLinearForm]"
+          "[DeltaCoefficient]"
+          "[Parallel]")
+{
+   // Scatter the elements containing the center across ranks and compare with
+   // the serial average of d . g over those elements.
+   const int order = GENERATE(1, 2, 3);
+   const int entity_type = GENERATE(0, 1, 2, 3, 4);
+   int n_expected;
+   const Vector x0 = Hex24TetsPoint(entity_type, n_expected);
+   const Vector dir({0.3, -0.5, 0.8});
+
+   Mesh mesh = MakeCenteredHex24Tets();
+   ND_FECollection fec(order, 3);
+   VectorFunctionCoefficient field(3, NonpolynomialField);
+
+   real_t avg;
+   {
+      FiniteElementSpace fes(&mesh, &fec);
+      GridFunction g(&fes);
+      g.ProjectCoefficient(field);
+      int n_elems;
+      avg = AverageDeltaAction(g, x0, dir, n_elems);
+      REQUIRE(n_elems == n_expected);
+   }
+
+   const int nranks = Mpi::WorldSize();
+   Array<int> part(mesh.GetNE());
+   for (int e = 0; e < mesh.GetNE(); e++) { part[e] = e % nranks; }
+   ParMesh pmesh(MPI_COMM_WORLD, mesh, part.GetData());
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+   ParGridFunction g(&pfes);
+   g.ProjectCoefficient(field);
+
+   VectorDeltaCoefficient vdc(dir, x0(0), x0(1), x0(2), 1.0);
+   ParLinearForm rhs(&pfes);
+   rhs.AddDomainIntegrator(new VectorFEDomainLFIntegrator(vdc));
+   rhs.Assemble();
+
+   const real_t par_action = rhs(g);
+   INFO("order = " << order << ", entity_type = " << entity_type
+        << ", nranks = " << nranks << ", parallel = " << par_action
+        << ", average = " << avg);
+   REQUIRE(par_action == MFEM_Approx(avg));
 }
 
 TEST_CASE("Domain Integration in Parallel (Vector Delta on Shared Face)",
