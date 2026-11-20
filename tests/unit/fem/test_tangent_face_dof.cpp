@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -11,90 +11,108 @@
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
-#include "../mesh/mesh_test_utils.hpp"
 
 #include <cmath>
 #include <limits>
-#include <memory>
 
 using namespace mfem;
 
 #ifdef MFEM_USE_MPI
 
+namespace tangent_face_dof
+{
+
+enum class MeshType { TET, PRISM, MIXED };
+
+Mesh MakeMesh(MeshType type)
+{
+   Mesh mesh;
+   switch (type)
+   {
+      case MeshType::TET:
+         mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON,
+                                      1.0, 1.0, 1.0, false);
+         break;
+      case MeshType::PRISM:
+         mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::WEDGE,
+                                      1.0, 1.0, 1.0, false);
+         break;
+      case MeshType::MIXED:
+         // Tetrahedra, prisms and hexahedra
+         mesh = Mesh("../../data/fichera-mixed.mesh");
+         mesh.UniformRefinement();
+         break;
+   }
+
+   // Make every interior face a boundary element, so that the interior DOFs of
+   // the shared faces are projected.
+   const int attr = mesh.bdr_attributes.Max() + 1;
+   for (int f = 0; f < mesh.GetNumFaces(); f++)
+   {
+      if (mesh.FaceIsInterior(f))
+      {
+         Element *be = mesh.GetFace(f)->Duplicate(&mesh);
+         be->SetAttribute(attr);
+         mesh.AddBdrElement(be);
+      }
+   }
+   mesh.FinalizeMesh();
+   mesh.SetAttributes();
+   return mesh;
+}
+
+// A nonlinear field, which the ND spaces of order 2 and 3 do not contain.
+void Field(const Vector &x, Vector &v)
+{
+   v(0) = std::sin(1.3 * x(1)) * x(2) + 0.5;
+   v(1) = x(0) * x(0) - std::cos(0.7 * x(2));
+   v(2) = std::exp(0.5 * x(0)) * x(1);
+}
+
+} // namespace tangent_face_dof
+
 TEST_CASE("ProjectBdrCoefficientTangent face DOF orientation",
           "[Parallel][ND][DofTransformation]")
 {
+   using namespace tangent_face_dof;
+
    const int num_procs = Mpi::WorldSize();
-   if (num_procs == 1) { return; }
+   const auto type = GENERATE(MeshType::TET, MeshType::PRISM, MeshType::MIXED);
+   const int order = GENERATE(2, 3);
+   CAPTURE(int(type), order, num_procs);
 
-   Mesh smesh = DividingPlaneMesh(true, true, true);
-   const int int_bdr_attr = smesh.bdr_attributes.Max();
-   const int order = 2;
+   Mesh smesh = MakeMesh(type);
+   Array<int> bdr(smesh.bdr_attributes.Max());
+   bdr = 1;
+   VectorFunctionCoefficient coeff(3, Field);
+
    ND_FECollection fec(order, 3);
-
    FiniteElementSpace sfes(&smesh, &fec);
    GridFunction sgf(&sfes);
    sgf = 0.0;
-   VectorFunctionCoefficient coeff(3, [](const Vector &x, Vector &v)
+   sgf.ProjectBdrCoefficientTangent(coeff, bdr);
+
+   // Contiguous blocks of elements, so that the parts share triangular faces
+   // on every mesh.
+   Array<int> partitioning(smesh.GetNE());
+   for (int e = 0; e < smesh.GetNE(); e++)
    {
-      v[0] =  1.234 * x[1] - 2.357 * x[2];
-      v[1] = -1.234 * x[0] + 3.572 * x[2];
-      v[2] =  2.357 * x[0] - 3.572 * x[1];
-   });
-   Array<int> sbdr(smesh.bdr_attributes.Max());
-   sbdr = 0;
-   sbdr[int_bdr_attr - 1] = 1;
-   sgf.ProjectBdrCoefficientTangent(coeff, sbdr);
-
-   std::unique_ptr<int[]> partitioning(
-      smesh.GeneratePartitioning(num_procs));
-   ParMesh pmesh(MPI_COMM_WORLD, smesh, partitioning.get());
-   ParFiniteElementSpace pfes(&pmesh, &fec);
-
-   Array<int> pbdr(pmesh.bdr_attributes.Max());
-   pbdr = 0;
-   pbdr[int_bdr_attr - 1] = 1;
-   ParGridFunction expected(&pmesh, &sgf, partitioning.get());
-
-   Array<int> ltori, ldsize;
-   const int local_face_nnz =
-      pfes.GetSharedTriFaceDofOrientations(ltori, ldsize);
-   int local_marked_face_dofs = 0;
-   int local_exercised_face_pairs = 0;
-   Array<int> ess_vdofs;
-   pfes.GetEssentialVDofs(pbdr, ess_vdofs);
-   const real_t tol = 100 * std::numeric_limits<real_t>::epsilon();
-   for (int i = 0; i < ltori.Size(); i++)
-   {
-      if (ldsize[i] != 2) { continue; }
-      local_marked_face_dofs += 2;
-      if (ltori[i] != 0)
-      {
-         local_exercised_face_pairs +=
-            (ess_vdofs[i] && ess_vdofs[i+1] &&
-             (std::abs(expected(i)) > tol ||
-              std::abs(expected(i+1)) > tol));
-      }
-      i++;
+      partitioning[e] = (e * num_procs) / smesh.GetNE();
    }
-   REQUIRE(local_face_nnz == 2 * local_marked_face_dofs);
-   int global_exercised_face_pairs = 0;
-   MPI_Allreduce(&local_exercised_face_pairs, &global_exercised_face_pairs, 1,
-                 MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-   REQUIRE(global_exercised_face_pairs > 0);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh, partitioning);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+   REQUIRE(pfes.SharedNDTriangleDofs() == (num_procs > 1));
 
    ParGridFunction pgf(&pfes);
    pgf = 0.0;
-   pgf.ProjectBdrCoefficientTangent(coeff, pbdr);
+   pgf.ProjectBdrCoefficientTangent(coeff, bdr);
 
-   Vector error(pgf);
-   error -= expected;
-   real_t local_error = error.Normlinf();
-   real_t global_error = 0.0;
-   MPI_Allreduce(&local_error, &global_error, 1, MFEM_MPI_REAL_T, MPI_MAX,
-                 MPI_COMM_WORLD);
-
-   REQUIRE(global_error == MFEM_Approx(0.0, tol, tol));
+   ParGridFunction expected(&pmesh, &sgf, partitioning);
+   pgf -= expected;
+   const real_t error = GlobalLpNorm(infinity(), pgf.Normlinf(),
+                                     MPI_COMM_WORLD);
+   const real_t tol = 100 * std::numeric_limits<real_t>::epsilon();
+   REQUIRE(error == MFEM_Approx(0.0, tol, tol));
 }
 
 #endif
