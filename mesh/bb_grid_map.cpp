@@ -188,7 +188,11 @@ void BBoxTensorGridMap::Setup(Vector &elmin, Vector &elmax,
    if (by_max_size)
    {
       int nmax = nx[0];
-      int nlow = 1, nhigh = nmax > nel ? ceil(pow(nmax - nel, 1.0 / sdim)) : 1;
+      int nlow = 1, nhigh = 1;
+      if (nmax > nel)
+      {
+         nhigh = static_cast<int>(ceil(pow(nmax - nel, 1.0 / sdim)));
+      }
       int size_low = 2 + nel;
       int size = 0;
       while (nhigh - nlow > 1)
@@ -354,8 +358,8 @@ void BBoxTensorGridMap::GetGridRange(const int d, const Array<int> &lh_n,
    // If xmin is exactly on a grid boundary, use the cell on the right/high
    // side. If xmax is exactly on a grid boundary, stop before the cell on the
    // right/high side.
-   int i0 = floor( (xmin - lh_bnd_min[d]) * lh_fac[d] );
-   int i1 = ceil ( (xmax - lh_bnd_min[d]) * lh_fac[d] );
+   int i0 = static_cast<int>(floor((xmin - lh_bnd_min[d]) * lh_fac[d]));
+   int i1 = static_cast<int>(ceil((xmax - lh_bnd_min[d]) * lh_fac[d]));
    imin = std::clamp(i0, 0, lh_n[d] - 1);
    imax = std::clamp(i1, imin + 1, lh_n[d]);
 }

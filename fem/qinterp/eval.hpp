@@ -33,15 +33,18 @@ namespace quadrature_interpolator
 template <QVectorLayout Q_LAYOUT, bool Integral>
 void ImplValues1D(const int NE, const real_t *b_, const real_t *detJ_,
                   const real_t *x_, real_t *y_, const int vdim, const int d1d,
-                  const int q1d)
+                  const int q1d, const Array<int> *elist = nullptr)
 {
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE(int e)
+   const int NM = elist ? elist->Size() : NE; // entities processed
+   const int *d_elist = elist ? elist->Read() : nullptr;
+   mfem::forall(NM, [=] MFEM_HOST_DEVICE(int e)
    {
+      const int ex = d_elist ? d_elist[e] : e;
       const auto b = Reshape(b_, q1d, d1d);
       const auto x = Reshape(x_, d1d, vdim, NE);
       const auto detJ = Reshape(detJ_, q1d, NE);
-      auto y = Q_LAYOUT == QVectorLayout::byNODES ? Reshape(y_, q1d, vdim, NE)
-               : Reshape(y_, vdim, q1d, NE);
+      auto y = Q_LAYOUT == QVectorLayout::byNODES ? Reshape(y_, q1d, vdim, NM)
+               : Reshape(y_, vdim, q1d, NM);
       for (int c = 0; c < vdim; c++)
       {
          for (int q = 0; q < q1d; q++)
@@ -49,11 +52,11 @@ void ImplValues1D(const int NE, const real_t *b_, const real_t *detJ_,
             real_t u = 0.0;
             for (int d = 0; d < d1d; d++)
             {
-               u += b(q, d) * x(d, c, e);
+               u += b(q, d) * x(d, c, ex);
             }
             if constexpr (Integral)
             {
-               u /= detJ(q, e);
+               u /= detJ(q, ex);
             }
             if constexpr (Q_LAYOUT == QVectorLayout::byVDIM)
             {
@@ -70,9 +73,11 @@ void ImplValues1D(const int NE, const real_t *b_, const real_t *detJ_,
 
 template <QVectorLayout Q_LAYOUT>
 void Values1D(const int NE, const real_t *b_, const real_t *x_, real_t *y_,
-              const int vdim, const int d1d, const int q1d)
+              const int vdim, const int d1d, const int q1d,
+              const Array<int> *elist = nullptr)
 {
-   ImplValues1D<Q_LAYOUT, false>(NE, b_, nullptr, x_, y_, vdim, d1d, q1d);
+   ImplValues1D<Q_LAYOUT, false>(NE, b_, nullptr, x_, y_, vdim, d1d, q1d,
+                                 elist);
 }
 
 // Template compute kernel for Values in 2D: tensor product version.
@@ -80,8 +85,11 @@ template <QVectorLayout Q_LAYOUT, bool Integral, int T_VDIM = 0, int T_D1D = 0,
           int T_Q1D = 0, int T_NBZ = 1>
 void ImplValues2D(const int NE, const real_t *b_, const real_t *detJ_,
                   const real_t *x_, real_t *y_, const int vdim = 0,
-                  const int d1d = 0, const int q1d = 0)
+                  const int d1d = 0, const int q1d = 0,
+                  const Array<int> *elist = nullptr)
 {
+   const int NM = elist ? elist->Size() : NE; // entities processed
+   const int *d_elist = elist ? elist->Read() : nullptr;
    static constexpr int NBZ = T_NBZ ? T_NBZ : 1;
 
    const int D1D = T_D1D ? T_D1D : d1d;
@@ -90,13 +98,14 @@ void ImplValues2D(const int NE, const real_t *b_, const real_t *detJ_,
 
    const auto b = Reshape(b_, Q1D, D1D);
 
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D_batch(NM, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE(int e)
    {
+      const int ex = d_elist ? d_elist[e] : e;
       const auto x = Reshape(x_, D1D, D1D, VDIM, NE);
       const auto detJ = Reshape(detJ_, Q1D, Q1D, NE);
       auto y = Q_LAYOUT == QVectorLayout::byNODES
-               ? Reshape(y_, Q1D, Q1D, VDIM, NE)
-               : Reshape(y_, VDIM, Q1D, Q1D, NE);
+               ? Reshape(y_, Q1D, Q1D, VDIM, NM)
+               : Reshape(y_, VDIM, Q1D, Q1D, NM);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -122,7 +131,7 @@ void ImplValues2D(const int NE, const real_t *b_, const real_t *detJ_,
          {
             MFEM_FOREACH_THREAD(dx, x, D1D)
             {
-               DD(dx, dy) = x(dx, dy, c, e);
+               DD(dx, dy) = x(dx, dy, c, ex);
             }
          }
          MFEM_SYNC_THREAD;
@@ -135,7 +144,7 @@ void ImplValues2D(const int NE, const real_t *b_, const real_t *detJ_,
                real_t u = QQ(qx, qy);
                if constexpr (Integral)
                {
-                  u /= detJ(qx, qy, e);
+                  u /= detJ(qx, qy, ex);
                }
                if constexpr (Q_LAYOUT == QVectorLayout::byVDIM)
                {
@@ -156,10 +165,11 @@ void ImplValues2D(const int NE, const real_t *b_, const real_t *detJ_,
 template <QVectorLayout Q_LAYOUT, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0,
           int T_NBZ = 1>
 void Values2D(const int NE, const real_t *b_, const real_t *x_, real_t *y_,
-              const int vdim = 0, const int d1d = 0, const int q1d = 0)
+              const int vdim = 0, const int d1d = 0, const int q1d = 0,
+              const Array<int> *elist = nullptr)
 {
    return ImplValues2D<Q_LAYOUT, false, T_VDIM, T_D1D, T_Q1D, T_NBZ>(
-             NE, b_, nullptr, x_, y_, vdim, d1d, q1d);
+             NE, b_, nullptr, x_, y_, vdim, d1d, q1d, elist);
 }
 
 // Template compute kernel for Values in 3D: tensor product version.
@@ -167,21 +177,25 @@ template <QVectorLayout Q_LAYOUT, bool Integral, int T_VDIM = 0, int T_D1D = 0,
           int T_Q1D = 0>
 void ImplValues3D(const int NE, const real_t *b_, const real_t *detJ_,
                   const real_t *x_, real_t *y_, const int vdim = 0,
-                  const int d1d = 0, const int q1d = 0)
+                  const int d1d = 0, const int q1d = 0,
+                  const Array<int> *elist = nullptr)
 {
+   const int NM = elist ? elist->Size() : NE; // entities processed
+   const int *d_elist = elist ? elist->Read() : nullptr;
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
    const int VDIM = T_VDIM ? T_VDIM : vdim;
 
    const auto b = Reshape(b_, Q1D, D1D);
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_3D(NM, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
    {
+      const int ex = d_elist ? d_elist[e] : e;
       const auto x = Reshape(x_, D1D, D1D, D1D, VDIM, NE);
       const auto detJ = Reshape(detJ_, Q1D, Q1D, Q1D, NE);
       auto y = Q_LAYOUT == QVectorLayout::byNODES
-               ? Reshape(y_, Q1D, Q1D, Q1D, VDIM, NE)
-               : Reshape(y_, VDIM, Q1D, Q1D, Q1D, NE);
+               ? Reshape(y_, Q1D, Q1D, Q1D, VDIM, NM)
+               : Reshape(y_, VDIM, Q1D, Q1D, Q1D, NM);
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;
       const int VDIM = T_VDIM ? T_VDIM : vdim;
@@ -209,7 +223,7 @@ void ImplValues3D(const int NE, const real_t *b_, const real_t *detJ_,
             {
                MFEM_FOREACH_THREAD(dx, x, D1D)
                {
-                  DDD(dx, dy, dz) = x(dx, dy, dz, c, e);
+                  DDD(dx, dy, dz) = x(dx, dy, dz, c, ex);
                }
             }
          }
@@ -226,7 +240,7 @@ void ImplValues3D(const int NE, const real_t *b_, const real_t *detJ_,
                   real_t u = QQQ(qz,qy,qx);
                   if constexpr (Integral)
                   {
-                     u /= detJ(qx, qy, qz, e);
+                     u /= detJ(qx, qy, qz, ex);
                   }
                   if constexpr (Q_LAYOUT == QVectorLayout::byVDIM)
                   {
@@ -247,10 +261,11 @@ void ImplValues3D(const int NE, const real_t *b_, const real_t *detJ_,
 // Template compute kernel for Values in 3D: tensor product version.
 template <QVectorLayout Q_LAYOUT, int T_VDIM = 0, int T_D1D = 0, int T_Q1D = 0>
 void Values3D(const int NE, const real_t *b_, const real_t *x_, real_t *y_,
-              const int vdim = 0, const int d1d = 0, const int q1d = 0)
+              const int vdim = 0, const int d1d = 0, const int q1d = 0,
+              const Array<int> *elist = nullptr)
 {
    return ImplValues3D<Q_LAYOUT, false, T_VDIM, T_D1D, T_Q1D>(
-             NE, b_, nullptr, x_, y_, vdim, d1d, q1d);
+             NE, b_, nullptr, x_, y_, vdim, d1d, q1d, elist);
 }
 
 template <bool Integral>
