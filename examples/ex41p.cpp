@@ -178,7 +178,7 @@ public:
    {
       real_t ddt = dt-dt_;
 
-      // syncronize ddt across all processes
+      // synchronize ddt across all processes
       MPI_Comm comm = M.GetComm();
       int myrank;
       MPI_Comm_rank(comm, &myrank);
@@ -460,7 +460,7 @@ int main(int argc, char *argv[])
 
    s->AddDomainIntegrator(new DiffusionIntegrator(diff_coeff));
 
-   // For the preconditioner - create billinear form corresponding to
+   // For the preconditioner - create bilinear form corresponding to
    // operator (M + dt S)
    ParBilinearForm *a = new ParBilinearForm(fes);
    a->AddDomainIntegrator(new MassIntegrator);
@@ -518,10 +518,12 @@ int main(int argc, char *argv[])
    {
       if (binary)
       {
-#ifdef MFEM_USE_SIDRE
-         dc = new SidreDataCollection("Example41-Parallel", pmesh);
+#ifdef MFEM_USE_CONDUIT
+         auto conduit_dc = new ConduitDataCollection("Example41-Parallel", pmesh);
+         conduit_dc->SetProtocol("hdf5");
+         dc = conduit_dc;
 #else
-         MFEM_ABORT("Must build with MFEM_USE_SIDRE=YES for binary output.");
+         MFEM_ABORT("Must build with MFEM_USE_CONDUIT=YES for binary output.");
 #endif
       }
       else

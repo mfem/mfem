@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -542,7 +542,10 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
          return;
    }
 
-#ifndef MFEM_USE_MPFR
+#ifdef MFEM_USE_MPFR
+   MFEM_WARNING("MPFR implementation of Gauss-Jacobi quadrature not implemented yet. Falling "
+                "back to double precision implementation...");
+#endif
 
    const int n = np;
    // common constants for Jacobi polynomials
@@ -587,15 +590,9 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
          if (done) { break; }
 
          dz = p1/pp;
-#ifdef MFEM_USE_SINGLE
-         if (std::abs(dz) < 1e-7)
-#elif defined MFEM_USE_DOUBLE
-         if (std::abs(dz) < std::numeric_limits<real_t>::epsilon())
-            // this seems to cause trouble if we try std::abs(dz) < 1e-16
-#else
-         MFEM_ABORT("Floating point type undefined");
-         // if (std::abs(dz) < 1e-16)
-#endif
+         // using 1e-16 seems to cause trouble in double precision
+         if (std::abs(dz) < MFEM_PRECISION_SWITCH(
+                std::numeric_limits<real_t>::epsilon(),1e-7f))
          {
             done = true;
             xi = z - dz;
@@ -611,13 +608,6 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
                                                 ab + 1) / ((1.0 - xi*xi)*pp*pp) / pow(2, ab);
       // map nodes and weights to the interval [0,1]
    }
-
-#else // MFEM_USE_MPFR is defined
-
-   MFEM_ABORT("MPFR implementation of Gauss-Jacobi quadrature not defined yet");
-
-#endif // MFEM_USE_MPFR
-
 }
 
 
@@ -669,14 +659,7 @@ void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
          if (done) { break; }
 
          dz = p1/pp;
-#ifdef MFEM_USE_SINGLE
-         if (std::abs(dz) < 1e-7)
-#elif defined MFEM_USE_DOUBLE
-         if (std::abs(dz) < 1e-16)
-#else
-         MFEM_ABORT("Floating point type undefined");
-         if (std::abs(dz) < 1e-16)
-#endif
+         if (std::abs(dz) < MFEM_PRECISION_SWITCH(1e-16,1e-7f))
          {
             done = true;
             // map the new point (z-dz) to (0,1):
@@ -791,14 +774,7 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
 
             // compute dx = resid/deriv
             real_t dx = (x_i*p_l - p_lm1) / (np*p_l);
-#ifdef MFEM_USE_SINGLE
-            if (std::abs(dx) < 1e-7)
-#elif defined MFEM_USE_DOUBLE
-            if (std::abs(dx) < 1e-16)
-#else
-            MFEM_ABORT("Floating point type undefined");
-            if (std::abs(dx) < 1e-16)
-#endif
+            if (std::abs(dx) < MFEM_PRECISION_SWITCH(1e-16,1e-7f))
             {
                done = true;
                // Map the point to the interval [0,1]
