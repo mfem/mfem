@@ -110,13 +110,6 @@ protected:
    bool Serial() const { return (!P || cP); }
    const Vector &Prolongate(const Vector &x) const;
 
-   /// Evaluate the local action on a GridFunction-size state.
-   void MultGridFunction(const Vector &x, Vector &y) const;
-
-   /// Assemble the local legacy gradient on a GridFunction-size state.
-   SparseMatrix &GetGridFunctionGradient(const Vector &x,
-                                         bool finalize = true) const;
-
 public:
    /// Construct a NonlinearForm on the given FiniteElementSpace, @a f.
    /** As an Operator, the NonlinearForm has input and output size equal to the

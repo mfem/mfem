@@ -245,11 +245,55 @@ void ParNonlinearForm::Update()
 namespace
 {
 
+class LocalNonlinearForm : public NonlinearForm
+{
+private:
+   void UseLocalVectors()
+   {
+      height = width = fes->GetVSize();
+      P = nullptr;
+      cP = nullptr;
+      ess_tdof_list.SetSize(0);
+   }
+
+public:
+   explicit LocalNonlinearForm(FiniteElementSpace *fespace)
+      : NonlinearForm(fespace)
+   {
+      UseExternalIntegrators();
+      UseLocalVectors();
+   }
+
+   void SetIntegrators(
+      const Array<NonlinearFormIntegrator*> &domain,
+      const Array<Array<int>*> &domain_markers,
+      const Array<NonlinearFormIntegrator*> &boundary,
+      const Array<Array<int>*> &boundary_markers,
+      const Array<NonlinearFormIntegrator*> &interior_faces,
+      const Array<NonlinearFormIntegrator*> &boundary_faces,
+      const Array<Array<int>*> &boundary_face_markers)
+   {
+      dnfi = domain;
+      dnfi_marker = domain_markers;
+      bnfi = boundary;
+      bnfi_marker = boundary_markers;
+      fnfi = interior_faces;
+      bfnfi = boundary_faces;
+      bfnfi_marker = boundary_face_markers;
+   }
+
+   void Update() override
+   {
+      NonlinearForm::Update();
+      UseLocalVectors();
+   }
+};
+
 class ParametricGradientOperator : public Operator
 {
 private:
    const Operator &prolongation;
-   const SparseMatrix &phys_grad;
+   const Operator &phys_grad;
    const ParametricStateTransformation &transformation;
    Vector param_state;
    Vector phys_residual;
@@ -263,7 +307,7 @@ private:
 
 public:
    ParametricGradientOperator(
-      const Operator &prolongation_, const SparseMatrix &phys_grad_,
+      const Operator &prolongation_, const Operator &phys_grad_,
       const ParametricStateTransformation &transformation_,
       const Vector &param_state_, const Vector &phys_residual_,
       const Array<int> &ess_tdofs_)
@@ -305,7 +349,8 @@ public:
 ParametricParNonlinearForm::ParametricParNonlinearForm(
    ParFiniteElementSpace *pf,
    ParametricStateTransformation &transformation_)
-   : ParNonlinearForm(pf), transformation(&transformation_), param_grad(nullptr)
+   : ParNonlinearForm(pf), transformation(&transformation_),
+     local_form(new LocalNonlinearForm(pf)), param_grad(nullptr)
 {
    MFEM_VERIFY(P != nullptr, "parallel prolongation operator is required");
 }
@@ -324,6 +369,12 @@ void ParametricParNonlinearForm::ProlongateAndTransform(const Vector &t) const
                "invalid transformed state size");
 }
 
+void ParametricParNonlinearForm::SyncLocalForm() const
+{
+   static_cast<LocalNonlinearForm *>(local_form)->SetIntegrators(
+      dnfi, dnfi_marker, bnfi, bnfi_marker, fnfi, bfnfi, bfnfi_marker);
+}
+
 real_t ParametricParNonlinearForm::GetEnergy(const Vector &t) const
 {
    ProlongateAndTransform(t);
@@ -337,7 +388,8 @@ void ParametricParNonlinearForm::Mult(const Vector &t, Vector &r) const
    ProlongateAndTransform(t);
 
    phys_residual.SetSize(fes->GetVSize());
-   MultGridFunction(phys_state, phys_residual);
+   SyncLocalForm();
+   local_form->Mult(phys_state, phys_residual);
    transformation->PullBackDual(param_state, phys_residual, param_residual);
 
    r.SetSize(Width());
@@ -355,8 +407,9 @@ Operator &ParametricParNonlinearForm::GetGradient(const Vector &t) const
    ProlongateAndTransform(t);
 
    phys_residual.SetSize(fes->GetVSize());
-   MultGridFunction(phys_state, phys_residual);
-   SparseMatrix &phys_gradient = GetGridFunctionGradient(phys_state);
+   SyncLocalForm();
+   local_form->Mult(phys_state, phys_residual);
+   Operator &phys_gradient = local_form->GetGradient(phys_state);
 
    delete param_grad;
    param_grad = new ParametricGradientOperator(
@@ -370,11 +423,13 @@ void ParametricParNonlinearForm::Update()
    delete param_grad;
    param_grad = nullptr;
    ParNonlinearForm::Update();
+   local_form->Update();
 }
 
 ParametricParNonlinearForm::~ParametricParNonlinearForm()
 {
    delete param_grad;
+   delete local_form;
 }
 
 
