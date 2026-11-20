@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -318,7 +318,7 @@ protected:
    void LoadSharedEntities(std::istream &input);
 
    /// If the mesh is curved, make sure 'Nodes' is ParGridFunction.
-   /** Note that this method is not related to the public 'Mesh::EnsureNodes`.*/
+   /** Note that this method is not related to the public `Mesh::EnsureNodes`. */
    void EnsureParNodes();
 
    /// Internal function used in ParMesh::MakeRefined (and related constructor)
@@ -563,8 +563,10 @@ public:
    void ExchangeFaceNbrNodes();
 
    void SetCurvature(int order, bool discont = false, int space_dim = -1,
-                     int ordering = 1) override;
+                     int ordering = 1, int pyrtype = 1) override;
 
+   /// @brief Create a ParGridFunction representing the Jacobian determinant.
+   /// Parallel counterpart of Mesh::GetJacobianDeterminantGF().
    std::unique_ptr<ParGridFunction> GetJacobianDeterminantGF() const;
 
    /** Replace the internal node GridFunction with a new GridFunction defined on
@@ -744,7 +746,7 @@ public:
    void SetPrintShared(bool print) { print_shared = print; }
 
    /** @brief Enable Print() and PrintAsOne() to add material interfaces, i.e.
-       intefaces between different mesh element attributes, as boundary
+       interfaces between different mesh element attributes, as boundary
        (typically used for visualization purposes).
 
        The ParMesh object itself is not modified, this only affects file output

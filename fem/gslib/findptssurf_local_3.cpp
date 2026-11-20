@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -369,7 +369,7 @@ newton_face_constrained:
       if ( (drc-bnd[0])*(bnd[1]-drc)>=0 && // if drc lies within r=-1 and r=1
            (tv=EVAL(drc,bnd[2]))<v )
       {
-         // i = 0100b, relieve constrainsts at r=-1 or 1, and set constraints at s=-1
+         // i = 0100b, relieve constraints at r=-1 or 1, and set constraints at s=-1
          v = tv, i = 1u<<2, dr[0] = drc;
       }
       drc = (y[0] - A[1]*bnd[3])/A[0];
@@ -868,9 +868,11 @@ static void FindPointsSurfLocal3DKernel(const int npt,
                         findptsElementGEdge_t edge;
                         for (int d=0; d<sDIM; ++d)
                         {
-                           edge.x[d]     = constraint_workspace             + d*D1D;
-                           edge.dxdn[d]  = constraint_workspace +   sDIM*D1D + d*D1D;
-                           edge.d2xdn[d] = constraint_workspace + 2*sDIM*D1D + d*D1D;
+                           edge.x[d]     = constraint_workspace + d*D1D;
+                           edge.dxdn[d]  = constraint_workspace + d*D1D
+                                           + sDIM*D1D;
+                           edge.d2xdn[d] = constraint_workspace + d*D1D
+                                           + 2*sDIM*D1D;
                         }
 
                         MFEM_FOREACH_THREAD(j,x,D1D*sDIM)

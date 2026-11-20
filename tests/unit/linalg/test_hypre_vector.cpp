@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -165,6 +165,33 @@ TEST_CASE("HypreParVector Move Assignment", "[Parallel], [HypreParVector]")
 }
 
 #endif // HYPRE_USING_GPU
+
+TEST_CASE("ParNormlp", "[Parallel], [HypreParVector], [GPU]")
+{
+   int world_size, rank;
+   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   int size_per_rank = 2;
+
+   // global vector contains negative integers -[0, 1, ..., world_size*size_per_rank-1]
+   // our rank only holds a portion
+   Vector v(size_per_rank);
+   for (int i=0; i<size_per_rank; ++i)
+   {
+      v(i) = -(rank * size_per_rank + i);
+   }
+   v.UseDevice(true);
+   int N = world_size*size_per_rank;
+   REQUIRE(ParNormlp(v, 1, MPI_COMM_WORLD) == MFEM_Approx((N * (N - 1)) / 2.));
+   REQUIRE(ParNormlp(v, 2, MPI_COMM_WORLD) ==
+           MFEM_Approx(sqrt((N * (N - 1) * (2 * N - 1)) / 6.)));
+   REQUIRE(ParNormlp(v, 3, MPI_COMM_WORLD) ==
+           MFEM_Approx(cbrt((N * N * (N - 1) * (N - 1)) / 4.)));
+   // no easily computed exact answer, just make sure that p=1.5 is finite
+   REQUIRE(std::isfinite(ParNormlp(v, 1.5, MPI_COMM_WORLD)));
+   REQUIRE(ParNormlp(v, std::numeric_limits<real_t>::infinity(),
+                     MPI_COMM_WORLD) == N - 1);
+}
 
 #endif // MFEM_USE_MPI
 

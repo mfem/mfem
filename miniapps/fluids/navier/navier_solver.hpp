@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -144,9 +144,9 @@ public:
    /// Initialize data structures, set FE space order and kinematic viscosity.
    /**
     * The ParMesh @a mesh can be a linear or curved parallel mesh. The @a order
-    * of the finite element spaces is this algorithm is of equal order
+    * of the finite element spaces in this algorithm is of equal order
     * $(P_N)^d P_N$ for velocity and pressure respectively. This means the
-    * pressure is in discretized in the same space (just scalar instead of a
+    * pressure is discretized in the same space (just scalar instead of a
     * vector space) as the velocity.
     *
     * Kinematic viscosity (dimensionless) is set using @a kin_vis and
@@ -242,7 +242,7 @@ public:
 
    ~NavierSolver();
 
-   /// Compute $\nabla \times \nabla \times u$ for $u \in (H^1)^2$.
+   /// Compute $\nabla \times u$ for $u \in (H^1)^2$.
    void ComputeCurl2D(ParGridFunction &u,
                       ParGridFunction &cu,
                       bool assume_scalar = false);
@@ -279,7 +279,7 @@ public:
    /// Set the interpolation filter parameter @a a
    /**
     * If @a a is > 0, the filtering algorithm for the velocity field after every
-    * time step from [1] is used. The parameter should be 0 > @a >= 1.
+    * time step from [1] is used. The parameter should satisfy 0 < @a a <= 1.
     *
     * [1] Paul Fischer, Julia Mullen (2001) Filter-based stabilization of
     * spectral element methods

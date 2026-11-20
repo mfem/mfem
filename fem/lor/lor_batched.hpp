@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -25,7 +25,7 @@ namespace mfem
 /// supported, currently:
 ///
 ///  - H1 diffusion + mass
-///  - DG diffusion + mass (in progress)
+///  - DG diffusion + mass
 ///  - ND curl-curl + mass
 ///  - RT div-div + mass
 ///
@@ -135,7 +135,7 @@ void EnsureCapacity(Memory<T> &mem, int capacity)
 
 /// Return the first domain integrator in the form @a i of type @a T.
 template <typename T>
-static T *GetIntegrator(Array<BilinearFormIntegrator*> *integs)
+T *GetIntegrator(Array<BilinearFormIntegrator*> *integs)
 {
    if (integs != NULL)
    {
@@ -151,13 +151,13 @@ static T *GetIntegrator(Array<BilinearFormIntegrator*> *integs)
 }
 
 template <typename T>
-static T *GetIntegrator(BilinearForm &a)
+T *GetIntegrator(BilinearForm &a)
 {
    return GetIntegrator<T>(a.GetDBFI());
 }
 
 template <typename T>
-static T *GetInteriorFaceIntegrator(BilinearForm &a)
+T *GetInteriorFaceIntegrator(BilinearForm &a)
 {
    return GetIntegrator<T>(a.GetFBFI());
 }
@@ -182,8 +182,7 @@ void ProjectLORCoefficient(BilinearForm &a, CoefficientVector &coeff_vector)
    INTEGRATOR *i = GetIntegrator<INTEGRATOR>(a);
    if (i)
    {
-      // const_cast since Coefficient::Eval is not const...
-      auto *coeff = const_cast<Coefficient*>(i->GetCoefficient());
+      CoefficientBase *coeff = i->GetCoefficientBase();
       if (coeff) { coeff_vector.Project(*coeff); }
       else { coeff_vector.SetConstant(1.0); }
    }
@@ -211,8 +210,8 @@ protected:
                     Array<int> &sparse_mapping_)
       : fes_ho(fes_ho_), X_vert(X_vert_), sparse_ij(sparse_ij_),
         sparse_mapping(sparse_mapping_), ir(GetCollocatedIntRule(fes_ho)),
-        qs(*fes_ho.GetMesh(), ir), c1(qs, CoefficientStorage::COMPRESSED),
-        c2(qs, CoefficientStorage::COMPRESSED)
+        qs(*fes_ho.GetMesh(), ir), c1(qs, CoefficientStorage::CONSTANTS),
+        c2(qs, CoefficientStorage::CONSTANTS)
    { }
 };
 

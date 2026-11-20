@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -564,6 +564,11 @@ const DofToQuad &H1Pos_TriangleElement::GetRaggedTensorDofToQuad(
 {
    DofToQuad *d2q = nullptr;
    MFEM_VERIFY(mode == DofToQuad::RAGGED_TENSOR, "invalid mode requested");
+   const IntegrationRule &stroud_ir =
+      StroudIntRules.Get(fe.GetGeomType(), ir.GetOrder());
+   MFEM_VERIFY(&ir == &stroud_ir,
+               "partial assembly with Bernstein basis on simplices "
+               "requires an integration rule returned by StroudIntRules");
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    #pragma omp critical (DofToQuad)
@@ -851,6 +856,11 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
 {
    DofToQuad *d2q = nullptr;
    MFEM_VERIFY(mode == DofToQuad::RAGGED_TENSOR, "invalid mode requested");
+   const IntegrationRule &stroud_ir =
+      StroudIntRules.Get(fe.GetGeomType(), ir.GetOrder());
+   MFEM_VERIFY(&ir == &stroud_ir,
+               "partial assembly with Bernstein basis on simplices "
+               "requires an integration rule returned by StroudIntRules");
 
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    #pragma omp critical (DofToQuad)
@@ -906,7 +916,7 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
          rd2q->inverse_map2d_mass.SetSize(2 * basis_dim2d);
          rd2q->inverse_map3d_mass.SetSize(2 * basis_dim3d);
 
-         // forward and inverse maps for multi-index to collpased 1d index for diffusion, can combine
+         // forward and inverse maps for multi-index to collapsed 1d index for diffusion, can combine
          // these four loops, but need four idx's and clause for shorter diff loops
          int idx = 0;
          for (int i = 0; i < ndof-1; i++)
@@ -936,7 +946,7 @@ const DofToQuad &H1Pos_TetrahedronElement::GetRaggedTensorDofToQuad(
             }
          }
 
-         // forward and inverse maps for multi-index to collpased 1d index for mass
+         // forward and inverse maps for multi-index to collapsed 1d index for mass
          idx = 0;
          for (int j = 0; j < ndof; j++)
          {

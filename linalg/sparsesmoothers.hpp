@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -67,7 +67,7 @@ public:
    /// @param[in]  it       Number of stationary iterations to perform
    GSSmoother(GSType t = SYMMETRIC, int it = 1) { type = t; iterations = it; }
 
-   /// @brief Create a Jacobi smoother using the SparseMatrix @a a.
+   /// @brief Create a Gauss-Seidel smoother using the SparseMatrix @a a.
    ///
    /// @param[in]  a        The underlying SparseMatrix
    /// @param[in]  t        Type of GS smoother (see GSSmoother::GSType)
@@ -137,12 +137,12 @@ public:
    DSmoother(const SparseMatrix &a, JacobiType t = JACOBI, real_t s = 1.,
              int it = 1) : DSmoother(t, s, it) { SetOperator(a); }
 
-   /// @brief Same as DSmoother(JacobiType,real_t,int), for backwards compatbility.
+   /// @brief Same as DSmoother(JacobiType,real_t,int), for backwards compatibility.
    DSmoother(int t, real_t s = 1., int it = 1)
       : DSmoother(JacobiType(t), s, it) { }
 
    /// @brief Same as DSmoother(const SparseMatrix&,JacobiType,real_t,int), for
-   /// backwards compatbility.
+   /// backwards compatibility.
    DSmoother(const SparseMatrix &a, int t, real_t s = 1., int it = 1)
       : DSmoother(a, JacobiType(t), s, it) { }
 

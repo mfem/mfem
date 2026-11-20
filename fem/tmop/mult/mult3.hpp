@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -39,6 +39,7 @@ public:
    {
       const mfem::TMOP_Integrator *ti = ker.ti;
       const real_t metric_normal = ti->metric_normal;
+      const bool integ_over_target = ti->integ_over_target;
       const int NE = ti->PA.ne, d1d = ti->PA.maps->ndof,
                 q1d = ti->PA.maps->nqpt;
 
@@ -86,7 +87,8 @@ public:
                MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
                {
                   const real_t *Jtr = &J(0, 0, qx, qy, qz, e);
-                  const real_t detJtr = kernels::Det<3>(Jtr);
+                  const real_t detJtr =
+                     integ_over_target ? kernels::Det<3>(Jtr) : 1.0;
                   const real_t m_coef =
                      const_m0 ? MC(0, 0, 0, 0) : MC(qx, qy, qz, e);
                   const real_t weight =

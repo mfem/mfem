@@ -1,4 +1,4 @@
-// Copyright (c) 2010-2025, Lawrence Livermore National Security, LLC. Produced
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
 // at the Lawrence Livermore National Laboratory. All Rights reserved. See files
 // LICENSE and NOTICE for details. LLNL-CODE-806117.
 //
@@ -2469,6 +2469,9 @@ void RT_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
 
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(dof, vdim);
+#else
+   // 'vshape' is initialized with 'dim' (2) instead of 'vdim' (3) columns.
+   vshape.SetSize(dof, vdim);
 #endif
 
    real_t * nk_ptr = const_cast<real_t*>(nk);
@@ -2483,7 +2486,8 @@ void RT_R2D_FiniteElement::GetLocalRestriction(ElementTransformation &Trans,
 
       InvertLinearTrans(Trans, Nodes.IntPoint(j), pt);
       ip.Set(pt_data, dim);
-      if (Geometries.CheckPoint(geom_type, ip)) // do we need an epsilon here?
+      constexpr real_t eps = MFEM_PRECISION_SWITCH(1e-14,1e-6f);
+      if (Geometries.CheckPoint(geom_type, ip, eps))
       {
          CalcVShape(ip, vshape);
          J.MultTranspose(n2, pt_data);
