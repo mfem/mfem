@@ -6219,19 +6219,6 @@ void NCMesh::GetEntitySetClosure(EntitySets::EntityType type,
    es_faces.Unique();
 }
 
-static int max4(int a, int b, int c, int d)
-{
-   return std::max(std::max(a, b), std::max(c, d));
-}
-static int max6(int a, int b, int c, int d, int e, int f)
-{
-   return std::max(max4(a, b, c, d), std::max(e, f));
-}
-static int max8(int a, int b, int c, int d, int e, int f, int g, int h)
-{
-   return std::max(max4(a, b, c, d), max4(e, f, g, h));
-}
-
 int NCMesh::EdgeSplitLevel(int vn1, int vn2) const
 {
    int mid = nodes.FindId(vn1, vn2);
