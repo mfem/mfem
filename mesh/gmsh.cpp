@@ -767,8 +767,9 @@ class GmshReader
                       "order " << mesh_order << ": the high-order nodes of "
                       "the boundary elements are ignored. Such meshes are "
                       "produced, e.g., by optimizing a high-order Gmsh mesh "
-                      "with Netgen; calling gmsh.model.mesh.setOrder after "
-                      "the optimization gives a consistent high-order mesh.");
+                      "with Netgen; calling gmsh.model.mesh.setOrder and "
+                      "gmsh.model.mesh.optimize(\"HighOrder\") after the "
+                      "optimization gives a consistent high-order mesh.");
       }
 
       mesh.NumOfElements = elems_by_dim[mesh.Dim].size();
