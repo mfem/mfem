@@ -725,7 +725,9 @@ public:
    /** @brief Project the tangential components of the given VectorCoefficient
        on the boundary. */
    /** Only boundary attributes that are marked in @a bdr_attr
-       are projected. Assumes ND-type vector finite element GridFunction. */
+       are projected. Assumes ND-type vector finite element GridFunction.
+       DOFs that are not on the marked boundary keep their values, so
+       initialize the GridFunction (e.g. to zero) before calling this. */
    virtual void ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
                                              const Array<int> &bdr_attr);
 
