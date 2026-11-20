@@ -237,6 +237,7 @@ constexpr auto operator/(dual<value_type_a, gradient_type_a> a,
 mfem_binary_comparator_overload(<)   ///< implement operator<  for dual numbers
 mfem_binary_comparator_overload(<=)  ///< implement operator<= for dual numbers
 mfem_binary_comparator_overload(==)  ///< implement operator== for dual numbers
+mfem_binary_comparator_overload(!=)  ///< implement operator!= for dual numbers
 mfem_binary_comparator_overload(>=)  ///< implement operator>= for dual numbers
 mfem_binary_comparator_overload(>)   ///< implement operator>  for dual numbers
 
@@ -313,15 +314,6 @@ dual<value_type, gradient_type> sin(dual<value_type, gradient_type> a)
    return {sin(a.value), a.gradient * cos(a.value)};
 }
 
-/** @brief implementation of sinh for dual numbers */
-template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
-dual<value_type, gradient_type> sinh(dual<value_type, gradient_type> a)
-{
-   using std::sinh;
-   using std::cosh;
-   return {sinh(a.value), a.gradient * cosh(a.value)};
-}
-
 /** @brief implementation of acos for dual numbers */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> acos(dual<value_type, gradient_type> a)
@@ -365,6 +357,34 @@ dual<value_type, gradient_type> exp(dual<value_type, gradient_type> a)
    return {exp(a.value), exp(a.value) * a.gradient};
 }
 
+/** @brief implementation of hyperbolic tangent function for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> tanh(dual<value_type, gradient_type> a)
+{
+   using std::tanh;
+   auto th = tanh(a.value);
+   return {th, (1.0_r - th * th) * a.gradient};
+}
+
+/** @brief implementation of hyperbolic sine function for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> sinh(dual<value_type, gradient_type> a)
+{
+   using std::sinh;
+   using std::cosh;
+   return { sinh(a.value), cosh(a.value) * a.gradient};
+}
+
+/** @brief implementation of hyperbolic cosine function for dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> cosh(dual<value_type, gradient_type> a)
+{
+   using std::sinh;
+   using std::cosh;
+   return { cosh(a.value), sinh(a.value) * a.gradient};
+}
+
+
 /** @brief implementation of the natural logarithm function for dual numbers */
 template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> log(dual<value_type, gradient_type> a)
@@ -380,8 +400,13 @@ dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a,
 {
    using std::log;
    using std::pow;
-   value_type value = pow(a.value, b.value);
-   return {value, value * (a.gradient * (b.value / a.value) + b.gradient * log(a.value))};
+   const bool is_zero = (a.value == value_type{}) && (b.value == value_type{});
+   const bool is_pos = (a.value > value_type{});
+   value_type val = pow(a.value, b.value);
+   value_type da = is_zero ? value_type{} : b.value * pow(a.value,
+                                                          b.value - 1.0_r);
+   value_type db = is_pos ? val * log(a.value) : value_type{};
+   return {val, da * a.gradient + db * b.gradient};
 }
 
 /** @brief implementation of `a` (non-dual) raised to the `b` (dual) power */
@@ -407,8 +432,68 @@ template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
 dual<value_type, gradient_type> pow(dual<value_type, gradient_type> a, real_t b)
 {
    using std::pow;
-   value_type value = pow(a.value, b);
-   return {value, value * a.gradient * b / a.value};
+   if (b == real_t{}) { return {pow(a.value, b), gradient_type{}}; }
+   return {pow(a.value, b), b*pow(a.value, b-1) * a.gradient };
+}
+
+/** @brief implementation of max of two dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> max(dual<value_type, gradient_type> a,
+                                    dual<value_type, gradient_type> b)
+{
+   return (a.value < b.value) ? b : a;
+}
+
+/** @brief implementation of max of a dual number and a non-dual number */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> max(real_t a, dual<value_type, gradient_type> b)
+{
+   return (a < b.value) ? b : dual<value_type, gradient_type> {a, {}};
+}
+
+/** @brief implementation of max of two non-dual numbers */
+template <typename value_type > MFEM_HOST_DEVICE
+value_type max(value_type a, value_type b)
+{
+   using std::max;
+   return max(a, b);
+}
+
+/** @brief implementation of max of a dual number and a non-dual number */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> max(dual<value_type, gradient_type> a, real_t b)
+{
+   return (a.value < b) ? dual<value_type, gradient_type> {b, {}} : a;
+}
+
+/** @brief implementation of min of two dual numbers */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> min(dual<value_type, gradient_type> a,
+                                    dual<value_type, gradient_type> b)
+{
+   return (b.value < a.value) ? b : a;
+}
+
+/** @brief implementation of min of a dual number and a non-dual number */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> min(real_t a, dual<value_type, gradient_type> b)
+{
+   return (b.value < a) ? b : dual<value_type, gradient_type> {a, {}};
+}
+
+/** @brief implementation of min of two non-dual numbers */
+template <typename value_type > MFEM_HOST_DEVICE
+value_type min(value_type a, value_type b)
+{
+   using std::min;
+   return min(a, b);
+}
+
+/** @brief implementation of min of a dual number and a non-dual number */
+template <typename value_type, typename gradient_type> MFEM_HOST_DEVICE
+dual<value_type, gradient_type> min(dual<value_type, gradient_type> a, real_t b)
+{
+   return (b < a.value) ? dual<value_type, gradient_type> {b, {}} : a;
 }
 
 /** @brief overload of operator<< for `dual` to work with work with standard output streams */
@@ -420,7 +505,7 @@ std::ostream& operator<<(std::ostream& os, dual<value_type, gradient_type> A)
 }
 
 /** @brief promote a value to a dual number of the appropriate type */
-MFEM_HOST_DEVICE constexpr dual<real_t, real_t> make_dual(real_t x) { return {x, 1.0}; }
+MFEM_HOST_DEVICE constexpr dual<real_t, real_t> make_dual(real_t x) { return {x, 1.0_r}; }
 
 /** @brief return the "value" part from a given type. For non-dual types, this is just the identity function */
 template <typename T> MFEM_HOST_DEVICE T get_value(const T& arg) { return arg; }
