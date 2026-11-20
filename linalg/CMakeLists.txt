@@ -24,12 +24,14 @@ list(APPEND SRCS
   constraints.cpp
   densemat.cpp
   filteredsolver.cpp
+  functional.cpp
   handle.cpp
   matrix.cpp
   mma.cpp
   multivector.cpp
   ode.cpp
   operator.cpp
+  optimization.cpp
   ordering.cpp
   particlevector.cpp
   solvers.cpp
@@ -57,6 +59,7 @@ list(APPEND HDRS
   dtensor.hpp
   dual.hpp
   filteredsolver.hpp
+  functional.hpp
   handle.hpp
   invariants.hpp
   kernels.hpp
@@ -67,6 +70,7 @@ list(APPEND HDRS
   multivector.hpp
   ode.hpp
   operator.hpp
+  optimization.hpp
   ordering.hpp
   particlevector.hpp
   solvers.hpp

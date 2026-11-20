@@ -116,6 +116,19 @@ public:
    /// Read-only access to the i-th Vector.
    inline const Vector &operator[](int i) const;
 
+   /** @brief Read-write views of the blocks @a blk_idx of this MultiVector.
+       Generates an error if any of these blocks is read-only.
+
+       The views refer to the blocks themselves and stay valid until the
+       number of blocks of this MultiVector changes. */
+   MultiVector GetBlockViews(const Array<int> &blk_idx);
+
+   /** @brief Read-only views of the blocks @a blk_idx of this MultiVector.
+
+       The views refer to the blocks themselves and stay valid until the
+       number of blocks of this MultiVector changes. */
+   MultiVector GetBlockViews(const Array<int> &blk_idx) const;
+
    /** @brief Update the MultiVector according to the given @a vector_sizes.
 
        This method can be used to add or remove blocks. The individual Vector
@@ -129,6 +142,9 @@ public:
        sizes and MemoryType are updated using the method
        Vector::SetSize(int, MemoryType). */
    void SetSizes(const Array<int> &vector_sizes, MemoryType mt);
+
+   /// The sizes of the Vector blocks, one entry per block.
+   Array<int> GetSizes() const;
 
    /** @brief Update the MultiVector to reference data within a given monolithic
        Vector @a base.

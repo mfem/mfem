@@ -13,6 +13,7 @@
 #include "hiop.hpp"
 
 #ifdef MFEM_USE_HIOP
+#if 0 // Disabled: uses the removed OptimizationProblem interface.
 #include <iostream>
 
 #include "hiopAlgFilterIPM.hpp"
@@ -371,4 +372,5 @@ void HiopNlpOptimizer::Mult(const Vector &xt, Vector &x) const
 }
 
 } // mfem namespace
+#endif
 #endif // MFEM_USE_HIOP

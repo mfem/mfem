@@ -83,6 +83,7 @@ set(SRCS
   fe/fe_rt.cpp
   fe/fe_ser.cpp
   fe_coll.cpp
+  fefunctional.cpp
   fespace.cpp
   derefmat_op.cpp
   pderefmat_op.cpp
@@ -242,6 +243,7 @@ set(HDRS
   fe/fe_rt.hpp
   fe/fe_ser.hpp
   fe_coll.hpp
+  fefunctional.hpp
   fem.hpp
   fespace.hpp
   geom.hpp

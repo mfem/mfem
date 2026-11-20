@@ -2568,72 +2568,52 @@ int aGMRES(const Operator &A, Vector &x, const Vector &b,
    return 1;
 }
 
-OptimizationProblem::OptimizationProblem(const int insize,
-                                         const Operator *C_,
-                                         const Operator *D_)
-   : C(C_), D(D_), c_e(NULL), d_lo(NULL), d_hi(NULL), x_lo(NULL), x_hi(NULL),
-     input_size(insize)
+void SLBQPOptimizer::SetOptimizationProblem(const optimization::Problem &prob)
 {
-   if (C) { MFEM_VERIFY(C->Width() == input_size, "Wrong width of C."); }
-   if (D) { MFEM_VERIFY(D->Width() == input_size, "Wrong width of D."); }
-}
-
-void OptimizationProblem::SetEqualityConstraint(const Vector &c)
-{
-   MFEM_VERIFY(C, "The C operator is unspecified -- can't set constraints.");
-   MFEM_VERIFY(c.Size() == C->Height(), "Wrong size of the constraint.");
-
-   c_e = &c;
-}
-
-void OptimizationProblem::SetInequalityConstraint(const Vector &dl,
-                                                  const Vector &dh)
-{
-   MFEM_VERIFY(D, "The D operator is unspecified -- can't set constraints.");
-   MFEM_VERIFY(dl.Size() == D->Height() && dh.Size() == D->Height(),
-               "Wrong size of the constraint.");
-
-   d_lo = &dl; d_hi = &dh;
-}
-
-void OptimizationProblem::SetSolutionBounds(const Vector &xl, const Vector &xh)
-{
-   MFEM_VERIFY(xl.Size() == input_size && xh.Size() == input_size,
-               "Wrong size of the constraint.");
-
-   x_lo = &xl; x_hi = &xh;
-}
-
-int OptimizationProblem::GetNumConstraints() const
-{
-   int m = 0;
-   if (C) { m += C->Height(); }
-   if (D) { m += D->Height(); }
-   return m;
-}
-
-void SLBQPOptimizer::SetOptimizationProblem(const OptimizationProblem &prob)
-{
-   if (print_options.warnings)
+   if (print_options.warnings && prob.GetObjective().Height() > 0)
    {
-      MFEM_WARNING("Objective functional is ignored as SLBQP always minimizes"
+      MFEM_WARNING("Objective functional is ignored as SLBQP always minimizes "
                    "the l2 norm of (x - x_target).");
    }
-   MFEM_VERIFY(prob.GetC(), "Linear constraint is not set.");
-   MFEM_VERIFY(prob.GetC()->Height() == 1, "Solver expects scalar constraint.");
+   MFEM_VERIFY(prob.NumFields() == 1, "Solver expects a single field.");
+   const auto [C, c_e] = prob.GetEquality();
+   MFEM_VERIFY(C.Height() == 1, "Solver expects scalar constraint.");
+   MFEM_VERIFY(std::get<0>(prob.GetInequality()).Height() == 0,
+               "Solver does not support inequality constraints.");
+
+   MFEM_VERIFY(prob.NumLocalConstraints() == 1,
+               "Solver expects a single local constraint.");
+   const auto [field, set, op] = prob.GetLocalConstraint(0);
+   const auto *box = dynamic_cast<const optimization::BoxConstraint*>(&set);
+   MFEM_VERIFY(box && op == nullptr, "Solver expects dofwise bounds.");
+   SetBounds(box->lower, box->upper);
+
+   // The constraint is linear: its derivative at any point gives w.
+   const int n = prob.GetFieldSizes()[0];
+   Vector zero(n);
+   zero = 0.0;
+   const MultiVector x0(zero);
+   MFEM_VERIFY(C.ComponentHessian(x0, 0) == nullptr,
+               "Solver expects a linear constraint.");
+   problem_w.SetSize(n);
+   MultiVector dC(problem_w);
+   C.ComponentDerivative(x0, 0, dC);
+   MFEM_VERIFY(Dot(problem_w, problem_w) > 0.0,
+               "The derivative of the constraint is zero.");
+   SetLinearConstraint(problem_w, c_e.target(0));
 
    problem = &prob;
 }
 
 void SLBQPOptimizer::SetBounds(const Vector &lo_, const Vector &hi_)
 {
-   lo.SetDataAndSize(lo_.GetData(), lo_.Size());
-   hi.SetDataAndSize(hi_.GetData(), hi_.Size());
+   lo.MakeRef(const_cast<Vector&>(lo_), 0, lo_.Size());
+   hi.MakeRef(const_cast<Vector&>(hi_), 0, hi_.Size());
 }
 
 void SLBQPOptimizer::SetLinearConstraint(const Vector &w_, real_t a_)
 {
-   w.SetDataAndSize(w_.GetData(), w_.Size());
+   w.MakeRef(const_cast<Vector&>(w_), 0, w_.Size());
    a = a_;
 }
 
