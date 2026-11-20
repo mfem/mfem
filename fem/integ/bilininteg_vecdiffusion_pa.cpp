@@ -583,13 +583,14 @@ void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    if (use_simplex_mma)
    {
       if (ne <= 0 || nq <= 0) { return; }
-      const int nd = mma_G.Size() / (nq * dim);
-      MFEM_VERIFY(nd > 0 && mma_G.Size() == nq * nd * dim, "");
+      const int NQ = nq;
+      const int nd = mma_G.Size() / (NQ * dim);
+      MFEM_VERIFY(nd > 0 && mma_G.Size() == NQ * nd * dim, "");
       const int pa = dim * dim;
-      const int ncomp = pa_data.Size() / (nq * pa * ne);
-      MFEM_VERIFY(ncomp > 0 && pa_data.Size() == nq * pa * ncomp * ne, "");
-      const auto G = Reshape(mma_G.Read(), nq, nd, dim);
-      const auto D = Reshape(pa_data.Read(), nq, pa, ncomp, ne);
+      const int ncomp = pa_data.Size() / (NQ * pa * ne);
+      MFEM_VERIFY(ncomp > 0 && pa_data.Size() == NQ * pa * ncomp * ne, "");
+      const auto G = Reshape(mma_G.Read(), NQ, nd, dim);
+      const auto D = Reshape(pa_data.Read(), NQ, pa, ncomp, ne);
       auto Y = Reshape(diag.ReadWrite(), nd, vdim, ne);
       const int dim_c = dim, vd = vdim, nc = ncomp;
       mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
@@ -600,7 +601,7 @@ void VectorDiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
             for (int i = 0; i < nd; ++i)
             {
                real_t s = 0.0;
-               for (int q = 0; q < nq; ++q)
+               for (int q = 0; q < NQ; ++q)
                {
                   if (dim_c == 2)
                   {

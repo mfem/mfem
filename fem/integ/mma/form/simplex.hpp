@@ -1814,7 +1814,7 @@ ApplySimplex(const int NE,
              Vector &y)
 {
    using Tr = qfn_traits<QFn>;
-   static_assert(Tr::test_is_grad, "Grad Apply requires Grad×Grad QFn");
+   static_assert(Tr::test_is_grad, "Grad Apply requires GradxGrad QFn");
    static_assert(D1D > 0 && QND > 0, "requires specialized D1D/QND");
    static_assert(Tr::spatial_dim == DIM, "QFn DIM must match ApplySimplex DIM");
 

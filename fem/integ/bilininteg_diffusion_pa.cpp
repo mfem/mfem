@@ -25,12 +25,13 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    if (use_simplex_mma)
    {
       if (ne <= 0 || nq <= 0) { return; }
-      const int nd = mma_G.Size() / (nq * dim);
-      MFEM_VERIFY(nd > 0 && mma_G.Size() == nq * nd * dim, "");
-      const int pa = pa_data.Size() / (nq * ne);
+      const int NQ = nq;
+      const int nd = mma_G.Size() / (NQ * dim);
+      MFEM_VERIFY(nd > 0 && mma_G.Size() == NQ * nd * dim, "");
+      const int pa = pa_data.Size() / (NQ * ne);
       MFEM_VERIFY(pa == (symmetric ? (dim * (dim + 1)) / 2 : dim * dim), "");
-      const auto G = Reshape(mma_G.Read(), nq, nd, dim);
-      const auto P = Reshape(pa_data.Read(), nq, pa, ne);
+      const auto G = Reshape(mma_G.Read(), NQ, nd, dim);
+      const auto P = Reshape(pa_data.Read(), NQ, pa, ne);
       auto Y = Reshape(diag.ReadWrite(), nd, ne);
       const int dim_c = dim;
       const bool sym = symmetric;
@@ -39,7 +40,7 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
          for (int i = 0; i < nd; ++i)
          {
             real_t s = 0.0;
-            for (int q = 0; q < nq; ++q)
+            for (int q = 0; q < NQ; ++q)
             {
                if (dim_c == 2)
                {
