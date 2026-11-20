@@ -796,8 +796,11 @@ template <class T>
 inline Array<T>::Array(const Array &src)
    : size(src.Size())
 {
-   size > 0 ? data.New(size, src.data.GetMemoryType()) : data.Reset();
-   data.CopyFrom(src.data, size);
+   // The copy is host-valid, so operator[] on it needs no explicit sync:
+   // src.HostRead() syncs (and, with the debug device, unprotects) the host
+   // data of 'src', which is then copied on host.
+   size > 0 ? data.New(size, src.data.GetHostMemoryType()) : data.Reset();
+   data.CopyFromHost(src.HostRead(), size);
    data.UseDevice(src.data.UseDevice());
 }
 
@@ -806,6 +809,7 @@ inline Array<T>::Array(const Array<CT> &src)
    : size(src.Size())
 {
    size > 0 ? data.New(size) : data.Reset();
+   src.HostRead();
    for (int i = 0; i < size; i++) { (*this)[i] = T(src[i]); }
 }
 
@@ -1082,12 +1086,13 @@ inline void Array<T>::DeleteAll()
 template <typename T>
 inline void Array<T>::Copy(Array &copy) const
 {
+   if (&copy == this) { return; }
    copy.SetSize(Size());
    const bool use_dev = UseDevice() || copy.UseDevice();
    copy.data.UseDevice(use_dev);
-   // keep 'copy.data' where it is, unless 'use_dev' is true
-   if (use_dev) { copy.Write(); }
-   copy.data.CopyFrom(data, Size());
+   // Copy on host, as in the copy constructor: 'copy' ends up host-valid.
+   copy.HostWrite();
+   copy.data.CopyFromHost(HostRead(), Size());
 }
 
 template <class T>

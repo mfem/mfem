@@ -117,6 +117,32 @@ TEST_CASE("Array::MakeRef", "[DebugDevice]")
    REQUIRE_NOTHROW(y.Read());
 }
 
+TEST_CASE("Array copy after device access", "[DebugDevice]")
+{
+   // With the debug device, host pages that are not readable through the
+   // memory manager are protected: any unsynced host access aborts.
+   constexpr int n = 9;
+   Array<int> src(n);
+   for (int i = 0; i < n; i++) { src[i] = i; }
+   SECTION("host and device valid") { src.Read(); }
+   SECTION("device valid only") { src.ReadWrite(); }
+
+   const auto check = [](const Array<int> &copy)
+   {
+      REQUIRE(copy.GetMemory().HostIsValid());
+      REQUIRE(copy.UseDevice());
+      for (int i = 0; i < n; i++) { REQUIRE(copy[i] == i); }
+   };
+   const Array<int> copy_constructed(src);
+   check(copy_constructed);
+   Array<int> assigned(n);
+   assigned.Write();
+   assigned = src;
+   check(assigned);
+   const Array<long> converted(src);
+   for (int i = 0; i < n; i++) { REQUIRE(converted[i] == i); }
+}
+
 TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
 {
    // If MFEM_MEMORY is set, we can start with some non-empty maps,

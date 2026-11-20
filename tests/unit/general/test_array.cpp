@@ -198,3 +198,47 @@ TEST_CASE("Array delete at indices", "[Array],[GPU]")
       }
    }
 }
+
+TEST_CASE("Array copy is host-valid after device access", "[Array],[GPU]")
+{
+   constexpr int n = 9;
+   const auto value = [](int i) { return 3*i + 1; };
+
+   Array<int> src(n);
+   SECTION("host and device valid")
+   {
+      for (int i = 0; i < n; i++) { src[i] = value(i); }
+      src.Read();
+   }
+   SECTION("device valid only")
+   {
+      int *d_src = src.Write();
+      mfem::forall(n, [=] MFEM_HOST_DEVICE (int i) { d_src[i] = 3*i + 1; });
+   }
+   REQUIRE(src.UseDevice());
+
+   const auto check = [&](const Array<int> &copy)
+   {
+      REQUIRE(copy.Size() == n);
+      REQUIRE(copy.GetMemory().HostIsValid());
+      CHECK(copy.UseDevice());
+      // operator[] does not sync: the copy must be correct on host as is
+      for (int i = 0; i < n; i++) { CHECK(copy[i] == value(i)); }
+   };
+
+   const Array<int> copy_constructed(src);
+   check(copy_constructed);
+
+   Array<int> host_assigned;
+   host_assigned = src;
+   check(host_assigned);
+
+   Array<int> device_assigned(n);
+   device_assigned.Write();
+   device_assigned = src;
+   check(device_assigned);
+
+   // the source is left untouched
+   src.HostRead();
+   for (int i = 0; i < n; i++) { CHECK(src[i] == value(i)); }
+}
