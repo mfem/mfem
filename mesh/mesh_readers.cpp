@@ -125,6 +125,9 @@ void Mesh::ReadMFEMMesh(std::istream &input, int version, int &curved)
       curved = 1;
    }
 
+   ent_sets = new EntitySets(*this);
+   ent_sets->Load(input);
+
    // When visualizing solutions on non-conforming grids, PETSc
    // may dump additional vertices
    if (remove_unused_vertices) { RemoveUnusedVertices(); }

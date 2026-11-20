@@ -1894,7 +1894,16 @@ void Mesh::Init()
    own_nodes = 1;
    NURBSext = NULL;
    ncmesh = NULL;
+   ent_sets = NULL;
    last_operation = Mesh::NONE;
+}
+
+EntitySets &Mesh::GetOrCreateEntitySets()
+{
+   MFEM_VERIFY(!ncmesh, "Entity sets must be defined before converting a mesh "
+               "to a nonconforming mesh.");
+   if (!ent_sets) { ent_sets = new EntitySets(*this); }
+   return *ent_sets;
 }
 
 void Mesh::InitTables()
@@ -1902,6 +1911,7 @@ void Mesh::InitTables()
    el_to_edge = el_to_face = el_to_el = bel_to_edge = NULL;
    face_edge = edge_face = edge_vertex = NULL;
    face_to_elem = NULL;
+   face_vertex = NULL;
 }
 
 void Mesh::SetEmpty()
@@ -1923,6 +1933,7 @@ void Mesh::DestroyTables()
    }
 
    delete face_edge;
+   delete face_vertex;
    delete edge_face;
    delete edge_vertex;
 
@@ -1933,6 +1944,8 @@ void Mesh::DestroyTables()
 void Mesh::DestroyPointers()
 {
    if (own_nodes) { delete Nodes; }
+
+   delete ent_sets;
 
    delete ncmesh;
 
@@ -4684,6 +4697,12 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
    // Copy the edge-to-vertex Table, edge_vertex
    edge_vertex = (mesh.edge_vertex) ? new Table(*mesh.edge_vertex) : NULL;
 
+   // Copy the face-to-vertex Table, face_vertex
+   face_vertex = (mesh.face_vertex) ? new Table(*mesh.face_vertex) : NULL;
+
+   // Do not copy any of the coarse (c_*), fine (f_*) or fine/coarse (fc_*)
+   // data members.
+
    // Copy the attributes and bdr_attributes
    mesh.attributes.Copy(attributes);
    mesh.bdr_attributes.Copy(bdr_attributes);
@@ -4738,6 +4757,9 @@ Mesh::Mesh(const Mesh &mesh, bool copy_nodes)
       Nodes = mesh.Nodes;
       own_nodes = 0;
    }
+
+   // Copy entity sets if present in the input mesh
+   ent_sets = (mesh.ent_sets) ? new EntitySets(*mesh.ent_sets) : NULL;
 
    // copy attribute caches
    elem_attrs_cache = mesh.elem_attrs_cache;
@@ -8247,6 +8269,29 @@ Table *Mesh::GetEdgeVertexTable() const
    return edge_vertex;
 }
 
+Table *Mesh::GetFaceVertexTable() const
+{
+   if (face_vertex)
+   {
+      return face_vertex;
+   }
+
+   const int nfaces = GetNumFaces();
+   face_vertex = new Table(nfaces, 4);
+   Array<int> vertices;
+   for (int face = 0; face < nfaces; face++)
+   {
+      GetFaceVertices(face, vertices);
+      for (const int vertex : vertices)
+      {
+         face_vertex->Push(face, vertex);
+      }
+   }
+   face_vertex->Finalize();
+
+   return face_vertex;
+}
+
 Table *Mesh::GetVertexToElementTable()
 {
    Table *vert_elem = new Table;
@@ -10257,6 +10302,11 @@ void Mesh::UniformRefinement2D_base(bool update_nodes)
       NumOfEdges = GetElementToEdgeTable(*el_to_edge);
    }
 
+   if ( ent_sets )
+   {
+      ent_sets->CopyMeshTables();
+   }
+
    int quad_counter = 0;
    for (int i = 0; i < NumOfElements; i++)
    {
@@ -10392,6 +10442,11 @@ void Mesh::UniformRefinement2D_base(bool update_nodes)
 
    if (update_nodes) { UpdateNodes(); }
 
+   if ( ent_sets )
+   {
+      ent_sets->UniformRefinement2D();
+   }
+
 #ifdef MFEM_DEBUG
    if (!Nodes || update_nodes)
    {
@@ -10420,6 +10475,11 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
    if (el_to_face == NULL)
    {
       GetElementToFaceTable();
+   }
+
+   if ( ent_sets )
+   {
+      ent_sets->CopyMeshTables();
    }
 
    Array<int> f2qf_loc;
@@ -11115,6 +11175,11 @@ void Mesh::UniformRefinement3D_base(Array<int> *f2qf_ptr, DSTable *v_to_v_p,
    sequence++;
 
    if (update_nodes) { UpdateNodes(); }
+
+   if (ent_sets)
+   {
+      ent_sets->UniformRefinement3D();
+   }
 }
 
 void Mesh::LocalRefinement(const Array<int> &marked_el, int type)
@@ -11590,6 +11655,8 @@ void Mesh::Swap(Mesh& other, bool non_geometry)
 
    mfem::Swap(geom_factors, other.geom_factors);
    mfem::Swap(face_geom_factors, other.face_geom_factors);
+
+   mfem::Swap(ent_sets, other.ent_sets);
 
 #ifdef MFEM_USE_MEMALLOC
    TetMemory.Swap(other.TetMemory);
