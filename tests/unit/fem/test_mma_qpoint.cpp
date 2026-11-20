@@ -367,6 +367,42 @@ TEST_CASE("Simplex QPoint contractions and diagonals", "[MMA][GPU]")
    }
 }
 
+/** A SimplexQPoint of a pressure space built from the one of a velocity
+    space shares its geometric factors and matches a standalone one. */
+void test_qpoint_shared_factors(const char *filename)
+{
+   CAPTURE(filename);
+   Mesh mesh = MakeAffineMesh(filename);
+   const int dim = mesh.Dimension();
+   H1_FECollection fec_v(2, dim), fec_p(1, dim);
+   FiniteElementSpace fes_v(&mesh, &fec_v, dim), fes_p(&mesh, &fec_p);
+   const IntegrationRule &ir =
+      IntRules.Get(mesh.GetTypicalElementGeometry(), 5);
+   SimplexQPoint vel(fes_v, ir), pres(fes_p, vel), ref(fes_p, ir);
+   REQUIRE(pres.NumQuad() == ref.NumQuad());
+   REQUIRE(pres.GetInvJ().GetData() == vel.GetInvJ().GetData());
+   REQUIRE(pres.GetWeightDetJ().GetData() == vel.GetWeightDetJ().GetData());
+   RequireClose(pres.GetJ(), ref.GetJ());
+   RequireClose(pres.GetDetJ(), ref.GetDetJ());
+
+   GridFunction x(&fes_p);
+   Vector xe, u, du, lap, u_ref, du_ref, lap_ref;
+   RandomEVector(fes_p, x, xe);
+   const unsigned all = SimplexQPoint::VALUES | SimplexQPoint::GRADIENTS |
+                        SimplexQPoint::LAPLACIANS;
+   pres.Mult(xe, all, u, du, lap);
+   ref.Mult(xe, all, u_ref, du_ref, lap_ref);
+   RequireClose(u, u_ref);
+   RequireClose(du, du_ref);
+   RequireClose(lap, lap_ref);
+}
+
+TEST_CASE("Simplex QPoint shared geometric factors", "[MMA][GPU]")
+{
+   test_qpoint_shared_factors("../../data/inline-tri.mesh");
+   test_qpoint_shared_factors("../../data/inline-tet.mesh");
+}
+
 TEST_CASE("Simplex QPoint metric vertex permutations", "[MMA][GPU]")
 {
    test_qpoint_metric_permutations(2);

@@ -53,17 +53,17 @@ static void InverseJacobians(const int dim, const int nq, const int ne,
    });
 }
 
-SimplexQPoint::SimplexQPoint(const FiniteElementSpace &fes,
-                             const IntegrationRule &ir)
+void SimplexQPoint::SetupBasis(const FiniteElementSpace &fes,
+                               const IntegrationRule &ir)
 {
-   Mesh &mesh = *fes.GetMesh();
-   dim = mesh.Dimension();
+   mesh = fes.GetMesh();
+   dim = mesh->Dimension();
    vdim = fes.GetVDim();
    ne = fes.GetNE();
    nq = ir.GetNPoints();
    nh = dim * (dim + 1) / 2;
-   MFEM_VERIFY(!fes.IsVariableOrder() && MmaVolumetricMeshOk(mesh, dim) &&
-               TypicalFeAvailable(mesh), "SimplexQPoint: needs a fixed-order"
+   MFEM_VERIFY(!fes.IsVariableOrder() && MmaVolumetricMeshOk(*mesh, dim) &&
+               TypicalFeAvailable(*mesh), "SimplexQPoint: needs a fixed-order"
                " space on a 2D or 3D mesh with a single element type");
    const FiniteElement &el = *fes.GetTypicalFE();
    MFEM_VERIFY(dynamic_cast<const H1_TriangleElement *>(&el) ||
@@ -73,10 +73,10 @@ SimplexQPoint::SimplexQPoint(const FiniteElementSpace &fes,
 
    // Affine elements only, otherwise dxi/dx varies in the element and the
    // Laplacian would need its derivatives.
-   MFEM_VERIFY(IsAffine(mesh), "SimplexQPoint: affine simplices only, the "
-               "order " << mesh.GetNodes()->FESpace()->GetMaxElementOrder()
+   MFEM_VERIFY(IsAffine(*mesh), "SimplexQPoint: affine simplices only, the "
+               "order " << mesh->GetNodes()->FESpace()->GetMaxElementOrder()
                << " mesh nodes describe curved elements");
-   mesh.EnsureNodes(); // for GetGeometricFactors
+   mesh->EnsureNodes(); // for GetGeometricFactors
 
    // Reference tables: B and G from DofToQuad::FULL, H from CalcHessian,
    // stacked as P(q, p, i), planes p = [value, DIM gradients, NH Hessians].
@@ -104,15 +104,55 @@ SimplexQPoint::SimplexQPoint(const FiniteElementSpace &fes,
       }
    }
 
-   // J and det(J) come from the mesh GeometricFactors, they are copied since
-   // the mesh may delete its factors (Mesh::NodesUpdated).
-   const int flags = GeometricFactors::JACOBIANS |
-                     GeometricFactors::DETERMINANTS;
-   const GeometricFactors *geom = mesh.GetGeometricFactors(ir, flags);
-   for (Vector *v : {&J, &InvJ, &DetJ, &WDetJ}) { v->UseDevice(true); }
-   J = geom->J;
-   DetJ = geom->detJ;
-   InverseJacobians(dim, nq, ne, ir.GetWeights(), J, DetJ, InvJ, WDetJ);
+}
+
+static constexpr int JacobianFlags = GeometricFactors::JACOBIANS |
+                                     GeometricFactors::DETERMINANTS;
+
+SimplexQPoint::SimplexQPoint(const FiniteElementSpace &fes,
+                             const IntegrationRule &ir)
+{
+   SetupBasis(fes, ir);
+   // InvJ and w det(J) from the mesh GeometricFactors, kept here since the
+   // mesh may delete its factors (Mesh::NodesUpdated).
+   const GeometricFactors *gf = mesh->GetGeometricFactors(ir, JacobianFlags);
+   auto factors = std::make_shared<GeomFactors>();
+   factors->InvJ.UseDevice(true);
+   factors->WDetJ.UseDevice(true);
+   InverseJacobians(dim, nq, ne, ir.GetWeights(), gf->J, gf->detJ,
+                    factors->InvJ, factors->WDetJ);
+   geom = std::move(factors);
+}
+
+SimplexQPoint::SimplexQPoint(const FiniteElementSpace &fes,
+                             const SimplexQPoint &other)
+{
+   MFEM_VERIFY(fes.GetMesh() == other.mesh, "SimplexQPoint: shared geometric"
+               " factors need the same mesh");
+   SetupBasis(fes, *other.maps->IntRule);
+   geom = other.geom;
+}
+
+void SimplexQPoint::CopyJacobians() const
+{
+   const GeometricFactors *gf =
+      mesh->GetGeometricFactors(*maps->IntRule, JacobianFlags);
+   J.UseDevice(true);
+   DetJ.UseDevice(true);
+   J = gf->J;
+   DetJ = gf->detJ;
+}
+
+const Vector &SimplexQPoint::GetJ() const
+{
+   if (J.Size() != nq * dim * dim * ne) { CopyJacobians(); }
+   return J;
+}
+
+const Vector &SimplexQPoint::GetDetJ() const
+{
+   if (DetJ.Size() != nq * ne) { CopyJacobians(); }
+   return DetJ;
 }
 
 /** True if the mesh nodes, the E-vector @a x (ND, DIM, NE) of the typical
@@ -246,7 +286,7 @@ void SimplexQPoint::Metric(Vector &G) const
    // K = c (I + 1 1^T), see the declaration for the vertex-ordering argument
    const real_t c = (dim == 2) ? 1.0 / std::sqrt(3.0) : std::cbrt(2.0) / 2.0;
    const int D = dim, NQ = nq;
-   const auto Ji = Reshape(InvJ.Read(), nq, dim, dim, ne);
+   const auto Ji = Reshape(geom->InvJ.Read(), nq, dim, dim, ne);
    auto Gq = Reshape(G.Write(), nq, dim, dim, ne);
    mfem::forall(nq * ne, [=] MFEM_HOST_DEVICE (int idx)
    {
@@ -273,6 +313,121 @@ void SimplexQPoint::Metric(Vector &G) const
    });
 }
 
+using ConstTensor4 = DeviceTensor<4, const real_t>;
+
+/** Value, physical gradients and Laplacian of component c at point q of
+    element e from the reference planes Uq of that element, stored at index
+    eu, see SimplexQPoint::Mult(). The dimension is T_D, or d when T_D = 0. */
+template <int T_D = 0>
+MFEM_HOST_DEVICE inline void QPointEval(const int q, const int c,
+                                        const int e, const int eu,
+                                        const int d, const int NQ,
+                                        const int VD, const ConstTensor4 &Uq,
+                                        const ConstTensor4 &Ji, real_t *pu,
+                                        real_t *pdu, real_t *plap)
+{
+   const int D = T_D ? T_D : d;
+   const int idx = q + NQ * (c + VD * e); // (NQ, VDIM, NE) output index
+   if (pu) { pu[idx] = Uq(q, 0, c, eu); }
+   if (pdu) // du_c/dx_k = sum_j du_c/dxi_j dxi_j/dx_k
+   {
+      for (int k = 0; k < D; ++k)
+      {
+         real_t s = 0.0;
+         for (int j = 0; j < D; ++j)
+         {
+            s += Uq(q, 1 + j, c, eu) * Ji(q, j, k, e);
+         }
+         pdu[q + NQ * (c + VD * (k + D * e))] = s;
+      }
+   }
+   if (plap) // sum_{a,b} H_ref(a,b) (InvJ InvJ^T)(a,b), a <= b stored
+   {
+      real_t s = 0.0;
+      for (int a = 0, h = 0; a < D; ++a)
+      {
+         for (int b = a; b < D; ++b, ++h)
+         {
+            real_t m = 0.0;
+            for (int k = 0; k < D; ++k)
+            {
+               m += Ji(q, a, k, e) * Ji(q, b, k, e);
+            }
+            s += real_t(a == b ? 1 : 2) * m * Uq(q, 1 + D + h, c, eu);
+         }
+      }
+      plap[idx] = s;
+   }
+}
+
+/** Reference-gradient pull-back of component c at point q of element e,
+    V(q,1+j) = sum_k dxi_j/dx_k dg(q,k), stored at element index ev of Vq,
+    see SimplexQPoint::AddMultTranspose(). The dimension is T_D, or d when
+    T_D = 0. */
+template <int T_D = 0>
+MFEM_HOST_DEVICE inline void QPointPullBack(const int q, const int c,
+                                            const int e, const int ev,
+                                            const int d, const int NQ,
+                                            const int VD, const real_t *pv,
+                                            const real_t *pg,
+                                            const ConstTensor4 &Ji,
+                                            const DeviceTensor<4> &Vq)
+{
+   const int D = T_D ? T_D : d;
+   const int idx = q + NQ * (c + VD * e);
+   Vq(q, 0, c, ev) = pv ? pv[idx] : 0.0;
+   if (!pg) { return; }
+   for (int j = 0; j < D; ++j)
+   {
+      real_t s = 0.0;
+      for (int k = 0; k < D; ++k)
+      {
+         s += Ji(q, j, k, e) * pg[q + NQ * (c + VD * (k + D * e))];
+      }
+      Vq(q, 1 + j, c, ev) = s;
+   }
+}
+
+/* Host versions of the two pointwise maps, on the elements e0 to e0 + ne - 1
+   whose reference planes are a batch indexed from 0: plain loops with the
+   dimension known at compile time. On the host the index divisions of a
+   flat forall cost more than the pointwise work. */
+template <int D>
+static void HostQPointEval(const int nq, const int vdim, const int e0,
+                           const int ne, const ConstTensor4 &Uq,
+                           const ConstTensor4 &Ji, real_t *pu, real_t *pdu,
+                           real_t *plap)
+{
+   for (int b = 0; b < ne; ++b)
+   {
+      for (int c = 0; c < vdim; ++c)
+      {
+         for (int q = 0; q < nq; ++q)
+         {
+            QPointEval<D>(q, c, e0 + b, b, D, nq, vdim, Uq, Ji, pu, pdu, plap);
+         }
+      }
+   }
+}
+
+template <int D>
+static void HostQPointPullBack(const int nq, const int vdim, const int e0,
+                               const int ne, const real_t *pv,
+                               const real_t *pg, const ConstTensor4 &Ji,
+                               const DeviceTensor<4> &Vq)
+{
+   for (int b = 0; b < ne; ++b)
+   {
+      for (int c = 0; c < vdim; ++c)
+      {
+         for (int q = 0; q < nq; ++q)
+         {
+            QPointPullBack<D>(q, c, e0 + b, b, D, nq, vdim, pv, pg, Ji, Vq);
+         }
+      }
+   }
+}
+
 void SimplexQPoint::Mult(const Vector &x, unsigned flags, Vector &u,
                          Vector &du, Vector &lap) const
 {
@@ -283,8 +438,6 @@ void SimplexQPoint::Mult(const Vector &x, unsigned flags, Vector &u,
    // Hessians, so a prefix of the rows of P is enough.
    const int np = want_lap ? 1 + dim + nh : want_du ? 1 + dim : 1;
    const int ldp = nq * (1 + dim + nh);
-   const internal::mma::SimplexVecGemm in{&P, nq * np, ldp, nd, vdim};
-   internal::mma::SimplexVecInterp(ne, in, x, U);
 
    auto Output = [](bool on, int size, Vector &v) -> real_t *
    {
@@ -296,44 +449,44 @@ void SimplexQPoint::Mult(const Vector &x, unsigned flags, Vector &u,
    real_t *pu = Output(flags & VALUES, nq * vdim * ne, u);
    real_t *pdu = Output(want_du, nq * vdim * dim * ne, du);
    real_t *plap = Output(want_lap, nq * vdim * ne, lap);
+   const auto Ji = Reshape(geom->InvJ.Read(), nq, dim, dim, ne);
 
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      // Batches of elements: U holds the reference planes of one batch.
+      const int nb = ne < internal::mma::SimplexHostBatch ?
+                     ne : internal::mma::SimplexHostBatch;
+      U.SetSize(nq * np * vdim * nb);
+      U.UseDevice(true);
+      const real_t *X = x.HostRead(), *Pm = P.HostRead();
+      real_t *Ub = U.HostWrite();
+      for (int e0 = 0; e0 < ne; e0 += nb)
+      {
+         const int n = ne - e0 < nb ? ne - e0 : nb;
+         internal::mma::SimplexInterpHost(nq * np, ldp, nd, vdim * n, Pm,
+                                          X + nd * vdim * e0, Ub);
+         const auto Uq = Reshape(static_cast<const real_t *>(Ub), nq, np,
+                                 vdim, n);
+         if (dim == 3)
+         {
+            HostQPointEval<3>(nq, vdim, e0, n, Uq, Ji, pu, pdu, plap);
+         }
+         else
+         {
+            HostQPointEval<2>(nq, vdim, e0, n, Uq, Ji, pu, pdu, plap);
+         }
+      }
+      return;
+   }
+
+   const internal::mma::SimplexVecGemm in{&P, nq * np, ldp, nd, vdim};
+   internal::mma::SimplexVecInterp(ne, in, x, U);
    const int D = dim, NQ = nq, VD = vdim;
    const auto Uq = Reshape(U.Read(), nq, np, vdim, ne);
-   const auto Ji = Reshape(InvJ.Read(), nq, dim, dim, ne);
    mfem::forall(nq * vdim * ne, [=] MFEM_HOST_DEVICE (int idx)
    {
-      // idx = q + NQ (c + VD e) is also the (NQ, VDIM, NE) output index
       const int q = idx % NQ, c = (idx / NQ) % VD, e = idx / (NQ * VD);
-      if (pu) { pu[idx] = Uq(q, 0, c, e); }
-      if (pdu) // du_c/dx_k = sum_j du_c/dxi_j dxi_j/dx_k
-      {
-         for (int k = 0; k < D; ++k)
-         {
-            real_t s = 0.0;
-            for (int j = 0; j < D; ++j)
-            {
-               s += Uq(q, 1 + j, c, e) * Ji(q, j, k, e);
-            }
-            pdu[q + NQ * (c + VD * (k + D * e))] = s;
-         }
-      }
-      if (plap) // sum_{a,b} H_ref(a,b) (InvJ InvJ^T)(a,b), a <= b stored
-      {
-         real_t s = 0.0;
-         for (int a = 0, h = 0; a < D; ++a)
-         {
-            for (int b = a; b < D; ++b, ++h)
-            {
-               real_t m = 0.0;
-               for (int k = 0; k < D; ++k)
-               {
-                  m += Ji(q, a, k, e) * Ji(q, b, k, e);
-               }
-               s += real_t(a == b ? 1 : 2) * m * Uq(q, 1 + D + h, c, e);
-            }
-         }
-         plap[idx] = s;
-      }
+      QPointEval(q, c, e, e, D, NQ, VD, Uq, Ji, pu, pdu, plap);
    });
 }
 
@@ -349,29 +502,47 @@ void SimplexQPoint::AddMultTranspose(const Vector &dv, const Vector &dg,
    // Pull the physical-gradient data back to the reference gradients,
    // V(q,1+j) = sum_k dxi_j/dx_k dg(q,k), then y += P^T V in one product.
    const int np = has_g ? 1 + dim : 1;
-   V.SetSize(nq * np * vdim * ne);
-   V.UseDevice(true);
+   const int ldp = nq * (1 + dim + nh);
    const int D = dim, NQ = nq, VD = vdim;
    const real_t *pv = has_v ? dv.Read() : nullptr;
    const real_t *pg = has_g ? dg.Read() : nullptr;
-   const auto Ji = Reshape(InvJ.Read(), nq, dim, dim, ne);
+   const auto Ji = Reshape(geom->InvJ.Read(), nq, dim, dim, ne);
+
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      // Batches of elements: V holds the reference data of one batch.
+      const int nb = ne < internal::mma::SimplexHostBatch ?
+                     ne : internal::mma::SimplexHostBatch;
+      V.SetSize(nq * np * vdim * nb);
+      V.UseDevice(true);
+      const real_t *Pm = P.HostRead();
+      real_t *Vb = V.HostWrite(), *Y = y.HostReadWrite();
+      for (int e0 = 0; e0 < ne; e0 += nb)
+      {
+         const int n = ne - e0 < nb ? ne - e0 : nb;
+         const auto Vq = Reshape(Vb, nq, np, vdim, n);
+         if (dim == 3)
+         {
+            HostQPointPullBack<3>(nq, vdim, e0, n, pv, pg, Ji, Vq);
+         }
+         else
+         {
+            HostQPointPullBack<2>(nq, vdim, e0, n, pv, pg, Ji, Vq);
+         }
+         internal::mma::SimplexScatterAddHost(nq * np, ldp, nd, vdim * n, Pm,
+                                              Vb, Y + nd * vdim * e0);
+      }
+      return;
+   }
+
+   V.SetSize(nq * np * vdim * ne);
+   V.UseDevice(true);
    auto Vq = Reshape(V.Write(), nq, np, vdim, ne);
    mfem::forall(nq * vdim * ne, [=] MFEM_HOST_DEVICE (int idx)
    {
       const int q = idx % NQ, c = (idx / NQ) % VD, e = idx / (NQ * VD);
-      Vq(q, 0, c, e) = pv ? pv[idx] : 0.0;
-      if (!pg) { return; }
-      for (int j = 0; j < D; ++j)
-      {
-         real_t s = 0.0;
-         for (int k = 0; k < D; ++k)
-         {
-            s += Ji(q, j, k, e) * pg[q + NQ * (c + VD * (k + D * e))];
-         }
-         Vq(q, 1 + j, c, e) = s;
-      }
+      QPointPullBack(q, c, e, e, D, NQ, VD, pv, pg, Ji, Vq);
    });
-   const int ldp = nq * (1 + dim + nh);
    internal::mma::SimplexScatterAdd(nq * np, ldp, nd, vdim * ne, P, V, y);
 }
 
@@ -390,7 +561,7 @@ void SimplexQPoint::AddDiagonal(const Vector &dvv, const Vector &dvg,
    const real_t *pvg = dvg.Size() ? dvg.Read() : nullptr;
    const real_t *pgg = dgg.Size() ? dgg.Read() : nullptr;
    const auto Pq = Reshape(P.Read(), nq, NP, nd);
-   const auto Ji = Reshape(InvJ.Read(), nq, dim, dim, ne);
+   const auto Ji = Reshape(geom->InvJ.Read(), nq, dim, dim, ne);
    real_t *Y = diag.ReadWrite();
    // One thread per diagonal entry (i,c,e), a loop over the points.
    mfem::forall(nd * vdim * ne, [=] MFEM_HOST_DEVICE (int idx)

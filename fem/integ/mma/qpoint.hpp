@@ -48,12 +48,15 @@
     Interpolation is one dense product U = P X with the stacked reference
     basis P = [B; G; H] (planes value, DIM gradients, NH Hessians) acting on
     every component of every element, through the simplex MMA batched GEMM
-    (DMMA on CUDA, vendor GEMM with LAPACK on the host, else forall loops),
-    followed by a pointwise map to physical quantities. The transposed
-    contractions use the same P, the diagonals are pointwise loops.
+    (DMMA on CUDA; on the host, by batches of elements, vendor GEMM with
+    LAPACK, else plain loops), followed by a pointwise map to physical
+    quantities. The transposed contractions use the same P, the diagonals
+    are pointwise loops.
 */
 
 #include "mma.hpp"
+
+#include <memory>
 
 namespace mfem
 {
@@ -89,6 +92,12 @@ public:
        the elements must be affine, see IsAffine(). */
    SimplexQPoint(const FiniteElementSpace &fes, const IntegrationRule &ir);
 
+   /** @brief Set up the reference tables of @a fes, on the mesh and at the
+       quadrature rule of @a other, and share the geometric factors of
+       @a other (InvJ, WeightDetJ) instead of storing a copy, e.g. for the
+       pressure space of a velocity-pressure pair. */
+   SimplexQPoint(const FiniteElementSpace &fes, const SimplexQPoint &other);
+
    /** @brief True if the (local) elements of @a mesh are affine: no mesh
        nodes (the vertices only), mesh nodes of order 1, or higher-order
        nodes on a single simplex type that are, in every element, the P1
@@ -116,14 +125,16 @@ public:
    /// Reference Hessian H(q,s,i), (NQ, NH, ND), symmetric storage.
    const Array<real_t> &GetRefHessian() const { return H; }
 
-   /// Jacobians, (NQ, DIM, DIM, NE), from Mesh::GetGeometricFactors().
-   const Vector &GetJ() const { return J; }
+   /** @brief Jacobians, (NQ, DIM, DIM, NE), copied from
+       Mesh::GetGeometricFactors() at the first call: the operations only
+       need the inverse Jacobians and the weighted determinants. */
+   const Vector &GetJ() const;
    /// Inverse Jacobians dxi/dx, (NQ, DIM, DIM, NE).
-   const Vector &GetInvJ() const { return InvJ; }
-   /// Jacobian determinants, (NQ, NE).
-   const Vector &GetDetJ() const { return DetJ; }
+   const Vector &GetInvJ() const { return geom->InvJ; }
+   /// Jacobian determinants, (NQ, NE), copied as in GetJ().
+   const Vector &GetDetJ() const;
    /// Quadrature weights times |J|, (NQ, NE).
-   const Vector &GetWeightDetJ() const { return WDetJ; }
+   const Vector &GetWeightDetJ() const { return geom->WDetJ; }
 
    /** @brief Element metric G(q,k,l,e), (NQ, DIM, DIM, NE), of the stabilized
        methods (tau_m, tau_c, tau_b):
@@ -174,12 +185,29 @@ public:
                     Vector &diag) const;
 
 private:
+   /// Checks, sizes and reference tables of @a fes at @a ir.
+   void SetupBasis(const FiniteElementSpace &fes, const IntegrationRule &ir);
+   /// Copy J and DetJ from the mesh geometric factors.
+   void CopyJacobians() const;
+
+   /// Geometric factors at the points, shared by the SimplexQPoint objects
+   /// of the spaces of one mesh at one rule.
+   struct GeomFactors
+   {
+      Vector InvJ;  ///< (NQ, DIM, DIM, NE)
+      Vector WDetJ; ///< (NQ, NE)
+   };
+
+   Mesh *mesh;
    int dim, vdim, nd, nq, ne, nh;
    const DofToQuad *maps;
    Array<real_t> H; ///< (NQ, NH, ND)
    Array<real_t> P; ///< stacked [B; G; H], (NQ, 1 + DIM + NH, ND)
-   Vector J, InvJ, DetJ, WDetJ;
-   mutable Vector U, V; ///< quadrature scratch, (NQ * planes, VDIM NE)
+   std::shared_ptr<const GeomFactors> geom;
+   mutable Vector J, DetJ; ///< filled by GetJ() and GetDetJ()
+   /// Quadrature scratch, (NQ * planes, VDIM NE) on the device, a batch of
+   /// elements on the host.
+   mutable Vector U, V;
 };
 
 } // namespace mfem

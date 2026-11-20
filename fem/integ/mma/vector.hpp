@@ -25,7 +25,9 @@
     go through mma::Gemm / mma::GemmT, i.e. FP64 DMMA (mma.sync m8n8k4) on
     sm_80+ in double precision, the cooperative blas loops otherwise.
     HIP-only builds and batches that do not fit in shared memory use the
-    dense forall path. Host: vendor GEMMs with LAPACK, else forall loops.
+    dense forall path. Host: batches of SimplexHostBatch elements, so that
+    the quadrature scratch stays small and in cache, through vendor GEMMs
+    with LAPACK, else plain loops.
 */
 
 #include "mma.hpp"
@@ -97,6 +99,20 @@ void SimplexInterp(const int rows, const int ldp, const int nd,
 void SimplexScatterAdd(const int rows, const int ldp, const int nd,
                        const int ncol, const Array<real_t> &P,
                        const Vector &v, Vector &y);
+
+/// Host SimplexInterp on raw host arrays.
+void SimplexInterpHost(const int rows, const int ldp, const int nd,
+                       const int ncol, const real_t *P, const real_t *X,
+                       real_t *U);
+
+/// Host SimplexScatterAdd on raw host arrays.
+void SimplexScatterAddHost(const int rows, const int ldp, const int nd,
+                           const int ncol, const real_t *P, const real_t *V,
+                           real_t *Y);
+
+/** Elements per batch of the host paths: the quadrature scratch of a batch
+    is a few tens of kB, instead of arrays over all the elements. */
+constexpr int SimplexHostBatch = 128;
 
 /** One side of a batched vector product: basis P (ldp x nd, first rows
     rows used) acting on nc E-vector components per element. */
@@ -236,8 +252,9 @@ inline bool SimplexVecUseDevice()
 #endif
 }
 
-/** y += P_out^T point(P_in x) over NE elements; @a u, @a v are host-path
-    scratch (in.rows x in.nc NE and out.rows x out.nc NE). */
+/** y += P_out^T point(P_in x) over NE elements; @a u, @a v are scratch:
+    one host batch (in.rows x in.nc SimplexHostBatch and out.rows x out.nc
+    SimplexHostBatch), or all the elements on the device forall path. */
 template <typename Point>
 inline void SimplexVecApply(const Point &point, const int NE, const int nq,
                             const SimplexVecGemm &in,
@@ -253,6 +270,33 @@ inline void SimplexVecApply(const Point &point, const int NE, const int nq,
       return;
    }
    const int rin = in.rows, nci = in.nc, rout = out.rows, nco = out.nc;
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      // The same per-element products and point calls, batch by batch.
+      const int nb = NE < SimplexHostBatch ? NE : SimplexHostBatch;
+      u.SetSize(rin * nci * nb);
+      v.SetSize(rout * nco * nb);
+      const real_t *Pin = in.P->HostRead(), *Pout = out.P->HostRead();
+      const real_t *X = x.HostRead();
+      real_t *Y = y.HostReadWrite(), *U = u.HostWrite(), *V = v.HostWrite();
+      for (int e0 = 0; e0 < NE; e0 += nb)
+      {
+         const int ne = NE - e0 < nb ? NE - e0 : nb;
+         SimplexInterpHost(rin, in.ldp, in.nd, nci * ne, Pin,
+                           X + in.nd * nci * e0, U);
+         for (int b = 0; b < ne; ++b)
+         {
+            for (int q = 0; q < nq; ++q)
+            {
+               point(q, e0 + b, U + rin * nci * b, rin, V + rout * nco * b,
+                     rout);
+            }
+         }
+         SimplexScatterAddHost(rout, out.ldp, out.nd, nco * ne, Pout, V,
+                               Y + out.nd * nco * e0);
+      }
+      return;
+   }
    u.SetSize(rin * nci * NE);
    v.SetSize(rout * nco * NE);
    u.UseDevice(true);

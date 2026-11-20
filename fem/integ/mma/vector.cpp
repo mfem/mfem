@@ -136,19 +136,66 @@ void SimplexAdjSetup(Mesh &mesh, const IntegrationRule &ir,
    });
 }
 
+void SimplexInterpHost(const int rows, const int ldp, const int nd,
+                       const int ncol, const real_t *P, const real_t *X,
+                       real_t *U)
+{
+#ifdef MFEM_USE_LAPACK
+   lapack::Gemm('N', 'N', rows, ncol, nd, real_t(1), P, ldp, X, nd, real_t(0),
+                U, rows);
+#else
+   // The sums of the forall in SimplexInterp, in the same order, as plain
+   // loops: no index division per entry, and the row loop vectorizes.
+   for (int col = 0; col < ncol; ++col)
+   {
+      const real_t *Xc = X + nd * col;
+      real_t *Uc = U + rows * col;
+      for (int r = 0; r < rows; ++r) { Uc[r] = 0.0; }
+      for (int i = 0; i < nd; ++i)
+      {
+         const real_t *Pi = P + ldp * i;
+         const real_t xi = Xc[i];
+         for (int r = 0; r < rows; ++r) { Uc[r] += Pi[r] * xi; }
+      }
+   }
+#endif
+}
+
+void SimplexScatterAddHost(const int rows, const int ldp, const int nd,
+                           const int ncol, const real_t *P, const real_t *V,
+                           real_t *Y)
+{
+#ifdef MFEM_USE_LAPACK
+   lapack::Gemm('T', 'N', nd, ncol, rows, real_t(1), P, ldp, V, rows,
+                real_t(1), Y, nd);
+#else
+   // The sums of the forall in SimplexScatterAdd, in the same order.
+   for (int col = 0; col < ncol; ++col)
+   {
+      const real_t *Vc = V + rows * col;
+      real_t *Yc = Y + nd * col;
+      for (int i = 0; i < nd; ++i)
+      {
+         const real_t *Pi = P + ldp * i;
+         real_t s = 0.0;
+         for (int r = 0; r < rows; ++r) { s += Pi[r] * Vc[r]; }
+         Yc[i] += s;
+      }
+   }
+#endif
+}
+
 void SimplexInterp(const int rows, const int ldp, const int nd,
                    const int ncol, const Array<real_t> &P,
                    const Vector &x, Vector &u)
 {
    if (ncol <= 0) { return; }
-#ifdef MFEM_USE_LAPACK
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      lapack::Gemm('N', 'N', rows, ncol, nd, real_t(1), P.HostRead(), ldp,
-                   x.HostRead(), nd, real_t(0), u.HostWrite(), rows);
+      SimplexInterpHost(rows, ldp, nd, ncol, P.HostRead(), x.HostRead(),
+                        u.HostWrite());
       return;
    }
-#endif
    const real_t *Pm = P.Read();
    const auto X = Reshape(x.Read(), nd, ncol);
    auto U = Reshape(u.Write(), rows, ncol);
@@ -166,14 +213,12 @@ void SimplexScatterAdd(const int rows, const int ldp, const int nd,
                        const Vector &v, Vector &y)
 {
    if (ncol <= 0) { return; }
-#ifdef MFEM_USE_LAPACK
    if (!Device::Allows(Backend::DEVICE_MASK))
    {
-      lapack::Gemm('T', 'N', nd, ncol, rows, real_t(1), P.HostRead(), ldp,
-                   v.HostRead(), rows, real_t(1), y.HostReadWrite(), nd);
+      SimplexScatterAddHost(rows, ldp, nd, ncol, P.HostRead(), v.HostRead(),
+                            y.HostReadWrite());
       return;
    }
-#endif
    const real_t *Pm = P.Read();
    const auto V = Reshape(v.Read(), rows, ncol);
    auto Y = Reshape(y.ReadWrite(), nd, ncol);
