@@ -679,11 +679,11 @@ public:
    const SparseMatrix *GetConformingRestriction() const;
 
    /** @brief Return the conforming assembly $P^T A P$ of @a mat, where @a P is
-       the conforming prolongation.
+       the conforming prolongation. The returned matrix is the operator on the 
+       conforming FE space.
 
-       The caller owns the returned matrix and must use it in place of @a mat,
-       which may be deleted. On a conforming space the returned matrix is
-       @a mat itself. Typical use: `A = fes.ConformingAssemble(A);` */
+       The caller takes ownership of the returned matrix and the input matrix @a mat,
+       is deleted. */
    SparseMatrix *ConformingAssemble(SparseMatrix *mat) const;
 
    /** Return a version of the conforming restriction matrix for variable-order
