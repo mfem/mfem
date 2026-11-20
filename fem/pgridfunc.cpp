@@ -946,6 +946,17 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    // Convert non-master face DOFs to master orientation.
    if (face_nnz)
    {
+#ifdef MFEM_DEBUG
+      for (int i = 0; i < ldof; i++)
+      {
+         if (pair_size[i] == 2)
+         {
+            MFEM_ASSERT(values_counter[i+1] == values_counter[i],
+                        "inconsistent face DOF pair counter");
+            i++;
+         }
+      }
+#endif
       apply_face_dof_transform(values.HostReadWrite(), true);
    }
 
