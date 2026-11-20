@@ -358,6 +358,53 @@ public:
    {}
 };
 
+/** Stateless DoF transformation for the Bernstein Nedelec basis on simplices.
+
+    Unlike the nodal ND basis, the face-supported modes of this basis are
+    generally mixed by a change of face orientation. Due to the linear dependence of
+    the non-gradient face bubbles prior to excluding a single face bubble, mapping
+    from canonical to the actual face orientation is non-trivial and requires
+    expressing the canonical face bubbles as linear combinations of all oriented
+    face bubbles. Consequently, the associated transformation matrix is dense. */
+class NDPos_DofTransformation : public StatelessDofTransformation
+{
+protected:
+   const int order;
+   const int nedges;
+   const int nfaces;
+   const int nfdofs;
+   DenseTensor T;
+   DenseTensor TInv;
+
+   NDPos_DofTransformation(int size, int order, int num_edges,
+                           int num_faces);
+
+public:
+   bool IsIdentity() const override { return nfdofs == 0; }
+
+   void TransformPrimal(const Array<int> &Fo, real_t *v) const override;
+   void InvTransformPrimal(const Array<int> &Fo, real_t *v) const override;
+   void TransformDual(const Array<int> &Fo, real_t *v) const override;
+   void InvTransformDual(const Array<int> &Fo, real_t *v) const override;
+};
+
+/// DoF transformation for the Bernstein Nedelec basis on triangles.
+class NDPos_TriDofTransformation : public NDPos_DofTransformation
+{
+public:
+   explicit NDPos_TriDofTransformation(int order)
+      : NDPos_DofTransformation(order*(order + 2), order, 3, 1) { }
+};
+
+/// DoF transformation for the Bernstein Nedelec basis on tetrahedra.
+class NDPos_TetDofTransformation : public NDPos_DofTransformation
+{
+public:
+   explicit NDPos_TetDofTransformation(int order)
+      : NDPos_DofTransformation(order*(order + 2)*(order + 3)/2,
+                                order, 6, 4) { }
+};
+
 /// DoF transformation implementation for the Nedelec basis on wedge elements
 class ND_WedgeDofTransformation : public ND_DofTransformation
 {

@@ -120,6 +120,7 @@ public:
    | H1_Trace_[DIM]_[ORDER] | H^{1/2} | * | 1 | VALUE | H^{1/2}-conforming trace elements for H1 defined on the interface between mesh elements (faces,edges,vertices) |
    | H1_Trace@[BTYPE]_[DIM]_[ORDER] | H^{1/2} | * | * | VALUE | H^{1/2}-conforming trace elements for H1 defined on the interface between mesh elements (faces,edges,vertices) |
    | ND_[DIM]_[ORDER] | H(curl) | * | 1 / 0 | H_CURL | Nedelec vector elements |
+   | NDPos_[DIM]D_P[ORDER] | H(curl) | * | 2 | H_CURL | Nedelec vector elements with Bernstein basis |
    | ND@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H(curl) | * | * / * | H_CURL | Nedelec vector elements |
    | ND_Trace_[DIM]_[ORDER] | H^{1/2} | * | 1 / 0  | H_CURL | H^{1/2}-conforming trace elements for H(curl) defined on the interface between mesh elements (faces,edges) |
    | ND_Trace@[CBTYPE][OBTYPE]_[DIM]_[ORDER] | H^{1/2} | * | * / * | H_CURL | H^{1/2}-conforming trace elements for H(curl) defined on the interface between mesh elements (faces,edges) |
@@ -566,6 +567,40 @@ public:
    { return dim>1 ? base_p : base_p+1; }
 
    virtual ~ND_FECollection();
+};
+
+/** Bernstein Nedelec basis on simplicial meshes.
+
+    This collection supports fixed-order triangular meshes in two dimensions
+    and tetrahedral meshes in three dimensions. */
+class NDPos_FECollection : public FiniteElementCollection
+{
+protected:
+   int dim;
+   char ndpos_name[32];
+   FiniteElement *elements[Geometry::NumGeom];
+   int geom_dof[Geometry::NumGeom];
+   int *SegDofOrd[2];
+   int *TriDofOrd[6];
+
+public:
+   explicit NDPos_FECollection(int p, int dim = 3);
+
+   const FiniteElement *FiniteElementForGeometry(
+      Geometry::Type GeomType) const override;
+   int DofForGeometry(Geometry::Type GeomType) const override
+   { return geom_dof[GeomType]; }
+   const StatelessDofTransformation *DofTransformationForGeometry(
+      Geometry::Type GeomType) const override;
+   const int *DofOrderForOrientation(Geometry::Type GeomType,
+                                     int Or) const override;
+   const char *Name() const override { return ndpos_name; }
+   int GetContType() const override { return TANGENTIAL; }
+   FiniteElementCollection *Clone(int p) const override
+   { return new NDPos_FECollection(p, dim); }
+   int GetConstructorOrder() const override { return base_p; }
+
+   virtual ~NDPos_FECollection();
 };
 
 /** @brief Arbitrary order H(curl)-trace finite elements defined on the
