@@ -3945,6 +3945,10 @@ protected:
     field, $\alpha = \pm 1$ and $\kappa > 0$ are the Nitsche parameters, and
     $u$, $v$ are the trial and test functions, respectively.
 
+    If $\tilde{n}$ is not provided, the outward unit normal $\vec{n}$ is used.
+    Otherwise, $\tilde{n}$ is evaluated on the boundary face transformation, so
+    a piecewise coefficient is selected by boundary attribute.
+
     This is a '%Vector' integrator, i.e. defined for FE spaces using multiple
     copies of a scalar FE space.
  */
@@ -3986,7 +3990,7 @@ protected:
    Vector nor;  // nor = |weight(J_face)| n
    Vector nL1;  // nL1 = (lambda1 * ip.weight / detJ1) nor
    Vector nM1;  // nM1 = (mu1     * ip.weight / detJ1) nor
-   Vector nt1;  // nt1 = vector function ñ evaluated at ip1
+   Vector nt1;  // nt1 = vector function ñ evaluated on the face at ip
    Vector dshape1_dnM; // dshape1_dnM = dshape1_ps . nM1
    Vector dshape1_dnt; // dshape1_dnt = dshape1_ps . nt1
    // 'jmat' corresponds to the term: kappa <h⁻¹ u ⋅ ñ, v ⋅ ñ>

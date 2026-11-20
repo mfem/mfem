@@ -4286,7 +4286,7 @@ void SlidingElasticityIntegrator::AssembleFaceMatrix(
    const IntegrationRule *ir = IntRule;
    if (ir == NULL)
    {
-      // a simple choice for the integration order; is this OK?
+      // a simple choice for the integration order
       const int order = 2 * el1.GetOrder();
       ir = &IntRules.Get(Trans.GetGeometryType(), order);
    }
@@ -4324,8 +4324,8 @@ void SlidingElasticityIntegrator::AssembleFaceMatrix(
       }
       else
       {
-         // Evaluate vector function ñ at integration point
-         nt->Eval(nt1, *Trans.Elem1, eip1);
+         // Evaluate the vector field using the face transformation
+         nt->Eval(nt1, Trans, ip);
       }
 
       const real_t W = ip.weight;

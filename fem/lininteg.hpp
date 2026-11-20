@@ -696,6 +696,10 @@ public:
     parameters. The parameters $\lambda$ and $\mu$ should match the parameters
     with the same names used in the bilinear form integrator,
     SlidingElasticityIntegrator.
+
+    If $\tilde{n}$ is not provided, the outward unit normal $n$ is used.
+    Both $g$ and $\tilde{n}$ are evaluated on the boundary face transformation,
+    so piecewise coefficients are selected by boundary attribute.
  */
 class SlidingElasticityLFIntegrator : public LinearFormIntegrator
 {
