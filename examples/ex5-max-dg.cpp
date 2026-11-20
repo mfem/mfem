@@ -62,6 +62,7 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../data/beam-tet.mesh";
    int order = 1;
    real_t td = 0.5;
+   Array<int> bbcs;
    bool reduction = false;
    bool hybridization = false;
    bool trace_h1 = false;
@@ -75,7 +76,9 @@ int main(int argc, char *argv[])
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&td, "-td", "--stab_diff",
-                  "Diffusion stabilization factor (1/2=default)");
+                  "Diffusion stabilization factor (1/2=default).");
+   args.AddOption(&bbcs, "-bbc", "--magnetic-bcs",
+                  "List of magnetic boundary conditions.");
    args.AddOption(&freq, "-f", "--frequency", "Set the frequency for the exact"
                   " solution.");
    args.AddOption(&reduction, "-rd", "--reduction", "-no-rd",
@@ -173,19 +176,33 @@ int main(int argc, char *argv[])
    MemoryType mt = device.GetMemoryType();
    BlockVector x(block_offsets, mt);
 
+   // Mark attributes of boundary conditions
+   const int nbdr_attrs = mesh.bdr_attributes.Size() > 0 ?
+                          mesh.bdr_attributes.Max() : 1;
+   Array<int> bdr_E(nbdr_attrs), bdr_B(nbdr_attrs);
+   bdr_E = -1;
+   bdr_B = 0;
+   for (int bbc : bbcs)
+   {
+      if (bbc <= 0 || bbc > nbdr_attrs) { continue; }
+      bdr_E[bbc-1] = 0;
+      bdr_B[bbc-1] = -1;
+   }
+
    LinearForm *fform = darcy->GetFluxRHS();
    fform->AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
-   //fform->AddBdrFaceIntegrator(new VectorBoundaryTangentialLFIntegrator(
-   //                               Bcoeff));
+   fform->AddBdrFaceIntegrator(new VectorBoundaryTangentialLFIntegrator(
+                                    Bcoeff), bdr_B);
 
    LinearForm *gform = darcy->GetPotentialRHS();
    if (dim_curl > 1)
    {
-      gform->AddBdrFaceIntegrator(new VectorBoundaryTangentialLFIntegrator(Ecoeff));
+      gform->AddBdrFaceIntegrator(new VectorBoundaryTangentialLFIntegrator(Ecoeff),
+                                    bdr_E);
    }
    else
    {
-      gform->AddBdrFaceIntegrator(new BoundaryTangentialLFIntegrator(Ecoeff));
+      gform->AddBdrFaceIntegrator(new BoundaryTangentialLFIntegrator(Ecoeff), bdr_E);
    }
 
 
@@ -207,10 +224,9 @@ int main(int argc, char *argv[])
                                  MixedCurlIntegrator::Mode::OutOfPlane));
    cVarf->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                        new DGTangentialTraceIntegrator(+1.)));
-   cVarf->AddBdrFaceIntegrator(new TransposeIntegrator(
-                                  new DGTangentialTraceIntegrator(+2.)));
    mbVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(invsigmacoeff, td));
-   //mbVarf->AddBdrFaceIntegrator(new HDGDiffusionIntegrator(invsigmacoeff, td));
+   cVarf->AddBdrFaceIntegrator(new TransposeIntegrator(
+                                  new DGTangentialTraceIntegrator(+2.)), bdr_E);
 
    if (dim_curl > 1)
    {
@@ -242,7 +258,7 @@ int main(int argc, char *argv[])
          trace_coll = make_unique<DG_Interface_FECollection>(order, dim);
       }
       trace_space = make_unique<FiniteElementSpace>(&mesh, trace_coll.get(),
-                                                    dim_curl);
+                                                    dim - 1);
       darcy->EnableHybridization(trace_space.get(),
                                  new TangentTraceJumpIntegrator(-1.),
                                  ess_flux_tdofs_list);
