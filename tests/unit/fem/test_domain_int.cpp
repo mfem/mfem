@@ -290,9 +290,12 @@ real_t ScalarLinearField(const Vector &x)
    return 0.25 + 0.5 * x(0) - 0.125 * x(1) + 0.75 * x(2);
 }
 
-/** @brief Return the index of the vertex located at the origin, or -1. */
+/** @brief Return the index of the vertex located at the origin, or -1.
+
+    The mesh must have spatial dimension 3. */
 int FindOriginVertex(const Mesh &mesh)
 {
+   REQUIRE(mesh.SpaceDimension() == 3);
    for (int v = 0; v < mesh.GetNV(); v++)
    {
       const real_t *vp = mesh.GetVertex(v);
@@ -1317,6 +1320,7 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on NC Interface)",
    };
 
    const real_t serial_action = action(MPI_COMM_SELF, nullptr);
+   REQUIRE(serial_action > 0.01);
 
    // Keep the coarse master and fine slaves on different ranks.
    const int nranks = Mpi::WorldSize();
@@ -1376,6 +1380,7 @@ TEST_CASE("Domain Integration in Parallel (Vector Delta on Hex NC Interface)",
    };
 
    const real_t serial_action = action(MPI_COMM_SELF, nullptr);
+   REQUIRE(serial_action > 0.01);
 
    const int nranks = Mpi::WorldSize();
    real_t vmax = 0.0;
