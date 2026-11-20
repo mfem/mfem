@@ -3046,7 +3046,10 @@ inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
                                           const int NE,
                                           const Array<real_t> &bo,
                                           const Array<real_t> &bc,
-                                          const Array<real_t> &gc,
+                                          const Array<real_t> &bot,
+                                          const Array<real_t> &bct,
+                                          const Array<real_t> &gct,
+                                          const bool mixed_basis,
                                           const Vector &pa_data,
                                           const Vector &x,
                                           Vector &y)
@@ -3060,7 +3063,9 @@ inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
 
    auto Bo = Reshape(bo.Read(), Q1D, D1D-1);
    auto Bc = Reshape(bc.Read(), Q1D, D1D);
-   auto Gc = Reshape(gc.Read(), Q1D, D1D);
+   auto Bot = Reshape(bot.Read(), D1D-1, Q1D);
+   auto Bct = Reshape(bct.Read(), D1D, Q1D);
+   auto Gct = Reshape(gct.Read(), D1D, Q1D);
    auto op = Reshape(pa_data.Read(), coeffDim, Q1D, Q1D, Q1D, NE);
    auto X = Reshape(x.Read(), 3*(D1D-1)*D1D*D1D, NE);
    auto Y = Reshape(y.ReadWrite(), 3*(D1D-1)*D1D*D1D, NE);
@@ -3109,7 +3114,7 @@ inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
             MFEM_FOREACH_THREAD(q,x,Q1D)
             {
                sBc[d][q] = Bc(q,d);
-               sGc[d][q] = Gc(q,d);
+               sGc[d][q] = Gct(d,q);
                if (d < D1D-1)
                {
                   sBo[d][q] = Bo(q,d);
@@ -3201,9 +3206,10 @@ inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
 
          MFEM_FOREACH_THREAD(dz,z,D1D)
          {
-            const real_t wcz = sBc[dz][qz];
-            const real_t wcDz = sGc[dz][qz];
-            const real_t wz = (dz < D1D-1) ? sBo[dz][qz] : 0.0;
+            const real_t wcz = mixed_basis ? Bct(dz,qz) : sBc[dz][qz];
+            const real_t wcDz = mixed_basis ? Gct(dz,qz) : sGc[dz][qz];
+            const real_t wz = (dz < D1D-1) ?
+                              (mixed_basis ? Bot(dz,qz) : sBo[dz][qz]) : 0.0;
 
             MFEM_FOREACH_THREAD(dy,y,D1D)
             {
@@ -3211,9 +3217,11 @@ inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
                {
                   for (int qy = 0; qy < Q1D; ++qy)
                   {
-                     const real_t wcy = sBc[dy][qy];
-                     const real_t wcDy = sGc[dy][qy];
-                     const real_t wy = (dy < D1D-1) ? sBo[dy][qy] : 0.0;
+                     const real_t wcy = mixed_basis ? Bct(dy,qy) : sBc[dy][qy];
+                     const real_t wcDy = mixed_basis ? Gct(dy,qy) : sGc[dy][qy];
+                     const real_t wy = (dy < D1D-1) ?
+                                       (mixed_basis ? Bot(dy,qy) : sBo[dy][qy]) :
+                                       0.0;
 
                      for (int qx = 0; qx < Q1D; ++qx)
                      {
@@ -3241,12 +3249,15 @@ inline void SmemPAHcurlL2ApplyTranspose3D(const int d1d,
                            c3 = (O31*mass[qy][qx][0])+(O32*mass[qy][qx][1])+(O33*mass[qy][qx][2]);
                         }
 
-                        const real_t wcx = sBc[dx][qx];
-                        const real_t wDx = sGc[dx][qx];
+                        const real_t wcx =
+                           mixed_basis ? Bct(dx,qx) : sBc[dx][qx];
+                        const real_t wDx =
+                           mixed_basis ? Gct(dx,qx) : sGc[dx][qx];
 
                         if (dx < D1D-1)
                         {
-                           const real_t wx = sBo[dx][qx];
+                           const real_t wx =
+                              mixed_basis ? Bot(dx,qx) : sBo[dx][qx];
                            dxyz1 += (wx * c2 * wcy * wcDz) - (wx * c3 * wcDy * wcz);
                         }
 
