@@ -8278,11 +8278,11 @@ Table *Mesh::GetFaceVertexTable() const
 
    const int nfaces = GetNumFaces();
    face_vertex = new Table(nfaces, 4);
-   Array<int> vertices;
+   Array<int> face_vertices;
    for (int face = 0; face < nfaces; face++)
    {
-      GetFaceVertices(face, vertices);
-      for (const int vertex : vertices)
+      GetFaceVertices(face, face_vertices);
+      for (const int vertex : face_vertices)
       {
          face_vertex->Push(face, vertex);
       }
