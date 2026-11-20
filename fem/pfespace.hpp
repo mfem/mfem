@@ -358,14 +358,21 @@ public:
 
    inline ParMesh *GetParMesh() const { return pmesh; }
 
-   /** @brief Compute shared triangle face DOF orientations for fixed-order ND
-       spaces with vdim = 1.
-       For each L-DOF that is a face DOF on a shared triangular face (non-master
-       side), sets ldsize[dof] = 2 and ltori[dof] = face orientation relative to
-       the master rank. Used for orientation correction around Reduce/Bcast.
-       @return The number of off-diagonal entries reserved for these DOFs. */
-   int GetSharedTriFaceDofOrientations(Array<int> &ltori,
-                                       Array<int> &ldsize) const;
+   /** @brief Find the L-DOFs on the interior of shared triangular faces whose
+       group master is another rank.
+
+       These DOFs come in consecutive pairs (i, i+1), and each pair is the
+       group master's pair transformed by the 2x2 matrix
+       ND_DofTransformation::GetFaceTransform(@a tri_ori[i]). On return, both
+       arrays have size GetVSize(). For each such DOF i, @a pair_size[i] = 2
+       and @a tri_ori[i] is the orientation of the face relative to the group
+       master; all other entries are 0. Only fixed-order ND spaces with
+       vdim = 1 are supported.
+
+       @return The sum of @a pair_size, which is the number of nonzeros these
+       DOFs add to the off-diagonal part of the P matrix. */
+   int GetSharedTriFaceDofOrientations(Array<int> &tri_ori,
+                                       Array<int> &pair_size) const;
 
    /** @brief Return true if the parallel FE space has DOFs with signs opposite
        of the DOFs in the respective serial FE space. */

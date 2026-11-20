@@ -912,26 +912,28 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    // Compute shared face DOF orientations for ND face DOF correction.
    // For order > 1, shared triangular faces at partition boundaries have face
    // DOFs that need orientation correction around Reduce/Bcast using 2x2
-   // matrices. T[ltori] maps master -> local; T_inv[ltori] maps local -> master.
+   // matrices. GetFaceTransform(tri_ori) maps master -> local, and
+   // GetFaceInverseTransform(tri_ori) maps local -> master.
    const int ldof = Size();
-   Array<int> ltori, ldsize;
+   Array<int> tri_ori, pair_size;
    const int face_nnz =
-      pfes->GetSharedTriFaceDofOrientations(ltori, ldsize);
+      pfes->GetSharedTriFaceDofOrientations(tri_ori, pair_size);
 
    auto apply_face_dof_transform = [&](real_t *data, bool inverse)
    {
       for (int i = 0; i < ldof; i++)
       {
-         if (ldsize[i] == 2)
+         if (pair_size[i] == 2)
          {
-            MFEM_ASSERT(i+1 < ldof && ldsize[i+1] == 2 &&
-                        ltori[i+1] == ltori[i],
+            MFEM_ASSERT(i+1 < ldof && pair_size[i+1] == 2 &&
+                        tri_ori[i+1] == tri_ori[i],
                         "inconsistent face DOF pair");
-            if (ltori[i] != 0)
+            if (tri_ori[i] != 0)
             {
+               const int ori = tri_ori[i];
                const DenseMatrix &M =
-                  inverse ? ND_DofTransformation::GetFaceInverseTransform(ltori[i])
-                  : ND_DofTransformation::GetFaceTransform(ltori[i]);
+                  inverse ? ND_DofTransformation::GetFaceInverseTransform(ori)
+                  : ND_DofTransformation::GetFaceTransform(ori);
                const real_t v0 = data[i], v1 = data[i+1];
                data[i]   = M(0,0)*v0 + M(0,1)*v1;
                data[i+1] = M(1,0)*v0 + M(1,1)*v1;

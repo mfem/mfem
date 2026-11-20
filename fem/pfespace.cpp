@@ -1140,11 +1140,11 @@ void ParFiniteElementSpace::CheckNDSTriaDofs()
 }
 
 int ParFiniteElementSpace::GetSharedTriFaceDofOrientations(
-   Array<int> &ltori, Array<int> &ldsize) const
+   Array<int> &tri_ori, Array<int> &pair_size) const
 {
    const int n = GetVSize();
-   ltori.SetSize(n);  ltori = 0;
-   ldsize.SetSize(n); ldsize = 0;
+   tri_ori.SetSize(n);   tri_ori = 0;
+   pair_size.SetSize(n); pair_size = 0;
    if (!nd_strias) { return 0; }
    MFEM_VERIFY(GetVDim() == 1,
                "shared triangular ND face transformations require vdim = 1");
@@ -1170,8 +1170,8 @@ int ParFiniteElementSpace::GetSharedTriFaceDofOrientations(
          GetSharedTriangleDofs(g, fi, sdofs);
          for (int j = 3*nedofs; j < sdofs.Size(); j++)
          {
-            ldsize[sdofs[j]] = 2;
-            ltori[sdofs[j]]  = info2 % 64;
+            pair_size[sdofs[j]] = 2;
+            tri_ori[sdofs[j]]   = info2 % 64;
             nnz_offd += 2;
          }
       }
