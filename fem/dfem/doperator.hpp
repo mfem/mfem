@@ -141,7 +141,7 @@ public:
          f(fields_e, direction_l, daction_l);
       }
       prolongation_transpose(daction_l, result_t);
-   };
+   }
 
    /// @brief Compute the transpose of the derivative operator on a given
    /// vector.
@@ -168,7 +168,7 @@ public:
          f(fields_e, direction_l, daction_l);
       }
       prolongation_transpose(daction_l, result_t);
-   };
+   }
 
    /// @brief Assemble the derivative operator into a SparseMatrix.
    ///

@@ -418,7 +418,7 @@ protected:
                                  const std::set<int> &faces,
                                  Array<VarOrderBits> &edge_orders,
                                  Array<VarOrderBits> &face_orders) const
-   { return edges.size() == 0 && faces.size() == 0; };
+   { return edges.size() == 0 && faces.size() == 0; }
 
    /// Returns the number of ghost edges (nonzero in ParFiniteElementSpace).
    virtual int NumGhostEdges() const { return 0; }

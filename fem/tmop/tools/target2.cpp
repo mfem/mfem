@@ -86,12 +86,12 @@ void TMOP_TcIdealShapeGivenSize_2D(const int NE,
 }
 
 MFEM_TMOP_REGISTER_KERNELS_1(TMOPTcIdealShapeUnitSize2D,
-                             TMOP_TcIdealShapeUnitSize_2D);
-MFEM_TMOP_ADD_SPECIALIZED_KERNELS_1(TMOPTcIdealShapeUnitSize2D);
+                             TMOP_TcIdealShapeUnitSize_2D)
+MFEM_TMOP_ADD_SPECIALIZED_KERNELS_1(TMOPTcIdealShapeUnitSize2D)
 
 MFEM_TMOP_MDQ_REGISTER(TMOPTcIdealShapeGivenSize2D,
-                       TMOP_TcIdealShapeGivenSize_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPTcIdealShapeGivenSize2D);
+                       TMOP_TcIdealShapeGivenSize_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPTcIdealShapeGivenSize2D)
 
 template <>
 bool TargetConstructor::ComputeAllElementTargets<2>(

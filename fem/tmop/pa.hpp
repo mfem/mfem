@@ -203,7 +203,7 @@ int KernelSpecializations1()
 #define MFEM_TMOP_REGISTER_METRIC_INSTANCE(i, Metric, Name)               \
    using Name##_t = tmop::TMOPFunction<Name>;                             \
    MFEM_REGISTER_KERNELS(Name##_##i, Name##_t, (int, int));               \
-   MFEM_TMOP_MDQ_SPECIALIZE(Name##_##i);                                  \
+   MFEM_TMOP_MDQ_SPECIALIZE(Name##_##i)                                   \
    template <int D, int Q>                                                \
    Name##_t Name##_##i::Kernel()                                          \
    {                                                                      \

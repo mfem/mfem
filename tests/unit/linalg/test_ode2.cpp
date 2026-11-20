@@ -31,7 +31,7 @@ TEST_CASE("Second order ODE methods", "[ODE]")
 
    public:
       ODE2(real_t a, real_t b) :
-         SecondOrderTimeDependentOperator(1, (real_t) 0.0), a(a), b(b) {};
+         SecondOrderTimeDependentOperator(1, (real_t) 0.0), a(a), b(b) {}
 
       using SecondOrderTimeDependentOperator::Mult;
       void Mult(const Vector &u, const Vector &dudt,
@@ -49,7 +49,7 @@ TEST_CASE("Second order ODE methods", "[ODE]")
          d2udt2[0] = (-a*u[0] - b*dudt[0])/T;
       }
 
-      ~ODE2() override {};
+      ~ODE2() override {}
    };
 
    // Class for checking order of convergence of second order ODE.
@@ -76,7 +76,7 @@ TEST_CASE("Second order ODE methods", "[ODE]")
 
          t_final = 2*M_PI;
          dt = t_final/real_t(ti_steps);
-      };
+      }
 
       void init_hist(SecondOrderODESolver* ode_solver,real_t dt_)
       {
@@ -181,7 +181,7 @@ TEST_CASE("Second order ODE methods", "[ODE]")
 
          return log(err_u[levels-2]/err_u[levels-1])/log(2);
       }
-      virtual ~CheckODE2() {delete oper;};
+      virtual ~CheckODE2() {delete oper;}
    };
    CheckODE2 check;
 

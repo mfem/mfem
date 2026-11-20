@@ -40,7 +40,7 @@ public:
    /// ParameterSpace with Identity FieldOperator:
    /// size = vdim = vdim
    constexpr FieldOperator(int size_on_qp = 0) :
-      size_on_qp(size_on_qp) {};
+      size_on_qp(size_on_qp) {}
 
    /// @brief Get the field id this FieldOperator is attached to.
    static constexpr int GetFieldId() { return FIELD_ID; }
@@ -81,7 +81,7 @@ struct is_identity_fop<Identity<FIELD_ID>> : std::true_type {};
 class Weight : public FieldOperator<-1>
 {
 public:
-   constexpr Weight() : FieldOperator<-1>() {};
+   constexpr Weight() : FieldOperator<-1>() {}
 };
 
 template< typename T >
@@ -98,7 +98,7 @@ template <int FIELD_ID = -1>
 class Value : public FieldOperator<FIELD_ID>
 {
 public:
-   constexpr Value() : FieldOperator<FIELD_ID>() {};
+   constexpr Value() : FieldOperator<FIELD_ID>() {}
 };
 
 template< typename T >
@@ -115,7 +115,7 @@ template <int FIELD_ID = -1>
 class Gradient : public FieldOperator<FIELD_ID>
 {
 public:
-   constexpr Gradient() : FieldOperator<FIELD_ID>() {};
+   constexpr Gradient() : FieldOperator<FIELD_ID>() {}
 };
 
 template< typename T >
@@ -132,7 +132,7 @@ template <int FIELD_ID = -1>
 class Sum : public FieldOperator<FIELD_ID>
 {
 public:
-   constexpr Sum() : FieldOperator<FIELD_ID>() {};
+   constexpr Sum() : FieldOperator<FIELD_ID>() {}
 };
 
 template< typename T >

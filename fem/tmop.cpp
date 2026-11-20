@@ -147,7 +147,7 @@ type mu4_ad(const std::vector<type> &T, const std::vector<type> &W)
    auto fnorm2 = fnorm2_2D(T);
    auto det = det_2D(T);
    return fnorm2 - 2*det;
-};
+}
 
 // W = ||T-I||^2.
 template <typename type>
@@ -160,7 +160,7 @@ type mu14_ad(const std::vector<type> &T, const std::vector<type> &W)
    add_2D(real_t{-1.0}, T, &Id, Mat);
 
    return fnorm2_2D(Mat);
-};
+}
 
 // W = (det(T)-1)^2.
 template <typename type>
@@ -168,7 +168,7 @@ type mu55_ad(const std::vector<type> &T, const std::vector<type> &W)
 {
    auto det = det_2D(T);
    return pow(det-1.0, 2.0);
-};
+}
 
 // W = |T-T'|^2, where T'= |T|*I/sqrt(2).
 template <typename type>
@@ -178,7 +178,7 @@ type mu85_ad(const std::vector<type> &T, const std::vector<type> &W)
    return T[1]*T[1] + T[2]*T[2] +
           (T[0] - fnorm/sqrt(2))*(T[0] - fnorm/sqrt(2)) +
           (T[3] - fnorm/sqrt(2))*(T[3] - fnorm/sqrt(2));
-};
+}
 
 // W = 1/tau |T-I|^2.
 template <typename type>
@@ -191,7 +191,7 @@ type mu98_ad(const std::vector<type> &T, const std::vector<type> &W)
    add_2D(real_t{-1.0}, T, &Id, Mat);
 
    return fnorm2_2D(Mat)/det_2D(T);
-};
+}
 
 template <typename type>
 type make_one_type()
@@ -261,7 +261,7 @@ type mu342_ad(const std::vector<type> &T, const std::vector<type> &W)
    add_3D(real_t{-1.0}, T, &Id, Mat);
 
    return fnorm2_3D(Mat)/sqrt(det_3D(T));
-};
+}
 
 // (1/4 alpha) | A - (adj A)^t W^t W / omega |^2
 template <typename type>
@@ -284,7 +284,7 @@ type nu11_ad(const std::vector<type> &T, const std::vector<type> &W)
    auto fnorm =  fnorm2_2D(WRK2);
 
    return 0.25 / (alpha) * fnorm;
-};
+}
 
 // 0.5 * ( sqrt(alpha/omega) - sqrt(omega/alpha) )^2
 template <typename type>
@@ -297,7 +297,7 @@ type nu14_ad(const std::vector<type> &T, const std::vector<type> &W)
    auto sqomega = sqrt(det_2D(W));
 
    return 0.5*pow(sqalpha/sqomega - sqomega/sqalpha, 2.0);
-};
+}
 
 // (1/alpha) | A - W |^2
 template <typename type>
@@ -311,7 +311,7 @@ type nu36_ad(const std::vector<type> &T, const std::vector<type> &W)
    auto fnorm =  fnorm2_2D(AminusW);
 
    return 1.0 / (det_2D(A)) * fnorm;
-};
+}
 
 // [ 1.0 - cos( phi_A - phi_W ) ] / (sin phi_A * sin phi_W)
 template <typename type>
@@ -335,7 +335,7 @@ type nu50_ad(const std::vector<type> &T, const std::vector<type> &W)
    auto cos_W = (W[0]*W[2] + W[1]*W[3])/prod_W;
 
    return (1.0 - cos_A*cos_W - sin_A*sin_W)/(sin_A*sin_W);
-};
+}
 
 // [ 0.5 * (ups_A / ups_W + ups_W / ups_A) - cos(phi_A - phi_W) ] /
 // (sin phi_A * sin phi_W), where ups = l_1 l_2 sin(phi)
@@ -363,7 +363,7 @@ type nu51_ad(const std::vector<type> &T, const std::vector<type> &W)
 
    return (0.5 * (ups_A / ups_W + ups_W / ups_A) - cos_A*cos_W - sin_A*sin_W) /
           (sin_A*sin_W);
-};
+}
 
 // (1/2 alpha) | A - (|A|/|W|) W |^2
 template <typename type>
@@ -378,7 +378,7 @@ type nu107_ad(const std::vector<type> &T, const std::vector<type> &W)
 
    add_2D(-aw, A, W, Mat);
    return (0.5/alpha)*fnorm2_2D(Mat);
-};
+}
 
 // 0.5[ 1.0 - cos( phi_A - phi_W ) ]
 template <typename type>
@@ -402,7 +402,7 @@ type skew2D_ad(const std::vector<type> &T, const std::vector<type> &W)
    auto cos_W = (W[0]*W[2] + W[1]*W[3])/prod_W;
 
    return 0.5*(1.0 - cos_A*cos_W - sin_A*sin_W);
-};
+}
 
 // Given mu(X,Y), compute dmu/dX or dmu/dY. Y is an optional parameter when
 // computing dmu/dX.
