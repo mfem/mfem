@@ -598,7 +598,8 @@ public:
       size_t derivative_id,
       bool copy_used_outputs,
       const std::vector<FieldDescriptor> &infds,
-      const std::vector<FieldDescriptor> &outfds) :
+      const std::vector<FieldDescriptor> &outfds,
+      const bool lvector_mode = false) :
       Operator(height, width),
       infds(infds),
       outfds(outfds),
@@ -608,7 +609,8 @@ public:
                             outfds.size(), copy_used_outputs)),
       boundary_integrators(detail::MakeDerivativeIntegrators(
                               boundary_parent, derivative_id, false,
-                              outfds.size(), copy_used_outputs))
+                              outfds.size(), copy_used_outputs)),
+      lvector_mode(lvector_mode)
    {
       daction_l.resize(outfds.size());
       infields_l.resize(infds.size());
@@ -683,10 +685,10 @@ public:
    void Mult(const MultiVector &x, MultiVector &y) const
    {
       VerifyKernel(DerivativeKernels::Action);
-      prolongation(infds, x, infields_l);
+      prolongation(infds, x, infields_l, lvector_mode);
       // The first-derivative (gradient) action ignores the direction.
       ApplyActions(nullptr, true, daction_l);
-      prolongation_transpose(outfds, daction_l, y);
+      prolongation_transpose(outfds, daction_l, y, lvector_mode);
    }
 
    /// @brief Compute the transpose of the derivative operator on a given
@@ -725,12 +727,30 @@ public:
             dir_l_i.UseDevice(true);
             if constexpr (std::is_same_v<direction_t, MultiVector>)
             {
-               prolongation(outfds[i], direction_mv[i], dir_l_i);
+               if (lvector_mode)
+               {
+                  MFEM_ASSERT(direction_mv[i].Size() == l_size,
+                              "direction needs L-vector sizes");
+                  dir_l_i = direction_mv[i];
+               }
+               else
+               {
+                  prolongation(outfds[i], direction_mv[i], dir_l_i);
+               }
             }
             else
             {
                const auto &bdir = static_cast<const BlockVector &>(direction_mv);
-               prolongation(outfds[i], bdir.GetBlock(i), dir_l_i);
+               if (lvector_mode)
+               {
+                  MFEM_ASSERT(bdir.GetBlock(i).Size() == l_size,
+                              "direction needs L-vector sizes");
+                  dir_l_i = bdir.GetBlock(i);
+               }
+               else
+               {
+                  prolongation(outfds[i], bdir.GetBlock(i), dir_l_i);
+               }
             }
             offset += l_size;
          }
@@ -754,12 +774,12 @@ public:
       if constexpr (std::is_same_v<result_t, MultiVector>)
       {
          prolongation_transpose(direction, *transpose_result_l[deriv_idx],
-                                result_mv[0]);
+                                result_mv[0], lvector_mode);
       }
       else
       {
          prolongation_transpose(direction, *transpose_result_l[deriv_idx],
-                                result_mv);
+                                result_mv, lvector_mode);
       }
    }
 
@@ -912,7 +932,7 @@ public:
    }
 
    /// @brief Assemble the diagonal of one row block of the derivative
-   /// operator into a T-vector.
+   /// operator into a T-vector (an L-vector under LVECTOR).
    ///
    /// The derivative is a block column, one row block per output field, all
    /// sharing the trial space of the differentiated field. Only a block whose
@@ -925,7 +945,7 @@ public:
    ///
    /// @param out_field_id The output field whose row block is wanted.
    /// @param diag The vector to receive the diagonal, resized to that field's
-   /// T-dof size.
+   /// T-dof size (L-dof size under LVECTOR).
    void AssembleDiagonal(size_t out_field_id, Vector &diag) const
    {
       VerifyKernel(DerivativeKernels::AssembleDiagonal);
@@ -963,10 +983,11 @@ public:
                                &detail::DerivativeCallbacks::assemble_diagonal,
                                outfds, daction_l);
       prolongation_transpose(outfds[diagonal_idx],
-                             *daction_l[diagonal_idx], diag);
+                             *daction_l[diagonal_idx], diag, lvector_mode);
    }
 
-   /// @brief Assemble the diagonal of the derivative operator into a T-vector.
+   /// @brief Assemble the diagonal of the derivative operator into a T-vector
+   /// (an L-vector under LVECTOR).
    ///
    /// Uses the row block of the differentiated field, i.e. the usual diagonal
    /// block dR_U/dU for GetDerivative(U). Call

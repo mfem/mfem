@@ -102,10 +102,11 @@ void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l,
 
 inline
 void prolongation_transpose(
-   const FieldDescriptor &field, const Vector &field_l, Vector &x)
+   const FieldDescriptor &field, const Vector &field_l, Vector &x,
+   const bool is_lvector = false)
 {
    const auto P = get_prolongation(field);
-   if (P == nullptr)
+   if (P == nullptr || is_lvector)
    {
       x = field_l;
    }

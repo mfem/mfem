@@ -20,12 +20,13 @@ using namespace mfem::future;
 
 namespace
 {
-int GetTotalTrueVSize(const std::vector<FieldDescriptor> &fds)
+int GetTotalVSize(const std::vector<FieldDescriptor> &fds, bool lvector_mode)
 {
    int size = 0;
    for (const auto &fd : fds)
    {
-      size += mfem::future::GetTrueVSize(fd);
+      size += lvector_mode ? mfem::future::GetVSize(fd)
+              : mfem::future::GetTrueVSize(fd);
    }
    return size;
 }
@@ -73,8 +74,8 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
                << DirectionId(key) << ", it is not an input field");
    const auto &doutfds = FindOrDefault(callbacks.outfds, key, default_outfds);
    return std::make_shared<DerivativeOperator>(
-             GetTotalTrueVSize(doutfds),
-             GetTrueVSize(infds[dfidx]),
+             GetTotalVSize(doutfds, lvector_mode),
+             GetTotalVSize({infds[dfidx]}, lvector_mode),
              callbacks.domain_integrators,
              callbacks.boundary_integrators,
              key,
@@ -188,14 +189,15 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
       FindOrDefault(derivative_outfds, derivative_id, outfds);
 
    return std::make_shared<DerivativeOperator>(
-             GetTotalTrueVSize(doutfds),
-             GetTrueVSize(infds[dfidx]),
+             GetTotalVSize(doutfds, mult_level == MultLevel::LVECTOR),
+             GetTotalVSize({infds[dfidx]}, mult_level == MultLevel::LVECTOR),
              domain_integrators,
              boundary_integrators,
              derivative_id,
              doutfds == outfds,
              infds,
-             doutfds);
+             doutfds,
+             mult_level == MultLevel::LVECTOR);
 }
 
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
