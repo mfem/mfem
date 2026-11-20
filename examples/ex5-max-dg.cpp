@@ -434,13 +434,13 @@ int main(int argc, char *argv[])
       irs[i] = &(IntRules.Get(i, order_quad));
    }
 
-   real_t err_u  = E.ComputeL2Error(Ecoeff, irs);
-   real_t norm_u = ComputeLpNorm(2., Ecoeff, mesh, irs);
-   real_t err_p  = B.ComputeL2Error(Bcoeff, irs);
-   real_t norm_p = ComputeLpNorm(2., Bcoeff, mesh, irs);
+   real_t err_E  = E.ComputeL2Error(Ecoeff, irs);
+   real_t norm_E = ComputeLpNorm(2., Ecoeff, mesh, irs);
+   real_t err_B  = B.ComputeL2Error(Bcoeff, irs);
+   real_t norm_B = ComputeLpNorm(2., Bcoeff, mesh, irs);
 
-   std::cout << "|| u_h - u_ex || / || u_ex || = " << err_u / norm_u << "\n";
-   std::cout << "|| p_h - p_ex || / || p_ex || = " << err_p / norm_p << "\n";
+   std::cout << "|| E_h - E_ex || / || E_ex || = " << err_E / norm_E << "\n";
+   std::cout << "|| B_h - B_ex || / || B_ex || = " << err_B / norm_B << "\n";
 
    // 13. Save the mesh and the solution. This output can be viewed later using
    //     GLVis: "glvis -m ex5.mesh -g sol_E.gf" or "glvis -m ex5.mesh -g
