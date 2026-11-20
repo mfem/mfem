@@ -576,7 +576,7 @@ inline void EvalHDivDiv2D(const int NE,
                real_t q_div = 0.0;
                MFEM_UNROLL(DIM)
                for (int vd = 0; vd < DIM; ++vd) { q_div += QQ(qx,qy,vd); }
-               if constexpr (PHYSICAL) { q_div /= detJ(qx,qy,ex); }
+               if (PHYSICAL) { q_div /= detJ(qx,qy,ex); }
                div(qx,qy,e) = q_div;
             }
          }
@@ -766,7 +766,7 @@ inline void EvalHDivDiv3D(const int NE,
                real_t q_div = 0.0;
                MFEM_UNROLL(DIM)
                for (int vd = 0; vd < DIM; ++vd) { q_div += QQQ(qx,qy,qz,vd); }
-               if constexpr (PHYSICAL) { q_div /= detJ(qx,qy,qz,ex); }
+               if (PHYSICAL) { q_div /= detJ(qx,qy,qz,ex); }
                div(qx,qy,qz,e) = q_div;
             }
          }
@@ -845,10 +845,10 @@ inline void EvalHDivTranspose2D(const int NE,
                if (qx < Q1D && qy < Q1D)
                {
                   real_t v;
-                  if constexpr (DIV)
+                  if (DIV)
                   {
                      v = y(qx,qy,0,e);
-                     if constexpr (PHYSICAL) { v /= detJ(qx,qy,ex); }
+                     if (PHYSICAL) { v /= detJ(qx,qy,ex); }
                   }
                   else if (Q_LAYOUT == QVectorLayout::byNODES)
                   {
@@ -982,10 +982,10 @@ inline void EvalHDivTranspose3D(const int NE,
                for (int qz = 0; qz < Q1D; ++qz)
                {
                   real_t v;
-                  if constexpr (DIV)
+                  if (DIV)
                   {
                      v = y(qx,qy,qz,0,e);
-                     if constexpr (PHYSICAL) { v /= detJ(qx,qy,qz,ex); }
+                     if (PHYSICAL) { v /= detJ(qx,qy,qz,ex); }
                   }
                   else if (Q_LAYOUT == QVectorLayout::byNODES)
                   {
