@@ -123,7 +123,7 @@ enum class CouplingType : int
 struct s_NavierContext // Navier Stokes params
 {
    int u_order = 2;                   // polynomial order of the velocity space
-   int max_bdf_order = 3;             // maximum BDF order for time integration
+   int max_bdf_order = 2;             // BDF3 + undamped solid is unstable (added mass)
    real_t density = 1e3;              // Density of the fluid
    real_t dynamic_viscosity = 1e-3;   // Dynamic viscosity of the fluid
    real_t kinematic_viscosity = 1e-6; // Kinematic viscosity of the fluid

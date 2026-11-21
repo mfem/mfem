@@ -90,7 +90,7 @@ enum class CouplingType : int
 struct s_NavierContext
 {
    int u_order = 2;
-   int max_bdf_order = 3;
+   int max_bdf_order = 2;             // BDF3 + undamped solid is unstable (added mass)
    real_t density = 1.0;              // ρ_F = 1.0 g/cm³
    real_t dynamic_viscosity = 0.03;   // μ = 0.03 Poise = 0.03 g/(cm·s)
    real_t kinematic_viscosity = 0.03; // ν = μ/ρ = 0.03 cm²/s
