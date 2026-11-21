@@ -1806,7 +1806,6 @@ void HDGCurlCurlIntegrator::AssembleFaceMatrix(
    const int ndof1 = el1.GetDof();
    const int ndof2 = (Trans.Elem2No >= 0)?(el2.GetDof()):0;
    const int vdof1 = ndof1 * dim_curl;
-   const int vdof2 = ndof2 * dim_curl;
 
    Vector nor(dim);
 
@@ -1949,6 +1948,284 @@ void HDGCurlCurlIntegrator::AssembleFaceMatrix(
       for (int j = 0; j < i; j++)
       {
          elmat(j,i) = elmat(i,j);
+      }
+}
+
+void HDGCurlCurlIntegrator::AssembleHDGFaceMatrix(
+   const FiniteElement &trace_el, const FiniteElement &el1,
+   const FiniteElement &el2, FaceElementTransformations &Trans,
+   DenseMatrix &elmat)
+{
+   MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
+
+   const int dim = el1.GetDim();
+   const int dim_curl = dim == 3 ? 3 : 1;
+   const int tr_ndof = trace_el.GetDof();
+   const int tr_dim = dim - 1;
+   const int tr_vdof = tr_ndof * tr_dim;
+   const int ndof1 = el1.GetDof();
+   const int ndof2 = (Trans.Elem2No >= 0)?(el2.GetDof()):(0);
+   const int vdof1 = ndof1 * dim_curl;
+   const int vdof2 = ndof2 * dim_curl;
+
+   Vector vu(dim), nor(dim);
+
+   tr_shape.SetSize(tr_ndof);
+   shape1.SetSize(ndof1);
+   if (ndof2)
+   {
+      shape2.SetSize(ndof2);
+   }
+   const int el_vdof = vdof1 + vdof2;
+
+   elmat.SetSize(el_vdof + tr_vdof);
+   elmat = 0.0;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // a simple choice for the integration order; is this OK?
+      int order;
+      if (ndof2)
+      {
+         order = 2*max(el1.GetOrder(), el2.GetOrder());
+      }
+      else
+      {
+         order = 2*el1.GetOrder();
+      }
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   // assemble: alpha < {h^{-1} Q} [u x n],[v x n] >
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+
+      // Set the integration point in the face and the neighboring elements
+      Trans.SetAllIntPoints(&ip);
+
+      // Access the neighboring elements' integration points
+      // Note: eip2 will only contain valid data if Elem2 exists
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Jacobian(), nor);
+      }
+
+      trace_el.CalcShape(ip, tr_shape);
+
+      // evaluate the normal velocity
+      real_t un;
+      if (v)
+      {
+         v->Eval(vu, *Trans.Elem1, eip1);
+         un = vu * nor;
+      }
+      else
+      {
+         un = 0.0;
+      }
+
+      // calculate the stabilization coefficient on side 1
+      el1.CalcPhysShape(*Trans.Elem1, shape1);
+      real_t wn1 = ip.weight/Trans.Elem1->Weight();
+      if (Q)
+      {
+         wn1 *= Q->Eval(*Trans.Elem1, eip1);
+      }
+      // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
+      // independent of Loc1 and always gives the size of element 1 in
+      // direction perpendicular to the face. Indeed, for linear transformation
+      //     |nor|=measure(face)/measure(ref. face),
+      //   det(J1)=measure(element)/measure(ref. element),
+      // and the ratios measure(ref. element)/measure(ref. face) are
+      // compatible for all element/face pairs.
+      // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
+      // for any tetrahedron vol(tet)=(1/3)*height*area(base).
+      // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
+
+      // calculate the stabilization coefficient on side 2
+      real_t wn2;
+      if (ndof2)
+      {
+         el2.CalcPhysShape(*Trans.Elem2, shape2);
+         wn2 = ip.weight/Trans.Elem2->Weight();
+         if (Q)
+         {
+            wn2 *= Q->Eval(*Trans.Elem2, eip2);
+         }
+      }
+
+      real_t a, b;
+      if (un != 0.)
+      {
+         un /= fabs(un);
+         a = 0.5 * alpha * un;
+         b = beta * fabs(un);
+      }
+      else
+      {
+         a = 0.0;
+         b = beta;
+      }
+
+      auto kernel = [&elmat,&dim_curl,&dim,&nor](const real_t w, const real_t wq,
+                                                 const Vector &shape_te, const Vector &shape_tr,
+                                                 int i, int j, int ioff, int joff)
+      {
+         const int ndof_tr = shape_tr.Size();
+         const int ndof_te = shape_te.Size();
+
+         // shape_i,d * shape_j,d * (n*n)
+         const real_t wss = wq * shape_te(i) * shape_tr(j);
+         for (int d = 0; d < dim_curl; d++)
+         {
+            elmat(ioff + i + d*ndof_te, joff + j + d*ndof_tr) += wss;
+         }
+
+         // -shape_i,di * n_di * shape_j,dj * n_dj
+         if (dim_curl == dim)
+         {
+            const real_t wssij = w * shape_te(i) * shape_tr(j);
+            for (int di = 0; di < dim_curl; di++)
+               for (int dj = 0; dj < dim_curl; dj++)
+               {
+                  elmat(ioff + i + di*ndof_te,
+                        joff + j + dj*ndof_tr) -= wssij * nor(di) * nor(dj);
+               }
+         }
+      };
+
+      auto assemble_element_trace =
+         [&](const real_t w, const real_t wq, const Vector &shape_te,
+             const Vector &shape_tr, int ioff, int joff)
+      {
+         const int ndof_tr = shape_tr.Size();
+         const int ndof_te = shape_te.Size();
+
+         if (dim == 3)
+         {
+            const DenseMatrix &J = Trans.Jacobian();
+            DenseMatrix tangent(3,2);
+            for (int a = 0; a < 2; a++)
+            {
+               Vector tangent_a;
+               tangent.GetColumnReference(a, tangent_a);
+               J.GetColumn(a, tangent_a);
+               tangent_a /= tangent_a.Norml2();
+            }
+
+            for (int i = 0; i < ndof_te; i++)
+               for (int j = 0; j < ndof_tr; j++)
+               {
+                  const real_t wss = wq * shape_te(i) * shape_tr(j);
+                  for (int d = 0; d < 3; d++)
+                     for (int a = 0; a < 2; a++)
+                     {
+                        elmat(ioff + i + d*ndof_te,
+                              joff + j + a*ndof_tr) -= wss * tangent(d,a);
+                     }
+               }
+         }
+         else
+         {
+            for (int i = 0; i < ndof_te; i++)
+               for (int j = 0; j < ndof_tr; j++)
+               {
+                  kernel(-w, -wq, shape_te, shape_tr, i, j, ioff, joff);
+               }
+         }
+      };
+
+      // assemble side 1
+      real_t w = wn1 * (b+a);
+      if (w != 0.0)
+      {
+         // assemble the element matrix
+         const real_t wq = w * (nor * nor);
+         // (only the lower triangular part)
+         for (int i = 0; i < ndof1; i++)
+            for (int j = 0; j <= i; j++)
+            {
+               kernel(+w, +wq, shape1, shape1, i, j, 0, 0);
+            }
+
+         // assemble the constraint matrix
+         assemble_element_trace(w, wq, shape1, tr_shape, 0, el_vdof);
+      }
+
+      // assemble side 2
+      if (ndof2)
+      {
+         w = wn2 * (b-a);
+         if (w != 0.0)
+         {
+            // assemble the element matrix
+            const real_t wq = w * (nor * nor);
+            // (only the lower triangular part)
+            for (int i = 0; i < ndof2; i++)
+               for (int j = 0; j <= i; j++)
+               {
+                  kernel(+w, +wq, shape2, shape2, i, j, vdof1, vdof1);
+               }
+
+            // assemble the constraint matrix
+            assemble_element_trace(w, wq, shape2, tr_shape, vdof1, el_vdof);
+         }
+      }
+
+      w = wn1 * (b+a);
+      if (ndof2) { w += wn2 * (b-a); } //<-- single face integration
+      if (w != 0.0)
+      {
+         // assemble the trace matrix
+         const real_t wq = w * (nor * nor);
+         // (only the lower triangular part)
+         for (int i = 0; i < tr_ndof; i++)
+            for (int j = 0; j <= i; j++)
+            {
+               const real_t wss = wq * tr_shape(i) * tr_shape(j);
+               for (int d = 0; d < tr_dim; d++)
+               {
+                  elmat(el_vdof + i + d*tr_ndof, el_vdof + j + d*tr_ndof) -= wss;
+               }
+            }
+      }
+   }
+
+   // complete the element matrices
+   // (the upper triangular part)
+   for (int i = 0; i < vdof1; i++)
+      for (int j = 0; j < i; j++)
+      {
+         elmat(j, i) = elmat(i, j);
+      }
+
+   for (int i = 0; i < vdof2; i++)
+      for (int j = 0; j < i; j++)
+      {
+         elmat(vdof1+j, vdof1+i) = elmat(vdof1+i, vdof1+j);
+      }
+
+   // complete the constraint matrix
+   for (int i = 0; i < el_vdof; i++)
+      for (int j = 0; j < tr_vdof; j++)
+      {
+         elmat(el_vdof+j, i) = -elmat(i, el_vdof+j);
+      }
+
+   // complete the trace matrix
+   for (int i = 0; i < tr_vdof; i++)
+      for (int j = 0; j < i; j++)
+      {
+         elmat(el_vdof+j, el_vdof+i) = elmat(el_vdof+i, el_vdof+j);
       }
 }
 

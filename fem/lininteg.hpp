@@ -342,9 +342,8 @@ public:
     $g=(g_1,\dots,g_n)$ and $v=(v_1,\dots,v_n)$. */
 class VectorBoundaryLFIntegrator : public LinearFormIntegrator
 {
-private:
-   Vector shape, vec;
    VectorCoefficient &Q;
+   Vector shape, vec;
 
 public:
    /// Constructs a boundary integrator with a given VectorCoefficient QG
@@ -368,8 +367,8 @@ public:
     scalar in 2D or vector in 3D and $v=(v_1,\dots,v_d)$. */
 class VectorBoundaryTangentialLFIntegrator : public LinearFormIntegrator
 {
-   Vector shape;
    VectorCoefficient &Q;
+   Vector shape;
    int oa, ob;
 public:
    /// Constructs a boundary integrator with a given Coefficient QG
@@ -383,6 +382,24 @@ public:
 
    void AssembleRHSElementVect(const FiniteElement &el,
                                FaceElementTransformations &FTr,
+                               Vector &elvect) override;
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
+
+/** Class for boundary integration $ L(v) = -(g, v \times n) $, where $g$ is a
+    scalar in 2D or vector in 3D and $v=(v_1,\dots,v_d-1)$ is the tangential
+    trace space test function (scalar in 2D and two-component in 3D). */
+class VectorBoundaryTangentTraceLFIntegrator : public LinearFormIntegrator
+{
+   VectorCoefficient &Q;
+   Vector shape;
+public:
+   /// Constructs a boundary integrator with a given Coefficient QG
+   VectorBoundaryTangentTraceLFIntegrator(VectorCoefficient &QG) : Q(QG) { }
+
+   void AssembleRHSElementVect(const FiniteElement &el,
+                               ElementTransformation &Tr,
                                Vector &elvect) override;
 
    using LinearFormIntegrator::AssembleRHSElementVect;

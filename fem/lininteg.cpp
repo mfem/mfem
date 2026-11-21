@@ -619,6 +619,50 @@ void VectorBoundaryTangentialLFIntegrator::AssembleRHSElementVect(
    }
 }
 
+void VectorBoundaryTangentTraceLFIntegrator::AssembleRHSElementVect(
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+{
+   const int dim = el.GetDim() + 1;
+   const int tr_dim = dim - 1;
+   const int dof = el.GetDof();
+   Vector nor(dim), q(dim), nxq(dim);
+   shape.SetSize(dof);
+   elvect.SetSize(dof * tr_dim);
+   elvect = 0.;
+
+   const IntegrationRule *ir = IntRule;
+   if (!ir)
+   {
+      int order = 2*el.GetOrder() + Tr.OrderW();  // <----------
+      ir = &IntRules.Get(el.GetGeomType(), order);
+   }
+   for (int i = 0; i < ir->GetNPoints(); i++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(i);
+      Tr.SetIntPoint(&ip);
+      el.CalcShape(ip, shape);
+      CalcOrtho(Tr.Jacobian(), nor);
+      Q.Eval(q, Tr, ip);
+      if (dim < 3)
+      {
+         const real_t v = nor(0)*q(1) - nor(1)*q(0);
+         elvect.Add(ip.weight * v, shape);
+      }
+      else
+      {
+         nor.cross3D(q, nxq);
+         const DenseMatrix &J = Tr.Jacobian();
+         for (int a = 0; a < 2; a++)
+         {
+            const Vector t_a(J.GetData() + a*dim, dim);
+            const real_t w = ip.weight * (nxq * t_a) / t_a.Norml2();
+            Vector elvect_a(elvect, a*dof, dof);
+            elvect_a.Add(w, shape);
+         }
+      }
+   }
+}
+
 VectorFEDomainLFIntegrator::VectorFEDomainLFIntegrator(
    VectorCoefficient &F, const IntegrationRule *ir)
    : DeltaLFIntegrator(F, ir), QF(F)

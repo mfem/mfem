@@ -250,11 +250,11 @@ public:
                            FaceElementTransformations &Trans,
                            DenseMatrix &elmat) override;
 
-   /*void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
+   void AssembleHDGFaceMatrix(const FiniteElement &trace_el,
                               const FiniteElement &el1,
                               const FiniteElement &el2,
                               FaceElementTransformations &Trans,
-                              DenseMatrix &elmat) override;*/
+                              DenseMatrix &elmat) override;
 
    /*void AssembleHDGFaceMatrix(int side, const FiniteElement &trace_el,
                               const FiniteElement &el,
