@@ -32,11 +32,7 @@
 // Custom benchmark arguments generator
 static void CustomArguments(bmi::Benchmark *b) noexcept
 {
-#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
-   constexpr int MAX_NDOFS = 16 * 1024 * 1024;
-#else
-   constexpr int MAX_NDOFS = 16 * 1024 * 8;
-#endif
+   constexpr int MAX_NDOFS = 16 * 1024 * (mfem_use_gpu ? 1024 : 8);
 
    const auto orders = { 7, 6, 5, 4, 3, 2, 1 };
 
