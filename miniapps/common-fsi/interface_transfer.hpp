@@ -182,6 +182,11 @@ namespace mfem
              */
             void SetBoundaryDistanceTolerance(real_t tol) { boundary_tol = tol; }
 
+            /// Source-side QoI of the last InterpolateQoI(..., true) (boundary version) or Native InterpolateQoI call:
+            /// the QoI evaluated at the source interface dofs (averaged at shared dofs), zero elsewhere. Not set by the
+            /// element version InterpolateQoI(..., false) with the GSLIB/Hybrid backend.
+            const ParGridFunction &GetSourceQoI() const { return tmp_src_gf; }
+
         private:
             /**
              * @brief Sets up the GSLIB finder.
@@ -402,6 +407,10 @@ namespace mfem
              * @param qoi_func Function to compute the quantity of interest.
              * @param dst_gf Grid function on the destination mesh.
              */
+            /// Source-side QoI of the last forward/backward InterpolateQoI, see InterfaceTransfer::GetSourceQoI().
+            const ParGridFunction &GetForwardSourceQoI() const { return forward_transfer.GetSourceQoI(); }
+            const ParGridFunction &GetBackwardSourceQoI() const { return backward_transfer.GetSourceQoI(); }
+
             void InterpolateQoIForward(qoi_func_t qoi_func, ParGridFunction &dst_gf, bool bdr_version = false) { forward_transfer.InterpolateQoI(qoi_func, dst_gf, bdr_version); }
 
             /**

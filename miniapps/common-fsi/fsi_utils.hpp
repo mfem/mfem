@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <assert.h>
 #include <cstdlib>
+#include <functional>
 #include <memory>
 
 #include "../../linalg/dtensor.hpp"
