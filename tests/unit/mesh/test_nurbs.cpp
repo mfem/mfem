@@ -13,6 +13,9 @@
 using namespace mfem;
 
 #include "unit_tests.hpp"
+#include <cstdio>
+#include <iomanip>
+#include <limits>
 #include <sstream>
 
 TEST_CASE("NURBS knot insertion and removal", "[NURBS]")
@@ -132,6 +135,67 @@ TEST_CASE("NURBS mesh reconstruction", "[NURBS]")
    // Cleanup
    for (auto *p : patches) { delete p; }
 }
+
+#ifdef MFEM_USE_HDF5
+TEST_CASE("Native NURBS HDF5 round trip", "[NURBS][HDF5]")
+{
+   struct TestCase
+   {
+      const char *input;
+      const char *output;
+      const char *format;
+      bool nc_patch;
+   };
+
+   const TestCase test = GENERATE(
+                            (TestCase{"../../data/pipe-nurbs.mesh", "nurbs-v10-test.h5",
+                                      "MFEM NURBS mesh v1.0", false}),
+                            (TestCase{"../../miniapps/nurbs/meshes/two-squares-nurbs.mesh",
+                                      "nurbs-patches-v10-test.h5", "MFEM NURBS mesh v1.0", false}),
+                            (TestCase{"../../data/beam-quad-nurbs-sf.mesh", "nurbs-v11-test.h5",
+                                      "MFEM NURBS mesh v1.1", false}),
+                            (TestCase{"../../data/nc-nurbs3d.mesh", "nurbs-nc-v10-test.h5",
+                                      "MFEM NURBS NC-patch mesh v1.0", true}));
+
+   Mesh original(test.input, 1, 1);
+   REQUIRE(original.NURBSext != nullptr);
+   REQUIRE(original.NURBSext->NonconformingPatches() == test.nc_patch);
+
+   original.SaveNURBSHDF5(test.output);
+   Mesh restored(test.output, 1, 1);
+   Mesh restored2 = Mesh::LoadFromFile(test.output, 1, 1);
+
+   REQUIRE(restored.NURBSext != nullptr);
+   REQUIRE(restored2.NURBSext != nullptr);
+   REQUIRE(restored.NURBSext->NonconformingPatches() == test.nc_patch);
+   REQUIRE(restored.Dimension() == original.Dimension());
+   REQUIRE(restored.SpaceDimension() == original.SpaceDimension());
+   REQUIRE(restored.GetNE() == original.GetNE());
+   REQUIRE(restored.GetNBE() == original.GetNBE());
+   REQUIRE(restored.NURBSext->GetNP() == original.NURBSext->GetNP());
+   REQUIRE(restored.NURBSext->GetNKV() == original.NURBSext->GetNKV());
+   REQUIRE(restored2.GetNE() == original.GetNE());
+
+   Vector weight_difference = restored.NURBSext->GetWeights();
+   weight_difference -= original.NURBSext->GetWeights();
+   REQUIRE(weight_difference.Normlinf() == MFEM_Approx(0.0));
+
+   Vector node_difference = *restored.GetNodes();
+   node_difference -= *original.GetNodes();
+   REQUIRE(node_difference.Normlinf() == MFEM_Approx(0.0));
+
+   std::ostringstream original_text, restored_text;
+   const int precision = std::numeric_limits<real_t>::max_digits10;
+   original_text << std::setprecision(precision);
+   restored_text << std::setprecision(precision);
+   original.Print(original_text);
+   restored.Print(restored_text);
+   REQUIRE(original_text.str().find(std::string(test.format) + "\n") == 0);
+   REQUIRE(restored_text.str() == original_text.str());
+
+   REQUIRE(std::remove(test.output) == 0);
+}
+#endif
 
 TEST_CASE("NURBSPatch skips comments while loading", "[NURBS]")
 {

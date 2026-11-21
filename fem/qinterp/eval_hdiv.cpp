@@ -45,7 +45,6 @@ void InitTensorEvalHDivKernels()
    k::Specialization<3,LVDIM, PV,2,3>::Add(); // RT(0), 3^3 qpts
    k::Specialization<3,LVDIM, PV,3,4>::Add(); // RT(1), 4^3 qpts
    k::Specialization<3,LVDIM, PV,4,5>::Add(); // RT(2), 5^3 qpts
-   k::Specialization<3,LVDIM, PV,5,6>::Add(); // RT(3), 6^3 qpts
 
    // FLAGS = QuadratureInterpolator::PHYSICAL_MAGNITUDES:
 
@@ -61,7 +60,6 @@ void InitTensorEvalHDivKernels()
    k::Specialization<3,LNODES,PM,2,3>::Add(); // RT(0), 3^3 qpts
    k::Specialization<3,LNODES,PM,3,4>::Add(); // RT(1), 4^3 qpts
    k::Specialization<3,LNODES,PM,4,5>::Add(); // RT(2), 5^3 qpts
-   k::Specialization<3,LNODES,PM,5,6>::Add(); // RT(3), 6^3 qpts
 }
 
 } // namespace quadrature_interpolator
