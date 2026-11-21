@@ -192,6 +192,7 @@ int main(int argc, char *argv[])
       bdr_B[bbc-1] = -1;
    }
 
+   // Electric RHS
    LinearForm *fform = darcy->GetFluxRHS();
    fform->AddDomainIntegrator(new VectorDomainLFIntegrator(fcoeff));
    if (!hybridization || !trace_ess_bc)
@@ -200,17 +201,20 @@ int main(int argc, char *argv[])
                                      Bcoeff), bdr_B);
    }
 
+   // Magnetic RHS
    LinearForm *gform = darcy->GetPotentialRHS();
-   if (dim_curl > 1)
+   if (!hybridization)
    {
-      gform->AddBdrFaceIntegrator(new VectorBoundaryTangentialLFIntegrator(Ecoeff),
-                                    bdr_E);
+      if (dim_curl > 1)
+      {
+         gform->AddBdrFaceIntegrator(new VectorBoundaryTangentialLFIntegrator(Ecoeff),
+                                     bdr_E);
+      }
+      else
+      {
+         gform->AddBdrFaceIntegrator(new BoundaryTangentialLFIntegrator(Ecoeff), bdr_E);
+      }
    }
-   else
-   {
-      gform->AddBdrFaceIntegrator(new BoundaryTangentialLFIntegrator(Ecoeff), bdr_E);
-   }
-
 
    // 9. Assemble the finite element matrices for the Darcy operator
    //
@@ -233,6 +237,11 @@ int main(int argc, char *argv[])
    mbVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(invsigmacoeff, td));
    cVarf->AddBdrFaceIntegrator(new TransposeIntegrator(
                                   new DGTangentialTraceIntegrator(+2.)), bdr_E);
+   if (hybridization)
+   {
+      mbVarf->AddBdrFaceIntegrator(new HDGCurlCurlIntegrator(invsigmacoeff, td),
+                                   bdr_E);
+   }
    if (hybridization && trace_ess_bc)
    {
       cVarf->AddBdrFaceIntegrator(new TransposeIntegrator(
@@ -256,7 +265,7 @@ int main(int argc, char *argv[])
 
    unique_ptr<FiniteElementCollection> trace_coll;
    unique_ptr<FiniteElementSpace> trace_space;
-   Vector X;
+   Vector X, RHS;
 
    chrono.Clear();
    chrono.Start();
@@ -289,6 +298,19 @@ int main(int argc, char *argv[])
 
          darcy->GetHybridization()->SetEssentialBC(bdr_B);
       }
+      // Set natural BC
+      {
+         RHS.SetSize(trace_space->GetTrueVSize());
+         auto hform = make_unique<LinearForm>();
+         auto *P = trace_space->GetProlongationMatrix();
+         if (P) { hform->Update(trace_space.get()); }
+         else { hform->Update(trace_space.get(), RHS, 0); }
+
+         hform->AddBoundaryIntegrator(new BoundaryTangentialLFIntegrator(Ecoeff),
+                                      bdr_E);
+         hform->Assemble();
+         if (P) { P->MultTranspose(*hform, RHS); }
+      }
    }
    else if (reduction)
    {
@@ -300,7 +322,6 @@ int main(int argc, char *argv[])
    darcy->Assemble();
 
    OperatorPtr A;
-   Vector RHS;
    x = 0.;
    darcy->FormLinearSystem(ess_flux_tdofs_list, x, A, X, RHS, true);
 
