@@ -136,6 +136,7 @@ struct s_DomainDecompositionContext
 {
    CouplingType coupling = CouplingType::Dirichlet_Neumann;
    bool aitken = false;
+   int robin_traction = 0;   // Traction in the fluid Robin datum: 0 - fluid traction (consistent), 1 - solid sigma_s(u_h).n
    real_t safety_factor = 1.15;
    real_t omega = 0.5;
 } DD_ctx;
@@ -262,6 +263,10 @@ int main(int argc, char *argv[])
                   "Relaxation factor (default: 1.0).");
    args.AddOption(&DD_ctx.aitken, "-aa", "--aitken", "-no-aa", "--no-aitken",
                   "Enable/disable Aitken relaxation.");
+   args.AddOption(&DD_ctx.robin_traction, "-rt", "--robin-traction",
+                  "Traction used in the fluid Robin datum (Robin couplings): 0 - fluid traction sigma_f.n of the "
+                  "previous sub-iterate, i.e. the load applied to the solid (default), 1 - solid traction "
+                  "sigma_s(u_h).n from the displacement gradient.");
    args.AddOption(&DD_ctx.safety_factor, "-sfa", "--safety-factor",
                   "Safety factor for Aitken relaxation (default: 1.15).");
    // Mesh
@@ -976,6 +981,16 @@ int main(int argc, char *argv[])
 
    real_t fluid_mesh_displacement_norm = 0.0;
 
+   // Fluid traction on the fluid interface at t_0 (as computed by the forward transfer): Robin datum of the first
+   // sub-iteration with --robin-traction 0.
+   ParGridFunction fluid_sigmaN_onFluid_gf(u_gf->ParFESpace());
+   fluid_sigmaN_onFluid_gf = 0.0;
+   if (DD_ctx.coupling != CouplingType::Dirichlet_Neumann && DD_ctx.robin_traction == 0)
+   {
+      finder_fluid_to_solid_ptr->InterpolateQoIForward(FluidBoundaryNormalStress, fluid_sigmaN_onSolid_gf, true);
+      fluid_sigmaN_onFluid_gf = finder_fluid_to_solid_ptr->GetForwardSourceQoI();
+   }
+
    for (int step = current_step; !last_step; ++step)
    {
       if (current_time + dt >= t_final - dt / 2)
@@ -1029,8 +1044,21 @@ int main(int argc, char *argv[])
          finder_fluid_to_solid_ptr->InterpolateBackward(solid_vel_gf, solid_vel_onFluid_gf);
 
          if (DD_ctx.coupling != CouplingType::Dirichlet_Neumann)
-            finder_fluid_to_solid_ptr->InterpolateQoIBackward(SolidBoundaryNormalStress,
-                                                          solid_sigmaN_onFluid_gf, true);
+         {
+            if (DD_ctx.robin_traction == 0)
+            {
+               // Consistent Robin-Neumann datum: the traction applied to the solid, i.e. the fluid traction of the
+               // previous sub-iterate (at the first sub-iteration, of t_n), as evaluated on the fluid side by the
+               // forward transfer.
+               solid_sigmaN_onFluid_gf = fluid_sigmaN_onFluid_gf;
+               solid_sigmaN_onFluid_gf.Neg(); // NavierSolver's Robin datum is sigma_s.n_s = -sigma_f.n_f (it applies a -1)
+            }
+            else
+            {
+               finder_fluid_to_solid_ptr->InterpolateQoIBackward(SolidBoundaryNormalStress,
+                                                             solid_sigmaN_onFluid_gf, true);
+            }
+         }
 
          // Relaxation
          // Aitken: the residual is r_k = x~_k - x_{k-1}, with x_{k-1} the *relaxed* iterate used in the previous
@@ -1076,6 +1104,7 @@ int main(int argc, char *argv[])
          finder_fluid_to_solid_ptr->InterpolateQoIForward(FluidBoundaryNormalStress,
                                                       fluid_sigmaN_onSolid_gf, true);
          fluid_sigmaN_onSolid_gf.GetTrueDofs(fluid_sigmaN_onSolid);
+         fluid_sigmaN_onFluid_gf = finder_fluid_to_solid_ptr->GetForwardSourceQoI(); // Robin datum of the next sub-iteration
 
          if (Mpi::Root() && verbose) mfem::out << " done.\n";
 

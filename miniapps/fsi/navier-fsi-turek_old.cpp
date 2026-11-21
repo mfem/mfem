@@ -131,6 +131,7 @@ struct s_DomainDecompositionContext // domain decomposition params
 {
    CouplingType coupling = CouplingType::Dirichlet_Neumann; // Default coupling type
    bool aitken = false;         // Enable Aitken relaxation
+   int robin_traction = 0;      // Traction in the fluid Robin datum: 0 - fluid traction (consistent), 1 - solid sigma_s(u_h).n
    real_t safety_factor = 1.15; // Safety factor for Aitken relaxation
    real_t omega = 0.5;
 } DD_ctx;
@@ -242,6 +243,10 @@ int main(int argc, char *argv[])
                   "Relaxation factor for the fluid and elastic problem (default: 1.0).");
    args.AddOption(&DD_ctx.aitken, "-aa", "--aitken", "-no-aa", "--no-aitken",
                   "Enable or disable Aitken relaxation.");
+   args.AddOption(&DD_ctx.robin_traction, "-rt", "--robin-traction",
+                  "Traction used in the fluid Robin datum (Robin couplings): 0 - fluid traction sigma_f.n of the "
+                  "previous sub-iterate, i.e. the load applied to the solid (default; at convergence the Robin "
+                  "condition reduces to u_f = u_s), 1 - solid traction sigma_s(u_h).n from the displacement gradient.");
    args.AddOption(&DD_ctx.safety_factor, "-sfa", "--safety-factor",
                   "Safety factor for the Aitken relaxation method (default: 1.15). ");
    // Mesh parameters
@@ -1202,6 +1207,9 @@ int main(int argc, char *argv[])
    bool use_initial_robin_data = false;
    finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryNormalStress, fluid_sigmaN_onSolid_gf, true);
    fluid_sigmaN_onSolid_gf.GetTrueDofs(fluid_sigmaN_onSolid);
+   // Fluid traction on the fluid interface (as computed by the forward transfer): Robin datum with --robin-traction 0
+   ParGridFunction fluid_sigmaN_onFluid_gf(u_gf->ParFESpace());
+   fluid_sigmaN_onFluid_gf = finder_fluid_to_solid.GetForwardSourceQoI();
    if (elasticity.GetLatestState() == nullptr)
    {
       Vector u0, v0;
@@ -1213,8 +1221,10 @@ int main(int argc, char *argv[])
    {
       solid_sigmaN_onFluid_gf = 0.0;
       finder_fluid_to_solid.InterpolateBackward(fluid_sigmaN_onSolid_gf, solid_sigmaN_onFluid_gf);
+      solid_sigmaN_onFluid_gf.Neg(); // Robin datum sigma_s.n_s = -sigma_f.n_f at the interface
       solid_sigmaN_onFluid_gf.GetTrueDofs(solid_sigmaN_onFluid);
-      use_initial_robin_data = true;
+      // With the fluid-traction datum the first sub-iteration evaluates it directly (t_0 fluid state)
+      use_initial_robin_data = (DD_ctx.robin_traction == 1);
    }
    // current_step=0;  // Reset current step for the coupled FSI problem: this implies that we start timestepping with BDF1 with an already populated un
    real_t fluid_mesh_displacement_norm = 0.0;
@@ -1291,7 +1301,18 @@ int main(int argc, char *argv[])
    
          if (DD_ctx.coupling != CouplingType::Dirichlet_Neumann && !use_initial_robin_data) // Avoid computing stress for Dirichlet-Neumann coupling
          {
-            finder_fluid_to_solid.InterpolateQoIBackward(SolidBoundaryNormalStress, solid_sigmaN_onFluid_gf, true);
+            if (DD_ctx.robin_traction == 0)
+            {
+               // Consistent Robin-Neumann datum: the traction applied to the solid, i.e. the fluid traction of the
+               // previous sub-iterate (at the first sub-iteration, of t_n), as evaluated on the fluid side by the
+               // forward transfer.
+               solid_sigmaN_onFluid_gf = fluid_sigmaN_onFluid_gf;
+               solid_sigmaN_onFluid_gf.Neg(); // NavierSolver's Robin datum is sigma_s.n_s = -sigma_f.n_f (it applies a -1)
+            }
+            else
+            {
+               finder_fluid_to_solid.InterpolateQoIBackward(SolidBoundaryNormalStress, solid_sigmaN_onFluid_gf, true);
+            }
          }
          use_initial_robin_data = false;
 
@@ -1350,6 +1371,7 @@ int main(int argc, char *argv[])
          if (Mpi::Root() && verbose)
             mfem::out << "Interpolating traction FLUID --> SOLID...";
          finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryNormalStress, fluid_sigmaN_onSolid_gf, true); // Uses the InterpolateQoIv2 (to compute normal)
+         fluid_sigmaN_onFluid_gf = finder_fluid_to_solid.GetForwardSourceQoI(); // Robin datum of the next sub-iteration
          fluid_sigmaN_onSolid_gf.GetTrueDofs(fluid_sigmaN_onSolid);
          if (Mpi::Root() && verbose)
             mfem::out << " done." << std::endl;
@@ -1489,6 +1511,37 @@ int main(int argc, char *argv[])
       // Reset the residual buffer for the aitken relaxation
       aitken_fluid_velocity.Reset();
       aitken_solid_sigma.Reset();
+
+      // Diagnostic: kinematic mismatch |u_f - u_s|_Gamma / |u_s|_Gamma at the end of the sub-iterations, with u_f the
+      // fluid velocity and u_s the final solid velocity on the interface (zero for an exactly coupled solution).
+      {
+         ParGridFunction us_onFluid(u_gf->ParFESpace());
+         us_onFluid = 0.0;
+         finder_fluid_to_solid.InterpolateBackward(solid_vel_gf, us_onFluid);
+         VectorGridFunctionCoefficient us_coeff(&us_onFluid);
+         Vector zero_vec_km(sdim);
+         zero_vec_km = 0.0;
+         VectorConstantCoefficient zero_km(zero_vec_km);
+         // Restrict the fluid velocity to the interface dofs, as us_onFluid (zero elsewhere): the norms below are over
+         // the elements adjacent to the interface, so both fields must vanish away from it.
+         ParGridFunction uf_onFluid(u_gf->ParFESpace());
+         uf_onFluid = 0.0;
+         {
+            Array<int> iface_vdofs;
+            u_gf->ParFESpace()->GetEssentialVDofs(fluid_interface_attr, iface_vdofs);
+            for (int i = 0; i < iface_vdofs.Size(); i++)
+            {
+               if (iface_vdofs[i]) { uf_onFluid(i) = (*un_next_gf)(i); }
+            }
+         }
+         const real_t mismatch = uf_onFluid.ComputeL2Error(us_coeff, irs_vel, &fluid_interfaces_element_idx);
+         const real_t us_norm = us_onFluid.ComputeL2Error(zero_km, irs_vel, &fluid_interfaces_element_idx);
+         if (Mpi::Root())
+         {
+            mfem::out << "Kinematic mismatch: |u_f - u_s|_Gamma = " << std::scientific << std::setprecision(3)
+                      << mismatch << " | |u_s|_Gamma = " << us_norm << std::endl;
+         }
+      }
 
       // Check if we exit the convergence loop due to retrying the step in Navier-Stokes
       // Compute the CFL based on the provisional velocity

@@ -156,6 +156,7 @@ struct s_MeshContext // mesh
 struct s_DomainDecompositionContext // domain decomposition params
 {
    bool aitken = false;         // Enable Aitken relaxation
+   int robin_traction = 0;      // Traction in the fluid Robin datum (R-N couplings): 0 - fluid traction (consistent), 1 - solid sigma_s(u_h).n
    real_t safety_factor = 1.15; // Safety factor for the Aitken relaxation method
    real_t omega_solid_velocity = 1.0;
    real_t omega_solid_sigma = 1.0;
@@ -298,6 +299,10 @@ int main(int argc, char *argv[])
                   "Relaxation factor for the fluid and elastic problem (default: 1.0).");
    args.AddOption(&DD_ctx.aitken, "-aa", "--aitken", "-no-aa", "--no-aitken",
                   "Enable or disable Aitken relaxation.");
+   args.AddOption(&DD_ctx.robin_traction, "-rt", "--robin-traction",
+                  "Traction used in the fluid Robin datum for the Robin-Neumann couplings (1, 2): 0 - fluid traction "
+                  "sigma_f.n of the previous sub-iterate, i.e. the load applied to the solid (default), 1 - solid "
+                  "traction sigma_s(u_h).n from the displacement gradient. Other couplings use the solid traction.");
    args.AddOption(&DD_ctx.safety_factor, "-sfa", "--safety-factor",
                   "Safety factor for the Aitken relaxation method (default: 1.15). ");
    args.AddOption(&DD_ctx.relative_convergence, "-rc", "--relative-convergence", "-ac", "--absolute-convergence",
@@ -1387,6 +1392,19 @@ int main(int argc, char *argv[])
       elasticity.InitializeState(solid_displacement_tn, solid_vel_tn, current_time, dt);
    }
 
+   // Fluid traction on the fluid interface at t_0 (as computed by the forward transfer): Robin datum of the first
+   // sub-iteration for the Robin-Neumann couplings with --robin-traction 0.
+   const bool use_fluid_traction_datum = DD_ctx.robin_traction == 0 &&
+                                         (coupling == CouplingType::Robin_Neumann ||
+                                          coupling == CouplingType::RobinAMP_Neumann);
+   ParGridFunction fluid_sigmaN_onFluid_gf(u_gf->ParFESpace());
+   fluid_sigmaN_onFluid_gf = 0.0;
+   if (use_fluid_traction_datum)
+   {
+      finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryNormalStress, fluid_sigmaN_onSolid_gf, true);
+      fluid_sigmaN_onFluid_gf = finder_fluid_to_solid.GetForwardSourceQoI();
+   }
+
    // Initialize PrescribedVelocity BC state for Neumann-Dirichlet coupling
    if (need_fluid_velocity_on_solid)
    {
@@ -1514,8 +1532,19 @@ int main(int argc, char *argv[])
          ///<--- Solid traction
          if (need_solid_traction_on_fluid)
          {
-            // Interpolate
-            finder_fluid_to_solid.InterpolateQoIBackward(SolidBoundaryNormalStress, solid_sigmaN_onFluid_gf, true);
+            if (use_fluid_traction_datum)
+            {
+               // Consistent Robin-Neumann datum: the traction applied to the solid, i.e. the fluid traction of the
+               // previous sub-iterate (at the first sub-iteration, of t_n), as evaluated on the fluid side by the
+               // forward transfer.
+               solid_sigmaN_onFluid_gf = fluid_sigmaN_onFluid_gf;
+               solid_sigmaN_onFluid_gf.Neg(); // NavierSolver's Robin datum is sigma_s.n_s = -sigma_f.n_f (it applies a -1)
+            }
+            else
+            {
+               // Interpolate
+               finder_fluid_to_solid.InterpolateQoIBackward(SolidBoundaryNormalStress, solid_sigmaN_onFluid_gf, true);
+            }
             solid_sigmaN_onFluid_gf.GetTrueDofs(solid_sigmaN_onFluid);
             // Relaxation (we only relax traction for Robin couplings)
             if (coupling != CouplingType::Neumann_Dirichlet)
@@ -1639,6 +1668,10 @@ int main(int argc, char *argv[])
             finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryNormalStress,
                                                          fluid_sigmaN_onSolid_gf, true);
             fluid_sigmaN_onSolid_gf.GetTrueDofs(fluid_sigmaN_onSolid);
+            if (use_fluid_traction_datum)
+            {
+               fluid_sigmaN_onFluid_gf = finder_fluid_to_solid.GetForwardSourceQoI(); // Robin datum of the next sub-iteration
+            }
 
             if (Mpi::Root() && verbose)
                mfem::out << " done." << std::endl;
