@@ -11,7 +11,9 @@
 //    Verification (linear elastic solid, slow preload): at the end of the preload the interface
 //    displacement (column disp_x, probed at the center of the FS interface) is u_x = T H / mu, and
 //    after the release the solid layer oscillates with the fixed-free shear period 4 H / c_s. Both
-//    reference values are printed at the end of the preload phase.
+//    reference values are printed at the end of the preload phase. After the release, the interface
+//    displacement is compared at every step with the analytic triangle wave (amplitude T H / mu,
+//    period 4 H / c_s, fluid loading neglected) and the max/rms relative errors are printed at the end.
 //
 // 2. Longitudinal problem (elastic piston manufactured solution)
 //
@@ -224,6 +226,10 @@ int main(int argc, char *argv[])
    // Max-in-time L2 errors for the elastic piston verification:
    // solid displacement, solid velocity, fluid velocity, fluid pressure.
    real_t piston_max_err[4] = {0.0, 0.0, 0.0, 0.0};
+   // Transverse verification: max and rms (relative) error of the interface
+   // displacement against the analytic release solution.
+   real_t transverse_max_err = 0.0, transverse_sq_err = 0.0;
+   int transverse_nsamples = 0;
    real_t t_final = 0.5;
    dt = 1e-5;
    real_t dt_preload = 1e-3; // Time step for the preload phase
@@ -2055,6 +2061,19 @@ int main(int argc, char *argv[])
       if (problem == ProblemType::Transverse)
       {
          ProbeInterfaceDisplacement(disp_x, disp_y);
+
+         // Analytic release solution of the fixed-free shear layer (fluid
+         // loading neglected): after the traction is removed at t = preloadT,
+         // the interface displacement is a triangle wave of amplitude
+         // T H / mu and period 4 H / c_s.
+         const real_t u0 = Elasticity_ctx.traction * ElasticPiston_ctx.H_bar_solid / Elasticity_ctx.mu;
+         const real_t period = 4.0 * ElasticPiston_ctx.H_bar_solid / cs;
+         const real_t phase = std::fmod((current_time - NS_ctx.preloadT) / period, 1.0);
+         const real_t ux_ex = (phase < 0.5) ? u0 * (1.0 - 4.0 * phase) : u0 * (-1.0 + 4.0 * (phase - 0.5));
+         const real_t rel_err = std::abs(disp_x - ux_ex) / u0;
+         transverse_max_err = std::max(transverse_max_err, rel_err);
+         transverse_sq_err += rel_err * rel_err;
+         transverse_nsamples++;
       }
 
       if (Mpi::Root())
@@ -2077,6 +2096,13 @@ int main(int argc, char *argv[])
       }
 
    } // END OF TIME-INTEGRATION LOOP
+
+   if (problem == ProblemType::Transverse && Mpi::Root() && transverse_nsamples > 0)
+   {
+      out << "Transverse interface u_x vs analytic release solution (relative to T H / mu): max = "
+          << std::scientific << std::setprecision(4) << transverse_max_err
+          << " | rms = " << std::sqrt(transverse_sq_err / transverse_nsamples) << std::endl;
+   }
 
    if (problem == ProblemType::Longitudinal && Mpi::Root())
    {
