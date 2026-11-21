@@ -5605,9 +5605,9 @@ void TangentTraceJumpIntegrator::AssembleFaceMatrix(
 {
    const int face_ndof = trial_face_fe.GetDof();
    const int ndof1 = test_fe1.GetDof();
-   const int ndof2 = (Trans.Elem2No >= 0)?(test_fe1.GetDof()):(0);
+   const int ndof2 = (Trans.Elem2No >= 0)?(test_fe2.GetDof()):(0);
    const int dim = test_fe1.GetDim();
-   const int dim_curl = dim == 3 ? 3 : 1;
+   const int tr_dim = dim - 1;
 
    Vector nor(dim);
 
@@ -5624,7 +5624,7 @@ void TangentTraceJumpIntegrator::AssembleFaceMatrix(
 
    if (test_fe1.GetRangeType() == FiniteElement::SCALAR)
    {
-      elmat.SetSize((ndof1 + ndof2) * dim, face_ndof * dim_curl);
+      elmat.SetSize((ndof1 + ndof2) * dim, face_ndof * tr_dim);
       elmat = 0.0;
 
       const IntegrationRule *ir = IntRule;
@@ -5643,8 +5643,8 @@ void TangentTraceJumpIntegrator::AssembleFaceMatrix(
          ir = &IntRules.Get(Trans.GetGeometryType(), order);
       }
 
-      auto kernel = [&elmat, &dim, &nor](const real_t w, const Vector &el_shape,
-                                         const Vector &face_shape, int ioff, int joff)
+      auto kernel = [&](const real_t w, const Vector &el_shape,
+                        const Vector &face_shape, int ioff, int joff)
       {
          const int face_ndof = face_shape.Size();
          const int el_ndof = el_shape.Size();
@@ -5662,21 +5662,27 @@ void TangentTraceJumpIntegrator::AssembleFaceMatrix(
          }
          else
          {
+            const DenseMatrix &J = Trans.Jacobian();
+            DenseMatrix nxt(3, 2);
+            for (int a = 0; a < 2; a++)
+            {
+               Vector nxt_a;
+               nxt.GetColumnReference(a, nxt_a);
+               Vector tangent(J.GetData() + 3*a, 3);
+               nor.cross3D(tangent, nxt_a);
+               nxt_a /= tangent.Norml2();
+            }
+
             for (int i = 0; i < el_ndof; i++)
                for (int j = 0; j < face_ndof; j++)
                {
-                  elmat(ioff + i + 1*el_ndof,
-                        joff + j + 0*face_ndof) += w * el_shape(i) * face_shape(j) * nor(2);
-                  elmat(ioff + i + 2*el_ndof,
-                        joff + j + 0*face_ndof) -= w * el_shape(i) * face_shape(j) * nor(1);
-                  elmat(ioff + i + 2*el_ndof,
-                        joff + j + 1*face_ndof) += w * el_shape(i) * face_shape(j) * nor(0);
-                  elmat(ioff + i + 0*el_ndof,
-                        joff + j + 1*face_ndof) -= w * el_shape(i) * face_shape(j) * nor(2);
-                  elmat(ioff + i + 0*el_ndof,
-                        joff + j + 2*face_ndof) += w * el_shape(i) * face_shape(j) * nor(1);
-                  elmat(ioff + i + 1*el_ndof,
-                        joff + j + 2*face_ndof) -= w * el_shape(i) * face_shape(j) * nor(0);
+                  const real_t wss = w * el_shape(i) * face_shape(j);
+                  for (int d = 0; d < 3; d++)
+                     for (int a = 0; a < 2; a++)
+                     {
+                        elmat(ioff + i + d*el_ndof,
+                              joff + j + a*face_ndof) += wss * nxt(d,a);
+                     }
                }
          }
       };

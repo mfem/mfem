@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
                                  MixedCurlIntegrator::Mode::OutOfPlane));
    cVarf->AddInteriorFaceIntegrator(new TransposeIntegrator(
                                        new DGTangentialTraceIntegrator(+1.)));
-   mbVarf->AddInteriorFaceIntegrator(new HDGDiffusionIntegrator(invsigmacoeff, td));
+   mbVarf->AddInteriorFaceIntegrator(new HDGCurlCurlIntegrator(invsigmacoeff, td));
    cVarf->AddBdrFaceIntegrator(new TransposeIntegrator(
                                   new DGTangentialTraceIntegrator(+2.)), bdr_E);
    if (hybridization)
@@ -306,7 +306,7 @@ int main(int argc, char *argv[])
          if (P) { hform->Update(trace_space.get()); }
          else { hform->Update(trace_space.get(), RHS, 0); }
 
-         hform->AddBoundaryIntegrator(new BoundaryTangentialLFIntegrator(Ecoeff),
+         hform->AddBoundaryIntegrator(new VectorBoundaryTangentTraceLFIntegrator(Ecoeff),
                                       bdr_E);
          hform->Assemble();
          if (P) { P->MultTranspose(*hform, RHS); }
