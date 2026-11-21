@@ -15,7 +15,10 @@
 #   - AMGX_INCLUDE_DIRS
 
 include(MfemCmakeUtilities)
-set(AMGX_REQUIRED_LIBRARIES cusparse cusolver cublas cublasLt nvToolsExt)
+set(AMGX_REQUIRED_LIBRARIES cusparse cusolver cublas cublasLt)
+if (NOT DEFINED CUDAToolkit_VERSION OR CUDAToolkit_VERSION VERSION_LESS 12.9)
+  list(APPEND AMGX_REQUIRED_LIBRARIES nvToolsExt)
+endif()
 mfem_find_package(AMGX AMGX AMGX_DIR "include" "amgx_c.h" "lib" "amgx"
   "Paths to headers required by AMGX." "Libraries required by AMGX.")
 # Make sure the library location is locked down
