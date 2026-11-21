@@ -717,10 +717,15 @@ public:
     */
    void SetFilterAlpha(real_t a) { filter_alpha = a; }
 
+   /// Return the (variable) kinematic viscosity. If it is modified, call RequestTDOperatorsUpdate().
    ParGridFunction *GetVariableViscosity()
    {
       return &kin_vis_gf;
    }
+
+   /// Force the re-assembly of the time-dependent operators (and solvers) in the next Step(), e.g. after
+   /// changing the viscosity or other coefficients the operators depend on. Mesh changes use Update().
+   void RequestTDOperatorsUpdate() { update_td_operators = true; }
 
    ParGridFunction *GetCurrentMeshVelocity() { return wg_gf; }
 
@@ -911,6 +916,11 @@ protected:
    bool compute_vorticity = false;
 
    bool full_update = true; // Tracks whether to perform the assembly of all operators (including constants ones like G, D)
+
+   /// The time-dependent operators must be re-assembled in the next Step(), see RequestTDOperatorsUpdate().
+   bool update_td_operators = true;
+   /// Value of bd0/dt the time-dependent operators were last assembled with.
+   real_t assembled_H_bdfcoeff = -1.0;
 
    // All essential attributes.
    Array<int> vel_ess_attr;

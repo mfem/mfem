@@ -429,6 +429,9 @@ void NavierSolver::Setup(real_t dt)
    Assemble(true);
    UpdateSolvers();
    full_update = false; // After the first call to Setup, we don't need to do a full update anymore. (Unless Update() is called)
+   // The Robin beta coefficients are only set in Step(): force the assembly of the time-dependent operators in
+   // the first Step().
+   update_td_operators = true;
 
    // If the initial condition was set, it has to be aligned with dependent
    // Vectors and GridFunctions
@@ -763,9 +766,18 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
    /// ----- Update necessary forms, operators and solvers.
    //////////////////////////////////////////////////////////////
 
-   UpdateForms(full_update);   
-   Assemble(full_update);
-   UpdateSolvers();
+   // The time-dependent operators (H, HMv, Sp with Robin BCs) depend on the time step only through
+   // bd0/dt (and the Robin alpha, beta = bd0/(dt alpha)), and all operators on the geometry. Re-assemble
+   // only when one of these changed: e.g. in partitioned FSI, Step() is called at every sub-iteration with
+   // the same dt and mesh, and only the boundary data (assembled below) changes.
+   if (full_update || update_td_operators || H_bdfcoeff.constant != assembled_H_bdfcoeff)
+   {
+      UpdateForms(full_update);
+      Assemble(full_update);
+      UpdateSolvers();
+      assembled_H_bdfcoeff = H_bdfcoeff.constant;
+      update_td_operators = false;
+   }
 
    // Extrapolated f^{n+1}.
    f_form->Assemble();
@@ -1771,6 +1783,7 @@ void NavierSolver::SetRobinBCAlpha(real_t alpha)
    {
       robin_dbc.SetAlphaP(alpha);
    }
+   update_td_operators = true;
 }
 
 void NavierSolver::SetAMPRobinBCAlphaP(real_t alpha_p)
@@ -1779,6 +1792,7 @@ void NavierSolver::SetAMPRobinBCAlphaP(real_t alpha_p)
    {
       amp_robin_dbc.SetAlphaP(alpha_p);
    }
+   update_td_operators = true;
 }
 
 void NavierSolver::SetAMPRobinBCAlphaS(real_t alpha_s)
@@ -1787,6 +1801,7 @@ void NavierSolver::SetAMPRobinBCAlphaS(real_t alpha_s)
    {
       amp_robin_dbc.SetAlphaS(alpha_s);
    }
+   update_td_operators = true;
 }
 
 
