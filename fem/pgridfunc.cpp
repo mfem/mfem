@@ -909,12 +909,65 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
       values(i) = values_counter[i] ? (*this)(i) : 0.0;
    }
 
+   // Compute shared face DOF orientations for ND face DOF correction.
+   // For order > 1, shared triangular faces at partition boundaries have face
+   // DOFs that need orientation correction around Reduce/Bcast using 2x2
+   // matrices. GetFaceTransform(tri_ori) maps master -> local, and
+   // GetFaceInverseTransform(tri_ori) maps local -> master.
+   const int ldof = Size();
+   Array<int> tri_ori, pair_size;
+   const int face_nnz =
+      pfes->GetSharedTriFaceDofOrientations(tri_ori, pair_size);
+
+   auto apply_face_dof_transform = [&](real_t *data, bool inverse)
+   {
+      for (int i = 0; i < ldof; i++)
+      {
+         if (pair_size[i] == 2)
+         {
+            MFEM_ASSERT(i+1 < ldof && pair_size[i+1] == 2 &&
+                        tri_ori[i+1] == tri_ori[i],
+                        "inconsistent face DOF pair");
+            if (tri_ori[i] != 0)
+            {
+               const int ori = tri_ori[i];
+               const DenseMatrix &M =
+                  inverse ? ND_DofTransformation::GetFaceInverseTransform(ori)
+                  : ND_DofTransformation::GetFaceTransform(ori);
+               const real_t v0 = data[i], v1 = data[i+1];
+               data[i]   = M(0,0)*v0 + M(0,1)*v1;
+               data[i+1] = M(1,0)*v0 + M(1,1)*v1;
+            }
+            i++;
+         }
+      }
+   };
+
+   // Convert non-master face DOFs to master orientation.
+   if (face_nnz)
+   {
+#ifdef MFEM_DEBUG
+      for (int i = 0; i < ldof; i++)
+      {
+         if (pair_size[i] == 2)
+         {
+            MFEM_ASSERT(values_counter[i+1] == values_counter[i],
+                        "inconsistent face DOF pair counter");
+            i++;
+         }
+      }
+#endif
+      apply_face_dof_transform(values.HostReadWrite(), true);
+   }
+
    // Count the values globally.
    GroupCommunicator &gcomm = pfes->GroupComm();
    gcomm.Reduce<int>(values_counter.HostReadWrite(), GroupCommunicator::Sum);
    // Accumulate the values globally.
    gcomm.Reduce<real_t>(values.HostReadWrite(), GroupCommunicator::Sum);
 
+   // Only group masters consume the reduction result; non-master entries are
+   // overwritten by Bcast, so no intermediate orientation change is needed.
    for (int i = 0; i < values.Size(); i++)
    {
       if (values_counter[i])
@@ -922,8 +975,15 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
          (*this)(i) = values(i)/values_counter[i];
       }
    }
+
    // Broadcast values to other processors to have a consistent GridFunction
    gcomm.Bcast<real_t>((*this).HostReadWrite());
+
+   // Convert non-master face DOFs back to local orientation.
+   if (face_nnz)
+   {
+      apply_face_dof_transform((*this).HostReadWrite(), false);
+   }
 
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;

@@ -358,6 +358,22 @@ public:
 
    inline ParMesh *GetParMesh() const { return pmesh; }
 
+   /** @brief Find the L-DOFs on the interior of shared triangular faces whose
+       group master is another rank.
+
+       These DOFs come in consecutive pairs (i, i+1), and each pair is the
+       group master's pair transformed by the 2x2 matrix
+       ND_DofTransformation::GetFaceTransform(@a tri_ori[i]). On return, both
+       arrays have size GetVSize(). For each such DOF i, @a pair_size[i] = 2
+       and @a tri_ori[i] is the orientation of the face relative to the group
+       master; all other entries are 0. Only fixed-order ND spaces with
+       vdim = 1 are supported.
+
+       @return The sum of @a pair_size, which is the number of nonzeros these
+       DOFs add to the off-diagonal part of the P matrix. */
+   int GetSharedTriFaceDofOrientations(Array<int> &tri_ori,
+                                       Array<int> &pair_size) const;
+
    /** @brief Return true if the parallel FE space has DOFs with signs opposite
        of the DOFs in the respective serial FE space. */
    bool HaveDofSigns() const { return ldof_sign.Size() != 0; }
