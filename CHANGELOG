@@ -35,6 +35,13 @@ Discretization improvements
   faces. This affected, e.g., essential DOFs and boundary projections, and
   could write out of bounds after lowering element orders.
 
+- Fixed the signs of ND and RT DOFs on faces shared between processors on
+  nonconforming meshes in the ParGridFunction methods
+  ProjectBdrCoefficientTangent, ProjectDiscCoefficient, ProjectCoefficient with
+  ProjectType::ELEMENT_L2, ComputeFlux, Save and SaveAsOne. Files that Save and
+  SaveAsOne wrote for such spaces before this fix have the wrong sign on these
+  DOFs. Added the method ParFiniteElementSpace::ApplyGroupCommSigns.
+
 - Added class VectorQuadratureSpace that represents a vector (multi-component)
   version of the scalar (single-component) class QuadratureSpaceBase.
 

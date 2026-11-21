@@ -848,7 +848,17 @@ void ParFiniteElementSpace::ApplyLDofSigns(Table &el_dof) const
 void ParFiniteElementSpace::ApplyDofSigns(real_t *h_data) const
 {
    if (!HaveDofSigns()) { return; }
+   FlipLDofSigns(h_data);
+}
 
+void ParFiniteElementSpace::ApplyGroupCommSigns(real_t *h_data) const
+{
+   if (Conforming() || ldof_sign.Size() == 0) { return; }
+   FlipLDofSigns(h_data);
+}
+
+void ParFiniteElementSpace::FlipLDofSigns(real_t *h_data) const
+{
    const bool byvdim = (ordering == Ordering::byVDIM);
    for (int i = 0; i < ndofs; i++)
    {

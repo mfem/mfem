@@ -182,6 +182,8 @@ private:
 
    void ApplyLDofSigns(Array<int> &dofs) const;
    void ApplyLDofSigns(Table &el_dof) const;
+   /// Negate the entries of @a h_data, of size GetVSize(), with ldof_sign -1.
+   void FlipLDofSigns(real_t *h_data) const;
 
    typedef NCMesh::MeshId MeshId;
    typedef ParNCMesh::GroupId GroupId;
@@ -360,7 +362,10 @@ public:
 
    /** @brief Return true if the parallel FE space has DOFs with signs opposite
        of the DOFs in the respective serial FE space. */
-   bool HaveDofSigns() const { return ldof_sign.Size() != 0; }
+   /** On nonconforming meshes the local DOFs keep the serial signs, so this
+       returns false. The signs of GroupComm() can still differ there, see
+       ApplyGroupCommSigns(). */
+   bool HaveDofSigns() const { return Conforming() && ldof_sign.Size() != 0; }
 
    /** @brief Apply the DOF signs to the given host data @a h_data which must be
        of size GetVSize() if HaveDofSigns() is true. If HaveDofSigns() is false,
@@ -371,6 +376,15 @@ public:
        the DOF in the respective serial FE space. Otherwise, return 1. */
    int GetDofSign(int i) const
    { return !HaveDofSigns() ? 1 : ldof_sign[VDofToDof(i)]; }
+
+   /** @brief Convert the given host data @a h_data, of size GetVSize(), between
+       the DOF signs of the local DOFs and those of GroupComm(). */
+   /** Apply it to DOF values before and after communicating them with
+       GroupComm(); it is its own inverse. On conforming meshes the local DOFs
+       already have the signs of GroupComm(), and this method returns at once.
+       On nonconforming meshes, ND and RT spaces have DOFs on shared faces whose
+       signs differ. */
+   void ApplyGroupCommSigns(real_t *h_data) const;
 
    HYPRE_BigInt *GetDofOffsets()     const { return dof_offsets; }
    HYPRE_BigInt *GetTrueDofOffsets() const { return tdof_offsets; }
@@ -435,6 +449,8 @@ public:
    void DivideByGroupSize(real_t *vec);
 
    /// Return a reference to the internal GroupCommunicator (on VDofs)
+   /** On nonconforming meshes, convert DOF values with ApplyGroupCommSigns()
+       before and after communicating them. */
    GroupCommunicator &GroupComm() { return *gcomm; }
 
    /// Return a const reference to the internal GroupCommunicator (on VDofs)
