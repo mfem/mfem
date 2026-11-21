@@ -530,6 +530,11 @@ int main(int argc, char *argv[])
 
       mesh_nodes_fes       = fluid_mesh_deformation->GetFESpace();
       mesh_velocity_gf     = new ParGridFunction(mesh_nodes_fes);
+      *mesh_velocity_gf    = 0.0;
+      // ALE convection (u - w)·grad u: the BDF time derivative is taken at the (moving) mesh nodes, so the fluid
+      // solver needs the mesh velocity w. Must be set before navier.Setup(), which builds the convection
+      // integrator. Not owned: deleted at the end of main().
+      navier.SetMeshVelocity(mesh_velocity_gf, false);
       mesh_displacement_gf = new ParGridFunction(mesh_nodes_fes);
       mesh_displacement_coeff = new VectorGridFunctionCoefficient(&solid_displacement_gf);
       *mesh_displacement_gf = 0.0;
