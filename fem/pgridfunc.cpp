@@ -707,8 +707,10 @@ void ParGridFunction::ProjectCoefficientElementL2(VectorCoefficient &vcoeff)
       ProjectCoefficientElementL2_(vcoeff, *this, Va);
 
       GroupCommunicator &gcomm = pfes->GroupComm();
+      pfes->ApplyGroupCommSigns(HostReadWrite());
       gcomm.Reduce<real_t>(HostReadWrite(), GroupCommunicator::Sum);
       gcomm.Bcast<real_t>(HostReadWrite());
+      pfes->ApplyGroupCommSigns(HostReadWrite());
 
       gcomm.Reduce<real_t>(Va.HostReadWrite(), GroupCommunicator::Sum);
       gcomm.Bcast<real_t>(Va.HostReadWrite());
@@ -829,8 +831,10 @@ void ParGridFunction::ProjectDiscCoefficient(VectorCoefficient &vcoeff,
    gcomm.Bcast(zones_per_vdof);
 
    // Accumulate for all vdofs.
+   pfes->ApplyGroupCommSigns(HostReadWrite());
    gcomm.Reduce(HostReadWrite(), GroupCommunicator::Sum);
    gcomm.Bcast(HostReadWrite());
+   pfes->ApplyGroupCommSigns(HostReadWrite());
 
    ComputeMeans(type, zones_per_vdof);
 }
@@ -902,6 +906,8 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
 {
    Array<int> values_counter;
    AccumulateAndCountBdrTangentValues(vcoeff, bdr_attr, values_counter);
+   // Use the DOF signs of GroupComm() until after the Bcast below.
+   pfes->ApplyGroupCommSigns(HostReadWrite());
 
    Vector values(Size());
    for (int i = 0; i < values.Size(); i++)
@@ -924,6 +930,7 @@ void ParGridFunction::ProjectBdrCoefficientTangent(VectorCoefficient &vcoeff,
    }
    // Broadcast values to other processors to have a consistent GridFunction
    gcomm.Bcast<real_t>((*this).HostReadWrite());
+   pfes->ApplyGroupCommSigns(HostReadWrite());
 
 #ifdef MFEM_DEBUG
    Array<int> ess_vdofs_marker;
@@ -1448,8 +1455,10 @@ void ParGridFunction::ComputeFlux(
    SumFluxAndCount(blfi, flux, count, wcoef, subdomain);
 
    // Accumulate flux and counts in parallel
+   ffes->ApplyGroupCommSigns(flux.HostReadWrite());
    ffes->GroupComm().Reduce<real_t>(flux.HostReadWrite(), GroupCommunicator::Sum);
    ffes->GroupComm().Bcast<real_t>(flux.HostReadWrite());
+   ffes->ApplyGroupCommSigns(flux.HostReadWrite());
 
    ffes->GroupComm().Reduce<int>(count.HostReadWrite(), GroupCommunicator::Sum);
    ffes->GroupComm().Bcast<int>(count.HostReadWrite());
