@@ -140,7 +140,6 @@ int main(int argc, char *argv[])
 
    // Create the flow solver
    NavierSolver flow_solver(&pmesh, ctx.order, 1.0/ctx.Re);
-   flow_solver.EnablePA(true);
 
    real_t time = 0.0;
 

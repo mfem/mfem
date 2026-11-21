@@ -20,8 +20,17 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
+NAVIER_KERNELS_SRC = curl_evaluator.cpp mean_evaluator.cpp\
+ shear_stress_evaluator.cpp shear_stress_integrator.cpp\
+ vector_boundary_AMP_LFIntegrator.cpp
+NAVIER_KERNELS_OBJ = $(NAVIER_KERNELS_SRC:.cpp=.o)
+
 NAVIER_COMMON_SRC = navier_solver.cpp
-NAVIER_COMMON_OBJ = $(NAVIER_COMMON_SRC:.cpp=.o)
+NAVIER_COMMON_OBJ = $(NAVIER_COMMON_SRC:.cpp=.o) $(NAVIER_KERNELS_OBJ)
+
+# The solver uses headers from miniapps/common-fsi and miniapps/hooke/kernels
+NAVIER_INCFLAGS = -I$(or $(SRC),.) -I$(MFEM_DIR)/miniapps/common-fsi\
+ -I$(MFEM_DIR)/miniapps/hooke/kernels
 
 ifeq ($(MFEM_USE_GSLIB),YES)
    NAVIER_PARTICLE_COMMON_SRC = navier_particles.cpp
@@ -63,7 +72,10 @@ endif
 	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $^ -o $@ $(MFEM_LIBS) $(COMMON_LIB)
 
 %.o: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK) | lib-common
-	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
+	$(MFEM_CXX) $(MFEM_FLAGS) $(NAVIER_INCFLAGS) -c $< -o $@
+
+$(NAVIER_KERNELS_OBJ): %.o: $(SRC)kernels/%.cpp $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_FLAGS) $(NAVIER_INCFLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
 
