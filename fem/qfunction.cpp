@@ -74,6 +74,10 @@ void QuadratureFunction::ProjectGridFunction(const GridFunction &gf)
 {
    SetVDim(gf.VectorDim());
 
+   // Nothing to project on an empty space, e.g. a face quadrature space on a
+   // mesh (or MPI rank) without boundary faces.
+   if (qspace->GetNE() == 0) { return; }
+
    if (auto *qs_elem = dynamic_cast<QuadratureSpace*>(qspace))
    {
       const FiniteElementSpace &gf_fes = *gf.FESpace();

@@ -382,6 +382,7 @@ class VectorConvectionNLFIntegrator : public NonlinearFormIntegrator
 {
 private:
    Coefficient *Q{};
+   VectorCoefficient *Z = nullptr;
    DenseMatrix dshape, dshapex, EF, gradEF, ELV, elmat_comp;
    Vector shape;
    // PA extension
@@ -393,7 +394,16 @@ private:
 public:
    struct Kernels { Kernels(); };
 
-   VectorConvectionNLFIntegrator(Coefficient &q): Q(&q) { static Kernels kernels; }
+   /** @brief Construct the integrator with scaling coefficient @a q and an
+       optional convecting-velocity offset @a z (not owned).
+
+       When @a z is given, the convecting velocity is $u - z$, i.e. the
+       integrator evaluates $(Q (u - z) \cdot \nabla u, v)$, as needed e.g.
+       for ALE formulations where @a z is the mesh velocity. The offset is only
+       supported by AssembleElementVector() (no partial assembly, and it is
+       not accounted for in AssembleElementGrad()). */
+   VectorConvectionNLFIntegrator(Coefficient &q, VectorCoefficient *z = nullptr)
+      : Q(&q), Z(z) { static Kernels kernels; }
 
    VectorConvectionNLFIntegrator() { static Kernels kernels; }
 

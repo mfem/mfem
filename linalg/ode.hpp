@@ -53,7 +53,7 @@ public:
 /// An implementation of ODEStateData that stores states in an std::vector<Vector>
 class ODEStateDataVector : public ODEStateData
 {
-private:
+protected:
    MemoryType mem_type;
    int ss, smax;
    std::vector<Vector> data;
@@ -71,7 +71,7 @@ public:
    void  SetSize(int vsize, MemoryType mem_type);
 
    /// Shift the stage counter for the next timestep
-   inline void ShiftStages()
+   virtual inline void ShiftStages()
    {
       for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
    };
@@ -912,6 +912,9 @@ public:
    /// Function selecting the desired SecondOrderODESolver
    static MFEM_EXPORT SecondOrderODESolver *Select(const int ode_solver_type);
 
+   // Return a vector of factors used in the time integration (size will depend on the method)
+   virtual void GetFactors(std::vector<real_t> &factors) = 0;
+
    virtual ~SecondOrderODESolver() { }
 };
 
@@ -931,6 +934,15 @@ public:
       gamma = gamma_;
       no_mult = no_mult_;
    };
+
+   void GetFactors(std::vector<real_t> &factors) override
+   {
+      factors.resize(4);
+      factors[0] = 0.5 - beta;
+      factors[1] = 1.0 - gamma;
+      factors[2] = beta;
+      factors[3] = gamma;
+   }
 
    void PrintProperties(std::ostream &os = mfem::out);
 
@@ -982,6 +994,17 @@ public:
    };
 
    void PrintProperties(std::ostream &os = mfem::out);
+
+   void GetFactors(std::vector<real_t> &factors) override
+   {
+      factors.resize(6);
+      factors[0] = 0.5 - (beta / alpha_m);
+      factors[1] = alpha_f;
+      factors[2] = alpha_f * (1.0 - (gamma / alpha_m));
+      factors[3] = beta * alpha_f / alpha_m;
+      factors[4] = gamma * alpha_f / alpha_m;
+      factors[5] = alpha_m;
+   }
 
    void Init(SecondOrderTimeDependentOperator &f_) override;
 
