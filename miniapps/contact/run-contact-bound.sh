@@ -53,6 +53,7 @@ Examples:
   ./run-contact-bound.sh
   # Trike (CUDA):
   ./run-contact-bound.sh --ranks 1 -- -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4 -amgf -amgf-fsolver mumps -fa -d cuda -no-vis -no-paraview
+  ./run-contact-bound.sh --ranks 1 -- -prob 6 -sr 0 -nsteps 32 -msteps 32 -amgf -amgf-fsolver mumps -d cuda -no-vis -paraview
   # LC (HIP):
   ./run-contact-bound.sh --ranks 4 -- -prob 2 -sr 1 -pr 0 -tr 2 -nsteps 4 -msteps 0 -amgf -amgf-fsolver strumpack -fa -d hip
   ./run-contact-bound.sh --ranks 2 --cores 8 -- -prob 2 -sr 1 -d hip

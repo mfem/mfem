@@ -13,7 +13,7 @@ condition. Linear systems arising in the IP iterations are solved with
 **Conjugate Gradient (CG)** preconditioned by the recently introduced
  **AMG with Filtering (AMGF)** solver. Benchmark examples include the two-block 
  compression, ironing, beam-sphere, onion (nested spheres), folded-strip and ring
- self-contact tests.
+ self-contact tests, and a snap-fit clip over a fixed pin.
 
 ---
 
@@ -60,12 +60,12 @@ elasticity and **AMG with Filtering (AMGF)** preconditioning.
 - `-prob` selects the problem: `0` two-block, `1` ironing, `2` beam–sphere,
 `3` onion (9 nested spherical shells under equal inner and outer pressure),
 `4` folded U-shaped strip, `5` compressed elastic ring (each a single connected
-deformable body).
+deformable body), `6` snap-fit C-clip over a fixed cylindrical pin.
 - The onion mesh is generated at startup; only the beam–sphere problem reads a
   mesh file from `meshes/`.
 - `-nonlin`: enables nonlinear elasticity. This option is available only for the 
-beam–sphere case (`-prob 2`). The self-contact examples (`-prob 4/5`) always
-enable it.
+beam–sphere case (`-prob 2`). The self-contact and snap-fit examples (`-prob 4/5/6`)
+always enable it.
 - `-amgf` selects the AMGF preconditioner and requires one of the direct solvers
   listed above when the contact subspace is nonempty. Use `-no-amgf` to select
   standard HypreBoomerAMG.
@@ -75,6 +75,10 @@ enable it.
 - `-tr` sets the Tribol proximity parameter
 - `-vis`: real-time visualization using [GLVis](https://glvis.org) 
 - `-paraview` enables ParaView visualization
+
+Each ParaView run writes to its own directory with a UTC timestamp, including
+fractional seconds. Simultaneous runs reserve separate directories, and all MPI
+ranks use the same run name. The collection's `.pvd` file uses that run name.
 
 Each load step reports optimizer termination status and final stationarity,
 feasibility, complementarity, and optimality errors. A failed linear solve,
@@ -231,6 +235,86 @@ energy was 1.90835e-13. The maximum-load results are:
 
 The unavailable-direct-backend empty-contact tests also passed on CPU and HIP.
 These are correctness checks on coarse meshes, rather than scaling benchmarks.
+
+### C-clip snap-fit over a fixed pin: `-prob 6`
+
+The generated mesh contains two disconnected 3D bodies, a C-shaped
+clip and a solid cylindrical pin. Tetrahedra are the default. Add `-hex`
+(`--hexahedra`) to use hexahedra for both bodies, or `-tet` (`--tetrahedra`)
+to select tetrahedra explicitly. These options apply to `-prob 6`.
+The clip has inner radius 1.0, thickness 0.2,
+width 0.6, and a 70-degree mouth. The pin has the same radius as the clip's
+inner surface (1.0) and the same width. Their circumferential mesh stations
+match over the clip's inner arc, so the undeformed seated surfaces have no gap
+even on the coarse mesh.
+The initial clip center is at x = -1.9; the pin center remains at the origin.
+The coarse tetrahedral mesh has 1536 clip tets and 2400 pin tets. The hexahedral
+mesh has 256 clip hexes and 400 pin hexes. `-sr` and `-pr` refine both bodies.
+Both use the existing Neo-Hookean model with Young's modulus 1000 and
+Poisson ratio 0.3; fixing all pin boundary nodes holds its contact surface
+stationary without a stiffness contrast.
+
+A short patch on the back of the clip is driven in x, with its other
+displacement components fixed. Axial displacement is constrained on the clip
+boundary, giving a plane-strain example with planar extruded contact faces.
+`-clip-travel` sets the maximum insertion
+displacement (default 1.9, placing the clip around the pin). `-nsteps` defaults
+to 32 insertion steps, and `-msteps` defaults to 32 removal steps for this
+problem. Specify `-msteps 0` to stop with the clip seated. Removal reverses the
+prescribed motion, ending at the initial grip position.
+
+The pin's curved surface is paired with the clip's inner surface, lip end
+faces, and adjacent outer lip patches. These outer patches contact first during
+entry. The lip ends have semicircular caps to smooth the contact normals during
+entry and release. The arms open as the pin passes the mouth and can recover
+once seated.
+Tetrahedral meshes have triangular contact faces using Tribol's direct inverse
+map. Hexahedral meshes have quadrilateral contact faces using its Newton
+iteration, which has failed during release in this example.
+The fixed pin is the non-mortar side and carries the pressure field, keeping
+its surface normals stationary while the clip slides across it.
+Contact is frictionless. Each physical step translates the previous clip shape
+to the new grip position before refreshing the nonlinear tangent and mortar
+geometry. Intermediate corrections are limited to a third of the clip thickness
+and underrelaxed to follow contact across pin facets. The existing
+`-contact-max-updates` and `-contact-update-tol` controls apply.
+
+To cap the geometry work and continue even when its tolerance is not reached,
+add `-contact-max-updates 5 -allow-inexact-contact-updates`. The driver accepts
+the last converged IP solution, marks the step `inexact`,
+and reports its undamped correction and linearized mortar gap. IP errors refer
+to the last quadratic solve. The final summary counts accepted and inexact
+steps separately from converged steps. Failed optimizer or linear solves still
+stop the run. The default `-require-converged-contact-updates` policy returns
+exit code 2 if geometry updates reach their limit. These controls also apply
+to the strip and ring.
+
+| Boundary attribute | Meaning |
+|---|---|
+| 1 | Driven grip patch on the rear of the clip |
+| 2 | Clip contact surfaces (axial displacement fixed) |
+| 3 | Other clip surfaces (free in x/z, axial displacement fixed) |
+| 4 | Fixed pin end faces |
+| 5 | Fixed pin curved contact surface |
+
+On Trike:
+
+```bash
+./run-contact-bound.sh --ranks 1 -- \
+  -prob 6 -sr 0 -pr 0 -nsteps 32 -msteps 32 \
+  -amgf -amgf-fsolver mumps -d cuda -no-vis -paraview -pl 2
+```
+
+Use `-d cpu` for a host run, or `--ranks 4 -d hip` on LC. Nonlinear tangent
+assembly uses the selected backend; `-fa` applies only to linear elasticity.
+Add `-hex` to the command above for a hexahedral mesh.
+Print level 2 reports the minimum weak mortar gap, maximum transverse clip
+deflection, and maximum pin displacement. ParaView output is written under
+`ParaView/contact-problem_6_hex_*` or `ParaView/contact-problem_6_tet_*`, including
+the initial configuration. The directory and `.pvd` file names include the
+refinement settings, nonlinear flag, and UTC timestamp.
+The saved mesh already includes the deformation; animate the time series
+directly rather than applying another displacement warp.
 
 ### GPU execution
 

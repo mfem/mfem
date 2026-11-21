@@ -40,6 +40,9 @@
 // mpirun -np 4 ./contact -prob 5 -sr 0 -pr 0 -tr 2 -nsteps 4 -msteps 2 -ring-pressure 2.5 -amgf -amgf-fsolver auto -d cpu -no-vis
 // ./run-contact-bound.sh --ranks 4 --cores 4 -- -prob 5 -sr 0 -pr 0 -tr 2 -nsteps 4 -msteps 2 -ring-pressure 2.5 -amgf -amgf-fsolver mumps -d hip -hypre-gpu-aware-mpi -no-vis -paraview
 
+// Problem 6: C-clip snap-fit over a fixed pin (nonlinear, insertion/removal)
+// ./run-contact-bound.sh --ranks 1 -- -prob 6 -sr 0 -nsteps 32 -msteps 32 -amgf -amgf-fsolver mumps -d cuda -no-vis -paraview
+
 // Output: -pl 0 for silence, -pl 1 for the final IP summary,
 //         -pl 2 for solver tables/results (default), -pl 3 for debug diagnostics.
 
@@ -53,8 +56,8 @@
 
 // Notes:
 //  1. Non-linear elasticity is supported for -prob 2 and the self-contact
-//     examples (-prob 4/5), which always use nonlinear elasticity.
-//  2. The meshes for -prob 0,1,3,4,5 are generated on the fly. For -prob 2,
+//     and snap-fit examples (-prob 4/5/6), which always use nonlinear elasticity.
+//  2. The meshes for -prob 0,1,3,4,5,6 are generated on the fly. For -prob 2,
 //     the mesh is read from ./meshes/beam-sphere.mesh.
 //  3. AMGF requires a sparse direct solver for the filtered subspace; build
 //     MFEM with MUMPS, SuperLU_DIST, STRUMPACK, MKL CPardiso, or cuDSS.
@@ -66,7 +69,10 @@
 #include "mfem.hpp"
 #include <array>
 #include <cctype>
+#include <chrono>
 #include <cmath>
+#include <ctime>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -88,13 +94,15 @@ enum problem_name
    beamsphere,
    onion,
    foldedstrip,
-   ring
+   ring,
+   snapfit
 };
 
-Mesh * GetProblemMesh(problem_name prob_name);
+Mesh * GetProblemMesh(problem_name prob_name, bool snap_fit_hex);
 Mesh * MakeOnionMesh();
 Mesh * MakeFoldedStripMesh();
 Mesh * MakeRingMesh();
+Mesh * MakeSnapFitMesh(bool hexahedra);
 
 namespace folded_strip
 {
@@ -108,6 +116,41 @@ constexpr int load = 2;
 constexpr int lower_contact = 3;
 constexpr int upper_contact = 4;
 constexpr int free_surface = 5;
+}
+
+namespace snap_fit
+{
+constexpr real_t inner_radius = 1.0;
+constexpr real_t thickness = 0.2;
+constexpr real_t width = 0.6;
+constexpr real_t pin_radius = inner_radius;
+constexpr real_t offset = 1.9;
+constexpr int angular_cells = 64;
+constexpr int mouth_cells = 16;
+constexpr real_t tip_angle = 35.0 * M_PI / 180.0;
+constexpr int clip_body = 1;
+constexpr int pin_body = 2;
+constexpr int grip = 1;
+constexpr int clip_contact = 2;
+constexpr int free_surface = 3;
+constexpr int pin_ends = 4;
+constexpr int pin_contact = 5;
+
+real_t Angle(real_t index)
+{
+   if (index <= angular_cells)
+   {
+      return tip_angle + (2*M_PI - 2*tip_angle)*index/angular_cells;
+   }
+   return 2*M_PI - tip_angle + 2*tip_angle*(index - angular_cells)/mouth_cells;
+}
+
+void GetBodyDofs(ParFiniteElementSpace &fes, int attr, Array<int> &dofs);
+void TranslateClip(ParGridFunction &displacement, const Array<int> &dofs,
+                   real_t distance);
+void PrintState(const ParGridFunction &displacement,
+                const Array<int> &clip_dofs,
+                const Array<int> &pin_dofs);
 }
 
 template <typename T>
@@ -247,6 +290,8 @@ struct IPSolveSummary
 {
    int load_step;
    bool converged;
+   bool accepted = false;
+   bool geometry_converged = true;
    const char *termination_reason = "not run";
    int ip_steps;
    int newton_solves;
@@ -273,7 +318,7 @@ void PrintIPSolveResult(const IPSolver &optimizer, const IPSolveSummary &result)
    out << "  " << Center("IP SOLVE RESULT - LOAD STEP " +
                          std::to_string(result.load_step), report_width) << '\n';
    PrintLine(out);
-   PrintResultField(out, "Optimizer status", result.termination_reason);
+   PrintResultField(out, "Optimizer status", optimizer.GetTerminationReason());
    PrintResultField(out, "Accepted IP steps", result.ip_steps);
    PrintResultField(out, "Newton solves", result.newton_solves);
    PrintResultField(out, "CG iterations", result.cg_iterations);
@@ -288,6 +333,9 @@ void PrintIPSolveResult(const IPSolver &optimizer, const IPSolveSummary &result)
    {
       PrintResultField(out, "Contact geometry updates", result.geometry_updates);
       PrintResultField(out, "Final displacement update", result.geometry_error);
+      PrintResultField(out, "Contact geometry status", result.geometry_converged ?
+                       "converged" : result.accepted ?
+                       "inexact (accepted at update limit)" : "unconverged");
    }
    if (result.has_energy)
    {
@@ -311,13 +359,13 @@ void PrintIPSummary(const std::vector<IPSolveSummary> &results, int total_steps)
    });
    PrintTableSeparator(out, widths);
    long long ip_steps = 0, newton_solves = 0, cg_iterations = 0;
-   int converged_steps = 0;
+   int converged_steps = 0, accepted_steps = 0, inexact_steps = 0;
    for (const auto &result : results)
    {
       PrintTableRow(out, widths,
       {
          std::to_string(result.load_step),
-         result.converged ? "converged" : "failed",
+         result.converged ? "converged" : result.accepted ? "inexact" : "failed",
          std::to_string(result.ip_steps),
          std::to_string(result.newton_solves),
          std::to_string(result.cg_iterations),
@@ -328,11 +376,19 @@ void PrintIPSummary(const std::vector<IPSolveSummary> &results, int total_steps)
       newton_solves += result.newton_solves;
       cg_iterations += result.cg_iterations;
       converged_steps += result.converged;
+      accepted_steps += result.accepted;
+      inexact_steps += result.accepted && !result.converged;
    }
    PrintTableSeparator(out, widths);
    PrintResultField(out, "Converged load steps",
                     std::to_string(converged_steps) + " / " + std::to_string(total_steps));
-   if (!results.empty() && !results.back().converged)
+   if (inexact_steps)
+   {
+      PrintResultField(out, "Accepted load steps",
+                       std::to_string(accepted_steps) + " / " + std::to_string(total_steps));
+      PrintResultField(out, "Inexact contact steps", inexact_steps);
+   }
+   if (!results.empty() && !results.back().accepted)
    {
       PrintResultField(out, "Termination reason", results.back().termination_reason);
    }
@@ -372,24 +428,27 @@ int main(int argc, char *argv[])
    bool visualization = true;
    // Enable/disable ParaView output
    bool paraview = false;
-   // Problem choice (0 through 5)
+   // Problem choice (0 through 6)
    int prob_no = 0;
    // number of times steps in the z-direction (problem 0)
-   int nsteps = -1; // resolved to 20 for self-contact, 1 otherwise
+   int nsteps = -1; // 32 for snap-fit, 20 for self-contact, 1 otherwise
    // number of times steps in the x-direction (problem 1)
-   int msteps = 0;
+   int msteps = -1; // resolved to 32 for snap-fit, 0 otherwise
    // Maximum number of iterations for the optimizer
    int opt_maxit = 100;
    // Driver output: silent, final summary, solver tables/results, or debug.
    int print_level = 2;
-   // Use non-linear elasticity (the self-contact examples always enable it).
+   // The self-contact and snap-fit examples always use nonlinear elasticity.
    bool nonlinear = false;
    real_t strip_pressure = 0.06;
    real_t ring_pressure = 2.5;
+   real_t clip_travel = snap_fit::offset;
+   bool snap_fit_hex = false;
    int contact_max_updates = 50;
    real_t contact_update_tol = 1.e-6;
+   bool allow_inexact_contact_updates = false;
    // Tribol search proximity ratio
-   real_t tribol_ratio = -1.0; // 2 for self-contact, 8 otherwise
+   real_t tribol_ratio = -1.0; // 2 for updated contact geometry, 8 otherwise
    // Enable/disable AMGF preconditioner (default is AMG)
    bool amgf = false;
 
@@ -418,7 +477,8 @@ int main(int argc, char *argv[])
                   "2: beam-sphere problem"
                   "3: onion problem "
                   "4: folded U-shaped strip (nonlinear self-contact) "
-                  "5: compressed ring (nonlinear self-contact)");
+                  "5: compressed ring (nonlinear self-contact) "
+                  "6: C-clip snap-fit over a fixed pin (nonlinear)");
    args.AddOption(&nonlinear, "-nonlin", "--nonlinear", "-lin",
                   "--linear", "Choice between linear and non-linear Elasticiy model.");
    args.AddOption(&sref, "-sr", "--serial-refinements",
@@ -431,17 +491,28 @@ int main(int argc, char *argv[])
    args.AddOption(&nsteps, "-nsteps", "--nsteps",
                   "Number of steps.");
    args.AddOption(&msteps, "-msteps", "--msteps",
-                  "Number of extra steps (unloading for the self-contact examples).");
+                  "Number of extra steps (unloading/removal for problems 4/5/6).");
    args.AddOption(&strip_pressure, "-u-pressure", "--strip-pressure",
                   "Maximum downward pressure on the folded strip's upper arm.");
    args.AddOption(&ring_pressure, "-ring-pressure", "--ring-pressure",
                   "Maximum inward reference pressure on the ring's upper outer arc.");
+   args.AddOption(&clip_travel, "-clip-travel", "--clip-travel",
+                  "Maximum insertion displacement of the snap-fit clip (default 1.9).");
+   args.AddOption(&snap_fit_hex, "-hex", "--hexahedra", "-tet",
+                  "--tetrahedra",
+                  "Use hexahedra or tetrahedra for both snap-fit bodies "
+                  "(problem 6 only; default: tetrahedra).");
    args.AddOption(&contact_max_updates, "-contact-max-updates",
                   "--contact-max-updates",
-                  "Maximum geometry/material updates per self-contact load step.");
+                  "Maximum geometry/material updates per nonlinear contact load step.");
    args.AddOption(&contact_update_tol, "-contact-update-tol",
                   "--contact-update-tolerance",
-                  "Absolute displacement tolerance for self-contact updates.");
+                  "Absolute displacement tolerance for nonlinear contact updates.");
+   args.AddOption(&allow_inexact_contact_updates,
+                  "-allow-inexact-contact-updates", "--allow-inexact-contact-updates",
+                  "-require-converged-contact-updates", "--require-converged-contact-updates",
+                  "Accept the last converged IP solution at the geometry update limit; "
+                  "the IP solve must still converge (default: require geometry convergence).");
    args.AddOption(&pref, "-pr", "--parallel-refinements",
                   "Number of uniform refinements.");
    args.AddOption(&amgf, "-amgf", "--amgf", "-no-amgf",
@@ -503,20 +574,25 @@ int main(int argc, char *argv[])
       return 1;
    }
    const bool self_contact = prob_no == foldedstrip || prob_no == ring;
-   const char *self_contact_name = prob_no == ring ? "Ring" : "Folded strip";
-   if (nsteps == -1) { nsteps = self_contact ? 20 : 1; }
-   if (tribol_ratio == -1.0) { tribol_ratio = self_contact ? 2.0 : 8.0; }
-   if (self_contact) { nonlinear = true; }
+   const bool snap_fit_case = prob_no == snapfit;
+   const bool update_geometry = self_contact || snap_fit_case;
+   const char *contact_name = snap_fit_case ? "Snap-fit" :
+                              prob_no == ring ? "Ring" : "Folded strip";
+   if (nsteps == -1) { nsteps = snap_fit_case ? 32 : self_contact ? 20 : 1; }
+   if (msteps == -1) { msteps = snap_fit_case ? 32 : 0; }
+   if (tribol_ratio == -1.0) { tribol_ratio = update_geometry ? 2.0 : 8.0; }
+   if (update_geometry) { nonlinear = true; }
    if (nsteps < 1 || msteps < 0 || sref < 0 || pref < 0 ||
        contact_max_updates < 1 || !IsFinite(contact_update_tol) ||
        contact_update_tol <= 0.0 || !IsFinite(strip_pressure) ||
        strip_pressure < 0.0 || !IsFinite(ring_pressure) || ring_pressure < 0.0 ||
+       !IsFinite(clip_travel) || clip_travel < 0.0 ||
        !IsFinite(tribol_ratio) || tribol_ratio <= 0.0)
    {
       if (myid == 0)
       {
          mfem::err << "Require nsteps > 0, msteps/refinements >= 0, "
-                   << "contact updates/tolerance > 0 and pressures >= 0.\n";
+                   << "contact updates/tolerance > 0 and pressures/travel >= 0.\n";
       }
       return 1;
    }
@@ -550,16 +626,16 @@ int main(int argc, char *argv[])
 
    // Validate selection and convert to enum.
    MFEM_VERIFY(prob_no >= 0 &&
-               prob_no <= 5, "Unknown test problem number: " << prob_no);
+               prob_no <= 6, "Unknown test problem number: " << prob_no);
 
    prob_name = (problem_name)prob_no;
 
-   // The beam-sphere and self-contact examples support nonlinear elasticity.
-   if (nonlinear && prob_name != beamsphere && !self_contact)
+   // Beam-sphere, self-contact and snap-fit support nonlinear elasticity.
+   if (nonlinear && prob_name != beamsphere && !update_geometry)
    {
       if (myid == 0 && print_level >= 2)
       {
-         cout << "Non-linear elasticity is supported for beam-sphere, folded strip and ring"
+         cout << "Non-linear elasticity is supported for beam-sphere, folded strip, ring and snap-fit"
               << endl;
          cout << "Switching to the linear model ..." << endl;
       }
@@ -577,11 +653,11 @@ int main(int argc, char *argv[])
    // (activated later after a few load steps).
    // Self-contact uses repeated geometry updates rather than the beam-sphere's
    // displacement bounds, which would impede unloading/contact release.
-   bool bound_constraints = nonlinear && !self_contact;
+   bool bound_constraints = nonlinear && !update_geometry;
 
 
    // 2. Get the problem mesh.
-   std::unique_ptr<Mesh> mesh(GetProblemMesh(prob_name));
+   std::unique_ptr<Mesh> mesh(GetProblemMesh(prob_name, snap_fit_hex));
 
    // 3. Refine the mesh serially.
    for (int i = 0; i<sref; i++)
@@ -646,6 +722,17 @@ int main(int argc, char *argv[])
          E = 1.e3;
          nu = 0.3;
          break;
+      case snapfit:
+         ess_bdr_attr.Append(snap_fit::grip); ess_bdr_attr_comp.Append(-1);
+         // Plane-strain clip motion keeps the extruded contact faces planar.
+         ess_bdr_attr.Append(snap_fit::clip_contact); ess_bdr_attr_comp.Append(1);
+         ess_bdr_attr.Append(snap_fit::free_surface); ess_bdr_attr_comp.Append(1);
+         // All pin boundary nodes are fixed, including its contact surface.
+         ess_bdr_attr.Append(snap_fit::pin_ends); ess_bdr_attr_comp.Append(-1);
+         ess_bdr_attr.Append(snap_fit::pin_contact); ess_bdr_attr_comp.Append(-1);
+         E = 1.e3;
+         nu = 0.3;
+         break;
       default:
          MFEM_ABORT("Should be unreachable");
          break;
@@ -703,6 +790,12 @@ int main(int argc, char *argv[])
          // so neighboring elements are never paired against themselves.
          contact_interfaces.push_back({{3}, {4}});
          break;
+      case snapfit:
+         // Put the pressure field on the fixed, smooth non-mortar surface.
+         // The clip's lips slide across it without rotating the pressure basis.
+         contact_interfaces.push_back({{snap_fit::clip_contact},
+            {snap_fit::pin_contact}});
+         break;
       default:
          MFEM_ABORT("Should be unreachable");
          break;
@@ -710,6 +803,12 @@ int main(int argc, char *argv[])
 
    // Displacement field (current step), and a copy for visualization.
    ParGridFunction x_gf(fes); x_gf = 0.0;
+   Array<int> clip_dofs, pin_dofs;
+   if (snap_fit_case)
+   {
+      snap_fit::GetBodyDofs(*fes, snap_fit::clip_body, clip_dofs);
+      snap_fit::GetBodyDofs(*fes, snap_fit::pin_body, pin_dofs);
+   }
    ParMesh pmesh_copy(pmesh);
    ParFiniteElementSpace fes_copy(*fes,pmesh_copy);
    ParGridFunction xcopy_gf(&fes_copy); xcopy_gf = x_gf;
@@ -718,13 +817,48 @@ int main(int argc, char *argv[])
    std::unique_ptr<ParaViewDataCollection> paraview_dc;
    if (paraview)
    {
-      std::ostringstream paraview_file_name;
-      paraview_file_name << "contact-problem_" << prob_no
-                         << "_par_ref_" << pref
-                         << "_ser_ref_" << sref
-                         << "_nonlinear_" << nonlinear;
+      std::string paraview_run_name;
+      if (myid == 0)
+      {
+         const auto now = std::chrono::system_clock::now();
+         const auto seconds = std::chrono::time_point_cast<std::chrono::seconds>(now);
+         const std::time_t run_time = std::chrono::system_clock::to_time_t(seconds);
+         const auto nanoseconds =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(now - seconds).count();
+         std::ostringstream paraview_file_name;
+         paraview_file_name << "contact-problem_" << prob_no;
+         if (snap_fit_case)
+         {
+            paraview_file_name << (snap_fit_hex ? "_hex" : "_tet");
+         }
+         paraview_file_name << "_par_ref_" << pref
+                            << "_ser_ref_" << sref
+                            << "_nonlinear_" << nonlinear << '_'
+                            << std::put_time(std::gmtime(&run_time), "%Y%m%d_%H%M%S")
+                            << '_' << std::setfill('0') << std::setw(9)
+                            << nanoseconds << 'Z';
+         const std::string base_name = paraview_file_name.str();
+         paraview_run_name = base_name;
+
+         // Reserve the directory atomically so simultaneous runs stay distinct.
+         std::error_code error;
+         std::filesystem::create_directories("ParaView", error);
+         MFEM_VERIFY(!error, "Cannot create ParaView directory: " << error.message());
+         int suffix = 0;
+         while (!std::filesystem::create_directory("ParaView/" + paraview_run_name,
+                                                  error))
+         {
+            MFEM_VERIFY(!error || error == std::errc::file_exists,
+                        "Cannot create ParaView run directory: " << error.message());
+            paraview_run_name = base_name + '_' + std::to_string(++suffix);
+         }
+      }
+      int name_length = static_cast<int>(paraview_run_name.size());
+      MPI_Bcast(&name_length, 1, MPI_INT, 0, MPI_COMM_WORLD);
+      paraview_run_name.resize(name_length);
+      MPI_Bcast(paraview_run_name.data(), name_length, MPI_CHAR, 0, MPI_COMM_WORLD);
       paraview_dc = std::make_unique<ParaViewDataCollection>(
-                       paraview_file_name.str(), &pmesh_copy);
+                       paraview_run_name, &pmesh_copy);
       paraview_dc->SetPrefixPath("ParaView");
       paraview_dc->SetLevelsOfDetail(2);
       paraview_dc->SetDataFormat(VTKFormat::BINARY);
@@ -733,6 +867,10 @@ int main(int argc, char *argv[])
       paraview_dc->SetCycle(0);
       paraview_dc->SetTime(0.0);
       paraview_dc->Save();
+      if (myid == 0 && print_level >= 2)
+      {
+         cout << "ParaView output written to ParaView/" << paraview_run_name << endl;
+      }
    }
 
    // Optional GLVis connection.
@@ -773,6 +911,7 @@ int main(int argc, char *argv[])
    // 9. Time/load stepping loop.
    int total_steps = nsteps + msteps;
    std::vector<IPSolveSummary> solve_results;
+   real_t previous_clip_travel = 0.0;
    for (int i = 0; i<total_steps; i++)
    {
       if (Mpi::Root() && print_level >= 2)
@@ -837,7 +976,27 @@ int main(int argc, char *argv[])
             prob.SetNeumannPressureData(f, ess_bdr);
             if (myid == 0 && print_level >= 2)
             {
-               cout << self_contact_name << " pressure = " << -f.constant << endl;
+               cout << contact_name << " pressure = " << -f.constant << endl;
+            }
+            break;
+         }
+         case snapfit:
+         {
+            const real_t fraction = i < nsteps ? real_t(i+1)/nsteps
+                                    : 1.0 - real_t(i+1-nsteps)/msteps;
+            const real_t travel = clip_travel * fraction;
+            ess_bdr = 0; ess_bdr[snap_fit::grip - 1] = 1;
+            ess_values[0] = travel;
+            prob.SetDisplacementDirichletData(ess_values, ess_bdr);
+            // Predict a rigid translation before linearizing the material and
+            // contact. Updating only the grip would stretch/invert the rear
+            // elements instead of carrying forward the previous clip shape.
+            snap_fit::TranslateClip(x_gf, clip_dofs, travel - previous_clip_travel);
+            add(ref_coords, x_gf, new_coords);
+            previous_clip_travel = travel;
+            if (myid == 0 && print_level >= 2)
+            {
+               cout << "Snap-fit clip travel = " << travel << endl;
             }
             break;
          }
@@ -853,8 +1012,8 @@ int main(int argc, char *argv[])
       Vector xref;
       xref.UseDevice(true);
       x_gf.GetTrueDofs(xref);
-      const real_t self_contact_initial_energy = self_contact ?
-                                                 prob.GetEnergy(xref) : 0.0;
+      const real_t nonlinear_initial_energy = update_geometry ?
+                                              prob.GetEnergy(xref) : 0.0;
 
       std::unique_ptr<ParallelDirectSolver> subspacesolver;
       std::unique_ptr<Solver> prec;
@@ -866,8 +1025,8 @@ int main(int argc, char *argv[])
       cgsolver.SetPrintLevel(0);
       cgsolver.SetRelTol(1e-10);
       cgsolver.SetMaxIter(10000);
-      const int max_updates = self_contact ? contact_max_updates : 1;
-      bool geometry_converged = !self_contact;
+      const int max_updates = update_geometry ? contact_max_updates : 1;
+      bool geometry_converged = !update_geometry;
       int total_ip_steps = 0, total_newton_solves = 0;
       long long total_cg_iterations = 0;
       int geometry_updates = 0;
@@ -952,7 +1111,7 @@ int main(int argc, char *argv[])
          {
             total_cg_iterations += iterations;
          }
-         if (!optimizer.GetConverged() || !self_contact) { break; }
+         if (!optimizer.GetConverged() || !update_geometry) { break; }
 
          // Sequential quadratic contact solves refresh both the Neo-Hookean
          // tangent and the mortar search on the deformed configuration. Limit
@@ -972,8 +1131,17 @@ int main(int argc, char *argv[])
             geometry_converged = true;
             break;
          }
-         const real_t max_correction = prob_name == ring ? 0.04 : 0.1;
-         const real_t damping = std::min(real_t(1.0), max_correction/update_norm);
+         if (allow_inexact_contact_updates && update + 1 == max_updates)
+         {
+            // Keep the converged IP solution and its linearized feasibility.
+            // xref stays at the last linearization point for gap evaluation.
+            break;
+         }
+         const real_t max_correction = snap_fit_case ? snap_fit::thickness/3 :
+                                       prob_name == ring ? 0.04 : 0.1;
+         // Underrelax the clip's sliding contact updates across the pin facets.
+         const real_t max_damping = snap_fit_case ? 0.5 : 1.0;
+         const real_t damping = std::min(max_damping, max_correction/update_norm);
          xf.Set(1.0, xref);
          xf.Add(damping, correction);
          xref.Set(1.0, xf);
@@ -985,8 +1153,13 @@ int main(int argc, char *argv[])
       IPSolveSummary result;
       result.load_step = i;
       result.converged = optimizer.GetConverged() && geometry_converged;
+      result.geometry_converged = geometry_converged;
+      result.accepted = result.converged ||
+                        (allow_inexact_contact_updates && optimizer.GetConverged() &&
+                         geometry_updates == max_updates);
       result.termination_reason = optimizer.GetConverged() && !geometry_converged
-                                  ? "maximum contact geometry updates"
+                                  ? (result.accepted ? "accepted inexact contact geometry" :
+                                     "maximum contact geometry updates")
                                   : optimizer.GetTerminationReason();
       result.ip_steps = total_ip_steps;
       result.newton_solves = total_newton_solves;
@@ -995,7 +1168,7 @@ int main(int argc, char *argv[])
       result.geometry_updates = geometry_updates;
       result.geometry_error = update_norm;
 
-      if (!result.converged)
+      if (!result.accepted)
       {
          if (Mpi::Root() && print_level > 0)
          {
@@ -1019,11 +1192,11 @@ int main(int argc, char *argv[])
 
       // 9(h). Report objective values, dofs and IP iteration counts.
       int eval_err;
-      real_t Einitial = self_contact ? self_contact_initial_energy
+      real_t Einitial = update_geometry ? nonlinear_initial_energy
                         : contact.GetEnergy(x0, eval_err);
-      real_t Efinal = self_contact ? prob.GetEnergy(xf)
+      real_t Efinal = update_geometry ? prob.GetEnergy(xf)
                       : contact.GetEnergy(xf, eval_err);
-      if (self_contact)
+      if (update_geometry)
       {
          Vector gap(contact.GetConstraintJacobian()->Height());
          gap.UseDevice(true);
@@ -1034,7 +1207,7 @@ int main(int argc, char *argv[])
                        MPITypeMap<real_t>::mpi_type, MPI_MIN, MPI_COMM_WORLD);
          if (myid == 0 && print_level >= 2)
          {
-            cout << self_contact_name << ": gap rows = " <<
+            cout << contact_name << ": gap rows = " <<
                  contact.GetGlobalNumConstraints()
                  << ", minimum mortar gap = ";
             if (IsFinite(min_gap)) { cout << min_gap; }
@@ -1054,6 +1227,10 @@ int main(int argc, char *argv[])
 
       // 9(i). Visualization outputs.
       x_gf.SetFromTrueDofs(xf);
+      if (snap_fit_case && print_level >= 2)
+      {
+         snap_fit::PrintState(x_gf, clip_dofs, pin_dofs);
+      }
       add(ref_coords,x_gf,new_coords);
       pmesh_copy.SetNodes(new_coords);
       xcopy_gf = x_gf;
@@ -1094,7 +1271,7 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-Mesh * GetProblemMesh(problem_name prob_name)
+Mesh * GetProblemMesh(problem_name prob_name, bool snap_fit_hex)
 {
 
    if (prob_name == problem_name::beamsphere)
@@ -1112,6 +1289,10 @@ Mesh * GetProblemMesh(problem_name prob_name)
    else if (prob_name == ring)
    {
       return MakeRingMesh();
+   }
+   else if (prob_name == snapfit)
+   {
+      return MakeSnapFitMesh(snap_fit_hex);
    }
    else // construct the two-block or ironing mesh
    {
@@ -1369,6 +1550,183 @@ Mesh * MakeRingMesh()
    }
    mesh->FinalizeHexMesh(1, 1);
    return mesh.release();
+}
+
+// Open annular clip and a separate solid pin. Their vertices are deliberately
+// disjoint: the pin surface is fixed and Tribol couples it to the moving clip.
+Mesh * MakeSnapFitMesh(bool hexahedra)
+{
+   constexpr int angular_cells = snap_fit::angular_cells;
+   constexpr int width_cells = 1, radial_cells = 4;
+   constexpr real_t tip_angle = snap_fit::tip_angle;
+   const Element::Type element_type = hexahedra ? Element::HEXAHEDRON :
+                                      Element::TETRAHEDRON;
+   auto clip = std::make_unique<Mesh>(Mesh::MakeCartesian3D(
+                                         angular_cells, width_cells, radial_cells,
+                                         element_type, real_t(angular_cells),
+                                         snap_fit::width, snap_fit::thickness));
+   for (int i = 0; i < clip->GetNBE(); i++)
+   {
+      const Element &face = *clip->GetBdrElement(i);
+      real_t path = 0.0;
+      for (int j = 0; j < face.GetNVertices(); j++)
+      {
+         path += clip->GetVertex(face.GetVertices()[j])[0];
+      }
+      path /= face.GetNVertices();
+      const real_t theta = snap_fit::Angle(path);
+      int attr = snap_fit::free_surface;
+      if (face.GetAttribute() == 1)
+      {
+         attr = snap_fit::clip_contact;
+      }
+      if (face.GetAttribute() == 3 || face.GetAttribute() == 5)
+      {
+         attr = snap_fit::clip_contact;
+      }
+      if (face.GetAttribute() == 6)
+      {
+         // The outer lip patches also touch the pin during initial entry.
+         if (theta < M_PI/3 || theta > 5*M_PI/3)
+         {
+            attr = snap_fit::clip_contact;
+         }
+         if (std::abs(path - angular_cells/2) < 2.0)
+         {
+            attr = snap_fit::grip;
+         }
+      }
+      clip->SetBdrAttribute(i, attr);
+   }
+   clip->SetAttributes();
+   auto clip_map = [](const Vector &logical, Vector &physical)
+   {
+      const real_t theta = snap_fit::Angle(logical[0]);
+      const real_t r = snap_fit::inner_radius + logical[2];
+      // Round each lip with a semicircular end cap. Blend the cap into the
+      // neighboring stations so contact normals turn smoothly around the nose.
+      const real_t half = snap_fit::thickness/2;
+      const real_t radial_offset = logical[2] - half;
+      const real_t blend = std::max(real_t(0.0), real_t(1.0) -
+                                    std::min(theta - tip_angle,
+                                             2*M_PI - tip_angle - theta)/0.3);
+      const real_t nose = std::sqrt(std::max(real_t(0.0),
+                                             half*half - radial_offset*radial_offset))*blend;
+      const real_t tangent = theta < M_PI ? -nose : nose;
+      physical.SetSize(3);
+      physical[0] = -snap_fit::offset + r*std::cos(theta) - tangent*std::sin(theta);
+      physical[1] = logical[1] - snap_fit::width/2;
+      physical[2] = -r*std::sin(theta) - tangent*std::cos(theta);
+   };
+   clip->Transform(clip_map);
+
+   // Tetrahedra give triangular contact faces with Tribol's direct inverse map.
+   // Hexahedral contact faces use its quadrilateral Newton iteration.
+   // A square-to-disk map gives a solid pin without a singular axial cell.
+   // End faces and the whole curved surface are fixed; no stiffness contrast
+   // or penalty parameter is needed to hold the contact surface stationary.
+   // Match the pin's boundary stations to the clip's inner arc. Equal radii
+   // then give coincident facets when seated, including on the coarse mesh.
+   constexpr int pin_cells = (snap_fit::angular_cells + snap_fit::mouth_cells)/4;
+   auto pin = std::make_unique<Mesh>(Mesh::MakeCartesian3D(
+                                        pin_cells, width_cells, pin_cells,
+                                        element_type, 2.0,
+                                        snap_fit::width, 2.0));
+   for (int i = 0; i < pin->GetNE(); i++)
+   {
+      pin->GetElement(i)->SetAttribute(snap_fit::pin_body);
+   }
+   for (int i = 0; i < pin->GetNBE(); i++)
+   {
+      const int attr = pin->GetBdrElement(i)->GetAttribute();
+      pin->SetBdrAttribute(i, attr == 2 || attr == 4 ?
+                           snap_fit::pin_ends : snap_fit::pin_contact);
+   }
+   pin->SetAttributes();
+   auto pin_map = [](const Vector &logical, Vector &physical)
+   {
+      const real_t x = logical[0] - 1.0, z = logical[2] - 1.0;
+      physical.SetSize(3);
+      physical[1] = logical[1] - snap_fit::width/2;
+      const real_t square_radius = std::max(std::abs(x), std::abs(z));
+      if (square_radius == 0.0)
+      {
+         physical[0] = physical[2] = 0.0;
+         return;
+      }
+      const real_t u = x/square_radius, v = z/square_radius;
+      real_t station;
+      if (u >= std::abs(v))
+      {
+         station = v <= 0.0 ? -pin_cells*v/2 : 4*pin_cells - pin_cells*v/2;
+      }
+      else if (-v >= std::abs(u)) { station = pin_cells - pin_cells*u/2; }
+      else if (-u >= std::abs(v)) { station = 2*pin_cells + pin_cells*v/2; }
+      else { station = 3*pin_cells + pin_cells*u/2; }
+      // Boundary grid vertices have integer station indices. Snap roundoff
+      // away so both bodies use exactly the same angle and radius there.
+      if (square_radius == 1.0) { station = std::round(station); }
+      const real_t theta = snap_fit::Angle(station);
+      const real_t r = snap_fit::pin_radius * (square_radius == 1.0 ? 1.0 :
+                                               std::sqrt(x*x + z*z - x*x*z*z));
+      physical[0] = r*std::cos(theta);
+      physical[2] = -r*std::sin(theta);
+   };
+   pin->Transform(pin_map);
+   Mesh *parts[] = {clip.get(), pin.get()};
+   return new Mesh(parts, 2);
+}
+
+void snap_fit::GetBodyDofs(ParFiniteElementSpace &fes, int attr,
+                           Array<int> &dofs)
+{
+   Array<int> marker(fes.GetNDofs()), element_dofs;
+   marker = 0;
+   for (int i = 0; i < fes.GetNE(); i++)
+   {
+      if (fes.GetParMesh()->GetAttribute(i) != attr) { continue; }
+      fes.GetElementDofs(i, element_dofs);
+      for (int j : element_dofs) { marker[j] = 1; }
+   }
+   dofs.SetSize(0);
+   for (int i = 0; i < marker.Size(); i++)
+   {
+      if (marker[i]) { dofs.Append(i); }
+   }
+}
+
+void snap_fit::TranslateClip(ParGridFunction &displacement,
+                             const Array<int> &dofs, real_t distance)
+{
+   const auto &fes = *displacement.ParFESpace();
+   real_t *values = displacement.HostReadWrite();
+   for (int dof : dofs) { values[fes.DofToVDof(dof, 0)] += distance; }
+}
+
+void snap_fit::PrintState(const ParGridFunction &displacement,
+                          const Array<int> &clip_dofs, const Array<int> &pin_dofs)
+{
+   const auto &fes = *displacement.ParFESpace();
+   const real_t *values = displacement.HostRead();
+   real_t local[2] = {0.0, 0.0}, global[2];
+   for (int dof : clip_dofs)
+   {
+      local[0] = std::max(local[0], std::abs(values[fes.DofToVDof(dof, 2)]));
+   }
+   for (int dof : pin_dofs)
+   {
+      for (int c = 0; c < 3; c++)
+      {
+         local[1] = std::max(local[1], std::abs(values[fes.DofToVDof(dof, c)]));
+      }
+   }
+   MPI_Allreduce(local, global, 2, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                 fes.GetComm());
+   if (Mpi::Root())
+   {
+      cout << "Snap-fit: maximum transverse deflection = " << global[0]
+           << ", fixed pin displacement = " << global[1] << endl;
+   }
 }
 
 // Generate nine disconnected spherical octant shells. Distinct surface meshes
