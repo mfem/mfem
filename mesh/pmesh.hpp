@@ -128,8 +128,9 @@ protected:
    // Given a completed FacesTable and SharedFacesTable, construct a table that
    // maps from face neighbor element number, to the set of faces of that
    // element. Store the resulting data in the member variable
-   // face_nbr_el_to_face. If the mesh is nonconforming, this also builds the
-   // the face_nbr_el_ori variable from the faces_info.
+   // face_nbr_el_to_face. The orientations, face_nbr_el_ori, are exchanged
+   // separately: by ExchangeFaceNbrData(Table*, int*) for conforming meshes
+   // and by ParNCMesh::GetFaceNeighbors for nonconforming ones.
    void BuildFaceNbrElementToFaceTable();
 
    /**
@@ -559,7 +560,28 @@ public:
                         Array<HYPRE_BigInt> *offsets[]) const;
 
    using Mesh::FaceIsTrueInterior;
+
+   /** @brief Build the face neighbor data: the elements of other ranks that
+       share a face with this rank, with their vertices, their face
+       orientations in 3D and, for curved meshes, their nodes.
+
+       This communicates with the face neighbor ranks, each of which must call
+       it too, so in practice it must be called on all ranks of the mesh
+       communicator. It does nothing if the data is already built; the data is
+       deleted when the mesh changes, e.g. on refinement, rebalancing or
+       SetCurvature(). The methods that call it when the data has not been
+       built must be called on all ranks in the same way, e.g. GetNFbyType(),
+       GetExteriorFaceMarker(), FindInterface(),
+       ParFiniteElementSpace::ExchangeFaceNbrData(),
+       ParGridFunction::ExchangeFaceNbrData(), and the setup of parallel forms
+       and face restrictions. */
    void ExchangeFaceNbrData();
+   /** @brief Exchange the vertex coordinates or, for curved meshes, the nodes
+       of the face neighbor elements, e.g. after the mesh has moved.
+
+       Builds the face neighbor data first if needed, see
+       ExchangeFaceNbrData(). Unlike ExchangeFaceNbrData(), it communicates
+       on every call, and must be called on all ranks in the same way. */
    void ExchangeFaceNbrNodes();
 
    void SetCurvature(int order, bool discont = false, int space_dim = -1,

@@ -2013,6 +2013,8 @@ void ParMesh::DeleteFaceNbrData()
    face_nbr_vertices.DeleteAll();
    send_face_nbr_elements.Clear();
    send_face_nbr_vertices.Clear();
+   face_nbr_el_to_face.reset();
+   face_nbr_el_ori.reset();
 }
 
 std::unique_ptr<ParGridFunction> ParMesh::GetJacobianDeterminantGF() const
