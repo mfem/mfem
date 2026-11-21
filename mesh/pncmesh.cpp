@@ -392,6 +392,10 @@ void ParNCMesh::BuildVertexList()
    GetEdgeList();
    if (Dim >= 3) { GetFaceList(); }
 
+   vertex_list.Clear();
+   shared_vertices.Clear();
+   if (!leaf_elements.Size()) { return; }
+
    int nvertices = NVertices + NGhostVertices;
 
    tmp_owner.SetSize(nvertices);
@@ -2974,6 +2978,19 @@ void ParNCMesh::SendRebalanceDofs(int old_ndofs,
 }
 
 
+void ParNCMesh::SendRebalanceValues(const Array<int> &values)
+{
+   for (auto &it : send_rebalance_dofs)
+   {
+      RebalanceDofMessage &msg = it.second;
+      msg.dofs.clear();
+      for (int id : msg.elem_ids) { msg.dofs.push_back(values[id]); }
+      msg.dof_offset = 0;
+   }
+   RebalanceDofMessage::IsendAll(send_rebalance_dofs, MyComm);
+}
+
+
 void ParNCMesh::RecvRebalanceDofs(Array<int> &elements, Array<long> &dofs)
 {
    // receive from the same ranks as in last Rebalance()
@@ -3003,7 +3020,8 @@ void ParNCMesh::RecvRebalanceDofs(Array<int> &elements, Array<long> &dofs)
       }
       for (unsigned i = 0; i < msg.dofs.size(); i++)
       {
-         dofs[nd++] = msg.dof_offset + msg.dofs[i];
+         const int d = msg.dofs[i];
+         dofs[nd++] = (d < 0) ? (d - msg.dof_offset) : (d + msg.dof_offset);
       }
    }
 

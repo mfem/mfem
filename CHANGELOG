@@ -20,6 +20,15 @@ GPU computing
 
 Discretization improvements
 ---------------------------
+- Added parallel variable-order element-order updates for derefinement and
+  rebalancing (for equal-order derefinement siblings and p=1 tetrahedral ND
+  elements), extended local-DOF compaction and non-boolean restriction to
+  parallel variable-order ND and RT spaces, enabled variable-order 2D/3D
+  face elements and quad/hex ND/RT volume p-refinement with empty-rank-safe
+  PRefinementSupported(), and fixed 2D GetFaceOrder(), cached GetFaceDofs()
+  and GetElementDofs() DoFTransArray handling, and actual-order preflight
+  in ParFiniteElementSpace::RebalanceMatrix.
+
 - Completed parallel 3D quadrilateral-face internal-edge compatibility
   constraints in variable-order H1 and ND spaces, generalized variable-order
   parallel cut-space communication groups to ND and RT spaces with signed

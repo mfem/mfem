@@ -2981,7 +2981,7 @@ void FiniteElementSpace::Construct()
    }
 
    // assign edge DOFs
-   if (mesh->GetNEdges())
+   if (mesh->GetNEdges() || (IsVariableOrder() && mesh->Dimension() >= 2))
    {
       if (IsVariableOrder())
       {
@@ -3003,7 +3003,7 @@ void FiniteElementSpace::Construct()
    }
 
    // assign face DOFs
-   if (mesh->GetNFaces())
+   if (mesh->GetNFaces() || (IsVariableOrder() && mesh->Dimension() >= 3))
    {
       if (IsVariableOrder() || mixed_faces)
       {
@@ -3552,9 +3552,12 @@ int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
 {
    if (!IsVariableOrder()) { return fec->GetOrder(); }
 
-   if (edge >= var_edge_dofs.Size())
+   const int n_edges = var_edge_dofs.Size() - 1;
+   if (n_edges >= 0 && edge >= n_edges)
    {
-      return ghost_edge_orders[edge - var_edge_dofs.Size()];
+      const int ghost_idx = edge - n_edges;
+      if (variant != 0 || ghost_idx >= ghost_edge_orders.Size()) { return -1; }
+      return ghost_edge_orders[ghost_idx];
    }
 
    const int* beg = var_edge_dofs.GetRow(edge);
@@ -3573,9 +3576,16 @@ int FiniteElementSpace::GetFaceOrder(int face, int variant) const
       return fec->FiniteElementForGeometry(geom)->GetOrder();
    }
 
-   if (face >= var_face_dofs.Size())
+   const int dim = mesh->Dimension();
+   if (dim == 2) { return GetEdgeOrder(face, variant); }
+   if (dim < 2) { return (variant == 0) ? fec->GetOrder() : -1; }
+
+   const int n_faces = var_face_dofs.Size() - 1;
+   if (n_faces >= 0 && face >= n_faces)
    {
-      return ghost_face_orders[face - var_face_dofs.Size()];
+      const int ghost_idx = face - n_faces;
+      if (variant != 0 || ghost_idx >= ghost_face_orders.Size()) { return -1; }
+      return ghost_face_orders[ghost_idx];
    }
 
    const int* beg = var_face_dofs.GetRow(face);
@@ -3608,12 +3618,15 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs,
    {
       elem_dof->GetRow(elem, dofs);
 
-      if (DoFTransArray[mesh->GetElementBaseGeometry(elem)])
+      const Geometry::Type geom = mesh->GetElementBaseGeometry(elem);
+      if (DoFTransArray[geom] &&
+          (!IsVariableOrder() ||
+           (mesh->Dimension() > 2 &&
+            fec->HasFaceDofs(geom, GetElementOrderImpl(elem)))))
       {
          Array<int> Fo;
          elem_fos -> GetRow (elem, Fo);
-         doftrans.SetDofTransformation(
-            *DoFTransArray[mesh->GetElementBaseGeometry(elem)]);
+         doftrans.SetDofTransformation(*DoFTransArray[geom]);
          doftrans.SetFaceOrientations(Fo);
          doftrans.SetVDim();
       }
@@ -3824,20 +3837,29 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
 {
    MFEM_VERIFY(!orders_changed, msg_orders_changed);
 
+   const int dim = mesh->Dimension();
+
    // If face_dof is already built, use it.
    // If it is not and we have a NURBS space, build the face_dof and use it.
    if ((face_dof && variant == 0) ||
        (NURBSext && (BuildNURBSFaceToDofTable(), true)))
    {
       face_dof->GetRow(face, dofs);
-      return fec->GetOrder();
+      return (!IsVariableOrder() || NURBSext) ? fec->GetOrder()
+             : GetFaceOrder(face, 0);
    }
 
    int order, nf, fbase;
-   int dim = mesh->Dimension();
    auto fgeom = (dim > 2) ? mesh->GetFaceGeometry(face) : Geometry::INVALID;
 
-   if (var_face_dofs.Size() > 0) // variable orders or *mixed* faces
+   if (dim == 2 && IsVariableOrder())
+   {
+      order = GetEdgeOrder(face, variant);
+      if (order < 0) { return -1; }
+      nf = 0;
+      fbase = 0;
+   }
+   else if (dim > 2 && var_face_dofs.Size() > 0) // variable orders or *mixed* faces
    {
       const int* beg = var_face_dofs.GetRow(face);
       const int* end = var_face_dofs.GetRow(face + 1);
@@ -4118,22 +4140,30 @@ const FiniteElement *FiniteElementSpace::GetTypicalBE() const
    return be;
 }
 
-const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
+const FiniteElement *FiniteElementSpace::GetFaceElement(int i,
+                                                        int variant) const
 {
-   MFEM_VERIFY(!IsVariableOrder(), "not implemented");
+   const int dim = mesh->Dimension();
+   int order = fec->GetOrder();
+   if (IsVariableOrder())
+   {
+      if (dim == 2) { order = GetEdgeOrder(i, variant); }
+      else if (dim == 3) { order = GetFaceOrder(i, variant); }
+      MFEM_VERIFY(order >= 0, "Invalid face variant in GetFaceElement().");
+   }
 
    const FiniteElement *fe;
-   switch (mesh->Dimension())
+   switch (dim)
    {
       case 1:
-         fe = fec->FiniteElementForGeometry(Geometry::POINT);
+         fe = fec->GetFE(Geometry::POINT, order);
          break;
       case 2:
-         fe = fec->FiniteElementForGeometry(Geometry::SEGMENT);
+         fe = fec->GetFE(Geometry::SEGMENT, order);
          break;
       case 3:
       default:
-         fe = fec->FiniteElementForGeometry(mesh->GetFaceGeometry(i));
+         fe = fec->GetFE(mesh->GetFaceGeometry(i), order);
    }
 
    if (NURBSext)
@@ -4328,6 +4358,7 @@ void FiniteElementSpace::GetTrueTransferOperator(
 void FiniteElementSpace::UpdateElementOrders()
 {
    Array<char> new_order(mesh->GetNE());
+   new_order = 0;
    switch (mesh->GetLastOperation())
    {
       case Mesh::REFINE:
@@ -4341,16 +4372,24 @@ void FiniteElementSpace::UpdateElementOrders()
       }
       case Mesh::DEREFINE:
       {
+         // Children of a derefined element are expected to have equal orders.
+         Array<bool> seen(mesh->GetNE());
+         seen = false;
          const CoarseFineTransformations &cf_tr =
             mesh->ncmesh->GetDerefinementTransforms();
-         Table coarse_to_fine;
-         cf_tr.MakeCoarseToFineTable(coarse_to_fine);
-         Array<int> tabrow;
-         for (int i = 0; i < coarse_to_fine.Size(); i++)
+         for (int k = 0; k < cf_tr.embeddings.Size(); k++)
          {
-            coarse_to_fine.GetRow(i, tabrow);
-            // For now we require all children to be of same polynomial order.
-            new_order[i] = elem_order[tabrow[0]];
+            const int p = cf_tr.embeddings[k].parent;
+            if (!seen[p])
+            {
+               new_order[p] = elem_order[k];
+               seen[p] = true;
+            }
+            else
+            {
+               MFEM_VERIFY(new_order[p] == elem_order[k],
+                           "Derefinement of mixed-order sibling elements is not supported.");
+            }
          }
          break;
       }
@@ -4514,15 +4553,22 @@ void FiniteElementSpace::PRefineAndUpdate(const Array<pRefinement> & refs,
 
 bool FiniteElementSpace::PRefinementSupported()
 {
-   // Check whether the space type is L2 or H1
-   if (!dynamic_cast<const L2_FECollection*>(fec) &&
-       !dynamic_cast<const H1_FECollection*>(fec))
+   // Check whether the space type is L2, H1, ND or RT (excluding trace/interface)
+   const bool is_l2 = dynamic_cast<const L2_FECollection*>(fec) != nullptr;
+   const bool is_h1 = dynamic_cast<const H1_FECollection*>(fec) != nullptr;
+   const bool is_nd = dynamic_cast<const ND_FECollection*>(fec) != nullptr &&
+                      !dynamic_cast<const ND_Trace_FECollection*>(fec);
+   const bool is_rt = dynamic_cast<const RT_FECollection*>(fec) != nullptr &&
+                      !dynamic_cast<const RT_Trace_FECollection*>(fec) &&
+                      !dynamic_cast<const DG_Interface_FECollection*>(fec);
+   if (!is_l2 && !is_h1 && !is_nd && !is_rt)
    {
       return false;
    }
 
-   // Check whether the mesh is purely quadrilateral or hexahedral.
+   // Check whether the mesh is purely quadrilateral or hexahedral (ND/RT >= 2D).
    const int dim = mesh->Dimension();
+   if ((is_nd || is_rt) && dim < 2) { return false; }
    Array<Geometry::Type> geoms;
    mesh->GetGeometries(dim, geoms);
    if (geoms.Size() != 1) { return false; }

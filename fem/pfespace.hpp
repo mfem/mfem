@@ -143,6 +143,9 @@ private:
    /// Set ghost_orders.
    void CommunicateGhostOrder();
 
+   /// Update elem_order after refinement, derefinement or rebalancing.
+   void UpdateElementOrders() override;
+
    /// Sets @a tdof2ldof. See documentation of @a tdof2ldof for details.
    void SetTDOF2LDOFinfo(int ntdofs, int vdim_factor, int dof_stride,
                          int allnedofs);
@@ -150,9 +153,7 @@ private:
    /** Set the rows of the restriction matrix @a R in a variable-order space,
        corresponding to true DOFs on edges and faces. */
    void SetRestrictionMatrixEdgesFaces(int vdim_factor, int dof_stride,
-                                       int tdof_stride,
-                                       const Array<int> &dof_tdof,
-                                       const Array<HYPRE_BigInt> &dof_offs);
+                                       int tdof_stride);
 
    /// Helper function to set var_edge_dofmap or var_face_dofmap
    void SetVarDofMap(const Table & dofs, Array<VarOrderDofInfo> & dmap);
@@ -536,6 +537,9 @@ public:
    const SparseMatrix *GetRestrictionMatrix() const override
    { Dof_TrueDof_Matrix(); return R; }
 
+   const SparseMatrix *GetHpRestrictionMatrix() const override
+   { return GetRestrictionMatrix(); }
+
    // Face-neighbor functions
    void ExchangeFaceNbrData();
    int GetFaceNbrVSize() const { return num_face_nbr_dofs; }
@@ -577,6 +581,10 @@ public:
        space and a transfer operator accessible by GetPrefUpdateOperator(). */
    void PRefineAndUpdate(const Array<pRefinement> & refs,
                          bool want_transfer = true) override;
+
+   /** Return true iff p-refinement is supported globally across all MPI ranks.
+       @note Collective MPI call: reduces element geometries across all ranks. */
+   bool PRefinementSupported() override;
 
    /// Free ParGridFunction transformation matrix (if any), to save memory.
    void UpdatesFinished() override
