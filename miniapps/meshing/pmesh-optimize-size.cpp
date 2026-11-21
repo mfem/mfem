@@ -35,6 +35,7 @@
 // Tangential movement on Cartesian boundary faces can be enabled with
 // the -mod-bndr-attr and -bnd options.
 // -psb (default) also preserves curves between original surface labels.
+// Exposed outlines of open labeled surfaces are fixed as well.
 // Use -no-psb to disable these additional constraints.
 
 #include "mfem.hpp"
@@ -152,12 +153,15 @@ int main(int argc, char *argv[])
    args.AddOption(&preserve_surface_boundaries, "-psb",
                   "--preserve-surface-boundaries", "-no-psb",
                   "--no-preserve-surface-boundaries",
-                  "Preserve boundaries between original surface attributes. "
-                  "Fix all interface coordinate DOFs unless -slide-sb is set.");
+                  "Preserve boundaries between original surface attributes "
+                  "and exposed outlines of open labeled surfaces. Fix all "
+                  "interface coordinate DOFs unless -slide-sb is set; "
+                  "exposed outlines always remain fixed.");
    args.AddOption(&allow_seam_sliding, "-slide-sb", "--slide-surface-boundaries",
                   "-fix-sb", "--fix-surface-boundaries",
                   "With -psb, allow sliding along straight Cartesian seams "
-                  "in 3D; keep corners, junctions and other seams fixed. "
+                  "between labels in 3D; keep corners, junctions, exposed "
+                  "outlines and other seams fixed. "
                   "By default, fix all interface coordinate DOFs.");
    args.AddOption(&normalization, "-nor", "--normalization", "-no-nor",
                   "--no-normalization", "Normalize the TMOP functional.");
