@@ -999,6 +999,18 @@ int main(int argc, char *argv[])
             // Queue new time step in the history array
             navier.UpdateTimestepHistory(dt_preload);
 
+            // Robin-type couplings during the (rigid) preload: the interface condition is the Robin one,
+            // alpha u + sigma n = alpha u_s + g, with u_s = 0. A zero traction datum g would make the "rigid" beam
+            // porous, u.n = p / alpha, and the datum would jump to the fluid traction at the start of the coupled
+            // phase (an impulsive start). Instead g is the fluid traction of the previous step, so that u = 0 up to
+            // the change of the traction in one step.
+            if (DD_ctx.coupling != CouplingType::Dirichlet_Neumann)
+            {
+               finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryNormalStress, fluid_sigmaN_onSolid_gf, true);
+               solid_sigmaN_onFluid_gf = finder_fluid_to_solid.GetForwardSourceQoI();
+               solid_sigmaN_onFluid_gf.Neg(); // NavierSolver's Robin datum is sigma_s.n_s = -sigma_f.n_f
+            }
+
             if (time_adaptivity && current_time < transitionT)
             { // Predict new step size
                real_t fac_safety = 2.0;

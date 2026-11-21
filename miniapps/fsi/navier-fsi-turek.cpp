@@ -79,6 +79,40 @@ void gravitational_force(const Vector &x, real_t time, Vector &u);
 
 void ComputeDragLift(real_t &drag, real_t &lift, ParLinearForm &lift_drag_form);
 
+// Fluid traction sigma_f n_f = tau_n - p n_f at a point of a boundary element, with n_f taken from the boundary
+// element itself. A nodal (H1) sigma.n field cannot represent the traction at a corner of the interface (e.g. the
+// beam tip corners): the corner node holds the average of the two face tractions, -p (n_1 + n_2)/2 for the
+// pressure part, which is wrong on both faces. The pressure is continuous, so p and the (small) viscous traction
+// tau_n are transferred as nodal fields and the normal is applied per face.
+// - tau_n: viscous traction field; p: pressure in the first component of a vector field (p, 0)
+// - normal_sign: +1 if the boundary element normal is n_f (fluid mesh), -1 if it is n_s = -n_f (solid mesh)
+// - scale: overall factor (e.g. -1 for the NavierSolver Robin datum, which expects sigma_s n_s = -sigma_f n_f)
+class FaceNormalTractionCoefficient : public VectorCoefficient
+{
+   const GridFunction &tau_n, &p;
+   const real_t normal_sign, scale;
+   Vector pv, nor;
+
+public:
+   FaceNormalTractionCoefficient(const GridFunction &tau_n_, const GridFunction &p_, real_t normal_sign_,
+                                 real_t scale_ = 1.0)
+      : VectorCoefficient(tau_n_.VectorDim()), tau_n(tau_n_), p(p_), normal_sign(normal_sign_), scale(scale_) {}
+
+   void Eval(Vector &V, ElementTransformation &T, const IntegrationPoint &ip) override
+   {
+      MFEM_ASSERT(T.ElementType == ElementTransformation::BDR_ELEMENT,
+                  "FaceNormalTractionCoefficient: needs a boundary element transformation");
+      T.SetIntPoint(&ip);
+      nor.SetSize(vdim);
+      CalcOrtho(T.Jacobian(), nor);
+      nor /= nor.Norml2();
+      tau_n.GetVectorValue(T, ip, V);
+      p.GetVectorValue(T, ip, pv);
+      V.Add(-normal_sign * pv(0), nor);
+      V *= scale;
+   }
+};
+
 enum class CouplingType : int
 {
    Dirichlet_Neumann = 0,
@@ -136,6 +170,7 @@ struct s_DomainDecompositionContext // domain decomposition params
    CouplingType coupling = CouplingType::Dirichlet_Neumann; // Default coupling type
    bool aitken = false;         // Enable Aitken relaxation
    int robin_traction = 0;      // Traction in the fluid Robin datum: 0 - fluid traction (consistent), 1 - solid sigma_s(u_h).n
+   bool face_traction = false;  // Fluid traction as tau.n - p n_face (face normal), instead of a nodal sigma.n field
    real_t safety_factor = 1.15; // Safety factor for Aitken relaxation
    real_t omega = 0.5;
 } DD_ctx;
@@ -251,6 +286,9 @@ int main(int argc, char *argv[])
                   "Traction used in the fluid Robin datum (Robin couplings): 0 - fluid traction sigma_f.n of the "
                   "previous sub-iterate, i.e. the load applied to the solid (default; at convergence the Robin "
                   "condition reduces to u_f = u_s), 1 - solid traction sigma_s(u_h).n from the displacement gradient.");
+   args.AddOption(&DD_ctx.face_traction, "-ft", "--face-traction", "-no-ft", "--no-face-traction",
+                  "Fluid traction on the interface (solid load and Robin datum with -rt 0) as tau.n - p n with the "
+                  "face normal (correct at the corners of the interface), or as a nodal sigma.n field.");
    args.AddOption(&DD_ctx.safety_factor, "-sfa", "--safety-factor",
                   "Safety factor for the Aitken relaxation method (default: 1.15). ");
    // Mesh parameters
@@ -525,6 +563,14 @@ int main(int argc, char *argv[])
    solid_vel_onFluid_gf = 0.0;
    ParGridFunction solid_sigmaN_onFluid_gf(u_gf->ParFESpace());
    solid_sigmaN_onFluid_gf = 0.0;
+   // Face-normal traction (--face-traction): viscous traction and pressure of the fluid on the fluid interface (as
+   // computed by the forward transfer), and the Robin datum built from them (relaxed as solid_sigmaN_onFluid_gf)
+   ParGridFunction fluid_tauN_onFluid_gf(u_gf->ParFESpace()), fluid_p_onFluid_gf(u_gf->ParFESpace());
+   ParGridFunction datum_tauN_onFluid_gf(u_gf->ParFESpace()), datum_p_onFluid_gf(u_gf->ParFESpace());
+   fluid_tauN_onFluid_gf = 0.0;
+   fluid_p_onFluid_gf = 0.0;
+   datum_tauN_onFluid_gf = 0.0;
+   datum_p_onFluid_gf = 0.0;
 
    int order_quad_u_fluid = std::max(2, 2 * NS_ctx.u_order + 2);
    const IntegrationRule *irs_vel[Geometry::NumGeom];
@@ -573,6 +619,9 @@ int main(int argc, char *argv[])
 
    ParGridFunction fluid_sigmaN_onSolid_gf(elasticity_fes);
    fluid_sigmaN_onSolid_gf = 0.0;
+   ParGridFunction fluid_tauN_onSolid_gf(elasticity_fes), fluid_p_onSolid_gf(elasticity_fes); // --face-traction
+   fluid_tauN_onSolid_gf = 0.0;
+   fluid_p_onSolid_gf = 0.0;
 
    int order_quad_disp = std::max(2, 2 * Elasticity_ctx.order + 2);
    const IntegrationRule *irs_disp[Geometry::NumGeom];
@@ -668,8 +717,14 @@ int main(int argc, char *argv[])
 
    // Add dirichlet at the interface
    VectorGridFunctionCoefficient solid_vel_onFluid_coeff(&solid_vel_onFluid_gf); // Holds the solid velocity projected onto the fluid mesh
-   VectorGridFunctionCoefficient solid_sigmaN_onFluid_coeff(&solid_sigmaN_onFluid_gf);
-   real_t cp = std::sqrt((Elasticity_ctx.lambda + 2 * Elasticity_ctx.mu) / Elasticity_ctx.density); // compression wave speed
+   VectorGridFunctionCoefficient solid_sigmaN_onFluid_nodal_coeff(&solid_sigmaN_onFluid_gf);
+   // Robin datum sigma_s n_s = -(tau_n - p n_f), with the fluid face normal n_f
+   FaceNormalTractionCoefficient solid_sigmaN_onFluid_face_coeff(datum_tauN_onFluid_gf, datum_p_onFluid_gf, 1.0, -1.0);
+   const bool face_robin_datum = DD_ctx.face_traction && DD_ctx.robin_traction == 0;
+   VectorCoefficient &solid_sigmaN_onFluid_coeff = face_robin_datum
+                                                    ? static_cast<VectorCoefficient &>(solid_sigmaN_onFluid_face_coeff)
+                                                    : solid_sigmaN_onFluid_nodal_coeff;
+   real_t cp =std::sqrt((Elasticity_ctx.lambda + 2 * Elasticity_ctx.mu) / Elasticity_ctx.density); // compression wave speed
    real_t cs = std::sqrt(Elasticity_ctx.mu / Elasticity_ctx.density);                               // shear wave speed
    real_t zp = Elasticity_ctx.density * cp;
    real_t zs = Elasticity_ctx.density * cs;
@@ -697,7 +752,12 @@ int main(int argc, char *argv[])
    ////////////
    // - Fully Constrained at the cylinder base 
    // - Neumann (traction) on interface Γfs (σ·n = -σ_f · n) --> negative sign because n_f = -n_s
-   VectorGridFunctionCoefficient fluid_sigmaN_onSolid_coeff(&fluid_sigmaN_onSolid_gf);
+   VectorGridFunctionCoefficient fluid_sigmaN_onSolid_nodal_coeff(&fluid_sigmaN_onSolid_gf);
+   // sigma_f n_f = tau_n - p n_f, with n_f = -n_s from the solid face normal
+   FaceNormalTractionCoefficient fluid_sigmaN_onSolid_face_coeff(fluid_tauN_onSolid_gf, fluid_p_onSolid_gf, -1.0);
+   VectorCoefficient &fluid_sigmaN_onSolid_coeff = DD_ctx.face_traction
+                                                    ? static_cast<VectorCoefficient &>(fluid_sigmaN_onSolid_face_coeff)
+                                                    : fluid_sigmaN_onSolid_nodal_coeff;
    elasticity.AddFixedConstraint(beam_cylinder_curve[0]);
    elasticity.AddBoundaryLoad(&fluid_sigmaN_onSolid_coeff, beam_sides[0], -1.0, false);
    elasticity.AddBoundaryLoad(&fluid_sigmaN_onSolid_coeff, beam_tip[0], -1.0, false);
@@ -799,6 +859,28 @@ int main(int argc, char *argv[])
          }
          qoi_loc(i) = s;
       }
+   };
+
+   // --face-traction: viscous traction tau·n = rho ν (∇u + ∇u^T)·n_f, and the pressure as the vector (p, 0)
+   auto FluidBoundaryViscousTraction = [&](ElementTransformation &Tr, const IntegrationPoint &ip, Vector &qoi_loc)
+   {
+      Vector nor(sdim);
+      DenseMatrix dudx;
+      CalcOrtho(Tr.Jacobian(), nor);
+      nor /= nor.Norml2();
+      un_next_gf->GetVectorGradient(Tr, dudx);
+      const real_t nu = nu_gf->GetValue(Tr, ip);
+      for (int i = 0; i < sdim; i++)
+      {
+         real_t s = 0.0;
+         for (int j = 0; j < sdim; j++) { s += NS_ctx.density * nu * (dudx(i, j) + dudx(j, i)) * nor(j); }
+         qoi_loc(i) = s;
+      }
+   };
+   auto FluidBoundaryPressure = [&](ElementTransformation &Tr, const IntegrationPoint &ip, Vector &qoi_loc)
+   {
+      qoi_loc = 0.0;
+      qoi_loc(0) = p_gf->GetValue(Tr, ip);
    };
 
    // Compute σ·n = [ \lambda (∇·u) + mu (∇u + ∇u^T) ]·n_s
@@ -934,6 +1016,49 @@ int main(int argc, char *argv[])
    // Nothing for this test case, but might be useful for other cases
    int paraview_step = 0; // ParaView step counter
 
+   // Fluid traction on the fluid interface (as computed by the forward transfer): Robin datum with --robin-traction 0
+   ParGridFunction fluid_sigmaN_onFluid_gf(u_gf->ParFESpace());
+   fluid_sigmaN_onFluid_gf = 0.0;
+   // FLUID --> SOLID traction transfer. The nodal sigma.n is always computed (Aitken relaxation and convergence of
+   // the Robin datum); with --face-traction also tau.n and p, from which the solid load and the Robin datum are built.
+   auto TransferFluidTraction = [&]()
+   {
+      finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryNormalStress, fluid_sigmaN_onSolid_gf, true);
+      fluid_sigmaN_onFluid_gf = finder_fluid_to_solid.GetForwardSourceQoI();
+      if (DD_ctx.face_traction)
+      {
+         finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryViscousTraction, fluid_tauN_onSolid_gf, true);
+         fluid_tauN_onFluid_gf = finder_fluid_to_solid.GetForwardSourceQoI();
+         finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryPressure, fluid_p_onSolid_gf, true);
+         fluid_p_onFluid_gf = finder_fluid_to_solid.GetForwardSourceQoI();
+      }
+   };
+
+   // Robin-type couplings during the (rigid) preload: the interface condition is the Robin one, alpha u + sigma n =
+   // alpha u_s + g, with u_s = 0. A zero traction datum g would make the "rigid" beam porous, u.n = p / alpha (and the
+   // datum would jump to the fluid traction at the start of the coupled phase). Instead g is the fluid traction of the
+   // previous step, so that u = 0 up to the change of the traction in one step.
+   const bool robin_preload_datum = DD_ctx.coupling != CouplingType::Dirichlet_Neumann;
+   auto UpdatePreloadRobinDatum = [&]()
+   {
+      TransferFluidTraction();
+      solid_sigmaN_onFluid_gf = fluid_sigmaN_onFluid_gf;
+      solid_sigmaN_onFluid_gf.Neg();
+      datum_tauN_onFluid_gf = fluid_tauN_onFluid_gf;
+      datum_p_onFluid_gf = fluid_p_onFluid_gf;
+   };
+   // Interface volume flux int_Gamma v.n_f of a vector field v (u_f: zero for an impermeable rigid beam)
+   auto InterfaceFlux = [&](ParGridFunction &v)
+   {
+      VectorGridFunctionCoefficient v_coeff(&v);
+      ParLinearForm flux_form(p_gf->ParFESpace());
+      flux_form.AddBoundaryIntegrator(new BoundaryNormalLFIntegrator(v_coeff), fluid_interface_attr);
+      flux_form.Assemble();
+      real_t flux = flux_form.Sum(); // shape functions sum to one; each rank holds its own boundary elements
+      MPI_Allreduce(MPI_IN_PLACE, &flux, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, pmesh.GetComm());
+      return flux;
+   };
+
    ////////////////////////////////////////////////////////////////////////////////////////////////
    /// 8.1 ----- Preload phase
    ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1036,6 +1161,8 @@ int main(int argc, char *argv[])
 
             // Queue new time step in the history array
             navier.UpdateTimestepHistory(dt_preload);
+
+            if (robin_preload_datum) { UpdatePreloadRobinDatum(); }
 
             if (time_adaptivity && current_time < transitionT)
             { // Predict new step size
@@ -1186,6 +1313,22 @@ int main(int argc, char *argv[])
 
       } // END OF TIME-INTEGRATION LOOP for PRELOAD PHASE
 
+      if (!csm_only)
+      {
+         // Leak through the (rigid) beam during the preload, and the one a zero Robin datum would give: u.n = -(sigma_f n_f).n_f / alpha
+         const real_t flux = InterfaceFlux(*un_next_gf);
+         ParGridFunction slip_zero_datum(u_gf->ParFESpace());
+         slip_zero_datum = fluid_sigmaN_onFluid_gf;
+         slip_zero_datum *= -1.0 / (Elasticity_ctx.density * std::sqrt((Elasticity_ctx.lambda + 2 * Elasticity_ctx.mu) / Elasticity_ctx.density));
+         const real_t flux_zero = InterfaceFlux(slip_zero_datum);
+         if (Mpi::Root())
+         {
+            mfem::out << std::scientific << std::setprecision(4) << "End of preload: interface volume flux int u.n = " << flux
+                      << " m^2/s (with a zero Robin datum it would be ~ " << flux_zero << "; inflow flux "
+                      << NS_ctx.Umax * Mesh_ctx.D * 2.0 / 3.0 * 1.5 << ")" << std::endl;
+         }
+      }
+
       if (cfd_rigid || csm_only)
       {
          if (Mpi::Root())
@@ -1255,11 +1398,57 @@ int main(int argc, char *argv[])
    //   first sub-iteration is the fluid traction itself: the solid released from the (rigid) preload is unstressed,
    //   so sigma_s(u_0) n = 0 would impose a spurious interface velocity alpha u = -sigma_f n.
    bool use_initial_robin_data = false;
-   finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryNormalStress, fluid_sigmaN_onSolid_gf, true);
+   TransferFluidTraction();
    fluid_sigmaN_onSolid_gf.GetTrueDofs(fluid_sigmaN_onSolid);
-   // Fluid traction on the fluid interface (as computed by the forward transfer): Robin datum with --robin-traction 0
-   ParGridFunction fluid_sigmaN_onFluid_gf(u_gf->ParFESpace());
-   fluid_sigmaN_onFluid_gf = finder_fluid_to_solid.GetForwardSourceQoI();
+   if (DD_ctx.face_traction)
+   {
+      // Check: net interface force of the nodal and of the face-normal traction, on the solid and on the fluid side
+      // (equal up to the corner contributions; the fluid-side datum coefficient has the -1 of the Robin datum).
+      auto NetForce = [&](ParMesh &m, VectorCoefficient &c, const Array<int> &elems)
+      {
+         Vector f(sdim), v(sdim);
+         f = 0.0;
+         for (int be : elems)
+         {
+            ElementTransformation *T = m.GetBdrElementTransformation(be);
+            const IntegrationRule &ir = IntRules.Get(m.GetBdrElementGeometry(be), 2 * NS_ctx.u_order + 2);
+            for (int q = 0; q < ir.GetNPoints(); q++)
+            {
+               T->SetIntPoint(&ir.IntPoint(q));
+               c.Eval(v, *T, ir.IntPoint(q));
+               f.Add(ir.IntPoint(q).weight * T->Weight(), v);
+            }
+         }
+         MPI_Allreduce(MPI_IN_PLACE, f.GetData(), sdim, MPITypeMap<real_t>::mpi_type, MPI_SUM, m.GetComm());
+         return f;
+      };
+      Array<int> s_elems, f_elems;
+      for (int be = 0; be < solid_pmesh.GetNBE(); be++)
+      {
+         if (fluid_solid_interface_marker[solid_pmesh.GetBdrAttribute(be) - 1]) { s_elems.Append(be); }
+      }
+      for (int be = 0; be < fluid_pmesh.GetNBE(); be++)
+      {
+         if (fluid_solid_interface_marker[fluid_pmesh.GetBdrAttribute(be) - 1]) { f_elems.Append(be); }
+      }
+      datum_tauN_onFluid_gf = fluid_tauN_onFluid_gf;
+      datum_p_onFluid_gf = fluid_p_onFluid_gf;
+      solid_sigmaN_onFluid_gf = fluid_sigmaN_onFluid_gf;
+      solid_sigmaN_onFluid_gf.Neg();
+      Vector fs_nodal = NetForce(solid_pmesh, fluid_sigmaN_onSolid_nodal_coeff, s_elems);
+      Vector fs_face = NetForce(solid_pmesh, fluid_sigmaN_onSolid_face_coeff, s_elems);
+      Vector ff_nodal = NetForce(fluid_pmesh, solid_sigmaN_onFluid_nodal_coeff, f_elems);
+      Vector ff_face = NetForce(fluid_pmesh, solid_sigmaN_onFluid_face_coeff, f_elems);
+      if (Mpi::Root())
+      {
+         mfem::out << std::scientific << std::setprecision(4)
+                   << "Face-traction check, net sigma_f.n_f on the solid interface: nodal (" << fs_nodal(0) << ", "
+                   << fs_nodal(1) << "), face (" << fs_face(0) << ", " << fs_face(1) << ")\n"
+                   << "                     net Robin datum on the fluid interface:  nodal (" << ff_nodal(0) << ", "
+                   << ff_nodal(1) << "), face (" << ff_face(0) << ", " << ff_face(1) << ")" << std::endl;
+      }
+      solid_sigmaN_onFluid_gf = 0.0;
+   }
    if (elasticity.GetLatestState() == nullptr)
    {
       Vector u0, v0;
@@ -1335,6 +1524,7 @@ int main(int argc, char *argv[])
          solid_vel_onFluid_prev = solid_vel_onFluid;       // For relaxation step/error computation (Dirichlet or Robin)
          solid_sigmaN_onFluid_prev = solid_sigmaN_onFluid; // For relaxation step (Robin)
          fluid_sigmaN_onSolid_prev = fluid_sigmaN_onSolid; // For error computation
+         const Vector datum_tauN_prev(datum_tauN_onFluid_gf), datum_p_prev(datum_p_onFluid_gf); // --face-traction
 
          // Update gridfunction for error computation
          solid_vel_onFluid_prev_gf.SetFromTrueDofs(solid_vel_onFluid_prev);
@@ -1358,6 +1548,9 @@ int main(int argc, char *argv[])
                // forward transfer.
                solid_sigmaN_onFluid_gf = fluid_sigmaN_onFluid_gf;
                solid_sigmaN_onFluid_gf.Neg(); // NavierSolver's Robin datum is sigma_s.n_s = -sigma_f.n_f (it applies a -1)
+               // --face-traction: the datum actually applied is -(tau_n - p n_f) (sign in the coefficient)
+               datum_tauN_onFluid_gf = fluid_tauN_onFluid_gf;
+               datum_p_onFluid_gf = fluid_p_onFluid_gf;
             }
             else
             {
@@ -1387,6 +1580,14 @@ int main(int argc, char *argv[])
                solid_sigmaN_onFluid *= w_ss;
                solid_sigmaN_onFluid.Add(1.0 - w_ss, solid_sigmaN_onFluid_prev);
                solid_sigmaN_onFluid_gf.SetFromTrueDofs(solid_sigmaN_onFluid);
+               if (face_robin_datum)
+               {
+                  // Same relaxation (factor from the nodal sigma.n datum) for the face-normal datum fields
+                  datum_tauN_onFluid_gf *= w_ss;
+                  datum_tauN_onFluid_gf.Add(1.0 - w_ss, datum_tauN_prev);
+                  datum_p_onFluid_gf *= w_ss;
+                  datum_p_onFluid_gf.Add(1.0 - w_ss, datum_p_prev);
+               }
             }
          }
 
@@ -1420,8 +1621,7 @@ int main(int argc, char *argv[])
 
          if (Mpi::Root() && verbose)
             mfem::out << "Interpolating traction FLUID --> SOLID...";
-         finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryNormalStress, fluid_sigmaN_onSolid_gf, true); // Uses the InterpolateQoIv2 (to compute normal)
-         fluid_sigmaN_onFluid_gf = finder_fluid_to_solid.GetForwardSourceQoI(); // Robin datum of the next sub-iteration
+         TransferFluidTraction(); // Uses the InterpolateQoIv2 (to compute normal); also the Robin datum of the next sub-iteration
          fluid_sigmaN_onSolid_gf.GetTrueDofs(fluid_sigmaN_onSolid);
          if (Mpi::Root() && verbose)
             mfem::out << " done." << std::endl;
@@ -1586,10 +1786,45 @@ int main(int argc, char *argv[])
          }
          const real_t mismatch = uf_onFluid.ComputeL2Error(us_coeff, irs_vel, &fluid_interfaces_element_idx);
          const real_t us_norm = us_onFluid.ComputeL2Error(zero_km, irs_vel, &fluid_interfaces_element_idx);
+         // Pointwise slip at the interface nodes: maximum and its location, and the maximum |u_s| for scale
+         struct { double v; int r; } loc_max = {0.0, Mpi::WorldRank()}, glob_max;
+         real_t us_max = 0.0, xy_max[2] = {0.0, 0.0};
+         {
+            ParFiniteElementSpace *vfes_km = u_gf->ParFESpace();
+            const FiniteElement *fe0 = vfes_km->GetFE(0);
+            MFEM_VERIFY(fe0 && dynamic_cast<const NodalFiniteElement *>(fe0), "slip diagnostic needs a nodal space");
+            ParGridFunction xyz(vfes_km);
+            VectorFunctionCoefficient id_coeff(sdim, [](const Vector &x, Vector &y) { y = x; });
+            xyz.ProjectCoefficient(id_coeff);
+            Array<int> iface_vdofs;
+            vfes_km->GetEssentialVDofs(fluid_interface_attr, iface_vdofs);
+            for (int j = 0; j < vfes_km->GetNDofs(); j++)
+            {
+               if (!iface_vdofs[vfes_km->DofToVDof(j, 0)]) { continue; }
+               real_t s2 = 0.0, u2 = 0.0;
+               for (int d = 0; d < sdim; d++)
+               {
+                  const int vd = vfes_km->DofToVDof(j, d);
+                  s2 += std::pow((*un_next_gf)(vd) - us_onFluid(vd), 2);
+                  u2 += std::pow(us_onFluid(vd), 2);
+               }
+               us_max = std::max(us_max, std::sqrt(u2));
+               if (std::sqrt(s2) > loc_max.v)
+               {
+                  loc_max.v = std::sqrt(s2);
+                  for (int d = 0; d < 2; d++) { xy_max[d] = xyz(vfes_km->DofToVDof(j, d)); }
+               }
+            }
+         }
+         MPI_Allreduce(&loc_max, &glob_max, 1, MPI_DOUBLE_INT, MPI_MAXLOC, MPI_COMM_WORLD);
+         MPI_Bcast(xy_max, 2, MPITypeMap<real_t>::mpi_type, glob_max.r, MPI_COMM_WORLD);
+         MPI_Allreduce(MPI_IN_PLACE, &us_max, 1, MPITypeMap<real_t>::mpi_type, MPI_MAX, MPI_COMM_WORLD);
          if (Mpi::Root())
          {
             mfem::out << "Kinematic mismatch: |u_f - u_s|_Gamma = " << std::scientific << std::setprecision(3)
-                      << mismatch << " | |u_s|_Gamma = " << us_norm << std::endl;
+                      << mismatch << " | |u_s|_Gamma = " << us_norm
+                      << " | max nodal slip = " << glob_max.v << " at (" << xy_max[0] << ", " << xy_max[1]
+                      << ") | max |u_s| = " << us_max << std::endl;
          }
       }
 
