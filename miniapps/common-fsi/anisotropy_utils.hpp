@@ -13,13 +13,14 @@
 
 using namespace mfem;
 
-std::function<void(const Vector &, DenseMatrix &)> ConductivityMatrix(const Vector &d, std::function<void(const Vector &, Vector &)> EulerAngles)
+std::function<void(const Vector &, DenseMatrix &)> ConductivityMatrix(
+   const Vector &d, std::function<void(const Vector &, Vector &)> EulerAngles)
 {
 
    return [d, EulerAngles](const Vector &x, DenseMatrix &m)
    {
       // Define dimension of problem
-      const int dim = x.Size();  
+      const int dim = x.Size();
 
       // Compute Euler angles
       Vector e(3);
@@ -43,7 +44,7 @@ std::function<void(const Vector &, DenseMatrix &)> ConductivityMatrix(const Vect
          DenseMatrix R(3, 3);
          R(0, 0) = c3 * c2;
          R(1, 0) = s3 * c2;
-         R(2, 0) = -s2;         
+         R(2, 0) = -s2;
          R(0, 1) = s1 * s2 * c3 - c1 * s3;
          R(1, 1) = s1 * s2 * s3 + c1 * c3;
          R(2, 1) = s1 * c2;
@@ -62,7 +63,8 @@ std::function<void(const Vector &, DenseMatrix &)> ConductivityMatrix(const Vect
          MultADBt(R, l, R, m);
       }
       else if (dim == 2)
-      {  // R^t diag(l) R
+      {
+         // R^t diag(l) R
          const real_t c1 = cos(e1);
          const real_t s1 = sin(e1);
          DenseMatrix Rt(2, 2);
@@ -83,7 +85,8 @@ std::function<void(const Vector &, DenseMatrix &)> ConductivityMatrix(const Vect
 }
 
 
-std::function<void(const Vector &, Vector &)> FiberDirection(std::function<void(const Vector &, Vector &)> EulerAngles, int component)
+std::function<void(const Vector &, Vector &)> FiberDirection(
+   std::function<void(const Vector &, Vector &)> EulerAngles, int component)
 {
    return [EulerAngles, component](const Vector &x, Vector &e)
    {
@@ -106,7 +109,7 @@ std::function<void(const Vector &, Vector &)> FiberDirection(std::function<void(
       DenseMatrix R(3, 3);
       R(0, 0) = c3 * c2;
       R(1, 0) = s3 * c2;
-      R(2, 0) = -s2;         
+      R(2, 0) = -s2;
       R(0, 1) = s1 * s2 * c3 - c1 * s3;
       R(1, 1) = s1 * s2 * s3 + c1 * c3;
       R(2, 1) = s1 * c2;

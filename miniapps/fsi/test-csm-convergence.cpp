@@ -110,22 +110,28 @@ int main(int argc, char *argv[])
 
    args.ParseCheck();
 
-   Elasticity_ctx.lambda = 2 * Elasticity_ctx.mu * Elasticity_ctx.nu / (1 - 2 * Elasticity_ctx.nu);
+   Elasticity_ctx.lambda = 2 * Elasticity_ctx.mu * Elasticity_ctx.nu /
+                           (1 - 2 * Elasticity_ctx.nu);
 
    real_t l2_err_u_prev = 0.0;
    real_t h_prev = 0.0;
 
    if (Mpi::Root())
    {
-      std::cout << "----------------------------------------------------------------------------------------"
+      std::cout <<
+                "----------------------------------------------------------------------------------------"
                 << std::endl;
-      std::cout << std::left << std::setw(16) << "DOFs " << std::setw(16) << "h " << std::setw(16) << "L^2 error " << std::setw(16) << "L^2 rate " << std::endl;
-      std::cout << "----------------------------------------------------------------------------------------"
+      std::cout << std::left << std::setw(16) << "DOFs " << std::setw(
+                   16) << "h " << std::setw(16) << "L^2 error " << std::setw(
+                   16) << "L^2 rate " << std::endl;
+      std::cout <<
+                "----------------------------------------------------------------------------------------"
                 << std::endl;
    }
 
    // Refinement loop
-   for (int serial_ref_levels = 0; serial_ref_levels < total_refinements; serial_ref_levels++)
+   for (int serial_ref_levels = 0; serial_ref_levels < total_refinements;
+        serial_ref_levels++)
    {
 
       ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -155,7 +161,9 @@ int main(int argc, char *argv[])
       ///////////////////////////////////////////////////////////////////////////////////////////////
 
       // Create the elasticity solver
-      elasticity::ElasticitySolver elasticity(Elasticity_ctx.solver_type, &solid_mesh, Elasticity_ctx.order, Elasticity_ctx.density, Elasticity_ctx.lambda, Elasticity_ctx.mu, false);
+      elasticity::ElasticitySolver elasticity(Elasticity_ctx.solver_type, &solid_mesh,
+                                              Elasticity_ctx.order, Elasticity_ctx.density, Elasticity_ctx.lambda,
+                                              Elasticity_ctx.mu, false);
 
       // Grid functions and vectors for the solid
       Vector solid_displacement;
@@ -180,7 +188,8 @@ int main(int argc, char *argv[])
       ParGridFunction solid_forcing_exact_gf(elasticity_fes);
       solid_forcing_exact_gf = 0.0;
 
-      VectorFunctionCoefficient prescribed_displacement_exact(2, prescribed_displacement_mms);
+      VectorFunctionCoefficient prescribed_displacement_exact(2,
+                                                              prescribed_displacement_mms);
       VectorFunctionCoefficient velocity_exact(2, velocity_mms);
       VectorFunctionCoefficient acceleration_exact(2, acceleration_mms);
       VectorFunctionCoefficient forcing_exact(2, forcing_mms);
@@ -194,7 +203,8 @@ int main(int argc, char *argv[])
       domain_marker = 1;
       Array<int> solid_bdr(solid_mesh.bdr_attributes.Max());
       solid_bdr = 1;
-      elasticity.AddPrescribedDisplacement(prescribed_displacement_mms, velocity_mms, acceleration_mms, solid_bdr);
+      elasticity.AddPrescribedDisplacement(prescribed_displacement_mms, velocity_mms,
+                                           acceleration_mms, solid_bdr);
       elasticity.AddBodyForce(forcing_mms, domain_marker);
 
       // After bcs have been set we can set up the elasticity operator
@@ -304,14 +314,17 @@ int main(int argc, char *argv[])
       real_t kappa_max = 0.0;
       solid_mesh.GetCharacteristics(h_min, h_max, kappa_min, kappa_max);
 
-      real_t l2_rate_u = (serial_ref_levels != 0) ? log(l2_err_u / l2_err_u_prev) / log(h_min / h_prev) : 0.0;
+      real_t l2_rate_u = (serial_ref_levels != 0) ? log(l2_err_u / l2_err_u_prev) /
+                         log(h_min / h_prev) : 0.0;
 
       l2_err_u_prev = l2_err_u;
       h_prev = h_min;
 
       if (Mpi::Root())
       {
-         std::cout << std::setw(16) << elasticity.GetProblemSize() << std::setw(16) << h_min << std::setw(16) << l2_err_u << std::setw(16) << l2_rate_u << std::endl;
+         std::cout << std::setw(16) << elasticity.GetProblemSize() << std::setw(
+                      16) << h_min << std::setw(16) << l2_err_u << std::setw(16) << l2_rate_u <<
+                   std::endl;
       }
 
       ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -326,24 +339,30 @@ void prescribed_displacement_mms(const Vector &x, real_t t, Vector &v)
 {
    real_t freq = Elasticity_ctx.freq;
    v = 0.0;
-   v[0] = cos(2 * M_PI * x[1] * freq) * sin(2 * M_PI * x[0] * freq) * sin(t); // cos(2π*y*freq)*sin(2π*x*freq)*sin(t)
-   v[1] = cos(2 * M_PI * x[0] * freq) * sin(2 * M_PI * x[1] * freq) * sin(t); // cos(2π*x*freq)*sin(2π*y*freq)*sin(t)
+   v[0] = cos(2 * M_PI * x[1] * freq) * sin(2 * M_PI * x[0] * freq) * sin(
+             t); // cos(2π*y*freq)*sin(2π*x*freq)*sin(t)
+   v[1] = cos(2 * M_PI * x[0] * freq) * sin(2 * M_PI * x[1] * freq) * sin(
+             t); // cos(2π*x*freq)*sin(2π*y*freq)*sin(t)
 }
 
 void velocity_mms(const Vector &x, real_t t, Vector &v)
 {
    real_t freq = Elasticity_ctx.freq;
    v = 0.0;
-   v[0] = cos(2 * M_PI * x[1] * freq) * sin(2 * M_PI * x[0] * freq) * cos(t); // cos(2π*y*freq)*sin(2π*x*freq)*cos(t)
-   v[1] = cos(2 * M_PI * x[0] * freq) * sin(2 * M_PI * x[1] * freq) * cos(t); // cos(2π*x*freq)*sin(2π*y*freq)*cos(t)
+   v[0] = cos(2 * M_PI * x[1] * freq) * sin(2 * M_PI * x[0] * freq) * cos(
+             t); // cos(2π*y*freq)*sin(2π*x*freq)*cos(t)
+   v[1] = cos(2 * M_PI * x[0] * freq) * sin(2 * M_PI * x[1] * freq) * cos(
+             t); // cos(2π*x*freq)*sin(2π*y*freq)*cos(t)
 }
 
 void acceleration_mms(const Vector &x, real_t t, Vector &v)
 {
    real_t freq = Elasticity_ctx.freq;
    v = 0.0;
-   v[0] = -cos(2 * M_PI * x[1] * freq) * sin(2 * M_PI * x[0] * freq) * sin(t); // -cos(2π*y*freq)*sin(2π*x*freq)*sin(t)
-   v[1] = -cos(2 * M_PI * x[0] * freq) * sin(2 * M_PI * x[1] * freq) * sin(t); // -cos(2π*x*freq)*sin(2π*y*freq)*sin(t)
+   v[0] = -cos(2 * M_PI * x[1] * freq) * sin(2 * M_PI * x[0] * freq) * sin(
+             t); // -cos(2π*y*freq)*sin(2π*x*freq)*sin(t)
+   v[1] = -cos(2 * M_PI * x[0] * freq) * sin(2 * M_PI * x[1] * freq) * sin(
+             t); // -cos(2π*x*freq)*sin(2π*y*freq)*sin(t)
 }
 
 void forcing_mms(const Vector &x, real_t t, Vector &v)

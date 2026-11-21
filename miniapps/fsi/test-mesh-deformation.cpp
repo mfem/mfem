@@ -33,7 +33,7 @@
 //
 //                    + ----------------------------------------+
 //                    |       ___                               |
-//                    |      /   \----------|                   |   
+//                    |      /   \----------|                   |
 //                    |      \___/----------|                   |
 //                    |                                         |
 //                    + ----------------------------------------+
@@ -134,11 +134,13 @@ int main(int argc, char *argv[])
    dt = 1e-5;
 
    // If true, the mesh will be deformed with the displacement field, otherwise it will be deformed with the mesh velocity field
-   int mesh_deformation_type = 2; // 0 - Laplacian, 1 - IncrementalLaplacian, 2 - Elasticity
+   int mesh_deformation_type =
+      2; // 0 - Laplacian, 1 - IncrementalLaplacian, 2 - Elasticity
    bool deform_with_displacement = true;
-   bool pa = false; 
+   bool pa = false;
    real_t alpha = 1.0; // Diffusion coefficient for the mesh Laplacian
-   int prec_type = 1; // Type of preconditioner to use for the mesh Laplacian (0 - Jacobi, 1 - Hypre BoomerAMG)
+   int prec_type =
+      1; // Type of preconditioner to use for the mesh Laplacian (0 - Jacobi, 1 - Hypre BoomerAMG)
 
    // Output parameters
    int save_freq = 1;
@@ -158,17 +160,19 @@ int main(int argc, char *argv[])
                   "Poisson's ratio (default: 0.4).");
    args.AddOption(&Elasticity_ctx.density, "-rho-s", "--rho-solid",
                   "Density of the solid (default: 1e3).");
-   args.AddOption(&Elasticity_ctx.g, "-g", "--gravity", 
-                  "Gravity acceleration (default: 2.0).");                  
+   args.AddOption(&Elasticity_ctx.g, "-g", "--gravity",
+                  "Gravity acceleration (default: 2.0).");
    // Time integration parameters
    args.AddOption(&t_final, "-tf", "--t_final", "t_final");
    args.AddOption(&dt, "-dt", "--dt", "dt.");
    // Mesh parameters
    args.AddOption(&Mesh_ctx.serial_ref_levels, "-rs", "--rs", "serial_ref_levels");
-   args.AddOption(&Mesh_ctx.parallel_ref_levels, "-pr", "--pr", "parallel_ref_levels");
+   args.AddOption(&Mesh_ctx.parallel_ref_levels, "-pr", "--pr",
+                  "parallel_ref_levels");
    args.AddOption(&Mesh_ctx.order, "-mo", "--mesh-order",
                   "Polynomial order of the mesh nodes (default: 2).");
-   args.AddOption(&deform_with_displacement, "-dwd", "--deform-with-displacement", "-dwv", "--deform-with-velocity",
+   args.AddOption(&deform_with_displacement, "-dwd", "--deform-with-displacement",
+                  "-dwv", "--deform-with-velocity",
                   "Deform the mesh with the displacement field (default: true). "
                   "If false, the mesh will be deformed with the mesh velocity field.");
    args.AddOption(&mesh_deformation_type, "-mdt", "--mesh-deformation-type",
@@ -178,7 +182,8 @@ int main(int argc, char *argv[])
                   "Young's modulus for the mesh deformation (default: 1e6).");
    args.AddOption(&Mesh_ctx.nu, "-mnu", "--mesh-poisson-ratio",
                   "Poisson's ratio for the mesh deformation (default: 0.4).");
-   args.AddOption(&Mesh_ctx.enable_stiffening, "-es", "--enable-stiffening", "-no-es", "--no-enable-stiffening",
+   args.AddOption(&Mesh_ctx.enable_stiffening, "-es", "--enable-stiffening",
+                  "-no-es", "--no-enable-stiffening",
                   "Enable mesh local stiffening (default: true).");
    args.AddOption(&Mesh_ctx.stiffening_type, "-st", "--stiffening-type",
                   "Type of mesh stiffening to use (0 - Jacobian-based, 1 - Distance-based). "
@@ -188,9 +193,10 @@ int main(int argc, char *argv[])
                   "Default is 0 (Heat).");
    args.AddOption(&Mesh_ctx.stiffening_degree, "-msd", "--mesh-stiffening-degree",
                   "Degree of mesh stiffening (default: 1.0). This parameter controls how strongly the mesh stiffening is applied, with higher values leading to stronger stiffening effects.");
-   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa", "--no-partial-assembly",
+   args.AddOption(&pa, "-pa", "--partial-assembly", "-no-pa",
+                  "--no-partial-assembly",
                   "Enable partial assembly (default: false). ");
-   args.AddOption(&alpha, "-alpha", "--diffusion-coefficient", 
+   args.AddOption(&alpha, "-alpha", "--diffusion-coefficient",
                   "Diffusion coefficient for the mesh Laplacian (default: 1.0).");
    args.AddOption(&prec_type, "-prec", "--preconditioner-type",
                   "Type of preconditioner to use for the mesh Laplacian (default: 1). "
@@ -205,12 +211,16 @@ int main(int argc, char *argv[])
    args.ParseCheck();
 
    // Compute Lame's parameters
-   Elasticity_ctx.mu = Elasticity_ctx.E / (2.0 * (1.0 + Elasticity_ctx.nu));                                                     // G, Shear modulus, Lame's second parameter
-   Elasticity_ctx.lambda = Elasticity_ctx.E * Elasticity_ctx.nu / ((1.0 + Elasticity_ctx.nu) * (1.0 - 2.0 * Elasticity_ctx.nu)); // Lame's first parameter
+   Elasticity_ctx.mu = Elasticity_ctx.E / (2.0 * (1.0 +
+                                                  Elasticity_ctx.nu));                                                     // G, Shear modulus, Lame's second parameter
+   Elasticity_ctx.lambda = Elasticity_ctx.E * Elasticity_ctx.nu / ((
+                                                                      1.0 + Elasticity_ctx.nu) * (1.0 - 2.0 *
+                                                                            Elasticity_ctx.nu)); // Lame's first parameter
 
    if (Mesh_ctx.order < 0)
    {
-      Mesh_ctx.order = std::min(Elasticity_ctx.order, 2); // mesh order should be at least 2
+      Mesh_ctx.order = std::min(Elasticity_ctx.order,
+                                2); // mesh order should be at least 2
    }
 
    // If using the incremental laplacian inform the code that we are using the incremental mesh deformation
@@ -221,7 +231,9 @@ int main(int argc, char *argv[])
    ///////////////////////////////////////////////////////////////////////////////////////////////
 
    if (Mpi::Root())
+   {
       mfem::out << "\nLoading mesh and refining in serial...";
+   }
 
    Mesh *parent_mesh = new Mesh(mesh_file);
    const int dim = parent_mesh->Dimension();
@@ -254,7 +266,8 @@ int main(int argc, char *argv[])
 
    // Create parallel mesh
    ParMesh pmesh(MPI_COMM_WORLD, *parent_mesh, partitioning, partition_type);
-   ExportMeshwithPartitioning(outfolder, *parent_mesh, partitioning, "Partitioning"); // filename not defined
+   ExportMeshwithPartitioning(outfolder, *parent_mesh, partitioning,
+                              "Partitioning"); // filename not defined
    delete[] partitioning;
 
    for (int l = 0; l < Mesh_ctx.parallel_ref_levels; l++)
@@ -279,7 +292,7 @@ int main(int argc, char *argv[])
 
    auto solid_pmesh = ParSubMesh::CreateFromDomain(pmesh, solid_domain_attribute);
    auto fluid_pmesh = ParSubMesh::CreateFromDomain(pmesh, fluid_domain_attribute);
-   fluid_pmesh.SetCurvature(Mesh_ctx.order); 
+   fluid_pmesh.SetCurvature(Mesh_ctx.order);
 
    //////////////////
    // SET MARKERS
@@ -295,21 +308,26 @@ int main(int argc, char *argv[])
 
    // Interface attributes for the solid-fluid interface in parent mesh, used in  BidirectionalInterfaceTransfer
    // @NOTE: if we don't use marker from the parent mesh there might be compatibility issues with the markers depending on the direction of the transfer
-   Array<int> beam_cylinder_curve = bdr_attr_sets.GetAttributeSet("beam_cylinder_curve");
-   Array<int> beam_sides = bdr_attr_sets.GetAttributeSet("beam_sides");   
+   Array<int> beam_cylinder_curve =
+      bdr_attr_sets.GetAttributeSet("beam_cylinder_curve");
+   Array<int> beam_sides = bdr_attr_sets.GetAttributeSet("beam_sides");
    Array<int> beam_tip = bdr_attr_sets.GetAttributeSet("beam_tip");
 
-   // Combine sides and tip to have a single marker for the whole beam boundary 
-   Array<int> fluid_solid_interface(2); 
+   // Combine sides and tip to have a single marker for the whole beam boundary
+   Array<int> fluid_solid_interface(2);
    fluid_solid_interface[0] = beam_sides[0];
    fluid_solid_interface[1] = beam_tip[0];
-   Array<int> fluid_solid_interface_marker = bdr_attr_sets.AttrToMarker(parent_mesh->bdr_attributes.Max(), fluid_solid_interface); 
-   Array<int> fluid_solid_interface_tip_marker = bdr_attr_sets.AttrToMarker(parent_mesh->bdr_attributes.Max(), beam_tip);
+   Array<int> fluid_solid_interface_marker = bdr_attr_sets.AttrToMarker(
+                                                parent_mesh->bdr_attributes.Max(), fluid_solid_interface);
+   Array<int> fluid_solid_interface_tip_marker = bdr_attr_sets.AttrToMarker(
+                                                    parent_mesh->bdr_attributes.Max(), beam_tip);
 
    delete parent_mesh; // we don't need the parent mesh anymore
 
    if (Mpi::Root())
+   {
       mfem::out << "done." << std::endl;
+   }
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
    /// 4. Create Flow, Solid, and Mesh Deformation Solvers
@@ -320,22 +338,30 @@ int main(int argc, char *argv[])
    /////////////
 
    if (Mpi::Root())
+   {
       mfem::out << "\nCreating Elasticity solver..." << std::endl;
+   }
 
    // Print mechanical properties
    if (Mpi::Root())
    {
       mfem::out << "Elasticity properties:" << std::endl;
-      mfem::out << "  - Young's modulus: " << std::scientific << Elasticity_ctx.E << " Pa" << std::endl;
-      mfem::out << "  - Poisson's ratio: " << Elasticity_ctx.nu << " (dimensionless)" << std::endl;
-      mfem::out << "  - Density: " << std::scientific << Elasticity_ctx.density << " kg/m³" << std::endl;
-      mfem::out << "  - Shear modulus (mu): " << std::scientific << Elasticity_ctx.mu << " Pa" << std::endl;
-      mfem::out << "  - Lame's first parameter (lambda): " << std::scientific << Elasticity_ctx.lambda << " Pa" << std::endl;
+      mfem::out << "  - Young's modulus: " << std::scientific << Elasticity_ctx.E <<
+                " Pa" << std::endl;
+      mfem::out << "  - Poisson's ratio: " << Elasticity_ctx.nu << " (dimensionless)"
+                << std::endl;
+      mfem::out << "  - Density: " << std::scientific << Elasticity_ctx.density <<
+                " kg/m³" << std::endl;
+      mfem::out << "  - Shear modulus (mu): " << std::scientific << Elasticity_ctx.mu
+                << " Pa" << std::endl;
+      mfem::out << "  - Lame's first parameter (lambda): " << std::scientific <<
+                Elasticity_ctx.lambda << " Pa" << std::endl;
    }
 
    // Create the elasticity solver
    int solver_type = 15; // HHTAlphaSolver
-   ElasticitySolver elasticity(solver_type, &solid_pmesh, Elasticity_ctx.order, Elasticity_ctx.density, Elasticity_ctx.lambda, Elasticity_ctx.mu);
+   ElasticitySolver elasticity(solver_type, &solid_pmesh, Elasticity_ctx.order,
+                               Elasticity_ctx.density, Elasticity_ctx.lambda, Elasticity_ctx.mu);
 
    // Grid functions and vectors for the solid
    Vector solid_displacement, solid_displacement_tn;
@@ -348,10 +374,12 @@ int main(int argc, char *argv[])
    solid_displacement_gf.GetTrueDofs(solid_displacement);
    solid_displacement_gf.GetTrueDofs(solid_displacement_tn);
 
-   ParGridFunction *solid_relative_displacement_gf = nullptr; // Relative solid displacement field
+   ParGridFunction *solid_relative_displacement_gf =
+      nullptr; // Relative solid displacement field
    if (incremental_mesh_deformation)
    {
-      solid_relative_displacement_gf = new ParGridFunction(elasticity_fes); // Relative solid displacement field
+      solid_relative_displacement_gf = new ParGridFunction(
+         elasticity_fes); // Relative solid displacement field
       *solid_relative_displacement_gf = 0.0;
    }
 
@@ -368,13 +396,15 @@ int main(int argc, char *argv[])
    /////////////////////////
 
    if (Mpi::Root())
+   {
       mfem::out << "Creating mesh deformation solver...";
+   }
 
    auto vfec = H1_FECollection(2, fluid_pmesh.Dimension());
    auto vfes = ParFiniteElementSpace(&fluid_pmesh, &vfec, fluid_pmesh.Dimension());
 
    MeshDeformation *fluid_mesh_deformation = nullptr;
-   
+
    switch (mesh_deformation_type)
    {
       case 0: // Laplacian
@@ -387,42 +417,50 @@ int main(int argc, char *argv[])
          fluid_mesh_deformation = new MeshLinearElasticity(&fluid_pmesh);
          break;
       default:
-          MFEM_ABORT("Invalid mesh deformation type.");
+         MFEM_ABORT("Invalid mesh deformation type.");
    }
 
    ParFiniteElementSpace *mesh_nodes_fes = fluid_mesh_deformation->GetFESpace();
 
-   ParGridFunction *mesh_velocity_gf = new ParGridFunction(mesh_nodes_fes); // Mesh velocity field
+   ParGridFunction *mesh_velocity_gf = new ParGridFunction(
+      mesh_nodes_fes); // Mesh velocity field
 
    ParGridFunction *mesh_displacement_gf = nullptr;
    VectorGridFunctionCoefficient *mesh_displacement_coeff = nullptr;
    if (deform_with_displacement)
    {
       mesh_displacement_gf = new ParGridFunction(mesh_nodes_fes);
-      mesh_displacement_coeff = new VectorGridFunctionCoefficient(&solid_displacement_gf);
+      mesh_displacement_coeff = new VectorGridFunctionCoefficient(
+         &solid_displacement_gf);
    }
    else
    {
       mesh_displacement_gf = new ParGridFunction(elasticity_fes);
-      mesh_displacement_coeff = new VectorGridFunctionCoefficient(mesh_displacement_gf); // Holds the mesh displacement field
+      mesh_displacement_coeff = new VectorGridFunctionCoefficient(
+         mesh_displacement_gf); // Holds the mesh displacement field
    }
    *mesh_displacement_gf = 0.0;
 
    if (Mpi::Root())
+   {
       mfem::out << "done." << std::endl;
+   }
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
    /// 5. Add boundary conditions and initial conditions
    ///////////////////////////////////////////////////////////////////////////////////////////////
 
    if (Mpi::Root())
-      mfem::out << "\nSetting up boundary conditions and initial conditions..." << std::endl;
+   {
+      mfem::out << "\nSetting up boundary conditions and initial conditions..." <<
+                std::endl;
+   }
 
    ////////////
    // SOLID
    ////////////
    // - Fully Constrained at the cylinder base Γ = 7
-   // - Body force (gravity) on the beam 
+   // - Body force (gravity) on the beam
 
    elasticity.AddFixedConstraint(beam_cylinder_curve[0]);
    elasticity.AddBodyForce(gravitational_force, solid_domain_attribute[0]);
@@ -440,24 +478,29 @@ int main(int argc, char *argv[])
 
    if (Mesh_ctx.enable_stiffening)
    {
-      fluid_mesh_deformation->EnableLocalStiffening(fluid_solid_interface_tip_marker, Mesh_ctx.stiffening_type, Mesh_ctx.distance_solver_type, Mesh_ctx.stiffening_degree);
+      fluid_mesh_deformation->EnableLocalStiffening(fluid_solid_interface_tip_marker,
+                                                    Mesh_ctx.stiffening_type, Mesh_ctx.distance_solver_type,
+                                                    Mesh_ctx.stiffening_degree);
    }
 
    switch (mesh_deformation_type)
    {
-   case 0: // Laplacian
-      static_cast<MeshLaplacian *>(fluid_mesh_deformation)->Setup(alpha, pa, prec_type);
-      break;
-   case 1: // Incremental Laplacian
-      static_cast<MeshLaplacian *>(fluid_mesh_deformation)->Setup(alpha, pa, prec_type);
-      break;
-   case 2: // Elasticity
-   {
-      static_cast<MeshLinearElasticity *>(fluid_mesh_deformation)->Setup(Mesh_ctx.E, Mesh_ctx.nu, pa, prec_type);
-      break;
-   }
-   default:
-      MFEM_ABORT("Invalid mesh deformation type.");
+      case 0: // Laplacian
+         static_cast<MeshLaplacian *>(fluid_mesh_deformation)->Setup(alpha, pa,
+                                                                     prec_type);
+         break;
+      case 1: // Incremental Laplacian
+         static_cast<MeshLaplacian *>(fluid_mesh_deformation)->Setup(alpha, pa,
+                                                                     prec_type);
+         break;
+      case 2: // Elasticity
+      {
+         static_cast<MeshLinearElasticity *>(fluid_mesh_deformation)->Setup(Mesh_ctx.E,
+                                                                            Mesh_ctx.nu, pa, prec_type);
+         break;
+      }
+      default:
+         MFEM_ABORT("Invalid mesh deformation type.");
    }
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -465,17 +508,22 @@ int main(int argc, char *argv[])
    ///////////////////////////////////////////////////////////////////////////////////////////////
 
    if (Mpi::Root())
+   {
       mfem::out << "Setting up interface transfer for FSI problem... " << std::endl;
+   }
 
    // For the SOLID-->FLUID use the undeformed coordinates (as SOLID is in the undeformed configuration, set by true)
    // For the FLUID-->SOLID use the deformed coordinates (as FLUID is in the deformed configuration set by false). We'll provide the offset as a coefficient in the Update()
 
-   BidirectionalInterfaceTransfer finder_solid_to_mesh(solid_vel_gf.ParFESpace(), mesh_nodes_fes, fluid_solid_interface_marker, TransferBackend::GSLIB, pmesh.GetComm(), true, !incremental_mesh_deformation);
+   BidirectionalInterfaceTransfer finder_solid_to_mesh(solid_vel_gf.ParFESpace(),
+                                                       mesh_nodes_fes, fluid_solid_interface_marker, TransferBackend::GSLIB,
+                                                       pmesh.GetComm(), true, !incremental_mesh_deformation);
 
    // Tolerance for the boundary distance: points for which GSLIB finds distance > tol will be considered as not found.
    // Useful when the offset function used to update the finders is not exact.
-   real_t boundary_distance_tolerance = 1e-2; 
-   finder_solid_to_mesh.SetBoundaryDistanceTolerance(boundary_distance_tolerance, boundary_distance_tolerance);
+   real_t boundary_distance_tolerance = 1e-2;
+   finder_solid_to_mesh.SetBoundaryDistanceTolerance(boundary_distance_tolerance,
+                                                     boundary_distance_tolerance);
 
    // Define lambdas to compute QoI for the interface transfer
    int sdim = fluid_pmesh.Dimension();
@@ -494,7 +542,8 @@ int main(int argc, char *argv[])
    pvdc_fluid.SetLevelsOfDetail(Mesh_ctx.order);
    pvdc_fluid.SetCycle(current_step);
    pvdc_fluid.SetTime(0.0);
-   pvdc_fluid.RegisterField("mesh_velocity", mesh_velocity_gf); // CHECK --> Can we store the mesh velocity even tho it has a different fes?
+   pvdc_fluid.RegisterField("mesh_velocity",
+                            mesh_velocity_gf); // CHECK --> Can we store the mesh velocity even tho it has a different fes?
    if (deform_with_displacement)
    {
       pvdc_fluid.RegisterField("mesh_displacement", mesh_displacement_gf);
@@ -514,7 +563,8 @@ int main(int argc, char *argv[])
       if (Mesh_ctx.stiffening_type == 1)
       {
          auto stiffening_coeff = fluid_mesh_deformation->GetLocalStiffeningCoefficient();
-         distance_gf = static_cast<DistanceBasedStiffeningCoefficient *>(stiffening_coeff)->GetDistanceGf();
+         distance_gf = static_cast<DistanceBasedStiffeningCoefficient *>
+                       (stiffening_coeff)->GetDistanceGf();
          pvdc_fluid.RegisterField("distance", distance_gf);
       }
    }
@@ -543,7 +593,8 @@ int main(int argc, char *argv[])
    // Reference values for the mesh deformation checks (undeformed meshes)
    real_t min_detJ_0, fluid_volume_0;
    MeshQuality(fluid_pmesh, min_detJ_0, fluid_volume_0);
-   const real_t total_volume_0 = fluid_volume_0 + DeformedSolidVolume(solid_displacement_gf);
+   const real_t total_volume_0 = fluid_volume_0 + DeformedSolidVolume(
+                                    solid_displacement_gf);
    real_t min_detJ_ratio = 1.0, max_volume_defect = 0.0;
    int first_invalid_step = -1; // first step with a non-positive Jacobian
 
@@ -552,7 +603,8 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      out << "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------" << std::endl;
+      out << "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------"
+          << std::endl;
       out << std::left
           << std::setw(8) << "Step"
           << std::setw(16) << "Time"
@@ -560,48 +612,57 @@ int main(int argc, char *argv[])
           << std::setw(16) << "disp_x"
           << std::setw(16) << "disp_y"
           << std::endl;
-      out << "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------" << std::endl;
+      out << "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------"
+          << std::endl;
    }
 
 
-      for (int step = 0; !last_step; ++step) // TIME-INTEGRATION LOOP
+   for (int step = 0; !last_step; ++step) // TIME-INTEGRATION LOOP
+   {
+      if (current_time + dt >= t_final - dt / 2)
       {
-         if (current_time + dt >= t_final - dt / 2)
-         {
-            last_step = true;
-         }
+         last_step = true;
+      }
 
-         // Store the previous solid displacement
-         solid_displacement_gf.GetTrueDofs(solid_displacement_tn);
+      // Store the previous solid displacement
+      solid_displacement_gf.GetTrueDofs(solid_displacement_tn);
 
-         // --------------------------------------------------------------------------------- //
-         //// ----- 1.. Solve Elasticity on SOLID -----
-         // --------------------------------------------------------------------------------- //
+      // --------------------------------------------------------------------------------- //
+      //// ----- 1.. Solve Elasticity on SOLID -----
+      // --------------------------------------------------------------------------------- //
 
-         if (Mpi::Root() && verbose)
-            mfem::out << "Solving Elasticity on SOLID...";
+      if (Mpi::Root() && verbose)
+      {
+         mfem::out << "Solving Elasticity on SOLID...";
+      }
 
-         // Solve         
-         elasticity.Step(solid_displacement, solid_vel, current_time, dt);
-         solid_vel_gf.SetFromTrueDofs(solid_vel);
-         solid_displacement_gf.SetFromTrueDofs(solid_displacement);
-         
-
-         if (Mpi::Root() && verbose)
-            mfem::out << " done." << std::endl;
-
-         // --------------------------------------------------------------------------------- //
-
-         // --------------------------------------------------------------------------------- //
-         //// ----- 2.. Solve Mesh Deformation -----
-         // --------------------------------------------------------------------------------- //
-
-         if (Mpi::Root() && verbose)
-            mfem::out << "Solve Mesh Deformation...";
+      // Solve
+      elasticity.Step(solid_displacement, solid_vel, current_time, dt);
+      solid_vel_gf.SetFromTrueDofs(solid_vel);
+      solid_displacement_gf.SetFromTrueDofs(solid_displacement);
 
 
       if (Mpi::Root() && verbose)
+      {
+         mfem::out << " done." << std::endl;
+      }
+
+      // --------------------------------------------------------------------------------- //
+
+      // --------------------------------------------------------------------------------- //
+      //// ----- 2.. Solve Mesh Deformation -----
+      // --------------------------------------------------------------------------------- //
+
+      if (Mpi::Root() && verbose)
+      {
+         mfem::out << "Solve Mesh Deformation...";
+      }
+
+
+      if (Mpi::Root() && verbose)
+      {
          mfem::out << "\nDeforming mesh...";
+      }
 
       real_t fluid_mesh_displacement_norm = 0.0;
       if (deform_with_displacement)
@@ -609,23 +670,30 @@ int main(int argc, char *argv[])
          Vector velocity;
 
          if (incremental_mesh_deformation)
-         { // Compute relative displacement
+         {
+            // Compute relative displacement
             Vector rel_displacement;
             solid_displacement_gf.GetTrueDofs(rel_displacement);
-            rel_displacement -= solid_displacement_tn;                         // Compute relative displacement
-            solid_relative_displacement_gf->SetFromTrueDofs(rel_displacement); // Set the relative displacement field
+            rel_displacement -=
+               solid_displacement_tn;                         // Compute relative displacement
+            solid_relative_displacement_gf->SetFromTrueDofs(
+               rel_displacement); // Set the relative displacement field
             *mesh_displacement_gf = 0.0;
-            finder_solid_to_mesh.InterpolateForward(*solid_relative_displacement_gf, *mesh_displacement_gf);
-            fluid_mesh_deformation->Solve(*mesh_displacement_gf, true); // Solve the mesh laplacian for the relative displacement
+            finder_solid_to_mesh.InterpolateForward(*solid_relative_displacement_gf,
+                                                    *mesh_displacement_gf);
+            fluid_mesh_deformation->Solve(*mesh_displacement_gf,
+                                          true); // Solve the mesh laplacian for the relative displacement
             mesh_displacement_gf->GetTrueDofs(velocity); // v = d - d_prev
          }
-         else 
-         { 
+         else
+         {
             Vector displacement_prev;
             mesh_displacement_gf->GetTrueDofs(displacement_prev);
             *mesh_displacement_gf = 0.0;
-            finder_solid_to_mesh.InterpolateForward(solid_displacement_gf, *mesh_displacement_gf);
-            fluid_mesh_deformation->Solve(*mesh_displacement_gf, true); // Solve the mesh laplacian for the total displacement
+            finder_solid_to_mesh.InterpolateForward(solid_displacement_gf,
+                                                    *mesh_displacement_gf);
+            fluid_mesh_deformation->Solve(*mesh_displacement_gf,
+                                          true); // Solve the mesh laplacian for the total displacement
             mesh_displacement_gf->GetTrueDofs(velocity); // v = d
             velocity -= displacement_prev;               // v = d - d_prev
          }
@@ -640,25 +708,31 @@ int main(int argc, char *argv[])
       {
          *mesh_velocity_gf = 0.0;
          finder_solid_to_mesh.InterpolateForward(solid_vel_gf, *mesh_velocity_gf);
-         fluid_mesh_deformation->Solve(*mesh_velocity_gf, true, dt); // We solve the mesh laplacian and deform the mesh with the mesh velocity
+         fluid_mesh_deformation->Solve(*mesh_velocity_gf, true,
+                                       dt); // We solve the mesh laplacian and deform the mesh with the mesh velocity
          fluid_mesh_displacement_norm = mesh_velocity_gf->Norml2();
          fluid_mesh_displacement_norm *= dt;
 
-         mesh_displacement_gf->Add(dt, solid_vel_gf); 
+         mesh_displacement_gf->Add(dt, solid_vel_gf);
       }
 
       if (Mpi::Root() && verbose)
-         mfem::out << " Moving fluid mesh |dx|_l2 = " << std::scientific << std::setprecision(3)
+         mfem::out << " Moving fluid mesh |dx|_l2 = " << std::scientific <<
+                   std::setprecision(3)
                    << fluid_mesh_displacement_norm << "" << std::endl;
 
       if (Mpi::Root() && verbose)
+      {
          mfem::out << "Updating MeshDeformation solver with new mesh deformation...";
+      }
 
       fluid_mesh_deformation->Update();
       //elasticity.Update(); --> Not needed, as we don't deform the solid mesh
 
       if (Mpi::Root() && verbose)
+      {
          mfem::out << "Updating InterfaceTransfer with new mesh deformation...";
+      }
 
       // the backward transfer (MESH-->SOLID) needs deformed coordinates on source, so we pass the mesh displacement coefficient
       finder_solid_to_mesh.Update(true, true, nullptr, mesh_displacement_coeff);
@@ -690,89 +764,97 @@ int main(int argc, char *argv[])
          }
       }
 
+      if (Mpi::Root() && verbose)
+      {
+         mfem::out << " done." << std::endl;
+      }
+
+      // --------------------------------------------------------------------------------- //
+
+      // --------------------------------------------------------------------------------- //
+      //// ----- 3.. Interpolate MESH --> SOLID -----
+      // --------------------------------------------------------------------------------- //
+
+      // Interpolate some quantity just to check the transfer MESH --> SOLID is working
+      mesh_velocity_onSolid_gf = 0.0;
+      finder_solid_to_mesh.InterpolateBackward(*mesh_velocity_gf,
+                                               mesh_velocity_onSolid_gf);
+
+      // --------------------------------------------------------------------------------- //
+
+      // Output
+      paraview_step++;
+      if ((step + 1) % save_freq == 0 || last_step)
+      {
          if (Mpi::Root() && verbose)
+         {
+            mfem::out << "\nWriting output to ParaView...";
+         }
+         pvdc_fluid.SetCycle(paraview_step);
+         pvdc_fluid.SetTime(current_time);
+         pvdc_fluid.Save();
+         pvdc_solid.SetCycle(paraview_step);
+         pvdc_solid.SetTime(current_time);
+         pvdc_solid.Save();
+         if (Mpi::Root() && verbose)
+         {
             mfem::out << " done." << std::endl;
+         }
+      }
 
-         // --------------------------------------------------------------------------------- //
+      // Output some information
+      // Output some information
+      bool compute_output = true;
+      real_t disp_x = 0.0, disp_y = 0.0;
+      if (compute_output)
+      {
+         Vector point1(2), point2(2);
+         point1(0) = -1.1; // Cylinder left vertex (fixed)
+         point1(1) = 0.0;
+         point2(0) = -0.65; // Beam right vertex (free)
+         point2(1) = 0.01;
 
-         // --------------------------------------------------------------------------------- //
-         //// ----- 3.. Interpolate MESH --> SOLID -----
-         // --------------------------------------------------------------------------------- //
+         Array<int> elem_ids;
+         Array<IntegrationPoint> ips;
 
-         // Interpolate some quantity just to check the transfer MESH --> SOLID is working
-         mesh_velocity_onSolid_gf = 0.0; 
-         finder_solid_to_mesh.InterpolateBackward(*mesh_velocity_gf, mesh_velocity_onSolid_gf);
+         DenseMatrix points_solid(dim, 1);
+         points_solid.SetCol(0, point2);
+         solid_pmesh.FindPoints(points_solid, elem_ids, ips);
 
-         // --------------------------------------------------------------------------------- //
+         // Initialize displacement values
+         disp_x = 0.0;
+         disp_y = 0.0;
 
-         // Output
-         paraview_step++;
-         if ((step + 1) % save_freq == 0 || last_step)
+         // Only evaluate grid functions if the point was found on this rank
+         Vector val(2);
+         if (elem_ids[0] >= 0)
          {
-            if (Mpi::Root() && verbose)
-               mfem::out << "\nWriting output to ParaView...";
-            pvdc_fluid.SetCycle(paraview_step);
-            pvdc_fluid.SetTime(current_time);
-            pvdc_fluid.Save();
-            pvdc_solid.SetCycle(paraview_step);
-            pvdc_solid.SetTime(current_time);
-            pvdc_solid.Save();
-            if (Mpi::Root() && verbose)
-               mfem::out << " done." << std::endl;
+            solid_displacement_gf.GetVectorValue(elem_ids[0], ips[0], val);
+            disp_x = val(0);
+            disp_y = val(1);
          }
 
-         // Output some information
-         // Output some information
-         bool compute_output = true;
-         real_t disp_x = 0.0, disp_y = 0.0;
-         if (compute_output) 
-         {
-            Vector point1(2), point2(2);
-            point1(0) = -1.1; // Cylinder left vertex (fixed)
-            point1(1) = 0.0;
-            point2(0) = -0.65; // Beam right vertex (free)
-            point2(1) = 0.01;
+         // Reduce displacement values across all ranks
+         real_t global_disp_vals[2] = {disp_x, disp_y};
+         real_t reduced_disp_vals[2];
+         MPI_Allreduce(global_disp_vals, reduced_disp_vals, 2, MPI_DOUBLE, MPI_SUM,
+                       MPI_COMM_WORLD);
 
-            Array<int> elem_ids;
-            Array<IntegrationPoint> ips;
+         disp_x = reduced_disp_vals[0];
+         disp_y = reduced_disp_vals[1];
 
-            DenseMatrix points_solid(dim, 1);
-            points_solid.SetCol(0, point2);
-            solid_pmesh.FindPoints(points_solid, elem_ids, ips);
+      }
 
-            // Initialize displacement values
-            disp_x = 0.0;
-            disp_y = 0.0;
-
-            // Only evaluate grid functions if the point was found on this rank
-            Vector val(2);
-            if (elem_ids[0] >= 0)
-            {
-               solid_displacement_gf.GetVectorValue(elem_ids[0], ips[0], val);
-               disp_x = val(0);
-               disp_y = val(1);
-            }
-
-            // Reduce displacement values across all ranks
-            real_t global_disp_vals[2] = {disp_x, disp_y};
-            real_t reduced_disp_vals[2];
-            MPI_Allreduce(global_disp_vals, reduced_disp_vals, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-            disp_x = reduced_disp_vals[0];
-            disp_y = reduced_disp_vals[1];
-
-         }
-
-         if (Mpi::Root())
-         {
-            out << std::left
-                << std::setw(8) << step
-                << std::setw(16) << std::scientific << std::setprecision(8) << current_time
-                << std::setw(16) << std::scientific << std::setprecision(8) << dt
-                << std::setw(16) << std::scientific << std::setprecision(8) << disp_x
-                << std::setw(16) << std::scientific << std::setprecision(8) << disp_y
-                << std::endl;
-         }
+      if (Mpi::Root())
+      {
+         out << std::left
+             << std::setw(8) << step
+             << std::setw(16) << std::scientific << std::setprecision(8) << current_time
+             << std::setw(16) << std::scientific << std::setprecision(8) << dt
+             << std::setw(16) << std::scientific << std::setprecision(8) << disp_x
+             << std::setw(16) << std::scientific << std::setprecision(8) << disp_y
+             << std::endl;
+      }
 
 
    }
@@ -786,7 +868,8 @@ int main(int argc, char *argv[])
    // Summary of the mesh deformation checks
    {
       const real_t volume_defect_tol = 1e-6;
-      const bool pass = (min_detJ_ratio > 0.0) && (max_volume_defect < volume_defect_tol);
+      const bool pass = (min_detJ_ratio > 0.0) &&
+                        (max_volume_defect < volume_defect_tol);
       if (Mpi::Root())
       {
          mfem::out << "\nMesh deformation checks: min detJ / min detJ_0 = "
@@ -807,7 +890,7 @@ int main(int argc, char *argv[])
 
    if (incremental_mesh_deformation)
    {
-      delete solid_relative_displacement_gf; // Relative solid displacement field   
+      delete solid_relative_displacement_gf; // Relative solid displacement field
    }
 
    delete coeff_gf;
@@ -823,7 +906,8 @@ void gravitational_force(const Vector &x, real_t time, Vector &u)
 
 void MeshQuality(ParMesh &mesh, real_t &min_detJ, real_t &volume)
 {
-   const int order = mesh.GetNodes() ? mesh.GetNodes()->FESpace()->GetMaxElementOrder() : 1;
+   const int order = mesh.GetNodes() ?
+                     mesh.GetNodes()->FESpace()->GetMaxElementOrder() : 1;
    real_t loc_min = infinity(), loc_vol = 0.0;
    IntegrationRules gll_rules(0, Quadrature1D::GaussLobatto);
    for (int e = 0; e < mesh.GetNE(); e++)
@@ -845,8 +929,10 @@ void MeshQuality(ParMesh &mesh, real_t &min_detJ, real_t &volume)
          loc_vol += ip.weight * T->Weight();
       }
    }
-   MPI_Allreduce(&loc_min, &min_detJ, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN, mesh.GetComm());
-   MPI_Allreduce(&loc_vol, &volume, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, mesh.GetComm());
+   MPI_Allreduce(&loc_min, &min_detJ, 1, MPITypeMap<real_t>::mpi_type, MPI_MIN,
+                 mesh.GetComm());
+   MPI_Allreduce(&loc_vol, &volume, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 mesh.GetComm());
 }
 
 real_t DeformedSolidVolume(ParGridFunction &u)
@@ -859,7 +945,8 @@ real_t DeformedSolidVolume(ParGridFunction &u)
    for (int e = 0; e < mesh.GetNE(); e++)
    {
       ElementTransformation *T = mesh.GetElementTransformation(e);
-      const IntegrationRule &ir = IntRules.Get(T->GetGeometryType(), 2 * dim * order + 2);
+      const IntegrationRule &ir = IntRules.Get(T->GetGeometryType(),
+                                               2 * dim * order + 2);
       for (int i = 0; i < ir.GetNPoints(); i++)
       {
          const IntegrationPoint &ip = ir.IntPoint(i);
@@ -869,6 +956,7 @@ real_t DeformedSolidVolume(ParGridFunction &u)
          loc_vol += ip.weight * T->Weight() * F.Det();
       }
    }
-   MPI_Allreduce(&loc_vol, &volume, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, mesh.GetComm());
+   MPI_Allreduce(&loc_vol, &volume, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                 mesh.GetComm());
    return volume;
 }

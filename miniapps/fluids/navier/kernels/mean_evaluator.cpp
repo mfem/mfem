@@ -22,7 +22,8 @@ MeanEvaluator::MeanEvaluator(ParFiniteElementSpace &fes_,
    ParMesh &mesh = *fes.GetParMesh();
    geom = mesh.GetGeometricFactors(ir, GeometricFactors::DETERMINANTS);
    x_qvec.SetSize(ir.Size()*mesh.GetNE());
-   quad_interp.SetOutputLayout(QVectorLayout::byNODES); // (nq, ne), same layout as geom->detJ
+   quad_interp.SetOutputLayout(
+      QVectorLayout::byNODES); // (nq, ne), same layout as geom->detJ
 
    // Quadrature weights times Jacobian determinants, layout (nq, ne)
    const int nq = ir.GetNPoints(), ne = mesh.GetNE();

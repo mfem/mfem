@@ -6,11 +6,11 @@
 using namespace mfem;
 
 /**
- * @brief Class for computing mesh deformation using linear elasticity theory for Arbitrary Lagrangian-Eulerian (ALE) 
+ * @brief Class for computing mesh deformation using linear elasticity theory for Arbitrary Lagrangian-Eulerian (ALE)
  * mesh motion in fluid-structure interaction (FSI) simulations.
- * 
- * This class treats the fluid domain as an elastic body and constructs ALE displacement as a solution to the 
- * equations of linear elasticity: div(σ(u_a)) = 0, where σ is the Cauchy stress tensor related to the 
+ *
+ * This class treats the fluid domain as an elastic body and constructs ALE displacement as a solution to the
+ * equations of linear elasticity: div(σ(u_a)) = 0, where σ is the Cauchy stress tensor related to the
  * linearized strain tensor ε_a = (∇u_a + ∇u_a^T)/2 by Hooke's law: σ = λ_a tr(ε_a)I + 2μ_a ε_a
  */
 class MeshLinearElasticity : public MeshDeformation
@@ -41,8 +41,12 @@ public:
     * @note See MeshDeformation::EnableLocalStiffening. If called after Setup the system is re-assembled.
     * @note Default arguments must match the base class ones (defaults bind to the static type).
     */
-   void EnableLocalStiffening(Array<int> &wall_attr_, int stiffening_type_, int distance_solver_type_ = 0, real_t stiffening_degree_ = 1.0, bool filter_ls_ = false) override;
-   void EnableLocalStiffening(int wall_attr_, int stiffening_type_, int distance_solver_type_ = 0, real_t stiffening_degree_ = 1.0, bool filter_ls_ = false) override;
+   void EnableLocalStiffening(Array<int> &wall_attr_, int stiffening_type_,
+                              int distance_solver_type_ = 0, real_t stiffening_degree_ = 1.0,
+                              bool filter_ls_ = false) override;
+   void EnableLocalStiffening(int wall_attr_, int stiffening_type_,
+                              int distance_solver_type_ = 0, real_t stiffening_degree_ = 1.0,
+                              bool filter_ls_ = false) override;
 
    /**
     * @brief Setup the linear elasticity problem.
@@ -56,7 +60,8 @@ public:
 
    void Setup() override
    {
-      Setup(1.0, 0.3, false, 0); // E = 1, nu = 0.3 (nu = 1 gives lambda < 0, an indefinite operator)
+      Setup(1.0, 0.3, false,
+            0); // E = 1, nu = 0.3 (nu = 1 gives lambda < 0, an indefinite operator)
    }
 
    /**
@@ -68,15 +73,17 @@ public:
     * @brief Solve the linear elasticity system for a given field and optionally deform the mesh.
     * @param field        Grid function representing the original field to solve for.
     * @param deform_mesh  Flag to enable mesh deformation.
-    * @param dt           Time step size for the mesh motion. 
+    * @param dt           Time step size for the mesh motion.
     * @note This method is used to solve the linear elasticity equations for a given field, and uses it to deform the mesh.
     * If no dt is provided (dt<0) the optional mesh deformation is performed assuming the field is a displacement field.
     * Otherwise if a positive dt is provided, the field is assumed to be a velocity field and the mesh is deformed accordingly.
     */
-   void Solve(ParGridFunction &field, bool deform_mesh = false, real_t dt = -1.0) override;
+   void Solve(ParGridFunction &field, bool deform_mesh = false,
+              real_t dt = -1.0) override;
 
-   void DeformMeshWithVelocity(ParGridFunction &mesh_velocity_gf, real_t dt, bool update_gf = false) override;
-   
+   void DeformMeshWithVelocity(ParGridFunction &mesh_velocity_gf, real_t dt,
+                               bool update_gf = false) override;
+
 
    Coefficient *GetCoefficient() override
    {
@@ -94,20 +101,30 @@ private:
     * @brief (Re)create the coefficients and bilinear form, assemble the system and reset the solver.
     */
    void AssembleOperator();
-   
-   ParMesh *reference_mesh = nullptr;                   ///< Reference parallel mesh for the fluid simulation. //< OWNED
 
-   ParBilinearForm *elasticity_form = nullptr;         ///< Bilinear form for the linear elasticity operator.
-   OperatorHandle opA;                                  ///< System matrix operator handle.
+   ParMesh *reference_mesh =
+      nullptr;                   ///< Reference parallel mesh for the fluid simulation. //< OWNED
+
+   ParBilinearForm *elasticity_form =
+      nullptr;         ///< Bilinear form for the linear elasticity operator.
+   OperatorHandle
+   opA;                                  ///< System matrix operator handle.
 
    bool pa = false;                                     ///< Flag for partial assembly (default false).
-   ParLORDiscretization *lor = nullptr;                 ///< Low-order refined discretization for the linear elasticity problem (if using pa) //< OWNED
+   ParLORDiscretization *lor =
+      nullptr;                 ///< Low-order refined discretization for the linear elasticity problem (if using pa) //< OWNED
 
-   real_t E = 1.0;                                      ///< Young's modulus (elastic modulus). (Doesn't affect the mesh deformation)
-   real_t nu = 0.3;                                     ///< Poisson's ratio. (Affects computation; for stability recommends 0.3 to 0.45)
-   ConstantCoefficient lambda;                          ///< Lamé's first parameter (λ).
-   ConstantCoefficient mu;                              ///< Lamé's second parameter (μ, shear modulus).
+   real_t E =
+      1.0;                                      ///< Young's modulus (elastic modulus). (Doesn't affect the mesh deformation)
+   real_t nu =
+      0.3;                                     ///< Poisson's ratio. (Affects computation; for stability recommends 0.3 to 0.45)
+   ConstantCoefficient
+   lambda;                          ///< Lamé's first parameter (λ).
+   ConstantCoefficient
+   mu;                              ///< Lamé's second parameter (μ, shear modulus).
 
-   ProductCoefficient *lambda_stiff = nullptr;          ///< Product coefficient for the Lamé's first parameter (λ) with local stiffening.
-   ProductCoefficient *mu_stiff = nullptr;              ///< Product coefficient for the Lamé's second parameter (μ) with local stiffening.
+   ProductCoefficient *lambda_stiff =
+      nullptr;          ///< Product coefficient for the Lamé's first parameter (λ) with local stiffening.
+   ProductCoefficient *mu_stiff =
+      nullptr;              ///< Product coefficient for the Lamé's second parameter (μ) with local stiffening.
 };

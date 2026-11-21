@@ -4,9 +4,10 @@ using namespace mfem;
 
 
 //////////////////////////////////////////////////////
-// ----- Abstract LocalStiffeningCoefficient 
+// ----- Abstract LocalStiffeningCoefficient
 //////////////////////////////////////////////////////
-LocalStiffeningCoefficient::LocalStiffeningCoefficient(ParFiniteElementSpace *fes_, Array<int> &wall_attrs_)
+LocalStiffeningCoefficient::LocalStiffeningCoefficient(ParFiniteElementSpace
+                                                       *fes_, Array<int> &wall_attrs_)
    : fes(fes_), wall_attrs(wall_attrs_), pmesh(fes_->GetParMesh())
 {
 }
@@ -38,24 +39,27 @@ bool LocalStiffeningCoefficient::RequiresRemeshing(real_t threshold)
          real_t sizeVal;
          Vector asprVals, skewVals, oriVals;
          pmesh->GetGeometricParametersFromJacobian(jacobian, sizeVal,
-                                                  asprVals, skewVals, oriVals);
+                                                   asprVals, skewVals, oriVals);
 
          loc_norminf_skew = std::max(loc_norminf_skew, skewVals.Normlinf());
       }
    }
 
    // Compute (global) max pmesh-skewness norm
-   MPI_Allreduce(&loc_norminf_skew, &global_norminf_skew, 1, MFEM_MPI_REAL_T, MPI_MAX, pmesh->GetComm());
+   MPI_Allreduce(&loc_norminf_skew, &global_norminf_skew, 1, MFEM_MPI_REAL_T,
+                 MPI_MAX, pmesh->GetComm());
 
    return global_norminf_skew > threshold;
 }
 
 //////////////////////////////////////////////////////
-// ----- Derived JacobianBasedStiffeningCoefficient 
+// ----- Derived JacobianBasedStiffeningCoefficient
 //////////////////////////////////////////////////////
 
-JacobianBasedStiffeningCoefficient::JacobianBasedStiffeningCoefficient(ParFiniteElementSpace *fes_, Array<int> &wall_attrs_, real_t stiffening_degree_)
-   : LocalStiffeningCoefficient(fes_, wall_attrs_), stiffening_degree(stiffening_degree_)
+JacobianBasedStiffeningCoefficient::JacobianBasedStiffeningCoefficient(
+   ParFiniteElementSpace *fes_, Array<int> &wall_attrs_, real_t stiffening_degree_)
+   : LocalStiffeningCoefficient(fes_, wall_attrs_),
+     stiffening_degree(stiffening_degree_)
 {
 }
 
@@ -64,7 +68,8 @@ JacobianBasedStiffeningCoefficient::~JacobianBasedStiffeningCoefficient()
    // Nothing to clean up
 }
 
-real_t JacobianBasedStiffeningCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
+real_t JacobianBasedStiffeningCoefficient::Eval(ElementTransformation &T,
+                                                const IntegrationPoint &ip)
 {
    // Compute stiffening coefficient
    T.SetIntPoint(&ip);
@@ -76,11 +81,13 @@ real_t JacobianBasedStiffeningCoefficient::Eval(ElementTransformation &T, const 
 
 
 //////////////////////////////////////////////////////
-// ----- Derived JacobianBasedStiffeningCoefficient 
+// ----- Derived JacobianBasedStiffeningCoefficient
 //////////////////////////////////////////////////////
 
-DistanceBasedStiffeningCoefficient::DistanceBasedStiffeningCoefficient(ParFiniteElementSpace *fes_, Array<int> &wall_attrs_, int distance_solver_type, bool filter_ls_)
-    : LocalStiffeningCoefficient(fes_, wall_attrs_), filter_ls(filter_ls_)
+DistanceBasedStiffeningCoefficient::DistanceBasedStiffeningCoefficient(
+   ParFiniteElementSpace *fes_, Array<int> &wall_attrs_, int distance_solver_type,
+   bool filter_ls_)
+   : LocalStiffeningCoefficient(fes_, wall_attrs_), filter_ls(filter_ls_)
 {
    // Create Level-Set coefficient for wall attribute
    ls_gf.SetSpace(fes);
@@ -101,25 +108,26 @@ DistanceBasedStiffeningCoefficient::DistanceBasedStiffeningCoefficient(ParFinite
    // Create distance solver
    switch (distance_solver_type)
    {
-   case 0: // HeatDistanceSolver
-   {
-      distance_solver = new HeatDistanceSolver(dx * dx);
-      break;
-   }
-   case 1: // PLapDistanceSolver
-   {
-      const int p = 15;
-      const int newton_iter = 50;
-      distance_solver = new PLapDistanceSolver(p, newton_iter);
-      break;
-   }
-   case 2: // NormalizationDistanceSolver
-      distance_solver = new NormalizationDistanceSolver();
-      break;
+      case 0: // HeatDistanceSolver
+      {
+         distance_solver = new HeatDistanceSolver(dx * dx);
+         break;
+      }
+      case 1: // PLapDistanceSolver
+      {
+         const int p = 15;
+         const int newton_iter = 50;
+         distance_solver = new PLapDistanceSolver(p, newton_iter);
+         break;
+      }
+      case 2: // NormalizationDistanceSolver
+         distance_solver = new NormalizationDistanceSolver();
+         break;
    }
 
    distance_gf.SetSpace(fes);
-   dist_coeff.SetGridFunction(&distance_gf); // maps refined (LOR) element transformations back to the parent elements
+   dist_coeff.SetGridFunction(
+      &distance_gf); // maps refined (LOR) element transformations back to the parent elements
    distance_solver->ComputeScalarDistance(ls_coeff, distance_gf);
 }
 
@@ -128,7 +136,8 @@ DistanceBasedStiffeningCoefficient::~DistanceBasedStiffeningCoefficient()
    delete distance_solver;
 }
 
-void DistanceBasedStiffeningCoefficient::SetParameters(real_t Rmin, real_t Rmax, real_t alpha, real_t Amax, real_t Amin, real_t stiffening_degree)
+void DistanceBasedStiffeningCoefficient::SetParameters(real_t Rmin, real_t Rmax,
+                                                       real_t alpha, real_t Amax, real_t Amin, real_t stiffening_degree)
 {
    this->Rmin = Rmin;
    this->Rmax = Rmax;
@@ -149,13 +158,15 @@ void DistanceBasedStiffeningCoefficient::Update()
 }
 
 
-real_t DistanceBasedStiffeningCoefficient::Eval(ElementTransformation &T, const IntegrationPoint &ip)
+real_t DistanceBasedStiffeningCoefficient::Eval(ElementTransformation &T,
+                                                const IntegrationPoint &ip)
 {
    // Get distance at the current point
    real_t distance = dist_coeff.Eval(T, ip);
 
    // Compute the sigmoid stiffening coefficient based on the distance (argument normalized by the zone width)
-   real_t A = Amin + (Amax - Amin) / (1 + std::exp(alpha * (distance - Rmid) / (Rmax - Rmin)));
+   real_t A = Amin + (Amax - Amin) / (1 + std::exp(alpha * (distance - Rmid) /
+                                                   (Rmax - Rmin)));
 
    return std::pow(A, stiffening_degree);
 }

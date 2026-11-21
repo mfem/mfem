@@ -1,7 +1,7 @@
 //
 // Compile with: make shell1d
 //
-// Description: it solves a 1D equation  
+// Description: it solves a 1D equation
 //                      u_tt = -u_xxxx
 //              using an auxiliary variable V=-u_xx and the Newmark-Beta integrator
 //  MMS
@@ -38,7 +38,7 @@ class ShellOperator : public SecondOrderTimeDependentOperator
 {
 protected:
    FiniteElementSpace &fespace;
-   Array<int> ess_tdof_list; 
+   Array<int> ess_tdof_list;
 
    BilinearForm *M, *K;
    SparseMatrix Mmat, Mmat0, Kmat, *S, *Sc;
@@ -49,7 +49,7 @@ protected:
    CGSolver M_solver; // Krylov solver for inverting the mass matrix M
    DSmoother M_prec;  // Preconditioner for the mass matrix M
 
-   GMRESSolver solver;  // the block system is not symmetric 
+   GMRESSolver solver;  // the block system is not symmetric
 
    BlockOperator *BlockSystem;
    BlockDiagonalPreconditioner *prec;
@@ -63,7 +63,7 @@ public:
    using SecondOrderTimeDependentOperator::Mult;
    virtual void Mult(const Vector &u, const Vector &du_dt,
                      Vector &d2udt2) const;
-   
+
    using SecondOrderTimeDependentOperator::ImplicitSolve;
    virtual void ImplicitSolve(const double fac0, const double fac1,
                               const Vector &u, const Vector &dudt, Vector &d2udt2);
@@ -74,7 +74,7 @@ public:
 
 ShellOperator::ShellOperator(FiniteElementSpace &f, Array<int> &ess_bdr)
    : SecondOrderTimeDependentOperator(f.GetTrueVSize(), 0.0), fespace(f), M(NULL),
-     K(NULL), current_dt(0.0), block_trueOffsets(3), z(height), V(height) 
+     K(NULL), current_dt(0.0), block_trueOffsets(3), z(height), V(height)
 {
    const double rel_tol = 1e-8;
    ConstantCoefficient one(1);
@@ -136,7 +136,7 @@ ShellOperator::ShellOperator(FiniteElementSpace &f, Array<int> &ess_bdr)
 }
 
 void ShellOperator::Mult(const Vector &u, const Vector &du_dt,
-                        Vector &d2udt2)  const
+                         Vector &d2udt2)  const
 {
    // Compute:
    //    V = M^{-1}*K(v)
@@ -150,17 +150,17 @@ void ShellOperator::Mult(const Vector &u, const Vector &du_dt,
 }
 
 void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
-                                 const Vector &u, const Vector &dudt, Vector &d2udt2)
+                                  const Vector &u, const Vector &dudt, Vector &d2udt2)
 {
    // Solve the equation:
    //    d2udt2 = M^{-1}*[-K V]
    // where
    //         V = M^{-1}*[K(u+fac0*d2udt2)]
-   // 
+   //
    // Need to solve the 2x2 system:
    // | M   K      ||a| = | 0      |
    // | -K  M/fac0 ||V|   | Ku/fac0|
-   
+
    if (fac0old<1e-14)
    {
       fac0old=fac0;
@@ -185,7 +185,7 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
       solver.SetPreconditioner(*prec);
       solver.SetPrintLevel(0);
    }
-   else if(fac0!=fac0old)
+   else if (fac0!=fac0old)
    {
       cout << " fac0 changes..."<<endl;
       fac0old=fac0;
@@ -279,7 +279,7 @@ int main(int argc, char *argv[])
 
    H1_FECollection fe_coll(order, dim);
    FiniteElementSpace fespace(&mesh, &fe_coll);
-   
+
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
 
@@ -291,7 +291,7 @@ int main(int argc, char *argv[])
 
    SecondOrderODESolver *ode_solver = new NewmarkSolver();
 
-   //    Set the initial conditions for u.  
+   //    Set the initial conditions for u.
    GridFunction u_gf(&fespace);
    GridFunction dudt_gf(&fespace);
 
@@ -324,13 +324,13 @@ int main(int argc, char *argv[])
          sout << "solution\n" << mesh << u_gf;
          sout << "window_size 800 800\n";
          sout << "valuerange -1 1\n";
-         sout << "keys cmma\n"; 
+         sout << "keys cmma\n";
          sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
       }
-   }         
+   }
 
    ShellOperator oper(fespace, ess_bdr);
    ode_solver->Init(oper);

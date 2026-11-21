@@ -78,11 +78,11 @@ void ShearStressIntegrator::AssembleElementMatrix(const FiniteElement &el,
                for (int ll = 0; ll < dof; ll++)
                {
                   elmat(dof * ii + kk, dof * jj + ll) +=
-                      norm * dshape(kk, jj) * dshape(ll, ii);
+                     norm * dshape(kk, jj) * dshape(ll, ii);
                }
          }
 
-         // Otherwise we could compute S = nu (∇u + ∇u^T), and then compute S : ∇v ?
+      // Otherwise we could compute S = nu (∇u + ∇u^T), and then compute S : ∇v ?
    }
 }
 
@@ -310,7 +310,7 @@ void ShearStressIntegrator::ShearStressIntegratorApply3D(
       MFEM_SHARED tensor<real_t, q1d, q1d, q1d, dim, dim> invJ_nuS_detJw;
       // du/dxi
       MFEM_SHARED_3D_BLOCK_TENSOR( dudxi, real_t, q1d, q1d, q1d, dim, dim);
-      
+
       const auto U_el = Reshape(&U(0, 0, 0, 0, e), d1d, d1d, d1d, dim);
       KernelHelpers::CalcGrad(B, G, smem, U_el, dudxi);
 
@@ -339,15 +339,31 @@ void ShearStressIntegrator::ShearStressIntegratorApply3D(
 }
 
 // Explicit template instantiations for commonly used cases
-template void ShearStressIntegrator::ShearStressIntegratorApply2D<2, 2, 2>(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&, const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
-template void ShearStressIntegrator::ShearStressIntegratorApply2D<3, 3, 2>(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&, const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
-template void ShearStressIntegrator::ShearStressIntegratorApply2D<5, 5, 2>(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&, const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
-template void ShearStressIntegrator::ShearStressIntegratorApply2D<6, 6, 2>(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&, const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
-template void ShearStressIntegrator::ShearStressIntegratorApply2D<7, 7, 2>(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&, const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
+template void ShearStressIntegrator::ShearStressIntegratorApply2D<2, 2, 2>
+(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&,
+ const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
+template void ShearStressIntegrator::ShearStressIntegratorApply2D<3, 3, 2>
+(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&,
+ const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
+template void ShearStressIntegrator::ShearStressIntegratorApply2D<5, 5, 2>
+(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&,
+ const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
+template void ShearStressIntegrator::ShearStressIntegratorApply2D<6, 6, 2>
+(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&,
+ const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
+template void ShearStressIntegrator::ShearStressIntegratorApply2D<7, 7, 2>
+(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&,
+ const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
 
-template void ShearStressIntegrator::ShearStressIntegratorApply3D<2, 2, 3>(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&, const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
-template void ShearStressIntegrator::ShearStressIntegratorApply3D<3, 3, 3>(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&, const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
-template void ShearStressIntegrator::ShearStressIntegratorApply3D<5, 5, 3>(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&, const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
+template void ShearStressIntegrator::ShearStressIntegratorApply3D<2, 2, 3>
+(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&,
+ const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
+template void ShearStressIntegrator::ShearStressIntegratorApply3D<3, 3, 3>
+(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&,
+ const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
+template void ShearStressIntegrator::ShearStressIntegratorApply3D<5, 5, 3>
+(const int, const Array<real_t>&, const Array<real_t>&, const Array<real_t>&,
+ const Vector&, const Vector&, const Vector&, Vector&, const Vector&);
 
 } // namespace navier
 } // namespace mfem

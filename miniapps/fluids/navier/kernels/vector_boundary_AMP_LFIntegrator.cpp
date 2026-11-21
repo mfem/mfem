@@ -3,9 +3,9 @@
 using namespace mfem;
 
 void VectorBoundaryTangentialAMPLFIntegrator::AssembleRHSElementVect(
-    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
-   int dim = Tr.GetSpaceDim(); 
+   int dim = Tr.GetSpaceDim();
    int vdim = VG->GetVDim();
    int dof = el.GetDof();
 
@@ -33,7 +33,7 @@ void VectorBoundaryTangentialAMPLFIntegrator::AssembleRHSElementVect(
       const DenseMatrix &Jac = Tr.Jacobian();
 
       // Evaluate Vector Coefficients
-      /*VG->Eval(Qvec, Tr, ip); 
+      /*VG->Eval(Qvec, Tr, ip);
       VU->Eval(Uvec, Tr, ip);
       // Qvec = f = (g + alpha uS)
       Qvec.Add(Q->Eval(Tr, ip), Uvec); */
@@ -50,11 +50,11 @@ void VectorBoundaryTangentialAMPLFIntegrator::AssembleRHSElementVect(
          tangent_vec(0) = Jac(0, 0);
          tangent_vec(1) = Jac(1, 0);
          real_t scale = tangent_vec.Norml2();
-         tangent_vec *= 1.0 / scale; 
+         tangent_vec *= 1.0 / scale;
 
          // Project f onto the single tangent line
          real_t f_t = Qvec * tangent_vec;
-         
+
          for (int k = 0; k < dim; k++)
          {
             f_tangent(k) = f_t * tangent_vec(k);
@@ -68,13 +68,13 @@ void VectorBoundaryTangentialAMPLFIntegrator::AssembleRHSElementVect(
          nor /= nor.Norml2(); // Ensure unit normal
 
          real_t f_dot_n = Qvec * nor;
-         
+
          for (int k = 0; k < dim; k++)
          {
             f_tangent(k) = Qvec(k) - f_dot_n * nor(k);
          }
       }
-      else 
+      else
       {
          mfem_error("VectorBoundaryTangentialAMPLFIntegrator: dim must be 2 or 3.");
       }
@@ -95,7 +95,7 @@ void VectorBoundaryTangentialAMPLFIntegrator::AssembleRHSElementVect(
 
 
 void VectorBoundaryNormalAMPLFIntegrator::AssembleRHSElementVect(
-    const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
+   const FiniteElement &el, ElementTransformation &Tr, Vector &elvect)
 {
    int dim = el.GetDim() + 1;
    int vdim = VG->GetVDim();

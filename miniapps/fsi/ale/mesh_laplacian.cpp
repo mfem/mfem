@@ -3,12 +3,12 @@
 using namespace mfem;
 
 MeshLaplacian::MeshLaplacian(ParMesh *fluid_mesh_, bool incremental_)
-    : MeshDeformation(fluid_mesh_), incremental(incremental_)
+   : MeshDeformation(fluid_mesh_), incremental(incremental_)
 {
    // Deep copy of the fluid mesh in the deformed state
    if (incremental)
    {
-      is_nonincremental_mdt = false; 
+      is_nonincremental_mdt = false;
       Initialize(fluid_mesh);
    }
    else
@@ -66,12 +66,16 @@ void MeshLaplacian::AssembleOperator()
    delete diffusion_coeff;
    diffusion_coeff = nullptr;
 
-   diffusion_coeff = local_stiffening_coeff ? new ProductCoefficient(alpha, *local_stiffening_coeff) : new ProductCoefficient(1.0, alpha);
+   diffusion_coeff = local_stiffening_coeff ? new ProductCoefficient(alpha,
+                                                                     *local_stiffening_coeff) : new ProductCoefficient(1.0, alpha);
 
    laplacian_form = new ParBilinearForm(fes_mesh);
-   laplacian_form->AddDomainIntegrator(new VectorDiffusionIntegrator(*diffusion_coeff));
+   laplacian_form->AddDomainIntegrator(new VectorDiffusionIntegrator(
+                                          *diffusion_coeff));
    if (pa)
+   {
       laplacian_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   }
    laplacian_form->Assemble();
    laplacian_form->FormSystemMatrix(ess_tdof_list, opA);
 
@@ -94,7 +98,9 @@ void MeshLaplacian::Solve(ParGridFunction &field, bool deform_mesh, real_t dt)
       opAC->EliminateRHS(X, B);
    }
    else
+   {
       laplacian_form->EliminateVDofsInRHS(ess_tdof_list, X, B);
+   }
 
    // Solve
    linear_solver->Mult(B, X);
@@ -131,9 +137,12 @@ void MeshLaplacian::Solve(ParGridFunction &field, bool deform_mesh, real_t dt)
    }
 }
 
-void MeshLaplacian::EnableLocalStiffening(Array<int> &wall_attr_, int stiffening_type_, int distance_solver_type, real_t stiffening_degree, bool filter_ls)
+void MeshLaplacian::EnableLocalStiffening(Array<int> &wall_attr_,
+                                          int stiffening_type_, int distance_solver_type, real_t stiffening_degree,
+                                          bool filter_ls)
 {
-   MeshDeformation::EnableLocalStiffening(wall_attr_, stiffening_type_, distance_solver_type, stiffening_degree, filter_ls);
+   MeshDeformation::EnableLocalStiffening(wall_attr_, stiffening_type_,
+                                          distance_solver_type, stiffening_degree, filter_ls);
 
    // If laplacian_form exists, it means that Setup has been already called
    // So we re-assemble the system
@@ -143,13 +152,16 @@ void MeshLaplacian::EnableLocalStiffening(Array<int> &wall_attr_, int stiffening
    }
 }
 
-void MeshLaplacian::EnableLocalStiffening(int wall_attr_, int stiffening_type_, int distance_solver_type, real_t stiffening_degree, bool filter_ls)
+void MeshLaplacian::EnableLocalStiffening(int wall_attr_, int stiffening_type_,
+                                          int distance_solver_type, real_t stiffening_degree, bool filter_ls)
 {
    Array<int> tmp_wall_attrs(fluid_mesh->bdr_attributes.Max());
    tmp_wall_attrs = 0;
-   MFEM_VERIFY(wall_attr_ >= 1 && wall_attr_ <= tmp_wall_attrs.Size(), "Invalid wall attribute " << wall_attr_);
+   MFEM_VERIFY(wall_attr_ >= 1 &&
+               wall_attr_ <= tmp_wall_attrs.Size(), "Invalid wall attribute " << wall_attr_);
    tmp_wall_attrs[wall_attr_ - 1] = 1; // boundary attributes are 1-based
-   EnableLocalStiffening(tmp_wall_attrs, stiffening_type_, distance_solver_type, stiffening_degree, filter_ls);
+   EnableLocalStiffening(tmp_wall_attrs, stiffening_type_, distance_solver_type,
+                         stiffening_degree, filter_ls);
 }
 
 
@@ -191,34 +203,34 @@ void MeshLaplacian::ResetSolver()
    {
       switch (prec_type)
       {
-      case 0: // Jacobi Smoother
-         prec = new OperatorJacobiSmoother(*laplacian_form, ess_tdof_list);
-         break;
-      case 1: // LOR
-      {
-         auto *lor_prec = new LORSolver<HypreBoomerAMG>(*laplacian_form, ess_tdof_list);
-         lor_prec->GetSolver().SetSystemsOptions(vdim, bynodes);
-         lor_prec->GetSolver().SetPrintLevel(0);
-         prec = lor_prec;
-         break;
-      }
-      default:
-         MFEM_ABORT("Unknown preconditioner type.");
+         case 0: // Jacobi Smoother
+            prec = new OperatorJacobiSmoother(*laplacian_form, ess_tdof_list);
+            break;
+         case 1: // LOR
+         {
+            auto *lor_prec = new LORSolver<HypreBoomerAMG>(*laplacian_form, ess_tdof_list);
+            lor_prec->GetSolver().SetSystemsOptions(vdim, bynodes);
+            lor_prec->GetSolver().SetPrintLevel(0);
+            prec = lor_prec;
+            break;
+         }
+         default:
+            MFEM_ABORT("Unknown preconditioner type.");
       }
    }
    else
    {
       switch (prec_type)
       {
-      case 0:
-         prec = new HypreSmoother(*opA.As<HypreParMatrix>());
-         dynamic_cast<HypreSmoother *>(prec)->SetType(HypreSmoother::Jacobi, 1);
-         break;
-      case 1:
-         prec = new HypreBoomerAMG(*opA.As<HypreParMatrix>());
-         static_cast<HypreBoomerAMG *>(prec)->SetSystemsOptions(vdim, bynodes);
-         static_cast<HypreBoomerAMG *>(prec)->SetPrintLevel(0);
-         break;
+         case 0:
+            prec = new HypreSmoother(*opA.As<HypreParMatrix>());
+            dynamic_cast<HypreSmoother *>(prec)->SetType(HypreSmoother::Jacobi, 1);
+            break;
+         case 1:
+            prec = new HypreBoomerAMG(*opA.As<HypreParMatrix>());
+            static_cast<HypreBoomerAMG *>(prec)->SetSystemsOptions(vdim, bynodes);
+            static_cast<HypreBoomerAMG *>(prec)->SetPrintLevel(0);
+            break;
       }
    }
 

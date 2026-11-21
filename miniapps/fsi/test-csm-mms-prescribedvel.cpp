@@ -78,10 +78,13 @@ int main(int argc, char *argv[])
                   "Time integrator for the elasticity solver.");
    args.AddOption(&Problem_ctx.dt, "-dt", "--dt", "Time step dt.");
    args.AddOption(&Problem_ctx.t_final, "-tf", "--t-final", "Final time.");
-   args.AddOption(&Mesh_ctx.serial_ref_levels, "-rs", "--rs", "Serial refinement levels.");
-   args.AddOption(&Mesh_ctx.parallel_ref_levels, "-rp", "--rp", "Parallel refinement levels.");
+   args.AddOption(&Mesh_ctx.serial_ref_levels, "-rs", "--rs",
+                  "Serial refinement levels.");
+   args.AddOption(&Mesh_ctx.parallel_ref_levels, "-rp", "--rp",
+                  "Parallel refinement levels.");
    args.AddOption(&outfolder, "-of", "--output-folder", "Output folder.");
-   args.AddOption(&save_freq, "-sf", "--save-freq", "Save frequency for output files.");
+   args.AddOption(&save_freq, "-sf", "--save-freq",
+                  "Save frequency for output files.");
    args.ParseCheck();
 
    Elasticity_ctx.lambda = 2.0 * Elasticity_ctx.mu * Elasticity_ctx.nu
@@ -91,7 +94,9 @@ int main(int argc, char *argv[])
    /// 3. Create mesh
    ///////////////////////////////////////////////////////////////////////////////////////////////
    if (Mpi::Root())
+   {
       mfem::out << "\nLoading mesh and refining in serial...";
+   }
 
    Element::Type type = Mesh_ctx.hex ? Element::QUADRILATERAL : Element::TRIANGLE;
    Mesh mesh = Mesh::MakeCartesian2D(Mesh_ctx.n, Mesh_ctx.n, type, true);
@@ -101,21 +106,29 @@ int main(int argc, char *argv[])
    *nodes -= 1.0;
 
    for (int l = 0; l < Mesh_ctx.serial_ref_levels; l++)
+   {
       mesh.UniformRefinement();
+   }
 
    ParMesh solid_mesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    for (int l = 0; l < Mesh_ctx.parallel_ref_levels; l++)
+   {
       solid_mesh.UniformRefinement();
+   }
 
    if (Mpi::Root())
+   {
       mfem::out << "done." << std::endl;
+   }
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
    /// 4. Create solver
    ///////////////////////////////////////////////////////////////////////////////////////////////
    if (Mpi::Root())
+   {
       mfem::out << "\nCreating Elasticity solver..." << std::endl;
+   }
 
    elasticity::ElasticitySolver elasticity(
       Elasticity_ctx.solver_type, &solid_mesh,
@@ -152,13 +165,17 @@ int main(int argc, char *argv[])
    VectorFunctionCoefficient vel_exact_coeff(2, velocity_mms);
 
    if (Mpi::Root())
+   {
       mfem::out << "done." << std::endl;
+   }
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
    /// 5. Set boundary conditions and setup
    ///////////////////////////////////////////////////////////////////////////////////////////////
    if (Mpi::Root())
+   {
       mfem::out << "\nSetting up boundary conditions..." << std::endl;
+   }
 
    Array<int> domain_marker(solid_mesh.attributes.Max()); domain_marker = 1;
    Array<int> solid_bdr(solid_mesh.bdr_attributes.Max()); solid_bdr = 1;
@@ -172,7 +189,9 @@ int main(int argc, char *argv[])
    elasticity.Setup();
 
    if (Mpi::Root())
+   {
       mfem::out << "done." << std::endl;
+   }
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
    /// 6. Set up ParaView output
@@ -220,14 +239,16 @@ int main(int argc, char *argv[])
    ///////////////////////////////////////////////////////////////////////////////////////////////
    if (Mpi::Root())
    {
-      mfem::out << "-------------------------------------------------------" << std::endl;
+      mfem::out << "-------------------------------------------------------" <<
+                std::endl;
       mfem::out << std::left
-          << std::setw(8)  << "Step"
-          << std::setw(16) << "Time"
-          << std::setw(16) << "dt"
-          << std::setw(16) << "L^2 error (u)"
-          << std::endl;
-      mfem::out << "-------------------------------------------------------" << std::endl;
+                << std::setw(8)  << "Step"
+                << std::setw(16) << "Time"
+                << std::setw(16) << "dt"
+                << std::setw(16) << "L^2 error (u)"
+                << std::endl;
+      mfem::out << "-------------------------------------------------------" <<
+                std::endl;
    }
 
    bool last_step = false;
@@ -236,7 +257,9 @@ int main(int argc, char *argv[])
       real_t dt = Problem_ctx.dt;
 
       if (current_time + dt >= Problem_ctx.t_final - dt / 2)
+      {
          last_step = true;
+      }
 
       // 1. Update prescribed_vel_gf to the MMS velocity at t_{n+1} = current_time + dt.
       //    DerivedAccelerationCoefficient reads this during ImplicitSolve to compute
@@ -259,7 +282,9 @@ int main(int argc, char *argv[])
       {
          Vector *acc_state = elasticity.GetLatestState();
          if (acc_state != nullptr)
+         {
             prev_acc_gf.SetFromTrueDofs(*acc_state);
+         }
       }
 
       //current_time += dt;
@@ -271,11 +296,11 @@ int main(int argc, char *argv[])
       if (Mpi::Root())
       {
          mfem::out << std::left
-             << std::setw(8)  << step
-             << std::setw(16) << std::scientific << std::setprecision(8) << current_time
-             << std::setw(16) << std::scientific << std::setprecision(8) << dt
-             << std::setw(16) << std::scientific << std::setprecision(8) << l2_err
-             << std::endl;
+                   << std::setw(8)  << step
+                   << std::setw(16) << std::scientific << std::setprecision(8) << current_time
+                   << std::setw(16) << std::scientific << std::setprecision(8) << dt
+                   << std::setw(16) << std::scientific << std::setprecision(8) << l2_err
+                   << std::endl;
       }
 
       // Update exact GFs and save
@@ -319,7 +344,8 @@ void forcing_mms(const Vector &x, real_t t, Vector &v)
    const real_t freq    = Elasticity_ctx.freq;
    const real_t freq_sq = freq * freq;
    const real_t pi_sq   = M_PI * M_PI;
-   const real_t spatial_factor_lambda = 8.0  * freq_sq * pi_sq * Elasticity_ctx.lambda;
+   const real_t spatial_factor_lambda = 8.0  * freq_sq * pi_sq *
+                                        Elasticity_ctx.lambda;
    const real_t spatial_factor_mu     = 16.0 * freq_sq * pi_sq * Elasticity_ctx.mu;
    v = 0.0;
    v[0] = (spatial_factor_lambda + spatial_factor_mu - Elasticity_ctx.density)

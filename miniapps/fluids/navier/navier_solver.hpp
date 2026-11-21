@@ -67,7 +67,7 @@ class PresDirichletBC_T
 {
 public:
    PresDirichletBC_T(Array<int> attr, Coefficient *coeff, bool own = true)
-       : own(own), attr(attr), coeff(coeff)
+      : own(own), attr(attr), coeff(coeff)
    {}
 
    PresDirichletBC_T(PresDirichletBC_T &&obj)
@@ -101,14 +101,16 @@ public:
              const std::vector<VectorCoefficient *> &coeffs_,
              const std::vector<real_t> &scalings_,
              bool own_ = true)
-       : MultiVectorCoeffContainer(attr_, coeffs_, scalings_, own_),
-         density(density_)
+      : MultiVectorCoeffContainer(attr_, coeffs_, scalings_, own_),
+        density(density_)
    {
       alphaP = new ConstantCoefficient(alpha_);         // initialize with alpha
       beta = new ConstantCoefficient(alpha_);             // initialize with alpha
-      beta_g = new ScalarVectorProductCoefficient(*beta, *(this->GetCoeff(1))); // beta * g
+      beta_g = new ScalarVectorProductCoefficient(*beta,
+                                                  *(this->GetCoeff(1))); // beta * g
       rho_beta = new ProductCoefficient(density_, *beta);
-      alphaP_u = new ScalarVectorProductCoefficient(*alphaP, *(this->GetCoeff(0))); // alpha * u_s
+      alphaP_u = new ScalarVectorProductCoefficient(*alphaP,
+                                                    *(this->GetCoeff(0))); // alpha * u_s
       alphaP_over_rho = new ProductCoefficient(1.0/density, *alphaP); // alpha / rho
    }
 
@@ -119,14 +121,15 @@ public:
              const std::vector<VectorCoefficient *> &coeffs_,
              real_t scaling_ = 1.0,
              bool own_ = true)
-       : MultiVectorCoeffContainer(attr_, coeffs_, scaling_, own_),
-         density(density_)
+      : MultiVectorCoeffContainer(attr_, coeffs_, scaling_, own_),
+        density(density_)
    {
       alphaP = new ConstantCoefficient(alpha_);
       beta = new ConstantCoefficient(alpha_);         // initialize with alpha
       rho_beta = new ProductCoefficient(density_, *beta); // rho * beta
       beta_g = new ScalarVectorProductCoefficient(*beta, *(this->GetCoeff(1)));
-      alphaP_u = new ScalarVectorProductCoefficient(*alphaP, *(this->GetCoeff(0))); // alpha * u_s
+      alphaP_u = new ScalarVectorProductCoefficient(*alphaP,
+                                                    *(this->GetCoeff(0))); // alpha * u_s
       alphaP_over_rho = new ProductCoefficient(1.0/density, *alphaP); // alpha / rho
    }
 
@@ -136,14 +139,15 @@ public:
              real_t density_,
              const std::vector<VectorCoefficient *> &coeffs_,
              bool own_ = true)
-       : MultiVectorCoeffContainer(attr_, coeffs_, own_),
-         density(density_)
+      : MultiVectorCoeffContainer(attr_, coeffs_, own_),
+        density(density_)
    {
       alphaP = new ConstantCoefficient(alpha_);         // initialize with alpha
       beta = new ConstantCoefficient(alpha_);             // initialize with alpha
       rho_beta = new ProductCoefficient(density_, *beta); // rho * beta
       beta_g = new ScalarVectorProductCoefficient(*beta, *(this->GetCoeff(1)));
-      alphaP_u = new ScalarVectorProductCoefficient(*alphaP, *(this->GetCoeff(0))); // alpha * u_s
+      alphaP_u = new ScalarVectorProductCoefficient(*alphaP,
+                                                    *(this->GetCoeff(0))); // alpha * u_s
       alphaP_over_rho = new ProductCoefficient(1.0/density, *alphaP);
    }
 
@@ -155,8 +159,8 @@ public:
       delete beta;
       delete beta_g;
       delete alphaP_u;
-      delete beta_tau; 
-      delete alphaP_over_rho; 
+      delete beta_tau;
+      delete alphaP_over_rho;
    }
 
    // Access method for alpha
@@ -201,9 +205,13 @@ public:
    {
       tau_coeff = tau_coeff_;
       if (beta_tau == nullptr)
+      {
          beta_tau = new ScalarVectorProductCoefficient(*beta, *tau_coeff);
+      }
       else
+      {
          beta_tau->SetBCoef(*tau_coeff);
+      }
    }
 
    // Method to update density value
@@ -232,14 +240,19 @@ public:
    }
 
    real_t density;                                     ///< Density value.
-   ConstantCoefficient *alphaP = nullptr;               ///< Scalar value for the Robin BC.
+   ConstantCoefficient *alphaP =
+      nullptr;               ///< Scalar value for the Robin BC.
    ConstantCoefficient *beta = nullptr;                ///< beta = 1/alpha b0/dt
    ProductCoefficient *alphaP_over_rho = nullptr;       ///< alpha / rho
    ProductCoefficient *rho_beta = nullptr;             ///< rho * beta
-   ShearStressNormalTractionCoefficient *tau_coeff = nullptr;  ///< Coefficient for the shear stress term.
-   ScalarVectorProductCoefficient *alphaP_u = nullptr;  ///< Coefficient for the term alpha * u_s.
-   ScalarVectorProductCoefficient *beta_g = nullptr;   ///< Coefficient for the term beta * g, where g is the normal traction.
-   ScalarVectorProductCoefficient *beta_tau = nullptr; ///< Coefficient for the term beta * tau, where tau is the shear stress.
+   ShearStressNormalTractionCoefficient *tau_coeff =
+      nullptr;  ///< Coefficient for the shear stress term.
+   ScalarVectorProductCoefficient *alphaP_u =
+      nullptr;  ///< Coefficient for the term alpha * u_s.
+   ScalarVectorProductCoefficient *beta_g =
+      nullptr;   ///< Coefficient for the term beta * g, where g is the normal traction.
+   ScalarVectorProductCoefficient *beta_tau =
+      nullptr; ///< Coefficient for the term beta * tau, where tau is the shear stress.
 };
 
 
@@ -254,13 +267,14 @@ public:
                  const std::vector<VectorCoefficient *> &coeffs_,
                  const std::vector<real_t> &scalings_,
                  bool own_ = true)
-       : RobinBC_T(attr_, alpha_p_, density_, coeffs_, scalings_, own_)
+      : RobinBC_T(attr_, alpha_p_, density_, coeffs_, scalings_, own_)
    {
       alphaS = new ConstantCoefficient(alpha_s_);
       alphaS_over_rho = new ProductCoefficient(1.0/density, *alphaS); // alphaS / rho
       int dim = coeffs[0]->GetVDim();
       normal_outer_product = new NormalOuterProductCoefficient(dim, alphaP_over_rho);
-      tangent_outer_product = new TangentOuterProductCoefficient(dim, alphaS_over_rho);
+      tangent_outer_product = new TangentOuterProductCoefficient(dim,
+                                                                 alphaS_over_rho);
    }
 
    // Constructor for multiple coefficients with uniform scaling and alpha
@@ -271,13 +285,14 @@ public:
                  const std::vector<VectorCoefficient *> &coeffs_,
                  real_t scaling_ = 1.0,
                  bool own_ = true)
-       : RobinBC_T(attr_, alpha_p_, density_, coeffs_, scaling_, own_)
+      : RobinBC_T(attr_, alpha_p_, density_, coeffs_, scaling_, own_)
    {
       alphaS = new ConstantCoefficient(alpha_s_);
       alphaS_over_rho = new ProductCoefficient(1.0/density, *alphaS); // alphaS / rho
       int dim = coeffs[0]->GetVDim();
       normal_outer_product = new NormalOuterProductCoefficient(dim, alphaP_over_rho);
-      tangent_outer_product = new TangentOuterProductCoefficient(dim, alphaS_over_rho);
+      tangent_outer_product = new TangentOuterProductCoefficient(dim,
+                                                                 alphaS_over_rho);
    }
 
    // Optimized constructor for multiple coefficients with no scaling and alpha
@@ -287,20 +302,21 @@ public:
                  real_t density_,
                  const std::vector<VectorCoefficient *> &coeffs_,
                  bool own_ = true)
-       : RobinBC_T(attr_, alpha_p_, density_, coeffs_, own_)
+      : RobinBC_T(attr_, alpha_p_, density_, coeffs_, own_)
    {
       alphaS = new ConstantCoefficient(alpha_s_);
       alphaS_over_rho = new ProductCoefficient(1.0/density, *alphaS); // alphaS / rho
       int dim = coeffs[0]->GetVDim();
       normal_outer_product = new NormalOuterProductCoefficient(dim, alphaP_over_rho);
-      tangent_outer_product = new TangentOuterProductCoefficient(dim, alphaS_over_rho);
+      tangent_outer_product = new TangentOuterProductCoefficient(dim,
+                                                                 alphaS_over_rho);
    }
 
    // Destructor
    ~AMP_RobinBC_T()
    {
       delete alphaS;
-      delete alphaS_over_rho; 
+      delete alphaS_over_rho;
       delete tangent_outer_product;
       delete normal_outer_product;
    }
@@ -317,7 +333,7 @@ public:
       alphaS->constant = alpha_value;
    }
 
-      void SetDensity(real_t density_value)
+   void SetDensity(real_t density_value)
    {
       RobinBC_T::SetDensity(density_value);
       alphaS_over_rho->SetAConst(1.0/density);
@@ -329,10 +345,14 @@ public:
       alphaS->SetTime(t); // Update alphaS time
    }
 
-   ConstantCoefficient *alphaS = nullptr;  ///< Additional scalar coefficient alphaS.
-   ProductCoefficient *alphaS_over_rho = nullptr; ///< Coefficient for the term alphaS / rho.
-   NormalOuterProductCoefficient *normal_outer_product = nullptr; ///< Coefficient for the term a * n n^T.
-   TangentOuterProductCoefficient *tangent_outer_product = nullptr; ///< Coefficient for the term a * t t^T.
+   ConstantCoefficient *alphaS =
+      nullptr;  ///< Additional scalar coefficient alphaS.
+   ProductCoefficient *alphaS_over_rho =
+      nullptr; ///< Coefficient for the term alphaS / rho.
+   NormalOuterProductCoefficient *normal_outer_product =
+      nullptr; ///< Coefficient for the term a * n n^T.
+   TangentOuterProductCoefficient *tangent_outer_product =
+      nullptr; ///< Coefficient for the term a * t t^T.
 };
 
 
@@ -366,7 +386,8 @@ public:
       nor /= nor.Norml2(); // unit outward normal
       tau_n_coeff->Eval(tau_n_val, T, ip);
       g_coeff->Eval(g_val, T, ip);
-      real_t val = use_shear_stress ? (tau_n_val * nor) - (g_val * nor) : -(g_val * nor);
+      real_t val = use_shear_stress ? (tau_n_val * nor) - (g_val * nor) : -
+                   (g_val * nor);
       if (div_u_coeff)
       {
          real_t div_u = div_u_coeff->Eval(T, ip);
@@ -393,7 +414,8 @@ private:
 class NeumannBC_T
 {
 public:
-   NeumannBC_T(Array<int> attr, VectorCoefficient *coeff, bool own = true, bool use_shear_stress_ = true,
+   NeumannBC_T(Array<int> attr, VectorCoefficient *coeff, bool own = true,
+               bool use_shear_stress_ = true,
                bool use_div_ = false, Coefficient *alpha_div_ = nullptr,
                bool own_alpha_div_ = false)
       : attr(attr), coeff(coeff), own(own),
@@ -428,7 +450,8 @@ public:
       if (pres_coeff == nullptr)
       {
          ParGridFunction *vel = use_div ? velocity_gf : nullptr;
-         pres_coeff = new NeumannPressureBCCoefficient(tau_n, coeff, dim, use_shear_stress,
+         pres_coeff = new NeumannPressureBCCoefficient(tau_n, coeff, dim,
+                                                       use_shear_stress,
                                                        vel, alpha_div);
       }
    }
@@ -437,11 +460,15 @@ public:
 
    Array<int>                     attr;
    VectorCoefficient             *coeff      = nullptr; ///< prescribed traction g
-   NeumannPressureBCCoefficient  *pres_coeff = nullptr; ///< (τ·n)·n̂ - g·n̂ - α_div div(u), set in Setup()
+   NeumannPressureBCCoefficient  *pres_coeff =
+      nullptr; ///< (τ·n)·n̂ - g·n̂ - α_div div(u), set in Setup()
    bool                           own;
-   bool                           use_div = false;       ///< whether to include the div term
-   bool                          use_shear_stress = true; ///< whether to include the shear stress term
-   Coefficient                   *alpha_div = nullptr;   ///< coefficient for div penalty (e.g. kin_vis)
+   bool                           use_div =
+      false;       ///< whether to include the div term
+   bool                          use_shear_stress =
+      true; ///< whether to include the shear stress term
+   Coefficient                   *alpha_div =
+      nullptr;   ///< coefficient for div penalty (e.g. kin_vis)
    bool                           own_alpha_div = false;
 };
 
@@ -539,7 +566,9 @@ public:
     * automatically converted to the Reynolds number. If you want to set the
     * Reynolds number directly, you can provide the inverse.
     */
-   NavierSolver(ParMesh *mesh, int order, real_t kin_vis, const real_t density = 1.0, bool verbose_ = true, bool variable_viscosity_ = true);
+   NavierSolver(ParMesh *mesh, int order, real_t kin_vis,
+                const real_t density = 1.0, bool verbose_ = true,
+                bool variable_viscosity_ = true);
 
    /// Initialize forms, solvers and preconditioners.
    void Setup(real_t dt);
@@ -598,39 +627,51 @@ public:
    BilinearFormIntegrator *GetPressureEquationBLFI() { return *(Sp_form->GetDBFI()[0]); }
 
    /// Add a Dirichlet boundary condition to the velocity field.
-   void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attrs, bool own = true);
+   void AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attrs,
+                          bool own = true);
    void AddVelDirichletBC(VecFuncT *f, Array<int> &attrs);
 
    // Add a Dirichlet boundary condition to the velocity field for a specific component.
-   void AddVelDirichletBC(Coefficient *coeff, Array<int> &attrs, int component, bool own = true);
-   void AddVelDirichletBC(Coefficient *coeff, int attr, int component, bool own = true);
+   void AddVelDirichletBC(Coefficient *coeff, Array<int> &attrs, int component,
+                          bool own = true);
+   void AddVelDirichletBC(Coefficient *coeff, int attr, int component,
+                          bool own = true);
 
    /// Add a Dirichlet boundary condition to the pressure field.
    void AddPresDirichletBC(Coefficient *coeff, Array<int> &attrs, bool own = true);
    void AddPresDirichletBC(ScalarFuncT *f, Array<int> &attrs);
 
    // Add a Neumann boundary condition (turns into a Neumann for momentum and Dirichlet for PPE)
-   void AddNeumannBC(VectorCoefficient *traction_coeff, Array<int> &attrs, bool own = true, bool use_shear_stress = true,
+   void AddNeumannBC(VectorCoefficient *traction_coeff, Array<int> &attrs,
+                     bool own = true, bool use_shear_stress = true,
                      bool use_div = false, Coefficient *alpha_div = nullptr,
                      bool own_alpha_div = false);
    void AddNeumannBC(VecFuncT *traction_f, Array<int> &attrs);
-   void AddNeumannBC(VectorCoefficient *traction_coeff, int attr, bool own = true, bool use_shear_stress = true,
+   void AddNeumannBC(VectorCoefficient *traction_coeff, int attr, bool own = true,
+                     bool use_shear_stress = true,
                      bool use_div = false, Coefficient *alpha_div = nullptr,
                      bool own_alpha_div = false);
    void AddNeumannBC(VecFuncT *traction_f, int attr);
 
    /// Add a Robin boundary condition to the velocity field.
-   void AddRobinBC(real_t alpha, VectorCoefficient *vel_coeff, VectorCoefficient *traction_coeff, Array<int> &attrs, bool own = true);
-   void AddRobinBC(real_t alpha, VecFuncT *vel_f, VecFuncT *traction_f, Array<int> &attrs);
-   void AddRobinBC(real_t alpha, VectorCoefficient *vel_coeff, VectorCoefficient *traction_coeff, int attr, bool own = true);
+   void AddRobinBC(real_t alpha, VectorCoefficient *vel_coeff,
+                   VectorCoefficient *traction_coeff, Array<int> &attrs, bool own = true);
+   void AddRobinBC(real_t alpha, VecFuncT *vel_f, VecFuncT *traction_f,
+                   Array<int> &attrs);
+   void AddRobinBC(real_t alpha, VectorCoefficient *vel_coeff,
+                   VectorCoefficient *traction_coeff, int attr, bool own = true);
    void AddRobinBC(real_t alpha, VecFuncT *vel_f, VecFuncT *traction_f, int attr);
    void SetRobinBCAlpha(real_t alpha);
 
    /// Add a Robin boundary condition to the velocity field.
-   void AddAMPRobinBC(real_t alphaS, real_t alpha_p, VectorCoefficient *vel_coeff, VectorCoefficient *traction_coeff, Array<int> &attrs, bool own = true);
-   void AddAMPRobinBC(real_t alphaS, real_t alpha_p, VecFuncT *vel_f, VecFuncT *traction_f, Array<int> &attrs);
-   void AddAMPRobinBC(real_t alphaS, real_t alpha_p, VectorCoefficient *vel_coeff, VectorCoefficient *traction_coeff, int attr, bool own = true);
-   void AddAMPRobinBC(real_t alphaS, real_t alpha_p, VecFuncT *vel_f, VecFuncT *traction_f, int attr);
+   void AddAMPRobinBC(real_t alphaS, real_t alpha_p, VectorCoefficient *vel_coeff,
+                      VectorCoefficient *traction_coeff, Array<int> &attrs, bool own = true);
+   void AddAMPRobinBC(real_t alphaS, real_t alpha_p, VecFuncT *vel_f,
+                      VecFuncT *traction_f, Array<int> &attrs);
+   void AddAMPRobinBC(real_t alphaS, real_t alpha_p, VectorCoefficient *vel_coeff,
+                      VectorCoefficient *traction_coeff, int attr, bool own = true);
+   void AddAMPRobinBC(real_t alphaS, real_t alpha_p, VecFuncT *vel_f,
+                      VecFuncT *traction_f, int attr);
    void SetAMPRobinBCAlphaP(real_t alpha_p);
    void SetAMPRobinBCAlphaS(real_t alpha_s);
 
@@ -846,8 +887,10 @@ protected:
 
    VectorGridFunctionCoefficient *FText_gfcoeff = nullptr;
 
-   ProductCoefficient *dyn_vis_coeff = nullptr;  ///< mu = rho nu, for the dynamic tau in traction-type BC data
-   ShearStressNormalTractionCoefficient *shear_stress_normal_traction_coeff = nullptr;
+   ProductCoefficient *dyn_vis_coeff =
+      nullptr;  ///< mu = rho nu, for the dynamic tau in traction-type BC data
+   ShearStressNormalTractionCoefficient *shear_stress_normal_traction_coeff =
+      nullptr;
 
    /// Pressure p^{n+1} for the (p n, v) boundary terms on traction-type boundaries.
    /// Needed because the momentum uses the strong gradient (grad p, v), whose natural BC is tau·n.
@@ -869,7 +912,8 @@ protected:
    ParLinearForm *g_vel_norm_amp_robin_bdr_form = nullptr;
 
    // Neumann boundary terms
-   ParLinearForm *g_vel_neumann_bdr_form = nullptr; ///< (g, v)_Γ for the Helmholtz RHS
+   ParLinearForm *g_vel_neumann_bdr_form =
+      nullptr; ///< (g, v)_Γ for the Helmholtz RHS
 
    /// Linear form to compute the mass matrix in various subroutines.
    ParLinearForm *mass_lf = nullptr;
@@ -907,7 +951,8 @@ protected:
 
    Vector pn, resp, FText_bdr, g_bdr;
 
-   ParGridFunction un_gf, un_next_gf, u_ext_gf, curlu_gf, curlcurlu_gf, Lext_gf, FText_gf,
+   ParGridFunction un_gf, un_next_gf, u_ext_gf, curlu_gf, curlcurlu_gf, Lext_gf,
+                   FText_gf,
                    resu_gf;
 
    ParGridFunction pn_gf, resp_gf;
@@ -915,7 +960,8 @@ protected:
    /// Compute the vorticity curlu_gf in Step(), see GetCurrentVorticity().
    bool compute_vorticity = false;
 
-   bool full_update = true; // Tracks whether to perform the assembly of all operators (including constants ones like G, D)
+   bool full_update =
+      true; // Tracks whether to perform the assembly of all operators (including constants ones like G, D)
 
    /// The time-dependent operators must be re-assembled in the next Step(), see RequestTDOperatorsUpdate().
    bool update_td_operators = true;
@@ -942,7 +988,8 @@ protected:
 
    int max_bdr_attributes = 0;
 
-   bool well_posed = false; // True if pressure Dirichlet or Robin BCs are set for the pressure equation.
+   bool well_posed =
+      false; // True if pressure Dirichlet or Robin BCs are set for the pressure equation.
 
    // Bookkeeping for velocity dirichlet bcs.
    std::vector<VelDirichletBC_T> vel_dbcs;
@@ -1026,7 +1073,7 @@ protected:
 
    Vector grad_nu_sym_grad_uext, kv;
 
-   bool  own_mesh_velocity = false; 
+   bool  own_mesh_velocity = false;
    ParGridFunction *wg_gf = nullptr;       //< OWNED depending on own_mesh_velocity
    VectorCoefficient *wg_coef = nullptr;   //< OWNED
 };

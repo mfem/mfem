@@ -16,7 +16,7 @@
 #include <fstream>
 #include <limits>
 #include <cstdlib>
-#include "FilesystemHelper.hpp"  
+#include "FilesystemHelper.hpp"
 #include "fsi_utils.hpp"
 
 using namespace mfem;
@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
    /// 1. Parse command-line options.
    //
    const char *mesh_file = "";  // mesh
-   int n = 10; 
+   int n = 10;
    int dim = 2;
    int elem = 0;
    int order = 1; // FE order of mesh nodes
@@ -105,22 +105,22 @@ int main(int argc, char *argv[])
       Element::Type type;
       switch (elem)
       {
-      case 0: // quad
-         type = (dim == 2) ? Element::QUADRILATERAL : Element::HEXAHEDRON;
-         break;
-      case 1: // tri
-         type = (dim == 2) ? Element::TRIANGLE : Element::TETRAHEDRON;
-         break;
+         case 0: // quad
+            type = (dim == 2) ? Element::QUADRILATERAL : Element::HEXAHEDRON;
+            break;
+         case 1: // tri
+            type = (dim == 2) ? Element::TRIANGLE : Element::TETRAHEDRON;
+            break;
       }
 
       switch (dim)
       {
-      case 2: // 2d
-         mesh = Mesh::MakeCartesian2D(n, n, type, true);
-         break;
-      case 3: // 3d
-         mesh = Mesh::MakeCartesian3D(n, n, n, type, true);
-         break;
+         case 2: // 2d
+            mesh = Mesh::MakeCartesian2D(n, n, type, true);
+            break;
+         case 3: // 3d
+            mesh = Mesh::MakeCartesian3D(n, n, n, type, true);
+            break;
       }
    }
 
@@ -145,7 +145,8 @@ int main(int argc, char *argv[])
    if (partitions > 0)
    {
       mfem::out << "Generating partitioning..." << std::endl;
-      partitioning = mesh.GeneratePartitioning(partitions, partitioning_type);}
+      partitioning = mesh.GeneratePartitioning(partitions, partitioning_type);
+   }
 
    // Create gridfunction for visualization of quadrature points
    H1_FECollection fec(order, dim);
@@ -163,14 +164,16 @@ int main(int argc, char *argv[])
    }
    paraview_dc.Save();
 
-   
+
    //
-   /// 4. Save the refined mesh 
+   /// 4. Save the refined mesh
    //
-   
+
    mfem::out << "Saving the mesh..." << std::endl;
 
-   if (!fs::is_directory(folderPath) || !fs::exists(folderPath)) { // Check if folder exists
+   if (!fs::is_directory(folderPath) ||
+       !fs::exists(folderPath))   // Check if folder exists
+   {
       fs::create_directories(folderPath); // create folder
    }
 
@@ -191,7 +194,9 @@ int main(int argc, char *argv[])
 
    // Save partitioning
    if (partitions > 0)
+   {
       common_fsi_utils::ExportMeshwithPartitioning(folderPath, mesh, partitioning);
+   }
 
    // Free used memory.
 

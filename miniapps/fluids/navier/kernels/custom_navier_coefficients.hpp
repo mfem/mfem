@@ -19,31 +19,31 @@ using namespace mfem;
 class ShearStressNormalTractionCoefficient : public VectorCoefficient
 {
 public:
-   // Providing kinematic viscosity coefficient and density 
+   // Providing kinematic viscosity coefficient and density
    ShearStressNormalTractionCoefficient(ParGridFunction *u,
-                           Coefficient *nu_coeff_, real_t density_) :
+                                        Coefficient *nu_coeff_, real_t density_) :
       VectorCoefficient(u->FESpace()->GetVDim()),
       dim(u->ParFESpace()->GetMesh()->Dimension()),
       nu_coeff(nu_coeff_),
       u_gf(u),
       density(density_)
    {
-      nor.SetSize(dim); 
+      nor.SetSize(dim);
       dudx.SetSize(vdim, dim);
       A.SetSize(vdim, dim);
    }
 
    // Providing dynamic viscosity coefficient
    ShearStressNormalTractionCoefficient(ParGridFunction *u,
-                           Coefficient *mu_coeff_, bool symmetric_tensor = false) :
+                                        Coefficient *mu_coeff_, bool symmetric_tensor = false) :
       VectorCoefficient(u->FESpace()->GetVDim()),
       dim(u->ParFESpace()->GetMesh()->Dimension()),
       nu_coeff(mu_coeff_),
       u_gf(u),
       density(1.0),
-      symmetric_tensor(symmetric_tensor)  
+      symmetric_tensor(symmetric_tensor)
    {
-      nor.SetSize(dim); 
+      nor.SetSize(dim);
       dudx.SetSize(vdim, dim);
       A.SetSize(vdim, dim);
    }
@@ -72,7 +72,8 @@ public:
          for (int d = 0; d < dim; d++)
          {
             A(vd, d) = nu * dudx(vd, d);
-            A(vd, d) += symmetric_tensor ? nu * dudx(d, vd) : 0.0; // add the transpose term if symmetric
+            A(vd, d) += symmetric_tensor ? nu * dudx(d,
+                                                     vd) : 0.0; // add the transpose term if symmetric
          }
       }
 
@@ -91,11 +92,12 @@ private:
    const int dim;
    Coefficient *nu_coeff;   ///< Kinematic viscosity coefficient
    // vdim x dim
-   DenseMatrix dudx, A; 
+   DenseMatrix dudx, A;
    Vector nor;              ///< Normal vector
    ParGridFunction *u_gf;   ///< Velocity grid function
    real_t density;          ///< Density of the fluid
-   bool symmetric_tensor = false; ///< Whether to compute the symmetric part of the gradient
+   bool symmetric_tensor =
+      false; ///< Whether to compute the symmetric part of the gradient
 };
 
 class NormalComponentCoefficient : public Coefficient
@@ -110,8 +112,8 @@ public:
    {
       int sdim = T.GetSpaceDim();
       MFEM_ASSERT(sdim == vcoeff->GetVDim(), "Dimension mismatch: "
-                                                 << "T.GetSpaceDim() = " << sdim
-                                                 << ", vcoeff->GetVDim() = " << vcoeff->GetVDim());
+                  << "T.GetSpaceDim() = " << sdim
+                  << ", vcoeff->GetVDim() = " << vcoeff->GetVDim());
 
       T.SetIntPoint(&ip);
 
@@ -141,7 +143,8 @@ private:
    Coefficient *A = nullptr; ///< Optional scaling coefficient.   NOT OWNED
 
 public:
-   NormalOuterProductCoefficient(int dim, Coefficient *A = nullptr) : MatrixCoefficient(dim), A(A) {}
+   NormalOuterProductCoefficient(int dim,
+                                 Coefficient *A = nullptr) : MatrixCoefficient(dim), A(A) {}
 
    /// Evaluate the matrix coefficient at @a ip.
    void Eval(DenseMatrix &M, ElementTransformation &T,
@@ -182,11 +185,12 @@ class TangentOuterProductCoefficient : public MatrixCoefficient
    Coefficient *A = nullptr; ///< Optional scaling coefficient.   NOT OWNED
 
 public:
-   TangentOuterProductCoefficient(int dim, Coefficient *A = nullptr) : MatrixCoefficient(dim), A(A) {}
+   TangentOuterProductCoefficient(int dim,
+                                  Coefficient *A = nullptr) : MatrixCoefficient(dim), A(A) {}
 
    /// Evaluate the matrix coefficient at @a ip.
    void Eval(DenseMatrix &M, ElementTransformation &T,
-            const IntegrationPoint &ip) override
+             const IntegrationPoint &ip) override
    {
       int sdim = T.GetSpaceDim();
       T.SetIntPoint(&ip);
@@ -213,9 +217,9 @@ public:
       {
          // --- 3D PROJECTION MATRIX VERSION ---
          // The projection matrix is P = I - n n^T
-         // This effectively computes (u \cdot t1)t1 + (u \cdot t2)t2 
+         // This effectively computes (u \cdot t1)t1 + (u \cdot t2)t2
          // for any orthonormal basis in the tangent plane.
-         
+
          Vector nor(sdim);
          CalcOrtho(T.Jacobian(), nor);
          nor /= nor.Norml2(); // Unit normal

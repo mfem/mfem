@@ -151,12 +151,16 @@ int main(int argc, char *argv[])
    Mesh mesh = Mesh::MakeCartesian2D(Mesh_ctx.n, Mesh_ctx.n, etype, true);
 
    for (int l = 0; l < Mesh_ctx.serial_ref_levels; l++)
+   {
       mesh.UniformRefinement();
+   }
 
    ParMesh solid_mesh(MPI_COMM_WORLD, mesh);
    mesh.Clear();
    for (int l = 0; l < Mesh_ctx.parallel_ref_levels; l++)
+   {
       solid_mesh.UniformRefinement();
+   }
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
    /// 4. Create solver
@@ -191,11 +195,13 @@ int main(int argc, char *argv[])
    Array<int> top_bdr(max_bdr);    top_bdr = 0;    top_bdr[2] = 1;   // attr 3
 
    // Dirichlet on left
-   elasticity.AddPrescribedDisplacement(disp_left_mms, vel_left_mms, acc_left_mms, left_bdr);
+   elasticity.AddPrescribedDisplacement(disp_left_mms, vel_left_mms, acc_left_mms,
+                                        left_bdr);
 
    // Robin on right:  alpha * du/dt + sigma*n = g
    VectorFunctionCoefficient robin_g(2, robin_g_mms);
-   elasticity.AddRobinBC(Elasticity_ctx.alpha, &robin_g, robin_bdr, false /*not owned*/);
+   elasticity.AddRobinBC(Elasticity_ctx.alpha, &robin_g, robin_bdr,
+                         false /*not owned*/);
 
    // Neumann on top and bottom (manufactured traction)
    elasticity.AddBoundaryLoad(traction_bot_mms, bot_bdr);
@@ -264,7 +270,9 @@ int main(int argc, char *argv[])
    for (step = 0; !last_step; ++step)
    {
       if (current_time + Problem_ctx.dt >= Problem_ctx.t_final - Problem_ctx.dt / 2)
+      {
          last_step = true;
+      }
 
       u_gf.GetTrueDofs(u_tdof);
       v_gf.GetTrueDofs(v_tdof);
@@ -360,8 +368,9 @@ void robin_g_mms(const Vector & /*x*/, real_t t, Vector &v)
    real_t st = std::sin(Elasticity_ctx.omega * t);
    real_t ct = std::cos(Elasticity_ctx.omega * t);
    // traction component from the exact stress at x=1 (same for all x on this face)
-   v[0] = Elasticity_ctx.alpha * Elasticity_ctx.omega * ct        // alpha * du/dt component
-        + (Elasticity_ctx.lambda + 2.0 * Elasticity_ctx.mu) * st; // sigma*n component
+   v[0] = Elasticity_ctx.alpha * Elasticity_ctx.omega *
+          ct        // alpha * du/dt component
+          + (Elasticity_ctx.lambda + 2.0 * Elasticity_ctx.mu) * st; // sigma*n component
 }
 
 // ---------------------------------------------------------------------------

@@ -19,7 +19,8 @@ using namespace navier;
 NavierSolver::NavierSolver(ParMesh *mesh, int order, real_t kin_vis,
                            const real_t density, bool verbose_, bool variable_viscosity_)
    : pmesh(mesh), order(order), kin_vis(kin_vis), density(density),
-     gll_rules(0, Quadrature1D::GaussLobatto), verbose(verbose_), variable_viscosity(variable_viscosity_)
+     gll_rules(0, Quadrature1D::GaussLobatto), verbose(verbose_),
+     variable_viscosity(variable_viscosity_)
 {
    // Fully periodic meshes have no boundary attributes.
    max_bdr_attributes = pmesh->bdr_attributes.Size() > 0 ?
@@ -123,7 +124,9 @@ NavierSolver::NavierSolver(ParMesh *mesh, int order, real_t kin_vis,
    cur_step = 0;
 
    if (verbose)
+   {
       PrintInfo();
+   }
 }
 
 
@@ -154,7 +157,7 @@ void NavierSolver::Setup(real_t dt)
    vel_ess_tdof.Append(vel_ess_tdof_z);
    vel_ess_tdof.Sort();
    vel_ess_tdof.Unique();
-   
+
    // For pressure get both Pressure-Dirichlet and Neumann BCs
    pfes->GetEssentialTrueDofs(pres_ess_attr, pres_ess_tdof);
    for (const auto &neumann_dbc : neumann_dbcs)
@@ -167,7 +170,8 @@ void NavierSolver::Setup(real_t dt)
    pres_ess_tdof.Unique();
 
    // Check if the pressure problem is well-posed (otherwise we need to use OrthoSolver and Orthogonalize the rhs).
-   well_posed = !pres_dbcs.empty() || !robin_dbcs.empty() || !amp_robin_dbcs.empty() || !neumann_dbcs.empty();
+   well_posed = !pres_dbcs.empty() || !robin_dbcs.empty() ||
+                !amp_robin_dbcs.empty() || !neumann_dbcs.empty();
 
    nlcoeff.constant = -1.0;
    N = new ParNonlinearForm(vfes);
@@ -236,21 +240,27 @@ void NavierSolver::Setup(real_t dt)
    H_form->AddDomainIntegrator(hdv_blfi);
    for (auto &robin_dbc : robin_dbcs)
    {
-      auto *robin_mass_bdr_bnlfi = new VectorMassIntegrator(*robin_dbc.alphaP_over_rho);   
-      robin_mass_bdr_bnlfi->SetIntRule(&gll_ir_face);   // same rule as (alpha u_s, v) and the PPE Robin mass
+      auto *robin_mass_bdr_bnlfi = new VectorMassIntegrator(
+         *robin_dbc.alphaP_over_rho);
+      robin_mass_bdr_bnlfi->SetIntRule(
+         &gll_ir_face);   // same rule as (alpha u_s, v) and the PPE Robin mass
       H_form->AddBoundaryIntegrator(robin_mass_bdr_bnlfi, robin_dbc.attr);
    }
    for (auto &amp_robin_dbc : amp_robin_dbcs)
    {
-      auto *robin_tangential_mass_bdr_bnlfi = new VectorMassIntegrator(*amp_robin_dbc.tangent_outer_product); // alpha_s/rho (u \cdot t, w \cdot t)
-      auto *robin_normal_mass_bdr_bnlfi = new VectorMassIntegrator(*amp_robin_dbc.normal_outer_product);      // alpha_p/rho (u \cdot n, w \cdot n)
-      robin_tangential_mass_bdr_bnlfi->SetIntRule(&gll_ir_face);   // same rule as the AMP rhs integrators
+      auto *robin_tangential_mass_bdr_bnlfi = new VectorMassIntegrator(
+         *amp_robin_dbc.tangent_outer_product); // alpha_s/rho (u \cdot t, w \cdot t)
+      auto *robin_normal_mass_bdr_bnlfi = new VectorMassIntegrator(
+         *amp_robin_dbc.normal_outer_product);      // alpha_p/rho (u \cdot n, w \cdot n)
+      robin_tangential_mass_bdr_bnlfi->SetIntRule(
+         &gll_ir_face);   // same rule as the AMP rhs integrators
       robin_normal_mass_bdr_bnlfi->SetIntRule(&gll_ir_face);
-      H_form->AddBoundaryIntegrator(robin_tangential_mass_bdr_bnlfi, amp_robin_dbc.attr);
+      H_form->AddBoundaryIntegrator(robin_tangential_mass_bdr_bnlfi,
+                                    amp_robin_dbc.attr);
       H_form->AddBoundaryIntegrator(robin_normal_mass_bdr_bnlfi, amp_robin_dbc.attr);
    }
    // NOTE: for now we can't use partial assembly with Robin bcs since VectorMassIntegrator and the AMP tangential version have no AssemblePABoundary
-   //H_form->SetAssemblyLevel(AssemblyLevel::PARTIAL); 
+   //H_form->SetAssemblyLevel(AssemblyLevel::PARTIAL);
 
    HMv_form = new ParBilinearForm(vfes);
    auto *hmv_blfi2 = new VectorMassIntegrator(H_bdfcoeff);
@@ -277,20 +287,21 @@ void NavierSolver::Setup(real_t dt)
    g_bdr_form->UseFastAssembly(true);
 
    // NOTE: For now we can keep it like this, but one way to improve it is to project ShearStressNormalTractionCoefficient to a GridFunction,
-   // And then use a GridFunctionCoefficient wherever we need it. 
+   // And then use a GridFunctionCoefficient wherever we need it.
    // This way we can avoid multiple evaluations of the same coefficient tau \cdot n, e.g. when we want to compute (tau \cdot n) \cdot n.
    // tau must be a dynamic stress (rho nu (grad u + grad u^T)) like p and g, which it is combined with
    // in the Robin PPE term (rho beta (n·tau)·n) and in the Neumann pressure value p = (n·tau)·n - g·n.
    dyn_vis_coeff = new ProductCoefficient(density, kin_vis_gf_coeff);
-   shear_stress_normal_traction_coeff = new ShearStressNormalTractionCoefficient(&u_ext_gf, dyn_vis_coeff, variable_viscosity); // tau \cdot n
+   shear_stress_normal_traction_coeff = new ShearStressNormalTractionCoefficient(
+      &u_ext_gf, dyn_vis_coeff, variable_viscosity); // tau \cdot n
 
    // Set up derived pressure Dirichlet coefficients for Neumann BCs.
    // Done here because shear_stress_normal_traction_coeff must exist first.
    for (auto &neumann_dbc : neumann_dbcs)
    {
       neumann_dbc.SetCoefficients(shear_stress_normal_traction_coeff,
-                                   pmesh->Dimension(),
-                                   &u_ext_gf);
+                                  pmesh->Dimension(),
+                                  &u_ext_gf);
    }
 
    // Pressure p^{n+1} on traction-type boundaries (Neumann, Robin, AMP Robin), see the (p n, v) terms below.
@@ -302,34 +313,42 @@ void NavierSolver::Setup(real_t dt)
    {
       auto *g_neumann_bnlfi = new VectorBoundaryLFIntegrator(*neumann_dbc.coeff);
       g_neumann_bnlfi->SetIntRule(&gll_ir_face);
-      g_vel_neumann_bdr_form->AddBoundaryIntegrator(g_neumann_bnlfi, neumann_dbc.attr);
+      g_vel_neumann_bdr_form->AddBoundaryIntegrator(g_neumann_bnlfi,
+                                                    neumann_dbc.attr);
 
       // The momentum uses the strong pressure gradient (grad p, v), whose natural BC is tau·n, not sigma·n.
       // sigma·n = g  <=>  tau·n = g + p n, so the traction data needs the (p n, v) term as well.
-      auto *pn_neumann_bnlfi = new VectorBoundaryFluxLFIntegrator(*pn_bdr_coeff);    // (p, v·n)
+      auto *pn_neumann_bnlfi = new VectorBoundaryFluxLFIntegrator(
+         *pn_bdr_coeff);    // (p, v·n)
       pn_neumann_bnlfi->SetIntRule(&gll_ir_face);
-      g_vel_neumann_bdr_form->AddBoundaryIntegrator(pn_neumann_bnlfi, neumann_dbc.attr);
+      g_vel_neumann_bdr_form->AddBoundaryIntegrator(pn_neumann_bnlfi,
+                                                    neumann_dbc.attr);
    }
    g_vel_neumann_bdr_form->UseFastAssembly(true);
 
    g_pres_robin_bdr_form = new ParLinearForm(pfes);        // u \cdot n
-   t_pres_robin_bdr_form = new ParLinearForm(pfes);        // g \cdot n  = (sigma \cdot n) \cdot n
-   tau_pres_robin_bdr_form = new ParLinearForm(pfes);      // (n \cdot tau ) \cdot n   
-   g_vel_robin_bdr_form = new ParLinearForm(vfes);         // (alpha u_s + g + p n, v)
-   
-   g_vel_tangent_amp_robin_bdr_form = new ParLinearForm(vfes); 
-   g_vel_norm_amp_robin_bdr_form = new ParLinearForm(vfes);    // ((alpha_p u_s + g)·n + p, v·n)
+   t_pres_robin_bdr_form = new ParLinearForm(
+      pfes);        // g \cdot n  = (sigma \cdot n) \cdot n
+   tau_pres_robin_bdr_form = new ParLinearForm(
+      pfes);      // (n \cdot tau ) \cdot n
+   g_vel_robin_bdr_form = new ParLinearForm(
+      vfes);         // (alpha u_s + g + p n, v)
+
+   g_vel_tangent_amp_robin_bdr_form = new ParLinearForm(vfes);
+   g_vel_norm_amp_robin_bdr_form = new ParLinearForm(
+      vfes);    // ((alpha_p u_s + g)·n + p, v·n)
 
    for (auto &robin_dbc : robin_dbcs)
    {
       // Robin Pressure terms
       // u \cdot n term
-      auto *g_robin_bdr_bnlfi = new BoundaryNormalLFIntegrator(*robin_dbc.GetCoeff(0)); 
+      auto *g_robin_bdr_bnlfi = new BoundaryNormalLFIntegrator(*robin_dbc.GetCoeff(
+                                                                  0));
       g_robin_bdr_bnlfi->SetIntRule(&gll_ir_face);
-      g_pres_robin_bdr_form->AddBoundaryIntegrator(g_robin_bdr_bnlfi, robin_dbc.attr); 
+      g_pres_robin_bdr_form->AddBoundaryIntegrator(g_robin_bdr_bnlfi, robin_dbc.attr);
 
       // beta g \cdot n term
-      auto *t_robin_bdr_bnlfi = new BoundaryNormalLFIntegrator(*robin_dbc.beta_g); 
+      auto *t_robin_bdr_bnlfi = new BoundaryNormalLFIntegrator(*robin_dbc.beta_g);
       t_robin_bdr_bnlfi->SetIntRule(&gll_ir_face);
       t_pres_robin_bdr_form->AddBoundaryIntegrator(t_robin_bdr_bnlfi, robin_dbc.attr);
 
@@ -337,64 +356,85 @@ void NavierSolver::Setup(real_t dt)
       robin_dbc.SetShearStressCoefficient(shear_stress_normal_traction_coeff);
       auto *tau_robin_bdr_bnlfi = new BoundaryNormalLFIntegrator(*robin_dbc.beta_tau);
       tau_robin_bdr_bnlfi->SetIntRule(&gll_ir_face);
-      tau_pres_robin_bdr_form->AddBoundaryIntegrator(tau_robin_bdr_bnlfi, robin_dbc.attr);
+      tau_pres_robin_bdr_form->AddBoundaryIntegrator(tau_robin_bdr_bnlfi,
+                                                     robin_dbc.attr);
 
       // Robin Velocity terms
       // alpha u + sigma \cdot n = alpha u_s + g, with sigma = -p I + tau.
       // The momentum uses the strong pressure gradient (grad p, v), whose natural BC is tau·n, not sigma·n.
       // Hence the BC imposed by the velocity solve is  alpha u + tau·n = alpha u_s + g + p n.
-      auto *g_vel_robin_bdr_bnlfi1 = new VectorBoundaryLFIntegrator(*robin_dbc.GetCoeff(1));  // (g, v), g = sigma_s \cdot n_f
+      auto *g_vel_robin_bdr_bnlfi1 = new VectorBoundaryLFIntegrator(
+         *robin_dbc.GetCoeff(1));  // (g, v), g = sigma_s \cdot n_f
       g_vel_robin_bdr_bnlfi1->SetIntRule(&gll_ir_face);
-      g_vel_robin_bdr_form->AddBoundaryIntegrator(g_vel_robin_bdr_bnlfi1, robin_dbc.attr);
+      g_vel_robin_bdr_form->AddBoundaryIntegrator(g_vel_robin_bdr_bnlfi1,
+                                                  robin_dbc.attr);
 
-      auto *pn_vel_robin_bdr_bnlfi = new VectorBoundaryFluxLFIntegrator(*pn_bdr_coeff);      // (p, v·n)
+      auto *pn_vel_robin_bdr_bnlfi = new VectorBoundaryFluxLFIntegrator(
+         *pn_bdr_coeff);      // (p, v·n)
       pn_vel_robin_bdr_bnlfi->SetIntRule(&gll_ir_face);
-      g_vel_robin_bdr_form->AddBoundaryIntegrator(pn_vel_robin_bdr_bnlfi, robin_dbc.attr);
+      g_vel_robin_bdr_form->AddBoundaryIntegrator(pn_vel_robin_bdr_bnlfi,
+                                                  robin_dbc.attr);
 
-      auto *g_vel_robin_bdr_bnlfi2 = new VectorBoundaryLFIntegrator(*robin_dbc.alphaP_u);  //   (alpha u_s, v) 
+      auto *g_vel_robin_bdr_bnlfi2 = new VectorBoundaryLFIntegrator(
+         *robin_dbc.alphaP_u);  //   (alpha u_s, v)
       g_vel_robin_bdr_bnlfi2->SetIntRule(&gll_ir_face);
-      g_vel_robin_bdr_form->AddBoundaryIntegrator(g_vel_robin_bdr_bnlfi2, robin_dbc.attr);
+      g_vel_robin_bdr_form->AddBoundaryIntegrator(g_vel_robin_bdr_bnlfi2,
+                                                  robin_dbc.attr);
    }
    for (auto &amp_robin_dbc : amp_robin_dbcs)
    {
       // Robin Pressure terms (same as the Robin BCs above)
       // u \cdot n term
-      auto *g_robin_bdr_bnlfi = new BoundaryNormalLFIntegrator(*amp_robin_dbc.GetCoeff(0)); 
+      auto *g_robin_bdr_bnlfi = new BoundaryNormalLFIntegrator(
+         *amp_robin_dbc.GetCoeff(0));
       g_robin_bdr_bnlfi->SetIntRule(&gll_ir_face);
-      g_pres_robin_bdr_form->AddBoundaryIntegrator(g_robin_bdr_bnlfi, amp_robin_dbc.attr); 
+      g_pres_robin_bdr_form->AddBoundaryIntegrator(g_robin_bdr_bnlfi,
+                                                   amp_robin_dbc.attr);
 
       // beta g \cdot n term
-      auto *t_robin_bdr_bnlfi = new BoundaryNormalLFIntegrator(*amp_robin_dbc.beta_g); 
+      auto *t_robin_bdr_bnlfi = new BoundaryNormalLFIntegrator(*amp_robin_dbc.beta_g);
       t_robin_bdr_bnlfi->SetIntRule(&gll_ir_face);
-      t_pres_robin_bdr_form->AddBoundaryIntegrator(t_robin_bdr_bnlfi, amp_robin_dbc.attr);
+      t_pres_robin_bdr_form->AddBoundaryIntegrator(t_robin_bdr_bnlfi,
+                                                   amp_robin_dbc.attr);
 
       // tau \cdot n term
       amp_robin_dbc.SetShearStressCoefficient(shear_stress_normal_traction_coeff);
-      auto *tau_robin_bdr_bnlfi = new BoundaryNormalLFIntegrator(*amp_robin_dbc.beta_tau);
+      auto *tau_robin_bdr_bnlfi = new BoundaryNormalLFIntegrator(
+         *amp_robin_dbc.beta_tau);
       tau_robin_bdr_bnlfi->SetIntRule(&gll_ir_face);
-      tau_pres_robin_bdr_form->AddBoundaryIntegrator(tau_robin_bdr_bnlfi, amp_robin_dbc.attr);
+      tau_pres_robin_bdr_form->AddBoundaryIntegrator(tau_robin_bdr_bnlfi,
+                                                     amp_robin_dbc.attr);
 
       // Robin Velocity terms.   NOTE: this is NOT the same as the Robin BCs above!
       // Tangential AMP Robin BCs
-      auto *g_vel_tangent_robin_bdr_bnlfi = new VectorBoundaryTangentialAMPLFIntegrator(amp_robin_dbc.GetCoeff(1), amp_robin_dbc.GetCoeff(0), amp_robin_dbc.alphaS);
+      auto *g_vel_tangent_robin_bdr_bnlfi = new
+      VectorBoundaryTangentialAMPLFIntegrator(amp_robin_dbc.GetCoeff(1),
+                                              amp_robin_dbc.GetCoeff(0), amp_robin_dbc.alphaS);
       g_vel_tangent_robin_bdr_bnlfi->SetIntRule(&gll_ir_face);
-      g_vel_tangent_amp_robin_bdr_form->AddBoundaryIntegrator(g_vel_tangent_robin_bdr_bnlfi, amp_robin_dbc.attr);
+      g_vel_tangent_amp_robin_bdr_form->AddBoundaryIntegrator(
+         g_vel_tangent_robin_bdr_bnlfi, amp_robin_dbc.attr);
 
       // Normal AMP Robin BCs
-      auto *g_vel_norm_robin_bdr_bnlfi = new VectorBoundaryNormalAMPLFIntegrator(amp_robin_dbc.GetCoeff(1), amp_robin_dbc.GetCoeff(0), amp_robin_dbc.alphaP);
+      auto *g_vel_norm_robin_bdr_bnlfi = new VectorBoundaryNormalAMPLFIntegrator(
+         amp_robin_dbc.GetCoeff(1), amp_robin_dbc.GetCoeff(0), amp_robin_dbc.alphaP);
       g_vel_norm_robin_bdr_bnlfi->SetIntRule(&gll_ir_face);
-      g_vel_norm_amp_robin_bdr_form->AddBoundaryIntegrator(g_vel_norm_robin_bdr_bnlfi, amp_robin_dbc.attr);
+      g_vel_norm_amp_robin_bdr_form->AddBoundaryIntegrator(g_vel_norm_robin_bdr_bnlfi,
+                                                           amp_robin_dbc.attr);
 
       // Strong pressure gradient: the normal condition needs (p, v·n) too (the tangential one has no pressure).
-      auto *pn_vel_norm_robin_bdr_bnlfi = new VectorBoundaryFluxLFIntegrator(*pn_bdr_coeff);  // (p, v·n)
+      auto *pn_vel_norm_robin_bdr_bnlfi = new VectorBoundaryFluxLFIntegrator(
+         *pn_bdr_coeff);  // (p, v·n)
       pn_vel_norm_robin_bdr_bnlfi->SetIntRule(&gll_ir_face);
-      g_vel_norm_amp_robin_bdr_form->AddBoundaryIntegrator(pn_vel_norm_robin_bdr_bnlfi, amp_robin_dbc.attr);
+      g_vel_norm_amp_robin_bdr_form->AddBoundaryIntegrator(
+         pn_vel_norm_robin_bdr_bnlfi, amp_robin_dbc.attr);
    }
    g_pres_robin_bdr_form->UseFastAssembly(true);
    t_pres_robin_bdr_form->UseFastAssembly(true);
-   tau_pres_robin_bdr_form->UseFastAssembly(false);        // Disable it for now as it fails with fast assembly
+   tau_pres_robin_bdr_form->UseFastAssembly(
+      false);        // Disable it for now as it fails with fast assembly
    g_vel_robin_bdr_form->UseFastAssembly(true);
-   g_vel_tangent_amp_robin_bdr_form->UseFastAssembly(true); // This is doesn't support fast assembly, but we keep it for future development (either way use fast assembly is gonna be disabled inside)
+   g_vel_tangent_amp_robin_bdr_form->UseFastAssembly(
+      true); // This is doesn't support fast assembly, but we keep it for future development (either way use fast assembly is gonna be disabled inside)
    g_vel_norm_amp_robin_bdr_form->UseFastAssembly(true);
 
    if (!robin_dbcs.empty())
@@ -428,7 +468,8 @@ void NavierSolver::Setup(real_t dt)
    UpdateForms();
    Assemble(true);
    UpdateSolvers();
-   full_update = false; // After the first call to Setup, we don't need to do a full update anymore. (Unless Update() is called)
+   full_update =
+      false; // After the first call to Setup, we don't need to do a full update anymore. (Unless Update() is called)
    // The Robin beta coefficients are only set in Step(): force the assembly of the time-dependent operators in
    // the first Step().
    update_td_operators = true;
@@ -551,7 +592,8 @@ void NavierSolver::UpdateForms(bool full_update)
    }
 
    if ( full_update || !robin_dbcs.empty() || !amp_robin_dbcs.empty() )
-   { // If we don't need a full update, and we don't have Robin bcs, the pressure operator is unchanged.
+   {
+      // If we don't need a full update, and we don't have Robin bcs, the pressure operator is unchanged.
       Sp_form->Update();
    }
 
@@ -607,7 +649,8 @@ void NavierSolver::AssembleTDOperators()
    H_form->FormSystemMatrix(vel_ess_tdof, H);
 
    if (full_update || !robin_dbcs.empty() || !amp_robin_dbcs.empty())
-   { // If we don't need a full update, and we don't have Robin bcs, the pressure operator is unchanged.
+   {
+      // If we don't need a full update, and we don't have Robin bcs, the pressure operator is unchanged.
       Sp_form->Update();
       Sp_form->Assemble();
       Sp_form->FormSystemMatrix(pres_ess_tdof, Sp);
@@ -625,7 +668,8 @@ void NavierSolver::Assemble( bool full_update_ )
    if (full_update_)
    {
       AssembleConstantOperators();
-      full_update = false; // After this is called we don't need to do a full update anymore. Unless triggered by Update()
+      full_update =
+         false; // After this is called we don't need to do a full update anymore. Unless triggered by Update()
    }
 }
 
@@ -650,7 +694,8 @@ void NavierSolver::UpdateSolvers()
    lor = new ParLORDiscretization(*Sp_form, pres_ess_tdof);
    delete SpInvPC;
    SpInvPC = new HypreBoomerAMG(lor->GetAssembledMatrix());
-   SpInvPC->SetSystemsOptions(pmesh->Dimension());           // Why without this i get PCG: The preconditioner is not positive definite? After action of preconditoner vector norm is 1e18
+   SpInvPC->SetSystemsOptions(
+      pmesh->Dimension());           // Why without this i get PCG: The preconditioner is not positive definite? After action of preconditoner vector norm is 1e18
    SpInvPC->SetPrintLevel(pl_amg);
    SpInvPC->Mult(resp, pn);
    delete SpInvOrthoPC;
@@ -718,7 +763,7 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
 
    //////////////////////////////////////////////////////////////////////////
    /// ----- Set the current time for boundary conditions and forcing terms.
-   ////////////////////////////////////////////////////////////////////////// 
+   //////////////////////////////////////////////////////////////////////////
 
    // Velocity Dirichlet bcs
    for (auto &vel_dbc : vel_dbcs)
@@ -770,7 +815,8 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
    // bd0/dt (and the Robin alpha, beta = bd0/(dt alpha)), and all operators on the geometry. Re-assemble
    // only when one of these changed: e.g. in partitioned FSI, Step() is called at every sub-iteration with
    // the same dt and mesh, and only the boundary data (assembled below) changes.
-   if (full_update || update_td_operators || H_bdfcoeff.constant != assembled_H_bdfcoeff)
+   if (full_update || update_td_operators ||
+       H_bdfcoeff.constant != assembled_H_bdfcoeff)
    {
       UpdateForms(full_update);
       Assemble(full_update);
@@ -924,13 +970,14 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
 
    // p_r = - \nabla \cdot FText
    D->Mult(FText, resp);
-   resp.Neg(); 
+   resp.Neg();
 
-   // Add boundary terms.            
-   // 1. On Dirichlet boundaries add Neumann bc:   \nabla p_r \cdot n = density * [ - bd0 / dt * uD \cdot n + FText \cdot n ] 
+   // Add boundary terms.
+   // 1. On Dirichlet boundaries add Neumann bc:   \nabla p_r \cdot n = density * [ - bd0 / dt * uD \cdot n + FText \cdot n ]
    FText_gf.SetFromTrueDofs(FText);
    FText_bdr_form->Assemble();
-   FText_bdr_form->ParallelAssemble(FText_bdr);      // NOTE: this is adding also the same contribution on the Robin boundaries
+   FText_bdr_form->ParallelAssemble(
+      FText_bdr);      // NOTE: this is adding also the same contribution on the Robin boundaries
    resp.Add(1.0, FText_bdr);
 
    g_bdr_form->Assemble();
@@ -1027,31 +1074,38 @@ void NavierSolver::Step(real_t &time, real_t dt, int current_step,
       un_next_gf.ProjectBdrCoefficient(*vel_dbc.coeff, vel_dbc.attr);
    }
 
-   ParGridFunction tmp_gf(vfes);              // temporary velocity gf for projection
-   Vector          tmp_vec(vfes->GetTrueVSize());   // temporary velocity vector for projection
+   ParGridFunction tmp_gf(
+      vfes);              // temporary velocity gf for projection
+   Vector          tmp_vec(
+      vfes->GetTrueVSize());   // temporary velocity vector for projection
    Array<int>      tmp_tdofs;
    un_next_gf.GetTrueDofs(un_next);
    for (auto &vel_dbc : vel_dbcs_xyz)
    {
-      VectorArrayCoefficient tmp_coeff(pmesh->Dimension());            // Set coefficient with right component
+      VectorArrayCoefficient tmp_coeff(
+         pmesh->Dimension());            // Set coefficient with right component
       tmp_coeff.Set(vel_dbc.dir, vel_dbc.coeff, false);
-      tmp_coeff.SetTime(time + dt);                                    // Eval(i,..) forwards tmp_coeff's own time to the component
-      tmp_gf.ProjectBdrCoefficient(tmp_coeff, vel_dbc.attr);           // Project on dummy gf
+      tmp_coeff.SetTime(time +
+                        dt);                                    // Eval(i,..) forwards tmp_coeff's own time to the component
+      tmp_gf.ProjectBdrCoefficient(tmp_coeff,
+                                   vel_dbc.attr);           // Project on dummy gf
       tmp_gf.GetTrueDofs(tmp_vec);
 
-      vfes->GetEssentialTrueDofs(vel_dbc.attr,tmp_tdofs,vel_dbc.dir);  // Update solution dofs
-      for(int i=0;i<tmp_tdofs.Size();i++)
+      vfes->GetEssentialTrueDofs(vel_dbc.attr,tmp_tdofs,
+                                 vel_dbc.dir);  // Update solution dofs
+      for (int i=0; i<tmp_tdofs.Size(); i++)
       {
          un_next[tmp_tdofs[i]]=tmp_vec[tmp_tdofs[i]];
-      }      
-   }   
+      }
+   }
    un_next_gf.SetFromTrueDofs(un_next);
 
    vfes->GetRestrictionMatrix()->MultTranspose(resu, resu_gf);
 
    Vector X2, B2;
    auto *HC = H.As<ConstrainedOperator>();
-   EliminateRHS(*H_form, *HC, vel_ess_tdof, un_next_gf, resu_gf, X2, B2, 1);   // NOTE: fails here because H_form is assmebled without PA
+   EliminateRHS(*H_form, *HC, vel_ess_tdof, un_next_gf, resu_gf, X2, B2,
+                1);   // NOTE: fails here because H_form is assmebled without PA
    sw_hsolve.Start();
    HInv->Mult(B2, X2);
    sw_hsolve.Stop();
@@ -1406,7 +1460,8 @@ void NavierSolver::Orthogonalize(Vector &v)
    int loc_size = v.Size();
    int global_size = 0;
 
-   MPI_Allreduce(&loc_sum, &global_sum, 1, MFEM_MPI_REAL_T, MPI_SUM, pfes->GetComm());
+   MPI_Allreduce(&loc_sum, &global_sum, 1, MFEM_MPI_REAL_T, MPI_SUM,
+                 pfes->GetComm());
    MPI_Allreduce(&loc_size, &global_size, 1, MPI_INT, MPI_SUM, pfes->GetComm());
 
    v -= global_sum / static_cast<real_t>(global_size);
@@ -1469,7 +1524,8 @@ real_t NavierSolver::ComputeCFL(ParGridFunction &u, real_t dt)
    return cflmax_global;
 }
 
-void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attrs, bool own)
+void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff,
+                                     Array<int> &attrs, bool own)
 {
    vel_dbcs.emplace_back(attrs, coeff, own);
 
@@ -1500,16 +1556,19 @@ void NavierSolver::AddVelDirichletBC(VectorCoefficient *coeff, Array<int> &attrs
 int NavierSolver::CheckBCAttr(int i, Array<int> &attrs)
 {
    // Check if the attribute is already defined for a boundary condition.
-   return (vel_ess_attr[i] || pres_ess_attr[i] || robin_ess_attr[i] || amp_robin_ess_attr[i] || neumann_ess_attr[i]) && attrs[i];
+   return (vel_ess_attr[i] || pres_ess_attr[i] || robin_ess_attr[i] ||
+           amp_robin_ess_attr[i] || neumann_ess_attr[i]) && attrs[i];
 }
 
 void NavierSolver::AddVelDirichletBC(VecFuncT *f, Array<int> &attr)
 {
-   AddVelDirichletBC(new VectorFunctionCoefficient(pmesh->Dimension(), f), attr, true);
+   AddVelDirichletBC(new VectorFunctionCoefficient(pmesh->Dimension(), f), attr,
+                     true);
 }
 
 
-void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attrs, int component, bool own)
+void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attrs,
+                                     int component, bool own)
 {
    // Add bc container to list of componentwise velocity bcs
    vel_dbcs_xyz.emplace_back(attrs, coeff, component, own);
@@ -1518,33 +1577,35 @@ void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attrs, int 
    std::string dir_string;
    for (int i = 0; i < attrs.Size(); ++i)
    {
-      switch (component) {
-            case 0: // x 
-               dir_string = "x";
-               MFEM_ASSERT(( (vel_ess_attr[i] || vel_ess_attr_x[i]) && attrs[i]) == 0,
-                           "Duplicate boundary definition for x component detected.");
-               if (attrs[i] == 1){vel_ess_attr_x[i] = 1;}
-               break;
-            case 1: // y
-               dir_string = "y";
-               MFEM_ASSERT(( (vel_ess_attr[i] || vel_ess_attr_y[i]) && attrs[i]) == 0,
-                           "Duplicate boundary definition for y component detected.");
-               if (attrs[i] == 1){vel_ess_attr_y[i] = 1;}
-               break;
-            case 2: // z
-               dir_string = "z";
-               MFEM_ASSERT(( (vel_ess_attr[i] || vel_ess_attr_z[i]) && attrs[i]) == 0,
-                           "Duplicate boundary definition for z component detected.");
-               if (attrs[i] == 1){vel_ess_attr_z[i] = 1;}
-               break;
-            default:;
-         }      
+      switch (component)
+      {
+         case 0: // x
+            dir_string = "x";
+            MFEM_ASSERT(( (vel_ess_attr[i] || vel_ess_attr_x[i]) && attrs[i]) == 0,
+                        "Duplicate boundary definition for x component detected.");
+            if (attrs[i] == 1) {vel_ess_attr_x[i] = 1;}
+            break;
+         case 1: // y
+            dir_string = "y";
+            MFEM_ASSERT(( (vel_ess_attr[i] || vel_ess_attr_y[i]) && attrs[i]) == 0,
+                        "Duplicate boundary definition for y component detected.");
+            if (attrs[i] == 1) {vel_ess_attr_y[i] = 1;}
+            break;
+         case 2: // z
+            dir_string = "z";
+            MFEM_ASSERT(( (vel_ess_attr[i] || vel_ess_attr_z[i]) && attrs[i]) == 0,
+                        "Duplicate boundary definition for z component detected.");
+            if (attrs[i] == 1) {vel_ess_attr_z[i] = 1;}
+            break;
+         default:;
+      }
    }
 
    // Output
    if (verbose && pmesh->GetMyRank() == 0)
    {
-      mfem::out << "Adding Velocity Dirichlet BC ( " << dir_string << " component) to attributes: " << std::endl;
+      mfem::out << "Adding Velocity Dirichlet BC ( " << dir_string <<
+                " component) to attributes: " << std::endl;
       for (int i = 0; i < attrs.Size(); ++i)
       {
          if (attrs[i] == 1)
@@ -1557,7 +1618,8 @@ void NavierSolver::AddVelDirichletBC(Coefficient *coeff, Array<int> &attrs, int 
 }
 
 
-void NavierSolver::AddVelDirichletBC(Coefficient *coeff, int attr, int component, bool own)
+void NavierSolver::AddVelDirichletBC(Coefficient *coeff, int attr,
+                                     int component, bool own)
 {
    Array<int> attrs(max_bdr_attributes);
    attrs = 0;
@@ -1566,7 +1628,8 @@ void NavierSolver::AddVelDirichletBC(Coefficient *coeff, int attr, int component
 }
 
 
-void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attrs, bool own)
+void NavierSolver::AddPresDirichletBC(Coefficient *coeff, Array<int> &attrs,
+                                      bool own)
 {
    pres_dbcs.emplace_back(attrs, coeff, own);
 
@@ -1600,7 +1663,8 @@ void NavierSolver::AddPresDirichletBC(ScalarFuncT *f, Array<int> &attr)
 }
 
 
-void NavierSolver::AddNeumannBC(VectorCoefficient *traction_coeff, Array<int> &attrs, bool own, bool use_shear_stress,
+void NavierSolver::AddNeumannBC(VectorCoefficient *traction_coeff,
+                                Array<int> &attrs, bool own, bool use_shear_stress,
                                 bool use_div, Coefficient *alpha_div,
                                 bool own_alpha_div)
 {
@@ -1633,35 +1697,41 @@ void NavierSolver::AddNeumannBC(VectorCoefficient *traction_coeff, Array<int> &a
 
 void NavierSolver::AddNeumannBC(VecFuncT *traction_f, Array<int> &attrs)
 {
-   AddNeumannBC(new VectorFunctionCoefficient(pmesh->Dimension(), traction_f), attrs, true);
+   AddNeumannBC(new VectorFunctionCoefficient(pmesh->Dimension(), traction_f),
+                attrs, true);
 }
 
 
-void NavierSolver::AddNeumannBC(VectorCoefficient *traction_coeff, int attr, bool own, bool use_shear_stress, 
+void NavierSolver::AddNeumannBC(VectorCoefficient *traction_coeff, int attr,
+                                bool own, bool use_shear_stress,
                                 bool use_div, Coefficient *alpha_div,
                                 bool own_alpha_div)
 {
    Array<int> attrs(max_bdr_attributes);
    attrs = 0;
    attrs[attr - 1] = 1;
-   AddNeumannBC(traction_coeff, attrs, own, use_shear_stress, use_div, alpha_div, own_alpha_div);
+   AddNeumannBC(traction_coeff, attrs, own, use_shear_stress, use_div, alpha_div,
+                own_alpha_div);
 }
 
 void NavierSolver::AddNeumannBC(VecFuncT *traction_f, int attr)
 {
-   AddNeumannBC(new VectorFunctionCoefficient(pmesh->Dimension(), traction_f), attr, true);
+   AddNeumannBC(new VectorFunctionCoefficient(pmesh->Dimension(), traction_f),
+                attr, true);
 }
 
-/// Add a Robin boundary condition 
-void NavierSolver::AddRobinBC(real_t alpha, VectorCoefficient *vel_coeff, VectorCoefficient *traction_coeff, Array<int> &attrs, bool own)
+/// Add a Robin boundary condition
+void NavierSolver::AddRobinBC(real_t alpha, VectorCoefficient *vel_coeff,
+                              VectorCoefficient *traction_coeff, Array<int> &attrs, bool own)
 {
-   MFEM_ASSERT(attrs.Size() >= max_bdr_attributes,  "Size of attributes array does not match mesh attributes.");
+   MFEM_ASSERT(attrs.Size() >= max_bdr_attributes,
+               "Size of attributes array does not match mesh attributes.");
 
    // Append to the existing Robin boundary conditions.
    // -1 for the coefficients sigma_f \cdot n accounts for the fact that it's computed with the solid normal and not the fluid normal.
    std::vector<VectorCoefficient *> coeffs = {vel_coeff, traction_coeff};
-   std::vector<real_t> scaling = {1.0, -1.0}; 
-   robin_dbcs.emplace_back(attrs, alpha, density, coeffs, scaling, own);   
+   std::vector<real_t> scaling = {1.0, -1.0};
+   robin_dbcs.emplace_back(attrs, alpha, density, coeffs, scaling, own);
 
    // Check for duplicate
    for (int i = 0; i < attrs.Size(); ++i)
@@ -1677,7 +1747,8 @@ void NavierSolver::AddRobinBC(real_t alpha, VectorCoefficient *vel_coeff, Vector
    // Output information about the added Robin boundary condition.
    if (pmesh->GetMyRank() == 0)
    {
-      mfem::out << "NavierSolver:: Adding Robin BC with alpha=" << alpha << ", density=" << density << " to attributes ";
+      mfem::out << "NavierSolver:: Adding Robin BC with alpha=" << alpha <<
+                ", density=" << density << " to attributes ";
       for (int i = 0; i < attrs.Size(); ++i)
       {
          if (attrs[i] == 1)
@@ -1689,7 +1760,8 @@ void NavierSolver::AddRobinBC(real_t alpha, VectorCoefficient *vel_coeff, Vector
    }
 }
 
-void NavierSolver::AddRobinBC(real_t alpha, VectorCoefficient *vel_coeff, VectorCoefficient *traction_coeff, int attr, bool own)
+void NavierSolver::AddRobinBC(real_t alpha, VectorCoefficient *vel_coeff,
+                              VectorCoefficient *traction_coeff, int attr, bool own)
 {
    Array<int> attrs(max_bdr_attributes);
    attrs = 0;
@@ -1697,7 +1769,8 @@ void NavierSolver::AddRobinBC(real_t alpha, VectorCoefficient *vel_coeff, Vector
    AddRobinBC(alpha, vel_coeff, traction_coeff, attrs, own);
 }
 
-void NavierSolver::AddRobinBC(real_t alpha, VecFuncT *vel_f, VecFuncT *traction_f, Array<int> &attrs)
+void NavierSolver::AddRobinBC(real_t alpha, VecFuncT *vel_f,
+                              VecFuncT *traction_f, Array<int> &attrs)
 {
    AddRobinBC(alpha,
               new VectorFunctionCoefficient(pmesh->Dimension(), vel_f),
@@ -1705,7 +1778,8 @@ void NavierSolver::AddRobinBC(real_t alpha, VecFuncT *vel_f, VecFuncT *traction_
               attrs, true);
 }
 
-void NavierSolver::AddRobinBC(real_t alpha, VecFuncT *vel_f, VecFuncT *traction_f, int attr)
+void NavierSolver::AddRobinBC(real_t alpha, VecFuncT *vel_f,
+                              VecFuncT *traction_f, int attr)
 {
    AddRobinBC(alpha,
               new VectorFunctionCoefficient(pmesh->Dimension(), vel_f),
@@ -1715,15 +1789,19 @@ void NavierSolver::AddRobinBC(real_t alpha, VecFuncT *vel_f, VecFuncT *traction_
 
 
 // Add Robin boundary condition (AMP version)
-void NavierSolver::AddAMPRobinBC(real_t alpha_s, real_t alpha_p, VectorCoefficient *vel_coeff, VectorCoefficient *traction_coeff, Array<int> &attrs, bool own)
+void NavierSolver::AddAMPRobinBC(real_t alpha_s, real_t alpha_p,
+                                 VectorCoefficient *vel_coeff, VectorCoefficient *traction_coeff,
+                                 Array<int> &attrs, bool own)
 {
-   MFEM_ASSERT(attrs.Size() >= max_bdr_attributes,  "Size of attributes array does not match mesh attributes.");
+   MFEM_ASSERT(attrs.Size() >= max_bdr_attributes,
+               "Size of attributes array does not match mesh attributes.");
 
    // Append to the existing Robin boundary conditions.
    // -1 for the coefficients sigma_f \cdot n accounts for the fact that it's computed with the solid normal and not the fluid normal.
    std::vector<VectorCoefficient *> coeffs = {vel_coeff, traction_coeff};
-   std::vector<real_t> scaling = {1.0, -1.0}; 
-   amp_robin_dbcs.emplace_back(attrs, alpha_s, alpha_p, density, coeffs, scaling, own);   
+   std::vector<real_t> scaling = {1.0, -1.0};
+   amp_robin_dbcs.emplace_back(attrs, alpha_s, alpha_p, density, coeffs, scaling,
+                               own);
 
    // Check for duplicate
    for (int i = 0; i < attrs.Size(); ++i)
@@ -1739,7 +1817,8 @@ void NavierSolver::AddAMPRobinBC(real_t alpha_s, real_t alpha_p, VectorCoefficie
    // Output information about the added Robin boundary condition.
    if (pmesh->GetMyRank() == 0)
    {
-      mfem::out << "NavierSolver:: Adding AMP Robin BC with alpha_s=" << alpha_s << ", alpha_p=" << alpha_p << ", density=" << density << " to attributes ";
+      mfem::out << "NavierSolver:: Adding AMP Robin BC with alpha_s=" << alpha_s <<
+                ", alpha_p=" << alpha_p << ", density=" << density << " to attributes ";
       for (int i = 0; i < attrs.Size(); ++i)
       {
          if (attrs[i] == 1)
@@ -1751,7 +1830,9 @@ void NavierSolver::AddAMPRobinBC(real_t alpha_s, real_t alpha_p, VectorCoefficie
    }
 }
 
-void NavierSolver::AddAMPRobinBC(real_t alpha_s, real_t alpha_p, VectorCoefficient *vel_coeff, VectorCoefficient *traction_coeff, int attr, bool own)
+void NavierSolver::AddAMPRobinBC(real_t alpha_s, real_t alpha_p,
+                                 VectorCoefficient *vel_coeff, VectorCoefficient *traction_coeff, int attr,
+                                 bool own)
 {
    Array<int> attrs(max_bdr_attributes);
    attrs = 0;
@@ -1759,20 +1840,22 @@ void NavierSolver::AddAMPRobinBC(real_t alpha_s, real_t alpha_p, VectorCoefficie
    AddAMPRobinBC(alpha_s, alpha_p, vel_coeff, traction_coeff, attrs, own);
 }
 
-void NavierSolver::AddAMPRobinBC(real_t alpha_s, real_t alpha_p, VecFuncT *vel_f, VecFuncT *traction_f, Array<int> &attrs)
+void NavierSolver::AddAMPRobinBC(real_t alpha_s, real_t alpha_p,
+                                 VecFuncT *vel_f, VecFuncT *traction_f, Array<int> &attrs)
 {
    AddAMPRobinBC(alpha_s, alpha_p,
-              new VectorFunctionCoefficient(pmesh->Dimension(), vel_f),
-              new VectorFunctionCoefficient(pmesh->Dimension(), traction_f),
-              attrs, true);
+                 new VectorFunctionCoefficient(pmesh->Dimension(), vel_f),
+                 new VectorFunctionCoefficient(pmesh->Dimension(), traction_f),
+                 attrs, true);
 }
 
-void NavierSolver::AddAMPRobinBC(real_t alpha_s, real_t alpha_p, VecFuncT *vel_f, VecFuncT *traction_f, int attr)
+void NavierSolver::AddAMPRobinBC(real_t alpha_s, real_t alpha_p,
+                                 VecFuncT *vel_f, VecFuncT *traction_f, int attr)
 {
    AddAMPRobinBC(alpha_s, alpha_p,
-              new VectorFunctionCoefficient(pmesh->Dimension(), vel_f),
-              new VectorFunctionCoefficient(pmesh->Dimension(), traction_f),
-              attr, true);
+                 new VectorFunctionCoefficient(pmesh->Dimension(), vel_f),
+                 new VectorFunctionCoefficient(pmesh->Dimension(), traction_f),
+                 attr, true);
 }
 
 
@@ -2069,7 +2152,8 @@ void NavierSolver::BuildHPFForcing(ParGridFunction &vel_gf)
 
 void NavierSolver::Update()
 {
-   UpdateForms(true);  // This might be avoided, as full_update = true will trigger Update of all forms in the next Step() call
+   UpdateForms(
+      true);  // This might be avoided, as full_update = true will trigger Update of all forms in the next Step() call
    full_update = true; // Trigger Assembly of all forms in the next Step() call
    //UpdateSolvers(); -- >This is called inside the Step() already
 }

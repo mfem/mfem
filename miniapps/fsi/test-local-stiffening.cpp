@@ -7,7 +7,7 @@
 //
 //                    + ----------------------------------------+
 //                    |       ___                               |
-//                    |      /   \----------|                   |   
+//                    |      /   \----------|                   |
 //                    |      \___/----------|                   |
 //                    |                                         |
 //                    + ----------------------------------------+
@@ -72,10 +72,11 @@ int main(int argc, char *argv[])
    const char *mesh_file = "../../data/turek-fsi-new.e";
 
    OptionsParser args(argc, argv);
-   
+
    // Mesh parameters
    args.AddOption(&Mesh_ctx.serial_ref_levels, "-rs", "--rs", "serial_ref_levels");
-   args.AddOption(&Mesh_ctx.parallel_ref_levels, "-pr", "--pr", "parallel_ref_levels");
+   args.AddOption(&Mesh_ctx.parallel_ref_levels, "-pr", "--pr",
+                  "parallel_ref_levels");
    args.AddOption(&Mesh_ctx.order, "-mo", "--mesh-order",
                   "Polynomial order of the mesh nodes (default: 2).");
    args.AddOption(&Mesh_ctx.E, "-mE", "--mesh-young-modulus",
@@ -87,10 +88,12 @@ int main(int argc, char *argv[])
                   "0: Jacobian-based, 1: Distance-based");
    args.AddOption(&Mesh_ctx.stiffening_degree, "-msd", "--mesh-stiffening-degree",
                   "Stiffening degree for the jacobian-based mesh local stiffening (default: 1.0).");
-   args.AddOption(&Mesh_ctx.distance_solver_type, "-mdt", "--mesh-distance-solver-type",
+   args.AddOption(&Mesh_ctx.distance_solver_type, "-mdt",
+                  "--mesh-distance-solver-type",
                   "Distance solver type for the mesh deformation (default: 0).\n"
                   "0: Heat, 1: PLaplacian, 2: Normalization");
-   args.AddOption(&Mesh_ctx.filter_ls, "-fls", "--filter-level-set", "-no-fls", "--no-filter-level-set",
+   args.AddOption(&Mesh_ctx.filter_ls, "-fls", "--filter-level-set", "-no-fls",
+                  "--no-filter-level-set",
                   "Whether to apply filtering to the level set function (default: false).");
 
    // Output parameters
@@ -100,8 +103,10 @@ int main(int argc, char *argv[])
    args.ParseCheck();
 
    // Compute Lame's parameters
-   Mesh_ctx.mu = Mesh_ctx.E / (2.0 * (1.0 + Mesh_ctx.nu));                                                     // G, Shear modulus, Lame's second parameter
-   Mesh_ctx.lambda = Mesh_ctx.E * Mesh_ctx.nu / ((1.0 + Mesh_ctx.nu) * (1.0 - 2.0 * Mesh_ctx.nu)); // Lame's first parameter
+   Mesh_ctx.mu = Mesh_ctx.E / (2.0 * (1.0 +
+                                      Mesh_ctx.nu));                                                     // G, Shear modulus, Lame's second parameter
+   Mesh_ctx.lambda = Mesh_ctx.E * Mesh_ctx.nu / ((1.0 + Mesh_ctx.nu) *
+                                                 (1.0 - 2.0 * Mesh_ctx.nu)); // Lame's first parameter
 
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -109,7 +114,9 @@ int main(int argc, char *argv[])
    ///////////////////////////////////////////////////////////////////////////////////////////////
 
    if (Mpi::Root())
+   {
       mfem::out << "\nLoading mesh and refining in serial...";
+   }
 
    Mesh *parent_mesh = new Mesh(mesh_file);
    const int dim = parent_mesh->Dimension();
@@ -142,7 +149,8 @@ int main(int argc, char *argv[])
 
    // Create parallel mesh
    ParMesh pmesh(MPI_COMM_WORLD, *parent_mesh, partitioning, partition_type);
-   common_fsi_utils::ExportMeshwithPartitioning(outfolder, *parent_mesh, partitioning, "Partitioning"); // filename not defined
+   common_fsi_utils::ExportMeshwithPartitioning(outfolder, *parent_mesh,
+                                                partitioning, "Partitioning"); // filename not defined
    delete[] partitioning;
 
    for (int l = 0; l < Mesh_ctx.parallel_ref_levels; l++)
@@ -167,7 +175,7 @@ int main(int argc, char *argv[])
 
    auto solid_pmesh = ParSubMesh::CreateFromDomain(pmesh, solid_domain_attribute);
    auto fluid_pmesh = ParSubMesh::CreateFromDomain(pmesh, fluid_domain_attribute);
-   fluid_pmesh.SetCurvature(Mesh_ctx.order); 
+   fluid_pmesh.SetCurvature(Mesh_ctx.order);
 
    //////////////////
    // SET MARKERS
@@ -183,21 +191,26 @@ int main(int argc, char *argv[])
 
    // Interface attributes for the solid-fluid interface in parent mesh, used in  BidirectionalInterfaceTransfer
    // @NOTE: if we don't use marker from the parent mesh there might be compatibility issues with the markers depending on the direction of the transfer
-   Array<int> beam_cylinder_curve = bdr_attr_sets.GetAttributeSet("beam_cylinder_curve");
-   Array<int> beam_sides = bdr_attr_sets.GetAttributeSet("beam_sides");   
+   Array<int> beam_cylinder_curve =
+      bdr_attr_sets.GetAttributeSet("beam_cylinder_curve");
+   Array<int> beam_sides = bdr_attr_sets.GetAttributeSet("beam_sides");
    Array<int> beam_tip = bdr_attr_sets.GetAttributeSet("beam_tip");
 
-   // Combine sides and tip to have a single marker for the whole beam boundary 
-   Array<int> fluid_solid_interface(2); 
+   // Combine sides and tip to have a single marker for the whole beam boundary
+   Array<int> fluid_solid_interface(2);
    fluid_solid_interface[0] = beam_sides[0];
    fluid_solid_interface[1] = beam_tip[0];
-   Array<int> fluid_solid_interface_marker = bdr_attr_sets.AttrToMarker(parent_mesh->bdr_attributes.Max(), fluid_solid_interface); 
-   Array<int> fluid_solid_interface_tip_marker = bdr_attr_sets.AttrToMarker(parent_mesh->bdr_attributes.Max(), beam_tip);
+   Array<int> fluid_solid_interface_marker = bdr_attr_sets.AttrToMarker(
+                                                parent_mesh->bdr_attributes.Max(), fluid_solid_interface);
+   Array<int> fluid_solid_interface_tip_marker = bdr_attr_sets.AttrToMarker(
+                                                    parent_mesh->bdr_attributes.Max(), beam_tip);
 
    delete parent_mesh; // we don't need the parent mesh anymore
 
    if (Mpi::Root())
+   {
       mfem::out << "done." << std::endl;
+   }
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
    /// 4. Create Coefficients and setup output
@@ -219,25 +232,31 @@ int main(int argc, char *argv[])
 
    switch (Mesh_ctx.stiffening_type)
    {
-   case 0: // Jacobian-Based
-   {
-      stiff_coeff = new JacobianBasedStiffeningCoefficient(&fespace, fluid_solid_interface_tip_marker, Mesh_ctx.stiffening_degree);
-      break;
-   }
-   case 1: // Distance-Based
-   {
-      stiff_coeff = new DistanceBasedStiffeningCoefficient(&fespace, fluid_solid_interface_tip_marker, Mesh_ctx.distance_solver_type, Mesh_ctx.filter_ls);
-      real_t Rmin = 0.01; // Minimum distance to wall boundaries (start of transition zone)
-      real_t Rmax = 0.05;  // Maximum distance to wall boundaries (end of transition zone)
-      real_t alpha = 10.0; // Stiffening exponent
-      real_t Amax = 1e2;  // Maximum stiffening coefficient
-      real_t Amin = 1e-2;  // Minimum stiffening coefficient
-      static_cast<DistanceBasedStiffeningCoefficient*>(stiff_coeff)->SetParameters(Rmin, Rmax, alpha, Amax, Amin, Mesh_ctx.stiffening_degree);
-      break;
-   }
-   default:
-      mfem_error("Unknown stiffening type");
-      break;
+      case 0: // Jacobian-Based
+      {
+         stiff_coeff = new JacobianBasedStiffeningCoefficient(&fespace,
+                                                              fluid_solid_interface_tip_marker, Mesh_ctx.stiffening_degree);
+         break;
+      }
+      case 1: // Distance-Based
+      {
+         stiff_coeff = new DistanceBasedStiffeningCoefficient(&fespace,
+                                                              fluid_solid_interface_tip_marker, Mesh_ctx.distance_solver_type,
+                                                              Mesh_ctx.filter_ls);
+         real_t Rmin =
+            0.01; // Minimum distance to wall boundaries (start of transition zone)
+         real_t Rmax =
+            0.05;  // Maximum distance to wall boundaries (end of transition zone)
+         real_t alpha = 10.0; // Stiffening exponent
+         real_t Amax = 1e2;  // Maximum stiffening coefficient
+         real_t Amin = 1e-2;  // Minimum stiffening coefficient
+         static_cast<DistanceBasedStiffeningCoefficient*>(stiff_coeff)->SetParameters(
+            Rmin, Rmax, alpha, Amax, Amin, Mesh_ctx.stiffening_degree);
+         break;
+      }
+      default:
+         mfem_error("Unknown stiffening type");
+         break;
    }
 
    ProductCoefficient mu_stiff_coeff(Mesh_ctx.mu, *stiff_coeff);
@@ -254,13 +273,16 @@ int main(int argc, char *argv[])
          loc_min = std::min(loc_min, mu_stiff_gf(i));
          loc_max = std::max(loc_max, mu_stiff_gf(i));
       }
-      MPI_Allreduce(&loc_min, &gmin, 1, MFEM_MPI_REAL_T, MPI_MIN, fluid_pmesh.GetComm());
-      MPI_Allreduce(&loc_max, &gmax, 1, MFEM_MPI_REAL_T, MPI_MAX, fluid_pmesh.GetComm());
+      MPI_Allreduce(&loc_min, &gmin, 1, MFEM_MPI_REAL_T, MPI_MIN,
+                    fluid_pmesh.GetComm());
+      MPI_Allreduce(&loc_max, &gmax, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                    fluid_pmesh.GetComm());
       const bool ok = gmin > 0.0 && std::isfinite(gmax);
       pass = pass && ok;
       if (Mpi::Root())
       {
-         mfem::out << "Stiffened modulus range: [" << std::scientific << gmin << ", " << gmax
+         mfem::out << "Stiffened modulus range: [" << std::scientific << gmin << ", " <<
+                   gmax
                    << "] --> " << (ok ? "ok" : "NOT positive/finite") << std::endl;
       }
    }
@@ -307,7 +329,8 @@ int main(int argc, char *argv[])
             loc_err = std::max(loc_err, std::abs(dist_gf(i) - exact_dist_gf(i)));
          }
       }
-      MPI_Allreduce(&loc_err, &err, 1, MFEM_MPI_REAL_T, MPI_MAX, fluid_pmesh.GetComm());
+      MPI_Allreduce(&loc_err, &err, 1, MFEM_MPI_REAL_T, MPI_MAX,
+                    fluid_pmesh.GetComm());
       // The distance error shifts the stiffening transition zone: require it
       // to be well below the zone width.
       const bool ok = err < 0.25 * transition_width;
@@ -316,14 +339,16 @@ int main(int argc, char *argv[])
       {
          mfem::out << "Beam tip segment: x in [" << tx0 << ", " << tx1 << "], y in ["
                    << ty0 << ", " << ty1 << "]" << std::endl;
-         mfem::out << "Distance to the beam tip, max error for d <= Rmax: " << std::scientific
+         mfem::out << "Distance to the beam tip, max error for d <= Rmax: " <<
+                   std::scientific
                    << err << " (tol " << 0.25 * transition_width << ") --> "
                    << (ok ? "ok" : "TOO LARGE") << std::endl;
       }
    }
    if (Mpi::Root())
    {
-      mfem::out << "Local stiffening checks " << (pass ? "PASSED" : "FAILED") << std::endl;
+      mfem::out << "Local stiffening checks " << (pass ? "PASSED" : "FAILED") <<
+                std::endl;
    }
 
    ParaViewDataCollection pvdc_fluid("Fluid", &fluid_pmesh);
@@ -338,8 +363,10 @@ int main(int argc, char *argv[])
    pvdc_fluid.RegisterField("mu_stiff", &mu_stiff_gf);
    if (Mesh_ctx.stiffening_type == 1)
    {
-      pvdc_fluid.RegisterField("distance", static_cast<DistanceBasedStiffeningCoefficient*>(stiff_coeff)->GetDistanceGf());
-      pvdc_fluid.RegisterField("level_set", static_cast<DistanceBasedStiffeningCoefficient*>(stiff_coeff)->GetLevelSetGf());
+      pvdc_fluid.RegisterField("distance",
+                               static_cast<DistanceBasedStiffeningCoefficient*>(stiff_coeff)->GetDistanceGf());
+      pvdc_fluid.RegisterField("level_set",
+                               static_cast<DistanceBasedStiffeningCoefficient*>(stiff_coeff)->GetLevelSetGf());
    }
 
    pvdc_fluid.Save();

@@ -3,7 +3,7 @@
 //
 // Description: it solves a 1D equation as described in LANL fsi notes assuming the fluid solve is known.
 //
-// TODO: 
+// TODO:
 // 1) Make a parallel version.
 
 #include "mfem.hpp"
@@ -16,12 +16,12 @@ using namespace mfem;
 // Globally store the problem constants.
 struct
 {
-    double a = 0.5;
-    double ft = 2.0;
-    double fx = 2.0;
-    double Tbar = 1.0;
-    double Kbar = 1.0;
-    double viscosity = 0.05;
+   double a = 0.5;
+   double ft = 2.0;
+   double fx = 2.0;
+   double Tbar = 1.0;
+   double Kbar = 1.0;
+   double viscosity = 0.05;
 } ctx;
 
 //1D MMS
@@ -33,48 +33,49 @@ double InitialSolution(const Vector &pt)
 
 double InitialRate(const Vector &pt)
 {
-    double x = pt(0);
-    return ctx.a * sin(ctx.fx * M_PI * x);
+   double x = pt(0);
+   return ctx.a * sin(ctx.fx * M_PI * x);
 }
 
 double ExactSolution(const Vector &pt, const double t)
 {
-    double x = pt(0);
-    return ctx.a / (M_PI * ctx.ft) * sin(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t) + 1.0;
+   double x = pt(0);
+   return ctx.a / (M_PI * ctx.ft) * sin(ctx.fx * M_PI * x) * sin(
+             ctx.ft * M_PI * t) + 1.0;
 }
 
 double Forcing(const Vector &pt, const double t)
 {
-    double x = pt(0);
+   double x = pt(0);
 
-    // Compute the normal vector
-    // double dEtaDx = ctx.a * ctx.fx / ctx.ft * cos(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t);
-    // double n2 = 1/sqrt(1 + dEtaDx * dEtaDx);
-    // double n1 = -dEtaDx * n2;
+   // Compute the normal vector
+   // double dEtaDx = ctx.a * ctx.fx / ctx.ft * cos(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t);
+   // double n2 = 1/sqrt(1 + dEtaDx * dEtaDx);
+   // double n1 = -dEtaDx * n2;
 
-    // Compute pressure, structure, velocity, and required derivatives.
-    // Uses a tiny bit more memory, will be easier to debug.
-    // We need to recall that y = eta.
-    double eta = ExactSolution(pt,t);
-    // double p = cos(ctx.fx * M_PI * x) * cos(ctx.fx * M_PI * eta) * cos(ctx.ft * M_PI * t);
-    //double d2EtaDx2 = -ctx.a * ctx.fx * ctx.fx * M_PI / ctx.ft * sin(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t);
-    double d2EtaDx2 = -ctx.fx * ctx.fx * M_PI * M_PI * (eta - 1);
-    // double d2EtaDt2 = -ctx.a * ctx.ft * M_PI * sin(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t);
-    double d2EtaDt2 = -ctx.ft * ctx.ft * M_PI * M_PI * (eta - 1);
-    // double dUDy = -ctx.a * ctx.fx * M_PI * cos(ctx.fx * M_PI *x) * cos(ctx.ft * M_PI * t);
-    // double dVDy = -ctx.a * ctx.fx * M_PI * cos(ctx.fx * M_PI * x) * cos(ctx.ft * M_PI * t) * dEtaDx;
-    // double dVDx =  ctx.a * ctx.fx * M_PI * cos(ctx.fx * M_PI * x) * cos(ctx.ft * M_PI * t) * (1 + dEtaDx * dEtaDx);
+   // Compute pressure, structure, velocity, and required derivatives.
+   // Uses a tiny bit more memory, will be easier to debug.
+   // We need to recall that y = eta.
+   double eta = ExactSolution(pt,t);
+   // double p = cos(ctx.fx * M_PI * x) * cos(ctx.fx * M_PI * eta) * cos(ctx.ft * M_PI * t);
+   //double d2EtaDx2 = -ctx.a * ctx.fx * ctx.fx * M_PI / ctx.ft * sin(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t);
+   double d2EtaDx2 = -ctx.fx * ctx.fx * M_PI * M_PI * (eta - 1);
+   // double d2EtaDt2 = -ctx.a * ctx.ft * M_PI * sin(ctx.fx * M_PI * x) * sin(ctx.ft * M_PI * t);
+   double d2EtaDt2 = -ctx.ft * ctx.ft * M_PI * M_PI * (eta - 1);
+   // double dUDy = -ctx.a * ctx.fx * M_PI * cos(ctx.fx * M_PI *x) * cos(ctx.ft * M_PI * t);
+   // double dVDy = -ctx.a * ctx.fx * M_PI * cos(ctx.fx * M_PI * x) * cos(ctx.ft * M_PI * t) * dEtaDx;
+   // double dVDx =  ctx.a * ctx.fx * M_PI * cos(ctx.fx * M_PI * x) * cos(ctx.ft * M_PI * t) * (1 + dEtaDx * dEtaDx);
 
-    // We now have everything we need.
-    return ctx.Tbar * d2EtaDt2 + ctx.Kbar * eta - ctx.Tbar * d2EtaDx2;// - p*n2 
-         //+ ctx.viscosity * ((dUDy + dVDx) * n1 + 2 * dVDy * n2);
+   // We now have everything we need.
+   return ctx.Tbar * d2EtaDt2 + ctx.Kbar * eta - ctx.Tbar * d2EtaDx2;// - p*n2
+   //+ ctx.viscosity * ((dUDy + dVDx) * n1 + 2 * dVDy * n2);
 }
 
 class ShellOperator : public SecondOrderTimeDependentOperator
 {
 protected:
    FiniteElementSpace &fespace;
-   Array<int> ess_tdof_list; 
+   Array<int> ess_tdof_list;
 
    BilinearForm *M, *K, *S;
    LinearForm forcing_LF;
@@ -84,7 +85,8 @@ protected:
    Array<int> block_trueOffsets;
    FunctionCoefficient forcing_function;
 
-   GMRESSolver M_solver, S_solver; // Krylov solver for inverting mass and overall system matricies.
+   GMRESSolver M_solver,
+               S_solver; // Krylov solver for inverting mass and overall system matricies.
    DSmoother M_prec, S_prec;  // Preconditioner for the mass matrix M
 
    double current_time, dt;
@@ -97,7 +99,7 @@ public:
    using SecondOrderTimeDependentOperator::Mult;
    virtual void Mult(const Vector &u, const Vector &du_dt,
                      Vector &d2udt2) const;
-   
+
    using SecondOrderTimeDependentOperator::ImplicitSolve;
    virtual void ImplicitSolve(const double fac0, const double fac1,
                               const Vector &u, const Vector &dudt, Vector &d2udt2);
@@ -135,7 +137,8 @@ ShellOperator::ShellOperator(FiniteElementSpace &f, Array<int> &ess_bdr)
    fac0old=0.;
 
    // Make the matricies obey boundary conditions.
-   for (int cond_ind = 0; cond_ind < ess_tdof_list.Size(); ++cond_ind){
+   for (int cond_ind = 0; cond_ind < ess_tdof_list.Size(); ++cond_ind)
+   {
       Kmat.EliminateRow(ess_tdof_list[cond_ind],DIAG_ONE);
       Mmat.EliminateRow(ess_tdof_list[cond_ind],DIAG_ONE);
    }
@@ -151,13 +154,14 @@ ShellOperator::ShellOperator(FiniteElementSpace &f, Array<int> &ess_bdr)
 }
 
 void ShellOperator::Mult(const Vector &u, const Vector &du_dt,
-                        Vector &d2udt2)  const
+                         Vector &d2udt2)  const
 {
    // Compute:
    //    d2EtaDt2 = -Kbar / Tbar eta + M^-1(F - K eta)
    // BCs.
    V = u;
-   for (int i = 0; i < ess_tdof_list.Size(); ++i){
+   for (int i = 0; i < ess_tdof_list.Size(); ++i)
+   {
       V[ess_tdof_list[i]] = 1.0;
    }
    Kmat.Mult(V, z);
@@ -171,20 +175,22 @@ void ShellOperator::Mult(const Vector &u, const Vector &du_dt,
    d2udt2 *= 1/ctx.Tbar;
 
    // Apply the inhomgenous boundary conditions.
-   for (int i = 0; i < ess_tdof_list.Size(); ++i){
+   for (int i = 0; i < ess_tdof_list.Size(); ++i)
+   {
       d2udt2[ess_tdof_list[i]] = 0.0;
    }
 }
 
 void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
-                                 const Vector &u, const Vector &dudt, Vector &d2udt2)
+                                  const Vector &u, const Vector &dudt, Vector &d2udt2)
 {
    // Solve the equation
    //    d2udt2 = Smat^1*(-Kbar M eta - Tbar K eta + F).
-   // We have the system matrix 
+   // We have the system matrix
    //    Smat = ((1 + fac0 * Kbar / Tbar) M + fac0 * K).
    // Determine if we need to rebuild the system matrix.
-   if (abs(fac0old) < 1e-16){
+   if (abs(fac0old) < 1e-16)
+   {
       // Initialize the bilinear form.
       ConstantCoefficient MassCoef(ctx.Tbar + fac0 * ctx.Kbar);
       ConstantCoefficient DiffCoef(fac0 * ctx.Tbar);
@@ -195,7 +201,8 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
       S->FormSystemMatrix(Array<int>(),Smat);
 
       // Constraints
-      for (int cond_ind = 0; cond_ind < ess_tdof_list.Size(); ++cond_ind){
+      for (int cond_ind = 0; cond_ind < ess_tdof_list.Size(); ++cond_ind)
+      {
          Smat.EliminateRow(ess_tdof_list[cond_ind],DIAG_ONE);
       }
 
@@ -208,7 +215,8 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
       S_solver.SetPreconditioner(S_prec);
       S_solver.SetOperator(Smat);
    }
-   else if (abs(fac0-fac0old) > 1e-14){
+   else if (abs(fac0-fac0old) > 1e-14)
+   {
       // Reinitialize the bilinear form.
       ConstantCoefficient MassCoef(ctx.Tbar + fac0 * ctx.Kbar);
       ConstantCoefficient DiffCoef(fac0 * ctx.Tbar);
@@ -219,7 +227,8 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
       S->FormSystemMatrix(Array<int>(),Smat);
 
       // Constraints
-      for (int cond_ind = 0; cond_ind < ess_tdof_list.Size(); ++cond_ind){
+      for (int cond_ind = 0; cond_ind < ess_tdof_list.Size(); ++cond_ind)
+      {
          Smat.EliminateRow(ess_tdof_list[cond_ind],DIAG_ONE);
       }
 
@@ -232,7 +241,7 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
       S_solver.SetPreconditioner(S_prec);
       S_solver.SetOperator(Smat);
    }
-   
+
    // We first need to form the right hand side.
    forcing_function.SetTime(t);
    forcing_LF.Update();
@@ -240,7 +249,8 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
 
    // Form the part of the rhs that comes from the current postion.
    Vector aux = u;
-   for (int i = 0; i < ess_tdof_list.Size(); ++i){
+   for (int i = 0; i < ess_tdof_list.Size(); ++i)
+   {
       aux[ess_tdof_list[i]] = 1.0;
    }
    Mmat.Mult(aux,z);
@@ -251,7 +261,8 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
    z += V;
 
    // Apply the inhomgenous boundary conditions.
-   for (int i = 0; i < ess_tdof_list.Size(); ++i){
+   for (int i = 0; i < ess_tdof_list.Size(); ++i)
+   {
       z[ess_tdof_list[i]] = 0.0;
       d2udt2[ess_tdof_list[i]] = 0.0;
    }
@@ -261,7 +272,8 @@ void ShellOperator::ImplicitSolve(const double fac0, const double fac1,
 
    // Apply the inhomgenous boundary conditions.
    // This really shouldn't be required if one is using a Krylov solver, but it can't hurt.
-   for (int i = 0; i < ess_tdof_list.Size(); ++i){
+   for (int i = 0; i < ess_tdof_list.Size(); ++i)
+   {
       d2udt2[ess_tdof_list[i]] = 0.0;
    }
 }
@@ -278,7 +290,9 @@ int main(int argc, char *argv[])
    int order = 2;
    double t_final = 1.0;
    int ref_levels = 1;
-   double dt = 0.01 * std::pow(2.0,-1.0*(double)ref_levels+1.0); // For the purposes of testing the convergence order. Only ref_levels needs to be adjusted manually.
+   double dt = 0.01 * std::pow(2.0,
+                               -1.0*(double)ref_levels
+                               +1.0); // For the purposes of testing the convergence order. Only ref_levels needs to be adjusted manually.
    bool visualization = true;
    int vis_steps = 1;
    bool verbose = false;
@@ -317,18 +331,19 @@ int main(int argc, char *argv[])
 
    H1_FECollection fe_coll(order, dim);
    FiniteElementSpace fespace(&mesh, &fe_coll);
-   
+
    cout << "Number of finite element unknowns: "
         << fespace.GetTrueVSize() << endl;
 
    Array<int> ess_bdr(mesh.bdr_attributes.Max());
-   for (int i = 0; i < ess_bdr.Size(); ++i){
+   for (int i = 0; i < ess_bdr.Size(); ++i)
+   {
       ess_bdr[i] = 1;
    }
 
    SecondOrderODESolver *ode_solver = new NewmarkSolver();
 
-   //    Set the initial conditions for u.  
+   //    Set the initial conditions for u.
    GridFunction u_gf(&fespace);
    GridFunction dudt_gf(&fespace);
 
@@ -342,7 +357,8 @@ int main(int argc, char *argv[])
    Vector dudt;
    dudt_gf.GetTrueDofs(dudt);
 
-   for (int i = 0; i < u.Size(); ++i){
+   for (int i = 0; i < u.Size(); ++i)
+   {
       //dudt[i] = 0.5 * sin(2.0 * M_PI * static_cast<double>(i)/(static_cast<double>(u.Size())-1.0));
       std::cout << i << "  " << u[i] << "  " << dudt[i] << std::endl;
    }
@@ -366,13 +382,13 @@ int main(int argc, char *argv[])
          sout << "solution\n" << mesh << u_gf;
          sout << "window_size 800 800\n";
          sout << "valuerange -1 1\n";
-         sout << "keys cmma\n"; 
+         sout << "keys cmma\n";
          sout << "pause\n";
          sout << flush;
          cout << "GLVis visualization paused."
               << " Press space (in the GLVis window) to resume it.\n";
       }
-   }         
+   }
 
    ShellOperator oper(fespace, ess_bdr);
    ode_solver->Init(oper);
@@ -391,14 +407,16 @@ int main(int argc, char *argv[])
    FunctionCoefficient ucoeff (ExactSolution);
    ucoeff.SetTime(t);
    u_gf.SetFromTrueDofs(u);
-   
+
    GridFunctionCoefficient u_approx_coeff(&u_gf);
    double err_u  = u_gf.ComputeL2Error(ucoeff, irs);
    double norm_u = ComputeLpNorm(2., ucoeff, mesh, irs);
    double norm_u_a = ComputeLpNorm(2.,u_approx_coeff,mesh,irs);
 
-   if (verbose){
-      for (int i = 0; i < u.Size(); ++i){
+   if (verbose)
+   {
+      for (int i = 0; i < u.Size(); ++i)
+      {
          std::cout << i << "  " << u[i] << "\n";
       }
    }
@@ -445,11 +463,13 @@ int main(int argc, char *argv[])
       double norm_u = ComputeLpNorm(2., ucoeff, mesh, irs);
       double norm_u_a = ComputeLpNorm(2.,u_approx_coeff,mesh,irs);
 
-   if (verbose){
-      for (int i = 0; i < u.Size(); ++i){
-         std::cout << i << "  " << u[i] << "\n";
+      if (verbose)
+      {
+         for (int i = 0; i < u.Size(); ++i)
+         {
+            std::cout << i << "  " << u[i] << "\n";
+         }
       }
-   }
 
       std::cout << "|| u_h - u_ex || = " << err_u << "\n";
       std::cout << "|| u_ex || = " << norm_u  << "\n";

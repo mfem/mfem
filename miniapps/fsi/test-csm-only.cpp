@@ -14,7 +14,7 @@
 //     5 - Compression test (periodic)
 //     6 - Transverse test (prescribed displacement on the top)
 //    7 - Compression test (prescribed displacement on the top)
-// 
+//
 // The following mesh is used:
 //
 //               7
@@ -77,12 +77,14 @@ struct s_ProblemContext // problem context
 void traction_fun(const Vector &x, double time, Vector &v);
 void compression_fun(const Vector &x, double time, Vector &v);
 
-void prescribed_displacement_transverse_fun(const Vector &x, double time, Vector &v);
+void prescribed_displacement_transverse_fun(const Vector &x, double time,
+                                            Vector &v);
 void velocity_transverse_fun(const Vector &x, double time, Vector &v);
 void acceleration_transverse_fun(const Vector &x, double time, Vector &v);
 
-void prescribed_displacement_compression_fun(const Vector &x, double time, Vector &v);
-void velocity_compression_fun(const Vector &x, double time, Vector &v); 
+void prescribed_displacement_compression_fun(const Vector &x, double time,
+                                             Vector &v);
+void velocity_compression_fun(const Vector &x, double time, Vector &v);
 void acceleration_compression_fun(const Vector &x, double time, Vector &v);
 
 int main(int argc, char *argv[])
@@ -117,7 +119,7 @@ int main(int argc, char *argv[])
    // 5 - Compression test (periodic)
    // 6 - Transverse test (prescribed displacement on the top)
    // 7 - Compression test (prescribed displacement on the top)
-   int problem = 0; 
+   int problem = 0;
 
    // Mesh file
    const char *mesh_file = "../../data/multidomain2d-quad.e";
@@ -143,7 +145,8 @@ int main(int argc, char *argv[])
    args.AddOption(&problem, "-p", "--problem",
                   "Problem to solve (0 - Transverse test, 1 - Compression test).");
 
-   args.AddOption(&compute_output, "-co", "--compute-output", "-no-co", "--no-compute-output",
+   args.AddOption(&compute_output, "-co", "--compute-output", "-no-co",
+                  "--no-compute-output",
                   "Compute output files (default: true).");
 
    args.AddOption(&Problem_ctx.dt, "-dt", "--dt",
@@ -159,7 +162,8 @@ int main(int argc, char *argv[])
                   "traction force applied to the solid.");
 
    args.AddOption(&Mesh_ctx.serial_ref_levels, "-rs", "--rs", "serial_ref_levels");
-   args.AddOption(&Mesh_ctx.parallel_ref_levels, "-rp", "--rp", "parallel_ref_levels");
+   args.AddOption(&Mesh_ctx.parallel_ref_levels, "-rp", "--rp",
+                  "parallel_ref_levels");
 
    args.AddOption(&outfolder, "-of", "--output-folder",
                   "Output folder.");
@@ -172,17 +176,20 @@ int main(int argc, char *argv[])
 
    // Make sure that  preloadT < release_time < t_final
    MFEM_VERIFY(Problem_ctx.preloadT < Problem_ctx.release_time &&
-                   Problem_ctx.release_time < Problem_ctx.t_final,
+               Problem_ctx.release_time < Problem_ctx.t_final,
                "preloadT must be less than release_time, which must be less than t_final.");
 
-   Elasticity_ctx.lambda = 2 * Elasticity_ctx.mu * Elasticity_ctx.nu / (1 - 2 * Elasticity_ctx.nu);
+   Elasticity_ctx.lambda = 2 * Elasticity_ctx.mu * Elasticity_ctx.nu /
+                           (1 - 2 * Elasticity_ctx.nu);
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
    /// 3. Create serial Mesh, parallel and fluid/solid sub-meshes
    ///////////////////////////////////////////////////////////////////////////////////////////////
 
    if (Mpi::Root())
+   {
       mfem::out << "\nLoading mesh and refining in serial...";
+   }
 
    Mesh *serial_mesh = new Mesh(mesh_file);
    const int dim = serial_mesh->Dimension();
@@ -202,7 +209,8 @@ int main(int argc, char *argv[])
    // Create the sub-domains for the solid domains
    Array<int> solid_domain_attributes(1);
    solid_domain_attributes[0] = 1;
-   auto parent_mesh = SubMesh::CreateFromDomain(*serial_mesh, solid_domain_attributes);
+   auto parent_mesh = SubMesh::CreateFromDomain(*serial_mesh,
+                                                solid_domain_attributes);
    parent_mesh.SetAttributes();
    parent_mesh.EnsureNodes();
 
@@ -213,8 +221,8 @@ int main(int argc, char *argv[])
       std::vector<Vector> translations = {Vector({Mesh_ctx.L, 0.0})};
 
       submesh = new Mesh(Mesh::MakePeriodic(
-          parent_mesh,
-          parent_mesh.CreatePeriodicVertexMapping(translations)));
+                            parent_mesh,
+                            parent_mesh.CreatePeriodicVertexMapping(translations)));
    }
    else
    {
@@ -223,7 +231,9 @@ int main(int argc, char *argv[])
 
    // Generate mesh partitioning and create a parallel mesh.
    if (Mpi::Root())
+   {
       mfem::out << "Generating partitioning and creating parallel mesh... ";
+   }
 
    // Partition type:
    // 0) METIS_PartGraphRecursive (sorted neighbor lists)
@@ -237,7 +247,8 @@ int main(int argc, char *argv[])
    int *partitioning = serial_mesh->GeneratePartitioning(np, partition_type);
 
    // Create parallel mesh
-   ParMesh solid_mesh = ParMesh(MPI_COMM_WORLD, *submesh, partitioning, partition_type);
+   ParMesh solid_mesh = ParMesh(MPI_COMM_WORLD, *submesh, partitioning,
+                                partition_type);
    ExportMeshwithPartitioning(outfolder, *submesh, partitioning);
    delete[] partitioning;
 
@@ -251,18 +262,24 @@ int main(int argc, char *argv[])
 
 
    if (Mpi::Root())
+   {
       mfem::out << "done." << std::endl;
+   }
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
    /// 4. Create Solid Solver
    ///////////////////////////////////////////////////////////////////////////////////////////////
 
    if (Mpi::Root())
+   {
       mfem::out << "\nCreating Elasticity solver..." << std::endl;
+   }
 
    // Create the elasticity solver
    int solver_type  = 15; // HHTAlphaSolver
-   elasticity::ElasticitySolver elasticity(solver_type, &solid_mesh, Elasticity_ctx.order, Elasticity_ctx.density, Elasticity_ctx.lambda, Elasticity_ctx.mu);
+   elasticity::ElasticitySolver elasticity(solver_type, &solid_mesh,
+                                           Elasticity_ctx.order, Elasticity_ctx.density, Elasticity_ctx.lambda,
+                                           Elasticity_ctx.mu);
 
    // Grid functions and vectors for the solid
    Vector solid_displacement;
@@ -279,14 +296,18 @@ int main(int argc, char *argv[])
    solid_vel_gf.GetTrueDofs(solid_vel);
 
    if (Mpi::Root())
+   {
       mfem::out << "done." << std::endl;
+   }
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
    /// 5. Set BCs
    ///////////////////////////////////////////////////////////////////////////////////////////////
 
    if (Mpi::Root())
+   {
       mfem::out << "\nSetting up boundary conditions..." << std::endl;
+   }
 
    // Markers
    int solid_bottom = 1;
@@ -303,65 +324,72 @@ int main(int argc, char *argv[])
 
    switch (problem)
    {
-   case 0: // Transverse test
-   case 4: // Transverse test (periodic)
-   {
-      elasticity.AddFixedConstraint(solid_bottom);
-      elasticity.AddBoundaryLoad(traction_fun, solid_top);
-      traction_coeff = new VectorFunctionCoefficient(dim, traction_fun);
-   }
-   break;
-   case 1: // Compression test
-   case 5: // Compression test (periodic)
-   {
-      elasticity.AddFixedConstraint(solid_bottom);
-      elasticity.AddBoundaryLoad(compression_fun, solid_top);
-      traction_coeff = new VectorFunctionCoefficient(dim, compression_fun);
-   }
-   break;
-   case 2: // Transverse test (fixed y displacement on the top)
-   {
-      elasticity.AddFixedConstraint(solid_bottom);
-      elasticity.AddFixedConstraint(solid_top, 1);
-      elasticity.AddBoundaryLoad(traction_fun, solid_top);
-      traction_coeff = new VectorFunctionCoefficient(dim, traction_fun);
-   }
-   break;
-   case 3: // Compression test (fixed x displacement on the lateral sides)
-   {
-      elasticity.AddFixedConstraint(solid_bottom);
-      elasticity.AddFixedConstraint(solid_lateral, 0); // Fix displacement in x-direction
-      elasticity.AddBoundaryLoad(compression_fun, solid_top);
-      traction_coeff = new VectorFunctionCoefficient(dim, compression_fun);
-   }
-   break;
-   case 6:
-   {
-      elasticity.AddFixedConstraint(solid_bottom);
-      elasticity.AddPrescribedDisplacement(prescribed_displacement_transverse_fun, velocity_transverse_fun, acceleration_transverse_fun, solid_top);
-      Problem_ctx.preloadT = Problem_ctx.t_final; // No preload, as we cannot turn off BCs for now
-      Vector zero(dim); zero = 0.0;
-      traction_coeff = new VectorConstantCoefficient(zero);
-   }
-   break;
-   case 7:
-   {
-      elasticity.AddFixedConstraint(solid_bottom);
-      elasticity.AddPrescribedDisplacement(prescribed_displacement_compression_fun, velocity_compression_fun, acceleration_compression_fun, solid_top);
-      Problem_ctx.preloadT = Problem_ctx.t_final; // No preload, as we cannot turn off BCs for now
-      Vector zero(dim); zero = 0.0;
-      traction_coeff = new VectorConstantCoefficient(zero);
-   }
-   break;
-   default:
-      MFEM_ABORT("Unknown problem type.");
+      case 0: // Transverse test
+      case 4: // Transverse test (periodic)
+      {
+         elasticity.AddFixedConstraint(solid_bottom);
+         elasticity.AddBoundaryLoad(traction_fun, solid_top);
+         traction_coeff = new VectorFunctionCoefficient(dim, traction_fun);
+      }
+      break;
+      case 1: // Compression test
+      case 5: // Compression test (periodic)
+      {
+         elasticity.AddFixedConstraint(solid_bottom);
+         elasticity.AddBoundaryLoad(compression_fun, solid_top);
+         traction_coeff = new VectorFunctionCoefficient(dim, compression_fun);
+      }
+      break;
+      case 2: // Transverse test (fixed y displacement on the top)
+      {
+         elasticity.AddFixedConstraint(solid_bottom);
+         elasticity.AddFixedConstraint(solid_top, 1);
+         elasticity.AddBoundaryLoad(traction_fun, solid_top);
+         traction_coeff = new VectorFunctionCoefficient(dim, traction_fun);
+      }
+      break;
+      case 3: // Compression test (fixed x displacement on the lateral sides)
+      {
+         elasticity.AddFixedConstraint(solid_bottom);
+         elasticity.AddFixedConstraint(solid_lateral,
+                                       0); // Fix displacement in x-direction
+         elasticity.AddBoundaryLoad(compression_fun, solid_top);
+         traction_coeff = new VectorFunctionCoefficient(dim, compression_fun);
+      }
+      break;
+      case 6:
+      {
+         elasticity.AddFixedConstraint(solid_bottom);
+         elasticity.AddPrescribedDisplacement(prescribed_displacement_transverse_fun,
+                                              velocity_transverse_fun, acceleration_transverse_fun, solid_top);
+         Problem_ctx.preloadT =
+            Problem_ctx.t_final; // No preload, as we cannot turn off BCs for now
+         Vector zero(dim); zero = 0.0;
+         traction_coeff = new VectorConstantCoefficient(zero);
+      }
+      break;
+      case 7:
+      {
+         elasticity.AddFixedConstraint(solid_bottom);
+         elasticity.AddPrescribedDisplacement(prescribed_displacement_compression_fun,
+                                              velocity_compression_fun, acceleration_compression_fun, solid_top);
+         Problem_ctx.preloadT =
+            Problem_ctx.t_final; // No preload, as we cannot turn off BCs for now
+         Vector zero(dim); zero = 0.0;
+         traction_coeff = new VectorConstantCoefficient(zero);
+      }
+      break;
+      default:
+         MFEM_ABORT("Unknown problem type.");
    }
 
    // After bcs have been set we can set up the elasticity operator
    elasticity.Setup();
 
    if (Mpi::Root())
+   {
       mfem::out << "done." << std::endl;
+   }
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
    /// 6. Set up output
@@ -386,7 +414,8 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      out << "-------------------------------------------------------------------------------------------------------------" << std::endl;
+      out << "-------------------------------------------------------------------------------------------------------------"
+          << std::endl;
       out << std::left
           << std::setw(8) << "Step"
           << std::setw(16) << "Time"
@@ -398,7 +427,8 @@ int main(int argc, char *argv[])
           << std::setw(16) << "traction_x"
           << std::setw(16) << "traction_y"
           << std::endl;
-      out << "-------------------------------------------------------------------------------------------------------------" << std::endl;
+      out << "-------------------------------------------------------------------------------------------------------------"
+          << std::endl;
    }
 
    bool last_step = false;
@@ -474,7 +504,8 @@ int main(int argc, char *argv[])
          // Reduce values across all ranks to get the result from whichever rank found the point
          real_t global_vals[6] = {disp_x, disp_y, vel_x, vel_y, traction_x, traction_y};
          real_t reduced_vals[6];
-         MPI_Allreduce(global_vals, reduced_vals, 6, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+         MPI_Allreduce(global_vals, reduced_vals, 6, MPI_DOUBLE, MPI_SUM,
+                       MPI_COMM_WORLD);
 
          disp_x = reduced_vals[0];
          disp_y = reduced_vals[1];
@@ -518,33 +549,39 @@ int main(int argc, char *argv[])
 void traction_fun(const Vector &x, double time, Vector &v)
 {
    const real_t preloadT = Problem_ctx.preloadT;
-   const real_t preload = (time < preloadT) ? 0.5 * (1.0 - cos(M_PI * time / preloadT)) : 1.0;
+   const real_t preload = (time < preloadT) ? 0.5 * (1.0 - cos(
+                                                        M_PI * time / preloadT)) : 1.0;
 
    v = 0.0;
-   v[0] = time < Problem_ctx.release_time ? Problem_ctx.traction * preload : 0.0; // traction in x-direction
+   v[0] = time < Problem_ctx.release_time ? Problem_ctx.traction * preload :
+          0.0; // traction in x-direction
    v[1] = 0.0;                                                                    // traction in y-direction
 }
 
 void compression_fun(const Vector &x, double time, Vector &v)
 {
    const real_t preloadT = Problem_ctx.preloadT;
-   const real_t preload = (time < preloadT) ? 0.5 * (1.0 - cos(M_PI * time / preloadT)) : 1.0;
+   const real_t preload = (time < preloadT) ? 0.5 * (1.0 - cos(
+                                                        M_PI * time / preloadT)) : 1.0;
 
    v = 0.0;
    v[0] = 0.0;                                                                    // no traction in x-direction
-   v[1] = time < Problem_ctx.release_time ? -Problem_ctx.traction * preload : 0.0; // constant traction in y-direction
+   v[1] = time < Problem_ctx.release_time ? -Problem_ctx.traction * preload :
+          0.0; // constant traction in y-direction
 }
 
 // Prescribed displacement test (compression)
 // Parabolic (in time) displacement in x-direction until release time
 // v = [ Dmax * ( t / tr )^2, 0.0 ]
-void prescribed_displacement_transverse_fun(const Vector &x, double time, Vector &v)
+void prescribed_displacement_transverse_fun(const Vector &x, double time,
+                                            Vector &v)
 {
    const real_t tr = Problem_ctx.release_time;
 
    v = 0.0;
    v[0] = Problem_ctx.Dmax * pow(time / tr, 2);
-   v[0] = v[0] > Problem_ctx.Dmax ? Problem_ctx.Dmax : v[0]; // limit displacement to Dmax
+   v[0] = v[0] > Problem_ctx.Dmax ? Problem_ctx.Dmax :
+          v[0]; // limit displacement to Dmax
    v[1] = 0.0; // no displacement in y-direction
 }
 
@@ -553,7 +590,8 @@ void velocity_transverse_fun(const Vector &x, double time, Vector &v)
    const real_t tr = Problem_ctx.release_time;
 
    v = 0.0;
-   v[0] = time < tr ? 2.0 * Problem_ctx.Dmax * time / (tr * tr) : 0.0; // velocity in x-direction
+   v[0] = time < tr ? 2.0 * Problem_ctx.Dmax * time / (tr * tr) :
+          0.0; // velocity in x-direction
    v[1] = 0.0;                                       // no velocity in y-direction
 }
 
@@ -562,20 +600,23 @@ void acceleration_transverse_fun(const Vector &x, double time, Vector &v)
    const real_t tr = Problem_ctx.release_time;
 
    v = 0.0;
-   v[0] = time < tr ? 2.0 * Problem_ctx.Dmax / (tr * tr) : 0.0; // acceleration in x-direction
+   v[0] = time < tr ? 2.0 * Problem_ctx.Dmax / (tr * tr) :
+          0.0; // acceleration in x-direction
    v[1] = 0.0;                                // no acceleration in y-direction
 }
 
 
 
-void prescribed_displacement_compression_fun(const Vector &x, double time, Vector &v)
+void prescribed_displacement_compression_fun(const Vector &x, double time,
+                                             Vector &v)
 {
    const real_t tr = Problem_ctx.release_time;
 
    v = 0.0;
    v[0] = 0.0; // no displacement in x-direction
    v[1] = Problem_ctx.Dmax * pow(time / tr, 2);
-   v[1] = v[1] > Problem_ctx.Dmax ? -Problem_ctx.Dmax : -v[1]; // limit displacement to Dmax
+   v[1] = v[1] > Problem_ctx.Dmax ? -Problem_ctx.Dmax :
+          -v[1]; // limit displacement to Dmax
 }
 
 void velocity_compression_fun(const Vector &x, double time, Vector &v)
@@ -584,7 +625,8 @@ void velocity_compression_fun(const Vector &x, double time, Vector &v)
 
    v = 0.0;
    v[0] = 0.0; // no velocity in x-direction
-   v[1] = time < tr ? -2.0 * Problem_ctx.Dmax * time / (tr * tr) : 0.0; // velocity in y-direction
+   v[1] = time < tr ? -2.0 * Problem_ctx.Dmax * time / (tr * tr) :
+          0.0; // velocity in y-direction
 }
 
 void acceleration_compression_fun(const Vector &x, double time, Vector &v)
@@ -593,5 +635,6 @@ void acceleration_compression_fun(const Vector &x, double time, Vector &v)
 
    v = 0.0;
    v[0] = 0.0; // no acceleration in x-direction
-   v[1] = time < tr ? -2.0 * Problem_ctx.Dmax / (tr * tr) : 0.0; // acceleration in y-direction
+   v[1] = time < tr ? -2.0 * Problem_ctx.Dmax / (tr * tr) :
+          0.0; // acceleration in y-direction
 }

@@ -35,7 +35,8 @@ public:
                               const Vector &elfun, Vector &elvect) override;
 
    void AssemblePA(const FiniteElementSpace &fes) override;
-   void AssemblePA(const FiniteElementSpace &trial_fes, const FiniteElementSpace &test_fes) override { this->AssemblePA(trial_fes); }
+   void AssemblePA(const FiniteElementSpace &trial_fes,
+                   const FiniteElementSpace &test_fes) override { this->AssemblePA(trial_fes); }
    void AddMultPA(const Vector &x, Vector &y) const override;
 
    template <int d1d, int q1d, int dim = 2> static inline

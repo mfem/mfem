@@ -23,7 +23,8 @@ public:
     * @param fes_ Pointer to the parallel finite element space (NOT OWNED)
     * @param wall_attr_ Array of boundary attributes representing wall boundaries
     */
-   LocalStiffeningCoefficient(ParFiniteElementSpace *fes_, Array<int> &wall_attrs_);
+   LocalStiffeningCoefficient(ParFiniteElementSpace *fes_,
+                              Array<int> &wall_attrs_);
 
    /**
     * @brief Destructor
@@ -93,7 +94,8 @@ public:
     * @param wall_attr_ Array of boundary attributes representing wall boundaries
     * @param stiffening_degree Degree of stiffening applied (default: 1.0)
     */
-   JacobianBasedStiffeningCoefficient(ParFiniteElementSpace *fes_, Array<int> &wall_attr_, real_t stiffening_degree);
+   JacobianBasedStiffeningCoefficient(ParFiniteElementSpace *fes_,
+                                      Array<int> &wall_attr_, real_t stiffening_degree);
 
    /**
     * @brief Constructor with default stiffening degree.
@@ -101,8 +103,9 @@ public:
     * @param fes_ Pointer to the parallel finite element space (NOT OWNED)
     * @param wall_attr_ Array of boundary attributes representing wall boundaries
     */
-   JacobianBasedStiffeningCoefficient(ParFiniteElementSpace *fes_, Array<int> &wall_attr_)
-       : LocalStiffeningCoefficient(fes_, wall_attr_) {}
+   JacobianBasedStiffeningCoefficient(ParFiniteElementSpace *fes_,
+                                      Array<int> &wall_attr_)
+      : LocalStiffeningCoefficient(fes_, wall_attr_) {}
 
    /**
     * @brief Destructor
@@ -136,7 +139,8 @@ public:
                const IntegrationPoint &ip) override;
 
 private:
-   real_t stiffening_degree = 1.0; ///< Degree of stiffening applied to distorted elements
+   real_t stiffening_degree =
+      1.0; ///< Degree of stiffening applied to distorted elements
 };
 
 /**
@@ -162,7 +166,8 @@ public:
     * @param distance_solver_type Type of distance solver algorithm (default: 2)
     * @param filter_ls Whether to apply filtering to the level set function (default: false)
     */
-   DistanceBasedStiffeningCoefficient(ParFiniteElementSpace *fes_, Array<int> &wall_attr_, int distance_solver_type = 0, bool filter_ls = false);
+   DistanceBasedStiffeningCoefficient(ParFiniteElementSpace *fes_,
+                                      Array<int> &wall_attr_, int distance_solver_type = 0, bool filter_ls = false);
 
    /**
     * @brief Constructor with default parameters.
@@ -170,8 +175,9 @@ public:
     * @param fes_ Pointer to the parallel finite element space (NOT OWNED)
     * @param wall_attr_ Array of boundary attributes representing wall boundaries
     */
-   DistanceBasedStiffeningCoefficient(ParFiniteElementSpace *fes_, Array<int> &wall_attr_)
-       : DistanceBasedStiffeningCoefficient(fes_, wall_attr_, 2, false) {}
+   DistanceBasedStiffeningCoefficient(ParFiniteElementSpace *fes_,
+                                      Array<int> &wall_attr_)
+      : DistanceBasedStiffeningCoefficient(fes_, wall_attr_, 2, false) {}
 
    /**
     * @brief Destructor
@@ -207,7 +213,8 @@ public:
     *
     * where Rmid is the middle of the transition zone Rmid = (Rmin + Rmax) / 2
     */
-   void SetParameters(real_t Rmin, real_t Rmax, real_t alpha, real_t Amax, real_t Amin, real_t stiffening_degree = 1.0);
+   void SetParameters(real_t Rmin, real_t Rmax, real_t alpha, real_t Amax,
+                      real_t Amin, real_t stiffening_degree = 1.0);
 
    /**
     * @brief Updates the distance field computation.
@@ -234,10 +241,13 @@ public:
 
 private:
    bool filter_ls;                   ///< Flag indicating whether to filter the level set function
-   ParGridFunction ls_gf;            ///< Level set grid function for boundary representation
+   ParGridFunction
+   ls_gf;            ///< Level set grid function for boundary representation
    ParGridFunction distance_gf;      ///< Grid function storing distance to walls
-   GridFunctionCoefficient ls_coeff; ///< Coefficient wrapper for level set function
-   GridFunctionCoefficient dist_coeff; ///< Coefficient wrapper for the distance (handles LOR meshes)
+   GridFunctionCoefficient
+   ls_coeff; ///< Coefficient wrapper for level set function
+   GridFunctionCoefficient
+   dist_coeff; ///< Coefficient wrapper for the distance (handles LOR meshes)
    DistanceSolver *distance_solver;  ///< Distance solver object (owned)
    real_t Rmin;
    real_t Rmax;
@@ -245,5 +255,6 @@ private:
    real_t alpha;
    real_t Amax;
    real_t Amin;
-   real_t stiffening_degree = 1.0; ///< Power applied to the sigmoid stiffening value
+   real_t stiffening_degree =
+      1.0; ///< Power applied to the sigmoid stiffening value
 };

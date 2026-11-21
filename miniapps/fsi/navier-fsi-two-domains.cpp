@@ -102,9 +102,11 @@ using namespace common_fsi_utils;
 using TransferBackend = InterfaceTransfer::Backend;
 
 // Forward declarations of functions
-ParMesh CreateSubmeshMesh(Mesh *parent_mesh, int domain_attr, std::vector<Vector> translations, int mesh_order = 1);
+ParMesh CreateSubmeshMesh(Mesh *parent_mesh, int domain_attr,
+                          std::vector<Vector> translations, int mesh_order = 1);
 template <typename T>
-void saveArray(const Array<T> &data, const std::string &outfolder, const std::string &name);
+void saveArray(const Array<T> &data, const std::string &outfolder,
+               const std::string &name);
 
 real_t pressure_piston_top(const Vector &x, double time);
 real_t solid_disp_analytic(const Vector &x, double time);
@@ -123,7 +125,8 @@ void ComputeDragLift(real_t &drag, real_t &lift, ParLinearForm &lift_drag_form);
 struct s_NavierContext // Navier Stokes params
 {
    int u_order = 2;                   // polynomial order of the velocity space
-   int max_bdf_order = 2;             // BDF3 + undamped solid is unstable (added mass)
+   int max_bdf_order =
+      2;             // BDF3 + undamped solid is unstable (added mass)
    real_t density = 1;                // Density of the fluid
    real_t dynamic_viscosity = 1e-3;   // Dynamic viscosity of the fluid
    real_t kinematic_viscosity = 1e-6; // Kinematic viscosity of the fluid
@@ -156,15 +159,17 @@ struct s_MeshContext // mesh
 struct s_DomainDecompositionContext // domain decomposition params
 {
    bool aitken = false;         // Enable Aitken relaxation
-   int robin_traction = 0;      // Traction in the fluid Robin datum (R-N couplings): 0 - fluid traction (consistent), 1 - solid sigma_s(u_h).n
+   int robin_traction =
+      0;      // Traction in the fluid Robin datum (R-N couplings): 0 - fluid traction (consistent), 1 - solid sigma_s(u_h).n
    real_t safety_factor = 1.15; // Safety factor for the Aitken relaxation method
    real_t omega_solid_velocity = 1.0;
    real_t omega_solid_sigma = 1.0;
    real_t omega_fluid_velocity = 1.0;
-   real_t alphaP = -1.0; 
+   real_t alphaP = -1.0;
    real_t alphaS = -1.0;
-   real_t alphaSolid = -1.0; 
-   bool relative_convergence = true; // Use absolute or relative convergence criterion
+   real_t alphaSolid = -1.0;
+   bool relative_convergence =
+      true; // Use absolute or relative convergence criterion
 } DD_ctx;
 
 struct s_ElasticPistonContext // elastic piston verification (section 7.1)
@@ -172,10 +177,14 @@ struct s_ElasticPistonContext // elastic piston verification (section 7.1)
    real_t delta = 1e3;
    real_t alpha = 0.01;       // Amplitude of F̄(τ) = α·cos(ωτ)
    real_t omega = 2.0 * M_PI; // Frequency parameter in F̄(τ)
-   real_t a = 0.0;            // Interface oscillation amplitude a = 2α·sin(ω·H̄/c̄p) [computed]
-   real_t cp_bar = 0.0;       // Solid longitudinal wave speed c̄p = sqrt((λ̄+2μ̄)/ρ̄s) [computed]
-   real_t H_fluid = 0.0;      // Initial fluid domain height in y [from mesh bounding box]
-   real_t H_bar_solid = 0.0;  // Solid reference domain height in y [from mesh bounding box]
+   real_t a =
+      0.0;            // Interface oscillation amplitude a = 2α·sin(ω·H̄/c̄p) [computed]
+   real_t cp_bar =
+      0.0;       // Solid longitudinal wave speed c̄p = sqrt((λ̄+2μ̄)/ρ̄s) [computed]
+   real_t H_fluid =
+      0.0;      // Initial fluid domain height in y [from mesh bounding box]
+   real_t H_bar_solid =
+      0.0;  // Solid reference domain height in y [from mesh bounding box]
 } ElasticPiston_ctx;
 
 enum class ProblemType : int
@@ -241,10 +250,12 @@ int main(int argc, char *argv[])
 
    // Coupling parameters
    real_t relaxation = 1.0;
-   CouplingType coupling = CouplingType::Dirichlet_Neumann; // Default coupling type
+   CouplingType coupling =
+      CouplingType::Dirichlet_Neumann; // Default coupling type
 
    // Deformation parameters
-   MeshDeformationType mesh_deformation_type = MeshDeformationType::Laplacian; // Default is Laplacian
+   MeshDeformationType mesh_deformation_type =
+      MeshDeformationType::Laplacian; // Default is Laplacian
 
    // Output parameters
    int save_freq = 1;
@@ -257,15 +268,18 @@ int main(int argc, char *argv[])
 
    OptionsParser args(argc, argv);
    // FE
-   args.AddOption(&NS_ctx.u_order, "-fo", "--fluid-order", "polynomial_order for fluid velocity space");
+   args.AddOption(&NS_ctx.u_order, "-fo", "--fluid-order",
+                  "polynomial_order for fluid velocity space");
    args.AddOption(&Elasticity_ctx.order, "-eo", "--elasticity-order",
                   "polynomial_order for solid elasticity space");
    // Problem type
    args.AddOption((int *)&problem, "-p", "--problem-type",
                   "Problem type: 0 - Longitudinal, 1 - Transverse (default: 0).");
    // Navier Stokes time integration
-   args.AddOption(&NS_ctx.max_bdf_order, "-mbdf", "--max_bdf_order", "max_bdf_order");
-   args.AddOption(&time_adaptivity, "-ta", "--time-adaptivity", "-no-ta", "--no-time-adaptivity",
+   args.AddOption(&NS_ctx.max_bdf_order, "-mbdf", "--max_bdf_order",
+                  "max_bdf_order");
+   args.AddOption(&time_adaptivity, "-ta", "--time-adaptivity", "-no-ta",
+                  "--no-time-adaptivity",
                   "Enable or disable time adaptivity.");
    args.AddOption(&NS_ctx.Umax, "-inflow_velocity", "--inflow_velocity",
                   "inflow_velocity");
@@ -305,7 +319,8 @@ int main(int argc, char *argv[])
                   "traction sigma_s(u_h).n from the displacement gradient. Other couplings use the solid traction.");
    args.AddOption(&DD_ctx.safety_factor, "-sfa", "--safety-factor",
                   "Safety factor for the Aitken relaxation method (default: 1.15). ");
-   args.AddOption(&DD_ctx.relative_convergence, "-rc", "--relative-convergence", "-ac", "--absolute-convergence",
+   args.AddOption(&DD_ctx.relative_convergence, "-rc", "--relative-convergence",
+                  "-ac", "--absolute-convergence",
                   "Use relative or absolute convergence criterion (default: false, i.e. absolute convergence).");
    args.AddOption(&DD_ctx.alphaP, "-ap", "--alpha-p",
                   "Alpha_p parameter for Robin or RobinAMP coupling (default: -1, i.e. use impedance-based value).");
@@ -317,7 +332,8 @@ int main(int argc, char *argv[])
    args.AddOption(&periodic, "-pm", "--periodic", "-no-pm", "--no-periodic",
                   "Periodic mesh (default: false).");
    args.AddOption(&Mesh_ctx.serial_ref_levels, "-rs", "--rs", "serial_ref_levels");
-   args.AddOption(&Mesh_ctx.parallel_ref_levels, "-rp", "--rp", "parallel_ref_levels");
+   args.AddOption(&Mesh_ctx.parallel_ref_levels, "-rp", "--rp",
+                  "parallel_ref_levels");
    args.AddOption((int *)&mesh_deformation_type, "-mdt", "--mesh-deformation-type",
                   "Type of mesh deformation to use (0 - Laplacian, 1 - IncrementalLaplacian, 2 - Elasticity). "
                   "Default is 0 (Laplacian).");
@@ -344,17 +360,27 @@ int main(int argc, char *argv[])
    {
       // Elastic piston (Serino et al. 2019): mu_bar = lambda_bar = rho_bar = delta, rho_f = 1
       if (NS_ctx.density != 1.0 && Mpi::Root())
-         mfem::out << "WARNING: longitudinal piston assumes rho_f = 1; got " << NS_ctx.density << std::endl;
-      Elasticity_ctx.mu = ElasticPiston_ctx.delta;                                                 // G, Shear modulus, Lame's second parameter
+      {
+         mfem::out << "WARNING: longitudinal piston assumes rho_f = 1; got " <<
+                   NS_ctx.density << std::endl;
+      }
+      Elasticity_ctx.mu =
+         ElasticPiston_ctx.delta;                                                 // G, Shear modulus, Lame's second parameter
       Elasticity_ctx.lambda = ElasticPiston_ctx.delta; // Lame's first parameter
-      Elasticity_ctx.E = Elasticity_ctx.mu * (3 * Elasticity_ctx.lambda + 2 * Elasticity_ctx.mu) / (Elasticity_ctx.lambda + Elasticity_ctx.mu); // Young's modulus
-      Elasticity_ctx.nu = Elasticity_ctx.lambda / (2 * (Elasticity_ctx.lambda + Elasticity_ctx.mu)); // Poisson's ratio
+      Elasticity_ctx.E = Elasticity_ctx.mu * (3 * Elasticity_ctx.lambda + 2 *
+                                              Elasticity_ctx.mu) / (Elasticity_ctx.lambda +
+                                                                    Elasticity_ctx.mu); // Young's modulus
+      Elasticity_ctx.nu = Elasticity_ctx.lambda / (2 * (Elasticity_ctx.lambda +
+                                                        Elasticity_ctx.mu)); // Poisson's ratio
       Elasticity_ctx.density = ElasticPiston_ctx.delta; // Density
    }
    else
    {
-      Elasticity_ctx.mu = Elasticity_ctx.E / (2.0 * (1.0 + Elasticity_ctx.nu));                                                     // G, Shear modulus, Lame's second parameter
-      Elasticity_ctx.lambda = Elasticity_ctx.E * Elasticity_ctx.nu / ((1.0 + Elasticity_ctx.nu) * (1.0 - 2.0 * Elasticity_ctx.nu)); // Lame's first parameter
+      Elasticity_ctx.mu = Elasticity_ctx.E / (2.0 * (1.0 +
+                                                     Elasticity_ctx.nu));                                                     // G, Shear modulus, Lame's second parameter
+      Elasticity_ctx.lambda = Elasticity_ctx.E * Elasticity_ctx.nu / ((
+                                                                         1.0 + Elasticity_ctx.nu) * (1.0 - 2.0 *
+                                                                               Elasticity_ctx.nu)); // Lame's first parameter
    }
 
 
@@ -365,22 +391,30 @@ int main(int argc, char *argv[])
 
    // Set the relaxation factors for the fluid and solid problems
    // If Aitken relaxation is enabled, these factors will be used as the initial omega values at each timestep
-   DD_ctx.omega_solid_velocity = relaxation; // Relaxation factor for the fluid problem
-   DD_ctx.omega_solid_sigma = relaxation; // Relaxation factor for the solid problem
+   DD_ctx.omega_solid_velocity =
+      relaxation; // Relaxation factor for the fluid problem
+   DD_ctx.omega_solid_sigma =
+      relaxation; // Relaxation factor for the solid problem
 
 
-   // Based on the coupling type, set some booleans for interpolation and transfer 
-   bool need_solid_velocity_on_fluid = (coupling != CouplingType::Neumann_Dirichlet);
-   bool need_solid_traction_on_fluid = (coupling != CouplingType::Dirichlet_Neumann);
-   bool need_fluid_velocity_on_solid = (coupling == CouplingType::Neumann_Dirichlet || coupling == CouplingType::Robin_Robin );
-   bool need_fluid_traction_on_solid = (coupling != CouplingType::Neumann_Dirichlet);
+   // Based on the coupling type, set some booleans for interpolation and transfer
+   bool need_solid_velocity_on_fluid = (coupling !=
+                                        CouplingType::Neumann_Dirichlet);
+   bool need_solid_traction_on_fluid = (coupling !=
+                                        CouplingType::Dirichlet_Neumann);
+   bool need_fluid_velocity_on_solid = (coupling == CouplingType::Neumann_Dirichlet
+                                        || coupling == CouplingType::Robin_Robin );
+   bool need_fluid_traction_on_solid = (coupling !=
+                                        CouplingType::Neumann_Dirichlet);
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
    /// 3. Create serial Mesh, parallel and fluid/solid sub-meshes
    ///////////////////////////////////////////////////////////////////////////////////////////////
 
    if (Mpi::Root())
+   {
       mfem::out << "\nLoading mesh and refining in serial...";
+   }
 
    Mesh *parent_mesh = new Mesh(mesh_file);
    const int dim = parent_mesh->Dimension();
@@ -407,19 +441,25 @@ int main(int argc, char *argv[])
 
    if (Mesh_ctx.order < 0)
    {
-      Mesh_ctx.order = Elasticity_ctx.order; // Use the elasticity order as the mesh order if not specified
+      Mesh_ctx.order =
+         Elasticity_ctx.order; // Use the elasticity order as the mesh order if not specified
    }
    auto solid_pmesh = CreateSubmeshMesh(parent_mesh, 1, translations_solid, 1);
-   auto fluid_pmesh = CreateSubmeshMesh(parent_mesh, 2, translations_fluid, Mesh_ctx.order);
+   auto fluid_pmesh = CreateSubmeshMesh(parent_mesh, 2, translations_fluid,
+                                        Mesh_ctx.order);
 
    Vector fluid_bb_min, fluid_bb_max, solid_bb_min, solid_bb_max;
-   fluid_pmesh.GetBoundingBox(fluid_bb_min, fluid_bb_max, std::max(Mesh_ctx.order, 1));
-   solid_pmesh.GetBoundingBox(solid_bb_min, solid_bb_max, std::max(Elasticity_ctx.order, 1));
+   fluid_pmesh.GetBoundingBox(fluid_bb_min, fluid_bb_max, std::max(Mesh_ctx.order,
+                                                                   1));
+   solid_pmesh.GetBoundingBox(solid_bb_min, solid_bb_max,
+                              std::max(Elasticity_ctx.order, 1));
    ElasticPiston_ctx.H_fluid = fluid_bb_max(1) - fluid_bb_min(1);
    ElasticPiston_ctx.H_bar_solid = solid_bb_max(1) - solid_bb_min(1);
 
-   mfem::out << "Fluid height H_fluid = " << ElasticPiston_ctx.H_fluid << std::endl;
-   mfem::out << "Solid height H_bar_solid = " << ElasticPiston_ctx.H_bar_solid << std::endl;
+   mfem::out << "Fluid height H_fluid = " << ElasticPiston_ctx.H_fluid <<
+             std::endl;
+   mfem::out << "Solid height H_bar_solid = " << ElasticPiston_ctx.H_bar_solid <<
+             std::endl;
 
    if (Mpi::Root())
    {
@@ -450,7 +490,9 @@ int main(int argc, char *argv[])
    delete parent_mesh; // we don't need the parent mesh anymore
 
    if (Mpi::Root())
+   {
       mfem::out << "done." << std::endl;
+   }
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
    /// 4. Create Flow, Solid, and MeshDeformation Solvers
@@ -461,17 +503,22 @@ int main(int argc, char *argv[])
    ///////////////
 
    if (Mpi::Root())
+   {
       mfem::out << "\nCreating Navier-Stokes solver..." << std::endl;
+   }
 
    // Print fluid properties
    if (Mpi::Root())
    {
       mfem::out << "Fluid properties:" << std::endl;
-      mfem::out << "  - Density: " << std::scientific << NS_ctx.density << " kg/m³" << std::endl;
-      mfem::out << "  - Kinematic viscosity: " << std::scientific << NS_ctx.kinematic_viscosity << " m²/s" << std::endl;
+      mfem::out << "  - Density: " << std::scientific << NS_ctx.density << " kg/m³"
+                << std::endl;
+      mfem::out << "  - Kinematic viscosity: " << std::scientific <<
+                NS_ctx.kinematic_viscosity << " m²/s" << std::endl;
    }
 
-   NavierSolver navier(&fluid_pmesh, NS_ctx.u_order, NS_ctx.kinematic_viscosity, NS_ctx.density, false);
+   NavierSolver navier(&fluid_pmesh, NS_ctx.u_order, NS_ctx.kinematic_viscosity,
+                       NS_ctx.density, false);
    navier.SetMaxBDFOrder(NS_ctx.max_bdf_order);
 
    ParGridFunction *u_gf = navier.GetCurrentVelocity();
@@ -506,22 +553,30 @@ int main(int argc, char *argv[])
    /////////////
 
    if (Mpi::Root())
+   {
       mfem::out << "\nCreating Elasticity solver..." << std::endl;
+   }
 
    // Print mechanical properties
    if (Mpi::Root())
    {
       mfem::out << "Elasticity properties:" << std::endl;
-      mfem::out << "  - Young's modulus: " << std::scientific << Elasticity_ctx.E << " Pa" << std::endl;
-      mfem::out << "  - Poisson's ratio: " << Elasticity_ctx.nu << " (dimensionless)" << std::endl;
-      mfem::out << "  - Density: " << std::scientific << Elasticity_ctx.density << " kg/m³" << std::endl;
-      mfem::out << "  - Shear modulus (mu): " << std::scientific << Elasticity_ctx.mu << " Pa" << std::endl;
-      mfem::out << "  - Lame's first parameter (lambda): " << std::scientific << Elasticity_ctx.lambda << " Pa" << std::endl;
+      mfem::out << "  - Young's modulus: " << std::scientific << Elasticity_ctx.E <<
+                " Pa" << std::endl;
+      mfem::out << "  - Poisson's ratio: " << Elasticity_ctx.nu << " (dimensionless)"
+                << std::endl;
+      mfem::out << "  - Density: " << std::scientific << Elasticity_ctx.density <<
+                " kg/m³" << std::endl;
+      mfem::out << "  - Shear modulus (mu): " << std::scientific << Elasticity_ctx.mu
+                << " Pa" << std::endl;
+      mfem::out << "  - Lame's first parameter (lambda): " << std::scientific <<
+                Elasticity_ctx.lambda << " Pa" << std::endl;
    }
 
    // Create the elasticity solver
    int solver_type = 15; // HHTAlphaSolver
-   ElasticitySolver elasticity(solver_type, &solid_pmesh, Elasticity_ctx.order, Elasticity_ctx.density, Elasticity_ctx.lambda, Elasticity_ctx.mu);
+   ElasticitySolver elasticity(solver_type, &solid_pmesh, Elasticity_ctx.order,
+                               Elasticity_ctx.density, Elasticity_ctx.lambda, Elasticity_ctx.mu);
 
    // Grid functions and vectors for the solid
    Vector solid_displacement, solid_displacement_tn;
@@ -544,12 +599,13 @@ int main(int argc, char *argv[])
    ParGridFunction fluid_sigmaN_onSolid_gf(elasticity_fes);
    fluid_sigmaN_onSolid_gf = 0.0;
    fluid_sigmaN_onSolid_gf.GetTrueDofs(fluid_sigmaN_onSolid);
-   VectorGridFunctionCoefficient fluid_sigmaN_onSolid_coeff(&fluid_sigmaN_onSolid_gf);
+   VectorGridFunctionCoefficient fluid_sigmaN_onSolid_coeff(
+      &fluid_sigmaN_onSolid_gf);
 
    ParGridFunction fluid_vel_onSolid_gf(elasticity_fes);
    fluid_vel_onSolid_gf = 0.0;
    fluid_vel_onSolid_gf.GetTrueDofs(fluid_vel_onSolid);
-   VectorGridFunctionCoefficient fluid_vel_onSolid_coeff(&fluid_vel_onSolid_gf); 
+   VectorGridFunctionCoefficient fluid_vel_onSolid_coeff(&fluid_vel_onSolid_gf);
 
    int order_quad_disp = std::max(2, 2 * Elasticity_ctx.order + 2);
    const IntegrationRule *irs_disp[Geometry::NumGeom];
@@ -559,14 +615,18 @@ int main(int argc, char *argv[])
    }
 
    if (Mpi::Root())
+   {
       mfem::out << "done." << std::endl;
+   }
 
    /////////////////////////
    // MESH DEFORMATION
    /////////////////////////
 
    if (Mpi::Root())
+   {
       mfem::out << "Creating mesh deformation solver...";
+   }
 
    auto vfec = H1_FECollection(2, fluid_pmesh.Dimension());
    auto vfes = ParFiniteElementSpace(&fluid_pmesh, &vfec, fluid_pmesh.Dimension());
@@ -575,54 +635,66 @@ int main(int argc, char *argv[])
 
    switch (mesh_deformation_type)
    {
-   case MeshDeformationType::Laplacian: // Laplacian
-      fluid_mesh_deformation = new MeshLaplacian(&fluid_pmesh);
-      break;
-   case MeshDeformationType::IncrementalLaplacian: // Incremental Laplacian
-      fluid_mesh_deformation = new MeshLaplacian(&fluid_pmesh, true);
-      break;
-   case MeshDeformationType::LinearElasticity: // Elasticity
-      fluid_mesh_deformation = new MeshLinearElasticity(&fluid_pmesh);
-      break;
-   default:
-      MFEM_ABORT("Invalid mesh deformation type.");
+      case MeshDeformationType::Laplacian: // Laplacian
+         fluid_mesh_deformation = new MeshLaplacian(&fluid_pmesh);
+         break;
+      case MeshDeformationType::IncrementalLaplacian: // Incremental Laplacian
+         fluid_mesh_deformation = new MeshLaplacian(&fluid_pmesh, true);
+         break;
+      case MeshDeformationType::LinearElasticity: // Elasticity
+         fluid_mesh_deformation = new MeshLinearElasticity(&fluid_pmesh);
+         break;
+      default:
+         MFEM_ABORT("Invalid mesh deformation type.");
    }
 
    std::vector<std::string> mesh_deformation_names = {"Laplacian", "IncrementalLaplacian", "LinearElasticity"};
 
    if (Mpi::Root())
-      mfem::out << "\nUsing mesh deformation type: " << mesh_deformation_names[static_cast<int>(mesh_deformation_type)] << std::endl;
+   {
+      mfem::out << "\nUsing mesh deformation type: " <<
+                mesh_deformation_names[static_cast<int>(mesh_deformation_type)] << std::endl;
+   }
 
    ParFiniteElementSpace *mesh_nodes_fes = fluid_mesh_deformation->GetFESpace();
 
-   ParGridFunction *mesh_velocity_gf = new ParGridFunction(mesh_nodes_fes); // Mesh velocity field
+   ParGridFunction *mesh_velocity_gf = new ParGridFunction(
+      mesh_nodes_fes); // Mesh velocity field
    *mesh_velocity_gf = 0.0;
    // ALE convection (u - w)·grad u: must be set before navier.Setup(), which builds the convection integrator.
    navier.SetMeshVelocity(mesh_velocity_gf, true); // navier owns mesh_velocity_gf
 
    ParGridFunction *mesh_displacement_gf = new ParGridFunction(mesh_nodes_fes);
-   VectorGridFunctionCoefficient *mesh_displacement_coeff = new VectorGridFunctionCoefficient(&solid_displacement_gf);
+   VectorGridFunctionCoefficient *mesh_displacement_coeff = new
+   VectorGridFunctionCoefficient(&solid_displacement_gf);
    *mesh_displacement_gf = 0.0;
 
    Vector mesh_displacement_tn;
    mesh_displacement_gf->GetTrueDofs(mesh_displacement_tn);
 
-   ParGridFunction *solid_relative_displacement_gf = nullptr; // Relative solid displacement field (on solid fes)
+   ParGridFunction *solid_relative_displacement_gf =
+      nullptr; // Relative solid displacement field (on solid fes)
    if (!fluid_mesh_deformation->IsNonIncremental())
    {
-      solid_relative_displacement_gf = new ParGridFunction(elasticity_fes); // Relative solid displacement field
+      solid_relative_displacement_gf = new ParGridFunction(
+         elasticity_fes); // Relative solid displacement field
       *solid_relative_displacement_gf = 0.0;
    }
 
    if (Mpi::Root())
+   {
       mfem::out << "done." << std::endl;
+   }
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
    /// 5. Add boundary conditions and initial conditions
    ///////////////////////////////////////////////////////////////////////////////////////////////
 
    if (Mpi::Root())
-      mfem::out << "\nSetting up boundary conditions and initial conditions..." << std::endl;
+   {
+      mfem::out << "\nSetting up boundary conditions and initial conditions..." <<
+                std::endl;
+   }
 
    ////////////
    // FLUID
@@ -643,103 +715,134 @@ int main(int argc, char *argv[])
 
    switch (problem)
    {
-   case ProblemType::Longitudinal:
-   { // Longitudinal flow
-      if (Mpi::Root())
-         mfem::out << "Selected longitudinal problem." << std::endl;
-
-      outlet[6] = 1; // Outlet boundary
-      navier.AddPresDirichletBC(pressure_piston_top, outlet);
-      if (!periodic)
+      case ProblemType::Longitudinal:
       {
-         // Slip walls: the exact fluid velocity (0, v2(t)) is uniform, so only u_x = 0 is imposed there
-         // (via fluid_dirichlet_bdr below). The markers are kept for the mesh-motion essential set.
-         no_slip[4] = 1;
-         no_slip[5] = 1;
+         // Longitudinal flow
+         if (Mpi::Root())
+         {
+            mfem::out << "Selected longitudinal problem." << std::endl;
+         }
+
+         outlet[6] = 1; // Outlet boundary
+         navier.AddPresDirichletBC(pressure_piston_top, outlet);
+         if (!periodic)
+         {
+            // Slip walls: the exact fluid velocity (0, v2(t)) is uniform, so only u_x = 0 is imposed there
+            // (via fluid_dirichlet_bdr below). The markers are kept for the mesh-motion essential set.
+            no_slip[4] = 1;
+            no_slip[5] = 1;
+         }
+         break;
       }
-      break;
-   }
-   case ProblemType::Transverse:
-   { // Transverse flow
-      if (Mpi::Root())
-         mfem::out << "Selected transverse problem." << std::endl;
-      no_slip[6] = 1;
-      navier.AddVelDirichletBC(noSlip_fun, no_slip);
-      preload_traction_coeff = new VectorFunctionCoefficient(fluid_pmesh.Dimension(), traction_fun);
-      break;
-   }
-   default:
-      mfem_error("Unknown problem type.");
-      break;
+      case ProblemType::Transverse:
+      {
+         // Transverse flow
+         if (Mpi::Root())
+         {
+            mfem::out << "Selected transverse problem." << std::endl;
+         }
+         no_slip[6] = 1;
+         navier.AddVelDirichletBC(noSlip_fun, no_slip);
+         preload_traction_coeff = new VectorFunctionCoefficient(fluid_pmesh.Dimension(),
+                                                                traction_fun);
+         break;
+      }
+      default:
+         mfem_error("Unknown problem type.");
+         break;
    }
 
    // Add dirichlet at the interface
-   VectorGridFunctionCoefficient solid_vel_onFluid_coeff(&solid_vel_onFluid_gf); // Holds the solid velocity projected onto the fluid mesh
-   VectorGridFunctionCoefficient solid_sigmaN_onFluid_coeff(&solid_sigmaN_onFluid_gf);
+   VectorGridFunctionCoefficient solid_vel_onFluid_coeff(
+      &solid_vel_onFluid_gf); // Holds the solid velocity projected onto the fluid mesh
+   VectorGridFunctionCoefficient solid_sigmaN_onFluid_coeff(
+      &solid_sigmaN_onFluid_gf);
    // navier.AddVelDirichletBC(solid_vel_onFluid_coeff, fluid_fs_interface_attr);
-   real_t cp = std::sqrt((Elasticity_ctx.lambda + 2 * Elasticity_ctx.mu) / Elasticity_ctx.density); // compression wave speed
-   real_t cs = std::sqrt(Elasticity_ctx.mu / Elasticity_ctx.density);                               // shear wave speed
+   real_t cp = std::sqrt((Elasticity_ctx.lambda + 2 * Elasticity_ctx.mu) /
+                         Elasticity_ctx.density); // compression wave speed
+   real_t cs = std::sqrt(Elasticity_ctx.mu /
+                         Elasticity_ctx.density);                               // shear wave speed
    real_t zp = Elasticity_ctx.density * cp;
    real_t zs = Elasticity_ctx.density * cs;
    real_t zf = NS_ctx.density * ElasticPiston_ctx.H_fluid / dt;
 
 
    if (DD_ctx.alphaP < 0.0)
+   {
       DD_ctx.alphaP = zp;
+   }
 
    if (DD_ctx.alphaSolid < 0.0)
+   {
       DD_ctx.alphaSolid = zp;
+   }
 
    if (DD_ctx.alphaS < 0.0)
+   {
       DD_ctx.alphaS = zs;
+   }
 
    ElasticPiston_ctx.cp_bar = cp;
    if (ElasticPiston_ctx.cp_bar > 0.0)
    {
-      const real_t phase = ElasticPiston_ctx.omega * ElasticPiston_ctx.H_bar_solid / ElasticPiston_ctx.cp_bar;
+      const real_t phase = ElasticPiston_ctx.omega * ElasticPiston_ctx.H_bar_solid /
+                           ElasticPiston_ctx.cp_bar;
       ElasticPiston_ctx.a = 2.0 * ElasticPiston_ctx.alpha * std::sin(phase);
    }
 
    if (Mpi::Root() && problem == ProblemType::Longitudinal)
    {
       mfem::out << "Elastic piston exact-pressure longitudinal mode:" << std::endl;
-      mfem::out << "  - alpha: " << std::scientific << ElasticPiston_ctx.alpha << std::endl;
-      mfem::out << "  - omega: " << std::scientific << ElasticPiston_ctx.omega << std::endl;
-      mfem::out << "  - H_fluid: " << std::scientific << ElasticPiston_ctx.H_fluid << std::endl;
-      mfem::out << "  - H_bar_solid: " << std::scientific << ElasticPiston_ctx.H_bar_solid << std::endl;
-      mfem::out << "  - cp_bar: " << std::scientific << ElasticPiston_ctx.cp_bar << std::endl;
-      mfem::out << "  - interface amplitude a: " << std::scientific << ElasticPiston_ctx.a << std::endl;
+      mfem::out << "  - alpha: " << std::scientific << ElasticPiston_ctx.alpha <<
+                std::endl;
+      mfem::out << "  - omega: " << std::scientific << ElasticPiston_ctx.omega <<
+                std::endl;
+      mfem::out << "  - H_fluid: " << std::scientific << ElasticPiston_ctx.H_fluid <<
+                std::endl;
+      mfem::out << "  - H_bar_solid: " << std::scientific <<
+                ElasticPiston_ctx.H_bar_solid << std::endl;
+      mfem::out << "  - cp_bar: " << std::scientific << ElasticPiston_ctx.cp_bar <<
+                std::endl;
+      mfem::out << "  - interface amplitude a: " << std::scientific <<
+                ElasticPiston_ctx.a << std::endl;
    }
 
    VectorCoefficient *neumann_coeff = nullptr;
    //Coefficient *neumann_coeff = nullptr;
    switch (coupling)
    {
-   case CouplingType::Dirichlet_Neumann:
-      navier.AddVelDirichletBC(&solid_vel_onFluid_coeff, fluid_fs_interface_attr, false);
+      case CouplingType::Dirichlet_Neumann:
+         navier.AddVelDirichletBC(&solid_vel_onFluid_coeff, fluid_fs_interface_attr,
+                                  false);
+         break;
+      case CouplingType::Robin_Neumann:
+         navier.AddRobinBC(DD_ctx.alphaP, &solid_vel_onFluid_coeff,
+                           &solid_sigmaN_onFluid_coeff, fluid_fs_interface_attr, false);
+         break;
+      case CouplingType::RobinAMP_Neumann:
+         navier.AddAMPRobinBC(DD_ctx.alphaS, DD_ctx.alphaP, &solid_vel_onFluid_coeff,
+                              &solid_sigmaN_onFluid_coeff, fluid_fs_interface_attr, false);
+         break;
+      case CouplingType::Neumann_Dirichlet:
+      {
+         // NavierSolver::AddNeumannBC expects the fluid traction σ_f·n_f.
+         // We store σ_s·n_s in solid_sigmaN_onFluid_gf, so convert it using
+         // σ_f·n_f = -σ_s·n_s before passing it to the fluid solver.
+         neumann_coeff = new ScalarVectorProductCoefficient(-1.0,
+                                                            solid_sigmaN_onFluid_coeff);
+         bool use_shear_stress = true;
+         navier.AddNeumannBC(neumann_coeff, fluid_fs_interface_attr, false,
+                             use_shear_stress);
+         // neumann_coeff = new FunctionCoefficient(fluid_interface_pressure_analytic);
+         // navier.AddPresDirichletBC(neumann_coeff, fluid_fs_interface_attr, false);
+      }
       break;
-   case CouplingType::Robin_Neumann:
-      navier.AddRobinBC(DD_ctx.alphaP, &solid_vel_onFluid_coeff, &solid_sigmaN_onFluid_coeff, fluid_fs_interface_attr, false);
-      break;
-   case CouplingType::RobinAMP_Neumann:
-      navier.AddAMPRobinBC(DD_ctx.alphaS, DD_ctx.alphaP, &solid_vel_onFluid_coeff, &solid_sigmaN_onFluid_coeff, fluid_fs_interface_attr, false);
-      break;
-   case CouplingType::Neumann_Dirichlet:
-   { // NavierSolver::AddNeumannBC expects the fluid traction σ_f·n_f.
-      // We store σ_s·n_s in solid_sigmaN_onFluid_gf, so convert it using
-      // σ_f·n_f = -σ_s·n_s before passing it to the fluid solver.
-      neumann_coeff = new ScalarVectorProductCoefficient(-1.0, solid_sigmaN_onFluid_coeff);
-      bool use_shear_stress = true;
-      navier.AddNeumannBC(neumann_coeff, fluid_fs_interface_attr, false, use_shear_stress);
-      // neumann_coeff = new FunctionCoefficient(fluid_interface_pressure_analytic);
-      // navier.AddPresDirichletBC(neumann_coeff, fluid_fs_interface_attr, false);
-   }
-   break;
-   case CouplingType::Robin_Robin:
-      navier.AddRobinBC(DD_ctx.alphaP, &solid_vel_onFluid_coeff, &solid_sigmaN_onFluid_coeff, fluid_fs_interface_attr, false);
-      break;
-   default:
-      break;
+      case CouplingType::Robin_Robin:
+         navier.AddRobinBC(DD_ctx.alphaP, &solid_vel_onFluid_coeff,
+                           &solid_sigmaN_onFluid_coeff, fluid_fs_interface_attr, false);
+         break;
+      default:
+         break;
    }
 
    // u_x = 0 (componentwise Dirichlet).
@@ -768,7 +871,7 @@ int main(int argc, char *argv[])
    }
 
    // Setup solver
-      
+
    if (problem == ProblemType::Longitudinal)
    {
       // For the longitudinal problem, we need to initialize the fluid velocity
@@ -787,15 +890,15 @@ int main(int argc, char *argv[])
       //   v2(0)  = 2*alpha*omega*sin(omega*H_bar/cp)  (uniform in y)
       //   p(0)   = 0                                  (trivial)
       // -----------------------------------------------------------------------
- 
+
       // Solid displacement: zero everywhere at t=0, no projection needed
       solid_displacement_gf = 0.0;
- 
+
       // Solid velocity: spatially varying, must be projected
       VectorFunctionCoefficient solid_vel_ic_coeff(dim, solid_vel_vec_analytic);
       solid_vel_ic_coeff.SetTime(0.0);
       solid_vel_gf.ProjectCoefficient(solid_vel_ic_coeff);
- 
+
       // Fluid velocity: uniform in y at t=0, must be projected
       VectorFunctionCoefficient fluid_vel_ic_coeff(dim, fluid_vel_vec_analytic);
       fluid_vel_ic_coeff.SetTime(0.0);
@@ -803,10 +906,10 @@ int main(int argc, char *argv[])
       u_gf->ProjectCoefficient(fluid_vel_ic_coeff);
       mesh_velocity_gf->ProjectCoefficient(fluid_vel_ic_coeff);
       solid_vel_onFluid_gf.ProjectCoefficient(fluid_vel_ic_coeff);
- 
+
       // Fluid pressure: zero at t=0, no projection needed
       *p_gf = 0.0;
- 
+
       // Sync true dof vectors with the projected grid functions
       solid_displacement_gf.GetTrueDofs(solid_displacement);
       solid_vel_gf.GetTrueDofs(solid_vel);
@@ -823,29 +926,34 @@ int main(int argc, char *argv[])
 
    Array<int> lateral_bdr(solid_pmesh.bdr_attributes.Max()); // #1
    lateral_bdr = 0;
-   lateral_bdr[1] = 1;                                      // Lateral sides (left and right)
+   lateral_bdr[1] =
+      1;                                      // Lateral sides (left and right)
    Array<int> bottom_bdr(solid_pmesh.bdr_attributes.Max()); // #2
    bottom_bdr = 0;
    bottom_bdr[0] = 1; // Bottom side
 
    switch (problem)
    {
-   case ProblemType::Longitudinal:
-      // Longitudinal flow
-      elasticity.AddFixedConstraint(bottom_bdr); // u(ȳ=-H̄,t)=0 for elastic-piston exact-pressure verification
-      if (!periodic)
-      {
-         elasticity.AddFixedConstraint(lateral_bdr, 0); // x displacement fixed on the lateral sides
-      }
-      break;
-   case ProblemType::Transverse:
-      // Transverse flow
-      elasticity.AddFixedConstraint(solid_fs_interface_attr, 1); // y-displacement fixed on the interface sides
-      elasticity.AddFixedConstraint(bottom_bdr);                 // all displacement fixed on the bottom side
-      break;
-   default:
-      mfem_error("Unknown problem type.");
-      break;
+      case ProblemType::Longitudinal:
+         // Longitudinal flow
+         elasticity.AddFixedConstraint(
+            bottom_bdr); // u(ȳ=-H̄,t)=0 for elastic-piston exact-pressure verification
+         if (!periodic)
+         {
+            elasticity.AddFixedConstraint(lateral_bdr,
+                                          0); // x displacement fixed on the lateral sides
+         }
+         break;
+      case ProblemType::Transverse:
+         // Transverse flow
+         elasticity.AddFixedConstraint(solid_fs_interface_attr,
+                                       1); // y-displacement fixed on the interface sides
+         elasticity.AddFixedConstraint(
+            bottom_bdr);                 // all displacement fixed on the bottom side
+         break;
+      default:
+         mfem_error("Unknown problem type.");
+         break;
    }
 
 
@@ -858,23 +966,28 @@ int main(int argc, char *argv[])
    ParGridFunction nd_prev_vel_gf(elasticity_fes); nd_prev_vel_gf = 0.0;
    ParGridFunction nd_prev_acc_gf(elasticity_fes); nd_prev_acc_gf = 0.0;
 
-   VectorCoefficient *robin_coeff = nullptr; // Coefficient for Robin BC, used in Robin-Robin coupling
+   VectorCoefficient *robin_coeff =
+      nullptr; // Coefficient for Robin BC, used in Robin-Robin coupling
    switch (coupling)
    {
-   case CouplingType::Dirichlet_Neumann:
-   case CouplingType::Robin_Neumann:
-   case CouplingType::RobinAMP_Neumann:
-      elasticity.AddBoundaryLoad(&fluid_sigmaN_onSolid_coeff, solid_fs_interface_attr, -1.0, false);
-      break;
-   case CouplingType::Neumann_Dirichlet:
-      elasticity.AddPrescribedVelocity(&fluid_vel_onSolid_gf, &nd_prev_vel_gf, &nd_prev_acc_gf, solid_fs_interface_attr);
-      break;
-   case CouplingType::Robin_Robin:
-      robin_coeff = new VectorSumCoefficient(fluid_vel_onSolid_coeff, fluid_sigmaN_onSolid_coeff, DD_ctx.alphaSolid, -1.0);
-      elasticity.AddRobinBC(DD_ctx.alphaSolid, robin_coeff, solid_fs_interface_attr, false);
-      break;
-   default:
-      break;
+      case CouplingType::Dirichlet_Neumann:
+      case CouplingType::Robin_Neumann:
+      case CouplingType::RobinAMP_Neumann:
+         elasticity.AddBoundaryLoad(&fluid_sigmaN_onSolid_coeff, solid_fs_interface_attr,
+                                    -1.0, false);
+         break;
+      case CouplingType::Neumann_Dirichlet:
+         elasticity.AddPrescribedVelocity(&fluid_vel_onSolid_gf, &nd_prev_vel_gf,
+                                          &nd_prev_acc_gf, solid_fs_interface_attr);
+         break;
+      case CouplingType::Robin_Robin:
+         robin_coeff = new VectorSumCoefficient(fluid_vel_onSolid_coeff,
+                                                fluid_sigmaN_onSolid_coeff, DD_ctx.alphaSolid, -1.0);
+         elasticity.AddRobinBC(DD_ctx.alphaSolid, robin_coeff, solid_fs_interface_attr,
+                               false);
+         break;
+      default:
+         break;
    }
 
    elasticity.Setup();
@@ -895,19 +1008,22 @@ int main(int argc, char *argv[])
    int prec_type_mesh = 1;
    switch (mesh_deformation_type)
    {
-   case MeshDeformationType::Laplacian: // Laplacian
-      static_cast<MeshLaplacian *>(fluid_mesh_deformation)->Setup(1.0, pa_mesh, prec_type_mesh);
-      break;
-   case MeshDeformationType::IncrementalLaplacian: // Incremental Laplacian
-      static_cast<MeshLaplacian *>(fluid_mesh_deformation)->Setup(1.0, pa_mesh, prec_type_mesh);
-      break;
-   case MeshDeformationType::LinearElasticity: // Elasticity
-   {
-      static_cast<MeshLinearElasticity *>(fluid_mesh_deformation)->Setup(Mesh_ctx.E, Mesh_ctx.nu, pa_mesh, prec_type_mesh);
-      break;
-   }
-   default:
-      MFEM_ABORT("Invalid mesh deformation type.");
+      case MeshDeformationType::Laplacian: // Laplacian
+         static_cast<MeshLaplacian *>(fluid_mesh_deformation)->Setup(1.0, pa_mesh,
+                                                                     prec_type_mesh);
+         break;
+      case MeshDeformationType::IncrementalLaplacian: // Incremental Laplacian
+         static_cast<MeshLaplacian *>(fluid_mesh_deformation)->Setup(1.0, pa_mesh,
+                                                                     prec_type_mesh);
+         break;
+      case MeshDeformationType::LinearElasticity: // Elasticity
+      {
+         static_cast<MeshLinearElasticity *>(fluid_mesh_deformation)->Setup(Mesh_ctx.E,
+                                                                            Mesh_ctx.nu, pa_mesh, prec_type_mesh);
+         break;
+      }
+      default:
+         MFEM_ABORT("Invalid mesh deformation type.");
    }
 
    ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -915,24 +1031,32 @@ int main(int argc, char *argv[])
    ///////////////////////////////////////////////////////////////////////////////////////////////
 
    if (Mpi::Root())
+   {
       mfem::out << "Setting up interface transfer for FSI problem... " << std::endl;
+   }
 
    // For the SOLID-->FLUID use the undeformed coordinates (as SOLID is in the undeformed configuration)
    // For the FLUID-->SOLID use the deformed coordinates (as FLUID is in the deformed configuration). We'll provide the offset as a coefficient in the Update()
-   BidirectionalInterfaceTransfer finder_fluid_to_solid(u_gf->ParFESpace(), elasticity_fes, parent_interface_attr, TransferBackend::GSLIB, fluid_pmesh.GetComm(), false, true);
-   InterfaceTransfer finder_solid_to_mesh(solid_vel_gf.ParFESpace(), mesh_nodes_fes, parent_interface_attr, TransferBackend::GSLIB, solid_pmesh.GetComm(), true);
+   BidirectionalInterfaceTransfer finder_fluid_to_solid(u_gf->ParFESpace(),
+                                                        elasticity_fes, parent_interface_attr, TransferBackend::GSLIB,
+                                                        fluid_pmesh.GetComm(), false, true);
+   InterfaceTransfer finder_solid_to_mesh(solid_vel_gf.ParFESpace(),
+                                          mesh_nodes_fes, parent_interface_attr, TransferBackend::GSLIB,
+                                          solid_pmesh.GetComm(), true);
 
    // Tolerance for the boundary distance: points for which GSLIB finds distance > tol will be considered as not found.
    // Useful when the offset function used to update the finders is not exact.
    real_t boundary_distance_tolerance = 1e-4;
-   finder_fluid_to_solid.SetBoundaryDistanceTolerance(boundary_distance_tolerance, boundary_distance_tolerance);
+   finder_fluid_to_solid.SetBoundaryDistanceTolerance(boundary_distance_tolerance,
+                                                      boundary_distance_tolerance);
    finder_solid_to_mesh.SetBoundaryDistanceTolerance(boundary_distance_tolerance);
 
    // Define lamdbas to compute QoI for the interface transfer
    int sdim = fluid_pmesh.Dimension();
 
    // Compute σ·n = ( - p I + 2 ν ε(u) )·n = ( - p I + ν (∇u + ∇u^T) )·n
-   auto FluidBoundaryNormalStress = [&](ElementTransformation &Tr, const IntegrationPoint &ip, Vector &qoi_loc)
+   auto FluidBoundaryNormalStress = [&](ElementTransformation &Tr,
+                                        const IntegrationPoint &ip, Vector &qoi_loc)
    {
       real_t nu, p;
       Vector sigmaN, nor(sdim);
@@ -971,7 +1095,8 @@ int main(int argc, char *argv[])
    // Compute σ·n = [ \lambda (∇·u) + mu (∇u + ∇u^T) ]·n_s
    // where n_s is the outward normal vector of the solid
    // a -1 correction factor is applied to the coefficient when provided to the fluid solver
-   auto SolidBoundaryNormalStress = [&](ElementTransformation &Tr, const IntegrationPoint &ip, Vector &qoi_loc)
+   auto SolidBoundaryNormalStress = [&](ElementTransformation &Tr,
+                                        const IntegrationPoint &ip, Vector &qoi_loc)
    {
       Vector sigmaN, nor(sdim);
       DenseMatrix dudx, A(sdim, sdim);
@@ -1015,26 +1140,36 @@ int main(int argc, char *argv[])
    *solid_disp_prev_gf = 0.0;
    ParGridFunction *solid_vel_prev_gf = new ParGridFunction(elasticity_fes);
    *solid_vel_prev_gf = 0.0;
-   ParGridFunction *fluid_sigmaN_onSolid_prev_gf = new ParGridFunction(elasticity_fes);
+   ParGridFunction *fluid_sigmaN_onSolid_prev_gf = new ParGridFunction(
+      elasticity_fes);
    *fluid_sigmaN_onSolid_prev_gf = 0.0;
    ParGridFunction *u_fluid_prev_gf = new ParGridFunction(u_gf->ParFESpace());
    *u_fluid_prev_gf = 0.0;
    ParGridFunction *p_fluid_prev_gf = new ParGridFunction(p_gf->ParFESpace());
    *p_fluid_prev_gf = 0.0;
-   ParGridFunction *solid_sigmaN_onFluid_prev_gf = new ParGridFunction(u_gf->ParFESpace());
+   ParGridFunction *solid_sigmaN_onFluid_prev_gf = new ParGridFunction(
+      u_gf->ParFESpace());
    *solid_sigmaN_onFluid_prev_gf = 0.0;
-   ParGridFunction *solid_vel_onFluid_prev_gf = new ParGridFunction(u_gf->ParFESpace());
+   ParGridFunction *solid_vel_onFluid_prev_gf = new ParGridFunction(
+      u_gf->ParFESpace());
    *solid_vel_onFluid_prev_gf = 0.0;
-   ParGridFunction *fluid_vel_onSolid_prev_gf = new ParGridFunction(elasticity_fes);
+   ParGridFunction *fluid_vel_onSolid_prev_gf = new ParGridFunction(
+      elasticity_fes);
    *fluid_vel_onSolid_prev_gf = 0.0;
    VectorGridFunctionCoefficient solid_disp_prev_coeff(solid_disp_prev_gf);
-   VectorGridFunctionCoefficient fluid_sigmaN_onSolid_prev_coeff(fluid_sigmaN_onSolid_prev_gf);
-   VectorGridFunctionCoefficient solid_sigmaN_onFluid_prev_coeff(solid_sigmaN_onFluid_prev_gf); 
-   VectorGridFunctionCoefficient solid_vel_onFluid_prev_coeff(solid_vel_onFluid_prev_gf);
-   VectorGridFunctionCoefficient fluid_vel_onSolid_prev_coeff(fluid_vel_onSolid_prev_gf);
+   VectorGridFunctionCoefficient fluid_sigmaN_onSolid_prev_coeff(
+      fluid_sigmaN_onSolid_prev_gf);
+   VectorGridFunctionCoefficient solid_sigmaN_onFluid_prev_coeff(
+      solid_sigmaN_onFluid_prev_gf);
+   VectorGridFunctionCoefficient solid_vel_onFluid_prev_coeff(
+      solid_vel_onFluid_prev_gf);
+   VectorGridFunctionCoefficient fluid_vel_onSolid_prev_coeff(
+      fluid_vel_onSolid_prev_gf);
    VectorGridFunctionCoefficient u_fluid_prev_coeff(u_fluid_prev_gf);
 
-   Vector p_fluid_prev, u_fluid_prev, solid_displacement_prev, solid_vel_prev, fluid_sigmaN_onSolid_prev, solid_sigmaN_onFluid_prev, solid_vel_onFluid_prev, fluid_vel_onSolid_prev;
+   Vector p_fluid_prev, u_fluid_prev, solid_displacement_prev, solid_vel_prev,
+          fluid_sigmaN_onSolid_prev, solid_sigmaN_onFluid_prev, solid_vel_onFluid_prev,
+          fluid_vel_onSolid_prev;
    p_fluid_prev_gf->GetTrueDofs(p_fluid_prev);
    u_fluid_prev_gf->GetTrueDofs(u_fluid_prev);
    solid_disp_prev_gf->GetTrueDofs(solid_displacement_prev);
@@ -1056,7 +1191,8 @@ int main(int argc, char *argv[])
    ///////////////////////////////////////////////////////////////////////////////////////////////
 
    ParLinearForm lift_drag_form(u_gf->ParFESpace());
-   auto stress_integ = new BoundaryNormalStressIntegrator(*u_gf, *p_gf, *nu_gf, NS_ctx.density);
+   auto stress_integ = new BoundaryNormalStressIntegrator(*u_gf, *p_gf, *nu_gf,
+                                                          NS_ctx.density);
    stress_integ->SetIntRule(&navier.gll_ir_face);
    lift_drag_form.AddBoundaryIntegrator(stress_integ,
                                         fluid_fs_interface_attr);
@@ -1076,11 +1212,13 @@ int main(int argc, char *argv[])
    pvdc_fluid.SetCycle(current_step);
    pvdc_fluid.SetTime(0.0);
    pvdc_fluid.RegisterField("velocity", u_gf);
-   pvdc_fluid.RegisterField("provisional_velocity", navier.GetProvisionalVelocity());
+   pvdc_fluid.RegisterField("provisional_velocity",
+                            navier.GetProvisionalVelocity());
    pvdc_fluid.RegisterField("pressure", p_gf);
    pvdc_fluid.RegisterField("solid_velocity_onFluid", &solid_vel_onFluid_gf);
    pvdc_fluid.RegisterField("sigmaS_onFluid", &solid_sigmaN_onFluid_gf);
-   pvdc_fluid.RegisterField("mesh_velocity", mesh_velocity_gf); // CHECK --> Can we store the mesh velocity even tho it has a different fes?
+   pvdc_fluid.RegisterField("mesh_velocity",
+                            mesh_velocity_gf); // CHECK --> Can we store the mesh velocity even tho it has a different fes?
    pvdc_fluid.Save();
 
    ParaViewDataCollection pvdc_solid("Solid", &solid_pmesh);
@@ -1138,11 +1276,14 @@ int main(int argc, char *argv[])
    };
 
    if (Mpi::Root())
+   {
       mfem::out << "\nStarting preload phase..." << std::endl;
+   }
 
    if (Mpi::Root())
    {
-      out << "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------" << std::endl;
+      out << "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------"
+          << std::endl;
       out << std::left
           << std::setw(8) << "Step"
           << std::setw(16) << "Time"
@@ -1156,16 +1297,19 @@ int main(int argc, char *argv[])
           << std::setw(16) << "w_solid"
           << std::setw(16) << "w_fluid"
           << std::endl;
-      out << "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------" << std::endl;
+      out << "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------"
+          << std::endl;
    }
 
    int paraview_step = 0; // ParaView step counter
 
    // The transverse preload applies a traction on the solid interface; with N-D coupling the solid
    // has a prescribed-velocity BC there (fluid_vel_onSolid_gf = 0), so the preload would be silently ignored.
-   MFEM_VERIFY(!(problem == ProblemType::Transverse && coupling == CouplingType::Neumann_Dirichlet),
+   MFEM_VERIFY(!(problem == ProblemType::Transverse &&
+                 coupling == CouplingType::Neumann_Dirichlet),
                "Transverse preload needs a traction BC on the solid interface, but N-D coupling prescribes the velocity there.");
-   if (problem == ProblemType::Transverse) // CSM-only preload phase for transverse problem
+   if (problem ==
+       ProblemType::Transverse) // CSM-only preload phase for transverse problem
    {
       // Transverse problem has a preload time where we solve only CSM + Mesh Deformation
       // At t = t_release, we release the prescribed traction on the top of the solid
@@ -1186,10 +1330,12 @@ int main(int argc, char *argv[])
 
          // Set value of traction
          preload_traction_coeff->SetTime(current_time + dt_preload);
-         fluid_sigmaN_onSolid_gf.ProjectBdrCoefficient(*preload_traction_coeff, solid_fs_interface_attr);
+         fluid_sigmaN_onSolid_gf.ProjectBdrCoefficient(*preload_traction_coeff,
+                                                       solid_fs_interface_attr);
 
          // Solve elasticity
-         elasticity.Step(solid_displacement, solid_vel, current_time, dt_preload, false); // false means it's not a provisional step
+         elasticity.Step(solid_displacement, solid_vel, current_time, dt_preload,
+                         false); // false means it's not a provisional step
          solid_vel_gf.SetFromTrueDofs(solid_vel);
          solid_displacement_gf.SetFromTrueDofs(solid_displacement);
 
@@ -1209,7 +1355,8 @@ int main(int argc, char *argv[])
 
             const real_t fluid_mesh_displacement_norm = mesh_displacement_gf->Norml2();
             if (Mpi::Root() && verbose)
-               mfem::out << " Moving fluid mesh |dx|_l2 = " << std::scientific << std::setprecision(3)
+               mfem::out << " Moving fluid mesh |dx|_l2 = " << std::scientific <<
+                         std::setprecision(3)
                          << fluid_mesh_displacement_norm << "" << std::endl;
 
             finder_fluid_to_solid.Update(true, true, mesh_displacement_coeff, nullptr);
@@ -1225,7 +1372,9 @@ int main(int argc, char *argv[])
          if ((step + 1) % save_freq_preload == 0 || last_step)
          {
             if (Mpi::Root() && verbose)
+            {
                mfem::out << "\nWriting output to ParaView...";
+            }
 
             paraview_step++;
             pvdc_fluid.SetCycle(paraview_step);
@@ -1235,7 +1384,9 @@ int main(int argc, char *argv[])
             pvdc_solid.SetTime(current_time);
             pvdc_solid.Save();
             if (Mpi::Root() && verbose)
+            {
                mfem::out << " done." << std::endl;
+            }
          }
 
          // Output some information
@@ -1316,20 +1467,28 @@ int main(int argc, char *argv[])
    ////////////////////////////////////////////////////////////////////////////////////////////////
 
    if (Mpi::Root())
+   {
       mfem::out << "\nStarting coupled FSI problem..." << std::endl;
+   }
 
    // Setup Aitken acceleration
    real_t omega_max = 1.0;                       // Maximum relaxation factor
    real_t omega_min = std::min({real_t(1e-1), DD_ctx.omega_solid_velocity, DD_ctx.omega_solid_sigma, DD_ctx.omega_fluid_velocity}); // Minimum relaxation factor (never above the user value)
-   real_t omega_solid_velocity_init = DD_ctx.omega_solid_velocity; // Relaxation factor for the fluid problem
-   real_t omega_solid_sigma_init = DD_ctx.omega_solid_sigma; // Relaxation factor for the solid problem
-   int init_steps = 3;                           // Number of initial steps with constant relaxation factor
+   real_t omega_solid_velocity_init =
+      DD_ctx.omega_solid_velocity; // Relaxation factor for the fluid problem
+   real_t omega_solid_sigma_init =
+      DD_ctx.omega_solid_sigma; // Relaxation factor for the solid problem
+   int init_steps =
+      3;                           // Number of initial steps with constant relaxation factor
 
    // Communicators of the vectors being relaxed: solid_vel_onFluid / solid_sigmaN_onFluid live on the fluid mesh,
    // fluid_vel_onSolid on the solid mesh.
-   AitkenRelaxation aitken_solid_velocity(fluid_pmesh.GetComm(), omega_solid_velocity_init, omega_min, omega_max, init_steps);
-   AitkenRelaxation aitken_solid_sigma(fluid_pmesh.GetComm(), omega_solid_sigma_init, omega_min, omega_max, init_steps);
-   AitkenRelaxation aitken_fluid_velocity(solid_pmesh.GetComm(), 1.0, omega_min, omega_max, init_steps);
+   AitkenRelaxation aitken_solid_velocity(fluid_pmesh.GetComm(),
+                                          omega_solid_velocity_init, omega_min, omega_max, init_steps);
+   AitkenRelaxation aitken_solid_sigma(fluid_pmesh.GetComm(),
+                                       omega_solid_sigma_init, omega_min, omega_max, init_steps);
+   AitkenRelaxation aitken_fluid_velocity(solid_pmesh.GetComm(), 1.0, omega_min,
+                                          omega_max, init_steps);
    aitken_solid_velocity.SetSafetyFactor(DD_ctx.safety_factor);
    aitken_solid_sigma.SetSafetyFactor(DD_ctx.safety_factor);
    aitken_fluid_velocity.SetSafetyFactor(DD_ctx.safety_factor);
@@ -1350,7 +1509,8 @@ int main(int argc, char *argv[])
 
    if (Mpi::Root())
    {
-      out << "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------" << std::endl;
+      out << "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------"
+          << std::endl;
       out << std::left
           << std::setw(8) << "Step"
           << std::setw(16) << "Time"
@@ -1364,7 +1524,8 @@ int main(int argc, char *argv[])
           << std::setw(16) << "w_solid"
           << std::setw(16) << "w_fluid"
           << std::endl;
-      out << "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------" << std::endl;
+      out << "-----------------------------------------------------------------------------------------------------------------------------------------------------------------------"
+          << std::endl;
    }
 
    // Store initial velocity and displacement for the elasticity problem
@@ -1387,9 +1548,11 @@ int main(int argc, char *argv[])
       }
       if (need_fluid_traction_on_solid)
       {
-         finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryNormalStress, fluid_sigmaN_onSolid_gf, true);
+         finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryNormalStress,
+                                                     fluid_sigmaN_onSolid_gf, true);
       }
-      elasticity.InitializeState(solid_displacement_tn, solid_vel_tn, current_time, dt);
+      elasticity.InitializeState(solid_displacement_tn, solid_vel_tn, current_time,
+                                 dt);
    }
 
    // Fluid traction on the fluid interface at t_0 (as computed by the forward transfer): Robin datum of the first
@@ -1401,7 +1564,8 @@ int main(int argc, char *argv[])
    fluid_sigmaN_onFluid_gf = 0.0;
    if (use_fluid_traction_datum)
    {
-      finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryNormalStress, fluid_sigmaN_onSolid_gf, true);
+      finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryNormalStress,
+                                                  fluid_sigmaN_onSolid_gf, true);
       fluid_sigmaN_onFluid_gf = finder_fluid_to_solid.GetForwardSourceQoI();
    }
 
@@ -1411,12 +1575,17 @@ int main(int argc, char *argv[])
       nd_prev_vel_gf.SetFromTrueDofs(solid_vel_tn);
       Vector *acc_init = elasticity.GetLatestState();
       if (acc_init != nullptr)
+      {
          nd_prev_acc_gf.SetFromTrueDofs(*acc_init);
+      }
    }
 
-   last_step = false;                                                           // Reset last_step for the coupled FSI problem
-   current_step = 0;                                                            // Reset current step for the coupled FSI problem, since preload was only for CSM and NS is not initialized
-   bool initial_csm_step = problem == ProblemType::Longitudinal ? true : false; // For the longitudinal problem this is the first csm step
+   last_step =
+      false;                                                           // Reset last_step for the coupled FSI problem
+   current_step =
+      0;                                                            // Reset current step for the coupled FSI problem, since preload was only for CSM and NS is not initialized
+   bool initial_csm_step = problem == ProblemType::Longitudinal ? true :
+                           false; // For the longitudinal problem this is the first csm step
    real_t fluid_mesh_displacement_norm = 0.0;
 
    for (int step = current_step; !last_step; ++step) // TIME-INTEGRATION LOOP
@@ -1460,8 +1629,10 @@ int main(int argc, char *argv[])
       fluid_vel_onSolid_gf.GetTrueDofs(fluid_vel_onSolid);
       u_fluid = u_fluid_tn;                                  // Initialize the fluid velocity with the initial condition
       p_fluid = p_fluid_tn;                                  // Initialize the fluid pressure with the initial condition
-      solid_displacement = solid_displacement_tn;            // Initialize the solid displacement with the initial condition
-      solid_vel = solid_vel_tn;                              // Initialize the solid velocity with the initial condition
+      solid_displacement =
+         solid_displacement_tn;            // Initialize the solid displacement with the initial condition
+      solid_vel =
+         solid_vel_tn;                              // Initialize the solid velocity with the initial condition
       // a^n for resetting the solid at every sub-iteration. Deep copy: GetLatestState() aliases the ODE solver's
       // live state, which Step() overwrites in place (ResetState would otherwise be a self-assignment).
       Vector acceleration_tn_copy;
@@ -1481,7 +1652,8 @@ int main(int argc, char *argv[])
 
       while (!converged && iter <= max_iter)
       {
-         real_t w_sv = 1.0, w_ss = 1.0, w_fv = 1.0; // relaxation factors actually used in this sub-iteration
+         real_t w_sv = 1.0, w_ss = 1.0,
+                w_fv = 1.0; // relaxation factors actually used in this sub-iteration
 
          // Store the previous iterates for variables used in relaxation
          u_fluid_prev = u_fluid;
@@ -1514,15 +1686,20 @@ int main(int argc, char *argv[])
          // --------------------------------------------------------------------------------- //
 
          if (Mpi::Root() && verbose)
+         {
             mfem::out << "Interpolating velocity SOLID --> FLUID...";
+         }
 
          ///<--- Solid velocity
          if (need_solid_velocity_on_fluid)
-         { // Interpolate
+         {
+            // Interpolate
             finder_fluid_to_solid.InterpolateBackward(solid_vel_gf, solid_vel_onFluid_gf);
             solid_vel_onFluid_gf.GetTrueDofs(solid_vel_onFluid);
             // Relaxation
-            real_t omega_solid_velocity = DD_ctx.aitken ? aitken_solid_velocity.ComputeRelaxation(solid_vel_onFluid, solid_vel_onFluid_prev) : DD_ctx.omega_solid_velocity;
+            real_t omega_solid_velocity = DD_ctx.aitken ?
+                                          aitken_solid_velocity.ComputeRelaxation(solid_vel_onFluid,
+                                                                                  solid_vel_onFluid_prev) : DD_ctx.omega_solid_velocity;
             w_sv = omega_solid_velocity;
             solid_vel_onFluid *= omega_solid_velocity;
             solid_vel_onFluid.Add(1.0 - omega_solid_velocity, solid_vel_onFluid_prev);
@@ -1543,13 +1720,15 @@ int main(int argc, char *argv[])
             else
             {
                // Interpolate
-               finder_fluid_to_solid.InterpolateQoIBackward(SolidBoundaryNormalStress, solid_sigmaN_onFluid_gf, true);
+               finder_fluid_to_solid.InterpolateQoIBackward(SolidBoundaryNormalStress,
+                                                            solid_sigmaN_onFluid_gf, true);
             }
             solid_sigmaN_onFluid_gf.GetTrueDofs(solid_sigmaN_onFluid);
             // Relaxation (we only relax traction for Robin couplings)
             if (coupling != CouplingType::Neumann_Dirichlet)
             {
-               real_t omega_solid_sigma = DD_ctx.aitken ? aitken_solid_sigma.ComputeRelaxation(solid_sigmaN_onFluid, solid_sigmaN_onFluid_prev) : DD_ctx.omega_solid_sigma;
+               real_t omega_solid_sigma = DD_ctx.aitken ? aitken_solid_sigma.ComputeRelaxation(
+                                             solid_sigmaN_onFluid, solid_sigmaN_onFluid_prev) : DD_ctx.omega_solid_sigma;
                w_ss = omega_solid_sigma;
                solid_sigmaN_onFluid *= omega_solid_sigma;
                solid_sigmaN_onFluid.Add(1.0 - omega_solid_sigma, solid_sigmaN_onFluid_prev);
@@ -1558,7 +1737,9 @@ int main(int argc, char *argv[])
          }
 
          if (Mpi::Root() && verbose)
+         {
             mfem::out << " done." << std::endl;
+         }
 
 
          // --------------------------------------------------------------------------------- //
@@ -1567,7 +1748,9 @@ int main(int argc, char *argv[])
 
          // This way, the mesh velocity in ALE is consistent with the BC being applied from the solid side
          if (Mpi::Root() && verbose)
+         {
             mfem::out << "Solving Mesh Deformation..." << std::endl;
+         }
 
          if (iter > 0)
          {
@@ -1577,11 +1760,13 @@ int main(int argc, char *argv[])
                Vector solid_displacement_relaxed;
                solid_displacement_gf.GetTrueDofs(solid_displacement_relaxed);
                solid_displacement_relaxed *= DD_ctx.omega_solid_velocity;
-               solid_displacement_relaxed.Add(1.0 - DD_ctx.omega_solid_velocity, solid_displacement_prev);
+               solid_displacement_relaxed.Add(1.0 - DD_ctx.omega_solid_velocity,
+                                              solid_displacement_prev);
                solid_displacement_relaxed_gf.SetFromTrueDofs(solid_displacement_relaxed);
 
                *mesh_displacement_gf = 0.0;
-               finder_solid_to_mesh.Interpolate(solid_displacement_relaxed_gf, *mesh_displacement_gf);
+               finder_solid_to_mesh.Interpolate(solid_displacement_relaxed_gf,
+                                                *mesh_displacement_gf);
                fluid_mesh_deformation->Solve(*mesh_displacement_gf, false);
                mesh_displacement_gf->GetTrueDofs(mesh_velocity);
                mesh_velocity -= mesh_displacement_tn;
@@ -1592,7 +1777,8 @@ int main(int argc, char *argv[])
                Vector rel_displacement;
                solid_displacement_gf.GetTrueDofs(rel_displacement);
                rel_displacement *= DD_ctx.omega_solid_velocity;
-               rel_displacement.Add(1.0 - DD_ctx.omega_solid_velocity, solid_displacement_prev);
+               rel_displacement.Add(1.0 - DD_ctx.omega_solid_velocity,
+                                    solid_displacement_prev);
 
                rel_displacement -= solid_displacement_tn;
                solid_relative_displacement_gf->SetFromTrueDofs(rel_displacement);
@@ -1613,7 +1799,9 @@ int main(int argc, char *argv[])
          solid_disp_prev_gf->SetFromTrueDofs(solid_displacement_prev);
 
          if (Mpi::Root() && verbose)
+         {
             mfem::out << " done." << std::endl;
+         }
 
          // --------------------------------------------------------------------------------- //
          //// ----- 3. Solve Navier-Stokes on FLUID -----
@@ -1621,7 +1809,9 @@ int main(int argc, char *argv[])
          // --------------------------------------------------------------------------------- //
 
          if (Mpi::Root() && verbose)
+         {
             mfem::out << "Solving Navier-Stokes on FLUID...";
+         }
 
          un_next_gf->SetFromTrueDofs(u_fluid_tn);
          p_gf->SetFromTrueDofs(p_fluid_tn);
@@ -1632,7 +1822,9 @@ int main(int argc, char *argv[])
          p_gf->GetTrueDofs(p_fluid);
 
          if (Mpi::Root() && verbose)
+         {
             mfem::out << " done." << std::endl;
+         }
 
          // --------------------------------------------------------------------------------- //
          //// ----- 4. Interpolate FLUID --> SOLID -----
@@ -1643,38 +1835,49 @@ int main(int argc, char *argv[])
          if (need_fluid_velocity_on_solid)
          {
             if (Mpi::Root() && verbose)
+            {
                mfem::out << "Interpolating velocity FLUID --> SOLID...";
+            }
 
             // Interpolate
             fluid_vel_onSolid_gf = 0.0;
             finder_fluid_to_solid.InterpolateForward(*un_next_gf, fluid_vel_onSolid_gf);
             fluid_vel_onSolid_gf.GetTrueDofs(fluid_vel_onSolid);
-            // Relaxation 
-            real_t omega_fluid_velocity = DD_ctx.aitken ? aitken_fluid_velocity.ComputeRelaxation(fluid_vel_onSolid, fluid_vel_onSolid_prev) : DD_ctx.omega_fluid_velocity;
+            // Relaxation
+            real_t omega_fluid_velocity = DD_ctx.aitken ?
+                                          aitken_fluid_velocity.ComputeRelaxation(fluid_vel_onSolid,
+                                                                                  fluid_vel_onSolid_prev) : DD_ctx.omega_fluid_velocity;
             w_fv = omega_fluid_velocity;
             fluid_vel_onSolid *= omega_fluid_velocity;
             fluid_vel_onSolid.Add(1.0 - omega_fluid_velocity, fluid_vel_onSolid_prev);
             fluid_vel_onSolid_gf.SetFromTrueDofs(fluid_vel_onSolid);
 
             if (Mpi::Root() && verbose)
+            {
                mfem::out << " done." << std::endl;
+            }
          }
 
          if (need_fluid_traction_on_solid)
          {
             if (Mpi::Root() && verbose)
+            {
                mfem::out << "Interpolating traction FLUID --> SOLID...";
+            }
 
             finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryNormalStress,
-                                                         fluid_sigmaN_onSolid_gf, true);
+                                                        fluid_sigmaN_onSolid_gf, true);
             fluid_sigmaN_onSolid_gf.GetTrueDofs(fluid_sigmaN_onSolid);
             if (use_fluid_traction_datum)
             {
-               fluid_sigmaN_onFluid_gf = finder_fluid_to_solid.GetForwardSourceQoI(); // Robin datum of the next sub-iteration
+               fluid_sigmaN_onFluid_gf =
+                  finder_fluid_to_solid.GetForwardSourceQoI(); // Robin datum of the next sub-iteration
             }
 
             if (Mpi::Root() && verbose)
+            {
                mfem::out << " done." << std::endl;
+            }
          }
 
          // --------------------------------------------------------------------------------- //
@@ -1684,7 +1887,9 @@ int main(int argc, char *argv[])
          // --------------------------------------------------------------------------------- //
 
          if (Mpi::Root() && verbose)
+         {
             mfem::out << "Solving Elasticity on SOLID...";
+         }
 
          solid_displacement = solid_displacement_tn;
          solid_vel          = solid_vel_tn;
@@ -1697,7 +1902,9 @@ int main(int argc, char *argv[])
 
 
          if (Mpi::Root() && verbose)
+         {
             mfem::out << " done." << std::endl;
+         }
 
          // --------------------------------------------------------------------------------- //
          //// ----- 5. Check convergence (coupling-aware) -----
@@ -1725,10 +1932,11 @@ int main(int argc, char *argv[])
          if (need_fluid_traction_on_solid)
          {
             real_t norm_sigmaF_onSolid = fluid_sigmaN_onSolid_gf.ComputeL2Error(
-               zero_vcoeff, irs_disp, &solid_interfaces_element_idx); // same norm and elements as the numerator
+                                            zero_vcoeff, irs_disp,
+                                            &solid_interfaces_element_idx); // same norm and elements as the numerator
 
             real_t abs_sigmaF_onSolid = fluid_sigmaN_onSolid_gf.ComputeL2Error(
-               fluid_sigmaN_onSolid_prev_coeff, irs_disp, &solid_interfaces_element_idx);
+                                           fluid_sigmaN_onSolid_prev_coeff, irs_disp, &solid_interfaces_element_idx);
 
             real_t rel_sigmaF_onSolid = safe_rel(abs_sigmaF_onSolid, norm_sigmaF_onSolid);
 
@@ -1739,10 +1947,11 @@ int main(int argc, char *argv[])
          if (need_fluid_velocity_on_solid)
          {
             real_t norm_uF_onSolid = fluid_vel_onSolid_gf.ComputeL2Error(
-               zero_vcoeff, irs_disp, &solid_interfaces_element_idx); // same norm and elements as the numerator
+                                        zero_vcoeff, irs_disp,
+                                        &solid_interfaces_element_idx); // same norm and elements as the numerator
 
             real_t abs_uF_onSolid = fluid_vel_onSolid_gf.ComputeL2Error(
-               fluid_vel_onSolid_prev_coeff, irs_disp, &solid_interfaces_element_idx);
+                                       fluid_vel_onSolid_prev_coeff, irs_disp, &solid_interfaces_element_idx);
             abs_uF_onSolid /= w_fv; // relaxed increment = omega * residual
 
             real_t rel_uF_onSolid = safe_rel(abs_uF_onSolid, norm_uF_onSolid);
@@ -1755,10 +1964,11 @@ int main(int argc, char *argv[])
          if (need_solid_velocity_on_fluid)
          {
             real_t norm_uS_onFluid = solid_vel_onFluid_gf.ComputeL2Error(
-               zero_vcoeff, irs_vel, &fluid_interfaces_element_idx); // same norm and elements as the numerator
+                                        zero_vcoeff, irs_vel,
+                                        &fluid_interfaces_element_idx); // same norm and elements as the numerator
 
             real_t abs_uS_onFluid = solid_vel_onFluid_gf.ComputeL2Error(
-               solid_vel_onFluid_prev_coeff, irs_vel, &fluid_interfaces_element_idx);
+                                       solid_vel_onFluid_prev_coeff, irs_vel, &fluid_interfaces_element_idx);
             abs_uS_onFluid /= w_sv; // relaxed increment = omega * residual
 
             real_t rel_uS_onFluid = safe_rel(abs_uS_onFluid, norm_uS_onFluid);
@@ -1770,10 +1980,11 @@ int main(int argc, char *argv[])
          if (need_solid_traction_on_fluid)
          {
             real_t norm_sigmaS_onFluid = solid_sigmaN_onFluid_gf.ComputeL2Error(
-               zero_vcoeff, irs_vel, &fluid_interfaces_element_idx); // same norm and elements as the numerator
+                                            zero_vcoeff, irs_vel,
+                                            &fluid_interfaces_element_idx); // same norm and elements as the numerator
 
             real_t abs_sigmaS_onFluid = solid_sigmaN_onFluid_gf.ComputeL2Error(
-               solid_sigmaN_onFluid_prev_coeff, irs_vel, &fluid_interfaces_element_idx);
+                                           solid_sigmaN_onFluid_prev_coeff, irs_vel, &fluid_interfaces_element_idx);
             abs_sigmaS_onFluid /= w_ss; // relaxed increment = omega * residual
 
             real_t rel_sigmaS_onFluid = safe_rel(abs_sigmaS_onFluid, norm_sigmaS_onFluid);
@@ -1781,7 +1992,7 @@ int main(int argc, char *argv[])
             global_abs_err_fluid = std::max(global_abs_err_fluid, abs_sigmaS_onFluid);
             global_rel_err_fluid = std::max(global_rel_err_fluid, rel_sigmaS_onFluid);
          }
-         
+
 
          if (DD_ctx.relative_convergence)
          {
@@ -1805,11 +2016,17 @@ int main(int argc, char *argv[])
          {
             if (Mpi::Root())
             {
-               mfem::out << "\nWARNING: Maximum number of iterations reached in the convergence loop. " << std::endl
-                         << "Abs Fluid error = " << std::scientific << std::setprecision(3) << global_abs_err_fluid
-                         << " | Abs Solid error = " << std::scientific << std::setprecision(3) << global_abs_err_solid << std::endl
-                         << "Rel Fluid error = " << std::scientific << std::setprecision(3) << global_rel_err_fluid
-                         << " | Rel Solid error = " << std::scientific << std::setprecision(3) << global_rel_err_solid
+               mfem::out <<
+                         "\nWARNING: Maximum number of iterations reached in the convergence loop. " <<
+                         std::endl
+                         << "Abs Fluid error = " << std::scientific << std::setprecision(
+                            3) << global_abs_err_fluid
+                         << " | Abs Solid error = " << std::scientific << std::setprecision(
+                            3) << global_abs_err_solid << std::endl
+                         << "Rel Fluid error = " << std::scientific << std::setprecision(
+                            3) << global_rel_err_fluid
+                         << " | Rel Solid error = " << std::scientific << std::setprecision(
+                            3) << global_rel_err_solid
                          << std::endl;
             }
          }
@@ -1845,8 +2062,10 @@ int main(int argc, char *argv[])
             dt *= 0.125;
 
             if (Mpi::Root())
-               mfem::out << "\n Step " << step << " reached maximum CFL, retrying with smaller step size."
-                         << std::setw(8) << " | old dt = " << std::scientific << std::setprecision(3) << previous_dt
+               mfem::out << "\n Step " << step <<
+                         " reached maximum CFL, retrying with smaller step size."
+                         << std::setw(8) << " | old dt = " << std::scientific << std::setprecision(
+                            3) << previous_dt
                          << " | new dt = " << std::scientific << std::setprecision(3) << dt << "\n"
                          << std::endl;
 
@@ -1874,7 +2093,8 @@ int main(int argc, char *argv[])
 
          // Predict new step size
          real_t fac_safety = 2.0;
-         real_t eta = pow(1.0 / (fac_safety * error_est), 1.0 / (1.0 + NS_ctx.max_bdf_order));
+         real_t eta = pow(1.0 / (fac_safety * error_est),
+                          1.0 / (1.0 + NS_ctx.max_bdf_order));
          real_t fac_min = 0.1;
          real_t fac_max = 2.0;
          dt = dt * std::min(fac_max, std::max(fac_min, eta));
@@ -1929,7 +2149,9 @@ int main(int argc, char *argv[])
          nd_prev_vel_gf.SetFromTrueDofs(solid_vel);
          Vector *acc_state = elasticity.GetLatestState();
          if (acc_state != nullptr)
+         {
             nd_prev_acc_gf.SetFromTrueDofs(*acc_state);
+         }
       }
 
       if (initial_csm_step)
@@ -1942,43 +2164,54 @@ int main(int argc, char *argv[])
       // --------------------------------------------------------------------------------- //
 
       if (Mpi::Root() && verbose)
+      {
          mfem::out << "\nDeforming mesh...";
+      }
 
       // The step converged: extend the converged solid displacement d^{n+1} into the fluid mesh. The extension
       // computed inside the loop used the relaxed displacement of the previous sub-iteration, which lags d^{n+1}
       // (and, in incremental mode, the lag would accumulate over the steps).
       if (fluid_mesh_deformation->IsNonIncremental())
-      { // mesh_displacement_gf is an absolute displacement
+      {
+         // mesh_displacement_gf is an absolute displacement
          *mesh_displacement_gf = 0.0;
          finder_solid_to_mesh.Interpolate(solid_displacement_gf, *mesh_displacement_gf);
          fluid_mesh_deformation->Solve(*mesh_displacement_gf, false);
          fluid_mesh_deformation->DeformMeshWithDisplacement(*mesh_displacement_gf);
       }
       else
-      { // mesh_displacement_gf is a relative displacement
+      {
+         // mesh_displacement_gf is a relative displacement
          Vector rel_displacement;
          solid_displacement_gf.GetTrueDofs(rel_displacement);
          rel_displacement -= solid_displacement_tn;
          solid_relative_displacement_gf->SetFromTrueDofs(rel_displacement);
          *mesh_displacement_gf = 0.0;
-         finder_solid_to_mesh.Interpolate(*solid_relative_displacement_gf, *mesh_displacement_gf);
+         finder_solid_to_mesh.Interpolate(*solid_relative_displacement_gf,
+                                          *mesh_displacement_gf);
          fluid_mesh_deformation->Solve(*mesh_displacement_gf, false);
-         fluid_mesh_deformation->DeformMeshWithRelativeDisplacement(*mesh_displacement_gf);
+         fluid_mesh_deformation->DeformMeshWithRelativeDisplacement(
+            *mesh_displacement_gf);
       }
 
       if (Mpi::Root() && verbose)
-         mfem::out << " Moving fluid mesh |dx|_l2 = " << std::scientific << std::setprecision(3)
+         mfem::out << " Moving fluid mesh |dx|_l2 = " << std::scientific <<
+                   std::setprecision(3)
                    << fluid_mesh_displacement_norm << "" << std::endl;
 
       if (Mpi::Root() && verbose)
+      {
          mfem::out << "Updating Navier-Stokes with new mesh deformation...";
+      }
 
       navier.Update();
       fluid_mesh_deformation->Update();
       // elasticity.Update(); --> Not needed, as we don't deform the solid mesh
 
       if (Mpi::Root() && verbose)
+      {
          mfem::out << "Updating InterfaceTransfer with new mesh deformation...";
+      }
 
       // TODO: check this step as it may give some errors
       // Needed because the the fluid is one of the directions of the transfer in both InterfaceTransfer objects
@@ -1992,7 +2225,9 @@ int main(int argc, char *argv[])
       if ((step + 1) % save_freq == 0 || last_step)
       {
          if (Mpi::Root() && verbose)
+         {
             mfem::out << "\nWriting output to ParaView...";
+         }
          paraview_step++;
          pvdc_fluid.SetCycle(paraview_step);
          pvdc_fluid.SetTime(current_time);
@@ -2001,7 +2236,9 @@ int main(int argc, char *argv[])
          pvdc_solid.SetTime(current_time);
          pvdc_solid.Save();
          if (Mpi::Root() && verbose)
+         {
             mfem::out << " done." << std::endl;
+         }
       }
 
       // Output some information
@@ -2014,7 +2251,8 @@ int main(int argc, char *argv[])
          Vector point1(2), point2(2);
          point1(0) = 0.15; // Cylinder left vertex (fixed)
          point1(1) = 0.2;
-         point2(0) = 0.6; // Beam right vertex (free) --> Note this will move with the mesh
+         point2(0) =
+            0.6; // Beam right vertex (free) --> Note this will move with the mesh
          point2(1) = 0.2;
          DenseMatrix points(dim, 2);
          points.SetCol(0, point1);
@@ -2051,7 +2289,8 @@ int main(int argc, char *argv[])
          // Reduce values across all ranks to get the result from whichever rank found the point
          real_t global_vals[4] = {vel_norm1, vel_norm2, p_probe1, p_probe2};
          real_t reduced_vals[4];
-         MPI_Allreduce(global_vals, reduced_vals, 4, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+         MPI_Allreduce(global_vals, reduced_vals, 4, MPI_DOUBLE, MPI_SUM,
+                       MPI_COMM_WORLD);
 
          vel_norm1 = reduced_vals[0];
          vel_norm2 = reduced_vals[1];
@@ -2079,7 +2318,8 @@ int main(int argc, char *argv[])
          // Reduce displacement values across all ranks
          real_t global_disp_vals[2] = {disp_x, disp_y};
          real_t reduced_disp_vals[2];
-         MPI_Allreduce(global_disp_vals, reduced_disp_vals, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+         MPI_Allreduce(global_disp_vals, reduced_disp_vals, 2, MPI_DOUBLE, MPI_SUM,
+                       MPI_COMM_WORLD);
 
          disp_x = reduced_disp_vals[0];
          disp_y = reduced_disp_vals[1];
@@ -2099,10 +2339,12 @@ int main(int argc, char *argv[])
          // loading neglected): after the traction is removed at t = preloadT,
          // the interface displacement is a triangle wave of amplitude
          // T H / mu and period 4 H / c_s.
-         const real_t u0 = Elasticity_ctx.traction * ElasticPiston_ctx.H_bar_solid / Elasticity_ctx.mu;
+         const real_t u0 = Elasticity_ctx.traction * ElasticPiston_ctx.H_bar_solid /
+                           Elasticity_ctx.mu;
          const real_t period = 4.0 * ElasticPiston_ctx.H_bar_solid / cs;
          const real_t phase = std::fmod((current_time - NS_ctx.preloadT) / period, 1.0);
-         const real_t ux_ex = (phase < 0.5) ? u0 * (1.0 - 4.0 * phase) : u0 * (-1.0 + 4.0 * (phase - 0.5));
+         const real_t ux_ex = (phase < 0.5) ? u0 * (1.0 - 4.0 * phase) : u0 *
+                              (-1.0 + 4.0 * (phase - 0.5));
          const real_t rel_err = std::abs(disp_x - ux_ex) / u0;
          transverse_max_err = std::max(transverse_max_err, rel_err);
          transverse_sq_err += rel_err * rel_err;
@@ -2123,18 +2365,22 @@ int main(int argc, char *argv[])
              << std::setw(16) << std::scientific << std::setprecision(8) << disp_x
              << std::setw(16) << std::scientific << std::setprecision(8) << disp_y
              << std::setw(16) << std::scientific << std::setprecision(8) << iter
-             << std::setw(16) << std::scientific << std::setprecision(8) << DD_ctx.omega_solid_sigma
-               << std::setw(16) << std::scientific << std::setprecision(8) << DD_ctx.omega_solid_velocity
+             << std::setw(16) << std::scientific << std::setprecision(
+                8) << DD_ctx.omega_solid_sigma
+             << std::setw(16) << std::scientific << std::setprecision(
+                8) << DD_ctx.omega_solid_velocity
              << std::endl;
       }
 
    } // END OF TIME-INTEGRATION LOOP
 
-   if (problem == ProblemType::Transverse && Mpi::Root() && transverse_nsamples > 0)
+   if (problem == ProblemType::Transverse && Mpi::Root() &&
+       transverse_nsamples > 0)
    {
       out << "Transverse interface u_x vs analytic release solution (relative to T H / mu): max = "
           << std::scientific << std::setprecision(4) << transverse_max_err
-          << " | rms = " << std::sqrt(transverse_sq_err / transverse_nsamples) << std::endl;
+          << " | rms = " << std::sqrt(transverse_sq_err / transverse_nsamples) <<
+          std::endl;
    }
 
    if (problem == ProblemType::Longitudinal && Mpi::Root())
@@ -2174,7 +2420,8 @@ int main(int argc, char *argv[])
    return 0;
 }
 
-ParMesh CreateSubmeshMesh(Mesh *parent_mesh, int domain_attr, std::vector<Vector> translations, int mesh_order)
+ParMesh CreateSubmeshMesh(Mesh *parent_mesh, int domain_attr,
+                          std::vector<Vector> translations, int mesh_order)
 {
    // Extract serial submeshes
    Array<int> domain_attributes(1);
@@ -2198,12 +2445,13 @@ ParMesh CreateSubmeshMesh(Mesh *parent_mesh, int domain_attr, std::vector<Vector
    Mesh *submesh = nullptr;
    if (periodic)
    {
-      auto submesh_original = SubMesh::CreateFromDomain(*parent_mesh, domain_attributes);
+      auto submesh_original = SubMesh::CreateFromDomain(*parent_mesh,
+                                                        domain_attributes);
       submesh_original.SetCurvature(mesh_order, true);
       // Make periodic
       submesh = new Mesh(Mesh::MakePeriodic(
-          submesh_original,
-          submesh_original.CreatePeriodicVertexMapping(translations)));
+                            submesh_original,
+                            submesh_original.CreatePeriodicVertexMapping(translations)));
       submesh_original.Clear(); // Clear the original submesh to free memory
    }
    else
@@ -2266,16 +2514,16 @@ void ComputeDragLift(real_t &drag, real_t &lift, ParLinearForm &lift_drag_form)
    for (int i = 0; i < lift_drag_form.FESpace()->GetNDofs(); i++)
    {
       int idx_x = Ordering::Map<Ordering::byNODES>(
-          lift_drag_form.FESpace()->GetNDofs(),
-          lift_drag_form.FESpace()->GetVDim(),
-          i,
-          0);
+                     lift_drag_form.FESpace()->GetNDofs(),
+                     lift_drag_form.FESpace()->GetVDim(),
+                     i,
+                     0);
 
       int idx_y = Ordering::Map<Ordering::byNODES>(
-          lift_drag_form.FESpace()->GetNDofs(),
-          lift_drag_form.FESpace()->GetVDim(),
-          i,
-          1);
+                     lift_drag_form.FESpace()->GetNDofs(),
+                     lift_drag_form.FESpace()->GetVDim(),
+                     i,
+                     1);
 
       // Lift is in the x-direction, drag is in the y-direction
       lift += lift_drag_form[idx_x];
@@ -2445,7 +2693,8 @@ real_t pressure_piston_top(const Vector &x, double time)
    const real_t yI_tt = -omega * omega * yI;
 
    // ū2,ȳ(0,t) from ū2(ȳ,t) = F̄(t-(ȳ+H̄)/c̄p)-F̄(t+(ȳ+H̄)/c̄p), F̄(τ)=α cos(ωτ)
-   const real_t uy_interface = (2.0 * alpha * omega / cp_bar) * std::sin(omega * time) * std::cos(phase);
+   const real_t uy_interface = (2.0 * alpha * omega / cp_bar) * std::sin(
+                                  omega * time) * std::cos(phase);
 
    // From (7.7): ρ (H - ū2(0,t)) ū2,tt(0,t) + (λ̄+2μ̄) ū2,ȳ(0,t) = -pH(t)
    const real_t lambda_2mu = Elasticity_ctx.lambda + 2.0 * Elasticity_ctx.mu;
@@ -2470,21 +2719,26 @@ void traction_fun(const Vector &x, double time, Vector &v)
    // NOTE: We include a negative sign because in the FSI coupling the traction is defined as -σF·n, and for
    // the preload we're yusing the same gridfunction
    const real_t preloadT = NS_ctx.preloadT;
-   const real_t preload = (time < preloadT) ? 0.5 * (1.0 - cos(M_PI * time / preloadT)) : 1.0;
+   const real_t preload = (time < preloadT) ? 0.5 * (1.0 - cos(
+                                                        M_PI * time / preloadT)) : 1.0;
 
    v = 0.0;
-   v[0] = time <= preloadT + dt / 2 ? -Elasticity_ctx.traction * preload : 0.0; // traction to the right in x-direction
+   v[0] = time <= preloadT + dt / 2 ? -Elasticity_ctx.traction * preload :
+          0.0; // traction to the right in x-direction
    v[1] = 0.0;                                                                  // traction in y-direction
 }
 
 template <typename T>
-void saveArray(const Array<T> &data, const std::string &outfolder, const std::string &name)
+void saveArray(const Array<T> &data, const std::string &outfolder,
+               const std::string &name)
 {
    // Create the output folder path + name
    std::string outputFolder = outfolder + "/Convergence/";
 
-   if (!fs::is_directory(outputFolder.c_str()) || !fs::exists(outputFolder.c_str()))
-   {                                        // Check if folder exists
+   if (!fs::is_directory(outputFolder.c_str()) ||
+       !fs::exists(outputFolder.c_str()))
+   {
+      // Check if folder exists
       fs::create_directories(outputFolder); // create folder
    }
 

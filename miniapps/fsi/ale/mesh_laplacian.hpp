@@ -38,8 +38,12 @@ public:
     * @note See MeshDeformation::EnableLocalStiffening. If called after Setup the system is re-assembled.
     * @note Default arguments must match the base class ones (defaults bind to the static type).
     */
-   void EnableLocalStiffening(Array<int> &wall_attr_, int stiffening_type_, int distance_solver_type_ = 0, real_t stiffening_degree_ = 1.0, bool filter_ls_ = false) override;
-   void EnableLocalStiffening(int wall_attr_, int stiffening_type_, int distance_solver_type_ = 0, real_t stiffening_degree_ = 1.0, bool filter_ls_ = false) override;
+   void EnableLocalStiffening(Array<int> &wall_attr_, int stiffening_type_,
+                              int distance_solver_type_ = 0, real_t stiffening_degree_ = 1.0,
+                              bool filter_ls_ = false) override;
+   void EnableLocalStiffening(int wall_attr_, int stiffening_type_,
+                              int distance_solver_type_ = 0, real_t stiffening_degree_ = 1.0,
+                              bool filter_ls_ = false) override;
 
    /**
     * @brief Setup the mesh Laplacian problem.
@@ -63,20 +67,21 @@ public:
     * @brief Solve the Laplacian system for a given field and optionally deform the mesh.
     * @param field        Grid function representing the original field to solve for.
     * @param deform_mesh  Flag to enable mesh deformation.
-    * @param dt           Time step size for the mesh motion. 
+    * @param dt           Time step size for the mesh motion.
     * @note This method is used to solve the Harmonic extension for a given field, and uses it to deform the mesh.
     * If no dt is provided (dt<0) the optional mesh deformation is performed assuming the field is a displacement field.
     * Otherwise if a positive dt is provided, the field is assumed to be a velocity field and the mesh is deformed accordingly.
     */
-   void Solve(ParGridFunction &field, bool deform_mesh = false, real_t dt = -1.0) override;
+   void Solve(ParGridFunction &field, bool deform_mesh = false,
+              real_t dt = -1.0) override;
 
 
    Coefficient *GetCoefficient() override
    {
       return diffusion_coeff;
    }
-   
-   private:
+
+private:
 
    /**
     * @brief Reset the solver and preconditioner.
@@ -87,16 +92,21 @@ public:
     * @brief (Re)create the coefficient and bilinear form, assemble the system and reset the solver.
     */
    void AssembleOperator();
-   
-   ParMesh *reference_mesh = nullptr;                   ///< Reference parallel mesh for the fluid simulation. //< OWNED
 
-   ParBilinearForm *laplacian_form = nullptr; ///< Bilinear form for the Laplacian operator.
+   ParMesh *reference_mesh =
+      nullptr;                   ///< Reference parallel mesh for the fluid simulation. //< OWNED
+
+   ParBilinearForm *laplacian_form =
+      nullptr; ///< Bilinear form for the Laplacian operator.
    OperatorHandle opA;                        ///< System matrix operator handle.
 
    bool pa = false;                                ///< Flag for partial assembly (default false).
-   int prec_type = 1;                              ///< Type of preconditioner to use.
-   ConstantCoefficient alpha;                      ///< Diffusion coefficient for the mesh deformation.
-   ProductCoefficient *diffusion_coeff = nullptr;  ///< Product coefficient for the diffusion term (for local stiffening)
+   int prec_type =
+      1;                              ///< Type of preconditioner to use.
+   ConstantCoefficient
+   alpha;                      ///< Diffusion coefficient for the mesh deformation.
+   ProductCoefficient *diffusion_coeff =
+      nullptr;  ///< Product coefficient for the diffusion term (for local stiffening)
 
    bool incremental;                               ///< Flag for enabling incremental version.
 };
