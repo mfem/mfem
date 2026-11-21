@@ -157,8 +157,11 @@ inline void HypreParVector::_SetDataAndSize_()
 {
    hypre_Vector *x_loc = hypre_ParVectorLocalVector(x);
 #if !defined(HYPRE_USING_GPU)
-   SetDataAndSize(hypre_VectorData(x_loc),
-                  internal::to_int(hypre_VectorSize(x_loc)));
+   // hypre or the caller allocated the data: wrap it as MemoryType::HOST, not
+   // as the host MemoryType of the Device. With the debug device, that is the
+   // debug host memory, HOST_DEBUG, whose pages MFEM protects with mprotect.
+   size = internal::to_int(hypre_VectorSize(x_loc));
+   data.Wrap(hypre_VectorData(x_loc), size, MemoryType::HOST, false);
 #else
    size = internal::to_int(hypre_VectorSize(x_loc));
    MemoryType mt = (hypre_VectorMemoryLocation(x_loc) == HYPRE_MEMORY_HOST
