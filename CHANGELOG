@@ -20,6 +20,11 @@ GPU computing
 
 Discretization improvements
 ---------------------------
+- Preserved compatible high-order face modes in serial 3D variable-order H1
+  and ND spaces on nonconforming quadrilateral interfaces by enforcing
+  internal-edge compatibility equations rather than lowering the entire
+  master face order.
+
 - Fixed conforming ND edge-in-face interpolation and L2 projection, accounted
   for source order in ND/RT local L2 transfer quadrature rules, aligned RT,
   RT trace, and DG interface collection cloning with collection orders (with

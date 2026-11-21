@@ -309,14 +309,23 @@ TEST_CASE("Variable Order FiniteElementSpace",
 
       TestSolve(fespace);
 
-      // lower the order of one of the four new elements to 1 - this minimum
-      // order will propagate through two master faces and severely constrain
-      // the space (since relaxed hp is off)
+      // The low-order child restricts a line in the second master face, not
+      // its whole polynomial trace. Independent broken trace equations give
+      // dimension 180 - rank(J) = 180 - 84 = 96 on this six-element mesh.
       fespace.SetElementOrder(0, 1);
       fespace.Update(false);
 
       REQUIRE(fespace.GetNDofs() == 152);
-      REQUIRE(fespace.GetNConformingDofs() == 92);
+      REQUIRE(fespace.GetNConformingDofs() == 96);
+      FunctionCoefficient compatible([](const Vector &x)
+      { return 1+x[0]+x[1]+x[2]+x[0]*x[1]*x[2]; });
+      GridFunction field(&fespace);
+      field = 0.0;
+      field.ProjectCoefficient(compatible);
+      Vector truth(fespace.GetTrueVSize());
+      fespace.GetHpConformingRestriction()->Mult(field, truth);
+      field.SetFromTrueDofs(truth);
+      REQUIRE(field.ComputeL2Error(compatible) < 1e-12);
    }
 
    SECTION("Prism mesh")
@@ -457,6 +466,55 @@ static Mesh MakeLocallyRefinedHexMesh()
    {
       mesh.GetElementCenter(e, center);
       if (center(0) > 0.5 && center(1) > 0.5) { refine.Append(e); }
+   }
+   mesh.GeneralRefinement(refine);
+   return mesh;
+}
+
+// Three quadrants around a common vertical edge. The positive quadrant is
+// refined, leaving two coarse neighbors which meet only along that edge.
+static Mesh MakeThreeQuadrantHexMesh(bool rotated)
+{
+   Mesh mesh(3, 18, 3, 0, 3);
+   for (int z = 0; z < 2; z++)
+   {
+      for (int y = 0; y < 3; y++)
+      {
+         for (int x = 0; x < 3; x++)
+         {
+            mesh.AddVertex(real_t(x - 1), real_t(y - 1), real_t(z));
+         }
+      }
+   }
+   for (int y = 0; y < 2; y++)
+   {
+      for (int x = 0; x < 2; x++)
+      {
+         if (x == 0 && y == 0) { continue; }
+         const int v = x + 3*y;
+         int hex[8] = {v, v+1, v+4, v+3, v+9, v+10, v+13, v+12};
+         if (rotated)
+         {
+            const int perm[8] = {0, 4, 5, 1, 3, 7, 6, 2};
+            for (int r = 0; r < (x + 2*y)%3; r++)
+            {
+               int copy[8];
+               std::copy(hex, hex + 8, copy);
+               for (int i = 0; i < 8; i++) { hex[i] = copy[perm[i]]; }
+            }
+         }
+         mesh.AddHex(hex);
+      }
+   }
+   mesh.FinalizeHexMesh(1, 1, true);
+   mesh.RemoveUnusedVertices();
+   mesh.EnsureNCMesh();
+   Array<int> refine;
+   Vector center(3);
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      mesh.GetElementCenter(e, center);
+      if (center(0) > 0 && center(1) > 0) { refine.Append(e); }
    }
    mesh.GeneralRefinement(refine);
    return mesh;
@@ -611,6 +669,125 @@ static real_t MaxTraceJump(GridFunction &x, int &npoints)
 }
 
 } // namespace var_order_test
+
+TEST_CASE("Low boundary-edge order preserves higher-order face modes",
+          "[FiniteElementSpace][NCMesh][HpBoundaryEdge]")
+{
+   using namespace var_order_test;
+   const int variant = GENERATE(0, 1, 2);
+   const bool rotated = GENERATE(false, true);
+   CAPTURE(variant, rotated);
+   Mesh mesh = MakeThreeQuadrantHexMesh(rotated);
+   REQUIRE(mesh.GetNE() == 10);
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (variant == 0) { fec.reset(new H1_FECollection(1, 3)); }
+   else
+   {
+      fec.reset(new ND_FECollection(1, 3, BasisType::GaussLobatto,
+                                    variant == 1 ? BasisType::GaussLegendre :
+                                    BasisType::IntegratedGLL));
+   }
+   FiniteElementSpace fespace(&mesh, fec.get());
+   Vector center(3);
+   for (int e = 0; e < mesh.GetNE(); e++)
+   {
+      mesh.GetElementCenter(e, center);
+      fespace.SetElementOrder(e, center(0) < 0 && center(1) > 0 ? 1 : 2);
+   }
+   fespace.Update(false);
+   REQUIRE(fespace.GetTrueVSize() == (variant == 0 ? 112 : 288));
+   Vector tdofs(fespace.GetTrueVSize());
+   tdofs.Randomize(1);
+   GridFunction field(&fespace);
+   field.SetFromTrueDofs(tdofs);
+   int npoints;
+   REQUIRE(MaxTraceJump(field, npoints) < 1e-12);
+   REQUIRE(npoints > 0);
+}
+
+TEST_CASE("Internal edge constraints retain compatible high-order face modes",
+          "[FiniteElementSpace][NCMesh][HpInternalEdge]")
+{
+   using namespace var_order_test;
+   const int kind = GENERATE(0, 1, 2); // H1, nodal ND, integrated ND
+   const bool rotated = GENERATE(false, true);
+   CAPTURE(kind, rotated);
+   Mesh mesh = MakeInternalEdgeMesh(rotated);
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (kind == 0) { fec.reset(new H1_FECollection(2, 3)); }
+   else
+   {
+      fec.reset(new ND_FECollection(2, 3, BasisType::GaussLobatto,
+                                    kind == 1 ? BasisType::GaussLegendre :
+                                    BasisType::IntegratedGLL));
+   }
+   FiniteElementSpace fes(&mesh, fec.get());
+   SetInternalEdgeOrders(fes, 2);
+   REQUIRE(fes.GetTrueVSize() == (kind == 0 ? 152 : 416));
+   const SparseMatrix *P = fes.GetConformingProlongation();
+   const SparseMatrix *R = fes.GetConformingRestriction();
+   const SparseMatrix *Rhp = fes.GetHpConformingRestriction();
+   REQUIRE(P != nullptr);
+   REQUIRE(R != nullptr);
+   REQUIRE(Rhp != nullptr);
+   for (const auto *restriction : {R, Rhp})
+   {
+      std::unique_ptr<SparseMatrix> identity(Mult(*restriction, *P));
+      for (int i = 0; i < identity->Height(); i++)
+      {
+         REQUIRE((*identity)(i, i) == MFEM_Approx(1.0));
+         const int *cols = identity->GetRowColumns(i);
+         const real_t *vals = identity->GetRowEntries(i);
+         for (int j = 0; j < identity->RowSize(i); j++)
+         {
+            if (cols[j] != i) { REQUIRE(std::abs(vals[j]) < 1e-12); }
+         }
+      }
+   }
+
+   Vector truth(fes.GetTrueVSize());
+   truth.Randomize(1);
+   GridFunction reconstructed(&fes);
+   reconstructed.SetFromTrueDofs(truth);
+   int npoints;
+   REQUIRE(MaxTraceJump(reconstructed, npoints) < 1e-11);
+   REQUIRE(npoints > 0);
+
+   auto factor = [](const Vector &x)
+   {
+      if (x[0] <= 1) { return real_t(1); }
+      if (x[0] >= 1.5) { return real_t(0); }
+      if (x[1] > 0.5 && x[2] < 0.5)
+      {
+         return std::max(real_t(0), 1-4*(x[0]-1));
+      }
+      return 1-2*(x[0]-1);
+   };
+   FunctionCoefficient h1([&](const Vector &x)
+   { return (x[1]-0.5)*x[2]*(x[2]-0.5)*factor(x); });
+   VectorFunctionCoefficient nd(3, [&](const Vector &x, Vector &v)
+   {
+      v = 0.0;
+      v[2] = (x[1]-0.5)*x[2]*factor(x);
+   });
+   GridFunction projected(&fes);
+   projected = 0.0;
+   if (kind == 0) { projected.ProjectCoefficient(h1); }
+   else { projected.ProjectCoefficient(nd); }
+   REQUIRE(MaxTraceJump(projected, npoints) < 1e-11);
+   Rhp->Mult(projected, truth);
+   reconstructed.SetFromTrueDofs(truth);
+   Array<int> dofs;
+   Vector actual, expected;
+   for (int e = 0; e < fes.GetNE(); e++)
+   {
+      fes.GetElementVDofs(e, dofs);
+      projected.GetSubVector(dofs, expected);
+      reconstructed.GetSubVector(dofs, actual);
+      actual -= expected;
+      REQUIRE(actual.Normlinf() < 1e-11);
+   }
+}
 
 TEST_CASE("RT face orders are independent of interior edge orders",
           "[FiniteElementSpace][NCMesh][RTFaceOrder]")
