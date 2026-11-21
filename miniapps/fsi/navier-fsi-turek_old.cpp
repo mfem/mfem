@@ -805,6 +805,7 @@ int main(int argc, char *argv[])
    solid_sigmaN_onFluid_prev_gf = 0.0;
 
    VectorGridFunctionCoefficient solid_vel_onFluid_prev_coeff(&solid_vel_onFluid_prev_gf);
+   VectorGridFunctionCoefficient solid_sigmaN_onFluid_prev_coeff(&solid_sigmaN_onFluid_prev_gf);
    VectorGridFunctionCoefficient fluid_sigmaN_onSolid_prev_coeff(&fluid_sigmaN_onSolid_prev_gf);
 
    Vector solid_vel_onFluid, fluid_sigmaN_onSolid, solid_sigmaN_onFluid, solid_vel_onFluid_prev, fluid_sigmaN_onSolid_prev, solid_sigmaN_onFluid_prev;
@@ -1197,6 +1198,24 @@ int main(int argc, char *argv[])
    }
 
    last_step = false; // Reset last_step for the coupled FSI problem
+
+   bool use_initial_robin_data = false;
+   finder_fluid_to_solid.InterpolateQoIForward(FluidBoundaryNormalStress, fluid_sigmaN_onSolid_gf, true);
+   fluid_sigmaN_onSolid_gf.GetTrueDofs(fluid_sigmaN_onSolid);
+   if (elasticity.GetLatestState() == nullptr)
+   {
+      Vector u0, v0;
+      solid_displacement_gf.GetTrueDofs(u0);
+      solid_vel_gf.GetTrueDofs(v0);
+      elasticity.InitializeState(u0, v0, current_time, dt);
+   }
+   if (DD_ctx.coupling != CouplingType::Dirichlet_Neumann)
+   {
+      solid_sigmaN_onFluid_gf = 0.0;
+      finder_fluid_to_solid.InterpolateBackward(fluid_sigmaN_onSolid_gf, solid_sigmaN_onFluid_gf);
+      solid_sigmaN_onFluid_gf.GetTrueDofs(solid_sigmaN_onFluid);
+      use_initial_robin_data = true;
+   }
    // current_step=0;  // Reset current step for the coupled FSI problem: this implies that we start timestepping with BDF1 with an already populated un
    real_t fluid_mesh_displacement_norm = 0.0;
 
@@ -1270,28 +1289,32 @@ int main(int argc, char *argv[])
             mfem::out << "Interpolating velocity SOLID --> FLUID...";
          finder_fluid_to_solid.InterpolateBackward(solid_vel_gf, solid_vel_onFluid_gf);
    
-         if (DD_ctx.coupling != CouplingType::Dirichlet_Neumann) // Avoid computing stress for Dirichlet-Neumann coupling
+         if (DD_ctx.coupling != CouplingType::Dirichlet_Neumann && !use_initial_robin_data) // Avoid computing stress for Dirichlet-Neumann coupling
          {
             finder_fluid_to_solid.InterpolateQoIBackward(SolidBoundaryNormalStress, solid_sigmaN_onFluid_gf, true);
          }
+         use_initial_robin_data = false;
 
          // Relaxation interface variable/s
+         // Aitken: the residual is r_k = x~_k - x_{k-1}, with x_{k-1} the *relaxed* iterate used in the previous
+         // sub-iteration (the *_prev vectors), see Kuttler & Wall (2008).
+         real_t w_sv = 1.0, w_ss = 1.0; // relaxation factors actually used in this sub-iteration
          if (iter > 0) 
          {
             // Relax velocity
             solid_vel_onFluid_gf.GetTrueDofs(solid_vel_onFluid);
-            DD_ctx.omega = DD_ctx.aitken ? aitken_fluid_velocity.ComputeRelaxation(solid_vel_onFluid) : DD_ctx.omega;
-            solid_vel_onFluid *= DD_ctx.omega;
-            solid_vel_onFluid.Add(1.0 - DD_ctx.omega, solid_vel_onFluid_prev);
+            w_sv = DD_ctx.aitken ? aitken_fluid_velocity.ComputeRelaxation(solid_vel_onFluid, solid_vel_onFluid_prev) : DD_ctx.omega;
+            solid_vel_onFluid *= w_sv;
+            solid_vel_onFluid.Add(1.0 - w_sv, solid_vel_onFluid_prev);
             solid_vel_onFluid_gf.SetFromTrueDofs(solid_vel_onFluid);
 
             if (DD_ctx.coupling != CouplingType::Dirichlet_Neumann) // Avoid computing stress for Dirichlet-Neumann coupling
             {
                // Relax traction
                solid_sigmaN_onFluid_gf.GetTrueDofs(solid_sigmaN_onFluid);
-               DD_ctx.omega = DD_ctx.aitken ? aitken_solid_sigma.ComputeRelaxation(solid_sigmaN_onFluid) : DD_ctx.omega;
-               solid_sigmaN_onFluid *= DD_ctx.omega;
-               solid_sigmaN_onFluid.Add(1.0 - DD_ctx.omega, solid_sigmaN_onFluid_prev);
+               w_ss = DD_ctx.aitken ? aitken_solid_sigma.ComputeRelaxation(solid_sigmaN_onFluid, solid_sigmaN_onFluid_prev) : DD_ctx.omega;
+               solid_sigmaN_onFluid *= w_ss;
+               solid_sigmaN_onFluid.Add(1.0 - w_ss, solid_sigmaN_onFluid_prev);
                solid_sigmaN_onFluid_gf.SetFromTrueDofs(solid_sigmaN_onFluid);
             }
          }
@@ -1400,11 +1423,25 @@ int main(int argc, char *argv[])
          // --------------------------------------------------------------------------------- //
 
          // Compute global L2 error norms
-         real_t global_norm_fluid = GlobalLpNorm(2.0, solid_vel_onFluid_gf.Norml2(), fluid_pmesh.GetComm());
+         // The relaxed increment is x_k - x_{k-1} = w r_k: divide by w to test the residual r_k itself (otherwise a
+         // small Aitken factor gives a false convergence). Norms: L2 on the same interface elements.
+         Vector zero_vec_conv(sdim);
+         zero_vec_conv = 0.0;
+         VectorConstantCoefficient zero_vcoeff_conv(zero_vec_conv);
+         real_t global_norm_fluid = solid_vel_onFluid_gf.ComputeL2Error(zero_vcoeff_conv, irs_vel, &fluid_interfaces_element_idx);
          //real_t global_norm_solid = GlobalLpNorm(2.0, fluid_sigmaN_onSolid_gf.Norml2(), solid_pmesh.GetComm());
          real_t global_abs_err_fluid = solid_vel_onFluid_gf.ComputeL2Error(solid_vel_onFluid_prev_coeff, irs_vel, &fluid_interfaces_element_idx);
          //real_t global_abs_err_solid = fluid_sigmaN_onSolid_gf.ComputeL2Error(fluid_sigmaN_onSolid_prev_coeff, irs_disp, &solid_interfaces_element_idx);
-         real_t global_rel_err_fluid = global_abs_err_fluid / global_norm_fluid;
+         global_abs_err_fluid /= w_sv;
+         real_t global_rel_err_fluid = (global_norm_fluid > 1e-14) ? global_abs_err_fluid / global_norm_fluid : global_abs_err_fluid;
+         if (DD_ctx.coupling != CouplingType::Dirichlet_Neumann)
+         {
+            // Robin data: the traction residual must also be small
+            const real_t norm_ss = solid_sigmaN_onFluid_gf.ComputeL2Error(zero_vcoeff_conv, irs_vel, &fluid_interfaces_element_idx);
+            const real_t abs_ss = solid_sigmaN_onFluid_gf.ComputeL2Error(solid_sigmaN_onFluid_prev_coeff, irs_vel, &fluid_interfaces_element_idx) / w_ss;
+            global_abs_err_fluid = std::max(global_abs_err_fluid, abs_ss);
+            global_rel_err_fluid = std::max(global_rel_err_fluid, (norm_ss > 1e-14) ? abs_ss / norm_ss : abs_ss);
+         }
          //real_t global_rel_err_solid = global_abs_err_solid / global_norm_solid;
          
          // Check convergence
@@ -1418,8 +1455,8 @@ int main(int argc, char *argv[])
          // Update the iteration counter
          iter++;
 
-         omega_history_fluid.Append(DD_ctx.omega);
-         omega_history_solid.Append(DD_ctx.omega);
+         omega_history_fluid.Append(w_sv);
+         omega_history_solid.Append(w_ss);
 
          /*paraview_step++;
          subiter_time += dt;

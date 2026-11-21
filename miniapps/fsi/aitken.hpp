@@ -36,6 +36,10 @@ private:
    MPI_Comm comm; ///< MPI communicator for parallel operations
    #endif
 
+   /// Aitken step w.r.t. the stored x_prev. Private: x_prev is overwritten here with the *unrelaxed* iterate, so
+   /// calling this directly gives a wrong residual whenever w != 1 (use the two-argument overload).
+   real_t ComputeRelaxation(const Vector& x);
+
 public:
    /// Constructor
    /// @param omega_init Initial relaxation parameter (default: 0.1)
@@ -58,11 +62,6 @@ public:
    // Set the safety factor for the relaxation method
    /// @param safety_factor_ Safety factor for the relaxation method (default: 1.0)
    void SetSafetyFactor(real_t safety_factor_) { safety_factor = safety_factor_; }
-
-   /// Compute the relaxation parameter using Aitken's method
-   /// @param x Current solution vector
-   /// @return Computed relaxation parameter
-   real_t ComputeRelaxation(const Vector& x);
 
    /// Aitken (Kuttler & Wall) relaxation with the fixed-point residual r_i = x_tilde - x_relaxed_prev,
    /// where x_tilde is the new unrelaxed iterate and x_relaxed_prev the previous relaxed iterate.

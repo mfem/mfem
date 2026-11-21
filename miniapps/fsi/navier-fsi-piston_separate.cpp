@@ -26,13 +26,13 @@
 // DIRICHLET-NEUMANN COUPLING (coupling = 0):
 //
 // delta = 1e3 (heavy solid, rho_bar/rho_f = 1e3)
-// mpirun -np 4 ./navier-fsi-two-domains   --coupling 0   -p 0   -rs 1   -fo 4   -eo 2   --viscosity 1e-2   -rho-f 1   -rho-s 1e3   --young-modulus 2500   --poisson-ratio 0.25   --relaxation 1   -dt 1e-4  -ta  --dt-max 1e-1  -tf 3.14159   --periodic   -pa 0.1   -pw 2   -of /home/shared/Output/FSI-LANL/Piston-FSI/Debug-DN/delta1e3/
+// mpirun -np 4 ./navier-fsi-piston_separate   --coupling 0   -rs 1   -fo 4   -eo 2   --viscosity 1e-2   --delta 1e3   --relaxation 1   -dt 1e-4  -ta  --dt-max 1e-1  -tf 3.14159   --periodic   -pa 0.1   -pw 2   -of /home/shared/Output/FSI-LANL/Piston-FSI/Debug-DN/delta1e3/
 //
 // delta = 1e2
-// mpirun -np 4 ./navier-fsi-two-domains   --coupling 0   -p 0   -rs 1   -fo 4   -eo 2   --viscosity 1e-2   -rho-f 1   -rho-s 1e2   --young-modulus 250   --poisson-ratio 0.25   --relaxation 0.5   -dt 1e-4  -ta  --dt-max 1e-1  -tf 3.14159   --periodic   -pa 0.1   -pw 2   -of /home/shared/Output/FSI-LANL/Piston-FSI/Debug-DN/delta1e2/
+// mpirun -np 4 ./navier-fsi-piston_separate   --coupling 0   -rs 1   -fo 4   -eo 2   --viscosity 1e-2   --delta 1e2   --relaxation 0.5   -dt 1e-4  -ta  --dt-max 1e-1  -tf 3.14159   --periodic   -pa 0.1   -pw 2   -of /home/shared/Output/FSI-LANL/Piston-FSI/Debug-DN/delta1e2/
 //
 // delta = 1 (moderate solid, rho_bar/rho_f = 1)
-// mpirun -np 4 ./navier-fsi-two-domains   --coupling 0   -p 0   -rs 1   -fo 4   -eo 2   --viscosity 1e-2   -rho-f 1   -rho-s 1   --young-modulus 2.5   --poisson-ratio 0.25   --relaxation 0.01   -dt 1e-4  -ta  --dt-max 1e-1  -tf 3.14159   --periodic   -pa 0.1   -pw 2   -of /home/shared/Output/FSI-LANL/Piston-FSI/Debug-DN/delta1/
+// mpirun -np 4 ./navier-fsi-piston_separate   --coupling 0   -rs 1   -fo 4   -eo 2   --viscosity 1e-2   --delta 1   --relaxation 0.01   -dt 1e-4  -ta  --dt-max 1e-1  -tf 3.14159   --periodic   -pa 0.1   -pw 2   -of /home/shared/Output/FSI-LANL/Piston-FSI/Debug-DN/delta1/
 //
 // The following mesh is used:
 //

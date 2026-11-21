@@ -1033,22 +1033,25 @@ int main(int argc, char *argv[])
                                                           solid_sigmaN_onFluid_gf, true);
 
          // Relaxation
+         // Aitken: the residual is r_k = x~_k - x_{k-1}, with x_{k-1} the *relaxed* iterate used in the previous
+         // sub-iteration (the *_prev vectors), see Kuttler & Wall (2008).
+         real_t w_sv = 1.0, w_ss = 1.0; // relaxation factors actually used in this sub-iteration
          if (iter > 0)
          {
             solid_vel_onFluid_gf.GetTrueDofs(solid_vel_onFluid);
-            DD_ctx.omega = DD_ctx.aitken ?
-                aitken_fluid_velocity.ComputeRelaxation(solid_vel_onFluid) : DD_ctx.omega;
-            solid_vel_onFluid *= DD_ctx.omega;
-            solid_vel_onFluid.Add(1.0 - DD_ctx.omega, solid_vel_onFluid_prev);
+            w_sv = DD_ctx.aitken ?
+                aitken_fluid_velocity.ComputeRelaxation(solid_vel_onFluid, solid_vel_onFluid_prev) : DD_ctx.omega;
+            solid_vel_onFluid *= w_sv;
+            solid_vel_onFluid.Add(1.0 - w_sv, solid_vel_onFluid_prev);
             solid_vel_onFluid_gf.SetFromTrueDofs(solid_vel_onFluid);
 
             if (DD_ctx.coupling != CouplingType::Dirichlet_Neumann)
             {
                solid_sigmaN_onFluid_gf.GetTrueDofs(solid_sigmaN_onFluid);
-               DD_ctx.omega = DD_ctx.aitken ?
-                   aitken_solid_sigma.ComputeRelaxation(solid_sigmaN_onFluid) : DD_ctx.omega;
-               solid_sigmaN_onFluid *= DD_ctx.omega;
-               solid_sigmaN_onFluid.Add(1.0 - DD_ctx.omega, solid_sigmaN_onFluid_prev);
+               w_ss = DD_ctx.aitken ?
+                   aitken_solid_sigma.ComputeRelaxation(solid_sigmaN_onFluid, solid_sigmaN_onFluid_prev) : DD_ctx.omega;
+               solid_sigmaN_onFluid *= w_ss;
+               solid_sigmaN_onFluid.Add(1.0 - w_ss, solid_sigmaN_onFluid_prev);
                solid_sigmaN_onFluid_gf.SetFromTrueDofs(solid_sigmaN_onFluid);
             }
          }
@@ -1123,19 +1126,36 @@ int main(int argc, char *argv[])
          if (Mpi::Root() && verbose) mfem::out << " done.\n";
 
          // --- Step 6: Check convergence ---
-         real_t global_norm_fluid = GlobalLpNorm(2.0, solid_vel_onFluid_gf.Norml2(),
-                                                   fluid_pmesh.GetComm());
+         // The relaxed increment is x_k - x_{k-1} = w r_k: divide by w to test the residual r_k itself (otherwise a
+         // small Aitken factor gives a false convergence). Norms: L2 on the same interface elements.
+         Vector zero_vec_conv(sdim);
+         zero_vec_conv = 0.0;
+         VectorConstantCoefficient zero_vcoeff_conv(zero_vec_conv);
+         real_t global_norm_fluid = solid_vel_onFluid_gf.ComputeL2Error(
+             zero_vcoeff_conv, irs_vel, &fluid_interfaces_element_idx);
          real_t global_abs_err_fluid = solid_vel_onFluid_gf.ComputeL2Error(
-             solid_vel_onFluid_prev_coeff, irs_vel, &fluid_interfaces_element_idx);
+             solid_vel_onFluid_prev_coeff, irs_vel, &fluid_interfaces_element_idx) / w_sv;
          real_t global_rel_err_fluid = global_abs_err_fluid /
                                        (global_norm_fluid + std::numeric_limits<real_t>::epsilon());
+         if (DD_ctx.coupling != CouplingType::Dirichlet_Neumann)
+         {
+            // Robin data: the traction residual must also be small
+            VectorGridFunctionCoefficient solid_sigmaN_onFluid_prev_coeff(solid_sigmaN_onFluid_prev_gf_ptr);
+            const real_t norm_ss = solid_sigmaN_onFluid_gf.ComputeL2Error(
+                zero_vcoeff_conv, irs_vel, &fluid_interfaces_element_idx);
+            const real_t abs_ss = solid_sigmaN_onFluid_gf.ComputeL2Error(
+                solid_sigmaN_onFluid_prev_coeff, irs_vel, &fluid_interfaces_element_idx) / w_ss;
+            global_abs_err_fluid = std::max(global_abs_err_fluid, abs_ss);
+            global_rel_err_fluid = std::max(global_rel_err_fluid,
+                                            abs_ss / (norm_ss + std::numeric_limits<real_t>::epsilon()));
+         }
 
          bool conv_rel = (global_rel_err_fluid < rel_tol) && (iter >= min_iter - 1);
          bool conv_abs = (global_abs_err_fluid < abs_tol) && (iter >= min_iter - 1);
          converged = conv_abs || conv_rel;
 
          iter++;
-         omega_history_fluid.Append(DD_ctx.omega);
+         omega_history_fluid.Append(w_sv);
 
          if (iter == max_iter && Mpi::Root())
          {
