@@ -39,7 +39,7 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
       {
          int seg = sptr[i];
          int width = lptr[seg + 1] - lptr[seg];
-         auto tdst = dst + i + lptr[seg] * vdims;
+         auto tdst = dst + (i - lptr[seg]) + lptr[seg] * vdims;
          int sign = 1;
          int col = idcs[i];
          if (col < 0)
@@ -535,9 +535,8 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
             auto &tmp = ks_map.at(k);
             auto od_idx = tmp[0];
             auto od_ridx = tmp[1];
-            block_off_diag_row_idcs_offsets[od_idx + 1] =
-               block_off_diag_row_idcs_offsets[od_idx] + lR.Height();
-            block_off_diag_col_offsets[od_idx] = od_ridx;
+            block_off_diag_row_idcs_offsets[od_idx + 1] = od_ridx + lR.Height();
+            block_off_diag_col_offsets[od_idx] = od_ridx - recv_segments[tmp[2]];
             block_off_diag_widths[od_idx] = lR.Width();
             recv_segment_idcs[od_idx] = tmp[2];
 
@@ -570,7 +569,6 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
                   row_off_diag_idcs[od_ridx] = INT_MAX;
                }
             }
-            ++od_idx;
          }
       }
    }
