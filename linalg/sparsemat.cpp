@@ -487,6 +487,14 @@ void SparseMatrix::SortColumnIndices()
       return;
    }
 
+   // A matrix without entries is sorted. The cuSPARSE/hipSPARSE buffer-size
+   // query below is not meaningful for nnz == 0.
+   if (J.Capacity() == 0)
+   {
+      isSorted = true;
+      return;
+   }
+
 #ifdef MFEM_USE_CUDA_OR_HIP
    if ((Device::Allows(Backend::CUDA_MASK) || Device::Allows(Backend::HIP_MASK)) &&
        useGPUSparse)
@@ -499,7 +507,7 @@ void SparseMatrix::SortColumnIndices()
 
       // Get size of temporary buffer needed to sort the column indices,
       // allocate the temporary buffer.
-      size_t pBufferSizeInBytes;
+      size_t pBufferSizeInBytes = 0;
       MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseXcsrsort_bufferSizeExt)(handle, m, n,
                                                                      nnzA, d_ia,
                                                                      d_ja, &pBufferSizeInBytes));
@@ -3663,11 +3671,178 @@ void SparseMatrixFunction (SparseMatrix & S, real_t (*f)(real_t))
    }
 }
 
+#ifdef MFEM_USE_CUDA_OR_HIP
+#if !defined(MFEM_USE_CUDA) || (CUDA_VERSION >= 11000)
+// Device implementations of the free functions Transpose() and Mult() below.
+// They return NULL when an operand has no entries, so the host implementation
+// is used for such matrices.
+
+/// Whether @a A is a finalized CSR matrix with device-valid arrays.
+static bool HasDeviceCSR(const SparseMatrix &A)
+{
+   return Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK) &&
+          A.Finalized() &&
+          A.GetMemoryI().DeviceIsValid() &&
+          A.GetMemoryJ().DeviceIsValid() &&
+          A.GetMemoryData().DeviceIsValid();
+}
+
+/// The number of stored entries: the last entry of the device row-offset
+/// array, transferred as a single integer.
+static int DeviceNNZ(const SparseMatrix &A)
+{
+   int nnz = 0;
+   MFEM_Cu_or_Hip(MemcpyDtoH)(&nnz, A.ReadI() + A.Height(), sizeof(int));
+   return nnz;
+}
+
+/// A finalized CSR matrix of @a m rows, @a n columns and @a nnz entries,
+/// allocated in device memory.
+static SparseMatrix *NewDeviceCSR(int m, int n, int nnz)
+{
+   SparseMatrix *C = new SparseMatrix;
+   C->OverrideSize(m, n);
+   const MemoryType mt = Device::GetDeviceMemoryType();
+   C->GetMemoryI().New(m + 1, mt);
+   C->GetMemoryJ().New(nnz, mt);
+   C->GetMemoryData().New(nnz, mt);
+   return C;
+}
+
+/// C = A^T, computed with cuSPARSE/hipSPARSE csr2csc on the device.
+static SparseMatrix *DeviceTranspose(const SparseMatrix &A,
+                                     MFEM_cu_or_hip(sparseHandle_t) handle)
+{
+   const int m = A.Height(), n = A.Width(), nnz = DeviceNNZ(A);
+   if (nnz == 0) { return nullptr; }
+   const int *d_I = A.ReadI();
+   const int *d_J = A.ReadJ();
+   const real_t *d_A = A.ReadData();
+
+   SparseMatrix *At = NewDeviceCSR(n, m, nnz);
+   int *d_AtI = At->WriteI();
+   int *d_AtJ = At->WriteJ();
+   real_t *d_AtA = At->WriteData();
+
+   size_t buf = 0;
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCsr2cscEx2_bufferSize)(
+                        handle, m, n, nnz, d_A, d_I, d_J, d_AtA, d_AtI, d_AtJ,
+                        MFEM_CUDA_or_HIP_REAL_T,
+                        MFEM_CU_or_HIP(SPARSE_ACTION_NUMERIC),
+                        MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
+                        MFEM_CU_or_HIP(SPARSE_CSR2CSC_ALG1), &buf));
+   void *dBuf = nullptr;
+   if (buf > 0) { dBuf = MFEM_Cu_or_Hip(MemAlloc)(&dBuf, buf); }
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCsr2cscEx2)(
+                        handle, m, n, nnz, d_A, d_I, d_J, d_AtA, d_AtI, d_AtJ,
+                        MFEM_CUDA_or_HIP_REAL_T,
+                        MFEM_CU_or_HIP(SPARSE_ACTION_NUMERIC),
+                        MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
+                        MFEM_CU_or_HIP(SPARSE_CSR2CSC_ALG1), dBuf));
+   MFEM_STREAM_SYNC;
+   if (dBuf) { MFEM_Cu_or_Hip(MemFree)(dBuf); }
+   At->SortColumnIndices();
+   return At;
+}
+
+/// C = A B, computed with cuSPARSE/hipSPARSE SpGEMM on the device.
+static SparseMatrix *DeviceMult(const SparseMatrix &A, const SparseMatrix &B,
+                                MFEM_cu_or_hip(sparseHandle_t) handle)
+{
+   const int m = A.Height(), k = A.Width(), n = B.Width();
+   const int nnzA = DeviceNNZ(A), nnzB = DeviceNNZ(B);
+   if (nnzA == 0 || nnzB == 0) { return nullptr; }
+   const auto op = MFEM_CU_or_HIP(SPARSE_OPERATION_NON_TRANSPOSE);
+   const auto idx = MFEM_CU_or_HIP(SPARSE_INDEX_32I);
+   const auto base = MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO);
+   const auto typ = MFEM_CUDA_or_HIP_REAL_T;
+   const auto alg = MFEM_CU_or_HIP(SPARSE_SPGEMM_DEFAULT);
+
+   MFEM_cu_or_hip(sparseSpMatDescr_t) matA, matB, matC;
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreateCsr)(
+                        &matA, m, k, nnzA,
+                        const_cast<int*>(A.ReadI()),
+                        const_cast<int*>(A.ReadJ()),
+                        const_cast<real_t*>(A.ReadData()),
+                        idx, idx, base, typ));
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreateCsr)(
+                        &matB, k, n, nnzB,
+                        const_cast<int*>(B.ReadI()),
+                        const_cast<int*>(B.ReadJ()),
+                        const_cast<real_t*>(B.ReadData()),
+                        idx, idx, base, typ));
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreateCsr)(
+                        &matC, m, n, 0, nullptr, nullptr, nullptr,
+                        idx, idx, base, typ));
+
+   MFEM_cu_or_hip(sparseSpGEMMDescr_t) desc;
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_createDescr)(&desc));
+
+   const real_t alpha = 1.0, beta = 0.0;
+   size_t buf1 = 0;
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_workEstimation)(
+                        handle, op, op, &alpha, matA, matB, &beta, matC,
+                        typ, alg, desc, &buf1, nullptr));
+   void *dBuf1 = nullptr;
+   if (buf1 > 0) { dBuf1 = MFEM_Cu_or_Hip(MemAlloc)(&dBuf1, buf1); }
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_workEstimation)(
+                        handle, op, op, &alpha, matA, matB, &beta, matC,
+                        typ, alg, desc, &buf1, dBuf1));
+
+   size_t buf2 = 0;
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_compute)(
+                        handle, op, op, &alpha, matA, matB, &beta, matC,
+                        typ, alg, desc, &buf2, nullptr));
+   void *dBuf2 = nullptr;
+   if (buf2 > 0) { dBuf2 = MFEM_Cu_or_Hip(MemAlloc)(&dBuf2, buf2); }
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_compute)(
+                        handle, op, op, &alpha, matA, matB, &beta, matC,
+                        typ, alg, desc, &buf2, dBuf2));
+
+   int64_t cr = 0, cc = 0, cnnz = 0;
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpMatGetSize)(matC, &cr, &cc, &cnnz));
+   MFEM_VERIFY(cnnz <= (int64_t) std::numeric_limits<int>::max(),
+               "SparseMatrix::Mult overflow: SpGEMM nnz exceeds 32-bit I");
+
+   SparseMatrix *C = nullptr;
+   if (cnnz > 0)
+   {
+      C = NewDeviceCSR(m, n, static_cast<int>(cnnz));
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCsrSetPointers)(
+                           matC, C->WriteI(), C->WriteJ(), C->WriteData()));
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_copy)(
+                           handle, op, op, &alpha, matA, matB, &beta, matC,
+                           typ, alg, desc));
+   }
+   MFEM_STREAM_SYNC;
+
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_destroyDescr)(desc));
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroySpMat)(matA));
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroySpMat)(matB));
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroySpMat)(matC));
+   if (dBuf1) { MFEM_Cu_or_Hip(MemFree)(dBuf1); }
+   if (dBuf2) { MFEM_Cu_or_Hip(MemFree)(dBuf2); }
+
+   if (C) { C->SortColumnIndices(); }
+   return C;
+}
+#endif // !defined(MFEM_USE_CUDA) || (CUDA_VERSION >= 11000)
+#endif // MFEM_USE_CUDA_OR_HIP
+
 SparseMatrix *Transpose (const SparseMatrix &A)
 {
    MFEM_VERIFY(
       A.Finalized(),
       "Finalize must be called before Transpose. Use TransposeRowMatrix instead");
+
+#ifdef MFEM_USE_CUDA_OR_HIP
+#if !defined(MFEM_USE_CUDA) || (CUDA_VERSION >= 11000)
+   if (A.useGPUSparse && SparseMatrix::handle && HasDeviceCSR(A))
+   {
+      if (auto *At = DeviceTranspose(A, SparseMatrix::handle)) { return At; }
+   }
+#endif
+#endif
 
    int i, j, end;
    const int *A_i, *A_j;
@@ -3799,6 +3974,16 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
 SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
                     SparseMatrix *OAB)
 {
+#ifdef MFEM_USE_CUDA_OR_HIP
+#if !defined(MFEM_USE_CUDA) || (CUDA_VERSION >= 11000)
+   if (OAB == NULL && A.useGPUSparse && B.useGPUSparse &&
+       SparseMatrix::handle && HasDeviceCSR(A) && HasDeviceCSR(B))
+   {
+      MFEM_VERIFY(A.Width() == B.Height(), "Incompatible matrix dimensions");
+      if (auto *C = DeviceMult(A, B, SparseMatrix::handle)) { return C; }
+   }
+#endif
+#endif
    int nrowsA, ncolsA, nrowsB, ncolsB;
    const int *A_i, *A_j, *B_i, *B_j;
    int *C_i, *C_j, *B_marker;

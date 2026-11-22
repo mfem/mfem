@@ -140,6 +140,11 @@ protected:
    mutable hipsparseDnVecDescr_t vecX_descr;
    mutable hipsparseDnVecDescr_t vecY_descr;
 #endif // defined(MFEM_USE_CUDA)
+
+   // Device implementations of these use the cuSPARSE/hipSPARSE handle.
+   friend SparseMatrix *Transpose(const SparseMatrix &A);
+   friend SparseMatrix *Mult(const SparseMatrix &A, const SparseMatrix &B,
+                             SparseMatrix *OAB);
 #endif // MFEM_USE_CUDA_OR_HIP
 
 public:

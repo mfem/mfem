@@ -12,6 +12,7 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 #include <sstream>
+#include <memory>
 
 namespace mfem
 {
@@ -288,6 +289,64 @@ TEST_CASE("SparseMatrix cuSPARSE Bug", "[SparseMatrix][GPU]")
 
    y -= d;
    REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
+}
+
+TEST_CASE("SparseMatrix device Mult and Transpose", "[SparseMatrix][GPU]")
+{
+   // 0: general rectangular case; 1: A has no entries; 2: A*B has no entries.
+   const int test = GENERATE(0, 1, 2);
+   const int m = 5, k = 3, n = 4;
+   SparseMatrix A(m, k), B(k, n);
+   for (int i = 0; i < m && test != 1; i++)
+   {
+      A.Set(i, test == 2 ? 0 : i % k, 1.0 + i);
+   }
+   for (int i = (test == 2) ? 1 : 0; i < k; i++)
+   {
+      B.Set(i, (i + 1) % n, -0.5);
+      B.Set(i, i % n, 2.0);
+   }
+   A.Finalize();
+   B.Finalize();
+
+   // Host results, computed before the operands are moved to the device.
+   std::unique_ptr<SparseMatrix> Ch(Mult(A, B)), Ath(Transpose(A));
+   Ch->SortColumnIndices();
+
+   A.ReadI(); A.ReadJ(); A.ReadData();
+   B.ReadI(); B.ReadJ(); B.ReadData();
+   std::unique_ptr<SparseMatrix> Cd(Mult(A, B)), Atd(Transpose(A));
+
+#if defined(MFEM_USE_HIP) || (defined(MFEM_USE_CUDA) && CUDA_VERSION >= 11000)
+   if (test == 0 && Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK) &&
+       SparseMatrix::use_gpu_vendor_sparse_if_available)
+   {
+      for (const SparseMatrix *X : {Cd.get(), Atd.get()})
+      {
+         REQUIRE(X->GetMemoryI().DeviceIsValid());
+         REQUIRE(X->GetMemoryJ().DeviceIsValid());
+         REQUIRE(X->GetMemoryData().DeviceIsValid());
+      }
+   }
+#endif
+
+   auto equal = [](const SparseMatrix &X, const SparseMatrix &Y)
+   {
+      REQUIRE(Y.Finalized());
+      REQUIRE(X.Height() == Y.Height());
+      REQUIRE(X.Width() == Y.Width());
+      const int *XI = X.HostReadI(), *YI = Y.HostReadI();
+      const int *XJ = X.HostReadJ(), *YJ = Y.HostReadJ();
+      const real_t *XA = X.HostReadData(), *YA = Y.HostReadData();
+      for (int i = 0; i <= X.Height(); i++) { REQUIRE(XI[i] == YI[i]); }
+      for (int j = 0; j < XI[X.Height()]; j++)
+      {
+         REQUIRE(XJ[j] == YJ[j]);
+         REQUIRE(XA[j] == MFEM_Approx(YA[j]));
+      }
+   };
+   equal(*Ch, *Cd);
+   equal(*Ath, *Atd);
 }
 
 } // namespace mfem

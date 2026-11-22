@@ -18,6 +18,9 @@ GPU computing
 
 - Fixed RAJA CUDA/HIP element coverage when using a smaller fixed launch grid.
 
+- Accelerated SparseMatrix products and transposes of device-resident matrices
+  with cuSPARSE/hipSPARSE.
+
 Discretization improvements
 ---------------------------
 - Fixed H1 transfer in L2ProjectionGridTransfer on non-conforming meshes in
