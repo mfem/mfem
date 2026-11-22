@@ -21,15 +21,24 @@ GPU computing
 Discretization improvements
 ---------------------------
 - Completed parallel 3D quadrilateral-face internal-edge compatibility
-  constraints in variable-order H1 and ND spaces, built variable-order
-  parallel cut-space communication groups from the actual shared DOF
-  variants, and fixed vector-component indexing in parallel variable-order
-  H1 essential true-DOF markers.
+  constraints in variable-order H1 and ND spaces, generalized variable-order
+  parallel cut-space communication groups to ND and RT spaces with signed
+  DOFs, and fixed vector-component indexing in parallel variable-order H1
+  essential true-DOF markers.
 
 - Preserved compatible high-order face modes in serial 3D variable-order H1
   and ND spaces on nonconforming quadrilateral interfaces by enforcing
   internal-edge compatibility equations rather than lowering the entire
   master face order.
+
+- Fixed parallel variable-order communication, derefinement, and face-neighbor
+  element lookup: switched ParFiniteElementSpace::OrderPropagation to
+  non-blocking consensus (Issend + MPI_Ibarrier) to prevent stale messages
+  across calls, unpacked ghost edge/face variant orders in
+  ParFiniteElementSpace::UnpackDofVar during multi-rank row forwarding, fixed
+  multi-segment buffer offsets in ParDerefineMatrixOp, and fixed
+  ParFiniteElementSpace::GetFaceNbrFE for variable-order elements with order
+  lower than the base collection order.
 
 - Fixed conforming ND edge-in-face interpolation and L2 projection, accounted
   for source order in ND/RT local L2 transfer quadrature rules, aligned RT,

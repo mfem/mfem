@@ -2614,6 +2614,96 @@ static void TestSolveParVec(ParFiniteElementSpace &fespace)
    REQUIRE(error == MFEM_Approx(0.0));
 }
 
+TEST_CASE("Parallel multi-segment derefinement and order propagation",
+          "[FiniteElementSpace][NCMesh][Parallel]")
+{
+   int nranks = 1;
+   MPI_Comm_size(MPI_COMM_WORLD, &nranks);
+
+   SECTION("Multi-segment derefinement send/recv for vector H1")
+   {
+      for (int ordering : {Ordering::byNODES, Ordering::byVDIM})
+      {
+         Mesh mesh = Mesh::MakeCartesian3D(6, 1, 1, Element::HEXAHEDRON);
+         mesh.EnsureNCMesh();
+         ParMesh pmesh(MPI_COMM_WORLD, mesh);
+         pmesh.UniformRefinement();
+
+         Array<int> part(pmesh.GetNE());
+         Vector c(3);
+         for (int e = 0; e < pmesh.GetNE(); e++)
+         {
+            pmesh.GetElementCenter(e, c);
+            const int b = std::min(5, std::max(0, (int)std::floor(6.0 * c(0))));
+            const int sub =
+               (std::min(1, std::max(0, ((int)std::floor(12.0 * c(0))) % 2))) +
+               (c(1) > 0.5 ? 2 : 0) + (c(2) > 0.5 ? 4 : 0);
+            const int owner = b % nranks;
+            part[e] = owner + (sub % (nranks - owner));
+         }
+         pmesh.Rebalance(part);
+
+         H1_FECollection fec(1, 3);
+         ParFiniteElementSpace fes(&pmesh, &fec, 2, ordering);
+         VectorFunctionCoefficient vf(2, [](const Vector &p, Vector &v)
+         {
+            v(0) = 1.0 + 2.0 * p(0) - 0.5 * p(1) + 0.25 * p(2);
+            v(1) = -0.3 + 0.7 * p(0) + 1.5 * p(1) - 0.8 * p(2);
+         });
+         ParGridFunction x(&fes);
+         x.ProjectCoefficient(vf);
+         REQUIRE(x.ComputeL2Error(vf) == MFEM_Approx(0.0));
+
+         Vector zero(pmesh.GetNE());
+         zero = 0.0;
+         REQUIRE(pmesh.DerefineByError(zero, 1.0));
+         fes.Update();
+         x.Update();
+         REQUIRE(pmesh.GetGlobalNE() == 6);
+         REQUIRE(x.ComputeL2Error(vf) == MFEM_Approx(0.0));
+      }
+   }
+
+   SECTION("Repeated variable-order propagation and ghost variant unpacking")
+   {
+      for (int iter = 0; iter < 3; ++iter)
+      {
+         Mesh serial = Mesh::MakeCartesian3D(3, 3, 2, Element::HEXAHEDRON);
+         serial.EnsureNCMesh();
+         Array<int> ref;
+         Vector c(3);
+         for (int e = 0; e < serial.GetNE(); ++e)
+         {
+            serial.GetElementCenter(e, c);
+            if (c(0) < 0.4 && c(1) < 0.4) { ref.Append(e); }
+         }
+         serial.GeneralRefinement(ref);
+
+         ParMesh pmesh(MPI_COMM_WORLD, serial);
+         H1_FECollection fec(1, 3);
+         ParFiniteElementSpace fes(&pmesh, &fec);
+         for (int e = 0; e < pmesh.GetNE(); ++e)
+         {
+            pmesh.GetElementCenter(e, c);
+            const int ord = (c(0) > 0.6) ? 3 : ((c(1) > 0.5) ? 2 : 1);
+            fes.SetElementOrder(e, ord);
+         }
+         fes.Update(false);
+
+         FunctionCoefficient lin([](const Vector &p)
+         {
+            return 0.5 + 1.3 * p(0) - 0.7 * p(1) + 0.4 * p(2);
+         });
+         ParGridFunction x(&fes);
+         x.ProjectCoefficient(lin);
+         Vector tx(fes.GetTrueVSize());
+         x.ParallelProject(tx);
+         x.Distribute(tx);
+         REQUIRE(x.ComputeL2Error(lin) < 1e-12);
+      }
+   }
+}
+
 #endif  // MFEM_USE_MPI
 
 }
