@@ -148,6 +148,40 @@ TEST_CASE("ParMeshSharedFaces", "[Parallel], [ParMesh]")
    REQUIRE(global_ghosts_nonmatching == 0);
 }
 
+TEST_CASE("ParMesh PrintInfo on processes without elements",
+          "[Parallel], [ParMesh]")
+{
+   // A mesh with one square element of side 1/2: the processes other than the
+   // first have no elements.
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL, false,
+                                     0.5, 0.5);
+   Array<int> partitioning(mesh.GetNE());
+   partitioning = 0;
+   ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning.GetData());
+
+   std::stringstream info;
+   pmesh.PrintInfo(info);
+   if (Mpi::Root())
+   {
+      real_t h_min = 0.0, h_max = 0.0, kappa_min = 0.0, kappa_max = 0.0;
+      std::string line;
+      int found = 0;
+      while (std::getline(info, line))
+      {
+         std::istringstream fields(line);
+         std::string name;
+         fields >> name;
+         if (name == "h") { fields >> h_min >> h_max; found++; }
+         if (name == "kappa") { fields >> kappa_min >> kappa_max; found++; }
+      }
+      REQUIRE(found == 2);
+      REQUIRE(h_min == MFEM_Approx(0.5));
+      REQUIRE(h_max == MFEM_Approx(0.5));
+      REQUIRE(kappa_min == MFEM_Approx(1.0));
+      REQUIRE(kappa_max == MFEM_Approx(1.0));
+   }
+}
+
 namespace simplicial
 {
 
