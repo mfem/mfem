@@ -139,11 +139,17 @@ public:
    { ProjectMatrixCoefficient_RT(nk, dof2nk, mc, T, dofs); }
    void Project(const FiniteElement &fe, ElementTransformation &Trans,
                 DenseMatrix &I) const override
-   { Project_RT(nk, dof2nk, fe, Trans, I); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectIntegrated(fe, Trans, I); }
+      else { Project_RT(nk, dof2nk, fe, Trans, I); }
+   }
    void ProjectCurl(const FiniteElement &fe,
                     ElementTransformation &Trans,
                     DenseMatrix &curl) const override
-   { ProjectCurl3D_RT(nk, dof2nk, fe, Trans, curl); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectCurlIntegrated(fe, Trans, curl); }
+      else { ProjectCurl3D_RT(nk, dof2nk, fe, Trans, curl); }
+   }
 
    /// @brief Return the mapping from lexicographically ordered face DOFs to
    /// lexicographically ordered element DOFs corresponding to local face
@@ -154,6 +160,12 @@ protected:
    void ProjectIntegrated(VectorCoefficient &vc,
                           ElementTransformation &Trans,
                           Vector &dofs) const;
+   void ProjectIntegrated(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const;
+   void ProjectCurlIntegrated(const FiniteElement &fe,
+                              ElementTransformation &Trans,
+                              DenseMatrix &curl) const;
 };
 
 

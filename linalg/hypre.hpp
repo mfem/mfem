@@ -2038,13 +2038,29 @@ public:
    /// Construct the AMS solver using the given matrix and finite element space.
    HypreAMS(const HypreParMatrix &A, ParFiniteElementSpace *edge_fespace);
 
-   /// @brief Construct the AMS solver using the provided discrete gradient
+   /// Construct the AMS solver using the provided discrete gradient
    /// matrix @a G_ and the vertex coordinate vectors @a x_, @a y_, and @a z_.
    ///
    /// For 2D problems, @a z_ may be NULL. All other parameters must be
    /// non-NULL. The solver assumes ownership of G_, x_, y_, and z_.
    HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_, HypreParVector *x_,
             HypreParVector *y_, HypreParVector *z_=NULL);
+
+   /// Construct the AMS solver using the provided discrete gradient matrix
+   /// @a G_ and component Nedelec interpolation matrices @a Pix_, @a Piy_, @a Piz_.
+   ///
+   /// For 2D problems, @a Piz_ may be NULL. The solver assumes ownership of
+   /// G_, Pix_, Piy_, and Piz_.
+   HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_,
+            HypreParMatrix *Pix_, HypreParMatrix *Piy_,
+            HypreParMatrix *Piz_=NULL);
+
+   /// Read-only accessors for the internal AMS auxiliary operators (if built).
+   const HypreParMatrix *GetDiscreteGradient() const { return G; }
+   const HypreParMatrix *GetPi() const { return Pi; }
+   const HypreParMatrix *GetPix() const { return Pix; }
+   const HypreParMatrix *GetPiy() const { return Piy; }
+   const HypreParMatrix *GetPiz() const { return Piz; }
 
    void SetOperator(const Operator &op) override;
 
@@ -2119,6 +2135,27 @@ public:
    /// x_, y_, and z_.
    HypreADS(const HypreParMatrix &A, HypreParMatrix *C_, HypreParMatrix *G_,
             HypreParVector *x_, HypreParVector *y_, HypreParVector *z_);
+
+   /// @brief Construct the ADS solver using the provided discrete curl matrix
+   /// @a C_, discrete gradient matrix @a G_, and component Nedelec/Raviart-Thomas
+   /// interpolation matrices.
+   ///
+   /// None of the inputs may be NULL. The solver assumes ownership of all
+   /// provided matrices.
+   HypreADS(const HypreParMatrix &A, HypreParMatrix *C_, HypreParMatrix *G_,
+            HypreParMatrix *ND_Pix_, HypreParMatrix *ND_Piy_,
+            HypreParMatrix *ND_Piz_, HypreParMatrix *RT_Pix_,
+            HypreParMatrix *RT_Piy_, HypreParMatrix *RT_Piz_);
+
+   /// Read-only accessors for the internal ADS auxiliary operators (if built).
+   const HypreParMatrix *GetDiscreteCurl() const { return C; }
+   const HypreParMatrix *GetDiscreteGradient() const { return G; }
+   const HypreParMatrix *GetNDPix() const { return ND_Pix; }
+   const HypreParMatrix *GetNDPiy() const { return ND_Piy; }
+   const HypreParMatrix *GetNDPiz() const { return ND_Piz; }
+   const HypreParMatrix *GetRTPix() const { return RT_Pix; }
+   const HypreParMatrix *GetRTPiy() const { return RT_Piy; }
+   const HypreParMatrix *GetRTPiz() const { return RT_Piz; }
 
    void SetOperator(const Operator &op) override;
 

@@ -1744,6 +1744,9 @@ void VectorFiniteElement::LocalRestriction_RT(
    const real_t *nk, const Array<int> &d2n, ElementTransformation &Trans,
    DenseMatrix &R) const
 {
+   MFEM_VERIFY(is_nodal,
+               "LocalRestriction_RT is only supported for nodal "
+               "(non-integrated) RT bases.");
    real_t pt_data[Geometry::MaxDim];
    IntegrationPoint ip;
    Vector pt(pt_data, dim);
@@ -1788,6 +1791,9 @@ void VectorFiniteElement::LocalRestriction_ND(
    const real_t *tk, const Array<int> &d2t, ElementTransformation &Trans,
    DenseMatrix &R) const
 {
+   MFEM_VERIFY(is_nodal,
+               "LocalRestriction_ND is only supported for nodal "
+               "(non-integrated) ND bases.");
    real_t pt_data[Geometry::MaxDim];
    IntegrationPoint ip;
    Vector pt(pt_data, dim);

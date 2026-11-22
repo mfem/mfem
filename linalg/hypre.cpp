@@ -5733,6 +5733,33 @@ HypreAMS::HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_,
    HYPRE_AMSSetDiscreteGradient(ams, *G);
 }
 
+HypreAMS::HypreAMS(const HypreParMatrix &A, HypreParMatrix *G_,
+                   HypreParMatrix *Pix_, HypreParMatrix *Piy_,
+                   HypreParMatrix *Piz_)
+   : HypreSolver(&A),
+     x(NULL),
+     y(NULL),
+     z(NULL),
+     G(G_),
+     Pi(NULL),
+     Pix(Pix_),
+     Piy(Piy_),
+     Piz(Piz_)
+{
+   MFEM_ASSERT(G != NULL, "");
+   MFEM_ASSERT(Pix != NULL, "");
+   MFEM_ASSERT(Piy != NULL, "");
+   int sdim = (Piz == NULL) ? 2 : 3;
+   int cycle_type = 13;
+   MakeSolver(sdim, cycle_type);
+
+   HYPRE_AMSSetDiscreteGradient(ams, *G);
+   HYPRE_ParCSRMatrix HY_Pix = (Pix) ? (HYPRE_ParCSRMatrix) *Pix : NULL;
+   HYPRE_ParCSRMatrix HY_Piy = (Piy) ? (HYPRE_ParCSRMatrix) *Piy : NULL;
+   HYPRE_ParCSRMatrix HY_Piz = (Piz) ? (HYPRE_ParCSRMatrix) *Piz : NULL;
+   HYPRE_AMSSetInterpolations(ams, NULL, HY_Pix, HY_Piy, HY_Piz);
+}
+
 void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
 {
    ParMesh *pmesh = edge_fespace->GetParMesh();
@@ -5741,6 +5768,11 @@ void HypreAMS::Init(ParFiniteElementSpace *edge_fespace)
    int cycle_type = 13;
 
    const FiniteElementCollection *edge_fec = edge_fespace->FEColl();
+   if (const auto *rt_fec = dynamic_cast<const RT_FECollection *>(edge_fec))
+   {
+      MFEM_VERIFY(rt_fec->GetOpenBasisType() != BasisType::IntegratedGLL,
+                  "HypreAMS does not support integrated RT bases.");
+   }
    bool trace_space = dynamic_cast<const ND_Trace_FECollection *>(edge_fec);
    bool rt_trace_space = dynamic_cast<const RT_Trace_FECollection *>(edge_fec);
    trace_space = trace_space || rt_trace_space;
@@ -5818,12 +5850,36 @@ void HypreAMS::MakeGradientAndInterpolation(
    int sdim = pmesh->SpaceDimension();
    int vdim = edge_fespace->FEColl()->GetRangeDim(dim - trace_space);
 
+   const bool var_order = edge_fespace->IsVariableOrder();
+   MFEM_VERIFY(!(trace_space && var_order),
+               "HypreAMS does not support variable order trace spaces");
+   if (const auto *rt_fec = dynamic_cast<const RT_FECollection *>(edge_fec))
+   {
+      MFEM_VERIFY(rt_fec->GetOpenBasisType() != BasisType::IntegratedGLL,
+                  "HypreAMS does not support integrated RT bases.");
+   }
+   if (const auto *nd_fec = dynamic_cast<const ND_FECollection *>(edge_fec))
+   {
+      if (nd_fec->GetOpenBasisType() == BasisType::IntegratedGLL)
+      {
+         MFEM_VERIFY(!trace_space && (dim == 2 || dim == 3),
+                     "HypreAMS integrated ND bases require 2D/3D volume spaces.");
+         if (pmesh->GetNE() > 0)
+         {
+            Array<Geometry::Type> geoms;
+            pmesh->GetGeometries(dim, geoms);
+            MFEM_VERIFY(geoms.Size() == 1 &&
+                        geoms[0] == (dim == 2 ? Geometry::SQUARE : Geometry::CUBE),
+                        "HypreAMS integrated ND bases require purely "
+                        "quadrilateral or hexahedral meshes.");
+         }
+      }
+   }
    // For dim = 1, ND_FECollection::GetOrder() returns p - 1
-   MFEM_VERIFY(!edge_fespace->IsVariableOrder(),
-               "HypreAMS does not support variable order spaces");
-   int p = edge_fec->GetOrder() + (dim - trace_space == 1 ? 1 : 0);
+   int order_diff = (dim - trace_space == 1 ? 1 : 0);
+   int p = edge_fec->GetOrder() + order_diff;
 
-   // Define the nodal linear finite element space associated with edge_fespace
+   // Define the nodal finite element space associated with edge_fespace
    FiniteElementCollection *vert_fec;
    if (trace_space)
    {
@@ -5835,6 +5891,15 @@ void HypreAMS::MakeGradientAndInterpolation(
    }
    ParFiniteElementSpace *vert_fespace = new ParFiniteElementSpace(pmesh,
                                                                    vert_fec);
+   if (var_order)
+   {
+      for (int i = 0; i < pmesh->GetNE(); i++)
+      {
+         vert_fespace->SetElementOrder(
+            i, edge_fespace->GetElementOrder(i) + order_diff);
+      }
+      vert_fespace->Update(false);
+   }
 
    // generate and set the discrete gradient
    ParDiscreteLinearOperator *grad;
@@ -5860,7 +5925,7 @@ void HypreAMS::MakeGradientAndInterpolation(
    // generate and set the vertex coordinates or Nedelec interpolation matrices
    x = y = z = NULL;
    Pi = Pix = Piy = Piz = NULL;
-   if (p == 1 && pmesh->GetNodes() == NULL && vdim <= sdim)
+   if (!var_order && p == 1 && pmesh->GetNodes() == NULL && vdim <= sdim)
    {
       ParGridFunction x_coord(vert_fespace);
       ParGridFunction y_coord(vert_fespace);
@@ -5899,6 +5964,15 @@ void HypreAMS::MakeGradientAndInterpolation(
       ParFiniteElementSpace *vert_fespace_d =
          new ParFiniteElementSpace(pmesh, vert_fec, std::max(sdim, vdim),
                                    Ordering::byVDIM);
+      if (var_order)
+      {
+         for (int i = 0; i < pmesh->GetNE(); i++)
+         {
+            vert_fespace_d->SetElementOrder(
+               i, edge_fespace->GetElementOrder(i) + order_diff);
+         }
+         vert_fespace_d->Update(false);
+      }
 
       ParDiscreteLinearOperator *id_ND;
       id_ND = new ParDiscreteLinearOperator(vert_fespace_d, edge_fespace);
@@ -6141,6 +6215,30 @@ HypreADS::HypreADS(
    HYPRE_ADSSetDiscreteGradient(ads, *G);
 }
 
+HypreADS::HypreADS(
+   const HypreParMatrix &A, HypreParMatrix *C_, HypreParMatrix *G_,
+   HypreParMatrix *ND_Pix_, HypreParMatrix *ND_Piy_, HypreParMatrix *ND_Piz_,
+   HypreParMatrix *RT_Pix_, HypreParMatrix *RT_Piy_, HypreParMatrix *RT_Piz_)
+   : HypreSolver(&A),
+     x(NULL), y(NULL), z(NULL),
+     G(G_), C(C_),
+     ND_Pi(NULL), ND_Pix(ND_Pix_), ND_Piy(ND_Piy_), ND_Piz(ND_Piz_),
+     RT_Pi(NULL), RT_Pix(RT_Pix_), RT_Piy(RT_Piy_), RT_Piz(RT_Piz_)
+{
+   MFEM_ASSERT(C != NULL, "");
+   MFEM_ASSERT(G != NULL, "");
+   MFEM_ASSERT(ND_Pix != NULL && ND_Piy != NULL && ND_Piz != NULL, "");
+   MFEM_ASSERT(RT_Pix != NULL && RT_Piy != NULL && RT_Piz != NULL, "");
+
+   MakeSolver();
+
+   HYPRE_ADSSetDiscreteCurl(ads, *C);
+   HYPRE_ADSSetDiscreteGradient(ads, *G);
+   HYPRE_ADSSetInterpolations(ads,
+                              NULL, *RT_Pix, *RT_Piy, *RT_Piz,
+                              NULL, *ND_Pix, *ND_Piy, *ND_Piz);
+}
+
 void HypreADS::MakeSolver()
 {
    int rlx_sweeps       = 1;
@@ -6182,16 +6280,42 @@ void HypreADS::MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace)
    bool trace_space =
       (dynamic_cast<const RT_Trace_FECollection*>(face_fec) != NULL);
 
-   MFEM_VERIFY(!face_fespace->IsVariableOrder(), "");
+   const bool var_order = face_fespace->IsVariableOrder();
+   MFEM_VERIFY(!(trace_space && var_order),
+               "HypreADS does not support variable order trace spaces");
+   ParMesh *pmesh = (ParMesh *) face_fespace->GetMesh();
+   bool integrated_rt = false;
+   if (const auto *rt_fec = dynamic_cast<const RT_FECollection *>(face_fec))
+   {
+      if (rt_fec->GetOpenBasisType() == BasisType::IntegratedGLL)
+      {
+         MFEM_VERIFY(!trace_space,
+                     "HypreADS integrated RT bases require 3D volume spaces.");
+         if (pmesh->GetNE() > 0)
+         {
+            Array<Geometry::Type> geoms;
+            pmesh->GetGeometries(3, geoms);
+            MFEM_VERIFY(geoms.Size() == 1 && geoms[0] == Geometry::CUBE,
+                        "HypreADS integrated RT bases require purely "
+                        "hexahedral meshes.");
+         }
+         integrated_rt = true;
+      }
+   }
    int p = face_fec->GetOrder();
 
    // define the nodal and edge finite element spaces associated with face_fespace
-   ParMesh *pmesh = (ParMesh *) face_fespace->GetMesh();
    FiniteElementCollection *vert_fec, *edge_fec;
    if (trace_space)
    {
       vert_fec = new H1_Trace_FECollection(p, 3);
       edge_fec = new ND_Trace_FECollection(p, 3);
+   }
+   else if (integrated_rt)
+   {
+      vert_fec = new H1_FECollection(p, 3, BasisType::GaussLobatto);
+      edge_fec = new ND_FECollection(p, 3, BasisType::GaussLobatto,
+                                     BasisType::IntegratedGLL);
    }
    else
    {
@@ -6203,9 +6327,20 @@ void HypreADS::MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace)
                                                                    vert_fec);
    ParFiniteElementSpace *edge_fespace = new ParFiniteElementSpace(pmesh,
                                                                    edge_fec);
+   if (var_order)
+   {
+      for (int i = 0; i < pmesh->GetNE(); i++)
+      {
+         const int ord = face_fespace->GetElementOrder(i);
+         vert_fespace->SetElementOrder(i, ord);
+         edge_fespace->SetElementOrder(i, ord);
+      }
+      vert_fespace->Update(false);
+      edge_fespace->Update(false);
+   }
 
    // generate and set the vertex coordinates
-   if (p == 1 && pmesh->GetNodes() == NULL)
+   if (!var_order && p == 1 && pmesh->GetNodes() == NULL)
    {
       ParGridFunction x_coord(vert_fespace);
       ParGridFunction y_coord(vert_fespace);
@@ -6273,10 +6408,18 @@ void HypreADS::MakeDiscreteMatrices(ParFiniteElementSpace *face_fespace)
    // generate and set the Nedelec and Raviart-Thomas interpolation matrices
    RT_Pi = RT_Pix = RT_Piy = RT_Piz = NULL;
    ND_Pi = ND_Pix = ND_Piy = ND_Piz = NULL;
-   if (p > 1 || pmesh->GetNodes() != NULL)
+   if (var_order || p > 1 || pmesh->GetNodes() != NULL)
    {
       ParFiniteElementSpace *vert_fespace_d
          = new ParFiniteElementSpace(pmesh, vert_fec, 3, Ordering::byVDIM);
+      if (var_order)
+      {
+         for (int i = 0; i < pmesh->GetNE(); i++)
+         {
+            vert_fespace_d->SetElementOrder(i, face_fespace->GetElementOrder(i));
+         }
+         vert_fespace_d->Update(false);
+      }
 
       ParDiscreteLinearOperator *id_ND;
       id_ND = new ParDiscreteLinearOperator(vert_fespace_d, edge_fespace);

@@ -81,12 +81,18 @@ public:
    void Project(const FiniteElement &fe,
                 ElementTransformation &Trans,
                 DenseMatrix &I) const override
-   { Project_ND(tk, dof2tk, fe, Trans, I); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectIntegrated(fe, Trans, I); }
+      else { Project_ND(tk, dof2tk, fe, Trans, I); }
+   }
 
    void ProjectGrad(const FiniteElement &fe,
                     ElementTransformation &Trans,
                     DenseMatrix &grad) const override
-   { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectGradIntegrated(fe, Trans, grad); }
+      else { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+   }
 
    void ProjectCurl(const FiniteElement &fe,
                     ElementTransformation &Trans,
@@ -99,6 +105,12 @@ protected:
    void ProjectIntegrated(VectorCoefficient &vc,
                           ElementTransformation &Trans,
                           Vector &dofs) const;
+   void ProjectIntegrated(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const;
+   void ProjectGradIntegrated(const FiniteElement &fe,
+                              ElementTransformation &Trans,
+                              DenseMatrix &grad) const;
 };
 
 
@@ -154,11 +166,17 @@ public:
    void Project(const FiniteElement &fe,
                 ElementTransformation &Trans,
                 DenseMatrix &I) const override
-   { Project_ND(tk, dof2tk, fe, Trans, I); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectIntegrated(fe, Trans, I); }
+      else { Project_ND(tk, dof2tk, fe, Trans, I); }
+   }
    void ProjectGrad(const FiniteElement &fe,
                     ElementTransformation &Trans,
                     DenseMatrix &grad) const override
-   { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+   {
+      if (obasis1d.IsIntegratedType()) { ProjectGradIntegrated(fe, Trans, grad); }
+      else { ProjectGrad_ND(tk, dof2tk, fe, Trans, grad); }
+   }
 
    void GetFaceMap(const int face_id, Array<int> &face_map) const override;
 
@@ -166,6 +184,12 @@ protected:
    void ProjectIntegrated(VectorCoefficient &vc,
                           ElementTransformation &Trans,
                           Vector &dofs) const;
+   void ProjectIntegrated(const FiniteElement &fe,
+                          ElementTransformation &Trans,
+                          DenseMatrix &I) const;
+   void ProjectGradIntegrated(const FiniteElement &fe,
+                              ElementTransformation &Trans,
+                              DenseMatrix &grad) const;
 };
 
 

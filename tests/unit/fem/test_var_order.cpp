@@ -13,6 +13,7 @@
 #include "unit_tests.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <vector>
 #ifdef MFEM_USE_MPI
 #include <array>
@@ -1732,6 +1733,179 @@ TEST_CASE("2D variable-order face DOFs match GetFaceElement and PRefinementSuppo
    REQUIRE(!FiniteElementSpace(&m3, &dgi_3).PRefinementSupported());
 }
 
+TEST_CASE("IntegratedGLL ND ProjectGrad and Project match exact line integrals at p=2",
+          "[FiniteElementSpace]")
+{
+   for (int dim : {2, 3})
+   {
+      CAPTURE(dim);
+      Geometry::Type geom = (dim == 2) ? Geometry::SQUARE : Geometry::CUBE;
+      IsoparametricTransformation T;
+      T.SetIdentityTransformation(geom);
+
+      H1_FECollection h1_fec(2, dim);
+      ND_FECollection nd_fec(2, dim, BasisType::GaussLobatto,
+                             BasisType::IntegratedGLL);
+      const FiniteElement *h1_fe = h1_fec.FiniteElementForGeometry(geom);
+      const FiniteElement *nd_fe = nd_fec.FiniteElementForGeometry(geom);
+
+      DenseMatrix G_mat, Pi_mat;
+      nd_fe->ProjectGrad(*h1_fe, T, G_mat);
+      nd_fe->Project(*h1_fe, T, Pi_mat);
+
+      // u(x,y[,z]) = x: sub-edges along +x at y=z=0 have integral 0.5 on [0,0.5].
+      Vector u_dofs(h1_fe->GetDof()), const_dofs(h1_fe->GetDof()), x2_dofs(h1_fe->GetDof());
+      const IntegrationRule &nodes = h1_fe->GetNodes();
+      for (int j = 0; j < h1_fe->GetDof(); j++)
+      {
+         const real_t x = nodes.IntPoint(j).x;
+         u_dofs(j) = x;
+         const_dofs(j) = 1.0;
+         x2_dofs(j) = x * x;
+      }
+
+      // First two ND DOFs lie on edge (0,1): [0, 0.5] and [0.5, 1.0] along +x.
+      Vector gu(nd_fe->GetDof());
+      G_mat.Mult(u_dofs, gu);
+      REQUIRE(std::abs(gu(0) - 0.5) < 1e-13);
+      REQUIRE(std::abs(gu(1) - 0.5) < 1e-13);
+
+      // Pi_x action on q(x)=1 and q(x)=x^2 on [0, 0.5] (1/2 and 1/24).
+      Vector e_const(dim * h1_fe->GetDof()), e_x2(dim * h1_fe->GetDof());
+      e_const = 0.0;
+      e_x2 = 0.0;
+      for (int j = 0; j < h1_fe->GetDof(); j++)
+      {
+         e_const(j) = const_dofs(j);
+         e_x2(j) = x2_dofs(j);
+      }
+      Vector pi_const(nd_fe->GetDof()), pi_x2(nd_fe->GetDof());
+      Pi_mat.Mult(e_const, pi_const);
+      Pi_mat.Mult(e_x2, pi_x2);
+      REQUIRE(std::abs(pi_const(0) - 0.5) < 1e-13);
+      REQUIRE(std::abs(pi_x2(0) - 1.0 / 24.0) < 1e-13);
+
+      if (dim == 2)
+      {
+         // Edge (2,3) runs in -x direction: u(0,1) - u(0.5,1) = -0.5.
+         REQUIRE(std::abs(gu(4) - (-0.5)) < 1e-13);
+      }
+
+      // Scale covariance at p=1 and p=2 down to h = 1e-12 (isotropic and anisotropic).
+      for (int p : {1, 2})
+      {
+         H1_FECollection h1_p(p, dim);
+         ND_FECollection nd_p(p, dim, BasisType::GaussLobatto,
+                               BasisType::IntegratedGLL);
+         const FiniteElement *h1_fe_p = h1_p.FiniteElementForGeometry(geom);
+         const FiniteElement *nd_fe_p = nd_p.FiniteElementForGeometry(geom);
+
+         // 3D isotropic (h,h,h), anisotropic (h,1,1), and 2D scaling down to h = 1e-12.
+         for (real_t hx : {1.0, 1e-12})
+         {
+            for (real_t hy : {hx, 1.0})
+            {
+               const real_t hz = (dim == 3 && hy == hx) ? hx : 1.0;
+               IsoparametricTransformation Ts;
+               Ts.SetIdentityTransformation(geom);
+               DenseMatrix &pm = Ts.GetPointMat();
+               for (int v = 0; v < pm.Width(); v++)
+               {
+                  pm(0, v) *= hx;
+                  pm(1, v) *= hy;
+                  if (dim == 3) { pm(2, v) *= hz; }
+               }
+               DenseMatrix Is;
+               nd_fe_p->Project(*h1_fe_p, Ts, Is);
+
+               Vector ex(dim * h1_fe_p->GetDof()), ey(dim * h1_fe_p->GetDof()),
+                      ez(dim * h1_fe_p->GetDof());
+               ex = 0.0;
+               ey = 0.0;
+               ez = 0.0;
+               for (int j = 0; j < h1_fe_p->GetDof(); j++)
+               {
+                  ex(j) = 1.0;
+                  ey(j + h1_fe_p->GetDof()) = 1.0;
+                  if (dim == 3) { ez(j + 2 * h1_fe_p->GetDof()) = 1.0; }
+               }
+               Vector px(nd_fe_p->GetDof()), py(nd_fe_p->GetDof()),
+                      pz(nd_fe_p->GetDof());
+               Is.Mult(ex, px);
+               Is.Mult(ey, py);
+               if (dim == 3) { Is.Mult(ez, pz); }
+
+               Vector ex_dir(dim), ey_dir(dim), ez_dir(dim);
+               ex_dir = 0.0; ex_dir(0) = 1.0;
+               ey_dir = 0.0; ey_dir(1) = 1.0;
+               ez_dir = 0.0; if (dim == 3) { ez_dir(2) = 1.0; }
+               VectorConstantCoefficient vc_x(ex_dir), vc_y(ey_dir), vc_z(ez_dir);
+               Vector px_ref(nd_fe_p->GetDof()), py_ref(nd_fe_p->GetDof()),
+                      pz_ref(nd_fe_p->GetDof());
+               nd_fe_p->Project(vc_x, Ts, px_ref);
+               nd_fe_p->Project(vc_y, Ts, py_ref);
+               if (dim == 3) { nd_fe_p->Project(vc_z, Ts, pz_ref); }
+
+               const real_t expect_x = hx / p;
+               const real_t expect_y = hy / p;
+               const real_t expect_z = hz / p;
+               REQUIRE(px_ref.Normlinf() == Approx(expect_x).margin(1e-13 * expect_x));
+               REQUIRE(py_ref.Normlinf() == Approx(expect_y).margin(1e-13 * expect_y));
+               px -= px_ref;
+               py -= py_ref;
+               REQUIRE(px.Normlinf() <= 1e-13 * expect_x);
+               REQUIRE(py.Normlinf() <= 1e-13 * expect_y);
+               if (dim == 3)
+               {
+                  REQUIRE(pz_ref.Normlinf() == Approx(expect_z).margin(1e-13 * expect_z));
+                  pz -= pz_ref;
+                  REQUIRE(pz.Normlinf() <= 1e-13 * expect_z);
+               }
+            }
+         }
+
+         if (dim == 2)
+         {
+            // Skewed quad T(xi, eta) = (xi, h * (xi/2 + eta)) with h = 1e-12:
+            // along xi-edge (eta = 0), e_y line integral is h/2 (h/(2p) per sub-edge),
+            // which row-relative physical thresholding used to zero out.
+            const real_t h = 1e-12;
+            IsoparametricTransformation Tob;
+            Tob.SetIdentityTransformation(Geometry::SQUARE);
+            DenseMatrix &pm = Tob.GetPointMat();
+            for (int v = 0; v < pm.Width(); v++)
+            {
+               pm(1, v) = h * (0.5 * pm(0, v) + pm(1, v));
+            }
+            DenseMatrix Iob;
+            nd_fe_p->Project(*h1_fe_p, Tob, Iob);
+
+            Vector ey_h1(2 * h1_fe_p->GetDof());
+            ey_h1 = 0.0;
+            for (int j = 0; j < h1_fe_p->GetDof(); j++)
+            {
+               ey_h1(j + h1_fe_p->GetDof()) = 1.0;
+            }
+            Vector py_ob(nd_fe_p->GetDof()), py_ob_ref(nd_fe_p->GetDof());
+            Iob.Mult(ey_h1, py_ob);
+
+            Vector ey_dir(2);
+            ey_dir(0) = 0.0;
+            ey_dir(1) = 1.0;
+            VectorConstantCoefficient vc_y(ey_dir);
+            nd_fe_p->Project(vc_y, Tob, py_ob_ref);
+
+            const real_t expect_xi = 0.5 * h / p;
+            // Sub-edge 0 lies on bottom xi-edge (eta=0): integral must stay ~h/(2p), not 0.
+            REQUIRE(std::abs(py_ob(0)) == Approx(expect_xi).margin(1e-12 * expect_xi));
+            REQUIRE(std::abs(py_ob_ref(0)) == Approx(expect_xi).margin(1e-12 * expect_xi));
+            py_ob -= py_ob_ref;
+            REQUIRE(py_ob.Normlinf() <= 1e-12 * h);
+         }
+      }
+   }
+}
+
 #ifdef MFEM_USE_MPI
 TEST_CASE("Parallel Variable Order FiniteElementSpace",
           "[FiniteElementCollection]"
@@ -3434,5 +3608,169 @@ TEST_CASE("Parallel multi-segment derefinement and order propagation",
 }
 
 #endif  // MFEM_USE_MPI
+
+namespace
+{
+
+int DeterministicOrderFromCenter(Mesh &mesh, int e, int pmin, int pmax)
+{
+   Vector c(mesh.SpaceDimension());
+   mesh.GetElementCenter(e, c);
+   std::uint64_t h = 1469598103934665603ULL;
+   for (int d = 0; d < c.Size(); ++d)
+   {
+      long long q = std::llround(c(d) * 1e6);
+      h ^= static_cast<std::uint64_t>(q + 0x9e3779b97f4a7c15ULL);
+      h *= 1099511628211ULL;
+   }
+   return pmin + static_cast<int>(h % static_cast<std::uint64_t>(pmax - pmin + 1));
+}
+
+Mesh MakeNC2HexMesh(bool curved)
+{
+   Mesh mesh = Mesh::MakeCartesian3D(4, 4, 4, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   mesh.EnsureNCMesh();
+   for (int lvl = 0; lvl < 2; ++lvl)
+   {
+      Array<int> refs;
+      for (int e = 0; e < mesh.GetNE(); ++e)
+      {
+         Vector c(3);
+         mesh.GetElementCenter(e, c);
+         const real_t thresh = (lvl == 0) ? 0.52 : 0.27;
+         if (c(0) < thresh && c(1) < thresh && c(2) < thresh)
+         {
+            refs.Append(e);
+         }
+      }
+      mesh.GeneralRefinement(refs, -1, 0);
+   }
+   if (curved)
+   {
+      mesh.SetCurvature(2);
+      mesh.Transform([](const Vector &x, Vector &y)
+      {
+         const real_t s = 0.05 * std::sin(M_PI * x(0)) * std::sin(M_PI * x(1)) *
+                          std::sin(M_PI * x(2));
+         y(0) = x(0) + s;
+         y(1) = x(1) - 0.5 * s;
+         y(2) = x(2) + 0.7 * s;
+      });
+   }
+   return mesh;
+}
+
+} // namespace
+
+TEST_CASE("RT IntegratedGLL ProjectBdrCoefficientNormal",
+          "[FiniteElementSpace][FEM][RT]")
+{
+   const int dim = GENERATE(2, 3);
+   const int p = GENERATE(1, 2, 3);
+   const bool curved = GENERATE(false, true);
+   CAPTURE(dim, p, curved);
+
+   Mesh mesh = (dim == 2)
+               ? Mesh::MakeCartesian2D(3, 3, Element::QUADRILATERAL, false, 1.0, 1.0)
+               : Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON, 1.0, 1.0, 1.0);
+   if (curved)
+   {
+      mesh.SetCurvature(2);
+      mesh.Transform([dim](const Vector &x, Vector &y)
+      {
+         const real_t z = (dim == 3) ? x(2) : 0.5;
+         const real_t s = 0.05 * std::sin(M_PI * x(0)) * std::sin(M_PI * x(1)) *
+                          std::sin(M_PI * z);
+         y(0) = x(0) + s;
+         y(1) = x(1) - 0.5 * s;
+         if (dim == 3) { y(2) = x(2) + 0.5 * s; }
+      });
+   }
+
+   RT_FECollection rt_fec(p - 1, dim, BasisType::GaussLobatto,
+                          BasisType::IntegratedGLL);
+   FiniteElementSpace rt_fes(&mesh, &rt_fec);
+
+   VectorFunctionCoefficient u_coeff(dim, [dim](const Vector &x, Vector &v)
+   {
+      v(0) = 1.0 + 0.3 * x(0) - 0.2 * x(1) + 0.1 * x(0) * x(1);
+      v(1) = -0.5 + 0.4 * x(1) + 0.15 * x(0);
+      if (dim == 3) { v(2) = 0.7 - 0.25 * x(2) + 0.2 * x(0) * x(2); }
+   });
+
+   GridFunction gf_vol(&rt_fes), gf_bdr(&rt_fes);
+   gf_vol = 0.0;
+   gf_bdr = 0.0;
+   gf_vol.ProjectCoefficient(u_coeff);
+
+   Array<int> bdr_attr(mesh.bdr_attributes.Max());
+   bdr_attr = 1;
+   gf_bdr.ProjectBdrCoefficientNormal(u_coeff, bdr_attr);
+
+   Array<int> bdr_dofs;
+   rt_fes.GetBoundaryTrueDofs(bdr_dofs);
+   real_t max_diff = 0.0;
+   for (int i = 0; i < bdr_dofs.Size(); ++i)
+   {
+      const int d = bdr_dofs[i];
+      max_diff = std::max(max_diff, std::abs(gf_vol(d) - gf_bdr(d)));
+   }
+   REQUIRE(max_diff < 1e-12);
+}
+
+TEST_CASE("RT IntegratedGLL ProjectCurl and Curved Curl Accuracy",
+          "[FiniteElementSpace][FEM][RT]")
+{
+   const bool curved = GENERATE(false, true);
+   CAPTURE(curved);
+
+   Mesh mesh = MakeNC2HexMesh(curved);
+   const int max_p = 4;
+
+   ND_FECollection nd_fec(max_p, 3, BasisType::GaussLobatto,
+                          BasisType::IntegratedGLL);
+   RT_FECollection rt_fec(max_p - 1, 3, BasisType::GaussLobatto,
+                          BasisType::IntegratedGLL);
+   FiniteElementSpace nd_fes(&mesh, &nd_fec);
+   FiniteElementSpace rt_fes(&mesh, &rt_fec);
+   for (int e = 0; e < mesh.GetNE(); ++e)
+   {
+      const int ord = DeterministicOrderFromCenter(mesh, e, 1, max_p);
+      nd_fes.SetElementOrder(e, ord);
+      rt_fes.SetElementOrder(e, ord);
+   }
+   nd_fes.Update(false);
+   rt_fes.Update(false);
+
+   VectorFunctionCoefficient E_coeff(3, [](const Vector &x, Vector &v)
+   {
+      v(0) = x(1) * x(2) + 0.3 * x(1);
+      v(1) = -0.5 * x(0) * x(2) + 0.2 * x(2);
+      v(2) = 0.4 * x(0) * x(1) - 0.1 * x(0);
+   });
+   VectorFunctionCoefficient curlE_coeff(3, [](const Vector &x, Vector &v)
+   {
+      v(0) = (0.4 * x(0)) - (-0.5 * x(0) + 0.2);
+      v(1) = (x(1)) - (0.4 * x(1) - 0.1);
+      v(2) = (-0.5 * x(2)) - (x(2) + 0.3);
+   });
+
+   GridFunction E_gf(&nd_fes);
+   E_gf.ProjectCoefficient(E_coeff);
+
+   DiscreteLinearOperator curl_op(&nd_fes, &rt_fes);
+   curl_op.AddDomainInterpolator(new CurlInterpolator);
+   curl_op.Assemble();
+   curl_op.Finalize();
+
+   GridFunction B_gf(&rt_fes);
+   curl_op.Mult(E_gf, B_gf);
+
+   const real_t curl_err = E_gf.ComputeCurlError(&curlE_coeff);
+   const real_t b_err = B_gf.ComputeL2Error(curlE_coeff);
+   REQUIRE(std::abs(curl_err - b_err) < 1e-12);
+   VectorGridFunctionCoefficient B_coeff(&B_gf);
+   REQUIRE(E_gf.ComputeCurlError(&B_coeff) < (curved ? 1e-12 : 1e-13));
+}
 
 }

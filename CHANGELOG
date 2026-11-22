@@ -20,6 +20,13 @@ GPU computing
 
 Discretization improvements
 ---------------------------
+- Added support for variable-order spaces (including IntegratedGLL bases) in
+  HypreAMS and HypreADS, including constructors accepting explicit discrete
+  auxiliary interpolation operators and read-only HypreAMS operator accessors;
+  implemented exact IntegratedGLL ND Project()/ProjectGrad(), RT
+  Project()/ProjectCurl(), L2 segment/quadrilateral projections, and exact
+  normal-flux boundary projection in GridFunction::ProjectBdrCoefficientNormal.
+
 - Added parallel variable-order element-order updates for derefinement and
   rebalancing (for equal-order derefinement siblings and p=1 tetrahedral ND
   elements), extended local-DOF compaction and non-boolean restriction to
