@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "lor_ads.hpp"
+#include "lor_var_order.hpp"
 #include "../../general/forall.hpp"
 #include "../../fem/pbilinearform.hpp"
 
@@ -90,11 +91,11 @@ void BatchedLOR_ADS::FormCurlMatrix()
    SparseMatrix C_local;
    C_local.OverrideSize(nface_dof, nedge_dof);
 
-   C_local.GetMemoryI().New(nedge_dof+1, Device::GetDeviceMemoryType());
+   C_local.GetMemoryI().New(nface_dof+1, Device::GetDeviceMemoryType());
    // Each row always has four nonzeros
-   const int nnz = 4*nedge_dof;
+   const int nnz = 4*nface_dof;
    auto I = C_local.WriteI();
-   mfem::forall(nedge_dof+1, [=] MFEM_HOST_DEVICE (int i) { I[i] = 4*i; });
+   mfem::forall(nface_dof+1, [=] MFEM_HOST_DEVICE (int i) { I[i] = 4*i; });
 
    // face2edge is a mapping of size (4, nface_per_el), such that with a macro
    // element, face i (in lexicographic ordering) has four edges given by the
@@ -210,6 +211,11 @@ LORSolver<HypreADS>::LORSolver(
                             lor_ams.StealXCoordinate(),
                             lor_ams.StealYCoordinate(),
                             lor_ams.StealZCoordinate());
+   }
+   else if (ref_type == BasisType::GaussLobatto &&
+            VarOrderLORAssembly::FormIsSupported(a_ho))
+   {
+      solver = VarOrderLORAssembly::BuildADS(a_ho, ess_tdof_list, A).release();
    }
    else
    {

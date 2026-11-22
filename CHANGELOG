@@ -20,6 +20,13 @@ GPU computing
 
 Discretization improvements
 ---------------------------
+- Added direct-sparse parallel variable-order nonconforming low-order-refined
+  (LOR) assembly (VarOrderLORAssembly) with explicit signed-weight discrete
+  gradient, curl, and nodal-to-edge/face auxiliary-space interpolants, wired
+  natively into LORSolver<HypreBoomerAMG>, LORSolver<HypreAMS>, and
+  LORSolver<HypreADS>, and fixed an allocation bug in
+  BatchedLOR_ADS::FormCurlMatrix.
+
 - Added support for variable-order spaces (including IntegratedGLL bases) in
   HypreAMS and HypreADS, including constructors accepting explicit discrete
   auxiliary interpolation operators and read-only HypreAMS operator accessors;

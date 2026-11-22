@@ -13,6 +13,9 @@
 #define MFEM_LOR
 
 #include "../bilinearform.hpp"
+#ifdef MFEM_USE_MPI
+#include "lor_var_order.hpp"
+#endif
 
 namespace mfem
 {

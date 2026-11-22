@@ -11,6 +11,9 @@
 
 #include "lor.hpp"
 #include "lor_batched.hpp"
+#ifdef MFEM_USE_MPI
+#include "lor_var_order.hpp"
+#endif
 #include "../restriction.hpp"
 #include "../pbilinearform.hpp"
 #include "../../general/forall.hpp"
@@ -378,6 +381,15 @@ void LORBase::AssembleSystem(BilinearForm &a_ho, const Array<int> &ess_dofs)
       }
       batched_lor->Assemble(a_ho, ess_dofs, A);
    }
+#ifdef MFEM_USE_MPI
+   else if (ref_type == BasisType::GaussLobatto &&
+            VarOrderLORAssembly::FormIsSupported(a_ho))
+   {
+      a = nullptr;
+      VarOrderLORAssembly::Assemble(
+         static_cast<ParBilinearForm&>(a_ho), ess_dofs, A);
+   }
+#endif
    else
    {
       LegacyAssembleSystem(a_ho, ess_dofs);

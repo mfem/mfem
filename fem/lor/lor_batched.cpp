@@ -57,7 +57,11 @@ bool BatchedLORAssembly::FormIsSupported(BilinearForm &a)
    // CUDA compilation time is kept bounded.
    if (a.FESpace()->GetMaxElementOrder() > 5) { return false; }
 
-   // Batched LOR requires all tensor elements
+   // Batched LOR requires uniform-order conforming tensor elements
+   if (a.FESpace()->IsVariableOrder() || a.FESpace()->Nonconforming())
+   {
+      return false;
+   }
    if (!UsesTensorBasis(*a.FESpace())) { return false; }
 
    if (dynamic_cast<const H1_FECollection*>(fec) ||

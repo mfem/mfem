@@ -145,6 +145,7 @@ set(UNIT_TESTS_SRCS
   fem/test_linearform_ext.cpp
   fem/test_lor_batched.cpp
   fem/test_lor_dg.cpp
+  fem/test_lor_var_order.cpp
   fem/test_lor.cpp
   fem/test_mixedsesqform.cpp
   fem/test_nonlinearform.cpp

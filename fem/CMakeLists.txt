@@ -111,6 +111,7 @@ set(SRCS
   lor/lor_ads.cpp
   lor/lor_ams.cpp
   lor/lor_batched.cpp
+  lor/lor_var_order.cpp
   multigrid.cpp
   nonlinearform.cpp
   nonlinearform_ext.cpp
@@ -275,6 +276,7 @@ set(HDRS
   lor/lor_ads.hpp
   lor/lor_ams.hpp
   lor/lor_batched.hpp
+  lor/lor_var_order.hpp
   lor/lor_h1.hpp
   lor/lor_dg.hpp
   lor/lor_nd.hpp
