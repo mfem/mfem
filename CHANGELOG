@@ -20,6 +20,12 @@ GPU computing
 
 Discretization improvements
 ---------------------------
+- Completed parallel 3D quadrilateral-face internal-edge compatibility
+  constraints in variable-order H1 and ND spaces, built variable-order
+  parallel cut-space communication groups from the actual shared DOF
+  variants, and fixed vector-component indexing in parallel variable-order
+  H1 essential true-DOF markers.
+
 - Preserved compatible high-order face modes in serial 3D variable-order H1
   and ND spaces on nonconforming quadrilateral interfaces by enforcing
   internal-edge compatibility equations rather than lowering the entire

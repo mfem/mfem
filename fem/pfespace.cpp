@@ -23,6 +23,8 @@
 #include "../general/binaryio.hpp"
 
 #include "pderefmat_op.hpp"
+#include "hp_edge_trace.hpp"
+#include "hp_parallel_constraints.hpp"
 
 #include <algorithm>
 #include <array>
@@ -201,9 +203,9 @@ void ParFiniteElementSpace::Construct()
       // In the process, the array 'ldof_ltdof' is also initialized (for the cut
       // space) and used; however, it will be overwritten below with the real
       // true dofs. Also, 'ldof_sign' and 'ldof_group' are constructed for the
-      // cut space. Variable-order H1 DOFs are renumbered by
+      // cut space. Variable-order DOFs are renumbered by
       // BuildParallelConformingInterpolation, so 'gcomm' is built after it.
-      if (!IsVariableOrderH1()) { ConstructTrueDofs(); }
+      if (!IsVariableOrder()) { ConstructTrueDofs(); }
 
       ngedofs = ngfdofs = 0;
 
@@ -281,7 +283,8 @@ void ParFiniteElementSpace::Construct()
       ltdof_size = BuildParallelConformingInterpolation(
                       &P, &R, dof_offsets, tdof_offsets, &ldof_ltdof, false);
 
-      if (IsVariableOrderH1()) { ConstructVarOrderGroupComm(); }
+      // Only the public local variants belong to cut groups.
+      if (IsVariableOrder()) { ConstructVarOrderGroupComm(); }
 
       // TODO future: split BuildParallelConformingInterpolation into two parts
       // to overlap its communication with processing between this constructor
@@ -335,11 +338,9 @@ void ParFiniteElementSpace::PrintPartitionStats()
 void ParFiniteElementSpace::GetGroupComm(
    GroupCommunicator &gc, int ldof_type, Array<int> *g_ldof_sign)
 {
-   if (IsVariableOrderH1())
+   if (IsVariableOrder())
    {
-      GetVarOrderGroupComm(gc, ldof_type);
-      // H1 DOFs have no sign flips.
-      if (g_ldof_sign) { g_ldof_sign->DeleteAll(); }
+      GetVarOrderGroupComm(gc, ldof_type, g_ldof_sign);
       return;
    }
 
@@ -580,13 +581,20 @@ static void ForEachGroupEdgeFace(const ParMesh &pmesh, int gr, F &&f)
    }
 }
 
-void ParFiniteElementSpace::GetVarOrderGroupComm(GroupCommunicator &gc,
-                                                 int ldof_type) const
+void ParFiniteElementSpace::GetVarOrderGroupComm(
+   GroupCommunicator &gc, int ldof_type, Array<int> *g_ldof_sign) const
 {
    MFEM_VERIFY(var_gtopo, "variable-order groups are not set");
 
    const GroupTopology &mesh_gt = pmesh->gtopo;
    const int nvd = fec->DofForGeometry(Geometry::POINT);
+
+   bool have_sign_flips = false;
+   if (g_ldof_sign)
+   {
+      g_ldof_sign->SetSize(ndofs);
+      *g_ldof_sign = 1;
+   }
 
    // Entries {group, mesh group master rank, mesh group in the master, entity
    // position, order, DOF index, DOF}, sorted to the same order on all ranks.
@@ -607,6 +615,7 @@ void ParFiniteElementSpace::GetVarOrderGroupComm(GroupCommunicator &gc,
                                            Geometry::Type geom, int pos)
       {
          const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
+         if (index >= ent_dofs.Size()) { return; }
          const Array<int> &var_group = (entity == 1) ? edge_var_group :
                                        face_var_group;
          const int first = (entity == 1) ? nvdofs : nvdofs + nedofs;
@@ -616,18 +625,28 @@ void ParFiniteElementSpace::GetVarOrderGroupComm(GroupCommunicator &gc,
             const int p = (entity == 1) ? GetEdgeOrder(index, var) :
                           GetFaceOrder(index, var);
             const int nd = fec->GetNumDof(geom, p);
-            if (g == 0 || nd == 0) { continue; }
+            if (nd == 0) { continue; }
 
             const int *ind = fec->GetDofOrdering(geom, p, ori);
             const int base = first + ent_dofs.GetRow(index)[var];
             for (int l = 0; l < nd; l++)
             {
-               MFEM_ASSERT(ind[l] >= 0, "unexpected H1 DOF sign flip");
-               entries.push_back({g, mrank, mgroup, pos, p, l, base + ind[l]});
+               const int raw = ind[l];
+               const int dof = base + (raw < 0 ? FlipIndexSign(raw) : raw);
+               if (raw < 0 && g_ldof_sign)
+               {
+                  (*g_ldof_sign)[dof] = -1;
+                  have_sign_flips = true;
+               }
+               if (g > 0)
+               {
+                  entries.push_back({g, mrank, mgroup, pos, p, l, dof});
+               }
             }
          }
       });
    }
+   if (g_ldof_sign && !have_sign_flips) { g_ldof_sign->DeleteAll(); }
    std::sort(entries.begin(), entries.end());
 
    Table &group_ldof = gc.GroupLDofTable();
@@ -675,6 +694,8 @@ void ParFiniteElementSpace::SetVarOrderGroups()
 
    auto local_orders = [&](int entity, int index)
    {
+      const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
+      if (index >= ent_dofs.Size()) { return VarOrderBits(0); }
       VarOrderBits orders = 0;
       for (int var = 0; var < GetNVariants(entity, index); var++)
       {
@@ -749,6 +770,7 @@ void ParFiniteElementSpace::SetVarOrderGroups()
                                            Geometry::Type, int)
       {
          const Table &ent_dofs = (entity == 1) ? var_edge_dofs : var_face_dofs;
+         if (index >= ent_dofs.Size()) { return; }
          Array<int> &var_group = (entity == 1) ? edge_var_group :
                                  face_var_group;
          const int s = slot[entity == 1 ? index : nedges + index];
@@ -1504,25 +1526,18 @@ void ParFiniteElementSpace::GetEssentialTrueDofsVar(const Array<int>
    const int ntdofs = tdof2ldof.Size();
    MFEM_VERIFY(vdim * ntdofs == R->NumRows() &&
                vdim * ntdofs == true_ess_dofs.Size(), "");
-   MFEM_VERIFY(ldof_ltdof.Size() == ndofs && ess_dofs.Size() == vdim * ndofs, "");
+   MFEM_VERIFY(ldof_ltdof.Size() == GetVSize() &&
+               ess_dofs.Size() == GetVSize(), "");
 
-   const bool bynodes = (ordering == Ordering::byNODES);
-   const int vdim_factor = bynodes ? 1 : vdim;
-   const int num_true_dofs = R->NumRows() / vdim;
-   const int tdof_stride = bynodes ? num_true_dofs : 1;
-
-   // Use ldof_ltdof for vertex and element T-dofs
-   for (int l=0; l<ndofs; ++l)
+   // Directly represented roots already have a vector true-DOF index.
+   for (int vd = 0; vd < vdim; ++vd)
    {
-      const int tdof = ldof_ltdof[l];
-      if (tdof >= 0 && ess_dofs[l])
+      if (component >= 0 && vd != component) { continue; }
+      for (int l = 0; l < ndofs; ++l)
       {
-         for (int vd = 0; vd < vdim; vd++)
-         {
-            if (component >= 0 && vd != component) { continue; }
-            const int vtdof = tdof*vdim_factor + vd*tdof_stride;
-            true_ess_dofs[vtdof] = 1;
-         }
+         const int vl = DofToVDof(l, vd);
+         const int vt = ldof_ltdof[vl];
+         if (vt >= 0 && ess_dofs[vl]) { true_ess_dofs[vt] = 1; }
       }
    }
 
@@ -1545,8 +1560,7 @@ void ParFiniteElementSpace::GetEssentialTrueDofsVar(const Array<int>
       for (int vd = 0; vd < vdim; vd++)
       {
          if (component >= 0 && vd != component) { continue; }
-         const int vtdof = tdof*vdim_factor + vd*tdof_stride;
-         true_ess_dofs[vtdof] = 1;
+         true_ess_dofs[DofToVDof(tdof, vd, ntdofs)] = 1;
       }
    }
 }
@@ -2427,27 +2441,24 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFaceFE(int i) const
 
 void ParFiniteElementSpace::Lose_Dof_TrueDof_Matrix()
 {
-   P -> StealData();
-#if MFEM_HYPRE_VERSION <= 22200
-   hypre_ParCSRMatrix *csrP = (hypre_ParCSRMatrix*)(*P);
-   hypre_ParCSRMatrixOwnsRowStarts(csrP) = 1;
-   hypre_ParCSRMatrixOwnsColStarts(csrP) = 1;
-   dof_offsets.LoseData();
-   tdof_offsets.LoseData();
-#else
+   // Ensure the transferred matrix owns its partition arrays before the
+   // wrapper and the space release their references to them.
+   P->CopyRowStarts();
+   P->CopyColStarts();
+   P->StealData();
    dof_offsets.DeleteAll();
    tdof_offsets.DeleteAll();
-#endif
 }
 
-void ParFiniteElementSpace::ConstructTrueDofs()
+namespace
 {
-   int i, gr, n = GetVSize();
-   GroupTopology &gt = pmesh->gtopo;
-   gcomm = new GroupCommunicator(gt);
-   Table &group_ldof = gcomm->GroupLDofTable();
 
-   GetGroupComm(*gcomm, 1, &ldof_sign);
+int NumberGroupDofs(GroupCommunicator &gc, int n, Array<int> &ldof_group,
+                    Array<int> &ldof_ltdof)
+{
+   const GroupTopology &gt = gc.GetGroupTopology();
+   const Table &group_ldof = gc.GroupLDofTable();
+   int i, gr;
 
    // Define ldof_group and mark ldof_ltdof with
    //   -1 for ldof that is ours
@@ -2476,7 +2487,7 @@ void ParFiniteElementSpace::ConstructTrueDofs()
    }
 
    // count ltdof_size
-   ltdof_size = 0;
+   int ltdof_size = 0;
    for (i = 0; i < n; i++)
    {
       if (ldof_ltdof[i] == -1)
@@ -2484,11 +2495,21 @@ void ParFiniteElementSpace::ConstructTrueDofs()
          ldof_ltdof[i] = ltdof_size++;
       }
    }
-   gcomm->SetLTDofTable(ldof_ltdof);
-
-   // have the group masters broadcast their ltdofs to the rest of the group
-   gcomm->Bcast(ldof_ltdof);
+   gc.SetLTDofTable(ldof_ltdof);
+   gc.Bcast(ldof_ltdof);
+   return ltdof_size;
 }
+
+} // namespace
+
+void ParFiniteElementSpace::ConstructTrueDofs()
+{
+   gcomm = new GroupCommunicator(pmesh->gtopo);
+   GetGroupComm(*gcomm, 1, &ldof_sign);
+   ltdof_size = NumberGroupDofs(*gcomm, GetVSize(), ldof_group, ldof_ltdof);
+}
+
+
 
 void ParFiniteElementSpace::ConstructTrueNURBSDofs()
 {
@@ -4143,8 +4164,11 @@ void ParFiniteElementSpace::SetTDOF2LDOFinfo(int ntdofs, int vdim_factor,
          {
             const int dof_i = dofs[i];
             const int vdof_i = dof_i*vdim_factor + vd*dof_stride;
-            const int tdof = ldof_ltdof[vdof_i];
-            if (tdof < 0) { continue; }
+            const int vtdof = ldof_ltdof[vdof_i];
+            if (vtdof < 0) { continue; }
+            const int tdof = vtdof / vdim_factor;
+            MFEM_VERIFY(vtdof % vdim_factor == 0 && tdof < ntdofs,
+                        "Expected component-zero true DOF");
 
             MFEM_ASSERT(!tdof2ldof[tdof].set, "");
 
@@ -4285,6 +4309,8 @@ int ParFiniteElementSpace
 {
    const bool dg = (nvdofs == 0 && nedofs == 0 && nfdofs == 0);
    const bool H1var = IsVariableOrderH1();
+   const bool complete_edges = !partial && !relaxed_hp && IsVariableOrder() &&
+                               internal::SupportsInternalEdgeConstraints(*this);
 
 #ifdef MFEM_PMATRIX_STATS
    n_msgs_sent = n_msgs_recv = 0;
@@ -4295,6 +4321,7 @@ int ParFiniteElementSpace
 
    const int total_dofs = ndofs + ngdofs;
    SparseMatrix deps(ndofs, total_dofs);
+   std::vector<internal::HpConstraintRow> compatibility;
 
    if (!dg && !partial)
    {
@@ -4380,11 +4407,47 @@ int ParFiniteElementSpace
 
                // make each slave DOF dependent on all master DOFs
                AddDependencies(deps, master_dofs, slave_dofs, I);
+
+               if (complete_edges && entity == 2 && sf.index >= 0 &&
+                   mf.Geom() == Geometry::SQUARE && sf.Geom() == Geometry::SQUARE &&
+                   pncmesh->GetEntityOwnerId(2, sf.index) == ParNCMesh::SelfGroupId)
+               {
+                  internal::AddInternalEdgeCompatibility(
+                     *this, master_dofs, *fe, fe->GetOrder(), sf.index,
+                     T.GetPointMat(), compatibility);
+               }
             }
          }
       }
 
       deps.Finalize();
+   }
+
+   // Master-face rows used only by compatibility equations need not occur in
+   // the original DAG. Keep servicing all forwarding ranks until they arrive.
+   int has_compatibility = !compatibility.empty();
+   if (complete_edges)
+   {
+      MPI_Allreduce(MPI_IN_PLACE, &has_compatibility, 1, MPI_INT, MPI_MAX, MyComm);
+   }
+   Array<bool> needed_ghosts(has_compatibility ? ngdofs : 0);
+   needed_ghosts = false;
+   int ghosts_pending = 0;
+   for (const auto &row : compatibility)
+   {
+      for (const auto &term : row)
+      {
+         if (term.first >= ndofs && term.second != 0.0)
+         {
+            const int ghost = term.first - ndofs;
+            MFEM_ASSERT(ghost < needed_ghosts.Size(), "invalid ghost DOF");
+            if (!needed_ghosts[ghost])
+            {
+               needed_ghosts[ghost] = true;
+               ++ghosts_pending;
+            }
+         }
+      }
    }
 
    // *** STEP 2: initialize group and owner ID for each DOF ***
@@ -4574,7 +4637,10 @@ int ParFiniteElementSpace
    MarkIntermediateEntityDofs(1, intermediate);
    MarkIntermediateEntityDofs(2, intermediate);
 
-   while (num_finalized < ndofs)
+   MPI_Request completion_barrier = MPI_REQUEST_NULL;
+   long long received_messages = 0;
+   int all_ready = !has_compatibility;
+   while (num_finalized < ndofs || !all_ready)
    {
       // prepare a new round of send buffers
       MFEM_VERIFY(!send_msg.empty(), "");
@@ -4589,6 +4655,7 @@ int ParFiniteElementSpace
       {
          // Note that Recv calls Decode(rank), setting rows in recv_msg.
          recv_msg.Recv(rank, size, MyComm);
+         ++received_messages;
 
 #ifdef MFEM_PMATRIX_STATS
          n_msgs_recv++;
@@ -4600,8 +4667,15 @@ int ParFiniteElementSpace
             const int dof = PackDof(ri.entity, ri.index, ri.edof, ri.var);
             pmatrix[dof] = ri.row;
 
-            if (dof < ndofs && !finalized[dof]) { ++num_finalized; }
-            finalized[dof] = true;
+            if (!finalized[dof])
+            {
+               if (dof < ndofs) { ++num_finalized; }
+               else if (has_compatibility && needed_ghosts[dof - ndofs])
+               {
+                  --ghosts_pending;
+               }
+               finalized[dof] = true;
+            }
 
             if (ri.group >= 0 && dof_group[dof] != ri.group)
             {
@@ -4670,6 +4744,56 @@ int ParFiniteElementSpace
 #ifdef MFEM_PMATRIX_STATS
       n_msgs_sent += send_msg.back().size();
 #endif
+      if (has_compatibility && num_finalized == ndofs && !ghosts_pending)
+      {
+         if (completion_barrier == MPI_REQUEST_NULL)
+         {
+            MPI_Ibarrier(MyComm, &completion_barrier);
+         }
+         MPI_Test(&completion_barrier, &all_ready, MPI_STATUS_IGNORE);
+      }
+   }
+
+   // PMatrixRow columns identify component zero of an old true DOF. The
+   // compatibility equations are scalar, so number those roots independently
+   // of both the vector ordering and the number of copies.
+   std::vector<HYPRE_BigInt> root_offsets;
+   const HYPRE_BigInt my_root_offset = my_tdof_offset / vdim;
+   if (has_compatibility)
+   {
+      root_offsets.resize(NRanks + 1);
+      MPI_Allgather(&my_root_offset, 1, HYPRE_MPI_BIG_INT, root_offsets.data(), 1,
+                    HYPRE_MPI_BIG_INT, MyComm);
+      root_offsets.back() = tdof_offs.Last() / vdim;
+   }
+   std::vector<internal::HpRootConstraint> root_constraints;
+   for (const auto &row : compatibility)
+   {
+      internal::HpRootConstraint constraint;
+      for (const auto &term : row)
+      {
+         if (term.second == 0.0) { continue; }
+         MFEM_VERIFY(finalized[term.first], "Missing hp compatibility row");
+         for (const auto &entry : pmatrix[term.first].elems)
+         {
+            const real_t value = term.second * entry.value;
+            HYPRE_BigInt root = entry.column;
+            if (vdim > 1)
+            {
+               const int owner = internal::hp_root::Owner(root_offsets,
+                                                          entry.column / vdim);
+               const HYPRE_BigInt first = root_offsets[owner];
+               const HYPRE_BigInt local_column = entry.column - vdim*first;
+               MFEM_VERIFY(local_column % vdim_factor == 0 &&
+                           local_column / vdim_factor < root_offsets[owner+1] - first,
+                           "Invalid component-zero true column");
+               root = first + local_column / vdim_factor;
+            }
+            constraint.terms[root] += value;
+            constraint.scale += std::abs(value);
+         }
+      }
+      root_constraints.emplace_back(std::move(constraint));
    }
 
    if (H1var)
@@ -4767,7 +4891,7 @@ int ParFiniteElementSpace
       }
 
       // Verify that all rows of R are set
-      for (int tdof=0; tdof<num_true_dofs; ++tdof)
+      for (int tdof = 0; tdof < (*R_)->Height(); ++tdof)
       {
          if ((*R_)->RowSize(tdof) == 0)
          {
@@ -4841,15 +4965,168 @@ int ParFiniteElementSpace
    // clean up possible remaining messages in the queue to avoid receiving
    // them erroneously in the next run
    int rank, size;
-   while (NeighborRowMessage::IProbe(rank, size, MyComm))
+   if (has_compatibility)
    {
-      recv_msg.RecvDrop(rank, size, MyComm);
+      // The readiness barrier guarantees the required rows arrived. Other
+      // sends, including forwarded packets, may still be in flight. Drain
+      // the exact number of messages before waiting on the send requests.
+      std::vector<long long> sends(NRanks, 0);
+      for (const auto &round : send_msg)
+      {
+         for (const auto &message : round) { ++sends[message.first]; }
+      }
+      long long expected_messages;
+      MPI_Reduce_scatter_block(sends.data(), &expected_messages, 1,
+                               MPI_LONG_LONG, MPI_SUM, MyComm);
+      MFEM_VERIFY(received_messages <= expected_messages,
+                  "Unexpected parallel hp row messages");
+      while (received_messages < expected_messages)
+      {
+         NeighborRowMessage::Probe(rank, size, MyComm);
+         recv_msg.RecvDrop(rank, size, MyComm);
+         ++received_messages;
+      }
+   }
+   else
+   {
+      while (NeighborRowMessage::IProbe(rank, size, MyComm))
+      {
+         recv_msg.RecvDrop(rank, size, MyComm);
+      }
    }
 
    // make sure we can discard all send buffers
    for (auto &msg : send_msg)
    {
       NeighborRowMessage::WaitAllSent(msg);
+   }
+
+   // The base H1 restriction must be constructed while the entity true DOFs
+   // still have contiguous numbering. Select its surviving rows only now.
+   if (has_compatibility)
+   {
+      MFEM_ASSERT(P_ && R_ && dof_tdof, "Missing parallel hp operators");
+      const auto pivots = internal::CompleteParallelHpRoots(
+                             MyComm, root_offsets, root_constraints);
+      const int new_count = num_true_dofs - static_cast<int>(pivots.size());
+      int eliminated = (new_count != num_true_dofs);
+      MPI_Allreduce(MPI_IN_PLACE, &eliminated, 1, MPI_INT, MPI_MAX, MyComm);
+      if (eliminated)
+      {
+         HYPRE_BigInt local_size = HYPRE_BigInt(new_count) * vdim;
+         Array<HYPRE_BigInt> new_offsets;
+         Array<HYPRE_BigInt> *offsets[] = { &new_offsets };
+         pmesh->GenerateOffsets(1, &local_size, offsets);
+         const HYPRE_BigInt new_start =
+            new_offsets[HYPRE_AssumedPartitionCheck() ? 0 : MyRank];
+         const HYPRE_BigInt new_root_start = new_start / vdim;
+         const int new_stride = bynodes ? new_count : 1;
+
+         // byNODES columns of the same scalar root stride by the count on
+         // their owner, which can differ from the count on this rank.
+         std::vector<HYPRE_BigInt> new_root_offsets;
+         if (bynodes && vdim > 1)
+         {
+            new_root_offsets.resize(NRanks + 1);
+            MPI_Allgather(&new_root_start, 1, HYPRE_MPI_BIG_INT,
+                          new_root_offsets.data(), 1, HYPRE_MPI_BIG_INT, MyComm);
+            new_root_offsets.back() = new_offsets.Last() / vdim;
+         }
+
+         std::vector<HYPRE_BigInt> free_ids(num_true_dofs, -1);
+         std::vector<PMatrixRow> q_rows(num_true_dofs);
+         auto restriction = std::make_unique<SparseMatrix>(new_count*vdim,
+                                                           ndofs*vdim);
+         Array<TdofLdofInfo> new_tdof2ldof(H1var ? new_count : 0);
+         Array<int> cols;
+         Vector vals;
+         int next = 0;
+         for (int i = 0; i < num_true_dofs; ++i)
+         {
+            if (pivots.count(my_root_offset + i)) { continue; }
+            free_ids[i] = new_root_start + next;
+            q_rows[i].elems.emplace_back(new_start + vdim_factor*next,
+                                         new_stride, 1.0);
+            for (int vd = 0; vd < vdim; ++vd)
+            {
+               (*R_)->GetRow(vdim_factor*i + vd*tdof_stride, cols, vals);
+               restriction->AddRow(vdim_factor*next + vd*new_stride, cols, vals);
+            }
+            if (H1var)
+            {
+               if (tdof2ldof[i].set) { new_tdof2ldof[next] = tdof2ldof[i]; }
+               else { new_tdof2ldof[next].set = false; }
+            }
+            ++next;
+         }
+         MFEM_VERIFY(next == new_count, "Parallel hp pivot is not locally owned");
+         restriction->Finalize();
+
+         std::set<HYPRE_BigInt> remote_roots;
+         for (const auto &pivot : pivots)
+         {
+            for (const auto &term : pivot.second)
+            {
+               if (term.first < my_root_offset ||
+                   term.first >= my_root_offset + num_true_dofs)
+               {
+                  remote_roots.insert(term.first);
+               }
+            }
+         }
+         const auto remote_ids = internal::ResolveParallelHpFreeRoots(
+                                    MyComm, root_offsets, free_ids, remote_roots);
+         for (const auto &pivot : pivots)
+         {
+            auto &q = q_rows[pivot.first - my_root_offset];
+            for (const auto &term : pivot.second)
+            {
+               const HYPRE_BigInt local_id = term.first - my_root_offset;
+               const bool local = 0 <= local_id && local_id < num_true_dofs;
+               const HYPRE_BigInt new_id = local ? free_ids[local_id] :
+                                           remote_ids.at(term.first);
+               MFEM_VERIFY(new_id >= 0, "Expected a free hp root");
+               HYPRE_BigInt column = vdim*new_id;
+               int stride = 1;
+               if (bynodes && vdim > 1)
+               {
+                  // Free roots retain their owners, even when numbering changes.
+                  const int owner = local ? MyRank :
+                                    internal::hp_root::Owner(root_offsets, term.first);
+                  const HYPRE_BigInt first = new_root_offsets[owner];
+                  column = vdim*first + (new_id - first);
+                  stride = new_root_offsets[owner+1] - first;
+               }
+               q.elems.emplace_back(column, stride, term.second);
+            }
+         }
+
+         std::unique_ptr<HypreParMatrix> Q(
+            MakeVDimHypreMatrix(q_rows, num_true_dofs, new_count, tdof_offs,
+                                new_offsets));
+         auto *completed_P = ParMult(*P_, Q.get(), true);
+         Q.reset();
+         delete *P_;
+         *P_ = completed_P;
+         tdof_offs.Swap(new_offsets);
+
+         delete *R_;
+         *R_ = restriction.release();
+         for (auto &tdof : *dof_tdof)
+         {
+            if (tdof >= 0)
+            {
+               const int local_id = bynodes ? tdof % tdof_stride : tdof / vdim;
+               const int component = bynodes ? tdof / tdof_stride : tdof % vdim;
+               const auto new_id = free_ids[local_id];
+               tdof = new_id < 0 ? -1 :
+                      vdim_factor*static_cast<int>(new_id - new_root_start) +
+                      component*new_stride;
+            }
+         }
+         if (H1var) { tdof2ldof.Swap(new_tdof2ldof); }
+         num_true_dofs = new_count;
+      }
    }
 
 #ifdef MFEM_PMATRIX_STATS

@@ -11,6 +11,11 @@
 
 #include "mfem.hpp"
 #include "unit_tests.hpp"
+#ifdef MFEM_USE_MPI
+#include <array>
+#include <cmath>
+#include <map>
+#endif
 
 #include <array>
 #include <map>
@@ -819,6 +824,461 @@ TEST_CASE("RT face orders are independent of interior edge orders",
 }
 
 #ifdef MFEM_USE_MPI
+TEST_CASE("Shared hp DOFs communicate exactly their participating ranks",
+          "[Parallel][VariableOrder][HpCutGroups]")
+{
+   int size, rank;
+   MPI_Comm_size(MPI_COMM_WORLD, &size);
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   if (size != 1 && size != 2 && size != 4) { return; }
+   const int nx = size == 1 ? 1 : 2, ny = size == 4 ? 2 : 1;
+   Mesh serial = Mesh::MakeCartesian3D(nx, ny, 1, Element::HEXAHEDRON,
+                                       nx, ny, 1);
+   serial.EnsureNCMesh();
+   Array<int> partition(serial.GetNE());
+   Vector x(3);
+   for (int i = 0; i < serial.GetNE(); ++i)
+   {
+      serial.GetElementCenter(i, x);
+      partition[i] = int(x[0]) + nx * int(x[1]);
+   }
+   ParMesh mesh(MPI_COMM_WORLD, serial, partition.GetData());
+   H1_FECollection collection(2, 3);
+
+   // For p1 and p2 the physical nodal coordinates uniquely identify the
+   // public scalar DOFs. Compute their rank sets from the serial elements.
+   auto point = [](const Vector &v)
+   {
+      return std::array<int, 3> {{
+            int(std::lround(2*v[0])),
+            int(std::lround(2*v[1])),
+            int(std::lround(2*v[2]))
+         }
+      };
+   };
+   for (auto ordering : {Ordering::byNODES, Ordering::byVDIM})
+   {
+      for (int copies : {1, 2})
+      {
+         ParFiniteElementSpace fes(&mesh, &collection, copies, ordering);
+         for (int mixed : {0, 1, 0})
+         {
+            CAPTURE(size, rank, mixed, ordering, copies);
+            auto order = [&](int r)
+            {
+               return mixed && (r == 0 || (size == 4 && r == 3)) ? 2 : 1;
+            };
+            std::map<std::array<int, 3>, int> masks;
+            for (int i = 0; i < serial.GetNE(); ++i)
+            {
+               const int r = partition[i];
+               const auto &nodes = collection.GetFE(Geometry::CUBE, order(r))->GetNodes();
+               for (int j = 0; j < nodes.GetNPoints(); ++j)
+               {
+                  serial.GetElementTransformation(i)->Transform(nodes.IntPoint(j), x);
+                  masks[point(x)] |= 1 << r;
+               }
+            }
+            if (mixed && size == 4) { CHECK(masks.at({{2, 2, 1}}) == 9); }
+            for (int i = 0; i < mesh.GetNE(); ++i) { fes.SetElementOrder(i, order(rank)); }
+            fes.Update(false);
+
+            Array<int> expected(fes.GetNDofs()), location(fes.GetNDofs()), local;
+            expected = 0;
+            for (int i = 0; i < mesh.GetNE(); ++i)
+            {
+               fes.GetElementDofs(i, local);
+               const auto &nodes = fes.GetFE(i)->GetNodes();
+               for (int j = 0; j < local.Size(); ++j)
+               {
+                  mesh.GetElementTransformation(i)->Transform(nodes.IntPoint(j), x);
+                  const auto key = point(x);
+                  expected[local[j]] = masks.at(key);
+                  location[local[j]] = 1 + key[0] + 10*key[1] + 100*key[2];
+               }
+            }
+            std::unique_ptr<GroupCommunicator> sgc(fes.ScalarGroupComm());
+            Array<int> scalar_marker(fes.GetNDofs());
+            scalar_marker = 1 << rank;
+            sgc->Reduce<int>(scalar_marker, GroupCommunicator::BitOR);
+            sgc->Bcast(scalar_marker);
+            for (int i = 0; i < scalar_marker.Size(); ++i)
+            {
+               CHECK(scalar_marker[i] == expected[i]);
+            }
+
+            Array<int> marker(fes.GetVSize());
+            for (int d = 0; d < fes.GetNDofs(); ++d)
+            {
+               for (int c = 0; c < copies; ++c)
+               { marker[fes.DofToVDof(d, c)] = 1 << (rank + c*size); }
+            }
+            fes.Synchronize(marker);
+            Array<int> values(fes.GetVSize());
+            for (int d = 0; d < fes.GetNDofs(); ++d)
+            {
+               for (int c = 0; c < copies; ++c)
+               {
+                  values[fes.DofToVDof(d, c)] = (rank+1)*(location[d]+1000*c);
+               }
+            }
+            fes.GroupComm().Reduce<int>(values, GroupCommunicator::Sum);
+            fes.GroupComm().Bcast(values);
+            for (int d = 0; d < fes.GetNDofs(); ++d)
+            {
+               CHECK(expected[d] != 0);
+               int weight = 0;
+               for (int r = 0; r < size; ++r)
+               {
+                  if (expected[d] & (1 << r)) { weight += r+1; }
+               }
+               for (int c = 0; c < copies; ++c)
+               {
+                  const int vdof = fes.DofToVDof(d, c);
+                  CHECK(marker[vdof] == (expected[d] << (c*size)));
+                  CHECK(values[vdof] == weight*(location[d]+1000*c));
+               }
+            }
+         }
+      }
+   }
+}
+
+TEST_CASE("Shared hp ND slots retain physical orientation and component",
+          "[Parallel][VariableOrder][HpCutGroups]")
+{
+   int size;
+   MPI_Comm_size(MPI_COMM_WORLD, &size);
+   if (size != 2 && size != 4) { return; }
+   Mesh serial = var_order_test::MakeInternalEdgeMesh(true);
+   // Cut through the refined region to share several rotated quadrilaterals.
+   Array<int> partition(serial.GetNE());
+   for (int e = 0; e < serial.GetNE(); ++e) { partition[e] = e % size; }
+   ParMesh mesh(MPI_COMM_WORLD, serial, partition.GetData());
+   ND_FECollection collection(1, 3);
+   for (auto ordering : {Ordering::byNODES, Ordering::byVDIM})
+   {
+      ParFiniteElementSpace fes(&mesh, &collection, 2, ordering);
+      for (int e = 0; e < mesh.GetNE(); ++e) { fes.SetElementOrder(e, 3); }
+      fes.Update(false);
+      Vector expected(fes.GetVSize());
+      expected = 0.0;
+      for (int c = 0; c < 2; ++c)
+      {
+         VectorFunctionCoefficient field(3, [c](const Vector &x, Vector &a)
+         {
+            for (int j = 0; j < 3; ++j)
+            {
+               const int k = 1 + j + 3*c;
+               a[j] = 13*k + x[0]*(1+k) + x[1]*(4+2*k) + x[2]*(9+3*k);
+            }
+         });
+         for (int e = 0; e < mesh.GetNE(); ++e)
+         {
+            const auto *fe = fes.GetFE(e);
+            Vector local(fe->GetDof());
+            fe->Project(field, *mesh.GetElementTransformation(e), local);
+            Array<int> dofs;
+            fes.GetElementDofs(e, dofs);
+            for (int j = 0; j < dofs.Size(); ++j)
+            {
+               const int d = dofs[j];
+               expected[fes.DofToVDof(d >= 0 ? d : -1-d, c)] =
+                  d >= 0 ? local[j] : -local[j];
+            }
+         }
+      }
+      // Bcast must preserve the physical edge and face trace in the common
+      // signed orientation. Distinct nonconstant fields distinguish slots.
+      fes.ApplyDofSigns(expected.HostReadWrite());
+      Vector shared(expected);
+      auto &gc = fes.GroupComm();
+      gc.Bcast<real_t>(shared.HostReadWrite());
+      shared -= expected;
+      CHECK(shared.Normlinf() < 1e-10);
+      Vector count(fes.GetVSize());
+      count = 1.0;
+      gc.Reduce<real_t>(count.HostReadWrite(), GroupCommunicator::Sum);
+      gc.Bcast<real_t>(count.HostReadWrite());
+      CHECK(count.Max() > 1);
+      shared = expected;
+      gc.Reduce<real_t>(shared.HostReadWrite(), GroupCommunicator::Sum);
+      gc.Bcast<real_t>(shared.HostReadWrite());
+      for (int j = 0; j < shared.Size(); ++j)
+      {
+         shared[j] -= count[j]*expected[j];
+      }
+      CHECK(shared.Normlinf() < 1e-10);
+   }
+}
+
+TEST_CASE("Parallel internal edge constraints retain the maximal trace space",
+          "[FiniteElementSpace][NCMesh][HpInternalEdge][Parallel]")
+{
+   using namespace var_order_test;
+   const int kind = GENERATE(0, 1, 2); // H1, nodal ND, integrated ND
+   const int high = GENERATE(2, 3);
+   const bool rotated = GENERATE(false, true);
+   CAPTURE(kind, high, rotated);
+   Mesh serial = MakeInternalEdgeMesh(rotated);
+   int size;
+   MPI_Comm_size(MPI_COMM_WORLD, &size);
+   if (size > serial.GetNE()) { return; }
+
+   Array<int> partition(serial.GetNE());
+   for (int e = 0; e < serial.GetNE(); e++) { partition[e] = e % size; }
+   ParMesh mesh(MPI_COMM_WORLD, serial, partition.GetData());
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (kind == 0) { fec.reset(new H1_FECollection(high, 3)); }
+   else
+   {
+      fec.reset(new ND_FECollection(high, 3, BasisType::GaussLobatto,
+                                    kind == 1 ? BasisType::GaussLegendre :
+                                    BasisType::IntegratedGLL));
+   }
+   ParFiniteElementSpace fes(&mesh, fec.get());
+   SetInternalEdgeOrders(fes, high);
+   // Broken-space dimensions minus the independently computed trace ranks.
+   const int expected = kind == 0 ? (high == 2 ? 152 : 483) :
+                        (high == 2 ? 416 : 1365);
+   REQUIRE(fes.GlobalTrueVSize() == expected);
+
+   const auto *restriction = fes.GetRestrictionMatrix();
+   int failures = (!restriction || restriction->Height() != fes.GetTrueVSize() ||
+                   restriction->Width() != fes.GetVSize());
+   MPI_Allreduce(MPI_IN_PLACE, &failures, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(failures == 0);
+   Vector truth(fes.GetTrueVSize()), restricted(fes.GetTrueVSize());
+   ParGridFunction field(&fes);
+   const HYPRE_BigInt offset = fes.GetMyTDofOffset();
+   for (int col = 0; col < expected; ++col)
+   {
+      truth = 0.0;
+      if (col >= offset && col < offset + truth.Size())
+      {
+         truth[col - offset] = 1.0;
+      }
+      field.SetFromTrueDofs(truth);
+      restriction->Mult(field, restricted);
+      restricted -= truth;
+      failures += (restricted.CheckFinite() != 0 ||
+                   restricted.Normlinf() >= 1e-12);
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &failures, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(failures == 0);
+}
+
+TEST_CASE("Parallel hp vector copies use the scalar internal edge space",
+          "[FiniteElementSpace][NCMesh][HpInternalEdgeVector][Parallel]")
+{
+   using namespace var_order_test;
+   const int kind = GENERATE(0, 1, 2); // H1, nodal ND, integrated ND
+   const int high = GENERATE(2, 3);
+   const int copies = GENERATE(2, 3);
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   CAPTURE(kind, high, copies, ordering);
+   Mesh serial = MakeInternalEdgeMesh(high == 3);
+   int size, rank;
+   MPI_Comm_size(MPI_COMM_WORLD, &size);
+   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+   if (size != 1 && size != 2 && size != 4) { return; }
+
+   Array<int> partition(serial.GetNE());
+   Vector center(3);
+   for (int e = 0; e < serial.GetNE(); e++)
+   {
+      serial.GetElementCenter(e, center);
+      int owner = 0;
+      if (size == 2 && 1 < center[0] && center[0] < 1.5) { owner = 1; }
+      if (size == 4 && center[0] > 1)
+      {
+         owner = center[0] < 1.25 ? 1 : (center[0] > 1.5 ? 2 : 3);
+      }
+      partition[e] = high == 3 ? size - owner - 1 : owner;
+   }
+   ParMesh mesh(MPI_COMM_WORLD, serial, partition.GetData());
+   std::unique_ptr<FiniteElementCollection> fec;
+   if (kind == 0) { fec.reset(new H1_FECollection(1, 3)); }
+   else
+   {
+      fec.reset(new ND_FECollection(1, 3, BasisType::GaussLobatto,
+                                    kind == 1 ? BasisType::GaussLegendre :
+                                    BasisType::IntegratedGLL));
+   }
+   ParFiniteElementSpace scalar(&mesh, fec.get());
+   SetInternalEdgeOrders(scalar, high);
+   const int expected = kind == 0 ? (high == 2 ? 152 : 483) :
+                        (high == 2 ? 416 : 1365);
+   REQUIRE(scalar.GlobalTrueVSize() == expected);
+   ParFiniteElementSpace vector(&mesh, fec.get(), copies, ordering);
+   SetInternalEdgeOrders(vector, high);
+   REQUIRE(vector.GlobalTrueVSize() == copies * expected);
+
+   const auto component_dof = [&](int n, int i, int c)
+   {
+      return ordering == Ordering::byNODES ? i + c*n : i*copies + c;
+   };
+   const auto true_dof = [&](int i, int c)
+   {
+      return component_dof(scalar.GetTrueVSize(), i, c);
+   };
+   const auto local_dof = [&](int i, int c)
+   {
+      return component_dof(scalar.GetVSize(), i, c);
+   };
+
+   std::vector<int> starts(size+1);
+   const int local_count = scalar.GetTrueVSize();
+   MPI_Allgather(&local_count, 1, MPI_INT, starts.data()+1, 1, MPI_INT,
+                 MPI_COMM_WORLD);
+   for (int r = 0; r < size; r++) { starts[r+1] += starts[r]; }
+   const auto global_dof = [&](int i, int c)
+   {
+      const int r = std::upper_bound(starts.begin(), starts.end(), i) -
+                    starts.begin() - 1;
+      return copies*starts[r] + component_dof(starts[r+1]-starts[r],
+                                              i-starts[r], c);
+   };
+   int invalid = (vector.GetTrueVSize() != copies * local_count ||
+                  vector.GetVSize() != copies * scalar.GetVSize() ||
+                  vector.GetMyTDofOffset() != copies * starts[rank]);
+   MPI_Allreduce(MPI_IN_PLACE, &invalid, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(invalid == 0);
+
+   SparseMatrix Pscalar, Pvector;
+   scalar.Dof_TrueDof_Matrix()->MergeDiagAndOffd(Pscalar);
+   vector.Dof_TrueDof_Matrix()->MergeDiagAndOffd(Pvector);
+   const auto max_difference = [&](const SparseMatrix &a, const SparseMatrix &b,
+                                   auto row_index, auto column_index)
+   {
+      real_t maximum = 0.0;
+      for (int r = 0; r < a.Height(); r++)
+      {
+         for (int c = 0; c < copies; c++)
+         {
+            std::map<int, real_t> row;
+            const int rr = row_index(r, c);
+            for (int j = 0; j < a.RowSize(r); j++)
+            {
+               row[column_index(a.GetRowColumns(r)[j], c)] +=
+                  a.GetRowEntries(r)[j];
+            }
+            for (int j = 0; j < b.RowSize(rr); j++)
+            {
+               row[b.GetRowColumns(rr)[j]] -= b.GetRowEntries(rr)[j];
+            }
+            for (const auto &entry : row)
+            {
+               if (!std::isfinite(entry.second)) { return infinity(); }
+               maximum = std::max(maximum, std::abs(entry.second));
+            }
+         }
+      }
+      return maximum;
+   };
+   const auto &Rscalar = *scalar.GetRestrictionMatrix();
+   const auto &Rvector = *vector.GetRestrictionMatrix();
+   real_t errors[2] = {max_difference(Pscalar, Pvector, local_dof, global_dof),
+                       max_difference(Rscalar, Rvector, true_dof, local_dof)
+                      };
+   for (int i = 0; i < scalar.GetVSize(); i++)
+   {
+      const int t = scalar.GetLocalTDofNumber(i);
+      for (int c = 0; c < copies; c++)
+      {
+         invalid += (vector.GetLocalTDofNumber(local_dof(i, c)) !=
+                     (t < 0 ? -1 : true_dof(t, c)));
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, errors, 2, MPITypeMap<real_t>::mpi_type, MPI_MAX,
+                 MPI_COMM_WORLD);
+   MPI_Allreduce(MPI_IN_PLACE, &invalid, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(errors[0] < 1e-12);
+   REQUIRE(errors[1] < 1e-12);
+   REQUIRE(invalid == 0);
+}
+
+TEST_CASE("Parallel variable-order H1 essential markers select vector components",
+          "[FiniteElementSpace][NCMesh][HpH1VectorMarker][Parallel]")
+{
+   const int copies = GENERATE(2, 3);
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   const int size = Mpi::WorldSize();
+   if (size > 2) { return; }
+
+   Mesh serial = Mesh::MakeCartesian3D(2, 1, 1, Element::HEXAHEDRON);
+   // Attribute 1 covers the x=0 end face. Attribute 2 covers the other faces.
+   for (int b = 0; b < serial.GetNBE(); ++b)
+   {
+      Array<int> vertices;
+      serial.GetBdrElementVertices(b, vertices);
+      bool end_face = true;
+      for (int v : vertices) { end_face &= (serial.GetVertex(v)[0] == 0.0); }
+      serial.GetBdrElement(b)->SetAttribute(end_face ? 1 : 2);
+   }
+   serial.SetAttributes();
+   serial.EnsureNCMesh();
+   const int partition[] = {0, size - 1};
+   ParMesh mesh(MPI_COMM_WORLD, serial, partition);
+   H1_FECollection fec(1, 3);
+   ParFiniteElementSpace scalar(&mesh, &fec), vector(&mesh, &fec, copies,
+                                                     ordering);
+   for (int e = 0; e < mesh.GetNE(); ++e)
+   {
+      scalar.SetElementOrder(e, 2);
+      vector.SetElementOrder(e, 2);
+   }
+   scalar.Update(false);
+   vector.Update(false);
+   REQUIRE(scalar.GlobalTrueVSize() == 45);
+   REQUIRE(vector.GlobalTrueVSize() == 45 * copies);
+
+   Array<int> attrs(2);
+   for (int selection = 0; selection < 3; ++selection)
+   {
+      attrs = 0;
+      if (selection == 1) { attrs[0] = 1; }
+      if (selection == 2) { attrs = 1; }
+      Array<int> scalar_list, all_vdofs;
+      scalar.GetEssentialTrueDofs(attrs, scalar_list);
+      vector.GetEssentialVDofs(attrs, all_vdofs);
+      // 5x3x3 nodes, including 3 interior nodes. The end face has 3x3 nodes.
+      const int expected_scalar = selection == 0 ? 0 : (selection == 1 ? 9 : 42);
+      int global = scalar_list.Size();
+      MPI_Allreduce(MPI_IN_PLACE, &global, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+      REQUIRE(global == expected_scalar);
+
+      for (int component = -1; component < copies; ++component)
+      {
+         CAPTURE(copies, ordering, selection, component);
+         Array<int> actual, helper, expected(vector.GetTrueVSize());
+         expected = 0;
+         for (int t : scalar_list)
+         {
+            for (int c = 0; c < copies; ++c)
+            {
+               if (component >= 0 && c != component) { continue; }
+               const int vt = ordering == Ordering::byNODES ?
+                              t + c * scalar.GetTrueVSize() : t * copies + c;
+               expected[vt] = 1;
+            }
+         }
+         vector.GetEssentialTrueDofs(attrs, actual, component);
+         // The public helper must also honor component when the caller supplies
+         // markers for every component.
+         vector.GetEssentialTrueDofsVar(attrs, all_vdofs, helper, component);
+         Array<int> expected_list;
+         FiniteElementSpace::MarkerToList(expected, expected_list);
+         int wrong = (actual != expected_list || helper != expected);
+         MPI_Allreduce(MPI_IN_PLACE, &wrong, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+         REQUIRE(wrong == 0);
+         global = actual.Size();
+         MPI_Allreduce(MPI_IN_PLACE, &global, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+         REQUIRE(global == expected_scalar * (component < 0 ? copies : 1));
+      }
+   }
+}
+
 TEST_CASE("Parallel RT face orders are independent of interior edge orders",
           "[FiniteElementSpace][NCMesh][RTFaceOrder][Parallel]")
 {
