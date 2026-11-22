@@ -20,6 +20,14 @@ GPU computing
 
 Discretization improvements
 ---------------------------
+- Added order-grouped native variable-order Partial Assembly (PA) for
+  continuous tensor-product spaces across the de Rham complex: added
+  VarOrderElementRestriction, extended PABilinearFormExtension (Mult, AbsMult,
+  MultTranspose, AssembleDiagonal, and attribute markers) while preserving
+  existing libCEED variable-order paths, and implemented variable-order PA in
+  MassIntegrator, DiffusionIntegrator, CurlCurlIntegrator (including
+  AddMultTransposePA), VectorFEMassIntegrator, and DivDivIntegrator.
+
 - Fixed H1 transfer in L2ProjectionGridTransfer on non-conforming meshes in
   serial and parallel. The fully assembled operator now applies inverse lumped
   mass scaling after true-DOF assembly. Element assembly now handles hanging-node

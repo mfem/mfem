@@ -13,6 +13,7 @@
 #include "../bilininteg.hpp"
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
+#include "../restriction.hpp"
 #include "../ceed/integrators/mass/mass.hpp"
 #include "bilininteg_mass_kernels.hpp"
 #include "bilininteg_mass_pa_simplices.hpp"
@@ -47,6 +48,66 @@ void MassIntegrator::AssemblePA(const FiniteElementSpace &fes)
       else
       {
          ceedOp = new ceed::PAMassIntegrator(fes, *ir, Q);
+      }
+      return;
+   }
+   var_order = fes.IsVariableOrder();
+   pa_groups.clear();
+   if (var_order)
+   {
+      MFEM_VERIFY(!stroud,
+                  "Variable-order MassIntegrator PA does not support ragged tensor bases.");
+      MFEM_VERIFY(fes.GetVDim() == 1,
+                  "Variable-order MassIntegrator PA requires vdim == 1.");
+      MFEM_VERIFY(dim >= 1 && dim <= 3, "Unsupported mesh dimension.");
+      ne = mesh->GetNE();
+      const auto *vr = dynamic_cast<const VarOrderElementRestriction*>(
+                          fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC));
+      MFEM_VERIFY(vr != nullptr,
+                  "Expected VarOrderElementRestriction for variable-order space.");
+
+      pa_groups.resize(vr->GetNumGroups());
+      for (int gi = 0; gi < vr->GetNumGroups(); ++gi)
+      {
+         const Array<int> &elems = vr->GetGroupElements(gi);
+         PAGroup &g = pa_groups[gi];
+         g.ne = elems.Size();
+         g.evec_offset = vr->GetGroupOffset(gi);
+         g.evec_size = vr->GetGroupSize(gi);
+         if (g.ne == 0) { continue; }
+
+         const FiniteElement *fel = fes.GetFE(elems[0]);
+         const IntegrationRule *ir_g =
+            IntRule ? IntRule
+            : &GetRule(*fel, *fel, *mesh->GetElementTransformation(elems[0]), false);
+         g.maps = &fel->GetDofToQuad(*ir_g, DofToQuad::TENSOR);
+         g.dofs1D = g.maps->ndof;
+         g.quad1D = g.maps->nqpt;
+         const int nq_g = ir_g->GetNPoints();
+         const int exp_nq = (dim == 3) ? (g.quad1D * g.quad1D * g.quad1D)
+                            : ((dim == 2) ? (g.quad1D * g.quad1D) : g.quad1D);
+         MFEM_VERIFY(nq_g == exp_nq,
+                     "Variable-order MassIntegrator PA requires isotropic tensor-product quadrature.");
+         MFEM_VERIFY(g.dofs1D <= DeviceDofQuadLimits::Get().MAX_D1D &&
+                     g.quad1D <= DeviceDofQuadLimits::Get().MAX_Q1D,
+                     "Variable-order MassIntegrator PA exceeds MAX_D1D / MAX_Q1D.");
+
+         const bool by_val = (fel->GetMapType() == FiniteElement::VALUE);
+         const Array<real_t> &W = ir_g->GetWeights();
+         g.pa_data.SetSize(nq_g * g.ne, mt);
+         auto v = Reshape(g.pa_data.HostWrite(), nq_g, g.ne);
+         for (int ge = 0; ge < g.ne; ++ge)
+         {
+            ElementTransformation *T = mesh->GetElementTransformation(elems[ge]);
+            for (int q = 0; q < nq_g; ++q)
+            {
+               const IntegrationPoint &ip = (*ir_g)[q];
+               T->SetIntPoint(&ip);
+               const real_t detJ = T->Weight();
+               const real_t c = Q ? Q->Eval(*T, ip) : 1.0;
+               v(q, ge) = W[q] * c * (by_val ? detJ : 1.0 / detJ);
+            }
+         }
       }
       return;
    }
@@ -141,6 +202,18 @@ void MassIntegrator::AssembleDiagonalPA(Vector &diag)
    {
       ceedOp->GetDiagonal(diag);
    }
+   else if (var_order)
+   {
+      for (const PAGroup &g : pa_groups)
+      {
+         if (g.ne == 0) { continue; }
+         Vector dg;
+         dg.MakeRef(diag, g.evec_offset, g.evec_size);
+         DiagonalPAKernels::Run(dim, g.dofs1D, g.quad1D, g.ne, g.maps->B,
+                                g.pa_data, dg, g.dofs1D, g.quad1D);
+         dg.SyncAliasMemory(diag);
+      }
+   }
    else
    {
       MFEM_VERIFY(maps && maps->mode != DofToQuad::RAGGED_TENSOR,
@@ -156,6 +229,20 @@ void MassIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (DeviceCanUseCeed())
    {
       ceedOp->AddMult(x, y);
+   }
+   else if (var_order)
+   {
+      x.Read();
+      for (const PAGroup &g : pa_groups)
+      {
+         if (g.ne == 0) { continue; }
+         Vector xg, yg;
+         xg.MakeRef(const_cast<Vector&>(x), g.evec_offset, g.evec_size);
+         yg.MakeRef(y, g.evec_offset, g.evec_size);
+         ApplyPAKernels::Run(dim, g.dofs1D, g.quad1D, g.ne, g.maps->B,
+                             g.maps->Bt, g.pa_data, xg, yg, g.dofs1D, g.quad1D);
+         yg.SyncAliasMemory(y);
+      }
    }
    else
    {
@@ -213,6 +300,26 @@ void MassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    {
       MFEM_ABORT("AddAbsMultPA not implemented with CEED!");
       ceedOp->AddMult(x, y);
+   }
+   else if (var_order)
+   {
+      x.Read();
+      for (const PAGroup &g : pa_groups)
+      {
+         if (g.ne == 0) { continue; }
+         Vector abs_pa_data(g.pa_data);
+         abs_pa_data.Abs();
+         Array<real_t> absB(g.maps->B);
+         Array<real_t> absBt(g.maps->Bt);
+         absB.Abs();
+         absBt.Abs();
+         Vector xg, yg;
+         xg.MakeRef(const_cast<Vector&>(x), g.evec_offset, g.evec_size);
+         yg.MakeRef(y, g.evec_offset, g.evec_size);
+         ApplyPAKernels::Run(dim, g.dofs1D, g.quad1D, g.ne, absB, absBt,
+                             abs_pa_data, xg, yg, g.dofs1D, g.quad1D);
+         yg.SyncAliasMemory(y);
+      }
    }
    else
    {

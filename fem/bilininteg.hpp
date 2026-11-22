@@ -30,6 +30,20 @@ class FaceQuadratureSpace;
 class BilinearFormIntegrator : public NonlinearFormIntegrator
 {
 protected:
+   /// Per-(geometry, order) group data for variable-order partial assembly.
+   struct PAGroup
+   {
+      int ne = 0;
+      int dofs1D = 0;
+      int quad1D = 0;
+      int evec_offset = 0;
+      int evec_size = 0;
+      const DofToQuad *maps = nullptr;
+      const DofToQuad *mapsO = nullptr;
+      const DofToQuad *mapsC = nullptr;
+      Vector pa_data;
+   };
+
    BilinearFormIntegrator(const IntegrationRule *ir = NULL)
       : NonlinearFormIntegrator(ir) { }
 
@@ -45,6 +59,9 @@ public:
    // base class NonlinearFormIntegrator, except that not all assembly levels
    // make sense for the action of the nonlinear operator (but they all make
    // sense for its Jacobian).
+
+   /// Return true if AssemblePA/AddMultPA support variable-order spaces.
+   virtual bool SupportsVariableOrderPA() const { return false; }
 
    /// Method defining partial assembly.
    /** The result of the partial assembly is stored internally so that it can be
@@ -2288,6 +2305,8 @@ private:
    int dim, ne, dofs1D, quad1D;
    Vector pa_data;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
+   bool var_order = false;
+   std::vector<PAGroup> pa_groups;
 
    // Data for NURBS patch PA
 
@@ -2422,6 +2441,8 @@ public:
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
 
+   bool SupportsVariableOrderPA() const override { return true; }
+
    MFEM_DEPRECATED Coefficient *GetCoefficient() const { return Q; }
 
    CoefficientBase *GetCoefficientBase() const { return CoefficientBase::Get(Q, VQ, MQ); }
@@ -2465,6 +2486,8 @@ protected:
    const GeometricFactors *geom;          ///< Not owned
    const FaceGeometricFactors *face_geom; ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
+   bool var_order = false;
+   std::vector<PAGroup> pa_groups;
 
    void AssembleEA_(Vector &ea, const bool add);
 
@@ -2542,6 +2565,8 @@ public:
                                          const bool stroud = false);
 
    bool SupportsCeed() const override { return DeviceCanUseCeed(); }
+
+   bool SupportsVariableOrderPA() const override { return true; }
 
    const Coefficient *GetCoefficient() const { return Q; }
 
@@ -2943,6 +2968,8 @@ protected:
    const GeometricFactors *geom;   ///< Not owned
    int dim, ne, nq, dofs1D, quad1D;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
+   bool var_order = false;
+   std::vector<PAGroup> pa_groups;
 
 public:
    CurlCurlIntegrator();
@@ -2974,10 +3001,13 @@ public:
                             ElementTransformation &Trans,
                             Vector &flux, Vector *d_energy = NULL) override;
 
+   bool SupportsVariableOrderPA() const override { return true; }
+
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
    void AddMultPA(const Vector &x, Vector &y) const override;
    void AddAbsMultPA(const Vector &x, Vector &y) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
    void AssembleDiagonalPA(Vector& diag) override;
 
    MFEM_DEPRECATED const Coefficient *GetCoefficient() const { return Q; }
@@ -3103,6 +3133,8 @@ protected:
    int dim, ne, nq, dofs1D, dofs1Dtest, quad1D;
    FiniteElement::DerivType trial_fetype, test_fetype;
    bool symmetric = true; ///< False if using a nonsymmetric matrix coefficient
+   bool var_order = false;
+   std::vector<PAGroup> pa_groups;
 
 public:
    VectorFEMassIntegrator() { Init(NULL, NULL, NULL); }
@@ -3120,6 +3152,8 @@ public:
                                const FiniteElement &test_fe,
                                ElementTransformation &Trans,
                                DenseMatrix &elmat) override;
+
+   bool SupportsVariableOrderPA() const override { return true; }
 
    void AssemblePA(const FiniteElementSpace &fes) override;
    void AssemblePA(const FiniteElementSpace &trial_fes,
@@ -3251,6 +3285,8 @@ private:
    const DofToQuad *mapsC;         ///< Not owned. DOF-to-quad map, closed.
    const GeometricFactors *geom;   ///< Not owned
    int dim, ne, dofs1D, quad1D;
+   bool var_order = false;
+   std::vector<PAGroup> pa_groups;
 
 public:
    DivDivIntegrator();
@@ -3265,9 +3301,13 @@ public:
                                ElementTransformation &Trans,
                                DenseMatrix &elmat) override;
 
+   bool SupportsVariableOrderPA() const override { return true; }
+
    using BilinearFormIntegrator::AssemblePA;
    void AssemblePA(const FiniteElementSpace &fes) override;
    void AddMultPA(const Vector &x, Vector &y) const override;
+   void AddAbsMultPA(const Vector &x, Vector &y) const override;
+   void AddMultTransposePA(const Vector &x, Vector &y) const override;
    void AssembleDiagonalPA(Vector& diag) override;
    void AssembleEA(const FiniteElementSpace &fes, Vector &emat,
                    const bool add) override;

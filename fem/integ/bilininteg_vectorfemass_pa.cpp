@@ -132,8 +132,119 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &fes)
 void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
                                         const FiniteElementSpace &test_fes)
 {
+   var_order = trial_fes.IsVariableOrder() || test_fes.IsVariableOrder();
+   pa_groups.clear();
+
    // Assumes tensor-product elements
    Mesh *mesh = trial_fes.GetMesh();
+
+   if (var_order)
+   {
+      MFEM_VERIFY(&trial_fes == &test_fes,
+                  "Variable-order VectorFEMassIntegrator PA requires identical "
+                  "trial and test spaces.");
+      MFEM_VERIFY(!Device::Allows(Backend::CEED_MASK),
+                  "Variable-order VectorFEMassIntegrator PA does not support CEED backends.");
+      MFEM_VERIFY(trial_fes.GetVDim() == 1,
+                  "Variable-order VectorFEMassIntegrator PA requires vdim == 1.");
+      dim = mesh->Dimension();
+      MFEM_VERIFY(dim == 2 || dim == 3, "");
+      MFEM_VERIFY(mesh->SpaceDimension() == dim,
+                  "Variable-order VectorFEMassIntegrator PA requires mesh dimension == space dimension.");
+
+      const FiniteElement *typical_fel = trial_fes.GetTypicalFE();
+      const auto *typical_el = dynamic_cast<const VectorTensorFiniteElement*>(typical_fel);
+      MFEM_VERIFY(typical_el != nullptr, "Only VectorTensorFiniteElement is supported!");
+      trial_fetype = static_cast<FiniteElement::DerivType>(typical_el->GetDerivType());
+      test_fetype = trial_fetype;
+      const bool is_curl = (trial_fetype == FiniteElement::CURL);
+      const bool is_div = (trial_fetype == FiniteElement::DIV);
+      MFEM_VERIFY(is_curl || is_div, "Unknown kernel.");
+
+      symmetric = !(MQ && dynamic_cast<SymmetricMatrixCoefficient*>(MQ) == nullptr);
+      ne = trial_fes.GetNE();
+
+      const ElementDofOrdering ordering = GetEVectorOrdering(trial_fes);
+      MFEM_VERIFY(ordering == ElementDofOrdering::LEXICOGRAPHIC,
+                  "Variable-order PA requires tensor-product elements.");
+      const auto *vr = dynamic_cast<const VarOrderElementRestriction*>(
+                          trial_fes.GetElementRestriction(ordering));
+      MFEM_VERIFY(vr != nullptr,
+                  "Expected VarOrderElementRestriction for variable-order space.");
+
+      const int symm_dims = (dim * (dim + 1)) / 2;
+      const int ndata = symmetric ? symm_dims : dim * dim;
+
+      pa_groups.resize(vr->GetNumGroups());
+      for (int gi = 0; gi < vr->GetNumGroups(); ++gi)
+      {
+         const Array<int> &elems = vr->GetGroupElements(gi);
+         PAGroup &g = pa_groups[gi];
+         g.ne = elems.Size();
+         g.evec_offset = vr->GetGroupOffset(gi);
+         g.evec_size = vr->GetGroupSize(gi);
+         if (g.ne == 0) { continue; }
+
+         const FiniteElement *fel = trial_fes.GetFE(elems[0]);
+         const auto *el = dynamic_cast<const VectorTensorFiniteElement*>(fel);
+         MFEM_VERIFY(el != nullptr, "Only VectorTensorFiniteElement is supported!");
+         MFEM_VERIFY(el->GetDim() == dim, "");
+         MFEM_VERIFY(el->GetDerivType() == trial_fetype,
+                     "Inconsistent finite element DerivType in VectorFEMassIntegrator PA.");
+
+         const IntegrationRule *ir = IntRule ? IntRule
+                                     : &MassIntegrator::GetRule(*el, *el,
+                                                                *mesh->GetElementTransformation(elems[0]));
+         g.mapsC = &el->GetDofToQuad(*ir, DofToQuad::TENSOR);
+         g.mapsO = &el->GetDofToQuadOpen(*ir, DofToQuad::TENSOR);
+         g.dofs1D = g.mapsC->ndof;
+         g.quad1D = g.mapsC->nqpt;
+         MFEM_VERIFY(g.dofs1D == g.mapsO->ndof + 1 &&
+                     g.quad1D == g.mapsO->nqpt, "");
+         const int expected_nq = (dim == 3)
+                                 ? (g.quad1D * g.quad1D * g.quad1D)
+                                 : (g.quad1D * g.quad1D);
+         MFEM_VERIFY(ir->GetNPoints() == expected_nq,
+                     "Variable-order VectorFEMassIntegrator PA requires isotropic tensor-product quadrature.");
+         const int max_d1d = is_curl ? DeviceDofQuadLimits::Get().HCURL_MAX_D1D
+                                     : DeviceDofQuadLimits::Get().HDIV_MAX_D1D;
+         const int max_q1d = is_curl ? DeviceDofQuadLimits::Get().HCURL_MAX_Q1D
+                                     : DeviceDofQuadLimits::Get().HDIV_MAX_Q1D;
+         MFEM_VERIFY(g.dofs1D <= max_d1d && g.quad1D <= max_q1d,
+                     "Variable-order VectorFEMassIntegrator PA exceeds MAX_D1D / MAX_Q1D.");
+
+         Vector J_g, C_g;
+         int coeff_dim = 0;
+         bool grp_sym = true;
+         internal::ComputeGroupJacobiansAndCoeffs(*mesh, elems, *ir, dim,
+                                                  Q, DQ, MQ, J_g, C_g,
+                                                  coeff_dim, grp_sym);
+         g.pa_data.SetSize(ndata * ir->GetNPoints() * g.ne,
+                           Device::GetMemoryType());
+
+         if (is_curl && dim == 3)
+         {
+            internal::PADiffusionSetup3D(g.quad1D, coeff_dim, g.ne,
+                                         ir->GetWeights(), J_g, C_g, g.pa_data);
+         }
+         else if (is_curl && dim == 2)
+         {
+            internal::PADiffusionSetup2D<2>(g.quad1D, coeff_dim, g.ne,
+                                            ir->GetWeights(), J_g, C_g, g.pa_data);
+         }
+         else if (is_div && dim == 3)
+         {
+            internal::PAHdivMassSetup3D(g.quad1D, coeff_dim, g.ne,
+                                        ir->GetWeights(), J_g, C_g, g.pa_data);
+         }
+         else
+         {
+            internal::PAHdivMassSetup2D(g.quad1D, coeff_dim, g.ne,
+                                        ir->GetWeights(), J_g, C_g, g.pa_data);
+         }
+      }
+      return;
+   }
 
    const FiniteElement *trial_fel = trial_fes.GetTypicalFE();
    const VectorTensorFiniteElement *trial_el =
@@ -249,6 +360,90 @@ void VectorFEMassIntegrator::AssemblePA(const FiniteElementSpace &trial_fes,
 
 void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
 {
+   if (var_order)
+   {
+      for (const PAGroup &g : pa_groups)
+      {
+         if (g.ne == 0) { continue; }
+         Vector dg;
+         dg.MakeRef(diag, g.evec_offset, g.evec_size);
+         if (dim == 3)
+         {
+            if (trial_fetype == FiniteElement::CURL)
+            {
+               if (Device::Allows(Backend::DEVICE_MASK))
+               {
+                  const int ID = (g.dofs1D << 4) | g.quad1D;
+                  switch (ID)
+                  {
+                     case 0x23:
+                        internal::SmemPAHcurlMassAssembleDiagonal3D<2,3>(
+                           g.dofs1D, g.quad1D, g.ne, symmetric,
+                           g.mapsO->B, g.mapsC->B, g.pa_data, dg);
+                        break;
+                     case 0x34:
+                        internal::SmemPAHcurlMassAssembleDiagonal3D<3,4>(
+                           g.dofs1D, g.quad1D, g.ne, symmetric,
+                           g.mapsO->B, g.mapsC->B, g.pa_data, dg);
+                        break;
+                     case 0x45:
+                        internal::SmemPAHcurlMassAssembleDiagonal3D<4,5>(
+                           g.dofs1D, g.quad1D, g.ne, symmetric,
+                           g.mapsO->B, g.mapsC->B, g.pa_data, dg);
+                        break;
+                     case 0x56:
+                        internal::SmemPAHcurlMassAssembleDiagonal3D<5,6>(
+                           g.dofs1D, g.quad1D, g.ne, symmetric,
+                           g.mapsO->B, g.mapsC->B, g.pa_data, dg);
+                        break;
+                     default:
+                        internal::SmemPAHcurlMassAssembleDiagonal3D(
+                           g.dofs1D, g.quad1D, g.ne, symmetric,
+                           g.mapsO->B, g.mapsC->B, g.pa_data, dg);
+                        break;
+                  }
+               }
+               else
+               {
+                  internal::PAHcurlMassAssembleDiagonal3D(
+                     g.dofs1D, g.quad1D, g.ne, symmetric,
+                     g.mapsO->B, g.mapsC->B, g.pa_data, dg);
+               }
+            }
+            else if (trial_fetype == FiniteElement::DIV)
+            {
+               internal::PAHdivMassAssembleDiagonal3D(
+                  g.dofs1D, g.quad1D, g.ne, symmetric,
+                  g.mapsO->B, g.mapsC->B, g.pa_data, dg);
+            }
+            else
+            {
+               MFEM_ABORT("Unknown kernel.");
+            }
+         }
+         else
+         {
+            if (trial_fetype == FiniteElement::CURL)
+            {
+               internal::PAHcurlMassAssembleDiagonal2D(
+                  g.dofs1D, g.quad1D, g.ne, symmetric,
+                  g.mapsO->B, g.mapsC->B, g.pa_data, dg);
+            }
+            else if (trial_fetype == FiniteElement::DIV)
+            {
+               internal::PAHdivMassAssembleDiagonal2D(
+                  g.dofs1D, g.quad1D, g.ne, symmetric,
+                  g.mapsO->B, g.mapsC->B, g.pa_data, dg);
+            }
+            else
+            {
+               MFEM_ABORT("Unknown kernel.");
+            }
+         }
+         dg.SyncAliasMemory(diag);
+      }
+      return;
+   }
    if (dim == 3)
    {
       if (trial_fetype == mfem::FiniteElement::CURL && test_fetype == trial_fetype)
@@ -320,6 +515,24 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
 void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    const bool scalar_coeff = !(DQ || MQ);
+   if (var_order)
+   {
+      x.Read();
+      for (const PAGroup &g : pa_groups)
+      {
+         if (g.ne == 0) { continue; }
+         Vector xg, yg;
+         xg.MakeRef(const_cast<Vector&>(x), g.evec_offset, g.evec_size);
+         yg.MakeRef(y, g.evec_offset, g.evec_size);
+         ApplyPAKernels::Run(trial_fetype, test_fetype, dim,
+                             g.dofs1D, g.dofs1D, g.quad1D, g.ne, symmetric,
+                             scalar_coeff, g.mapsO->B, g.mapsC->B,
+                             g.mapsO->Bt, g.mapsC->Bt, g.pa_data, xg, yg,
+                             g.dofs1D, g.dofs1D, g.quad1D);
+         yg.SyncAliasMemory(y);
+      }
+      return;
+   }
    ApplyPAKernels::Run(trial_fetype, test_fetype, dim, dofs1D, dofs1Dtest,
                        quad1D, ne, symmetric, scalar_coeff, mapsO->B, mapsC->B,
                        mapsOtest->Bt, mapsCtest->Bt, pa_data, x, y, dofs1D,
@@ -329,6 +542,35 @@ void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 void VectorFEMassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 {
    const bool scalar_coeff = !(DQ || MQ);
+   if (var_order)
+   {
+      x.Read();
+      for (const PAGroup &g : pa_groups)
+      {
+         if (g.ne == 0) { continue; }
+         Vector abs_pa_data(g.pa_data);
+         abs_pa_data.Abs();
+         Array<real_t> absBo(g.mapsO->B);
+         Array<real_t> absBc(g.mapsC->B);
+         Array<real_t> absBto_t(g.mapsO->Bt);
+         Array<real_t> absBtc_t(g.mapsC->Bt);
+         absBo.Abs();
+         absBc.Abs();
+         absBto_t.Abs();
+         absBtc_t.Abs();
+
+         Vector xg, yg;
+         xg.MakeRef(const_cast<Vector&>(x), g.evec_offset, g.evec_size);
+         yg.MakeRef(y, g.evec_offset, g.evec_size);
+         ApplyPAKernels::Run(trial_fetype, test_fetype, dim,
+                             g.dofs1D, g.dofs1D, g.quad1D, g.ne, symmetric,
+                             scalar_coeff, absBo, absBc, absBto_t, absBtc_t,
+                             abs_pa_data, xg, yg,
+                             g.dofs1D, g.dofs1D, g.quad1D);
+         yg.SyncAliasMemory(y);
+      }
+      return;
+   }
 
    Vector abs_pa_data(pa_data);
    abs_pa_data.Abs();
@@ -352,6 +594,15 @@ void VectorFEMassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
 void VectorFEMassIntegrator::AddMultTransposePA(const Vector &x,
                                                 Vector &y) const
 {
+   if (var_order)
+   {
+      if (MQ && dynamic_cast<SymmetricMatrixCoefficient*>(MQ) == nullptr)
+      {
+         MFEM_ABORT("VectorFEMassIntegrator transpose not implemented for asymmetric MatrixCoefficient");
+      }
+      AddMultPA(x, y);
+      return;
+   }
    const bool trial_curl = (trial_fetype == mfem::FiniteElement::CURL);
    const bool trial_div = (trial_fetype == mfem::FiniteElement::DIV);
    const bool test_curl = (test_fetype == mfem::FiniteElement::CURL);

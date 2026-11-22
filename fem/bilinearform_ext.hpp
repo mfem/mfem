@@ -22,6 +22,7 @@ namespace mfem
 class BilinearForm;
 class MixedBilinearForm;
 class DiscreteLinearOperator;
+class VarOrderElementRestriction;
 
 /// Class extending the BilinearForm class to support different AssemblyLevels.
 /**  FA - Full Assembly
@@ -123,7 +124,8 @@ protected:
                            const Array<int> &attributes,
                            const bool transpose,
                            Vector &y,
-                           const bool useAbs = false) const;
+                           const bool useAbs = false,
+                           const VarOrderElementRestriction *vr = nullptr) const;
 
    /// @brief Performs the same function as AddMultWithMarkers, but takes as
    /// input and output face normal derivatives.

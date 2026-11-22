@@ -12,6 +12,7 @@
 #include "../bilininteg.hpp"
 #include "../gridfunc.hpp"
 #include "../qfunction.hpp"
+#include "../restriction.hpp"
 #include "../../mesh/nurbs.hpp"
 #include "../ceed/integrators/diffusion/diffusion.hpp"
 #include "bilininteg_diffusion_kernels.hpp"
@@ -25,6 +26,19 @@ void DiffusionIntegrator::AssembleDiagonalPA(Vector &diag)
    if (DeviceCanUseCeed())
    {
       ceedOp->GetDiagonal(diag);
+   }
+   else if (var_order)
+   {
+      for (const PAGroup &g : pa_groups)
+      {
+         if (g.ne == 0) { continue; }
+         Vector dg;
+         dg.MakeRef(diag, g.evec_offset, g.evec_size);
+         DiagonalPAKernels::Run(dim, g.dofs1D, g.quad1D, g.ne, symmetric,
+                                g.maps->B, g.maps->G, g.pa_data, dg,
+                                g.dofs1D, g.quad1D);
+         dg.SyncAliasMemory(diag);
+      }
    }
    else
    {
@@ -45,6 +59,21 @@ void DiffusionIntegrator::AddMultPA(const Vector &x, Vector &y) const
    if (DeviceCanUseCeed())
    {
       ceedOp->AddMult(x, y);
+   }
+   else if (var_order)
+   {
+      x.Read();
+      for (const PAGroup &g : pa_groups)
+      {
+         if (g.ne == 0) { continue; }
+         Vector xg, yg;
+         xg.MakeRef(const_cast<Vector&>(x), g.evec_offset, g.evec_size);
+         yg.MakeRef(y, g.evec_offset, g.evec_size);
+         ApplyPAKernels::Run(dim, g.dofs1D, g.quad1D, g.ne, symmetric,
+                             g.maps->B, g.maps->G, g.maps->Bt, g.maps->Gt,
+                             g.pa_data, xg, yg, g.dofs1D, g.quad1D);
+         yg.SyncAliasMemory(y);
+      }
    }
    else
    {
@@ -135,6 +164,159 @@ void DiffusionIntegrator::AssemblePA(const FiniteElementSpace &fes)
       }
       return;
    }
+   var_order = fes.IsVariableOrder();
+   pa_groups.clear();
+   if (var_order)
+   {
+      MFEM_VERIFY(!stroud,
+                  "Variable-order DiffusionIntegrator PA does not support ragged tensor bases.");
+      MFEM_VERIFY(fes.GetVDim() == 1,
+                  "Variable-order DiffusionIntegrator PA requires vdim == 1.");
+      dim = mesh->Dimension();
+      const int sdim = mesh->SpaceDimension();
+      MFEM_VERIFY(dim == 2 || dim == 3,
+                  "Variable-order DiffusionIntegrator PA requires 2D or 3D meshes.");
+      if (dim == 2 && sdim == 3)
+      {
+         MFEM_VERIFY(!VQ && !MQ,
+                     "Surface DiffusionIntegrator PA requires a scalar coefficient.");
+      }
+
+      auto *smq = dynamic_cast<SymmetricMatrixCoefficient*>(MQ);
+      int coeff_dim = 1;
+      if (smq)
+      {
+         MFEM_VERIFY(smq->GetHeight() == sdim && smq->GetWidth() == sdim,
+                     "MatrixCoefficient dimension mismatch.");
+         coeff_dim = (sdim * (sdim + 1)) / 2;
+         symmetric = true;
+      }
+      else if (MQ)
+      {
+         MFEM_VERIFY(MQ->GetHeight() == sdim && MQ->GetWidth() == sdim,
+                     "MatrixCoefficient dimension mismatch.");
+         coeff_dim = sdim * sdim;
+         symmetric = false;
+      }
+      else if (VQ)
+      {
+         MFEM_VERIFY(VQ->GetVDim() == sdim,
+                     "VectorCoefficient dimension mismatch.");
+         coeff_dim = sdim;
+         symmetric = true;
+      }
+      else
+      {
+         coeff_dim = 1;
+         symmetric = true;
+      }
+
+      ne = fes.GetNE();
+      const auto *vr = dynamic_cast<const VarOrderElementRestriction*>(
+                          fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC));
+      MFEM_VERIFY(vr != nullptr,
+                  "Expected VarOrderElementRestriction for variable-order space.");
+
+      const int symm_dims = (dim * (dim + 1)) / 2;
+      const int pa_size = symmetric ? symm_dims : dim * dim;
+
+      Vector vvec;
+      DenseMatrix mat;
+      DenseSymmetricMatrix smat;
+      if (VQ) { vvec.SetSize(sdim); }
+      if (smq) { smat.SetSize(sdim); }
+      else if (MQ) { mat.SetSize(sdim, sdim); }
+
+      pa_groups.resize(vr->GetNumGroups());
+      for (int gi = 0; gi < vr->GetNumGroups(); ++gi)
+      {
+         const Array<int> &elems = vr->GetGroupElements(gi);
+         PAGroup &g = pa_groups[gi];
+         g.ne = elems.Size();
+         g.evec_offset = vr->GetGroupOffset(gi);
+         g.evec_size = vr->GetGroupSize(gi);
+         if (g.ne == 0) { continue; }
+
+         const FiniteElement *fel = fes.GetFE(elems[0]);
+         const IntegrationRule *ir_g =
+            IntRule ? IntRule : &GetRule(*fel, *fel, false);
+         g.maps = &fel->GetDofToQuad(*ir_g, DofToQuad::TENSOR);
+         g.dofs1D = g.maps->ndof;
+         g.quad1D = g.maps->nqpt;
+         const int nq_g = ir_g->GetNPoints();
+         const int exp_nq = (dim == 3) ? (g.quad1D * g.quad1D * g.quad1D)
+                            : (g.quad1D * g.quad1D);
+         MFEM_VERIFY(nq_g == exp_nq,
+                     "Variable-order DiffusionIntegrator PA requires isotropic tensor-product quadrature.");
+         MFEM_VERIFY(g.dofs1D <= DeviceDofQuadLimits::Get().MAX_D1D &&
+                     g.quad1D <= DeviceDofQuadLimits::Get().MAX_Q1D,
+                     "Variable-order DiffusionIntegrator PA exceeds MAX_D1D / MAX_Q1D.");
+
+         Vector J_g(nq_g * sdim * dim * g.ne);
+         Vector C_g(coeff_dim * nq_g * g.ne);
+         auto Jv = Reshape(J_g.HostWrite(), nq_g, sdim, dim, g.ne);
+         auto Cv = Reshape(C_g.HostWrite(), coeff_dim, nq_g, g.ne);
+
+         for (int ge = 0; ge < g.ne; ++ge)
+         {
+            ElementTransformation *T = mesh->GetElementTransformation(elems[ge]);
+            for (int q = 0; q < nq_g; ++q)
+            {
+               const IntegrationPoint &ip = (*ir_g)[q];
+               T->SetIntPoint(&ip);
+               const DenseMatrix &Jmat = T->Jacobian();
+               for (int j = 0; j < dim; ++j)
+               {
+                  for (int i = 0; i < sdim; ++i)
+                  {
+                     Jv(q, i, j, ge) = Jmat(i, j);
+                  }
+               }
+               if (smq)
+               {
+                  smq->Eval(smat, *T, ip);
+                  for (int c = 0; c < coeff_dim; ++c)
+                  {
+                     Cv(c, q, ge) = smat.GetData()[c];
+                  }
+               }
+               else if (MQ)
+               {
+                  MQ->Eval(mat, *T, ip);
+                  for (int i = 0; i < sdim; ++i)
+                  {
+                     for (int j = 0; j < sdim; ++j)
+                     {
+                        Cv(j + sdim * i, q, ge) = mat(i, j);
+                     }
+                  }
+               }
+               else if (VQ)
+               {
+                  VQ->Eval(vvec, *T, ip);
+                  for (int c = 0; c < sdim; ++c)
+                  {
+                     Cv(c, q, ge) = vvec[c];
+                  }
+               }
+               else if (Q)
+               {
+                  Cv(0, q, ge) = Q->Eval(*T, ip);
+               }
+               else
+               {
+                  Cv(0, q, ge) = 1.0;
+               }
+            }
+         }
+
+         g.pa_data.SetSize(pa_size * nq_g * g.ne, mt);
+         internal::PADiffusionSetup(dim, sdim, g.dofs1D, g.quad1D, coeff_dim,
+                                    g.ne, ir_g->GetWeights(), J_g, C_g,
+                                    g.pa_data);
+      }
+      return;
+   }
    const int dims = el.GetDim();
    const int symmDims = (dims * (dims + 1)) / 2; // 1x1: 1, 2x2: 3, 3x3: 6
    const int nq = ir->GetNPoints();
@@ -200,6 +382,25 @@ void DiffusionIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    if (DeviceCanUseCeed())
    {
       MFEM_ABORT("Ceed AbsMult not implemented yet");
+   }
+   if (var_order)
+   {
+      x.Read();
+      for (const PAGroup &g : pa_groups)
+      {
+         if (g.ne == 0) { continue; }
+         Vector abs_pa_data(g.pa_data);
+         abs_pa_data.Abs();
+         auto abs_maps = g.maps->Abs();
+         Vector xg, yg;
+         xg.MakeRef(const_cast<Vector&>(x), g.evec_offset, g.evec_size);
+         yg.MakeRef(y, g.evec_offset, g.evec_size);
+         ApplyPAKernels::Run(dim, g.dofs1D, g.quad1D, g.ne, symmetric,
+                             abs_maps.B, abs_maps.G, abs_maps.Bt, abs_maps.Gt,
+                             abs_pa_data, xg, yg, g.dofs1D, g.quad1D);
+         yg.SyncAliasMemory(y);
+      }
+      return;
    }
    Vector abs_pa_data(pa_data);
    abs_pa_data.Abs();

@@ -609,6 +609,121 @@ void PACurlCurlSetup3D(const int Q1D,
    });
 }
 
+void ComputeGroupJacobiansAndCoeffs(Mesh &mesh,
+                                    const Array<int> &elems,
+                                    const IntegrationRule &ir,
+                                    int dim,
+                                    Coefficient *Q,
+                                    DiagonalMatrixCoefficient *DQ,
+                                    MatrixCoefficient *MQ,
+                                    Vector &J,
+                                    Vector &C,
+                                    int &coeff_dim,
+                                    bool &symmetric)
+{
+   MFEM_VERIFY(mesh.SpaceDimension() == dim,
+               "Variable-order PA requires mesh dimension == space dimension.");
+
+   auto *smq = dynamic_cast<SymmetricMatrixCoefficient*>(MQ);
+   if (smq)
+   {
+      MFEM_VERIFY(smq->GetHeight() == dim && smq->GetWidth() == dim,
+                  "MatrixCoefficient dimension mismatch.");
+      coeff_dim = (dim * (dim + 1)) / 2;
+      symmetric = true;
+   }
+   else if (MQ)
+   {
+      MFEM_VERIFY(MQ->GetHeight() == dim && MQ->GetWidth() == dim,
+                  "MatrixCoefficient dimension mismatch.");
+      coeff_dim = dim * dim;
+      symmetric = false;
+   }
+   else if (DQ)
+   {
+      MFEM_VERIFY(DQ->GetVDim() == dim,
+                  "DiagonalMatrixCoefficient dimension mismatch.");
+      coeff_dim = dim;
+      symmetric = true;
+   }
+   else
+   {
+      coeff_dim = 1;
+      symmetric = true;
+   }
+
+   const int ne_g = elems.Size();
+   const int nq = ir.GetNPoints();
+   J.SetSize(nq * dim * dim * ne_g);
+   C.SetSize(coeff_dim * nq * ne_g);
+   if (ne_g == 0) { return; }
+
+   auto Jv = Reshape(J.HostWrite(), nq, dim, dim, ne_g);
+   auto Cv = Reshape(C.HostWrite(), coeff_dim, nq, ne_g);
+
+   Vector dvec;
+   DenseMatrix mat;
+   DenseSymmetricMatrix smat;
+   if (DQ) { dvec.SetSize(dim); }
+   if (smq) { smat.SetSize(dim); }
+   else if (MQ) { mat.SetSize(dim, dim); }
+
+   for (int ge = 0; ge < ne_g; ++ge)
+   {
+      const int e = elems[ge];
+      ElementTransformation *T = mesh.GetElementTransformation(e);
+      for (int q = 0; q < nq; ++q)
+      {
+         const IntegrationPoint &ip = ir[q];
+         T->SetIntPoint(&ip);
+         const DenseMatrix &Jmat = T->Jacobian();
+         for (int j = 0; j < dim; ++j)
+         {
+            for (int i = 0; i < dim; ++i)
+            {
+               Jv(q, i, j, ge) = Jmat(i, j);
+            }
+         }
+
+         if (smq)
+         {
+            smq->Eval(smat, *T, ip);
+            for (int c = 0; c < coeff_dim; ++c)
+            {
+               Cv(c, q, ge) = smat.GetData()[c];
+            }
+         }
+         else if (MQ)
+         {
+            MQ->Eval(mat, *T, ip);
+            for (int i = 0; i < dim; ++i)
+            {
+               for (int j = 0; j < dim; ++j)
+               {
+                  Cv(j + dim * i, q, ge) = mat(i, j);
+               }
+            }
+         }
+         else if (DQ)
+         {
+            DQ->Eval(dvec, *T, ip);
+            for (int c = 0; c < dim; ++c)
+            {
+               Cv(c, q, ge) = dvec[c];
+            }
+         }
+         else if (Q)
+         {
+            Cv(0, q, ge) = Q->Eval(*T, ip);
+         }
+         else
+         {
+            Cv(0, q, ge) = 1.0;
+         }
+      }
+   }
+}
+
 void PACurlCurlAssembleDiagonal2D(const int D1D, const int Q1D, const bool,
                                   const int NE, const Array<real_t> &bo,
                                   const Array<real_t> &, const Array<real_t> &,

@@ -534,6 +534,19 @@ SmemPAHdivMassApply3D(const int NE, const bool symmetric, const bool,
    });
 }
 
+// Helper to evaluate Jacobians and coefficients on an element subset (group)
+void ComputeGroupJacobiansAndCoeffs(Mesh &mesh,
+                                    const Array<int> &elems,
+                                    const IntegrationRule &ir,
+                                    int dim,
+                                    Coefficient *Q,
+                                    DiagonalMatrixCoefficient *DQ,
+                                    MatrixCoefficient *MQ,
+                                    Vector &J,
+                                    Vector &C,
+                                    int &coeff_dim,
+                                    bool &symmetric);
+
 // PA H(div) div-div Assemble 2D kernel
 void PADivDivSetup2D(const int Q1D,
                      const int NE,

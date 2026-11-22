@@ -511,6 +511,19 @@ void PACurlCurlSetup3D(const int Q1D,
                        Vector &coeff,
                        Vector &op);
 
+// Helper to evaluate Jacobians and coefficients on an element subset (group)
+void ComputeGroupJacobiansAndCoeffs(Mesh &mesh,
+                                    const Array<int> &elems,
+                                    const IntegrationRule &ir,
+                                    int dim,
+                                    Coefficient *Q,
+                                    DiagonalMatrixCoefficient *DQ,
+                                    MatrixCoefficient *MQ,
+                                    Vector &J,
+                                    Vector &C,
+                                    int &coeff_dim,
+                                    bool &symmetric);
+
 // PA H(curl) curl-curl Diagonal 2D kernel
 void PACurlCurlAssembleDiagonal2D(const int D1D,
                                   const int Q1D,
