@@ -56,6 +56,7 @@ list(APPEND HDRS
   forall.hpp
   optparser.hpp
   osockstream.hpp
+  poseidon.hpp
   sets.hpp
   socketstream.hpp
   sort_pairs.hpp

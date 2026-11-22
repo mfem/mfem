@@ -18,6 +18,7 @@
 #include "backends.hpp"
 #include "device.hpp"
 #include "mem_manager.hpp"
+#include "poseidon.hpp"
 #include "../linalg/dtensor.hpp"
 #ifdef MFEM_USE_MPI
 #include <_hypre_utilities.h>

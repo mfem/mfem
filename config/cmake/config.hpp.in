@@ -219,4 +219,7 @@
 // Enable Enzyme for AD
 #cmakedefine MFEM_USE_ENZYME
 
+// Enable Poseidon for numerical rewriting
+#cmakedefine MFEM_USE_POSEIDON
+
 #endif // MFEM_CONFIG_HEADER

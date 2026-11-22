@@ -15,6 +15,7 @@
 #ifdef MFEM_USE_MPI
 #include <memory>
 #include <set>
+#include <tuple>
 #include <utility>
 
 #include "../../linalg/multivector.hpp"
@@ -23,6 +24,7 @@
 #include "entity_utils.hpp"
 #include "field_prolongation.hpp"
 #include "integrator_ctx.hpp"
+#include "numerics.hpp"
 #include "backends/util.hpp"
 
 #include "backends/global_qf/prelude.hpp"
@@ -185,6 +187,31 @@ template <typename T>
 struct has_qfunc_shadow_member<T,
                                std::void_t<decltype(std::declval<T &>().qfunc_shadow)>>
 : std::true_type { };
+
+/// The derivatives, second derivatives and numerical requirements of an
+/// integrator, whose requirements may be given in place of the derivatives or
+/// the second derivatives, see DifferentiableOperator::AddDomainIntegrator().
+template <typename derivative_ids_t, typename second_derivative_ids_t,
+          typename numerics_t>
+auto integrator_ids(derivative_ids_t derivative_ids,
+                    second_derivative_ids_t second_derivative_ids,
+                    numerics_t numerics)
+{
+   if constexpr (is_numerics_v<derivative_ids_t>)
+   {
+      return std::make_tuple(Derivatives<> {}, second_derivative_ids,
+                             derivative_ids);
+   }
+   else if constexpr (is_numerics_v<second_derivative_ids_t>)
+   {
+      return std::make_tuple(derivative_ids, SecondDerivatives<Pairs::None> {},
+                             second_derivative_ids);
+   }
+   else
+   {
+      return std::make_tuple(derivative_ids, second_derivative_ids, numerics);
+   }
+}
 }
 
 /// Wrap @a impl in a std::shared_ptr and return it as a @a callback_t, so that
@@ -1293,7 +1320,8 @@ public:
       typename input_t,
       typename output_t,
       typename derivative_ids_t,
-      typename second_derivative_ids_t = SecondDerivatives<Pairs::None>>
+      typename second_derivative_ids_t = SecondDerivatives<Pairs::None>,
+      typename numerics_t = Numerics<>>
    void AddIntegrator(
       qfunc_t &qfunc,
       input_t inputs,
@@ -1301,7 +1329,8 @@ public:
       const IntegrationRule &integration_rule,
       const Array<int> &attributes,
       derivative_ids_t derivative_ids,
-      second_derivative_ids_t second_derivative_ids = {});
+      second_derivative_ids_t second_derivative_ids = {},
+      numerics_t numerics = {});
 
    /// @brief Add a domain integrator to the operator.
    ///
@@ -1321,6 +1350,9 @@ public:
    /// Pairs::All for every block that can be formed from @a derivative_ids,
    /// Pairs::Diagonal for the diagonal blocks only, or an explicit list of
    /// DerivativePair entries.
+   /// @param numerics Numerical requirements of this integrator, see Numerics.
+   /// They may also be given in place of @a derivative_ids or
+   /// @a second_derivative_ids.
    template <
       typename backend_t = LocalQFBackend,
       DerivativeKernels kernels = DerivativeKernels::All,
@@ -1328,7 +1360,8 @@ public:
       typename input_t,
       typename output_t,
       typename derivative_ids_t = decltype(std::make_index_sequence<0> {}),
-      typename second_derivative_ids_t = SecondDerivatives<Pairs::None>>
+      typename second_derivative_ids_t = SecondDerivatives<Pairs::None>,
+      typename numerics_t = Numerics<>>
    void AddDomainIntegrator(
       qfunc_t &qfunc,
       input_t inputs,
@@ -1336,7 +1369,8 @@ public:
       const IntegrationRule &integration_rule,
       const Array<int> &domain_attributes,
       derivative_ids_t derivative_ids = std::make_index_sequence<0> {},
-      second_derivative_ids_t second_derivative_ids = {});
+      second_derivative_ids_t second_derivative_ids = {},
+      numerics_t numerics = {});
 
    /// @brief Add a boundary integrator to the operator.
    ///
@@ -1352,6 +1386,8 @@ public:
    /// integrator.
    /// @param second_derivative_ids Second derivative (Hessian) blocks to be
    /// made available for this integrator, see AddDomainIntegrator().
+   /// @param numerics Numerical requirements of this integrator, see
+   /// AddDomainIntegrator().
    template <
       typename backend_t = LocalQFBackend,
       DerivativeKernels kernels = DerivativeKernels::All,
@@ -1359,7 +1395,8 @@ public:
       typename input_t,
       typename output_t,
       typename derivative_ids_t = decltype(std::make_index_sequence<0> {}),
-      typename second_derivative_ids_t = SecondDerivatives<Pairs::None>>
+      typename second_derivative_ids_t = SecondDerivatives<Pairs::None>,
+      typename numerics_t = Numerics<>>
    void AddBoundaryIntegrator(
       qfunc_t &qfunc,
       input_t inputs,
@@ -1367,7 +1404,8 @@ public:
       const IntegrationRule &integration_rule,
       const Array<int> &boundary_attributes,
       derivative_ids_t derivative_ids = std::make_index_sequence<0> {},
-      second_derivative_ids_t second_derivative_ids = {});
+      second_derivative_ids_t second_derivative_ids = {},
+      numerics_t numerics = {});
 
    /// @brief Orientation signs that make normal(J, s) point outward on the
    /// boundary faces of @a mesh.
@@ -1710,7 +1748,8 @@ template <
    typename input_t,
    typename output_t,
    typename derivative_ids_t,
-   typename second_derivative_ids_t>
+   typename second_derivative_ids_t,
+   typename numerics_t>
 void DifferentiableOperator::AddDomainIntegrator(
    qfunc_t &qfunc,
    input_t inputs,
@@ -1718,11 +1757,13 @@ void DifferentiableOperator::AddDomainIntegrator(
    const IntegrationRule &integration_rule,
    const Array<int> &domain_attributes,
    derivative_ids_t derivative_ids,
-   second_derivative_ids_t second_derivative_ids)
+   second_derivative_ids_t second_derivative_ids,
+   numerics_t numerics)
 {
+   const auto [d, s, n] = detail::integrator_ids(
+      derivative_ids, second_derivative_ids, numerics);
    AddIntegrator<backend_t, kernels, Entity::Element>(
-      qfunc, inputs, outputs, integration_rule, domain_attributes,
-      derivative_ids, second_derivative_ids);
+      qfunc, inputs, outputs, integration_rule, domain_attributes, d, s, n);
 }
 
 template <
@@ -1732,7 +1773,8 @@ template <
    typename input_t,
    typename output_t,
    typename derivative_ids_t,
-   typename second_derivative_ids_t>
+   typename second_derivative_ids_t,
+   typename numerics_t>
 void DifferentiableOperator::AddBoundaryIntegrator(
    qfunc_t &qfunc,
    input_t inputs,
@@ -1740,15 +1782,17 @@ void DifferentiableOperator::AddBoundaryIntegrator(
    const IntegrationRule &integration_rule,
    const Array<int> &boundary_attributes,
    derivative_ids_t derivative_ids,
-   second_derivative_ids_t second_derivative_ids)
+   second_derivative_ids_t second_derivative_ids,
+   numerics_t numerics)
 {
    if (mesh.GetNFbyType(FaceType::Boundary) != mesh.GetNBE())
    {
       MFEM_ABORT("AddBoundaryIntegrator on meshes with interior boundaries is not supported.");
    }
+   const auto [d, s, n] = detail::integrator_ids(
+                             derivative_ids, second_derivative_ids, numerics);
    AddIntegrator<backend_t, kernels, Entity::BoundaryElement>(
-      qfunc, inputs, outputs, integration_rule, boundary_attributes,
-      derivative_ids, second_derivative_ids);
+      qfunc, inputs, outputs, integration_rule, boundary_attributes, d, s, n);
 }
 
 template <
@@ -1759,7 +1803,8 @@ template <
    typename input_t,
    typename output_t,
    typename derivative_ids_t,
-   typename second_derivative_ids_t>
+   typename second_derivative_ids_t,
+   typename numerics_t>
 void DifferentiableOperator::AddIntegrator(
    qfunc_t &qfunc,
    input_t inputs,
@@ -1767,8 +1812,19 @@ void DifferentiableOperator::AddIntegrator(
    const IntegrationRule &integration_rule,
    const Array<int> &attributes,
    derivative_ids_t derivative_ids,
-   [[maybe_unused]] second_derivative_ids_t second_derivative_ids)
+   [[maybe_unused]] second_derivative_ids_t second_derivative_ids,
+   numerics_t numerics)
 {
+   static_assert(!numerics_has_v<DerivativeTolerance, numerics_t> ||
+                 derivative_ids_t::size() != 0,
+                 "MFEM_NUMERICS(DerivativeTolerance, x) requires derivatives");
+   static_assert(!numerics_has_v<DerivativeTolerance, numerics_t> ||
+                 (HasAllKernels(kernels, DerivativeKernels::Action) &&
+                  !check_if_functional_v<output_t>),
+                 "MFEM_NUMERICS(DerivativeTolerance, x) applies to the "
+                 "derivative action, DerivativeKernels::Action, of an "
+                 "integrator that is not a functional");
+
    static constexpr size_t num_inputs = tuple_size<input_t>::value;
    static constexpr size_t num_outputs = tuple_size<output_t>::value;
 
@@ -1900,7 +1956,7 @@ void DifferentiableOperator::AddIntegrator(
    };
 
    entity_callbacks.actions.push_back(
-      backend_t::MakeAction(ctx, qfunc, inputs, outputs));
+      backend_t::MakeAction(ctx, qfunc, inputs, outputs, numerics));
 
    [[maybe_unused]] auto make_field_descriptors = [&](auto fops)
    {
@@ -2103,7 +2159,7 @@ void DifferentiableOperator::AddIntegrator(
             action_cbs[callback_key].push_back(
                MakeSharedCallback<derivative_action_t>(
                   backend_t::template MakeDerivativeAction<derivative_idx>(
-                     callback_ctx, qf, inputs, outputs)));
+                     callback_ctx, qf, inputs, outputs, numerics)));
          }
       };
 
@@ -2206,7 +2262,7 @@ void DifferentiableOperator::AddIntegrator(
          // is ignored here.
          auto grad_impl =
             backend_t::MakeAction(first_derivative_ctx, dqfunc, inputs,
-                                  first_derivative_outputs);
+                                  first_derivative_outputs, Numerics<> {});
          auto grad_action = MakeSharedCallback<action_t>(std::move(grad_impl));
          derivative_action_t grad_callback =
             [grad_action](const std::vector<Vector *> &xe,

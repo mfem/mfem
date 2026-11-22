@@ -261,6 +261,10 @@ ifeq ($(MFEM_USE_CUDA),YES)
          $(error Cannot use nvcc with Enzyme! Set CUDA_CXX to CUDA-enabled \
                  clang++ or an MPI wrapper of that)
       endif
+      ifeq ($(MFEM_USE_POSEIDON),YES)
+         $(error Cannot use nvcc with Poseidon! Set CUDA_CXX to CUDA-enabled \
+                 clang++ or an MPI wrapper of that)
+      endif
       MFEM_HOST_CXX ?= $(HOST_CXX)
       CXXFLAGS += $(NVCC_FLAGS) -ccbin $(MFEM_HOST_CXX)
       XCOMPILER = $(CUDA_XCOMPILER)
@@ -325,8 +329,42 @@ ifeq ($(MAKECMDGOALS),config)
       $(eval $(call mfem_check_dependency,$(dep))))
 endif
 
+# Poseidon mode, see config/defaults.mk.
+ifeq ($(MFEM_USE_POSEIDON),YES)
+   ifeq ($(MFEM_POSEIDON_MODE),instrument)
+      POSEIDON_OPT += -fpass-plugin=$(POSEIDON_ENZYME_PLUGIN) \
+         $(POSEIDON_MLLVM) -poseidon-profile-generate
+      POSEIDON_LIB += -lposeidon_profile_host
+      ifeq ($(MFEM_USE_CUDA),YES)
+         POSEIDON_LIB += -lposeidon_profile_cuda
+      endif
+      ifeq ($(MFEM_USE_HIP),YES)
+         POSEIDON_LIB += -lposeidon_profile_hip
+      endif
+   else ifeq ($(MFEM_POSEIDON_MODE),optimize)
+      ifeq ($(MAKECMDGOALS),config)
+         ifeq ($(wildcard $(MFEM_POSEIDON_PROFILE:%=%/.)),)
+            $(error MFEM_POSEIDON_PROFILE = '$(MFEM_POSEIDON_PROFILE)' is not a \
+               directory. Set it to the profile written by running a build \
+               with MFEM_POSEIDON_MODE = instrument)
+         endif
+      endif
+      POSEIDON_OPT += $(POSEIDON_MLLVM) \
+         -poseidon-profile-use=$(abspath $(MFEM_POSEIDON_PROFILE))
+      ifeq ($(MFEM_USE_CUDA),YES)
+         POSEIDON_LIB += -lposeidon_rt -lcublas
+      endif
+      ifeq ($(MFEM_USE_HIP),YES)
+         POSEIDON_LIB += -lposeidon_rt_hip -lhipblas
+      endif
+   else ifneq ($(MFEM_POSEIDON_MODE),plain)
+      $(error Invalid MFEM_POSEIDON_MODE = $(MFEM_POSEIDON_MODE), use plain, \
+         instrument, or optimize)
+   endif
+endif
+
 # List of MFEM dependencies, processed below
-MFEM_DEPENDENCIES = ENZYME $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP
+MFEM_DEPENDENCIES = ENZYME POSEIDON $(MFEM_REQ_LIB_DEPS) LIBUNWIND OPENMP CUDA HIP
 
 # List of deprecated MFEM dependencies, processed below
 MFEM_LEGACY_DEPENDENCIES = OPENMP
@@ -376,6 +414,7 @@ MFEM_DEFINES = MFEM_VERSION MFEM_VERSION_STRING MFEM_GIT_STRING MFEM_USE_MPI\
  MFEM_USE_SIMD MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_MKL_PARDISO MFEM_USE_AMGX\
  MFEM_USE_MAGMA MFEM_USE_MUMPS MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_CALIPER\
  MFEM_USE_BENCHMARK MFEM_USE_PARELAG MFEM_USE_TRIBOL MFEM_USE_ALGOIM MFEM_USE_ENZYME\
+ MFEM_USE_POSEIDON\
  MFEM_SOURCE_DIR MFEM_INSTALL_DIR MFEM_SHARED_BUILD MFEM_USE_DOUBLE MFEM_USE_SINGLE\
  MFEM_USE_CUDSS MFEM_CUDSS_COMM_LIB MFEM_CUDSS_THREADING_LIB
 
@@ -778,6 +817,7 @@ status info:
 	$(info MFEM_USE_PARELAG       = $(MFEM_USE_PARELAG))
 	$(info MFEM_USE_TRIBOL        = $(MFEM_USE_TRIBOL))
 	$(info MFEM_USE_ENZYME        = $(MFEM_USE_ENZYME))
+	$(info MFEM_USE_POSEIDON      = $(MFEM_USE_POSEIDON))
 	$(info MFEM_CXX               = $(value MFEM_CXX))
 	$(info MFEM_HOST_CXX          = $(value MFEM_HOST_CXX))
 	$(info MFEM_CPPFLAGS          = $(value MFEM_CPPFLAGS))
@@ -805,7 +845,7 @@ ASTYLE = $(ASTYLE_BIN) --options=$(SRC)config/mfem.astylerc
 ASTYLE_VER = "Artistic Style Version 3.1"
 FORMAT_FILES = $(foreach dir,$(DIRS) $(EM_ALL_DIRS) config,$(dir)/*.?pp)
 TESTS_SUBDIRS = unit benchmarks convergence mem_manager par-mesh-format
-UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed enzyme dfem
+UNIT_TESTS_SUBDIRS = general linalg mesh fem miniapps ceed enzyme poseidon dfem
 MINIAPPS_SUBDIRS = dpg/util hooke/operators hooke/preconditioners \
    hooke/materials hooke/kernels
 FORMAT_FILES += $(foreach dir,$(TESTS_SUBDIRS),tests/$(dir)/*.?pp)

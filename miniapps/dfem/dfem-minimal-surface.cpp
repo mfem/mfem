@@ -362,7 +362,8 @@ public:
          DerivativeKernels::AssembleMatrix;
       res->AddDomainIntegrator<LocalQFBackend, kernels>(
          mf_apply_qf, input_operators, output_operators,
-         ir, all_domain_attr, derivatives);
+         ir, all_domain_attr, derivatives,
+         MFEM_NUMERICS(DerivativeTolerance, 1e-6));
 
       Array<int> ess_bdr(H1.GetParMesh()->bdr_attributes.Max());
       ess_bdr = 1;

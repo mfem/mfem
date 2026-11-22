@@ -71,6 +71,11 @@ int main(int argc, char *argv[])
    bool visualization = true;
    bool paraview = false;
    int visport = 19916;
+#ifdef MFEM_USE_SINGLE
+   real_t newton_rel_tol = 1e-4;
+#else
+   real_t newton_rel_tol = 1e-6;
+#endif
 
    if (Mpi::Root())
    {
@@ -87,6 +92,8 @@ int main(int argc, char *argv[])
                   " (0:Diagonal, 1:BlockDiagonal).");
    args.AddOption(&serial_refinement_levels, "-rs", "--ref-serial",
                   "Number of uniform refinements on the serial mesh.");
+   args.AddOption(&newton_rel_tol, "-rtol", "--newton-rel-tolerance",
+                  "Relative tolerance for the Newton solver.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -178,13 +185,7 @@ int main(int argc, char *argv[])
    NewtonSolver newton(MPI_COMM_WORLD);
    newton.SetSolver(cg);
    newton.SetOperator(elasticity_op);
-#ifdef MFEM_USE_SINGLE
-   newton.SetRelTol(1e-4);
-#elif defined MFEM_USE_DOUBLE
-   newton.SetRelTol(1e-6);
-#else
-   MFEM_ABORT("Floating point type undefined");
-#endif
+   newton.SetRelTol(newton_rel_tol);
    newton.SetMaxIter(10);
    newton.SetPrintLevel(1);
 

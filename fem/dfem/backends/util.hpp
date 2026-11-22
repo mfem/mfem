@@ -13,6 +13,7 @@
 #include "../../quadinterpolator.hpp"
 #include "../../quadinterpolator_face.hpp"
 #include "../../../general/enzyme.hpp"
+#include "../../../general/poseidon.hpp"
 #include "../../../linalg/dual.hpp"
 
 #include "scratch_bank.hpp"
@@ -1476,6 +1477,43 @@ MFEM_HOST_DEVICE static void call_qfunc_no_move(const func_t &func,
    call_qfunc_no_move_impl(func, args, std::make_integer_sequence<int, nargs> {});
 }
 
+template <typename func_t, typename... args_t>
+MFEM_HOST_DEVICE static void call_qfunc_body(const func_t *func,
+                                             args_t &...args)
+{
+   (*func)(args...);
+}
+
+/// Calls func(args...) with the accuracy target of @a tolerance_t, a Tolerance
+/// or DerivativeTolerance, see Numerics.
+template <typename tolerance_t, typename func_t, typename... args_t>
+MFEM_HOST_DEVICE static void call_qfunc_tolerance(const func_t &func,
+                                                  args_t &&...args)
+{
+   MFEM_POSEIDON_CALL_TAU(
+      tolerance_t::value,
+      (call_qfunc_body<func_t, std::remove_reference_t<args_t>...>),
+      &func, args...);
+}
+
+template <typename tolerance_t, typename func_t, typename args_t, int... Is>
+MFEM_HOST_DEVICE static void call_qfunc_tolerance_no_move_impl(
+   const func_t &func, args_t &args, std::integer_sequence<int, Is...>)
+{
+   call_qfunc_tolerance<tolerance_t>(func, get<Is>(args)...);
+}
+
+/// call_qfunc_no_move() with the accuracy target of @a tolerance_t, see
+/// call_qfunc_tolerance().
+template <typename tolerance_t, typename func_t, typename args_t>
+MFEM_HOST_DEVICE static void call_qfunc_tolerance_no_move(const func_t &func,
+                                                          args_t &args)
+{
+   constexpr int nargs = static_cast<int>(tuple_size<args_t>::value);
+   call_qfunc_tolerance_no_move_impl<tolerance_t>(
+      func, args, std::make_integer_sequence<int, nargs> {});
+}
+
 template <typename qfunc_t, typename... Args>
 inline MFEM_FORCE_INLINE
 MFEM_HOST_DEVICE static void enzyme_fwddiff_wrapper(qfunc_t *qf, Args &...args)
@@ -1627,6 +1665,32 @@ MFEM_HOST_DEVICE static void call_enzyme_fwddiff_active(
    detail::unused_qfunc_shadow qfunc_shadow;
    call_enzyme_fwddiff_active<Dup...>(qfunc, qfunc_shadow, primal_args,
                                       shadow_args);
+}
+
+// The activity mask is the trailing pack, so that the types before it can be
+// given explicitly.
+template <typename qfunc_t, typename primal_t, typename shadow_t, bool... Dup>
+MFEM_HOST_DEVICE static void call_enzyme_fwddiff_active_body(
+   qfunc_t *qfunc,
+   primal_t *primal_args,
+   shadow_t *shadow_args)
+{
+   call_enzyme_fwddiff_active<Dup...>(*qfunc, *primal_args, *shadow_args);
+}
+
+/// call_enzyme_fwddiff_active() with the accuracy target of @a tolerance_t, a
+/// Tolerance or DerivativeTolerance, see Numerics.
+template <typename tolerance_t, bool... Dup, typename qfunc_t,
+          typename primal_t, typename shadow_t>
+MFEM_HOST_DEVICE static void call_enzyme_fwddiff_active_tolerance(
+   qfunc_t &qfunc,
+   primal_t &primal_args,
+   shadow_t &shadow_args)
+{
+   MFEM_POSEIDON_CALL_TAU(
+      tolerance_t::value,
+      (call_enzyme_fwddiff_active_body<qfunc_t, primal_t, shadow_t, Dup...>),
+      &qfunc, &primal_args, &shadow_args);
 }
 #endif // MFEM_USE_ENZYME
 

@@ -1014,7 +1014,7 @@ inline void SmemPADiffusionApply3D(const int NE,
 
    mfem::forall_3D<T_Q1D*T_Q1D*T_Q1D>(NE,
                                       Q1D, Q1D, Q1D,
-                                      [=] MFEM_HOST_DEVICE (int e)
+                                      [=] MFEM_HOST_DEVICE (int e) MFEM_POSEIDON_OPTIMIZE
    {
       const int D1D = T_D1D ? T_D1D : d1d;
       const int Q1D = T_Q1D ? T_Q1D : q1d;

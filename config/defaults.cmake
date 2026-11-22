@@ -73,6 +73,7 @@ option(MFEM_USE_CODSPEED
 option(MFEM_USE_PARELAG "Enable ParELAG" OFF)
 option(MFEM_USE_TRIBOL "Enable Tribol" OFF)
 option(MFEM_USE_ENZYME "Enable Enzyme" OFF)
+option(MFEM_USE_POSEIDON "Enable Poseidon" OFF)
 
 # Optional overrides for autodetected MPIEXEC and MPIEXEC_NUMPROC_FLAG
 # set(MFEM_MPIEXEC "mpirun" CACHE STRING "Command for running MPI tests")
@@ -274,6 +275,14 @@ set(Tribol_REQUIRED_PACKAGES
     CACHE STRING "Additional packages required by Tribol")
 
 set(ENZYME_DIR "${MFEM_DIR}/../enzyme" CACHE PATH "Path to Enzyme")
+
+set(POSEIDON_DIR "${MFEM_DIR}/../poseidon" CACHE PATH "Path to Poseidon")
+set(MFEM_POSEIDON_MODE "plain" CACHE STRING
+    "Poseidon mode: plain, instrument, or optimize")
+set(MFEM_POSEIDON_PROFILE "" CACHE PATH
+    "Poseidon profile directory used in optimize mode")
+set(MFEM_POSEIDON_FLAGS "" CACHE STRING
+    "Additional Poseidon flags, e.g. -poseidon-tau=1e-12")
 
 set(BLAS_INCLUDE_DIRS "" CACHE STRING "Path to BLAS headers.")
 set(BLAS_LIBRARIES "" CACHE STRING "The BLAS library.")

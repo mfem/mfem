@@ -619,6 +619,14 @@ MFEM_USE_ENZYME = YES/NO
    config/defaults.mk. For more detailed instructions, see the section "Specific
    options for Enzyme" below.
 
+MFEM_USE_POSEIDON = YES/NO
+   Enables numerical rewriting through the LLVM plugin Poseidon, which rewrites
+   the floating-point computations annotated with the macros in
+   general/poseidon.hpp to run faster within an accuracy target, based on a
+   profile of a previous run. This requires the compiler, also as the CUDA or
+   HIP compiler, to be the clang Poseidon was built with. For more detailed
+   instructions, see the section "Specific options for Poseidon" below.
+
 MFEM_BUILD_TAG = (any value)
    An optional tag to characterize the build. Exported to config/config.mk.
    Can be used to identify the MFEM build from other makefiles.
@@ -925,6 +933,11 @@ The specific libraries and their options are:
   Options: ENZYME_DIR, ENZYME_OPT, ENZYME_LIB.
   Versions: Enzyme >= v0.0.176.
 
+- Poseidon, used when MFEM_USE_POSEIDON = YES. Part of Enzyme.
+  URL: https://github.com/EnzymeAD/Enzyme
+  Options: POSEIDON_DIR, POSEIDON_OPT, POSEIDON_LIB, MFEM_POSEIDON_MODE,
+  MFEM_POSEIDON_PROFILE, MFEM_POSEIDON_FLAGS.
+
 
 Building with CMake
 ===================
@@ -1078,6 +1091,7 @@ MFEM_USE_BENCHMARK
 MFEM_USE_PARELAG
 MFEM_USE_TRIBOL
 MFEM_USE_ENZYME
+MFEM_USE_POSEIDON
 
 The following options are CMake specific:
 
@@ -1146,6 +1160,7 @@ The CMake build system adds auto-detection for the following packages/libraries:
  - BENCHMARK
  - ParELAG
  - Enzyme
+ - Poseidon
 
 The following built-in CMake packages are also used:
 
@@ -1287,3 +1302,27 @@ From here, one can proceed in the same way using the following user.mk settings
 
 On other Linux systems the LLVM packages may have different names, for example
 on RHEL9, one needs to "sudo yum install llvm-devel libzstd clang-devel".
+
+Specific options for Poseidon
+=============================
+Poseidon is built and installed with Enzyme (CMake option ENZYME_POSEIDON=ON),
+and POSEIDON_DIR is that installation. The build follows profile-guided
+optimization, in the mode MFEM_POSEIDON_MODE:
+
+ - plain:      the annotated code is compiled as written.
+ - instrument: an application built with this MFEM writes a profile of the
+               annotated code when it runs, to ./poseidon.profile or to the
+               directory in the environment variable POSEIDON_PROFILE_DIR.
+ - optimize:   the annotated code is rewritten using the profile directory
+               MFEM_POSEIDON_PROFILE, for the accuracy target given in the
+               annotation or in MFEM_POSEIDON_FLAGS, e.g. -poseidon-tau=1e-12.
+
+Every mode compiles with -ffp-contract=on. For example, with GNU make and CUDA,
+
+   make config MFEM_USE_CUDA=YES CUDA_CXX=clang++ CUDA_ARCH=sm_120 \
+      MFEM_USE_POSEIDON=YES POSEIDON_DIR=$HOME/enzyme \
+      MFEM_POSEIDON_MODE=optimize MFEM_POSEIDON_PROFILE=poseidon.profile \
+      MFEM_POSEIDON_FLAGS=-poseidon-tau=1e-12
+
+configures the optimized build. With HIP, MFEM_USE_HIP=YES and HIP_CXX=clang++
+replace the CUDA variables. With CMake, the same variables are set with -D.

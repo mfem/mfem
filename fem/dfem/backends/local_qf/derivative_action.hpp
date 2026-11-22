@@ -11,6 +11,7 @@
 #pragma once
 
 #include "../../integrator_ctx.hpp"
+#include "../../numerics.hpp"
 
 #include "kernels.hpp"
 #include "util.hpp"
@@ -24,7 +25,8 @@ template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
-         typename entity_t>
+         typename entity_t,
+         typename numerics_t = Numerics<>>
 class DerivativeAction
 {
    static constexpr auto inout_tuple =
@@ -101,9 +103,19 @@ class DerivativeAction
                                              shadow_args_t &shadow_args,
                                              std::index_sequence<Is...>)
    {
-      mfem::future::call_enzyme_fwddiff_active <
-      (Is < n_inputs ? input_activity[Is] : true)... > (
-         qfunc, primal_args, shadow_args);
+      if constexpr (numerics_has_v<DerivativeTolerance, numerics_t>)
+      {
+         using tolerance_t = numerics_item_t<DerivativeTolerance, numerics_t>;
+         mfem::future::call_enzyme_fwddiff_active_tolerance <
+         tolerance_t, (Is < n_inputs ? input_activity[Is] : true)... > (
+            qfunc, primal_args, shadow_args);
+      }
+      else
+      {
+         mfem::future::call_enzyme_fwddiff_active <
+         (Is < n_inputs ? input_activity[Is] : true)... > (
+            qfunc, primal_args, shadow_args);
+      }
    }
 #endif
 
@@ -441,7 +453,16 @@ public:
                // --------------------------------------
                // Call the quadrature function
                // --------------------------------------
-               call_qfunc_no_move(qfunc, qargs);
+               if constexpr (numerics_has_v<DerivativeTolerance, numerics_t>)
+               {
+                  using tolerance_t =
+                     numerics_item_t<DerivativeTolerance, numerics_t>;
+                  call_qfunc_tolerance_no_move<tolerance_t>(qfunc, qargs);
+               }
+               else
+               {
+                  call_qfunc_no_move(qfunc, qargs);
+               }
 
                // --------------------------------------
                // Pushing arguments from qargs tuple to registers
@@ -590,17 +611,16 @@ template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
-         typename entity_t>
+         typename entity_t,
+         typename numerics_t>
 template<int DIM, int Q1D>
-inline typename
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
-DerivativeKernelType
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
-DerivativeActionLO::Kernel()
+inline auto
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t,
+                 numerics_t>::DerivativeActionLO::Kernel()
+                 -> DerivativeKernelType
 {
    static_assert(DIM >= 1 && DIM <= 3 && Q1D <= 8);
-   using derivative_action_t =
-      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
+   using derivative_action_t = DerivativeAction;
    return derivative_action_t::template derivative_action_callback<
              LocalQFLOBackend<DIM, Q1D>>;
 }
@@ -610,15 +630,14 @@ template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
-         typename entity_t>
-inline typename
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
-DerivativeKernelType
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
-DerivativeActionLO::Fallback(int dim, int q1d)
+         typename entity_t,
+         typename numerics_t>
+inline auto
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t,
+                 numerics_t>::DerivativeActionLO::Fallback(int dim, int q1d)
+                 -> DerivativeKernelType
 {
-   using derivative_action_t =
-      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
+   using derivative_action_t = DerivativeAction;
    using DerivativeActionLO =
       typename derivative_action_t::DerivativeActionLO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
@@ -630,16 +649,15 @@ template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
-         typename entity_t>
+         typename entity_t,
+         typename numerics_t>
 template<int DIM, int Q1D>
-inline typename
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
-DerivativeKernelType
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
-DerivativeActionHO::Kernel()
+inline auto
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t,
+                 numerics_t>::DerivativeActionHO::Kernel()
+                 -> DerivativeKernelType
 {
-   using derivative_action_t =
-      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
+   using derivative_action_t = DerivativeAction;
    return derivative_action_t::
           template derivative_action_callback<LocalQFHOBackend<DIM, Q1D>, Q1D>;
 }
@@ -649,15 +667,14 @@ template<int derivative_id,
          typename qfunc_t,
          typename inputs_t,
          typename outputs_t,
-         typename entity_t>
-inline typename
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
-DerivativeKernelType
-DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
-DerivativeActionHO::Fallback(int dim, int q1d)
+         typename entity_t,
+         typename numerics_t>
+inline auto
+DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t,
+                 numerics_t>::DerivativeActionHO::Fallback(int dim, int q1d)
+                 -> DerivativeKernelType
 {
-   using derivative_action_t =
-      DerivativeAction<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
+   using derivative_action_t = DerivativeAction;
    using DerivativeActionHO = typename derivative_action_t::DerivativeActionHO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
    return DispatchHOKernelByDim<DerivativeActionHO, QFDIM>(dim, q1d);
