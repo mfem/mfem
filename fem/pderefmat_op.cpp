@@ -175,10 +175,9 @@ void ParDerefineMatrixOp::Mult(const Vector &x, Vector &y) const
 void ParDerefineMatrixOp::MultTranspose(const Vector &x, Vector &y) const
 {
    MFEM_VERIFY(!fespace->IsVariableOrder() && fespace->GetVDim() == 1 &&
-               fespace->GetMesh()->Dimension() == 1 &&
                fespace->FEColl()->GetContType() ==
                FiniteElementCollection::DISCONTINUOUS,
-               "Derefinement transpose requires fixed-order scalar 1D DG.");
+               "Derefinement transpose requires fixed-order scalar DG.");
    const bool direct = Device::GetGPUAwareMPI();
    requests.clear();
    if (xghost_send.Size())

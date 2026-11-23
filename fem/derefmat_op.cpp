@@ -45,10 +45,9 @@ static void DerefMultKernelImpl(const DerefineMatrixOp &op, const Vector &x,
 void DerefineMatrixOp::MultTranspose(const Vector &x, Vector &y) const
 {
    MFEM_VERIFY(!fespace->IsVariableOrder() && fespace->GetVDim() == 1 &&
-               fespace->GetMesh()->Dimension() == 1 &&
                fespace->FEColl()->GetContType() ==
                FiniteElementCollection::DISCONTINUOUS,
-               "Derefinement transpose requires fixed-order scalar 1D DG.");
+               "Derefinement transpose requires fixed-order scalar DG.");
    y.UseDevice();
    internal::ScalarDGMergeTranspose(block_offsets.Size(), max_rows,
                                     block_storage.Read(), block_offsets.Read(),
