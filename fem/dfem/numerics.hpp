@@ -100,11 +100,11 @@ constexpr std::uint64_t bits_v = item_of<Tolerance, T>::bits +
 /// DifferentiableOperator::AddDomainIntegrator() or
 /// DifferentiableOperator::AddBoundaryIntegrator() after the attributes, the
 /// derivatives or the second derivatives, e.g.
-///
+/// @code
 ///    dop.AddDomainIntegrator<LocalQFBackend>(
 ///       qf, inputs, outputs, ir, attr, Derivatives<U> {},
 ///       MFEM_NUMERICS(DerivativeTolerance, 1e-6));
-///
+/// @endcode
 /// With MFEM_USE_POSEIDON, the q-function call of the action (Tolerance) or of
 /// the derivative action (DerivativeTolerance) is a Poseidon site with the
 /// accuracy target x of MFEM_NUMERICS(kind, x), see general/poseidon.hpp.
@@ -130,12 +130,11 @@ struct Numerics
                  "normal x");
 };
 
-/// @brief The numerical requirement @a kind, Tolerance or DerivativeTolerance,
-/// with the accuracy target @a x, a positive constant expression, see
-/// Numerics. Equal targets give the same type. Requirements are combined with
-/// |, e.g.
-///
-///    MFEM_NUMERICS(DerivativeTolerance, 1e-6) | MFEM_NUMERICS(Tolerance, 1e-9)
+// The numerical requirement kind, Tolerance or DerivativeTolerance, with the
+// accuracy target x, a positive constant expression, see Numerics. Equal
+// targets give the same type. Requirements are combined with |, e.g.
+//
+//    MFEM_NUMERICS(DerivativeTolerance, 1e-6) | MFEM_NUMERICS(Tolerance, 1e-9)
 #define MFEM_NUMERICS(kind, x)                                                \
    (::mfem::future::Numerics<::mfem::future::kind<                            \
     ::mfem::future::numerics_detail::encode(x)>> {})

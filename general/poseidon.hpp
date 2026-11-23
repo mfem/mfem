@@ -22,19 +22,19 @@
  */
 #include "poseidon/poseidon.h"
 
-/// Makes the function, kernel, or mfem::forall lambda it annotates a Poseidon
-/// site, with the accuracy target -poseidon-tau of MFEM_POSEIDON_FLAGS. On a
-/// lambda it follows the parameter list:
-/// `forall(N, [=] MFEM_HOST_DEVICE (int i) MFEM_POSEIDON_OPTIMIZE {...});`
+// Makes the function, kernel, or mfem::forall lambda it annotates a Poseidon
+// site, with the accuracy target -poseidon-tau of MFEM_POSEIDON_FLAGS. On a
+// lambda it follows the parameter list:
+// forall(N, [=] MFEM_HOST_DEVICE (int i) MFEM_POSEIDON_OPTIMIZE {...});
 #define MFEM_POSEIDON_OPTIMIZE POSEIDON_OPTIMIZE
 
-/// Same as MFEM_POSEIDON_OPTIMIZE, with the site's own accuracy target @a t.
+// Same as MFEM_POSEIDON_OPTIMIZE, with the site's own accuracy target t.
 #define MFEM_POSEIDON_OPTIMIZE_TAU(t) POSEIDON_OPTIMIZE_TAU(t)
 
-/// Makes the call fn(...), and only this call, a Poseidon site.
+// Makes the call fn(...), and only this call, a Poseidon site.
 #define MFEM_POSEIDON_CALL(fn, ...) __poseidon_optimize(fn, __VA_ARGS__)
 
-/// Same as MFEM_POSEIDON_CALL, with the call's own accuracy target @a t.
+// Same as MFEM_POSEIDON_CALL, with the call's own accuracy target t.
 #define MFEM_POSEIDON_CALL_TAU(t, fn, ...) \
    __poseidon_optimize_tau(t, fn, __VA_ARGS__)
 
