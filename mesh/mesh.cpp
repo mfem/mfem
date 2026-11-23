@@ -7144,10 +7144,7 @@ void Mesh::LoadNonconformingPatchTopo(std::istream &input,
       edge_to_ukv[j] = ukv;
    }
 
-   // don't generate any boundary elements, especially in parallel
-   constexpr bool generate_bdr = false;
-
-   FinalizeTopology(generate_bdr);
+   FinalizeTopology(/* generate_bdr: */ false);
    CheckBdrElementOrientation(); // check and fix boundary element orientation
 }
 
