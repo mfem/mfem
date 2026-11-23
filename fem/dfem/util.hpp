@@ -1036,6 +1036,34 @@ template <typename... Ts>
 constexpr bool check_if_functional_v<tuple<Ts...>> =
                                                    (is_functionalvalue_fop<std::decay_t<Ts>>() && ...);
 
+template <typename T>
+constexpr bool any_functional_output_v = false;
+
+template <typename... Ts>
+constexpr bool any_functional_output_v<tuple<Ts...>> =
+   (is_functionalvalue_fop<std::decay_t<Ts>>() || ...);
+
+template <typename... Ts>
+constexpr bool distinct_field_ids()
+{
+   constexpr int ids[] = {-1, Ts::GetFieldId()...};
+   for (size_t i = 1; i <= sizeof...(Ts); i++)
+   {
+      for (size_t j = i + 1; j <= sizeof...(Ts); j++)
+      {
+         if (ids[i] == ids[j]) { return false; }
+      }
+   }
+   return true;
+}
+
+template <typename T>
+constexpr bool distinct_field_ids_v = true;
+
+template <typename... Ts>
+constexpr bool distinct_field_ids_v<tuple<Ts...>> =
+   distinct_field_ids<std::decay_t<Ts>...>();
+
 
 namespace dfem
 {

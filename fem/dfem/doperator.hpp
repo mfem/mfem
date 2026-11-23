@@ -1822,6 +1822,17 @@ void DifferentiableOperator::AddIntegrator(
    static constexpr bool diagonal_second_derivatives =
       std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::Diagonal>>;
 
+   // Functional output checks: 
+   // - Functional outputs can't be mixed with other outputs.
+   // - Every FunctionalValue output needs its own field.
+   if constexpr (any_functional_output_v<output_t>)
+   {
+      static_assert(check_if_functional_v<output_t>,
+                  "FunctionalValue outputs can't be mixed with other outputs");
+      static_assert(distinct_field_ids_v<output_t>,
+                    "every FunctionalValue output needs its own field");
+   }
+
    // Second derivatives checks:
    // - Second derivatives are only available for functional integrators.
    // - If they are listed explicitly, every second derivative block has to
@@ -1850,6 +1861,19 @@ void DifferentiableOperator::AddIntegrator(
       create_descriptors_to_fields_map<entity_t>(infds, inputs);
    auto output_to_field =
       create_descriptors_to_fields_map<entity_t>(outfds, outputs);
+
+   // Check that functional and non-functional integrators are not mixed
+   MFEM_VERIFY(!HasCallbacks(&detail::OperatorCallbacks::actions) ||
+               has_functional_integrator == check_if_functional_v<output_t>,
+               "functional (FunctionalValue) and non-functional integrators "
+               "can't be mixed in one operator");
+   
+   // Keep track of whether the operator is a functional,
+   // so we can do the summation in Mult()
+   if constexpr (check_if_functional_v<output_t>)
+   {
+      has_functional_integrator = true;
+   }
 
    // TODO: factor out
    std::vector<int> inputs_vdim(num_inputs);
@@ -2111,7 +2135,6 @@ void DifferentiableOperator::AddIntegrator(
 
       if constexpr (check_if_functional_v<output_t>)
       {
-         has_functional_integrator = true;
          functional_derivative_ids.insert(idx);
 
          // Check dependencies of the quadrature function inputs for the derivative
