@@ -17,8 +17,8 @@ inputs:
     description: 'Whether to build for parallel (true/false)'
     default: false
   sanitizer:
-    description: 'Sanitizer to use (asan, msan, ubsan)'
-    default: asan
+    description: 'Sanitizer set to use (asan-ubsan, msan)'
+    default: asan-ubsan
   cache-path:
     description: 'path to what needs to be restored'
     default: none

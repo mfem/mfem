@@ -590,15 +590,9 @@ void QuadratureFunctions1D::GaussJacobi(const int np, const real_t alpha,
          if (done) { break; }
 
          dz = p1/pp;
-#ifdef MFEM_USE_SINGLE
-         if (std::abs(dz) < 1e-7)
-#elif defined MFEM_USE_DOUBLE
-         if (std::abs(dz) < std::numeric_limits<real_t>::epsilon())
-            // this seems to cause trouble if we try std::abs(dz) < 1e-16
-#else
-         MFEM_ABORT("Floating point type undefined");
-         // if (std::abs(dz) < 1e-16)
-#endif
+         // using 1e-16 seems to cause trouble in double precision
+         if (std::abs(dz) < MFEM_PRECISION_SWITCH(
+                std::numeric_limits<real_t>::epsilon(),1e-7f))
          {
             done = true;
             xi = z - dz;
@@ -665,14 +659,7 @@ void QuadratureFunctions1D::GaussLegendre(const int np, IntegrationRule* ir)
          if (done) { break; }
 
          dz = p1/pp;
-#ifdef MFEM_USE_SINGLE
-         if (std::abs(dz) < 1e-7)
-#elif defined MFEM_USE_DOUBLE
-         if (std::abs(dz) < 1e-16)
-#else
-         MFEM_ABORT("Floating point type undefined");
-         if (std::abs(dz) < 1e-16)
-#endif
+         if (std::abs(dz) < MFEM_PRECISION_SWITCH(1e-16,1e-7f))
          {
             done = true;
             // map the new point (z-dz) to (0,1):
@@ -787,14 +774,7 @@ void QuadratureFunctions1D::GaussLobatto(const int np, IntegrationRule* ir)
 
             // compute dx = resid/deriv
             real_t dx = (x_i*p_l - p_lm1) / (np*p_l);
-#ifdef MFEM_USE_SINGLE
-            if (std::abs(dx) < 1e-7)
-#elif defined MFEM_USE_DOUBLE
-            if (std::abs(dx) < 1e-16)
-#else
-            MFEM_ABORT("Floating point type undefined");
-            if (std::abs(dx) < 1e-16)
-#endif
+            if (std::abs(dx) < MFEM_PRECISION_SWITCH(1e-16,1e-7f))
             {
                done = true;
                // Map the point to the interval [0,1]
@@ -1156,7 +1136,7 @@ IntegrationRules IntRules(0, Quadrature1D::GaussLegendre);
 IntegrationRules RefinedIntRules(1, Quadrature1D::GaussLegendre);
 
 IntegrationRules::IntegrationRules(int ref, int type)
-   : quad_type(type)
+   : quad_type(type), user_set_rules(Geometry::NUM_GEOMETRIES)
 {
    refined = ref;
 
@@ -1282,9 +1262,35 @@ void IntegrationRules::Set(int GeomType, int Order, IntegrationRule &IntRule)
 
    (*ir_array)[Order] = &IntRule;
 
+   user_set_rules[GeomType].insert(Order);
+
 #if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
    omp_unset_lock(&IntRuleLocks[GeomType]);
 #endif
+}
+
+bool IntegrationRules::IsUserSet(int GeomType, int Order) const
+{
+   if (GeomType < Geometry::POINT || GeomType >= Geometry::NUM_GEOMETRIES)
+   {
+      MFEM_ABORT("Unknown type of reference element!");
+   }
+
+   // Match the order normalization in Get().
+   const int order = (GeomType == Geometry::POINT || Order < 0) ? 0 : Order;
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   omp_set_lock(&IntRuleLocks[GeomType]);
+#endif
+
+   const bool is_user_set =
+      user_set_rules[GeomType].count(order) > 0;
+
+#if defined(MFEM_THREAD_SAFE) && defined(MFEM_USE_OPENMP)
+   omp_unset_lock(&IntRuleLocks[GeomType]);
+#endif
+
+   return is_user_set;
 }
 
 void IntegrationRules::DeleteIntRuleArray(

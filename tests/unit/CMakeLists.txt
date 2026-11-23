@@ -41,6 +41,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_mass.cpp
   dfem/test_tuple.cpp
   general/test_array.cpp
+  general/test_backends.cpp
   general/test_scan.cpp
   general/test_arrays_by_name.cpp
   general/test_communication.cpp
@@ -52,6 +53,7 @@ set(UNIT_TESTS_SRCS
   general/test_umpire_mem.cpp
   general/test_zlib.cpp
   linalg/test_amgfsolver.cpp
+  linalg/test_amgxsolver.cpp
   linalg/test_cg_indefinite.cpp
   linalg/test_chebyshev.cpp
   linalg/test_complex_dense_matrix.cpp
@@ -133,6 +135,7 @@ set(UNIT_TESTS_SRCS
   fem/test_getgradients.cpp
   fem/test_gslib.cpp
   fem/test_hp_transfer.cpp
+  fem/test_hyperbolic.cpp
   fem/test_intrules.cpp
   fem/test_intruletypes.cpp
   fem/test_inversetransform.cpp
@@ -170,6 +173,7 @@ set(UNIT_TESTS_SRCS
   fem/test_sum_bilin.cpp
   fem/test_surf_blf.cpp
   fem/test_tet_reorder.cpp
+  fem/test_tmop.cpp
   fem/test_transfer.cpp
   fem/test_var_order.cpp
   fem/test_white_noise.cpp
