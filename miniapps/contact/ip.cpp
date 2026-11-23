@@ -361,14 +361,18 @@ IPSolver::NewtonResult IPSolver::ComputeSearchDirection(
    const auto &regularization = options.regularization;
    NewtonResult newton = IPNewtonSolve(iterate, direction, ip_step,
                                        state.barrier_parameter);
-   if (!newton.converged) { return newton; }
-   if (!newton.passed_curvature_test)
+   // An indefinite tangent can make CG fail before a direction is available
+   // for the curvature test. Retry it with the same bounded regularization
+   // sequence used for a direction with insufficient curvature.
+   if (!newton.converged || !newton.passed_curvature_test)
    {
       if (myid == 0 && options.print_level > 0)
       {
          contact_output::PrintDebugSection(mfem::out, "REGULARIZATION");
-         contact_output::PrintDebugField(mfem::out, "Curvature test",
-                                         "failed; retrying with regularization");
+         contact_output::PrintDebugField(mfem::out, "Newton direction",
+                                         newton.converged ?
+                                         "curvature test failed; retrying with regularization" :
+                                         "linear solve failed; retrying with regularization");
       }
       real_t deltaReg = 0.0;
       const int maxCurvatureTests = regularization.max_curvature_tests;
@@ -391,7 +395,6 @@ IPSolver::NewtonResult IPSolver::ComputeSearchDirection(
       for (int numCurvatureTests = 0; numCurvatureTests < maxCurvatureTests;
            numCurvatureTests++)
       {
-         if (!newton.converged) { break; }
          if (myid == 0 && options.print_level > 0)
          {
             contact_output::PrintDebugField(mfem::out, "Regularization shift",
@@ -399,7 +402,7 @@ IPSolver::NewtonResult IPSolver::ComputeSearchDirection(
             contact_output::PrintDebugField(mfem::out, "Curvature test",
                                             newton.passed_curvature_test ? "passed" : "failed");
          }
-         if (newton.passed_curvature_test)
+         if (newton.converged && newton.passed_curvature_test)
          {
             state.last_regularization = deltaReg;
             break;
@@ -708,19 +711,42 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
    }
 
    // Solve the system with the given solver
-   solver->SetOperator(constrained ? *Areduced : *workspace.Wuu);
+   const HypreParMatrix &reduced_operator = constrained ? *Areduced :
+                                            *workspace.Wuu;
+   solver->SetOperator(reduced_operator);
    solver->Mult(breduced, Xhat.GetBlock(0));
    auto itsolver = dynamic_cast<IterativeSolver *>(solver);
    int numit = (itsolver) ? itsolver->GetNumIterations() : -1;
    state.linear_iterations.Append(numit);
-   if (options.print_linear_solver_statistics && itsolver && myid == 0)
-   {
-      PrintLinearSolverStatistics(ip_step, *itsolver);
-   }
    int local_success = (!itsolver || itsolver->GetConverged()) &&
                        IsFinite(FiniteNormlinf(Xhat.GetBlock(0), workspace.reduction));
    int global_success;
    MPI_Allreduce(&local_success, &global_success, 1, MPI_INT, MPI_MIN, comm);
+   if (options.print_linear_solver_statistics)
+   {
+      real_t initial_norm, final_norm;
+      if (itsolver)
+      {
+         initial_norm = itsolver->GetInitialNorm();
+         final_norm = itsolver->GetFinalNorm();
+      }
+      else
+      {
+         // Direct solvers do not expose iteration statistics. Report the
+         // global RHS norm and the measured residual of the returned solution.
+         Vector residual(breduced.Size());
+         residual.UseDevice(true);
+         reduced_operator.Mult(Xhat.GetBlock(0), residual);
+         residual -= breduced;
+         initial_norm = GlobalLpNorm(2.0, breduced.Norml2(), comm);
+         final_norm = GlobalLpNorm(2.0, residual.Norml2(), comm);
+      }
+      if (myid == 0)
+      {
+         PrintLinearSolverStatistics(ip_step, global_success != 0,
+                                     initial_norm, final_norm, numit);
+      }
+   }
    if (!global_success)
    {
       direction.SyncFromNewton();
@@ -761,12 +787,13 @@ IPSolver::NewtonResult IPSolver::IPNewtonSolve(
 }
 
 void IPSolver::PrintLinearSolverStatistics(
-   int ip_step, const IterativeSolver &linear_solver) const
+   int ip_step, bool solved, real_t initial_norm, real_t final_norm,
+   int iterations) const
 {
    using namespace contact_output;
    const std::array<int, 5> widths = {8, 13, 21, 19, 13};
    std::ostringstream table;
-   // Debug diagnostics separate CG rows, so repeat the header for each solve.
+   // Debug diagnostics separate rows, so repeat the header for each solve.
    if (state.linear_iterations.Size() == 1 || options.print_level > 0)
    {
       PrintTableRow(table, widths,
@@ -779,10 +806,10 @@ void IPSolver::PrintLinearSolverStatistics(
    PrintTableRow(table, widths,
    {
       std::to_string(ip_step),
-      linear_solver.GetConverged() ? "Converged" : "Not converged",
-      Scientific(linear_solver.GetInitialNorm()),
-      Scientific(linear_solver.GetFinalNorm()),
-      std::to_string(linear_solver.GetNumIterations())
+      solved ? (iterations < 0 ? "Solved" : "Converged") : "Not converged",
+      Scientific(initial_norm),
+      Scientific(final_norm),
+      iterations < 0 ? "-" : std::to_string(iterations)
    });
    mfem::out << table.str() << std::flush;
 }

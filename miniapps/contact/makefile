@@ -38,17 +38,21 @@ endif
 
 
 ifeq ($(MFEM_USE_TRIBOL)$(MFEM_USE_MPI),YESYES)
-   MINIAPPS = contact
-   CONTACT_SRC = elastoperator.cpp optcontactproblem.cpp ip.cpp solver_utils.cpp neo_hookean.cpp
+   MINIAPPS = contact contact_examples
+   CONTACT_SRC = elastoperator.cpp optcontactproblem.cpp ip.cpp solver_utils.cpp neo_hookean.cpp contact_driver.cpp driver_output.cpp mesh_generator.cpp
 else
    MINIAPPS = 
    CONTACT_SRC = 
-   .PHONY: contact
-   contact:
+   .PHONY: contact contact_examples
+   contact contact_examples:
 	@echo "Rebuild MFEM with MFEM_USE_TRIBOL=YES and MFEM_USE_MPI=YES to build the contact miniapp."
 endif
 
 CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
+.DEFAULT_GOAL := all
+ifeq ($(strip $(MINIAPPS)),)
+all: contact contact_examples
+endif
 
 .SUFFIXES:
 .SUFFIXES: .o .cpp .mk
@@ -58,31 +62,33 @@ CONTACT_OBJ = $(CONTACT_SRC:.cpp=.o)
 %: %.cpp
 %.o: %.cpp
 
-$(MINIAPPS): %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONTACT_OBJ) $(CONFIG_MK)
+ifneq ($(strip $(MINIAPPS)),)
+contact contact_examples: %: $(SRC)%.cpp $(MFEM_LIB_FILE) $(CONTACT_OBJ) $(CONFIG_MK)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@.o
 	$(MFEM_CXX) $(filter-out -x=cu,$(MFEM_FLAGS)) $@.o -o $@ $(CONTACT_OBJ) $(MFEM_LIBS) \
 		-l$(patsubst lib%,%,$(basename $(notdir $(MFEM_LIB_FILE))))
 
+endif
+
 %.o: $(SRC)%.cpp $(wildcard $(SRC)%.hpp) $(MFEM_LIB_FILE)\
  $(CONFIG_MK) | 
+	@mkdir -p $(dir $@)
 	$(MFEM_CXX) $(MFEM_FLAGS) -c $< -o $@
 
 all: $(MINIAPPS)
 
-ip.o contact: $(SRC)contact_output.hpp
+ip.o driver_output.o: $(SRC)contact_output.hpp
+contact_driver.o driver_output.o: $(SRC)driver_output.hpp
+driver_output.o: $(SRC)ip.hpp $(SRC)optcontactproblem.hpp $(SRC)elastoperator.hpp
+contact_driver.o: $(SRC)solver_utils.hpp
+contact contact_examples contact_driver.o: $(SRC)contact_driver.hpp
+contact contact_examples mesh_generator.o: $(SRC)mesh_generator.hpp
 elastoperator.o: $(SRC)neo_hookean.hpp
+ip.o: $(SRC)optcontactproblem.hpp $(SRC)elastoperator.hpp $(SRC)solver_utils.hpp
+optcontactproblem.o: $(SRC)elastoperator.hpp
+contact contact_examples contact_driver.o: $(SRC)elastoperator.hpp $(SRC)optcontactproblem.hpp $(SRC)ip.hpp
 
-MFEM_TESTS = MINIAPPS
-include $(MFEM_TEST_MK)
-
-RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
-TEST_NAME := Contact miniapp
-%-test-par: %
-	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
-%-test-seq: %
-	@$(call mfem-test,$<,, $(TEST_NAME))
-
-clean: clean-build clean-exec
+clean: clean-build
 
 clean-build:
 	rm -f $(CONTACT_OBJ) $(MINIAPPS:=.o) *~ $(MINIAPPS)

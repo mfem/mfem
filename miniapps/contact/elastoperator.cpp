@@ -24,7 +24,7 @@ void ElasticityOperator::Init()
    action_work.UseDevice(true);
 
    int dim = pmesh->Dimension();
-   fec = new H1_FECollection(order,dim);
+   fec = new H1_FECollection(1,dim);
    fes = new ParFiniteElementSpace(pmesh,fec,dim,Ordering::byVDIM);
    globalntdofs = fes->GlobalTrueVSize();
    state_work.SetSize(fes->GetTrueVSize());
@@ -145,7 +145,22 @@ void ElasticityOperator::SetDisplacementDirichletData(const Vector & delta,
                                                       Array<int> essbdr)
 {
    VectorConstantCoefficient delta_cf(delta);
-   x.ProjectBdrCoefficient(delta_cf,essbdr);
+   SetDisplacementDirichletData(delta_cf, essbdr);
+}
+
+void ElasticityOperator::SetDisplacementDirichletData(
+   VectorCoefficient & delta, const Array<int> & essbdr)
+{
+   x.ProjectBdrCoefficient(delta, essbdr);
+}
+
+void ElasticityOperator::AddEssentialTrueDofs(const Array<int> &dofs)
+{
+   MFEM_VERIFY(nonlinear && !formsystem,
+               "Extend essential DOFs before forming a nonlinear system.");
+   ess_tdof_list.Append(dofs);
+   ess_tdof_list.Sort();
+   ess_tdof_list.Unique();
 }
 
 void ElasticityOperator::FormLinearSystem()

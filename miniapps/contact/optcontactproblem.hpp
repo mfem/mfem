@@ -141,6 +141,7 @@ private:
 
    /// Lumped volume mass vector.
    Vector Mvlump;
+   bool displacement_weights_initialized = false;
 
    /// Lumped contact surface mass (full).
    Vector Mcslumpfull;
@@ -212,7 +213,7 @@ public:
       return constraint_layout;
    }
 
-   /// Fixed displacement-space weights, updated by FormContactSystem().
+   /// Positive reference displacement-space weights, initialized by FormContactSystem().
    const Vector &GetDisplacementWeights() const { return Mvlump; }
 
    /// Get MPI communicator.

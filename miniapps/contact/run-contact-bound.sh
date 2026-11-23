@@ -13,6 +13,7 @@ case $host in
 esac
 cores=${CORES_PER_RANK:-}
 ranks=${CONTACT_RANKS:-$default_ranks}
+driver=${CONTACT_DRIVER:-contact}
 worker=0
 if [[ ${1:-} == --rank ]]; then
   worker=1
@@ -36,9 +37,17 @@ else
         cores=$2
         shift 2
         ;;
+      --driver)
+        if (( $# < 2 )); then
+          echo "--driver requires contact or contact_examples" >&2
+          exit 2
+        fi
+        driver=$2
+        shift 2
+        ;;
       --help)
         cat <<'EOF'
-Usage: ./run-contact-bound.sh [--ranks N] [--cores N] [--] [CONTACT_OPTIONS...]
+Usage: ./run-contact-bound.sh [--driver contact|contact_examples] [--ranks N] [--cores N] [--] [CONTACT_OPTIONS...]
 
 On trike: OpenMPI with CPU/CUDA, default 1 rank and 1 core per rank.
 CUDA ranks share device 0 in CUDA_VISIBLE_DEVICES (default physical GPU 0).
@@ -46,6 +55,7 @@ On LC: one allocated node, default 4 ranks; CPU uses Flux and HIP uses srun.
 LC HIP runs use 1 to 4 ranks, one GPU per rank, default 4 cores per rank.
 --cores sets CPU cores per rank (default 1 for CPU).
 All contact options are passed through verbatim.
+contact accepts problems 0..2; contact_examples accepts 3..8.
 With no CONTACT_OPTIONS, the saved default case is used.
 On LC, the HYPRE GPU-aware MPI option automatically enables MPICH GPU support.
 
@@ -53,7 +63,7 @@ Examples:
   ./run-contact-bound.sh
   # Trike (CUDA):
   ./run-contact-bound.sh --ranks 1 -- -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4 -amgf -amgf-fsolver mumps -fa -d cuda -no-vis -no-paraview
-  ./run-contact-bound.sh --ranks 1 -- -prob 6 -sr 0 -nsteps 32 -msteps 32 -amgf -amgf-fsolver mumps -d cuda -no-vis -paraview
+  ./run-contact-bound.sh --driver contact_examples --ranks 1 -- -prob 6 -sr 0 -nsteps 32 -msteps 32 -amgf -amgf-fsolver mumps -d cuda -no-vis -paraview
   # LC (HIP):
   ./run-contact-bound.sh --ranks 4 -- -prob 2 -sr 1 -pr 0 -tr 2 -nsteps 4 -msteps 0 -amgf -amgf-fsolver strumpack -fa -d hip
   ./run-contact-bound.sh --ranks 2 --cores 8 -- -prob 2 -sr 1 -d hip
@@ -72,8 +82,15 @@ EOF
     esac
   done
 fi
+case $driver in
+  contact|contact_examples) ;;
+  *) echo "--driver must be contact or contact_examples" >&2; exit 2 ;;
+esac
 if (( $# == 0 )); then
-  if (( trike )); then
+  if [[ $driver == contact_examples ]]; then
+    set -- -prob 8 -sr 0 -pr 0 -strip-nx 4 -twist-angle 360 \
+      -nsteps 36 -msteps 0 -amgf -amgf-fsolver auto -d cpu -no-vis -paraview
+  elif (( trike )); then
     set -- -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4 -msteps 0 \
       -amgf -amgf-fsolver mumps -fa -d cuda
   else
@@ -144,6 +161,7 @@ if [[ $backend == cpu ]] && (( hypre_gpu_mpi )); then
 fi
 export CORES_PER_RANK=$cores
 export CONTACT_RANKS=$ranks
+export CONTACT_DRIVER=$driver
 
 # Enabling HYPRE device-buffer communication also requires MPI GPU support.
 if (( ! trike )); then
@@ -180,14 +198,14 @@ if (( worker )); then
     cpu_list=$(awk '/^Cpus_allowed_list:/ {print $2}' /proc/self/status)
     printf 'host=%s rank=%s gpu=%s cpus=%s mpi=openmpi hypre_gpu=%s\n' \
       "$(hostname)" "$rank" "$gpu" "$cpu_list" "$hypre_gpu_mpi" >&2
-    exec ./contact "$@"
+    exec "./$driver" "$@"
   fi
 
   if [[ $backend == cpu ]]; then
     cpu_list=$(awk '/^Cpus_allowed_list:/ {print $2}' /proc/self/status)
     printf 'host=%s rank=%s gpu=none numa=local cpus=%s mpich_gpu=0 hypre_gpu=0\n' \
       "$(hostname)" "$rank" "$cpu_list" >&2
-    exec numactl --localalloc ./contact "$@"
+    exec numactl --localalloc "./$driver" "$@"
   fi
 
   # One physical-core range per GPU/NUMA node, with no overlap between ranks.
@@ -207,7 +225,7 @@ if (( worker )); then
   printf 'host=%s rank=%s gpu=%s numa=%s cpus=%s mpich_gpu=%s hypre_gpu=%s\n' \
     "$(hostname)" "$rank" "$ROCR_VISIBLE_DEVICES" "$rank" "$cpu_list" \
     "${MPICH_GPU_SUPPORT_ENABLED}" "$hypre_gpu_mpi" >&2
-  exec numactl --membind="$rank" ./contact "$@"
+  exec numactl --membind="$rank" "./$driver" "$@"
 fi
 
 if (( trike )); then

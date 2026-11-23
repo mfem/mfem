@@ -93,7 +93,7 @@ public:
    /// separate switch; the driver enables these diagnostics only at level 3.
    void SetPrintLevel(int print_level_) { options.print_level = print_level_; };
 
-   /// Print one table row for each completed iterative linear solve.
+   /// Print one table row for each completed iterative or direct linear solve.
    void SetPrintLinearSolverStatistics(bool print)
    { options.print_linear_solver_statistics = print; }
 
@@ -288,7 +288,9 @@ private:
                               int ip_step, real_t, real_t delta = 0.0);
 
    /// Report the last linear solve without changing the output stream format.
-   void PrintLinearSolverStatistics(int ip_step, const IterativeSolver&) const;
+   void PrintLinearSolverStatistics(int ip_step, bool solved,
+                                    real_t initial_norm, real_t final_norm,
+                                    int iterations) const;
 
    /// Max step length that satisfies fraction-to-boundary rule
    real_t GetMaxStepSize(const Vector&, const Vector&, real_t);

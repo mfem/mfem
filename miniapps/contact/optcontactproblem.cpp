@@ -306,6 +306,9 @@ void OptContactProblem::ReleaseMemory()
 void OptContactProblem::ComputeGapJacobian()
 {
    J.reset();
+   ParMesh *contact_mesh = problem->GetMesh();
+   ParGridFunction *contact_coords = coords;
+   const Array<int> *contact_ess = &problem->GetEssentialDofs();
    // One Tribol coupling scheme per contact interface. The gap Jacobians are
    // stacked row-wise, and the gaps and lumped masses are concatenated in the
    // same order (StackContactJacobians stacks local rows block by block).
@@ -319,12 +322,12 @@ void OptContactProblem::ComputeGapJacobian()
       gaps[i].UseDevice(true);
       mcslumps[i].UseDevice(true);
       const ContactInterface &interface = contact_interfaces[i];
-      interface_jacobians[i].reset(SetupTribol(
-                                      problem->GetMesh(), coords,
-                                      problem->GetEssentialDofs(),
-                                      interface.mortar_attrs,
-                                      interface.nonmortar_attrs,
-                                      gaps[i], mcslumps[i], tribol_ratio));
+      std::unique_ptr<HypreParMatrix> surface_jacobian(SetupTribol(
+                                                          contact_mesh, contact_coords, *contact_ess,
+                                                          interface.mortar_attrs,
+                                                          interface.nonmortar_attrs,
+                                                          gaps[i], mcslumps[i], tribol_ratio));
+      interface_jacobians[i] = std::move(surface_jacobian);
       Js[i] = interface_jacobians[i].get();
       ngap += gaps[i].Size();
    }
@@ -435,7 +438,11 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
    negIu.reset(MakeDiagonalHypreParMatrix(comm, GetGlobalNumDofs(), GetDofStarts(),
                                           diagVec));
 
-   AssembleVectorLumpedMass(*vfes, Mvlump);
+   if (!displacement_weights_initialized)
+   {
+      AssembleVectorLumpedMass(*vfes, Mvlump);
+      displacement_weights_initialized = true;
+   }
    UpdateConstraintLayout();
 
    if (!dl.Size())

@@ -52,9 +52,6 @@ private:
    /// Essential DOFs (true DOF list) and component-based attributes.
    Array<int> ess_tdof_list, ess_bdr_attr_comp;
 
-   /// Polynomial order of the FE basis (default = 1).
-   int order=1;
-
    /// Global number of true DOFs in the FE space.
    int globalntdofs;
 
@@ -130,6 +127,13 @@ public:
 
    /// Apply Dirichlet (displacement) boundary condition on a set of boundary markers.
    void SetDisplacementDirichletData(const Vector & delta, Array<int> essbdr);
+
+   /// Apply a spatially varying displacement on boundary markers.
+   void SetDisplacementDirichletData(VectorCoefficient & delta,
+                                     const Array<int> & essbdr);
+
+   /// Extend the essential true-DOF list before forming a nonlinear system.
+   void AddEssentialTrueDofs(const Array<int> &dofs);
 
    /// Assemble and form the linear system (matrix and RHS).
    void FormLinearSystem();

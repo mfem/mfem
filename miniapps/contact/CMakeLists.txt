@@ -15,40 +15,47 @@ if (MFEM_USE_TRIBOL AND MFEM_USE_MPI)
   optcontactproblem.cpp
   elastoperator.cpp
   solver_utils.cpp
-  neo_hookean.cpp)
+  neo_hookean.cpp
+  contact_driver.cpp
+  mesh_generator.cpp
+  driver_output.cpp)
   list(APPEND CONTACT_HEADERS
   contact_output.hpp
   ip.hpp
   optcontactproblem.hpp
   elastoperator.hpp
   solver_utils.hpp
-  neo_hookean.hpp)
+  neo_hookean.hpp
+  contact_driver.hpp
+  mesh_generator.hpp
+  driver_output.hpp)
 
   convert_filenames_to_full_paths(CONTACT_SOURCES)
   convert_filenames_to_full_paths(CONTACT_HEADERS)
 
-  set(CONTACT_COMMON_FILES
-      EXTRA_SOURCES ${CONTACT_SOURCES}
-      EXTRA_HEADERS ${CONTACT_HEADERS})
-
   add_mfem_miniapp(contact
     MAIN contact.cpp
-    ${CONTACT_COMMON_FILES}
+    EXTRA_SOURCES ${CONTACT_SOURCES}
+    EXTRA_HEADERS ${CONTACT_HEADERS}
     LIBRARIES mfem)
 
-  if (MFEM_USE_CUDA OR MFEM_USE_HIP)
-    # Device-enabled Tribol dependencies require C++20; MFEM may use C++17.
-    target_compile_features(contact PRIVATE cxx_std_20)
-    if (MFEM_USE_CUDA)
-      set_property(TARGET contact PROPERTY CUDA_STANDARD 20)
-      set_property(TARGET contact PROPERTY CUDA_STANDARD_REQUIRED ON)
-    endif()
-  endif()
+  add_mfem_miniapp(contact_examples
+    MAIN contact_examples.cpp
+    EXTRA_SOURCES ${CONTACT_SOURCES}
+    EXTRA_HEADERS ${CONTACT_HEADERS}
+    LIBRARIES mfem)
 
-# The way the libraries are included, by default, in the command line is based
-# on the idea that MFEM depends on the other libraries. Here, the setting is
-# such that Tribol, in fact, depends on MFEM, while MFEM does not depend on
-# Tribol. This addresses that issue.
-  target_link_libraries(contact PUBLIC ${TPL_LIBRARIES} mfem)
+  foreach(driver contact contact_examples)
+    if (MFEM_USE_CUDA OR MFEM_USE_HIP)
+      # Device-enabled Tribol dependencies require C++20; MFEM may use C++17.
+      target_compile_features(${driver} PRIVATE cxx_std_20)
+      if (MFEM_USE_CUDA)
+        set_property(TARGET ${driver} PROPERTY CUDA_STANDARD 20)
+        set_property(TARGET ${driver} PROPERTY CUDA_STANDARD_REQUIRED ON)
+      endif()
+    endif()
+    # Tribol depends on MFEM; place MFEM after its third-party libraries too.
+    target_link_libraries(${driver} PUBLIC ${TPL_LIBRARIES} mfem)
+  endforeach()
 
 endif ()
