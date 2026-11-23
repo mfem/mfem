@@ -1843,13 +1843,14 @@ void DifferentiableOperator::AddIntegrator(
 
    // Functional output checks:
    // - Functional outputs can't be mixed with other outputs.
-   // - Every FunctionalValue output needs its own field.
+   // - A functional integrator has a single FunctionalValue output.
    if constexpr (any_functional_output_v<output_t>)
    {
       static_assert(check_if_functional_v<output_t>,
                     "FunctionalValue outputs can't be mixed with other outputs");
-      static_assert(distinct_field_ids_v<output_t>,
-                    "every FunctionalValue output needs its own field");
+      static_assert(num_outputs == 1,
+                    "a functional integrator has a single FunctionalValue "
+                    "output");
    }
 
    // Second derivatives checks:
