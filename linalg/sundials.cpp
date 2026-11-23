@@ -258,12 +258,38 @@ SundialsMemHelper::SundialsMemHelper(SUNContext context)
 {
    /* Allocate helper */
    h = SUNMemoryHelper_NewEmpty(context);
+   MFEM_VERIFY(h, "Failed to create SUNDIALS memory helper");
+   h->content = new Allocations(std::make_shared<AllocationMap>());
 
    /* Set the ops */
    h->ops->alloc     = SundialsMemHelper_Alloc;
    h->ops->dealloc   = SundialsMemHelper_Dealloc;
    h->ops->copy      = SUN_Hip_OR_Cuda(SUNMemoryHelper_Copy);
    h->ops->copyasync = SUN_Hip_OR_Cuda(SUNMemoryHelper_CopyAsync);
+   h->ops->clone     = Clone;
+   h->ops->destroy   = Destroy;
+}
+
+SUNMemoryHelper SundialsMemHelper::Clone(SUNMemoryHelper helper)
+{
+#if (SUNDIALS_VERSION_MAJOR >= 6)
+   SUNMemoryHelper clone = SUNMemoryHelper_NewEmpty(helper->sunctx);
+#else
+   SUNMemoryHelper clone = SUNMemoryHelper_NewEmpty(nullptr);
+#endif
+   if (!clone) { return nullptr; }
+   *clone->ops = *helper->ops;
+   clone->content = new Allocations(*static_cast<Allocations *>(helper->content));
+   return clone;
+}
+
+int SundialsMemHelper::Destroy(SUNMemoryHelper helper)
+{
+   delete static_cast<Allocations *>(helper->content);
+   helper->content = nullptr;
+   // Let SUNDIALS release the helper and its operations without recursing.
+   helper->ops->destroy = nullptr;
+   return SUNMemoryHelper_Destroy(helper);
 }
 
 SundialsMemHelper::SundialsMemHelper(SundialsMemHelper&& that_helper)
@@ -274,8 +300,12 @@ SundialsMemHelper::SundialsMemHelper(SundialsMemHelper&& that_helper)
 
 SundialsMemHelper& SundialsMemHelper::operator=(SundialsMemHelper&& rhs)
 {
-   this->h = rhs.h;
-   rhs.h = nullptr;
+   if (this != &rhs)
+   {
+      if (h) { SUNMemoryHelper_Destroy(h); }
+      h = rhs.h;
+      rhs.h = nullptr;
+   }
    return *this;
 }
 
@@ -296,27 +326,36 @@ int SundialsMemHelper::SundialsMemHelper_Alloc(SUNMemoryHelper helper,
    sunmem->ptr = NULL;
    sunmem->own = SUNTRUE;
 
-   // memsize is the number of bytes to allocate, so we use Memory<char>
+   auto &inst = MemoryManager::Instance();
+   MemoryType mt;
    if (mem_type == SUNMEMTYPE_HOST)
    {
-      Memory<char> mem(memsize, Device::GetHostMemoryType());
-      mem.SetHostPtrOwner(false);
-      sunmem->ptr  = mfem::HostReadWrite(mem, memsize);
-      sunmem->type = SUNMEMTYPE_HOST;
-      mem.Delete();
+      mt = inst.GetHostMemoryType();
    }
-   else if (mem_type == SUNMEMTYPE_DEVICE || mem_type == SUNMEMTYPE_UVM)
+   else if (mem_type == SUNMEMTYPE_DEVICE)
    {
-      Memory<char> mem(memsize, Device::GetDeviceMemoryType());
-      mem.SetDevicePtrOwner(false);
-      sunmem->ptr  = mfem::ReadWrite(mem, memsize);
-      sunmem->type = mem_type;
-      mem.Delete();
+      mt = inst.GetDeviceMemoryType();
+   }
+   else if (mem_type == SUNMEMTYPE_UVM)
+   {
+      mt = inst.GetManagedMemoryType();
    }
    else
    {
       free(sunmem);
       return -1;
+   }
+   sunmem->type = mem_type;
+   if (memsize)
+   {
+      sunmem->ptr = inst.Alloc(memsize, mt);
+      if (!sunmem->ptr)
+      {
+         free(sunmem);
+         return -1;
+      }
+      auto &allocations = **static_cast<Allocations *>(helper->content);
+      allocations.emplace(sunmem->ptr, std::make_pair(memsize, mt));
    }
 
    *memptr = sunmem;
@@ -330,25 +369,14 @@ int SundialsMemHelper::SundialsMemHelper_Dealloc(SUNMemoryHelper helper,
 #endif
                                                 )
 {
-   if (sunmem->ptr && sunmem->own && !mm.IsKnown(sunmem->ptr))
+   if (sunmem->ptr && sunmem->own)
    {
-      if (sunmem->type == SUNMEMTYPE_HOST)
-      {
-         Memory<char> mem(static_cast<char*>(sunmem->ptr), 1,
-                          Device::GetHostMemoryType(), true);
-         mem.Delete();
-      }
-      else if (sunmem->type == SUNMEMTYPE_DEVICE || sunmem->type == SUNMEMTYPE_UVM)
-      {
-         Memory<char> mem(static_cast<char*>(sunmem->ptr), 1,
-                          Device::GetDeviceMemoryType(), true);
-         mem.Delete();
-      }
-      else
-      {
-         MFEM_ABORT("Invalid SUNMEMTYPE");
-         return -1;
-      }
+      auto &allocations = **static_cast<Allocations *>(helper->content);
+      auto iter = allocations.find(sunmem->ptr);
+      MFEM_VERIFY(iter != allocations.end(), "Unknown SUNDIALS allocation");
+      MemoryManager::Instance().Dealloc(static_cast<char *>(sunmem->ptr),
+                                        iter->second.first, iter->second.second);
+      allocations.erase(iter);
    }
    free(sunmem);
    return 0;
@@ -449,10 +477,8 @@ void SundialsNVector::_SetDataAndSize_()
    {
       case SUNDIALS_NVEC_SERIAL:
       {
-         const bool known = mm.IsKnown(NV_DATA_S(local_x));
          size = NV_LENGTH_S(local_x);
-         data.Wrap(NV_DATA_S(local_x), size, false);
-         if (known) { data.ClearOwnerFlags(); }
+         data.CheckedWrap(NV_DATA_S(local_x), size, false);
          break;
       }
 #if defined(MFEM_USE_CUDA) || defined(MFEM_USE_HIP)
@@ -460,10 +486,9 @@ void SundialsNVector::_SetDataAndSize_()
       {
          double *h_ptr = SUN_Hip_OR_Cuda(N_VGetHostArrayPointer)(local_x);
          double *d_ptr = SUN_Hip_OR_Cuda(N_VGetDeviceArrayPointer)(local_x);
-         const bool known = mm.IsKnown(h_ptr);
          size = SUN_Hip_OR_Cuda(N_VGetLength)(local_x);
-         data.Wrap(h_ptr, d_ptr, size, Device::GetHostMemoryType(), false, false, true);
-         if (known) { data.ClearOwnerFlags(); }
+         data.CheckedWrap(h_ptr, d_ptr, size, Device::GetHostMemoryType(), false, false,
+                          true);
          UseDevice(true);
          break;
       }
@@ -471,10 +496,8 @@ void SundialsNVector::_SetDataAndSize_()
 #ifdef MFEM_USE_MPI
       case SUNDIALS_NVEC_PARALLEL:
       {
-         const bool known = mm.IsKnown(NV_DATA_P(x));
          size = NV_LENGTH_S(x);
-         data.Wrap(NV_DATA_P(x), NV_LOCLENGTH_P(x), false);
-         if (known) { data.ClearOwnerFlags(); }
+         data.CheckedWrap(NV_DATA_P(x), NV_LOCLENGTH_P(x), false);
          break;
       }
 #endif
