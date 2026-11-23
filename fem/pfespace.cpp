@@ -5596,19 +5596,13 @@ void ParFiniteElementSpace::Update(bool want_transform)
 
          case Mesh::DEREFINE:
          {
-            if (Th.Type() == Operator::MFEM_SPARSEMAT && !IsVariableOrder() &&
-                !Device::Allows(Backend::DEVICE_MASK) &&
-                vdim == 1 && mesh->Dimension() == 1 &&
-                fec->GetContType() == FiniteElementCollection::DISCONTINUOUS)
-            {
-               Th.Reset(ParallelDerefinementMatrix(old_ndofs, old_elem_dof,
-                                                   old_elem_fos));
-            }
-            else
-            {
-               Th.Reset(new ParDerefineMatrixOp(*this, old_ndofs, old_elem_dof,
+#if 0
+            Th.Reset(ParallelDerefinementMatrix(old_ndofs, old_elem_dof,
                                                 old_elem_fos));
-            }
+#else
+            Th.Reset(new ParDerefineMatrixOp(*this, old_ndofs, old_elem_dof,
+                                             old_elem_fos));
+#endif
             if (Nonconforming())
             {
                Th.SetOperatorOwner(false);

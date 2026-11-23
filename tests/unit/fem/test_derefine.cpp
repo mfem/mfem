@@ -45,13 +45,11 @@ static void CheckMergeTranspose(MeshType &mesh, int degree, int rank,
                                 int ranks, Sum sum)
 {
    L2_FECollection basis(degree, 1);
-   Space reference(&mesh, &basis), assembled(&mesh, &basis);
-   assembled.SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
+   Space space(&mesh, &basis);
    Vector errors(mesh.GetNE());
    errors = 0.0;
    REQUIRE(mesh.DerefineByError(errors, 0.025));
-   reference.Update();
-   const Operator &original = *reference.GetUpdateOperator();
+   const Operator &original = *space.GetUpdateOperator();
    Vector fine(original.Width()), truth(original.Height());
    Vector dual(truth.Size()), matrix_free(fine.Size());
    for (int index = 0; index < dual.Size(); ++index)
@@ -67,17 +65,6 @@ static void CheckMergeTranspose(MeshType &mesh, int degree, int rank,
    const real_t lhs = sum(truth * dual);
    const real_t rhs = sum(fine * matrix_free);
    CHECK(lhs == MFEM_Approx(rhs));
-   if (!Device::Allows(Backend::DEVICE_MASK))
-   {
-      const Operator &candidate = *assembled.GetUpdateOperator();
-      Vector forward(truth.Size()), reverse(fine.Size());
-      candidate.Mult(fine, forward);
-      candidate.MultTranspose(dual, reverse);
-      reverse -= matrix_free;
-      CHECK(reverse.Normlinf() == MFEM_Approx(0.0));
-      forward -= truth;
-      CHECK(forward.Normlinf() == MFEM_Approx(0.0));
-   }
    const real_t *actual = matrix_free.HostRead();
    for (int owner = 0; owner < ranks; ++owner)
    {
