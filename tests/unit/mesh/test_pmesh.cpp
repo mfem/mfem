@@ -125,55 +125,73 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
 
 TEST_CASE("Shared segment endpoints on a parallel NC mesh", "[Parallel][ParMesh]")
 {
-   if (Mpi::WorldSize() != 2) { return; }
+   const int ranks = Mpi::WorldSize();
+   if (ranks < 2) { return; }
    const int rank = Mpi::WorldRank();
+   const int cells = 2*ranks;
    for (int degree : {1, 2})
    {
       CAPTURE(degree);
-      Mesh mesh = Mesh::MakeCartesian1D(4);
+      Mesh mesh = Mesh::MakeCartesian1D(cells);
       mesh.EnsureNCMesh(true);
-      const int partition[] = {0, 0, 0, 1};
+      Array<int> partition(cells);
+      for (int cell = 0; cell < cells; ++cell)
+      {
+         partition[cell] = std::max(0, cell - 1)/2;
+      }
       ParMesh parallel(MPI_COMM_WORLD, mesh, partition);
       L2_FECollection basis(degree, 1);
       ParFiniteElementSpace space(&parallel, &basis);
-      auto check_trace = [&](real_t position)
+      auto check_trace = [&](int interface_shift)
       {
          ParGridFunction field(&space);
          FunctionCoefficient profile([rank](const Vector &point)
          { return 4*rank + 3*point(0); });
          field.ProjectCoefficient(profile);
          field.ExchangeFaceNbrData();
-         REQUIRE(parallel.GetNSharedFaces() == 1);
-         REQUIRE(parallel.GetNFaceNeighborElements() == 1);
-         auto *face = parallel.GetSharedFaceTransformations(0);
-         face->SetAllIntPoints(&Geometries.GetCenter(Geometry::POINT));
-         const auto &point = face->GetElement2IntPoint();
-         Vector physical(1);
-         face->Elem2->Transform(point, physical);
-         CHECK(physical(0) == MFEM_Approx(position));
-         CHECK(field.GetValue(face->Elem2No, point) ==
-               MFEM_Approx(4*(1-rank) + 3*position));
+         const int neighbors = (rank > 0) + (rank < ranks-1);
+         REQUIRE(parallel.GetNSharedFaces() == neighbors);
+         REQUIRE(parallel.GetNFaceNeighborElements() == neighbors);
+         int left_faces = 0;
+         for (int shared = 0; shared < neighbors; ++shared)
+         {
+            auto *face = parallel.GetSharedFaceTransformations(shared);
+            face->SetAllIntPoints(&Geometries.GetCenter(Geometry::POINT));
+            const bool left = face->GetElement1IntPoint().x == 0;
+            left_faces += left;
+            const int peer = left ? rank-1 : rank+1;
+            const int vertex = 2*std::max(rank, peer) + interface_shift;
+            const real_t position = real_t(vertex)/cells;
+            const auto &point = face->GetElement2IntPoint();
+            Vector physical(1);
+            face->Elem2->Transform(point, physical);
+            CHECK(physical(0) == MFEM_Approx(position));
+            CHECK(field.GetValue(face->Elem2No, point) ==
+                  MFEM_Approx(4*peer + 3*position));
+         }
+         CHECK(left_faces == (rank > 0));
       };
-      check_trace(0.75);
+      check_trace(1);
       Array<int> marked;
       for (int cell = 0; cell < parallel.GetNE(); ++cell)
       {
          Vector center;
          parallel.GetElementCenter(cell, center);
-         if (center(0) == 0.625) { marked.Append(cell); }
+         const real_t location = center(0)*cells;
+         if (location > 2 && location < 3) { marked.Append(cell); }
       }
       parallel.GeneralRefinement(marked);
       space.Update(false);
-      REQUIRE(parallel.GetGlobalNE() == 5);
-      check_trace(0.75);
+      REQUIRE(parallel.GetGlobalNE() == cells+1);
+      check_trace(1);
       Vector errors(parallel.GetNE());
       errors = 0.0;
       REQUIRE(parallel.DerefineByError(errors, 0.025));
       space.Update(false);
-      check_trace(0.75);
+      check_trace(1);
       parallel.Rebalance();
       space.Update(false);
-      check_trace(0.5);
+      check_trace(0);
    }
 }
 
