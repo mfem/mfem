@@ -41,6 +41,13 @@ class NCSubMesh;
  *
  * For more customized boundary attributes, the resulting SubMesh has to be
  * postprocessed.
+ *
+ * The boundary elements of a SubMesh extracted from a domain take the vertex
+ * order of the matching boundary elements of the parent, when this does not
+ * change their orientation on the boundary of the SubMesh. This has two limits.
+ * On a face between two extracted domains, only one of the two SubMeshes keeps
+ * the order of the parent. A nonconforming refinement of the SubMesh rebuilds
+ * all its boundary elements, which may lose this order.
  */
 class SubMesh : public Mesh
 {
