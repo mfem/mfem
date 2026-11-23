@@ -324,6 +324,17 @@ set(HDRS
   integrator.hpp
   bounds.hpp
   particleset.hpp
+  domain_integs/bilinearintegs.hpp
+  domain_integs/bilinearintegs_impl.hpp
+  domain_integs/bilinearintegs_tensor_coefficients.hpp
+  domain_integs/bilininteg_operator.hpp
+  domain_integs/bilininteg_operator_impl.hpp
+  domain_integs/formintegs_impl.hpp
+  domain_integs/linearintegs.hpp
+  domain_integs/linearintegs_impl.hpp
+  domain_integs/parallel_wrappers.hpp
+  domain_integs/quadratureinterp.hpp
+  domain_integs/quadratureinterp_impl.hpp
   )
 
 if (MFEM_USE_CONDUIT)
