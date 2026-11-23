@@ -80,8 +80,8 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
    {
       auto vdims = op.fespace->GetVDim();
       // only is a GPU mem ptr if GPU-aware MPI is enabled
-      auto dst = Device::GetGPUAwareMPI() ? op.xghost_send.Read()
-                 : op.xghost_send.HostRead();
+      auto dst = Device::GetGPUAwareMPI() ? op.xghost_send.Write()
+                 : op.xghost_send.HostWrite();
       for (int i = 0; i < op.send_ranks.Size(); ++i)
       {
          op.requests.emplace_back();
