@@ -240,11 +240,11 @@ struct DerefineMatrixOpMultFunctor
    void Run(int N) const { forall_2D(nblocks * vdims, N, 1, *this); }
 };
 
-inline void ScalarDGMergeTranspose(int blocks, int threads,
-                                   const real_t *weights, const int *offsets,
-                                   const int *row_offsets, const int *rows,
-                                   const int *col_offsets, const int *cols,
-                                   const real_t *coarse, real_t *fine)
+inline void MergeTranspose(int blocks, int threads, bool shared,
+                           const real_t *weights, const int *offsets,
+                           const int *row_offsets, const int *rows,
+                           const int *col_offsets, const int *cols,
+                           const real_t *coarse, real_t *fine)
 {
    forall_2D(blocks, threads, 1, [=] MFEM_HOST_DEVICE(int block)
    {
@@ -262,7 +262,10 @@ inline void ScalarDGMergeTranspose(int blocks, int threads,
          }
          const int index = col_offsets[block] + column;
          const int col = cols ? cols[index] : index;
-         fine[col < 0 ? -1-col : col] = col < 0 ? -value : value;
+         const int dof = col < 0 ? -1-col : col;
+         const real_t contribution = col < 0 ? -value : value;
+         if (shared) { AtomicAdd(fine[dof], contribution); }
+         else { fine[dof] = contribution; }
       }
    });
 }

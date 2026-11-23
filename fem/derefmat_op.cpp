@@ -44,16 +44,17 @@ static void DerefMultKernelImpl(const DerefineMatrixOp &op, const Vector &x,
 
 void DerefineMatrixOp::MultTranspose(const Vector &x, Vector &y) const
 {
-   MFEM_VERIFY(!fespace->IsVariableOrder() && fespace->GetVDim() == 1 &&
-               fespace->FEColl()->GetContType() ==
-               FiniteElementCollection::DISCONTINUOUS,
-               "Derefinement transpose requires fixed-order scalar DG.");
+   MFEM_VERIFY(!fespace->IsVariableOrder() && fespace->GetVDim() == 1,
+               "Derefinement transpose requires fixed order and vdim = 1.");
+   const bool shared = fespace->FEColl()->GetContType() !=
+                       FiniteElementCollection::DISCONTINUOUS;
    y.UseDevice();
-   internal::ScalarDGMergeTranspose(block_offsets.Size(), max_rows,
-                                    block_storage.Read(), block_offsets.Read(),
-                                    block_row_idcs_offsets.Read(), row_idcs.Read(),
-                                    block_col_idcs_offsets.Read(), col_idcs.Read(),
-                                    x.Read(), y.Write());
+   if (shared) { y = 0.0; }
+   internal::MergeTranspose(
+      block_offsets.Size(), max_rows, shared, block_storage.Read(),
+      block_offsets.Read(), block_row_idcs_offsets.Read(), row_idcs.Read(),
+      block_col_idcs_offsets.Read(), col_idcs.Read(), x.Read(),
+      shared ? y.ReadWrite() : y.Write());
 }
 
 DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,

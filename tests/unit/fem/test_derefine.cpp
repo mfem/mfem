@@ -41,13 +41,19 @@ static Mesh SplitMiddleSegment()
 }
 
 template <typename Space, typename MeshType, typename Sum>
-static void CheckMergeTranspose(MeshType &mesh, int degree, int rank,
-                                int ranks, Sum sum)
+static void CheckMergeTranspose(MeshType &mesh, FiniteElementCollection &basis,
+                                int rank, int ranks, Sum sum)
 {
-   L2_FECollection basis(degree, mesh.Dimension());
    Space space(&mesh, &basis);
    Vector errors(mesh.GetNE());
    errors = 0.0;
+   for (int cell = 0; cell < mesh.GetNE(); ++cell)
+   {
+      if (mesh.GetElementType(cell) != Element::QUADRILATERAL) { continue; }
+      Vector center;
+      mesh.GetElementCenter(cell, center);
+      if (center[0] > 0.75) { errors[cell] = 1.0; }
+   }
    REQUIRE(mesh.DerefineByError(errors, 0.025));
    const Operator &original = *space.GetUpdateOperator();
    Vector fine(original.Width()), truth(original.Height());
@@ -56,6 +62,7 @@ static void CheckMergeTranspose(MeshType &mesh, int degree, int rank,
    {
       dual(index) = std::cos(2*index + rank);
    }
+   matrix_free = 17.0;
    original.MultTranspose(dual, matrix_free);
    for (int index = 0; index < fine.Size(); ++index)
    {
@@ -78,7 +85,7 @@ static void CheckMergeTranspose(MeshType &mesh, int degree, int rank,
          if (owner == rank) { CHECK(actual[column] == MFEM_Approx(expected)); }
       }
    }
-   if (ranks > 1)
+   if (ranks > 1 && basis.GetContType() == FiniteElementCollection::DISCONTINUOUS)
    {
       fine = real_t(rank);
       original.Mult(fine, truth);
@@ -89,18 +96,23 @@ static void CheckMergeTranspose(MeshType &mesh, int degree, int rank,
    }
 }
 
-TEST_CASE("Scalar 1D DG merge transpose", "[AMR][Coarsen][GPU]")
+TEST_CASE("1D DG and H1 merge transpose", "[AMR][Coarsen][GPU]")
 {
    for (int degree : {1, 2})
    {
       CAPTURE(degree);
       Mesh mesh = SplitMiddleSegment();
-      CheckMergeTranspose<FiniteElementSpace>(mesh, degree, 0, 1,
+      L2_FECollection dg(degree, 1);
+      CheckMergeTranspose<FiniteElementSpace>(mesh, dg, 0, 1,
                                               [](real_t value) { return value; });
+      Mesh h1_mesh = SplitMiddleSegment();
+      H1_FECollection h1(degree, 1);
+      CheckMergeTranspose<FiniteElementSpace>(
+         h1_mesh, h1, 0, 1, [](real_t value) { return value; });
    }
 }
 
-static Mesh SplitDGCell(Element::Type type)
+static Mesh SplitCell(Element::Type type)
 {
    Mesh mesh = (type == Element::TRIANGLE || type == Element::QUADRILATERAL) ?
                Mesh::MakeCartesian2D(4, 1, type) :
@@ -108,11 +120,33 @@ static Mesh SplitDGCell(Element::Type type)
    mesh.EnsureNCMesh(true);
    Array<int> marked(1);
    marked[0] = 0;
+   if (type == Element::QUADRILATERAL) { marked.Append(mesh.GetNE() - 1); }
    mesh.GeneralRefinement(marked);
    return mesh;
 }
 
-TEST_CASE("Multidimensional scalar DG merge transpose", "[AMR][Coarsen][GPU]")
+template <typename Run>
+static void CheckMergeFamilies(Element::Type type, int degree, Run run)
+{
+   auto check = [&](FiniteElementCollection &collection)
+   {
+      CAPTURE(collection.Name());
+      Mesh mesh = SplitCell(type);
+      run(mesh, collection);
+   };
+   const int dim = (type == Element::TRIANGLE ||
+                    type == Element::QUADRILATERAL) ? 2 : 3;
+   L2_FECollection dg(degree, dim);
+   H1_FECollection h1(degree, dim);
+   ND_FECollection nd(degree, dim);
+   RT_FECollection rt(degree - 1, dim);
+   check(dg);
+   check(h1);
+   check(nd);
+   check(rt);
+}
+
+TEST_CASE("Multidimensional merge transpose", "[AMR][Coarsen][GPU]")
 {
    for (auto type : {Element::TRIANGLE, Element::QUADRILATERAL,
                      Element::TETRAHEDRON, Element::HEXAHEDRON, Element::WEDGE})
@@ -120,9 +154,11 @@ TEST_CASE("Multidimensional scalar DG merge transpose", "[AMR][Coarsen][GPU]")
       for (int degree : {1, 2})
       {
          CAPTURE(type, degree);
-         Mesh mesh = SplitDGCell(type);
-         CheckMergeTranspose<FiniteElementSpace>(mesh, degree, 0, 1,
-                                                [](real_t value) { return value; });
+         CheckMergeFamilies(type, degree, [](Mesh &mesh, FiniteElementCollection &basis)
+         {
+            CheckMergeTranspose<FiniteElementSpace>(mesh, basis, 0, 1,
+                                                    [](real_t value) { return value; });
+         });
       }
    }
 }
@@ -517,7 +553,7 @@ void stress_parallel_coarsen(int order, Element::Type el_type, int basis_type)
 #endif
 }
 
-TEST_CASE("Split-rank 1D DG merge transpose", "[AMR][Coarsen][Parallel][GPU]")
+TEST_CASE("Split-rank 1D DG and H1 merge transpose", "[AMR][Coarsen][Parallel][GPU]")
 {
    const int ranks = Mpi::WorldSize();
    if (ranks < 2 || ranks > 4) { return; }
@@ -555,12 +591,17 @@ TEST_CASE("Split-rank 1D DG merge transpose", "[AMR][Coarsen][Parallel][GPU]")
                        MPI_SUM, MPI_COMM_WORLD);
          return result;
       };
-      CheckMergeTranspose<ParFiniteElementSpace>(parallel, degree, Mpi::WorldRank(),
+      L2_FECollection dg(degree, 1);
+      CheckMergeTranspose<ParFiniteElementSpace>(parallel, dg, Mpi::WorldRank(),
+                                                 ranks, global_sum);
+      ParMesh h1_mesh(MPI_COMM_WORLD, mesh, partition);
+      H1_FECollection h1(degree, 1);
+      CheckMergeTranspose<ParFiniteElementSpace>(h1_mesh, h1, Mpi::WorldRank(),
                                                  ranks, global_sum);
    }
 }
 
-TEST_CASE("Multidimensional split-rank DG merge transpose",
+TEST_CASE("Multidimensional split-rank merge transpose",
           "[AMR][Coarsen][Parallel][GPU]")
 {
    const int ranks = Mpi::WorldSize();
@@ -571,26 +612,28 @@ TEST_CASE("Multidimensional split-rank DG merge transpose",
       for (int degree : {1, 2})
       {
          CAPTURE(type, degree);
-         Mesh mesh = SplitDGCell(type);
-         const auto &embeddings = mesh.GetRefinementTransforms().embeddings;
-         Array<int> partition(mesh.GetNE());
-         int children = 0;
-         for (int cell = 0; cell < mesh.GetNE(); ++cell)
+         CheckMergeFamilies(type, degree, [&](Mesh &mesh, FiniteElementCollection &basis)
          {
-            const int parent = embeddings[cell].parent;
-            partition[cell] = (parent == 0 ? children++ : parent) % ranks;
-         }
-         REQUIRE(children >= ranks);
-         ParMesh parallel(MPI_COMM_WORLD, mesh, partition);
-         auto global_sum = [](real_t local)
-         {
-            real_t result;
-            MPI_Allreduce(&local, &result, 1, MPITypeMap<real_t>::mpi_type,
-                          MPI_SUM, MPI_COMM_WORLD);
-            return result;
-         };
-         CheckMergeTranspose<ParFiniteElementSpace>(parallel, degree, Mpi::WorldRank(),
-                                                    ranks, global_sum);
+            const auto &embeddings = mesh.GetRefinementTransforms().embeddings;
+            Array<int> partition(mesh.GetNE());
+            int children = 0;
+            for (int cell = 0; cell < mesh.GetNE(); ++cell)
+            {
+               const int parent = embeddings[cell].parent;
+               partition[cell] = (parent == 0 ? children++ : parent) % ranks;
+            }
+            REQUIRE(children >= ranks);
+            ParMesh parallel(MPI_COMM_WORLD, mesh, partition);
+            auto global_sum = [](real_t local)
+            {
+               real_t result;
+               MPI_Allreduce(&local, &result, 1, MPITypeMap<real_t>::mpi_type,
+                             MPI_SUM, MPI_COMM_WORLD);
+               return result;
+            };
+            CheckMergeTranspose<ParFiniteElementSpace>(parallel, basis, Mpi::WorldRank(),
+                                                       ranks, global_sum);
+         });
       }
    }
 }

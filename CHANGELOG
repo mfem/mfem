@@ -21,7 +21,8 @@ GPU computing
 Discretization improvements
 ---------------------------
 - Added transpose application to the default matrix-free derefinement update
-  for fixed-order scalar DG on CPU and GPU, including across MPI ranks.
+  for fixed-order H1, H(curl), H(div) and DG spaces with `vdim = 1` on
+  CPU and GPU, including across MPI ranks.
   Tested on segments, triangles, quadrilaterals, tetrahedra, hexahedra and
   wedges; existing restrictions on the forward merge still apply.
 

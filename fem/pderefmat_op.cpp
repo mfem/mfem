@@ -174,10 +174,10 @@ void ParDerefineMatrixOp::Mult(const Vector &x, Vector &y) const
 
 void ParDerefineMatrixOp::MultTranspose(const Vector &x, Vector &y) const
 {
-   MFEM_VERIFY(!fespace->IsVariableOrder() && fespace->GetVDim() == 1 &&
-               fespace->FEColl()->GetContType() ==
-               FiniteElementCollection::DISCONTINUOUS,
-               "Derefinement transpose requires fixed-order scalar DG.");
+   MFEM_VERIFY(!fespace->IsVariableOrder() && fespace->GetVDim() == 1,
+               "Derefinement transpose requires fixed order and vdim = 1.");
+   const bool shared = fespace->FEColl()->GetContType() !=
+                       FiniteElementCollection::DISCONTINUOUS;
    const bool direct = Device::GetGPUAwareMPI();
    requests.clear();
    if (xghost_send.Size())
@@ -196,8 +196,8 @@ void ParDerefineMatrixOp::MultTranspose(const Vector &x, Vector &y) const
    if (xghost_recv.Size())
    {
       const auto rows = block_off_diag_row_idcs_offsets.Read();
-      internal::ScalarDGMergeTranspose(
-         off_diag_block_offsets.Size(), max_rows, block_storage.Read(),
+      internal::MergeTranspose(
+         off_diag_block_offsets.Size(), max_rows, false, block_storage.Read(),
          off_diag_block_offsets.Read(), rows, row_off_diag_idcs.Read(), rows,
          nullptr, x.Read(), xghost_recv.Write());
       MFEM_DEVICE_SYNC;
@@ -213,10 +213,11 @@ void ParDerefineMatrixOp::MultTranspose(const Vector &x, Vector &y) const
       }
    }
    y.UseDevice();
-   auto fine = y.Write();
-   internal::ScalarDGMergeTranspose(
-      block_offsets.Size(), max_rows, block_storage.Read(), block_offsets.Read(),
-      block_row_idcs_offsets.Read(), row_idcs.Read(),
+   if (shared) { y = 0.0; }
+   auto fine = shared ? y.ReadWrite() : y.Write();
+   internal::MergeTranspose(
+      block_offsets.Size(), max_rows, shared, block_storage.Read(),
+      block_offsets.Read(), block_row_idcs_offsets.Read(), row_idcs.Read(),
       block_col_idcs_offsets.Read(), col_idcs.Read(), x.Read(), fine);
    if (!requests.empty())
    {
@@ -229,8 +230,10 @@ void ParDerefineMatrixOp::MultTranspose(const Vector &x, Vector &y) const
       forall(send_permutations.Size(), [=] MFEM_HOST_DEVICE(int entry)
       {
          const int col = indices[entry];
-         if (col < 0) { fine[-1-col] = -received[entry]; }
-         else { fine[col] = received[entry]; }
+         const int dof = col < 0 ? -1-col : col;
+         const real_t value = col < 0 ? -received[entry] : received[entry];
+         if (shared) { AtomicAdd(fine[dof], value); }
+         else { fine[dof] = value; }
       });
    }
    MFEM_DEVICE_SYNC;
