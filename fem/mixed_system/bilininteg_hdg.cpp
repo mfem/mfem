@@ -1806,6 +1806,7 @@ void HDGCurlCurlIntegrator::AssembleFaceMatrix(
    const int ndof1 = el1.GetDof();
    const int ndof2 = (Trans.Elem2No >= 0)?(el2.GetDof()):0;
    const int vdof1 = ndof1 * dim_curl;
+   const int vdof2 = ndof2 * dim_curl;
 
    Vector nor(dim);
 
@@ -1915,10 +1916,9 @@ void HDGCurlCurlIntegrator::AssembleFaceMatrix(
          }
       };
 
-      // only assemble the lower triangular part
       const real_t wq = wn * (nor * nor);
       for (int i = 0; i < ndof1; i++)
-         for (int j = 0; j <= i; j++)
+         for (int j = 0; j < ndof1; j++)
          {
             kernel(+wn, +wq, shape1, shape1, i, j, 0, 0);
          }
@@ -1934,7 +1934,7 @@ void HDGCurlCurlIntegrator::AssembleFaceMatrix(
                kernel(-wn, -wq, shape2, shape1, i, j, vdof1, 0);
             }
 
-            for (int j = 0; j <= i; j++)
+            for (int j = 0; j < ndof2; j++)
             {
                kernel(+wn, +wq, shape2, shape2, i, j, vdof1, vdof1);
             }
@@ -1944,10 +1944,10 @@ void HDGCurlCurlIntegrator::AssembleFaceMatrix(
    }
 
    // complete the upper triangular part
-   for (int i = 0; i < ndofs * dim_curl; i++)
-      for (int j = 0; j < i; j++)
+   for (int i = 0; i < vdof2; i++)
+      for (int j = 0; j < vdof1; j++)
       {
-         elmat(j,i) = elmat(i,j);
+         elmat(j, vdof1+i) = elmat(vdof1+i, j);
       }
 }
 
@@ -1969,6 +1969,7 @@ void HDGCurlCurlIntegrator::AssembleHDGFaceMatrix(
    const int vdof2 = ndof2 * dim_curl;
 
    Vector vu(dim), nor(dim);
+   DenseMatrix tangent;
 
    tr_shape.SetSize(tr_ndof);
    shape1.SetSize(ndof1);
@@ -2017,6 +2018,21 @@ void HDGCurlCurlIntegrator::AssembleHDGFaceMatrix(
       else
       {
          CalcOrtho(Trans.Jacobian(), nor);
+      }
+
+      // construct tangents
+      if (dim == 3)
+      {
+         const DenseMatrix &J = Trans.Jacobian();
+         tangent.SetSize(3,2);
+         for (int a = 0; a < 2; a++)
+         {
+            Vector tangent_a;
+            tangent.GetColumnReference(a, tangent_a);
+            J.GetColumn(a, tangent_a);
+            const real_t norm_a = tangent_a.Norml2();
+            if (norm_a) { tangent_a /= norm_a; }
+         }
       }
 
       trace_el.CalcShape(ip, tr_shape);
@@ -2104,24 +2120,14 @@ void HDGCurlCurlIntegrator::AssembleHDGFaceMatrix(
       };
 
       auto assemble_element_trace =
-         [&](const real_t w, const real_t wq, const Vector &shape_te,
-             const Vector &shape_tr, int ioff, int joff)
+         [&](const real_t w, const real_t wq, const DenseMatrix &tangent,
+             const Vector &shape_te, const Vector &shape_tr, int ioff, int joff)
       {
          const int ndof_tr = shape_tr.Size();
          const int ndof_te = shape_te.Size();
 
          if (dim == 3)
          {
-            const DenseMatrix &J = Trans.Jacobian();
-            DenseMatrix tangent(3,2);
-            for (int a = 0; a < 2; a++)
-            {
-               Vector tangent_a;
-               tangent.GetColumnReference(a, tangent_a);
-               J.GetColumn(a, tangent_a);
-               tangent_a /= tangent_a.Norml2();
-            }
-
             for (int i = 0; i < ndof_te; i++)
                for (int j = 0; j < ndof_tr; j++)
                {
@@ -2150,15 +2156,14 @@ void HDGCurlCurlIntegrator::AssembleHDGFaceMatrix(
       {
          // assemble the element matrix
          const real_t wq = w * (nor * nor);
-         // (only the lower triangular part)
          for (int i = 0; i < ndof1; i++)
-            for (int j = 0; j <= i; j++)
+            for (int j = 0; j < ndof1; j++)
             {
                kernel(+w, +wq, shape1, shape1, i, j, 0, 0);
             }
 
          // assemble the constraint matrix
-         assemble_element_trace(w, wq, shape1, tr_shape, 0, el_vdof);
+         assemble_element_trace(w, wq, tangent, shape1, tr_shape, 0, el_vdof);
       }
 
       // assemble side 2
@@ -2169,15 +2174,14 @@ void HDGCurlCurlIntegrator::AssembleHDGFaceMatrix(
          {
             // assemble the element matrix
             const real_t wq = w * (nor * nor);
-            // (only the lower triangular part)
             for (int i = 0; i < ndof2; i++)
-               for (int j = 0; j <= i; j++)
+               for (int j = 0; j < ndof2; j++)
                {
                   kernel(+w, +wq, shape2, shape2, i, j, vdof1, vdof1);
                }
 
             // assemble the constraint matrix
-            assemble_element_trace(w, wq, shape2, tr_shape, vdof1, el_vdof);
+            assemble_element_trace(w, wq, tangent, shape2, tr_shape, vdof1, el_vdof);
          }
       }
 
@@ -2187,45 +2191,42 @@ void HDGCurlCurlIntegrator::AssembleHDGFaceMatrix(
       {
          // assemble the trace matrix
          const real_t wq = w * (nor * nor);
-         // (only the lower triangular part)
-         for (int i = 0; i < tr_ndof; i++)
-            for (int j = 0; j <= i; j++)
-            {
-               const real_t wss = wq * tr_shape(i) * tr_shape(j);
-               for (int d = 0; d < tr_dim; d++)
+         if (dim == 3)
+         {
+            for (int i = 0; i < tr_ndof; i++)
+               for (int j = 0; j < tr_ndof; j++)
                {
-                  elmat(el_vdof + i + d*tr_ndof, el_vdof + j + d*tr_ndof) -= wss;
+                  const real_t wss = wq * tr_shape(i) * tr_shape(j);
+                  Vector tangent_i, tangent_j;
+                  for (int di = 0; di < tr_dim; di++)
+                  {
+                     tangent.GetColumnReference(di, tangent_i);
+                     for (int dj = 0; dj < tr_dim; dj++)
+                     {
+                        tangent.GetColumnReference(dj, tangent_j);
+                        elmat(el_vdof + i + di*tr_ndof,
+                              el_vdof + j + dj*tr_ndof) -= wss * (tangent_i * tangent_j);
+                     }
+                  }
                }
-            }
+         }
+         else
+         {
+            for (int i = 0; i < tr_ndof; i++)
+               for (int j = 0; j < tr_ndof; j++)
+               {
+                  const real_t wss = wq * tr_shape(i) * tr_shape(j);
+                  elmat(el_vdof + i, el_vdof + j) -= wss;
+               }
+         }
       }
    }
-
-   // complete the element matrices
-   // (the upper triangular part)
-   for (int i = 0; i < vdof1; i++)
-      for (int j = 0; j < i; j++)
-      {
-         elmat(j, i) = elmat(i, j);
-      }
-
-   for (int i = 0; i < vdof2; i++)
-      for (int j = 0; j < i; j++)
-      {
-         elmat(vdof1+j, vdof1+i) = elmat(vdof1+i, vdof1+j);
-      }
 
    // complete the constraint matrix
    for (int i = 0; i < el_vdof; i++)
       for (int j = 0; j < tr_vdof; j++)
       {
          elmat(el_vdof+j, i) = -elmat(i, el_vdof+j);
-      }
-
-   // complete the trace matrix
-   for (int i = 0; i < tr_vdof; i++)
-      for (int j = 0; j < i; j++)
-      {
-         elmat(el_vdof+j, el_vdof+i) = elmat(el_vdof+i, el_vdof+j);
       }
 }
 
