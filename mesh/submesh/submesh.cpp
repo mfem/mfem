@@ -68,7 +68,11 @@ SubMesh::SubMesh(const Mesh &parent, From from,
 
    FinalizeTopology(false);
 
-   if (parent.Nonconforming())
+   // A boundary submesh of a 2D nonconforming mesh is a conforming chain of
+   // leaf segments. The mesh assembled above already represents that trace,
+   // so it does not need an NCMesh refinement hierarchy of its own.
+   if (parent.Nonconforming() &&
+       !(from == From::Boundary && Dimension() == 1))
    {
       ncmesh = new NCSubMesh(*this, *parent.ncmesh, from, attributes);
       ncsubmesh_ = dynamic_cast<NCSubMesh*>(ncmesh);
