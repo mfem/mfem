@@ -97,6 +97,20 @@ TEST_CASE("Integration rule container with no refinement", "[IntegrationRules]")
 }
 
 
+TEST_CASE("Integration rule ownership", "[IntegrationRules]")
+{
+   IntegrationRules rules;
+   // The registry owns and deletes the rule.
+   rules.Set(Geometry::PRISM, 4, *new IntegrationRule(3));
+
+   REQUIRE(rules.IsUserSet(Geometry::PRISM, 4));
+   REQUIRE(!rules.IsUserSet(Geometry::PRISM, 5));
+
+   rules.Get(Geometry::TETRAHEDRON, 4);
+   REQUIRE(!rules.IsUserSet(Geometry::TETRAHEDRON, 4));
+}
+
+
 TEST_CASE("Integration rule order initialization", "[IntegrationRules]")
 {
    constexpr int refined = 0;
