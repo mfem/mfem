@@ -99,6 +99,7 @@ struct ParDerefineMatrixOp : public Operator
    };
 
    void Mult(const Vector &x, Vector &y) const;
+   void MultTranspose(const Vector &x, Vector &y) const override;
 
    ParDerefineMatrixOp(ParFiniteElementSpace &fespace_, int old_ndofs,
                        const Table *old_elem_dof, const Table *old_elem_fos);

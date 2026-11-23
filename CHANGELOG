@@ -20,8 +20,9 @@ GPU computing
 
 Discretization improvements
 ---------------------------
-- Added an opt-in assembled derefinement update for fixed-order scalar 1D DG
-  spaces on CPU, including transpose application across MPI ranks.
+- Added transpose application to the default matrix-free derefinement update
+  for fixed-order scalar 1D DG on CPU and GPU, including across MPI ranks.
+  Sparse assembly is also available on CPU when explicitly requested.
 
 - Fixed H1 transfer in L2ProjectionGridTransfer on non-conforming meshes in
   serial and parallel. The fully assembled operator now applies inverse lumped

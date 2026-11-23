@@ -1546,7 +1546,9 @@ public:
        meshes. */
    bool PRefinementSupported();
 
-   /// Get the GridFunction update operator.
+   /** Get the GridFunction update operator. For fixed-order scalar 1D DG,
+       the default derefinement operator supports MultTranspose on CPU and GPU,
+       including when the children of a merged element span MPI ranks. */
    const Operator* GetUpdateOperator() { Update(); return Th.Ptr(); }
 
    /// Return the update operator in the given OperatorHandle, @a T.

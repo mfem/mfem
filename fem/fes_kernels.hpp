@@ -240,6 +240,33 @@ struct DerefineMatrixOpMultFunctor
    void Run(int N) const { forall_2D(nblocks * vdims, N, 1, *this); }
 };
 
+inline void ScalarDGMergeTranspose(int blocks, int threads,
+                                   const real_t *weights, const int *offsets,
+                                   const int *row_offsets, const int *rows,
+                                   const int *col_offsets, const int *cols,
+                                   const real_t *coarse, real_t *fine)
+{
+   forall_2D(blocks, threads, 1, [=] MFEM_HOST_DEVICE(int block)
+   {
+      const int begin = row_offsets[block];
+      const int size = row_offsets[block+1] - begin;
+      MFEM_FOREACH_THREAD(column, x, size)
+      {
+         real_t value = 0.0;
+         for (int local = 0; local < size; ++local)
+         {
+            const int row = rows[begin + local];
+            if (row == INT_MAX) { continue; }
+            const real_t entry = weights[offsets[block] + size*column + local];
+            value += entry * (row < 0 ? -coarse[-1-row] : coarse[row]);
+         }
+         const int index = col_offsets[block] + column;
+         const int col = cols ? cols[index] : index;
+         fine[col < 0 ? -1-col : col] = col < 0 ? -value : value;
+      }
+   });
+}
+
 } // namespace internal
 /// \endcond DO_NOT_DOCUMENT
 } // namespace mfem

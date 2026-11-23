@@ -39,7 +39,7 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
       {
          int seg = sptr[i];
          int width = lptr[seg + 1] - lptr[seg];
-         auto tdst = dst + i + lptr[seg] * vdims;
+         auto tdst = dst + i + lptr[seg] * (vdims - 1);
          int sign = 1;
          int col = idcs[i];
          if (col < 0)
@@ -80,8 +80,8 @@ static void ParDerefMultKernelImpl(const ParDerefineMatrixOp &op,
    {
       auto vdims = op.fespace->GetVDim();
       // only is a GPU mem ptr if GPU-aware MPI is enabled
-      auto dst = Device::GetGPUAwareMPI() ? op.xghost_send.Write()
-                 : op.xghost_send.HostWrite();
+      auto dst = Device::GetGPUAwareMPI() ? op.xghost_send.Read()
+                 : op.xghost_send.HostRead();
       for (int i = 0; i < op.send_ranks.Size(); ++i)
       {
          op.requests.emplace_back();
@@ -169,6 +169,71 @@ void ParDerefineMatrixOp::Mult(const Vector &x, Vector &y) const
    MultKernel::Run(fespace->GetOrdering(), is_dg, *this, x, y);
    // use this to prevent xghost* from being re-purposed for subsequent Mult
    // calls
+   MFEM_DEVICE_SYNC;
+}
+
+void ParDerefineMatrixOp::MultTranspose(const Vector &x, Vector &y) const
+{
+   MFEM_VERIFY(!fespace->IsVariableOrder() && fespace->GetVDim() == 1 &&
+               fespace->GetMesh()->Dimension() == 1 &&
+               fespace->FEColl()->GetContType() ==
+               FiniteElementCollection::DISCONTINUOUS,
+               "Derefinement transpose requires fixed-order scalar 1D DG.");
+   const bool direct = Device::GetGPUAwareMPI();
+   requests.clear();
+   if (xghost_send.Size())
+   {
+      auto recv = direct ? xghost_send.Write() : xghost_send.HostWrite();
+      for (int peer = 0; peer < send_ranks.Size(); ++peer)
+      {
+         requests.emplace_back();
+         MPI_Irecv(recv + send_segments[peer],
+                   send_segments[peer+1] - send_segments[peer],
+                   MPITypeMap<real_t>::mpi_type, send_ranks[peer],
+                   MessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA,
+                   fespace->GetComm(), &requests.back());
+      }
+   }
+   if (xghost_recv.Size())
+   {
+      const auto rows = block_off_diag_row_idcs_offsets.Read();
+      internal::ScalarDGMergeTranspose(
+         off_diag_block_offsets.Size(), max_rows, block_storage.Read(),
+         off_diag_block_offsets.Read(), rows, row_off_diag_idcs.Read(), rows,
+         nullptr, x.Read(), xghost_recv.Write());
+      MFEM_DEVICE_SYNC;
+      auto send = direct ? xghost_recv.Read() : xghost_recv.HostRead();
+      for (int peer = 0; peer < recv_ranks.Size(); ++peer)
+      {
+         requests.emplace_back();
+         MPI_Isend(send + recv_segments[peer],
+                   recv_segments[peer+1] - recv_segments[peer],
+                   MPITypeMap<real_t>::mpi_type, recv_ranks[peer],
+                   MessageTag::DEREFINEMENT_MATRIX_CONSTRUCTION_DATA,
+                   fespace->GetComm(), &requests.back());
+      }
+   }
+   y.UseDevice();
+   auto fine = y.Write();
+   internal::ScalarDGMergeTranspose(
+      block_offsets.Size(), max_rows, block_storage.Read(), block_offsets.Read(),
+      block_row_idcs_offsets.Read(), row_idcs.Read(),
+      block_col_idcs_offsets.Read(), col_idcs.Read(), x.Read(), fine);
+   if (!requests.empty())
+   {
+      MPI_Waitall(requests.size(), requests.data(), MPI_STATUSES_IGNORE);
+   }
+   if (xghost_send.Size())
+   {
+      auto received = xghost_send.Read();
+      auto indices = send_permutations.Read();
+      forall(send_permutations.Size(), [=] MFEM_HOST_DEVICE(int entry)
+      {
+         const int col = indices[entry];
+         if (col < 0) { fine[-1-col] = -received[entry]; }
+         else { fine[col] = received[entry]; }
+      });
+   }
    MFEM_DEVICE_SYNC;
 }
 
@@ -535,9 +600,8 @@ ParDerefineMatrixOp::ParDerefineMatrixOp(ParFiniteElementSpace &fespace_,
             auto &tmp = ks_map.at(k);
             auto od_idx = tmp[0];
             auto od_ridx = tmp[1];
-            block_off_diag_row_idcs_offsets[od_idx + 1] =
-               block_off_diag_row_idcs_offsets[od_idx] + lR.Height();
-            block_off_diag_col_offsets[od_idx] = od_ridx;
+            block_off_diag_row_idcs_offsets[od_idx + 1] = od_ridx + lR.Height();
+            block_off_diag_col_offsets[od_idx] = od_ridx - recv_segments[tmp[2]];
             block_off_diag_widths[od_idx] = lR.Width();
             recv_segment_idcs[od_idx] = tmp[2];
 

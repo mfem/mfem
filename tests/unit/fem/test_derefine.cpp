@@ -41,8 +41,8 @@ static Mesh SplitMiddleSegment()
 }
 
 template <typename Space, typename MeshType, typename Sum>
-static void CheckAssembledMerge(MeshType &mesh, int degree, int rank,
-                                bool distributed, Sum sum)
+static void CheckMergeTranspose(MeshType &mesh, int degree, int rank,
+                                int ranks, Sum sum)
 {
    L2_FECollection basis(degree, 1);
    Space reference(&mesh, &basis), assembled(&mesh, &basis);
@@ -51,42 +51,64 @@ static void CheckAssembledMerge(MeshType &mesh, int degree, int rank,
    errors = 0.0;
    REQUIRE(mesh.DerefineByError(errors, 0.025));
    reference.Update();
-   assembled.Update();
    const Operator &original = *reference.GetUpdateOperator();
-   const Operator &candidate = *assembled.GetUpdateOperator();
-   Vector fine(original.Width()), truth(original.Height()), forward(truth.Size());
-   Vector dual(truth.Size()), reverse(fine.Size());
+   Vector fine(original.Width()), truth(original.Height());
+   Vector dual(truth.Size()), matrix_free(fine.Size());
    for (int index = 0; index < dual.Size(); ++index)
    {
       dual(index) = std::cos(2*index + rank);
    }
-   candidate.MultTranspose(dual, reverse);
+   original.MultTranspose(dual, matrix_free);
    for (int index = 0; index < fine.Size(); ++index)
    {
       fine(index) = std::sin(1 + index + rank);
    }
    original.Mult(fine, truth);
-   candidate.Mult(fine, forward);
    const real_t lhs = sum(truth * dual);
-   const real_t rhs = sum(fine * reverse);
+   const real_t rhs = sum(fine * matrix_free);
    CHECK(lhs == MFEM_Approx(rhs));
-   forward -= truth;
-   CHECK(forward.Normlinf() == MFEM_Approx(0.0));
-   if (distributed)
+   if (!Device::Allows(Backend::DEVICE_MASK))
+   {
+      const Operator &candidate = *assembled.GetUpdateOperator();
+      Vector forward(truth.Size()), reverse(fine.Size());
+      candidate.Mult(fine, forward);
+      candidate.MultTranspose(dual, reverse);
+      reverse -= matrix_free;
+      CHECK(reverse.Normlinf() == MFEM_Approx(0.0));
+      forward -= truth;
+      CHECK(forward.Normlinf() == MFEM_Approx(0.0));
+   }
+   const real_t *actual = matrix_free.HostRead();
+   for (int owner = 0; owner < ranks; ++owner)
+   {
+      const int columns = int(sum(owner == rank ? fine.Size() : 0));
+      for (int column = 0; column < columns; ++column)
+      {
+         fine = 0.0;
+         if (owner == rank) { fine.HostReadWrite()[column] = 1.0; }
+         original.Mult(fine, truth);
+         const real_t expected = sum(truth * dual);
+         if (owner == rank) { CHECK(actual[column] == MFEM_Approx(expected)); }
+      }
+   }
+   if (ranks > 1)
    {
       fine = real_t(rank);
       original.Mult(fine, truth);
       CHECK(sum(rank == 0 ? truth.Normlinf() : 0.0) > 0.0);
+      dual = real_t(rank == 0);
+      original.MultTranspose(dual, matrix_free);
+      CHECK(sum(rank != 0 ? matrix_free.Normlinf() : 0.0) > 0.0);
    }
 }
 
-TEST_CASE("Assembled 1D DG merge transpose", "[AMR][Coarsen]")
+TEST_CASE("Scalar 1D DG merge transpose", "[AMR][Coarsen][GPU]")
 {
    for (int degree : {1, 2})
    {
       CAPTURE(degree);
       Mesh mesh = SplitMiddleSegment();
-      CheckAssembledMerge<FiniteElementSpace>(mesh, degree, 0, false,
+      CheckMergeTranspose<FiniteElementSpace>(mesh, degree, 0, 1,
                                               [](real_t value) { return value; });
    }
 }
@@ -481,19 +503,35 @@ void stress_parallel_coarsen(int order, Element::Type el_type, int basis_type)
 #endif
 }
 
-TEST_CASE("Split-rank 1D DG merge transpose", "[AMR][Coarsen][Parallel]")
+TEST_CASE("Split-rank 1D DG merge transpose", "[AMR][Coarsen][Parallel][GPU]")
 {
-   if (Mpi::WorldSize() != 2) { return; }
+   const int ranks = Mpi::WorldSize();
+   if (ranks < 2 || ranks > 4) { return; }
    for (int degree : {1, 2})
    {
       CAPTURE(degree);
       Mesh mesh = SplitMiddleSegment();
+      const int parents = ranks * (ranks - 1);
+      if (ranks > 2)
+      {
+         mesh = Mesh::MakeCartesian1D(parents);
+         mesh.EnsureNCMesh(true);
+         mesh.UniformRefinement();
+      }
       Array<int> partition(mesh.GetNE());
       for (int cell = 0; cell < mesh.GetNE(); ++cell)
       {
          Vector center;
          mesh.GetElementCenter(cell, center);
-         partition[cell] = center(0) < 0.5 ? 0 : 1;
+         if (ranks == 2) { partition[cell] = center(0) < 0.5 ? 0 : 1; }
+         else
+         {
+            const int child = int(center(0) * (2*parents));
+            const int parent = child / 2;
+            const int left = parent / (ranks - 1);
+            const int other = parent % (ranks - 1);
+            partition[cell] = child % 2 ? other + (other >= left) : left;
+         }
       }
       ParMesh parallel(MPI_COMM_WORLD, mesh, partition);
       auto global_sum = [](real_t local)
@@ -503,8 +541,8 @@ TEST_CASE("Split-rank 1D DG merge transpose", "[AMR][Coarsen][Parallel]")
                        MPI_SUM, MPI_COMM_WORLD);
          return result;
       };
-      CheckAssembledMerge<ParFiniteElementSpace>(parallel, degree, Mpi::WorldRank(),
-                                                true, global_sum);
+      CheckMergeTranspose<ParFiniteElementSpace>(parallel, degree, Mpi::WorldRank(),
+                                                 ranks, global_sum);
    }
 }
 
