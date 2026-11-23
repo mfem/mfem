@@ -829,8 +829,11 @@ public:
    HypreParMatrix &operator=(real_t value)
    {
 #if MFEM_HYPRE_VERSION < 22200
+      HostReadWrite();
       internal::hypre_ParCSRMatrixSetConstantValues(A, value);
+      HypreRead();
 #else
+      HypreReadWrite();
       hypre_ParCSRMatrixSetConstantValues(A, value);
 #endif
       return *this;
@@ -849,8 +852,12 @@ public:
        the stand-alone function ParAdd described below. */
    HypreParMatrix &Add(const real_t beta, const HypreParMatrix &B)
    {
+      HostReadWrite();
+      B.HostRead();
       MFEM_VERIFY(internal::hypre_ParCSRMatrixSum(A, beta, B.A) == 0,
                   "error in hypre_ParCSRMatrixSum");
+      HypreRead();
+      B.HypreRead();
       return *this;
    }
 
