@@ -120,7 +120,17 @@ Mesh OrientedTriFaceMesh(int orientation, bool add_extbdr = false);
  */
 Mesh CylinderMesh(Geometry::Type el_type, bool quadratic, int variant = 0);
 
-
+/**
+ * @brief Create a 2D or 3D Cartesian mesh with checkerboard element attributes.
+ *
+ * Each element receives the attribute 1 + (x % 2) + (y % 2) + (z % 2), where
+ * z is zero in 2D.
+ *
+ * @param dim Dimension of the mesh: 2 or 3.
+ * @param n Number of elements in each coordinate direction.
+ * @return Mesh
+ */
+Mesh CheckerboardMesh(int dim, int n = 3);
 
 /**
  * @brief Helper to refine a single element attached to a boundary attribute

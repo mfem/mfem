@@ -221,6 +221,203 @@ TEST_CASE("Transfer", "[Transfer]")
    delete c_fec;
 }
 
+enum class PTransferCase { H1_1D, L2, H1Positive, H1HighOrder, H1Mixed };
+
+std::string PTransferCaseName(PTransferCase c)
+{
+   switch (c)
+   {
+      case PTransferCase::H1_1D: return "1D H1";
+      case PTransferCase::L2: return "L2";
+      case PTransferCase::H1Positive: return "H1 Positive";
+      case PTransferCase::H1HighOrder: return "H1 high order";
+      case PTransferCase::H1Mixed: return "H1 mixed mesh";
+   }
+   return "";
+}
+
+// Spaces for which TransferOperator falls back to PRefinementTransferOperator
+// because the tensor-product kernels do not support them.
+TEST_CASE("Transfer Fallback", "[Transfer]")
+{
+   auto tcase = GENERATE(PTransferCase::H1_1D, PTransferCase::L2,
+                         PTransferCase::H1Positive, PTransferCase::H1HighOrder,
+                         PTransferCase::H1Mixed);
+   auto vdim = GENERATE(1, 2);
+   auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+
+   const int dim = (tcase == PTransferCase::H1_1D) ? 1 : 2;
+   const int c_order = 2;
+   const int f_order = (tcase == PTransferCase::H1HighOrder)
+                       ? DeviceDofQuadLimits::Get().MAX_Q1D : 2*c_order;
+   CAPTURE(PTransferCaseName(tcase), vdim, ordering, c_order, f_order);
+
+   Mesh mesh;
+   if (tcase == PTransferCase::H1Mixed)
+   {
+      mesh = Mesh::LoadFromFile("../../data/square-mixed.mesh");
+   }
+   else if (dim == 1)
+   {
+      mesh = Mesh::MakeCartesian1D(3);
+   }
+   else
+   {
+      mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   }
+
+   std::unique_ptr<FiniteElementCollection> c_fec, f_fec;
+   switch (tcase)
+   {
+      case PTransferCase::H1_1D:
+      case PTransferCase::H1HighOrder:
+      case PTransferCase::H1Mixed:
+         c_fec.reset(new H1_FECollection(c_order, dim));
+         f_fec.reset(new H1_FECollection(f_order, dim));
+         break;
+      case PTransferCase::L2:
+         c_fec.reset(new L2_FECollection(c_order, dim));
+         f_fec.reset(new L2_FECollection(f_order, dim));
+         break;
+      case PTransferCase::H1Positive:
+         c_fec.reset(new H1Pos_FECollection(c_order, dim));
+         f_fec.reset(new H1Pos_FECollection(f_order, dim));
+         break;
+   }
+
+   FiniteElementSpace c_fes(&mesh, c_fec.get(), vdim, ordering);
+   FiniteElementSpace f_fes(&mesh, f_fec.get(), vdim, ordering);
+
+   PRefinementTransferOperator ref(c_fes, f_fes);
+   TransferOperator test(c_fes, f_fes);
+
+   Vector x(c_fes.GetVSize()), y(f_fes.GetVSize());
+   x.Randomize(1);
+   y.Randomize(2);
+
+   Vector y_ref(f_fes.GetVSize()), y_test(f_fes.GetVSize());
+   ref.Mult(x, y_ref);
+   test.Mult(x, y_test);
+   y_test -= y_ref;
+   REQUIRE(y_test.Normlinf() <= 1e-12 * y_ref.Normlinf());
+
+   Vector x_ref(c_fes.GetVSize()), x_test(c_fes.GetVSize());
+   ref.MultTranspose(y, x_ref);
+   test.MultTranspose(y, x_test);
+   x_test -= x_ref;
+   REQUIRE(x_test.Normlinf() <= 1e-12 * x_ref.Normlinf());
+}
+
+// Successive tensor-product transfers share one coarse space but use
+// different fine node sets. Each must match the general operator.
+TEST_CASE("Tensor Product Transfer Shared Coarse Space", "[Transfer]")
+{
+   auto vdim = GENERATE(1, 2);
+   auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   const int dim = 2, c_order = 2, f_order = 4;
+   CAPTURE(vdim, ordering);
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL);
+   H1_FECollection c_fec(c_order, dim);
+   FiniteElementSpace c_fes(&mesh, &c_fec, vdim, ordering);
+
+   for (int btype : {BasisType::GaussLobatto, BasisType::ClosedUniform})
+   {
+      CAPTURE(btype);
+      H1_FECollection f_fec(f_order, dim, btype);
+      FiniteElementSpace f_fes(&mesh, &f_fec, vdim, ordering);
+
+      PRefinementTransferOperator ref(c_fes, f_fes);
+      TensorProductPRefinementTransferOperator test(c_fes, f_fes);
+
+      Vector x(c_fes.GetVSize()), y(f_fes.GetVSize());
+      x.Randomize(1);
+      y.Randomize(2);
+
+      Vector y_ref(f_fes.GetVSize()), y_test(f_fes.GetVSize());
+      ref.Mult(x, y_ref);
+      test.Mult(x, y_test);
+      y_test -= y_ref;
+      REQUIRE(y_test.Normlinf() <= 1e-12 * y_ref.Normlinf());
+
+      Vector x_ref(c_fes.GetVSize()), x_test(c_fes.GetVSize());
+      ref.MultTranspose(y, x_ref);
+      test.MultTranspose(y, x_test);
+      x_test -= x_ref;
+      REQUIRE(x_test.Normlinf() <= 1e-12 * x_ref.Normlinf());
+   }
+}
+
+TEST_CASE("InterpolationGridTransfer Round Trip", "[Transfer]")
+{
+   auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,
+                               VecSpace::VectorH1vdim, VecSpace::ND, VecSpace::RT);
+   auto simplex = GENERATE(true, false);
+   dimension = GENERATE(2, 3);
+   const int order = 2;
+   const int ne = 2;
+   CAPTURE(VecSpaceName(vectorspace), dimension, simplex, order);
+
+   Mesh mesh;
+   if (dimension == 2)
+   {
+      Element::Type type = simplex ? Element::TRIANGLE : Element::QUADRILATERAL;
+      mesh = Mesh::MakeCartesian2D(ne, ne, type, 1, 1.0, 1.0);
+   }
+   else
+   {
+      Element::Type type = simplex ? Element::TETRAHEDRON : Element::HEXAHEDRON;
+      mesh = Mesh::MakeCartesian3D(ne, ne, ne, type, 1.0, 1.0, 1.0);
+   }
+   Mesh fineMesh(mesh);
+   fineMesh.UniformRefinement();
+
+   std::unique_ptr<FiniteElementCollection> fec;
+   switch (vectorspace)
+   {
+      case VecSpace::H1:
+      case VecSpace::VectorH1nodes:
+      case VecSpace::VectorH1vdim:
+         fec.reset(new H1_FECollection(order, dimension));
+         break;
+      case VecSpace::ND:
+         fec.reset(new ND_FECollection(order, dimension));
+         break;
+      case VecSpace::RT:
+         fec.reset(new RT_FECollection(order - 1, dimension));
+         break;
+   }
+
+   const int vdim = (vectorspace == VecSpace::VectorH1nodes
+                     || vectorspace == VecSpace::VectorH1vdim) ? dimension : 1;
+   Ordering::Type ordering = (vectorspace == VecSpace::VectorH1vdim)
+                             ? Ordering::byVDIM : Ordering::byNODES;
+   FiniteElementSpace c_fespace(&mesh, fec.get(), vdim, ordering);
+   FiniteElementSpace f_fespace(&fineMesh, fec.get(), vdim, ordering);
+
+   GridFunction X(&c_fespace), Y(&f_fespace), X_rt(&c_fespace);
+   coeff_order = 1;
+   if (vectorspace == VecSpace::H1)
+   {
+      FunctionCoefficient funcCoeff(&coeff);
+      X.ProjectCoefficient(funcCoeff);
+   }
+   else
+   {
+      VectorFunctionCoefficient funcCoeff(dimension, &vectorcoeff);
+      X.ProjectCoefficient(funcCoeff);
+   }
+
+   // The backward operator is a left inverse of the forward operator, so a
+   // forward/backward round trip must reproduce any coarse field.
+   InterpolationGridTransfer transfer(c_fespace, f_fespace);
+   transfer.ForwardOperator().Mult(X, Y);
+   transfer.BackwardOperator().Mult(Y, X_rt);
+
+   X_rt -= X;
+   REQUIRE(X_rt.Norml2() < 1e-12 * X.Norml2());
+}
+
 TEST_CASE("Variable Order Transfer", "[Transfer][VariableOrder]")
 {
    auto vectorspace = GENERATE(VecSpace::H1, VecSpace::VectorH1nodes,
@@ -673,7 +870,78 @@ TEST_CASE("Trace PRefinement Serial TrueTransfer", "[Transfer]")
 }
 
 
+Mesh MakeH1TransferMesh()
+{
+   Mesh mesh = Mesh::MakeCartesian2D(2, 2, Element::QUADRILATERAL,
+                                     true, 1.0, 1.0);
+   mesh.EnsureNCMesh();
+   Array<int> refine;
+   refine.Append(0);
+   mesh.GeneralRefinement(refine);
+   return mesh;
+}
+
+void CheckH1L2Projection(FiniteElementSpace &coarse_fes,
+                         FiniteElementSpace &fine_fes)
+{
+   const bool use_ea = GENERATE(false, true);
+   const bool weighted = GENERATE(false, true);
+   CAPTURE(use_ea, weighted);
+   FunctionCoefficient rho([](const Vector &p) { return 1 + p(0) + 2*p(1); });
+   CoefficientWithOrder weight = weighted ? CoefficientWithOrder(rho) : nullptr;
+   L2ProjectionGridTransfer transfer(coarse_fes, fine_fes, weight, weight);
+   L2ProjectionGridTransfer assembled(coarse_fes, fine_fes, weight, weight);
+   transfer.UseEA(use_ea);
+   const Operator &forward = transfer.TrueForwardOperator();
+   Vector x(coarse_fes.GetTrueVSize()), y(fine_fes.GetTrueVSize());
+   Vector expected(y.Size()), round_trip(x.Size());
+
+   x = 1.0;
+   forward.Mult(x, y);
+   y -= 1.0;
+   CHECK(y.Normlinf() < 1e-12);
+
+   x.Randomize(1);
+   forward.Mult(x, y);
+   assembled.TrueForwardOperator().Mult(x, expected);
+   y -= expected;
+   CHECK(y.Normlinf() < 1e-12);
+
+   transfer.TrueBackwardOperator().Mult(expected, round_trip);
+   round_trip -= x;
+   CHECK(round_trip.Normlinf() < 1e-10);
+}
+
+TEST_CASE("H1 L2 projection on a nonconforming mesh", "[Transfer]")
+{
+   Mesh coarse_mesh = MakeH1TransferMesh();
+   Mesh fine_mesh(coarse_mesh);
+   fine_mesh.UniformRefinement();
+   H1_FECollection coarse_fec(2, 2), fine_fec(1, 2);
+   FiniteElementSpace coarse_fes(&coarse_mesh, &coarse_fec);
+   FiniteElementSpace fine_fes(&fine_mesh, &fine_fec);
+   CheckH1L2Projection(coarse_fes, fine_fes);
+}
+
 #ifdef MFEM_USE_MPI
+
+TEST_CASE("Parallel H1 L2 projection on a nonconforming mesh",
+          "[Transfer][Parallel]")
+{
+   if (Mpi::WorldSize() > 4)
+   {
+      SUCCEED("Run with at most four MPI ranks for this small mesh");
+      return;
+   }
+   Mesh mesh = MakeH1TransferMesh();
+   ParMesh coarse_mesh(MPI_COMM_WORLD, mesh);
+   ParMesh fine_mesh(coarse_mesh);
+   fine_mesh.UniformRefinement();
+   H1_FECollection coarse_fec(2, 2), fine_fec(1, 2);
+   ParFiniteElementSpace coarse_fes(&coarse_mesh, &coarse_fec);
+   ParFiniteElementSpace fine_fes(&fine_mesh, &fine_fec);
+   CheckH1L2Projection(coarse_fes, fine_fes);
+}
 
 TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
 {
@@ -795,6 +1063,40 @@ TEST_CASE("Parallel Transfer", "[Transfer][Parallel]")
    if (!geometric) { delete f_h1_fec; }
    delete c_h1_fec;
    delete pmesh;
+}
+
+TEST_CASE("Parallel InterpolationGridTransfer Round Trip",
+          "[Transfer][Parallel]")
+{
+   auto simplex = GENERATE(true, false);
+   dimension = 3;
+   const int order = 2;
+   const int ne = 2;
+   CAPTURE(simplex, order);
+
+   Element::Type type = simplex ? Element::TETRAHEDRON : Element::HEXAHEDRON;
+   Mesh mesh = Mesh::MakeCartesian3D(ne, ne, ne, type, 1.0, 1.0, 1.0);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+   ParMesh pfineMesh(pmesh);
+   pfineMesh.UniformRefinement();
+
+   ND_FECollection fec(order, dimension);
+   ParFiniteElementSpace c_fespace(&pmesh, &fec);
+   ParFiniteElementSpace f_fespace(&pfineMesh, &fec);
+
+   ParGridFunction X(&c_fespace), Y(&f_fespace), X_rt(&c_fespace);
+   coeff_order = 1;
+   VectorFunctionCoefficient funcCoeff(dimension, &vectorcoeff);
+   X.ProjectCoefficient(funcCoeff);
+
+   InterpolationGridTransfer transfer(c_fespace, f_fespace);
+   transfer.ForwardOperator().Mult(X, Y);
+   transfer.BackwardOperator().Mult(Y, X_rt);
+
+   X_rt -= X;
+   const real_t err_norm = std::sqrt(InnerProduct(MPI_COMM_WORLD, X_rt, X_rt));
+   const real_t X_norm = std::sqrt(InnerProduct(MPI_COMM_WORLD, X, X));
+   REQUIRE(err_norm < 1e-12 * X_norm);
 }
 
 TEST_CASE("Trace PRefinement Parallel TrueTransfer", "[Transfer][Parallel]")

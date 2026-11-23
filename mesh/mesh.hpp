@@ -796,8 +796,9 @@ public:
       InitMesh(Dim_, spaceDim_, NVert, NElem, NBdrElem);
    }
 
-   /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
-       generate_edges = 0 (default) edges are not generated, if 1 edges are
+   /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. Native
+       MFEM NURBS HDF5 files are also supported when MFEM_USE_HDF5 is enabled.
+       If generate_edges = 0 (default) edges are not generated, if 1 edges are
        generated. See also @a Mesh::LoadFromFile. See @a Mesh::Finalize for the
        meaning of @a refine. */
    explicit Mesh(const std::string &filename, int generate_edges = 0,
@@ -870,8 +871,9 @@ public:
         @ref mfem_Mesh_ctors "Standard mesh constructors".*/
    ///@{
 
-   /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. If
-       generate_edges = 0 (default) edges are not generated, if 1 edges are
+   /** Creates mesh by reading a file in MFEM, Netgen, or VTK format. Native
+       MFEM NURBS HDF5 files are also supported when MFEM_USE_HDF5 is enabled.
+       If generate_edges = 0 (default) edges are not generated, if 1 edges are
        generated.
 
        @note @a filename is not cached by the Mesh object and can be
@@ -974,8 +976,13 @@ public:
        Quadrilaterals are split into two triangles, prisms are split into
        3 tetrahedra, and hexahedra are split into either 5 or 6 tetrahedra
        depending on the configuration.
-       @warning The curvature of the original mesh is not carried over to the
-       new mesh. Periodic meshes are not supported. */
+
+       @warning Although periodic meshes are supported, some periodic
+       configurations (such as periodic-hexagon.mesh) do not work because MFEM
+       requires edges to be uniquely identified by their endpoint vertices, and
+       so edge paths connecting periodic boundaries must have at least three
+       segments. MakeSimplicial inserts new diagonal edges that may violate this
+       condition. */
    static Mesh MakeSimplicial(const Mesh &orig_mesh);
 
    /// Create a periodic mesh by identifying vertices of @a orig_mesh.
@@ -2652,6 +2659,25 @@ public:
                     int compression_level=0);
 
 #ifdef MFEM_USE_HDF5
+   /** @brief Save a NURBS mesh in MFEM's native HDF5 NURBS format.
+
+       The format preserves the complete native MFEM NURBS representation,
+       including patch topology, knot vectors, weights, spacing functions, and
+       nonconforming-patch refinement data. The file can be read directly by
+       the filename Mesh constructor or Mesh::LoadFromFile().
+
+       @param fname File to create or replace.
+       @param compression_level Controls HDF5's lossless DEFLATE compression
+                                filter. Values from 0 through 9 select the
+                                HDF5 compression level, with larger values
+                                generally requiring more compression time;
+                                -1 disables compression. Compression is
+                                performed by HDF5, not by MFEM. If the HDF5
+                                library does not provide the DEFLATE filter,
+                                datasets are written without compression. */
+   void SaveNURBSHDF5(const std::string &fname,
+                      int compression_level = 6) const;
+
    /// @brief Save the Mesh in %VTKHDF format.
    void SaveVTKHDF(const std::string &fname, bool high_order=true);
 #endif

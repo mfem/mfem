@@ -12,6 +12,8 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+#include <sstream>
+
 namespace mfem
 {
 #ifdef MFEM_USE_MPI
@@ -221,6 +223,78 @@ TEST_CASE("ParMeshMakeSimplicial", "[Parallel], [ParMesh]")
 
    x -= x_tet;
    REQUIRE(x.Normlinf() == MFEM_Approx(0.0));
+}
+
+TEST_CASE("ParMeshPrintLoadEmptyCurvedPartitions", "[Parallel], [ParMesh]")
+{
+   const int dim = GENERATE(2, 3);
+   Mesh mesh = (dim == 2) ?
+               Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL) :
+               Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
+   mesh.SetCurvature(2);
+   ParMesh pmesh(MPI_COMM_WORLD, mesh);
+
+   const int local_empty = pmesh.GetNE() == 0;
+   const auto empty_partitions = pmesh.ReduceInt(local_empty);
+   REQUIRE(empty_partitions == Mpi::WorldSize() - 1);
+
+   std::ostringstream output;
+   pmesh.ParPrint(output);
+   std::istringstream input(output.str());
+   ParMesh recovered(MPI_COMM_WORLD, input);
+
+   REQUIRE(recovered.GetNE() == pmesh.GetNE());
+   REQUIRE(recovered.GetGlobalNE() == 1);
+   REQUIRE(recovered.GetNodes() != nullptr);
+   REQUIRE(recovered.SpaceDimension() == dim);
+   REQUIRE(recovered.GetTypicalElementGeometry() ==
+           (dim == 2 ? Geometry::SQUARE : Geometry::CUBE));
+   REQUIRE(recovered.GetNodes()->Size() == pmesh.GetNodes()->Size());
+
+   if (recovered.GetNodes()->Size() > 0)
+   {
+      Vector node_difference(recovered.GetNodes()->Size());
+      node_difference = *recovered.GetNodes();
+      node_difference -= *pmesh.GetNodes();
+      REQUIRE(node_difference.Normlinf() == MFEM_Approx(0.0));
+   }
+}
+
+TEST_CASE("ParMeshMakeSimplicial interior boundary", "[Parallel], [ParMesh]")
+{
+   if (Mpi::WorldSize() < 2) { return; }
+
+   const int order = GENERATE(1, 2);
+   const int rank = Mpi::WorldRank();
+
+   Mesh mesh = Mesh::MakeCartesian2D(2, 1, Element::QUADRILATERAL,
+                                     true, 2.0, 1.0, false);
+   // Add an interior boundary that points downwards, opposite to the
+   // orientation of the left quad's edge. This is valid for an interior
+   // boundary, even when its adjacent elements belong to different ranks.
+   mesh.AddBdrSegment(4, 1, 5);
+   mesh.FinalizeTopology();
+
+   if (order > 1) { mesh.SetCurvature(order); }
+
+   // Extra ranks have empty partitions.
+   int partitioning[] = {0, 1};
+   ParMesh pmesh(MPI_COMM_WORLD, mesh, partitioning);
+   REQUIRE(pmesh.GetNSharedFaces() == (rank < 2 ? 1 : 0));
+
+   ParMesh simplex_mesh = ParMesh::MakeSimplicial(pmesh);
+   REQUIRE(simplex_mesh.GetNE() == (rank < 2 ? 2 : 0));
+   REQUIRE(simplex_mesh.GetNBE() == pmesh.GetNBE());
+   REQUIRE(simplex_mesh.GetNSharedFaces() == (rank < 2 ? 1 : 0));
+   REQUIRE(simplex_mesh.CheckElementOrientation(false) == 0);
+   for (int i = 0; i < simplex_mesh.GetNE(); i++)
+   {
+      REQUIRE(simplex_mesh.GetElementGeometry(i) == Geometry::TRIANGLE);
+   }
+   for (int i = 0; i < simplex_mesh.GetNBE(); i++)
+   {
+      REQUIRE(simplex_mesh.GetBdrAttribute(i) == pmesh.GetBdrAttribute(i));
+   }
 }
 
 #endif // MFEM_USE_MPI
