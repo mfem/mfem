@@ -40,6 +40,9 @@ Discretization improvements
 
 Meshing improvements
 --------------------
+- Fixed DG face-neighbor exchange at shared vertices on 1D parallel meshes
+  that use the nonconforming refinement hierarchy.
+
 - Fixed the essential DOFs on interior boundaries of 2D non-conforming meshes
   refined on one side only: on parallel meshes, the edges on the unrefined side
   of essential boundaries were not essential, and on serial meshes, those of

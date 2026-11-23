@@ -3204,7 +3204,6 @@ int ParMesh::GetNSharedFaces() const
    }
    else
    {
-      MFEM_ASSERT(Dim > 1, "");
       const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
       return shared.conforming.Size() + shared.slaves.Size();
    }
@@ -3223,7 +3222,6 @@ int ParMesh::GetSharedFace(int sface) const
    }
    else
    {
-      MFEM_ASSERT(Dim > 1, "");
       const NCMesh::NCList &shared = pncmesh->GetSharedList(Dim-1);
       int csize = shared.conforming.Size();
       return sface < csize

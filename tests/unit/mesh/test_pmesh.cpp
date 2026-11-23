@@ -123,6 +123,60 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
    }
 }
 
+TEST_CASE("Shared segment endpoints on a parallel NC mesh", "[Parallel][ParMesh]")
+{
+   if (Mpi::WorldSize() != 2) { return; }
+   const int rank = Mpi::WorldRank();
+   for (int degree : {1, 2})
+   {
+      CAPTURE(degree);
+      Mesh mesh = Mesh::MakeCartesian1D(4);
+      mesh.EnsureNCMesh(true);
+      const int partition[] = {0, 0, 0, 1};
+      ParMesh parallel(MPI_COMM_WORLD, mesh, partition);
+      L2_FECollection basis(degree, 1);
+      ParFiniteElementSpace space(&parallel, &basis);
+      auto check_trace = [&](real_t position)
+      {
+         ParGridFunction field(&space);
+         FunctionCoefficient profile([rank](const Vector &point)
+         { return 4*rank + 3*point(0); });
+         field.ProjectCoefficient(profile);
+         field.ExchangeFaceNbrData();
+         REQUIRE(parallel.GetNSharedFaces() == 1);
+         REQUIRE(parallel.GetNFaceNeighborElements() == 1);
+         auto *face = parallel.GetSharedFaceTransformations(0);
+         face->SetAllIntPoints(&Geometries.GetCenter(Geometry::POINT));
+         const auto &point = face->GetElement2IntPoint();
+         Vector physical(1);
+         face->Elem2->Transform(point, physical);
+         CHECK(physical(0) == MFEM_Approx(position));
+         CHECK(field.GetValue(face->Elem2No, point) ==
+               MFEM_Approx(4*(1-rank) + 3*position));
+      };
+      check_trace(0.75);
+      Array<int> marked;
+      for (int cell = 0; cell < parallel.GetNE(); ++cell)
+      {
+         Vector center;
+         parallel.GetElementCenter(cell, center);
+         if (center(0) == 0.625) { marked.Append(cell); }
+      }
+      parallel.GeneralRefinement(marked);
+      space.Update(false);
+      REQUIRE(parallel.GetGlobalNE() == 5);
+      check_trace(0.75);
+      Vector errors(parallel.GetNE());
+      errors = 0.0;
+      REQUIRE(parallel.DerefineByError(errors, 0.025));
+      space.Update(false);
+      check_trace(0.75);
+      parallel.Rebalance();
+      space.Update(false);
+      check_trace(0.5);
+   }
+}
+
 TEST_CASE("ParMeshSharedFaces", "[Parallel], [ParMesh]")
 {
    const char *mesh_file = "../../data/fichera-amr.mesh";
