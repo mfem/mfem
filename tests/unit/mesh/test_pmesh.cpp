@@ -123,7 +123,8 @@ TEST_CASE("ParMeshGlobalIndices",  "[Parallel], [ParMesh]")
    }
 }
 
-TEST_CASE("Shared segment endpoints on a parallel NC mesh", "[Parallel][ParMesh]")
+TEST_CASE("Shared segment endpoints on a parallel NC mesh",
+          "[Parallel][ParMesh][GPU]")
 {
    const int ranks = Mpi::WorldSize();
    if (ranks < 2) { return; }
