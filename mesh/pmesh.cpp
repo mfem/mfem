@@ -6514,7 +6514,8 @@ void ParMesh::PrintInfo(std::ostream &os)
 {
    int i;
    DenseMatrix J(Dim);
-   real_t h_min, h_max, kappa_min, kappa_max, h, kappa;
+   real_t h_min = infinity(), h_max = -infinity(), h;
+   real_t kappa_min = infinity(), kappa_max = -infinity(), kappa;
 
    if (MyRank == 0)
    {
