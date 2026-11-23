@@ -18,6 +18,10 @@ GPU computing
 
 - Fixed RAJA CUDA/HIP element coverage when using a smaller fixed launch grid.
 
+- Fixed a crash on the debug device with hypre built without GPU support:
+  HypreParVector wrapped the host data of hypre as debug host memory, so that
+  a device access could protect unrelated data on the same host page.
+
 Discretization improvements
 ---------------------------
 - Fixed H1 transfer in L2ProjectionGridTransfer on non-conforming meshes in

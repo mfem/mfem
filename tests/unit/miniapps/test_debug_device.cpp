@@ -26,6 +26,7 @@ struct NullBuf: public std::streambuf { int overflow(int c) override { return c;
 #include <iosfwd>
 #include <csetjmp>
 #include <csignal>
+#include <cstdlib>
 
 static void TestMemoryTypes(MemoryType mt, bool use_dev, int N = 1024)
 {
@@ -145,10 +146,42 @@ TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
    REQUIRE(mm.PrintAliases(dev_null) == n_alias);
 }
 
+#if defined(MFEM_USE_MPI) && !defined(HYPRE_USING_GPU)
+TEST_CASE("HypreParVector/DebugDevice", "[DebugDevice]")
+{
+   // The debug device must not protect the host memory of a HypreParVector,
+   // which MFEM did not allocate: mprotect would also protect the rest of its
+   // page.
+   const auto pagesize = sysconf(_SC_PAGE_SIZE);
+   REQUIRE(pagesize > 0);
+   void *mem = nullptr;
+   REQUIRE(posix_memalign(&mem, pagesize, pagesize) == 0);
+   real_t *page = static_cast<real_t*>(mem);
+   const int n = 8, m = pagesize/sizeof(real_t);
+   page[m-1] = 1.0; // other data on the page of the vector
+   HYPRE_BigInt col[2] = {0, n};
+   {
+      HypreParVector x(MPI_COMM_SELF, n, page, col);
+      x.UseDevice(true);
+      x = 0.0; // write to the device copy
+      REQUIRE(page[m-1] == 1.0); // read the host page
+   }
+   free(page);
+
+   // hypre allocates the data of this vector
+   HypreParVector y(MPI_COMM_SELF, n, col);
+   REQUIRE(y.GetMemory().GetHostMemoryType() == MemoryType::HOST);
+}
+#endif // MFEM_USE_MPI && !HYPRE_USING_GPU
+
 #endif // _WIN32
 
 int main(int argc, char *argv[])
 {
+#if defined(MFEM_USE_MPI) && !defined(HYPRE_USING_GPU) && !defined(_WIN32)
+   Mpi::Init();
+   Hypre::Init();
+#endif
    Device device("debug");
    return RunCatchSession(argc, argv, {"[DebugDevice]"});
 }
