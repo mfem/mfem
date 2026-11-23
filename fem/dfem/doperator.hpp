@@ -1236,7 +1236,9 @@ public:
    /// Vector if MultLevel is set to LVECTOR.
    /// @param y Result vector of the action of the operator on
    /// solutions. The result is a T-dof vector or L-dof vector depending on
-   /// the MultLevel.
+   /// the MultLevel. If the operator is a functional (FunctionalValue
+   /// outputs), each block holds instead the global sum of the quadrature
+   /// point values of its output.
    void Mult(const Vector &x, Vector &y) const override;
 
    template <typename x_t, typename y_t>
@@ -1272,7 +1274,7 @@ public:
       }
       if constexpr (std::is_same_v<y_t, MultiVector>)
       {
-         if (is_lvector)
+         if (is_lvector && !has_functional_integrator)
          {
             // Apply transposed restriction straight into the output vector.
             ApplyActions(y);
@@ -1280,7 +1282,24 @@ public:
          }
       }
       ApplyActions(residual_l);
-      prolongation_transpose(outfds, residual_l, y, is_lvector);
+
+      // Scatter the residuals back to the output vector blocks.
+      // For FunctionalValue (i.e. qf is a functional), we sum the local contribution
+      // from quadrature data to return the global scalar value.
+      if (!has_functional_integrator)
+      {
+         prolongation_transpose(outfds, residual_l, y, is_lvector);
+         return;
+      }
+      for (size_t i = 0; i < outfds.size(); i++)
+      {
+         const real_t local = residual_l[i]->Sum();
+         real_t global;
+         MPI_Allreduce(&local, &global, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
+                       mesh.GetComm());
+         if constexpr (std::is_same_v<y_t, MultiVector>) { y[i] = global; }
+         else { y.GetBlock(i) = global; }
+      }
    }
 
    /// @brief Add an integrator to the operator.
@@ -1822,13 +1841,13 @@ void DifferentiableOperator::AddIntegrator(
    static constexpr bool diagonal_second_derivatives =
       std::is_same_v<second_derivative_ids_t, SecondDerivatives<Pairs::Diagonal>>;
 
-   // Functional output checks: 
+   // Functional output checks:
    // - Functional outputs can't be mixed with other outputs.
    // - Every FunctionalValue output needs its own field.
    if constexpr (any_functional_output_v<output_t>)
    {
       static_assert(check_if_functional_v<output_t>,
-                  "FunctionalValue outputs can't be mixed with other outputs");
+                    "FunctionalValue outputs can't be mixed with other outputs");
       static_assert(distinct_field_ids_v<output_t>,
                     "every FunctionalValue output needs its own field");
    }
@@ -1867,7 +1886,7 @@ void DifferentiableOperator::AddIntegrator(
                has_functional_integrator == check_if_functional_v<output_t>,
                "functional (FunctionalValue) and non-functional integrators "
                "can't be mixed in one operator");
-   
+
    // Keep track of whether the operator is a functional,
    // so we can do the summation in Mult()
    if constexpr (check_if_functional_v<output_t>)

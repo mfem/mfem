@@ -13,7 +13,6 @@
 
 #include "mfem.hpp"
 
-#ifdef MFEM_USE_ENZYME
 #ifdef MFEM_USE_MPI
 
 #include "../../../fem/dfem/doperator.hpp"
@@ -23,6 +22,9 @@ using namespace mfem;
 using namespace mfem::future;
 using mfem::future::tensor;
 
+using dscalar_t =
+   std::conditional_t<UseEnzyme, real_t, mfem::future::dual<real_t, real_t>>;
+
 namespace functional_gradient_test
 {
 
@@ -31,15 +33,15 @@ namespace functional_gradient_test
 // field enters only through Gradient<Coords>, while the solution enters
 // through both Value<U> and Gradient<U>, so the two derivatives have a
 // different number of outputs.
-template <int dim>
+template <typename dscalar_t, int dim>
 struct EnergyFunctional
 {
    MFEM_HOST_DEVICE inline MFEM_FORCE_INLINE
-   auto operator()(const real_t &u,
-                   const tensor<real_t, dim> &dudxi,
-                   const tensor<real_t, dim, dim> &J,
+   auto operator()(const dscalar_t &u,
+                   const tensor<dscalar_t, dim> &dudxi,
+                   const tensor<dscalar_t, dim, dim> &J,
                    const real_t &w,
-                   real_t &f) const
+                   dscalar_t &f) const
    {
       const auto invJ = inv(J);
       const auto dudx = dudxi * invJ;
@@ -60,8 +62,7 @@ public:
                              const IntegrationRule &ir) :
       comm(fes.GetComm()),
       qspace(*fes.GetParMesh(), ir),
-      qspace_vec(qspace, 1),
-      q(qspace_vec)
+      qspace_vec(qspace, 1)
    {
       const auto &pmesh = *fes.GetParMesh();
       Array<int> all_domain_attr;
@@ -82,7 +83,7 @@ public:
       };
 
       dop = std::make_unique<DifferentiableOperator>(in, out, pmesh);
-      EnergyFunctional<dim> energy;
+      EnergyFunctional<dscalar_t, dim> energy;
       dop->AddDomainIntegrator<LocalQFBackend>(
          energy,
          Inputs<Value<U>, Gradient<U>, Gradient<Coords>, Weight> {},
@@ -93,13 +94,10 @@ public:
    real_t Eval(const Vector &u, const Vector &x) const
    {
       MultiVector X{u, x};
-      MultiVector Y{q};
+      Vector J(1);
+      MultiVector Y{J};
       dop->Mult(X, Y);
-      const real_t local = q.Sum();
-      real_t global;
-      MPI_Allreduce(&local, &global, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                    comm);
-      return global;
+      return J(0);
    }
 
    /// Gradient w.r.t. @a derivative_id, assembled into a Vector.
@@ -138,7 +136,6 @@ private:
    std::unique_ptr<DifferentiableOperator> dop;
    QuadratureSpace qspace;
    VectorQuadratureSpace qspace_vec;
-   mutable QuadratureFunction q;
 };
 
 template <int DIM>
@@ -234,4 +231,3 @@ TEST_CASE("dFEM functional gradient assembles into a Vector",
 }
 
 #endif // MFEM_USE_MPI
-#endif // MFEM_USE_ENZYME
