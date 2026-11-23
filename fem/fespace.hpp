@@ -1566,7 +1566,10 @@ public:
    /// Specify the Operator::Type to be used by the update operators.
    /** The default type is Operator::ANY_TYPE which leaves the choice to this
        class. The other currently supported option is Operator::MFEM_SPARSEMAT
-       which is only guaranteed to be honored for a refinement update operator.
+       which requests sparse assembly for refinement. For derefinement of
+       fixed-order scalar 1D discontinuous spaces on CPU, it requests an
+       assembled update with transpose support (distributed in parallel).
+       Request it before the derefinement update; the default is unchanged.
        Any other type will be treated as Operator::ANY_TYPE.
        @note This operation destroys the current update operator (if owned). */
    void SetUpdateOperatorType(Operator::Type tid) { Th.SetType(tid); }

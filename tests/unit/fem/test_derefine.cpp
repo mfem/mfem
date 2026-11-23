@@ -30,6 +30,67 @@ double coeff(const Vector& x)
    }
 }
 
+static Mesh SplitMiddleSegment()
+{
+   Mesh mesh = Mesh::MakeCartesian1D(3);
+   mesh.EnsureNCMesh(true);
+   Array<int> marked(1);
+   marked[0] = 1;
+   mesh.GeneralRefinement(marked);
+   return mesh;
+}
+
+template <typename Space, typename MeshType, typename Sum>
+static void CheckAssembledMerge(MeshType &mesh, int degree, int rank,
+                                bool distributed, Sum sum)
+{
+   L2_FECollection basis(degree, 1);
+   Space reference(&mesh, &basis), assembled(&mesh, &basis);
+   assembled.SetUpdateOperatorType(Operator::MFEM_SPARSEMAT);
+   Vector errors(mesh.GetNE());
+   errors = 0.0;
+   REQUIRE(mesh.DerefineByError(errors, 0.025));
+   reference.Update();
+   assembled.Update();
+   const Operator &original = *reference.GetUpdateOperator();
+   const Operator &candidate = *assembled.GetUpdateOperator();
+   Vector fine(original.Width()), truth(original.Height()), forward(truth.Size());
+   Vector dual(truth.Size()), reverse(fine.Size());
+   for (int index = 0; index < dual.Size(); ++index)
+   {
+      dual(index) = std::cos(2*index + rank);
+   }
+   candidate.MultTranspose(dual, reverse);
+   for (int index = 0; index < fine.Size(); ++index)
+   {
+      fine(index) = std::sin(1 + index + rank);
+   }
+   original.Mult(fine, truth);
+   candidate.Mult(fine, forward);
+   const real_t lhs = sum(truth * dual);
+   const real_t rhs = sum(fine * reverse);
+   CHECK(lhs == MFEM_Approx(rhs));
+   forward -= truth;
+   CHECK(forward.Normlinf() == MFEM_Approx(0.0));
+   if (distributed)
+   {
+      fine = real_t(rank);
+      original.Mult(fine, truth);
+      CHECK(sum(rank == 0 ? truth.Normlinf() : 0.0) > 0.0);
+   }
+}
+
+TEST_CASE("Assembled 1D DG merge transpose", "[AMR][Coarsen]")
+{
+   for (int degree : {1, 2})
+   {
+      CAPTURE(degree);
+      Mesh mesh = SplitMiddleSegment();
+      CheckAssembledMerge<FiniteElementSpace>(mesh, degree, 0, false,
+                                              [](real_t value) { return value; });
+   }
+}
+
 TEST_CASE("Derefine")
 {
    for (dimension = 2; dimension <= 3; ++dimension)
@@ -418,6 +479,33 @@ void stress_parallel_coarsen(int order, Element::Type el_type, int basis_type)
       REQUIRE( err < 1.e-12 );
    }
 #endif
+}
+
+TEST_CASE("Split-rank 1D DG merge transpose", "[AMR][Coarsen][Parallel]")
+{
+   if (Mpi::WorldSize() != 2) { return; }
+   for (int degree : {1, 2})
+   {
+      CAPTURE(degree);
+      Mesh mesh = SplitMiddleSegment();
+      Array<int> partition(mesh.GetNE());
+      for (int cell = 0; cell < mesh.GetNE(); ++cell)
+      {
+         Vector center;
+         mesh.GetElementCenter(cell, center);
+         partition[cell] = center(0) < 0.5 ? 0 : 1;
+      }
+      ParMesh parallel(MPI_COMM_WORLD, mesh, partition);
+      auto global_sum = [](real_t local)
+      {
+         real_t result;
+         MPI_Allreduce(&local, &result, 1, MPITypeMap<real_t>::mpi_type,
+                       MPI_SUM, MPI_COMM_WORLD);
+         return result;
+      };
+      CheckAssembledMerge<ParFiniteElementSpace>(parallel, degree, Mpi::WorldRank(),
+                                                true, global_sum);
+   }
 }
 
 TEST_CASE("Parallel AMR Coarsen Stress Test", "[AMR][Coarsen][Parallel][CUDA]")
