@@ -57,6 +57,10 @@ protected:
    /// Particles that leave the domain are added here.
    ParticleSet inactive_fluid_particles;
 
+   /// Cumulative 3D outlet removals on this MPI rank.
+   unsigned long long bottom_exit_count = 0;
+   unsigned long long top_exit_count = 0;
+
    FindPointsGSLIB finder;
 
    /// Timestep history.
@@ -115,6 +119,12 @@ protected:
    /// std::vector of all boundary condition structs
    std::vector<BCVariant> bcs;
 
+   /// Use the reflected remainder of a 3D wall-crossing segment.
+   bool reflect_remaining_displacement = false;
+
+   /// Small inward displacement at each 3D wall hit, in mesh-coordinate units.
+   real_t wall_normal_offset = 0.0;
+
    /// Update \ref beta_k and \ref alpha_k using current \ref dthist
    void SetTimeIntegrationCoefficients();
 
@@ -169,7 +179,39 @@ protected:
    /// Apply all BCs in \ref bcs
    void ApplyBCs();
 
-   void ApplyBCs3D(const ParGridFunction &T_gf, const ParGridFunction &Tgrad_gf);
+   struct BoundaryCrossings3D
+   {
+      Array<unsigned int> indices; // Local particle indices.
+      Vector s_inside, s_outside;  // Fractions along the proposed segment.
+      ParticleVector x_inside{3, Ordering::byVDIM};
+   };
+
+   /// Locate crossings between X(1) and X(), without modifying either.
+   BoundaryCrossings3D LocateBoundaryCrossings3D(real_t position_tol);
+
+   /** @brief Bisect segments with a found start and an unfound endpoint.
+    *
+    *  All ranks participate, including those with no local crossings. Assumes
+    *  a single domain crossing along each segment; does not detect exit and
+    *  reentry when both endpoints are found. Fractions parameterize geometry,
+    *  not physical collision time. Updates the finder's tolerance and cache.
+    */
+   BoundaryCrossings3D LocateBoundaryCrossings3D(
+      const ParticleVector &start, const ParticleVector &trial,
+      real_t position_tol);
+
+   /** @brief Apply 3D wall reflections and outlet removal.
+    *
+    *  By default, stop at the wall and discard the remaining displacement.
+    *  Optionally shift inward along the normal and/or continue along the
+    *  reflected remainder, checking for further wall or outlet crossings.
+    *  Restart particle history after any wall hit so that the next timestep
+    *  uses the reflected velocity and first-order integration.
+    *  Remove particles whose wall hit cannot be located or whose interpolated
+    *  wall normal has zero or non-finite length.
+    */
+   void ApplyBCs3D(const ParGridFunction &T_gf,
+                   const ParGridFunction &Tgrad_gf);
 
    /** @brief Move any particles that have left the domain to the
     *  inactive ParticleSet.
@@ -195,6 +237,29 @@ public:
    /// Set initial timestep in time history array
    void Setup(const real_t dt) { dthist[0] = dt; }
 
+   /** @brief Enable reflection of the remaining displacement at 3D walls.
+    *
+    *  Disabled by default. When enabled, use the reflected remainder of the
+    *  proposed segment during the same timestep, resolving subsequent hits.
+    *  Particles requiring more than 64 wall reflections in one timestep are
+    *  removed from the active set.
+    *  See LocateBoundaryCrossings3D for the single-crossing assumption.
+    *  Set the same value on every rank.
+    */
+   void SetReflectRemainingDisplacement(bool enable)
+   { reflect_remaining_displacement = enable; }
+
+   /** @brief Set a small inward normal offset applied at every 3D wall hit.
+    *
+    *  The offset is in mesh-coordinate units and must be finite and nonnegative.
+    *  Zero disables the offset (the default). It is applied before any optional
+    *  reflected remainder. Particles whose offset endpoint is outside the mesh
+    *  are removed from the active set.
+    *  Choose a small offset: endpoint checks cannot detect crossing a gap and
+    *  reentering a nonconvex domain. Set the same value on every rank.
+    */
+   void SetWallNormalOffset(real_t delta);
+
    /** @brief Step the particles in time.
     *
     *  @param[in] dt
@@ -217,6 +282,14 @@ public:
 
    /// Get reference to the inactive ParticleSet.
    ParticleSet& GetInactiveParticles() { return inactive_fluid_particles; }
+
+   /// Number of particles removed at the bottom outlet on this MPI rank.
+   unsigned long long GetLocalBottomExitCount() const
+   { return bottom_exit_count; }
+
+   /// Number of particles removed at the top outlet on this MPI rank.
+   unsigned long long GetLocalTopExitCount() const
+   { return top_exit_count; }
 
    ParticleVector& Status()
    {

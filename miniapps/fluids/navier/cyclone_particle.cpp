@@ -29,6 +29,7 @@
 #include "../../common/pfem_extras.hpp"
 #include "../../common/particles_extras.hpp"
 #include "../../../general/text.hpp"
+#include <cmath>
 #include <fstream>
 #include <iostream>
 
@@ -40,23 +41,53 @@ using namespace mfem::common;
 struct flow_context
 {
    // common
-   real_t dt = 2e-4;
+   real_t dt = 5e-5;
    real_t nt = 10000;
 
    // fluid
    int rs_levels = 0;
    int order = 1;
-   real_t Re = 1000;             // Reynolds number
-   int paraview_freq = 500;      // frequency of ParaView output
+   // real_t Re = 1000;          // Reynolds number
+   int paraview_freq = 5000;      // frequency of ParaView output
+
+   real_t U_m = 12.0;             // flow velocity
+   real_t g = 9.81;
+   //real_t H = 0.1;                // depth of channel
+   real_t roh_s = 2650.0;         // particle density
+   real_t roh = 1.204;              // fluid density
+   real_t d_tilde = 1e-6;         //particle diameter
+ 
+   real_t nu = 3.54e-5; //1.5e-5;
+   //real_t d = d_tilde/H;
+   real_t v_r = 1.0;
+   real_t R = roh_s/roh - 1.0;
+   real_t Re = d_tilde*v_r/ nu;
+   real_t C_R = 1.0 + R;
+   real_t C_D =24/(Re) +1.5;
+
+   //real_t Fr_2 = U_m*U_m /(R*g*H);
+   //real_t St = 4*d/(3* C_D* std::abs(v_r));
+   // real_t gamma = 1/(Fr_2 * C_R);
+   //real_t kappa_min = 1.0 / (St*C_R);       // drag property min
+   //real_t kappa_max = 10.0 / (St*C_R);        // drag property max
+   //real_t zeta = C_L/C_R;           // lift property
+
+   real_t gamma = g * (1.0 - roh / roh_s);
+   // v_r is a reference slip speed in m/s.
+   // C_D is calculated from Re = d_tilde * abs(v_r) / nu.
+   real_t kappa_min = 3.0 * roh * C_D * std::abs(v_r) / (4.0 * roh_s * d_tilde); // 1/s
+   real_t kappa_max = kappa_min; // one prescribed particle diameter
 
    // particle
    int add_particles_freq = 1; // frequency of particle injection
-   int num_add_particles = 400;  // total particles added each injection
-   real_t kappa_min = 1.0;       // drag property min
-   real_t kappa_max = 10.0;      // drag property max
-   real_t gamma = 5e2;           // gravity property
-   real_t zeta = 0.19;           // lift property
-   int print_csv_freq = 1;     // frequency of particle CSV outputting
+   int num_add_particles = 1000;  // total particles added each injection
+   // real_t kappa_min = 1.0;       // drag property min
+   // real_t kappa_max = 10.0;      // drag property max
+   // real_t gamma = 5e2;           // gravity property
+    real_t zeta = 0.19;           // lift property
+   int print_csv_freq = 20;     // frequency of particle CSV outputting
+   bool reflect_remaining_displacement = false;
+   real_t wall_normal_offset = 0.0;
 
    // GLVis visualization for solution and (optionally) particles
    bool visualization = true;
@@ -104,12 +135,22 @@ int main(int argc, char *argv[])
                   "Frequency of particle injection at domain inlet.");
    args.AddOption(&ctx.num_add_particles, "-npt", "--num-particles-inject",
                   "Number of particles to add each injection.");
+   args.AddOption(&ctx.d_tilde, "-dp", "--particle-diameter",
+                  "Particle diameter in metres (positive).");
    args.AddOption(&ctx.kappa_min, "-kmin", "--kappa-min",
                   "Kappa constant minimum.");
    args.AddOption(&ctx.kappa_max, "-kmax", "--kappa-max",
                   "Kappa constant maximum.");
    args.AddOption(&ctx.gamma, "-g", "--gamma", "Gamma constant.");
    args.AddOption(&ctx.zeta, "-z", "--zeta", "Zeta constant.");
+   args.AddOption(&ctx.reflect_remaining_displacement,
+                  "-rrd", "--reflect-remaining-displacement",
+                  "-no-rrd", "--no-reflect-remaining-displacement",
+                  "Reflect remaining displacement in the same time step after a "
+                  "3D wall impact.");
+   args.AddOption(&ctx.wall_normal_offset, "-wno", "--wall-normal-offset",
+                  "Nonnegative inward offset after a 3D wall impact, in mesh "
+                  "units (0 disables).");
    args.AddOption(&ctx.print_csv_freq, "-csv", "--csv-freq",
                   "Frequency of particle CSV outputting. 0 to disable.");
    args.AddOption(&ctx.traj_len_update_freq, "-traj", "--traj-freq",
@@ -120,13 +161,51 @@ int main(int argc, char *argv[])
       args.PrintUsage(cout);
       return 1;
    }
+   if (!std::isfinite(ctx.d_tilde) || ctx.d_tilde <= 0.0)
+   {
+      if (rank == 0)
+      {
+         cerr << "Particle diameter must be positive and finite (metres)."
+              << endl;
+      }
+      return 1;
+   }
+
+   // Recompute diameter-dependent defaults while preserving explicit overrides.
+   auto option_was_set = [argc, argv](const char *short_name,
+                                      const char *long_name)
+   {
+      for (int i = 1; i < argc; ++i)
+      {
+         const std::string option(argv[i]);
+         if (option == short_name || option == long_name) { return true; }
+      }
+      return false;
+   };
+   if (!option_was_set("-Re", "--reynolds-number"))
+   {
+      ctx.Re = ctx.d_tilde * std::abs(ctx.v_r) / ctx.nu;
+   }
+   ctx.C_D = 24.0 / ctx.Re + 1.5;
+   const real_t diameter_kappa =
+      3.0 * ctx.roh * ctx.C_D * std::abs(ctx.v_r) /
+      (4.0 * ctx.roh_s * ctx.d_tilde);
+   if (!option_was_set("-kmin", "--kappa-min"))
+   {
+      ctx.kappa_min = diameter_kappa;
+   }
+   if (!option_was_set("-kmax", "--kappa-max"))
+   {
+      ctx.kappa_max = diameter_kappa;
+   }
    if (rank == 0)
    {
       args.PrintOptions(cout);
    }
 
    // Load mesh + complete any serial refinements
-   Mesh mesh("./good_mesh.e");
+   //Mesh mesh("./mesh_jeff_new.e");
+   Mesh mesh("./ChungAndLeeFine.e");
    for (int lev = 0; lev < ctx.rs_levels; lev++)
    {
       mesh.UniformRefinement();
@@ -175,12 +254,19 @@ int main(int argc, char *argv[])
    ParGridFunction u_gf(&pfes_vector); u_gf = 0.0;
    ParGridFunction w_gf(&pfes_vector); w_gf = 0.0;
 
-   u_gf.SetTrueVector();
-   mfem::Vector & true_u_gf = u_gf.GetTrueVector();
+   // Use the velocity space's interpolation points and true-DOF numbering.
+   PositionVectorCoefficient position(dim);
+   ParGridFunction coordinates(&pfes_vector);
+   coordinates.ProjectCoefficient(position);
+   Vector true_coordinates;
+   coordinates.GetTrueDofs(true_coordinates);
+
+   Vector true_u_gf(pfes_vector.GetTrueVSize());
+   true_u_gf = 0.0;
 
    if (true)
    {
-      std::string velReader = "./Cosre_cyclone.txt";
+      std::string velReader = "./ChungAndLeeDataFine.csv";
       mfem::Ascii tAsciiReader( velReader, mfem::FileMode::OPEN_RDONLY );
 
       int tNumLines = tAsciiReader.length();
@@ -191,7 +277,7 @@ int main(int argc, char *argv[])
       {
          const std::string & tFileLine = tAsciiReader.line( Ik );
 
-         splitString[Ik] = split_string( tFileLine, " ");
+         splitString[Ik] = split_string( tFileLine, ",");
 
          // mfem::mfem_error("break here!!!!!!!!!!");
       }
@@ -199,27 +285,48 @@ int main(int argc, char *argv[])
       int numNodes   = true_u_gf.Size() / dim;
       mfem::Vector locationVector(dim);
 
-      real_t epsilon = 1e-2;
+      real_t epsilon = 1e-7;
+      int missing_nodes = 0;
 
       for ( int Ak = 0; Ak < numNodes; Ak++)
       {
-        pmesh.GetNode(Ak, &locationVector[0]);
-        //const double * pCoords(locationVector.GetData());
+         for (int c = 0; c < dim; ++c)
+         {
+            locationVector[c] = true_coordinates[Ak + c*numNodes];
+         }
+         int x_coord = 0;
+         int y_coord = 1;
+         int z_coord = 2;
+         int x_vel = 3;
+         int y_vel = 4;
+         int z_vel = 5;
+         bool found = false;
 
          for ( int Ik = 0; Ik < tNumLines; Ik++ )
          {
-            if( std::abs(locationVector[0] - std::stod(splitString[Ik][0])) < epsilon &&
-                std::abs(locationVector[1] - std::stod(splitString[Ik][1])) < epsilon &&
-                std::abs(locationVector[2] - std::stod(splitString[Ik][2])) < epsilon )
+            if( std::abs(locationVector[0] - std::stod(splitString[Ik][x_coord])) < epsilon &&
+                std::abs(locationVector[1] - std::stod(splitString[Ik][y_coord])) < epsilon &&
+                std::abs(locationVector[2] - std::stod(splitString[Ik][z_coord])) < epsilon )
             {
-               true_u_gf[ Ak ] = std::stod(splitString[Ik][6]);
-               true_u_gf[ Ak +numNodes ] = std::stod(splitString[Ik][7]);
-               true_u_gf[ Ak +2*numNodes] = std::stod(splitString[Ik][8]);
+               true_u_gf[ Ak ] = std::stod(splitString[Ik][x_vel]);
+               true_u_gf[ Ak +numNodes ] = std::stod(splitString[Ik][y_vel]);
+               true_u_gf[ Ak +2*numNodes] = std::stod(splitString[Ik][z_vel]);
+               found = true;
                break;
-            }         
+            }
          }
+         if (!found) { ++missing_nodes; }
       }
-      u_gf.SetFromTrueVector();
+
+      // Every rank participates, including those with no owned nodes.
+      int global_missing_nodes = 0;
+      MPI_Allreduce(&missing_nodes, &global_missing_nodes, 1, MPI_INT, MPI_SUM,
+                    pfes_vector.GetComm());
+      MFEM_VERIFY(global_missing_nodes == 0,
+                  "Missing CSV velocity data at " << global_missing_nodes
+                  << " owned interpolation points (tolerance " << epsilon
+                  << ") in " << velReader);
+      u_gf.SetFromTrueDofs(true_u_gf);
    }
 
    ComputeCurl3D_particle(u_gf, w_gf);
@@ -234,6 +341,9 @@ int main(int argc, char *argv[])
 #ifdef MFEM_USE_GSLIB
    // Create the particle solver
    NavierParticles particle_solver(MPI_COMM_WORLD, 0, pmesh);
+   particle_solver.SetReflectRemainingDisplacement(
+      ctx.reflect_remaining_displacement);
+   particle_solver.SetWallNormalOffset(ctx.wall_normal_offset);
    int nparticles = (ctx.nt/ctx.add_particles_freq) *
                     ctx.num_add_particles / Mpi::WorldSize();
 
@@ -392,7 +502,35 @@ int main(int argc, char *argv[])
          printf("-----------------------------------------------\n");
          fflush(stdout);
       }
+#ifdef MFEM_USE_GSLIB
+      if (global_np == 0)
+      {
+         if (rank == 0)
+         {
+            cout << "No active particles remain; stopping at step "
+                 << step << endl;
+         }
+         break;
+      }
+#endif
    }
+
+#ifdef MFEM_USE_GSLIB
+   unsigned long long local_exit_counts[2] =
+   {
+      particle_solver.GetLocalBottomExitCount(),
+      particle_solver.GetLocalTopExitCount()
+   };
+   unsigned long long global_exit_counts[2] = {0, 0};
+   MPI_Reduce(local_exit_counts, global_exit_counts, 2, MPI_UNSIGNED_LONG_LONG,
+              MPI_SUM, 0, particle_solver.GetParticles().GetComm());
+   if (rank == 0)
+   {
+      printf("\n%16s: %llu\n", "Bottom exits (1)", global_exit_counts[0]);
+      printf("%16s: %llu\n", "Top exits (2)", global_exit_counts[1]);
+      fflush(stdout);
+   }
+#endif
    return 0;
 }
 
@@ -414,10 +552,10 @@ void SetInjectedParticles(NavierParticles &particle_solver,
    rand_init_zloc.Randomize(my_rank + step+777);
    rand_init_xloc *= 0.03;
    rand_init_xloc -= 0.015;
-   rand_init_yloc *= 0.03;
-   rand_init_yloc -= 0.015;
-   rand_init_zloc *= 0.03;
-   rand_init_zloc -= 0.015;
+   rand_init_yloc *= 0.01;
+   rand_init_yloc -= 0.005;
+   rand_init_zloc *= 0.06;
+   rand_init_zloc -= 0.03;
    std::cout<< "p_idxs.Size() "<< p_idxs.Size()<<std::endl;
    for (int i = 0; i < p_idxs.Size(); i++)
    {
@@ -428,13 +566,13 @@ void SetInjectedParticles(NavierParticles &particle_solver,
          if (j == 0)
          {
             // Set position randomly along inlet
-            real_t xval = -0.225 + rand_init_xloc(i);
-            real_t yval =  0.05471 + rand_init_yloc(i);
-            real_t zval = -0.01935 + rand_init_zloc(i);
-            if(i<200)
-            {
-               xval+=0.021;
-            }
+            real_t xval = -0.037 + rand_init_xloc(i);
+            real_t yval =  0.065 + rand_init_yloc(i);
+            real_t zval = -0.04 + rand_init_zloc(i);
+            // if(i<200)
+            // {
+            //    xval+=0.021;
+            // }
             particle_solver.X().SetValues(idx, Vector({xval, yval, zval}));
          }
          else
@@ -444,8 +582,8 @@ void SetInjectedParticles(NavierParticles &particle_solver,
          }
 
          // Zero-out particle velocities, fluid velocities, and fluid vorticities
-         particle_solver.V(j).SetValues(idx, Vector({17.0, 0.0, 0.0}));
-         particle_solver.U(j).SetValues(idx, Vector({17.0, 0.0, 0.0}));
+         particle_solver.V(j).SetValues(idx, Vector({11.0, 1.0, -1.0}));
+         particle_solver.U(j).SetValues(idx, Vector({11.0, 1.0, -1.0}));
          particle_solver.W(j).SetValues(idx, Vector({ 0.0, 0.0, 0.0}));
 
          // Set Kappa, Zeta, Gamma

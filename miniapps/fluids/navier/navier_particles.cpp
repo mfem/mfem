@@ -11,6 +11,9 @@
 
 #include "navier_particles.hpp"
 
+#include <algorithm>
+#include <cmath>
+
 #ifdef MFEM_USE_GSLIB
 
 using namespace std;
@@ -19,6 +22,13 @@ namespace mfem
 {
 namespace navier
 {
+
+void NavierParticles::SetWallNormalOffset(real_t delta)
+{
+   MFEM_VERIFY(std::isfinite(delta) && delta >= 0.0,
+               "Wall normal offset must be finite and nonnegative.");
+   wall_normal_offset = delta;
+}
 
 void NavierParticles::SetTimeIntegrationCoefficients()
 {
@@ -385,77 +395,326 @@ void NavierParticles::ApplyBCs()
    }
 }
 
-void NavierParticles::ApplyBCs3D(const ParGridFunction &T_gf, const ParGridFunction &Tgrad_gf)
+NavierParticles::BoundaryCrossings3D
+NavierParticles::LocateBoundaryCrossings3D(real_t position_tol)
 {
+   return LocateBoundaryCrossings3D(X(1), X(), position_tol);
+}
+
+NavierParticles::BoundaryCrossings3D
+NavierParticles::LocateBoundaryCrossings3D(
+   const ParticleVector &start, const ParticleVector &trial,
+   real_t position_tol)
+{
+   MFEM_VERIFY(start.GetVDim() == 3 && trial.GetVDim() == 3 &&
+               start.Size() == trial.Size(), "Expected matching 3D segments.");
+   MFEM_VERIFY(std::isfinite(position_tol) && position_tol > 0.0,
+               "Position tolerance must be finite and positive.");
+
+   MPI_Comm comm = fluid_particles.GetComm();
+   int invalid = 0;
+   for (int i = 0; i < start.Size(); ++i)
+   {
+      if (!std::isfinite(start[i]) || !std::isfinite(trial[i]))
+      {
+         invalid = 1;
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &invalid, 1, MPI_INT, MPI_MAX, comm);
+   MFEM_VERIFY(!invalid, "Non-finite particle coordinates.");
+
+   // GSLIB uses squared physical distance for its boundary tolerance.
+   const real_t find_tol = 0.1 * position_tol;
+   finder.SetDistanceToleranceForPointsFoundOnBoundary(find_tol * find_tol);
+
+   BoundaryCrossings3D crossings;
+   finder.FindPoints(trial);
+   crossings.indices = finder.GetPointsNotFoundIndices();
+
+   const int count = crossings.indices.Size();
+   int any_crossings = count > 0;
+   MPI_Allreduce(MPI_IN_PLACE, &any_crossings, 1, MPI_INT, MPI_MAX, comm);
+   if (!any_crossings) { return crossings; }
+
+   ParticleVector origin(3, Ordering::byVDIM, count);
+   ParticleVector delta(3, Ordering::byVDIM, count);
+   ParticleVector query(3, Ordering::byVDIM, count);
+   Vector length(count);
+   crossings.s_inside.SetSize(count);
+   crossings.s_outside.SetSize(count);
+   crossings.x_inside.SetNumParticles(count);
+   crossings.s_inside = 0.0;
+   crossings.s_outside = 1.0;
+
+   for (int j = 0; j < count; ++j)
+   {
+      const int p = crossings.indices[j];
+      real_t length_squared = 0.0;
+      for (int d = 0; d < 3; ++d)
+      {
+         origin(j, d) = start(p, d);
+         delta(j, d) = trial(p, d) - origin(j, d);
+         length_squared += delta(j, d) * delta(j, d);
+      }
+      length[j] = std::sqrt(length_squared);
+   }
+
+   // All ranks search, even when their compact query array is empty.
+   finder.FindPoints(origin);
+   invalid = 0;
+   for (int j = 0; j < count; ++j)
+   {
+      if (finder.GetCode()[j] == 2 ||
+          !std::isfinite(length[j]) || length[j] == 0.0)
+      {
+         invalid = 1;
+      }
+   }
+   MPI_Allreduce(MPI_IN_PLACE, &invalid, 1, MPI_INT, MPI_MAX, comm);
+   MFEM_VERIFY(!invalid,
+               "Cannot bisect without a valid inside/outside bracket.");
+
+   constexpr int max_iterations = 64;
+   for (int iteration = 0; ; ++iteration)
+   {
+      real_t local_width = 0.0;
+      for (int j = 0; j < count; ++j)
+      {
+         const real_t width =
+            (crossings.s_outside[j] - crossings.s_inside[j]) * length[j];
+         local_width = std::max(local_width, width);
+      }
+      real_t global_width;
+      MPI_Allreduce(&local_width, &global_width, 1,
+                    MPITypeMap<real_t>::mpi_type, MPI_MAX, comm);
+      if (global_width <= position_tol) { break; }
+      MFEM_VERIFY(iteration < max_iterations,
+                  "Boundary bisection did not converge.");
+
+      for (int j = 0; j < count; ++j)
+      {
+         const real_t mid =
+            0.5 * (crossings.s_inside[j] + crossings.s_outside[j]);
+         for (int d = 0; d < 3; ++d)
+         {
+            query(j, d) = origin(j, d) + mid * delta(j, d);
+         }
+      }
+      finder.FindPoints(query);
+      for (int j = 0; j < count; ++j)
+      {
+         const real_t mid =
+            0.5 * (crossings.s_inside[j] + crossings.s_outside[j]);
+         if (finder.GetCode()[j] == 2)
+         {
+            crossings.s_outside[j] = mid;
+         }
+         else
+         {
+            crossings.s_inside[j] = mid;
+         }
+      }
+   }
+
+   for (int j = 0; j < count; ++j)
+   {
+      for (int d = 0; d < 3; ++d)
+      {
+         crossings.x_inside(j, d) =
+            origin(j, d) + crossings.s_inside[j] * delta(j, d);
+      }
+   }
+   return crossings;
+}
+
+void NavierParticles::ApplyBCs3D(const ParGridFunction &T_gf,
+                                const ParGridFunction &Tgrad_gf)
+{
+   const real_t position_tol = 1e-5;
+   const real_t lower_outlet = -0.38;
+   const real_t upper_outlet = 0.041;
+   MPI_Comm comm = fluid_particles.GetComm();
+
+   // Keep the BDF history intact while locating the wall crossing.
+   ParticleVector start(X(1)), trial(X());
+   Array<int> exiting(fluid_particles.GetNParticles());
+   exiting = 0;
+   Array<int> wall_interactions(fluid_particles.GetNParticles());
+   wall_interactions = 0;
+
+   constexpr int max_wall_interactions = 64;
+   constexpr int interaction_limit_status = 3;
+   constexpr int outside_offset_status = 4;
+   constexpr int invalid_wall_normal_status = 5;
+   for (;;)
+   {
+      const auto crossings = LocateBoundaryCrossings3D(start, trial, position_tol);
+      int any_crossings = crossings.indices.Size() > 0;
+      MPI_Allreduce(MPI_IN_PLACE, &any_crossings, 1, MPI_INT, MPI_MAX, comm);
+      if (!any_crossings) { break; }
+      ParticleVector normals(3, Ordering::byVDIM);
+      finder.FindPoints(crossings.x_inside);
+      finder.Interpolate(Tgrad_gf, normals, normals.GetOrdering());
+
+      Array<int> outlet(crossings.indices.Size());
+      outlet = 0;
+      Vector normal;
+      for (int j = 0; j < crossings.indices.Size(); ++j)
+      {
+         const real_t z = crossings.x_inside(j, 2);
+         if (z <= lower_outlet + position_tol) { outlet[j] = 1; }
+         else if (z >= upper_outlet - position_tol) { outlet[j] = 2; }
+         const int p = crossings.indices[j];
+         if (exiting[p] || outlet[j] ||
+             wall_interactions[p] >= max_wall_interactions)
+         {
+            continue;
+         }
+
+         normals.GetValuesRef(j, normal);
+         const real_t norm = normal.Norml2();
+         if (finder.GetCode()[j] == 2 || !std::isfinite(norm) || norm == 0.0)
+         {
+            exiting[p] = invalid_wall_normal_status;
+         }
+      }
+
+      ParticleVector shifted_hits(crossings.x_inside);
+      int any_offsets = 0;
+      int any_reflected_remainder = 0;
+      int invalid = 0;
+      Vector hit, origin, endpoint, displacement(3), remainder(3), velocity;
+      for (int j = 0; j < crossings.indices.Size(); ++j)
+      {
+         const int p = crossings.indices[j];
+         crossings.x_inside.GetValues(j, hit);
+         start.GetValuesRef(p, origin);
+         trial.GetValuesRef(p, endpoint);
+         if (exiting[p] || outlet[j] ||
+             wall_interactions[p] >= max_wall_interactions)
+         {
+            if (!exiting[p])
+            {
+               exiting[p] = outlet[j] ? outlet[j] : interaction_limit_status;
+            }
+            Status()[p] = exiting[p];
+            // A failed normal lookup may also leave the hit outside the mesh.
+            // Freeze at the known inside origin until batch deletion.
+            if (exiting[p] == invalid_wall_normal_status) { hit = origin; }
+            // Keep this entry found until all removals can be batched.
+            endpoint = hit;
+            origin = hit;
+            shifted_hits.SetValues(j, hit);
+            continue;
+         }
+         ++wall_interactions[p];
+
+         displacement = endpoint;
+         displacement -= origin;
+         normals.GetValuesRef(j, normal);
+         normal /= normal.Norml2();
+         //if (normal * displacement > 0.0) { normal *= -1.0; }
+
+         // Save the unspent displacement before overwriting the endpoint.
+         if (reflect_remaining_displacement)
+         {
+            remainder = endpoint;
+            remainder -= hit;
+            add(remainder, -2.0 * (remainder * normal), normal, remainder);
+            any_reflected_remainder = 1;
+         }
+
+         origin = hit;
+         if (wall_normal_offset > 0.0)
+         {
+            add(origin, wall_normal_offset, normal, origin);
+            any_offsets = 1;
+         }
+         shifted_hits.SetValues(j, origin);
+         endpoint = origin;
+         if (reflect_remaining_displacement) { endpoint += remainder; }
+
+         for (int d = 0; d < 3; ++d)
+         {
+            if (!std::isfinite(origin[d]) || !std::isfinite(endpoint[d]))
+            {
+               invalid = 1;
+            }
+         }
+
+         V().GetValuesRef(p, velocity);
+         const real_t vn = velocity * normal;
+         if (vn < 0.0) { add(velocity, -2.0 * vn, normal, velocity); }
+         Order()[p] = 0;
+      }
+
+      MPI_Allreduce(MPI_IN_PLACE, &invalid, 1, MPI_INT, MPI_MAX, comm);
+      MFEM_VERIFY(!invalid, "Non-finite particle position after wall response.");
+
+      // Validate shifted origins before using them as bisection brackets.
+      // Every rank participates even if it has no local wall hits.
+      MPI_Allreduce(MPI_IN_PLACE, &any_offsets, 1, MPI_INT, MPI_MAX, comm);
+      if (any_offsets)
+      {
+         finder.FindPoints(shifted_hits);
+         const auto outside_offsets = finder.GetPointsNotFoundIndices();
+         for (int i = 0; i < outside_offsets.Size(); ++i)
+         {
+            const int j = outside_offsets[i];
+            const int p = crossings.indices[j];
+            if (exiting[p]) { continue; }
+            exiting[p] = outside_offset_status;
+            Status()[p] = outside_offset_status;
+            // Freeze removed particles at a found hit until batch deletion.
+            crossings.x_inside.GetValues(j, hit);
+            start.SetValues(p, hit);
+            trial.SetValues(p, hit);
+         }
+
+         // Only surviving particles can require another reflection pass.
+         any_reflected_remainder = 0;
+         if (reflect_remaining_displacement)
+         {
+            for (int j = 0; j < crossings.indices.Size(); ++j)
+            {
+               if (!exiting[crossings.indices[j]])
+               {
+                  any_reflected_remainder = 1;
+                  break;
+               }
+            }
+         }
+      }
+
+      MPI_Allreduce(MPI_IN_PLACE, &any_reflected_remainder, 1, MPI_INT, MPI_MAX,
+                    comm);
+      if (!any_reflected_remainder) { break; }
+   }
+
+   X() = trial;
+   Array<int> remove;
+   for (int p = 0; p < fluid_particles.GetNParticles(); ++p)
+   {
+      // Retain the existing cutoff behavior for endpoints still in the mesh.
+      if (!exiting[p])
+      {
+         if (X()(p, 2) <= lower_outlet) { exiting[p] = 1; }
+         else if (X()(p, 2) >= upper_outlet) { exiting[p] = 2; }
+      }
+      if (exiting[p])
+      {
+         Status()[p] = exiting[p];
+         if (exiting[p] == 1) { ++bottom_exit_count; }
+         else if (exiting[p] == 2) { ++top_exit_count; }
+         remove.Append(p);
+      }
+   }
+   fluid_particles.RemoveParticles(remove);
+
+   // Restore the finder cache and diagnostic fields for the active set.
    finder.FindPoints(X());
    finder.Interpolate(T_gf, T(), T().GetOrdering());
    finder.Interpolate(Tgrad_gf, nablaT(), nablaT().GetOrdering());
-
-   for (int i = 0; i < fluid_particles.GetNParticles(); i++)
-   {
-      const real_t &distance = T()[i];
-      nablaT().GetValuesRef(i, surfNormal);
-      mfem::Vector SurNorm(3); SurNorm= surfNormal;
-      SurNorm /= SurNorm.Norml2();
-      V(0).GetValuesRef(i, vp);
-      Vector p_xn(3);
-      X().GetValuesRef(i, p_xn);
-      Array<int> inactive_idxs(1);
-
-      if(p_xn[2] <= -0.38)
-      {
-         Status()[i] = 1.0;
-
-         inactive_idxs[0] = i;
-         fluid_particles.RemoveParticles(inactive_idxs);
-      }
-
-      if(p_xn[2] >= 0.041)
-      {
-         Status()[i] = 2.0;
-
-         inactive_idxs[0] = i;
-         fluid_particles.RemoveParticles(inactive_idxs);
-      }
-
-      if(distance <= 3e-5)
-      {
-         //get normal of surface
-         Vector normal({ vp[1]*SurNorm[2] - vp[2]*SurNorm[1],
-                         vp[2]*SurNorm[0] - vp[0]*SurNorm[2],
-                         vp[0]*SurNorm[1] - vp[1]*SurNorm[0]});
-
-         normal /= normal.Norml2();
-
-         Vector tangential({ normal[1]*SurNorm[2] - normal[2]*SurNorm[1],
-                             normal[2]*SurNorm[0] - normal[0]*SurNorm[2],
-                             normal[0]*SurNorm[1] - normal[1]*SurNorm[0]});
-
-         tangential /= tangential.Norml2();
-
-         DenseMatrix B({{ SurNorm[0], tangential[0], normal[0]},
-                        { SurNorm[1], tangential[1], normal[1]},
-                        { SurNorm[2], tangential[2], normal[2]}});
-
-         Vector vpCoordWall(3);
-         Vector vpPostWall(3);
-
-         DenseMatrixInverse B_inv(B);
-         B_inv.Mult(vp, vpCoordWall);
-
-         vpPostWall = vpCoordWall;
-         vpPostWall[0] = -vpCoordWall[0];
-
-         //vpCoordWall.Print();
-         //vpPostWall.Print();
-
-         B.Mult(vpPostWall, vp);
-         //vp.Print();
-
-         // Set order to 0, to avoid re-computing x history as well
-         Order()[i] = 0;
-      }
-   }
 }
 
 NavierParticles::NavierParticles(MPI_Comm comm, int num_particles, Mesh &m)
@@ -528,8 +787,6 @@ void NavierParticles::Step(const real_t dt, const ParGridFunction &u_gf,
 
    SetTimeIntegrationCoefficients();
 
-   bool reflect = false;       //FIXME
-
    if (fluid_particles.GetDim() == 2)
    {
       for (int i = 0; i < fluid_particles.GetNParticles(); i++)
@@ -556,76 +813,8 @@ void NavierParticles::Step(const real_t dt, const ParGridFunction &u_gf,
          ParticleStep3D(dt, i);
       }
 
-      double scaling = 1.0;
-      int counter = 0;
-
-
-      while(true)
-      {
-         finder.FindPoints(X());
-         const Array<unsigned int> lost_idxs = finder.GetPointsNotFoundIndices();
-
-         if( lost_idxs.Size() == 0 || counter == 5)
-         {
-            if(counter == 5)
-            {
-              std::cout<<"LINE SEARCH NOT CONVERGED"<<std::endl;
-            }
-            break;
-         }
-         
-         for (int j = 0; j < lost_idxs.Size(); j++)
-         {
-            unsigned int index = lost_idxs[j];
-
-            Vector p_xn(3), p_xnm1(3),p_xdiff(3) ;
-            X().GetValuesRef(index, p_xn);
-            X(1).GetValuesRef(index, p_xnm1);
-
-            p_xdiff = p_xn;
-            p_xdiff -= p_xnm1;
-
-            p_xdiff /=2.0;
-
-            p_xn = p_xnm1;
-            p_xn += p_xdiff;
-         }
-
-         // Set order to 0 (so that it becomes 1 on next iteration)
-         //Order()[index] = 0;
-
-
-         // for (int j = 0; j < lost_idxs.Size(); j++)
-         // {
-         //    unsigned int index = lost_idxs[j];
-
-         //    //Order()[index] = 0;
-
-         //    Vector p_xn(3), p_xnm1(3) ;
-         //    X().GetValuesRef(index, p_xn);
-         //    X(1).GetValuesRef(index, p_xnm1);
-         //    // p_xn.Print();
-         //    p_xnm1.Print();
-         //    p_xn = p_xnm1;
-
-         //    ParticleStep3D(dt / scaling, index);
-
-         //    finder.FindPoints(X());
-         //    finder.Interpolate(T_gf, T(), T().GetOrdering());
-         //    const real_t &distance = T()[index];
-
-         //    std::cout<<"distance: "<<distance <<std::endl;
-
-         // }
-
-         counter++;
-      }
+      ApplyBCs3D(T_gf, gradT_gf);
    }
-
-   // Apply any BCs
-   ApplyBCs3D(T_gf, gradT_gf);
-
-   //ApplyBCs();
 
    // Re-interpolate fluid velocity + vorticity onto particles' new location
    InterpolateUW(u_gf, w_gf);
