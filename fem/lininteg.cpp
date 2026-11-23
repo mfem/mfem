@@ -636,6 +636,11 @@ void VectorBoundaryTangentTraceLFIntegrator::AssembleRHSElementVect(
       int order = 2*el.GetOrder() + Tr.OrderW();  // <----------
       ir = &IntRules.Get(el.GetGeomType(), order);
    }
+
+   const int face = Tr.mesh->GetBdrElementFaceIndex(Tr.ElementNo);
+   FaceElementTransformations *ftr = const_cast<Mesh*>(Tr.mesh)->
+                                     GetFaceElementTransformations(face, FaceElementTransformations::HAVE_FACE);
+
    for (int i = 0; i < ir->GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir->IntPoint(i);
@@ -651,7 +656,13 @@ void VectorBoundaryTangentTraceLFIntegrator::AssembleRHSElementVect(
       else
       {
          nor.cross3D(q, nxq);
-         const DenseMatrix &J = Tr.Jacobian();
+
+         // Boundary element transformation differs from the face transformation
+         // in its ordering of vertices. The face definition is needed to match
+         // definition of the tangential trace inside the domain
+         ftr->SetIntPoint(&ip);
+         const DenseMatrix &J = ftr->Jacobian();
+
          for (int a = 0; a < 2; a++)
          {
             const Vector t_a(J.GetData() + a*dim, dim);
