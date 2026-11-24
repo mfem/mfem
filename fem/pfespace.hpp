@@ -594,6 +594,9 @@ public:
    /// Obsolete, kept for backward compatibility
    int TrueVSize() const { return ltdof_size; }
 
+   /// Utility function: sum integers from all processors (Allreduce).
+   long long ReduceInt(int value) const override { return pmesh->ReduceInt(value); }
+
 protected:
    /** Helper function for finalizing intermediate DOFs on edges and faces in a
        variable-order space, with order strictly between the minimum and

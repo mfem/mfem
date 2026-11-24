@@ -202,7 +202,7 @@ void GridFunction::Update()
       }
    }
 
-   if (t_vec.Size() > 0) { SetTrueVector(); }
+   if (fes->ReduceInt(t_vec.Size() > 0)) { SetTrueVector(); }
 }
 
 void GridFunction::UpdatePRef()

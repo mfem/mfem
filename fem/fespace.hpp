@@ -1634,6 +1634,9 @@ public:
        FiniteElementCollection is owned by the caller. */
    FiniteElementCollection *Load(Mesh *m, std::istream &input);
 
+   /// Utility function: sum integers from all processors (Allreduce).
+   virtual long long ReduceInt(int value) const { return value; }
+
    virtual ~FiniteElementSpace();
 };
 
