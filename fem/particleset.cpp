@@ -901,7 +901,7 @@ ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                  Array<const char*>(), use_device)
 {
 
-};
+}
 
 ParticleSet::ParticleSet(MPI_Comm comm_, int rank_num_particles, int dim,
                          const Array<int> &field_vdims, int num_tags,

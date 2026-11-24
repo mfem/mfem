@@ -567,8 +567,8 @@ public:
                           uint /*window*/) const {}
    virtual void enditer(const Graph* /*graph*/, Float /*mincost*/,
                         Float /*cost*/) const {}
-   virtual void beginphase(const Graph* /*graph*/, std::string /*name*/) const {};
-   virtual void endphase(const Graph* /*graph*/, bool /*show*/) const {};
+   virtual void beginphase(const Graph* /*graph*/, std::string /*name*/) const {}
+   virtual void endphase(const Graph* /*graph*/, bool /*show*/) const {}
    virtual bool quit() const { return false; }
 };
 

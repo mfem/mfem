@@ -159,8 +159,8 @@ void TMOP_AddMultGradPA_AdaptLim_2D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPMultGradCoefKernels, TMOP_AddMultGradPA_C0_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultGradCoefKernels);
+MFEM_TMOP_MDQ_REGISTER(TMOPMultGradCoefKernels, TMOP_AddMultGradPA_C0_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultGradCoefKernels)
 
 void TMOP_Integrator::AddMultGradPA_C0_2D(const Vector &R, Vector &C) const
 {
@@ -177,8 +177,8 @@ void TMOP_Integrator::AddMultGradPA_C0_2D(const Vector &R, Vector &C) const
    TMOPMultGradCoefKernels::Run(d, q, NE, b, H0, X, Y, d, q);
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPMultGradAdaptLim, TMOP_AddMultGradPA_AdaptLim_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultGradAdaptLim);
+MFEM_TMOP_MDQ_REGISTER(TMOPMultGradAdaptLim, TMOP_AddMultGradPA_AdaptLim_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultGradAdaptLim)
 
 void TMOP_Integrator::AddMultGradPA_AdaptLim_2D(const Vector &R,
                                                 Vector &C) const

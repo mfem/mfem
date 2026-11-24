@@ -1978,7 +1978,7 @@ private:
 public:
    /// Construct with a vector coefficient.
    VectorComponentCoefficient(VectorCoefficient &A)
-      : a(&A), va(A.GetVDim()), component(0) {};
+      : a(&A), va(A.GetVDim()), component(0) {}
 
    /// Construct with a vector coefficient and a component index @a c.
    VectorComponentCoefficient(VectorCoefficient &A, int c);
@@ -2015,7 +2015,7 @@ private:
 public:
    /// Construct with a matrix coefficient.
    MatrixComponentCoefficient(MatrixCoefficient &A)
-      : a(&A), ma(A.GetHeight(), A.GetWidth()), row_idx(0), col_idx(0) {};
+      : a(&A), ma(A.GetHeight(), A.GetWidth()), row_idx(0), col_idx(0) {}
 
    /// Construct with the matrix coefficient.
    MatrixComponentCoefficient(MatrixCoefficient &A, int ri, int ci);

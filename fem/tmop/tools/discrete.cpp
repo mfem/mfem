@@ -97,8 +97,8 @@ void TMOP_DatcSize_2D(const int NE,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPDatc2Size, TMOP_DatcSize_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPDatc2Size);
+MFEM_TMOP_MDQ_REGISTER(TMOPDatc2Size, TMOP_DatcSize_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPDatc2Size)
 
 template <int MD1, int MQ1, int T_D1D = 0, int T_Q1D = 0>
 void TMOP_DatcSize_3D(const int NE,
@@ -184,8 +184,8 @@ void TMOP_DatcSize_3D(const int NE,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPDatc3Size, TMOP_DatcSize_3D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPDatc3Size);
+MFEM_TMOP_MDQ_REGISTER(TMOPDatc3Size, TMOP_DatcSize_3D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPDatc3Size)
 
 // PA.Jtr Size = (dim, dim, PA.ne*PA.nq);
 void DiscreteAdaptTC::ComputeAllElementTargets(const FiniteElementSpace &pa_fes,

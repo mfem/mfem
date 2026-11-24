@@ -40,7 +40,7 @@ void CHECK_GLOBAL_NORM(Vector &v, bool small = true)
    {
       REQUIRE(norm_global > tol);
    }
-};
+}
 
 real_t TransferTestCoefficient(const Vector &coords)
 {

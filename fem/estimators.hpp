@@ -689,7 +689,7 @@ public:
    }
 
    /// Reset the error estimator.
-   void Reset() override { current_sequence = -1; };
+   void Reset() override { current_sequence = -1; }
 
    real_t GetTotalError() const override { return total_error; }
 

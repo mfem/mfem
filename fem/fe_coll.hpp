@@ -775,7 +775,7 @@ public:
       ParallelepipedFE->Reset();
    }
 
-   virtual void SetDim(const int dim) {};
+   virtual void SetDim(const int dim) {}
 
    /** @brief Get the order of the NURBS collection: either a positive number,
        when using fixed order, or VariableOrder. */

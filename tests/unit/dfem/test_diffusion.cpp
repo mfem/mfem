@@ -64,7 +64,7 @@ template <int DIM> struct Diffusion
                                               const matd_t &q) const
       {
          return tuple{ q * dudxi };
-      };
+      }
    };
 };
 

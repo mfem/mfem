@@ -161,8 +161,8 @@ void TMOP_EnergyPA_AdaptLim_3D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPEnergyPAC03D, TMOP_EnergyPA_C0_3D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyPAC03D);
+MFEM_TMOP_MDQ_REGISTER(TMOPEnergyPAC03D, TMOP_EnergyPA_C0_3D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyPAC03D)
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &x) const
 {
@@ -195,8 +195,8 @@ real_t TMOP_Integrator::GetLocalStateEnergyPA_C0_3D(const Vector &x) const
    return PA.E * PA.O;
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPEnergyAdaptLim3D, TMOP_EnergyPA_AdaptLim_3D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyAdaptLim3D);
+MFEM_TMOP_MDQ_REGISTER(TMOPEnergyAdaptLim3D, TMOP_EnergyPA_AdaptLim_3D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPEnergyAdaptLim3D)
 
 real_t TMOP_Integrator::GetLocalStateEnergyPA_AdaptLim_3D() const
 {

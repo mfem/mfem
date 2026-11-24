@@ -65,7 +65,7 @@ public:
       data.resize(smax);
       idx.SetSize(smax);
       ss = 0;
-   };
+   }
 
    /// Set the number of stages and the size of the vectors
    void  SetSize(int vsize, MemoryType mem_type);
@@ -74,26 +74,26 @@ public:
    inline void ShiftStages()
    {
       for (int i = 0; i < smax; i++) { idx[i] = (++idx[i])%smax; }
-   };
+   }
 
    /// Increment the stage counter
-   void Increment() { ss++; ss = std::min(ss,smax); };
+   void Increment() { ss++; ss = std::min(ss,smax); }
 
    /// Reset the stage counter
-   void Reset() { ss = 0; };
+   void Reset() { ss = 0; }
 
    /// Reference access to the ith vector.
-   inline Vector & operator[](int i) { return data[idx[i]]; };
+   inline Vector & operator[](int i) { return data[idx[i]]; }
 
    /// Const reference access to the ith vector.
-   inline const Vector &operator[](int i) const { return data[idx[i]]; };
+   inline const Vector &operator[](int i) const { return data[idx[i]]; }
 
    /// Print state data
-   void Print(std::ostream &os = mfem::out) const ;
+   void Print(std::ostream &os = mfem::out) const;
 
-   int  MaxSize() const override { return smax; };
+   int  MaxSize() const override { return smax; }
 
-   int  Size() const override { return ss; };
+   int  Size() const override { return ss; }
 
    const Vector &Get(int i) const override;
    Vector &Get(int i) override;
@@ -191,7 +191,7 @@ public:
    }
 
    /// Returns how many State vectors the ODE requires
-   virtual int GetStateSize() { return 0; };
+   virtual int GetStateSize() { return 0; }
 
    ///@brief Returns @a true if the ODESolver supports the given
    /// #ImplicitVariableType, @a var, and returns @a false otherwise.
@@ -199,7 +199,7 @@ public:
    /// ImplicitVariableType::SLOPE and @a false otherwise.
    ///@warning Should be overridden in ODESolver that calls TimeDependentOperator::ImplicitSolve().
    virtual bool SupportsImplicitVariableType(ImplicitVariableType var) const
-   { return (var == ImplicitVariableType::SLOPE); };
+   { return (var == ImplicitVariableType::SLOPE); }
 
    /** @brief Sets the #ImplicitVariableType for the TimeDependentOperator, if supported.
        @note This should be called after Init().
@@ -272,7 +272,7 @@ public:
    virtual const ODEStateData& GetState() const = 0;
 
    /// Returns how many State vectors the ODE requires
-   virtual int GetStateSize() { return GetState().MaxSize(); };
+   virtual int GetStateSize() { return GetState().MaxSize(); }
 };
 
 
@@ -568,7 +568,7 @@ protected:
    void PrintProperties(std::ostream &os = mfem::out);
 public:
 
-   GeneralizedAlphaSolver(real_t rho = 1.0) : state(1) { SetRhoInf(rho); };
+   GeneralizedAlphaSolver(real_t rho = 1.0) : state(1) { SetRhoInf(rho); }
    void Init(TimeDependentOperator &f_) override;
    void Step(Vector &x, real_t &t, real_t &dt) override;
 
@@ -904,7 +904,7 @@ public:
    const ODEStateData&  GetState() const { return state; }
 
    /// Returns how many State vectors the ODE requires
-   int GetStateSize() { return GetState().MaxSize(); };
+   int GetStateSize() { return GetState().MaxSize(); }
 
    /// Help info for SecondOrderODESolver options
    static MFEM_EXPORT std::string Types;
@@ -930,7 +930,7 @@ public:
       beta = beta_;
       gamma = gamma_;
       no_mult = no_mult_;
-   };
+   }
 
    void PrintProperties(std::ostream &os = mfem::out);
 
@@ -940,19 +940,19 @@ public:
 class LinearAccelerationSolver : public NewmarkSolver
 {
 public:
-   LinearAccelerationSolver() : NewmarkSolver(1.0/6.0, 0.5) { };
+   LinearAccelerationSolver() : NewmarkSolver(1.0/6.0, 0.5) { }
 };
 
 class CentralDifferenceSolver : public NewmarkSolver
 {
 public:
-   CentralDifferenceSolver() : NewmarkSolver(0.0, 0.5) { };
+   CentralDifferenceSolver() : NewmarkSolver(0.0, 0.5) { }
 };
 
 class FoxGoodwinSolver : public NewmarkSolver
 {
 public:
-   FoxGoodwinSolver() : NewmarkSolver(1.0/12.0, 0.5) { };
+   FoxGoodwinSolver() : NewmarkSolver(1.0/12.0, 0.5) { }
 };
 
 /// Generalized-alpha ODE solver
@@ -979,7 +979,7 @@ public:
       alpha_f = 1.0/(1.0 + rho_inf);
       beta    = 0.25*pow(1.0 + alpha_m - alpha_f,2);
       gamma   = 0.5 + alpha_m - alpha_f;
-   };
+   }
 
    void PrintProperties(std::ostream &os = mfem::out);
 
@@ -999,7 +999,7 @@ public:
       alpha_f = 0.5;
       beta    = 0.25;
       gamma   = 0.5;
-   };
+   }
 };
 
 /// HHT-alpha ODE solver
@@ -1020,7 +1020,7 @@ public:
       alpha_f = alpha;
       beta    = (2-alpha)*(2-alpha)/4;
       gamma   = 0.5 + alpha_m - alpha_f;
-   };
+   }
 
 };
 
@@ -1041,7 +1041,7 @@ public:
       alpha_m = 2.0/(1.0 + rho_inf);
       beta    = 0.25*pow(1.0 + alpha_m - alpha_f,2);
       gamma   = 0.5 + alpha_m - alpha_f;
-   };
+   }
 
 };
 
@@ -1056,7 +1056,7 @@ public:
    void Step(Vector &x, real_t &t, real_t &dt) override;
 
    bool SupportsImplicitVariableType(ImplicitVariableType var) const override
-   { return (var == ImplicitVariableType::SLOPE); };
+   { return (var == ImplicitVariableType::SLOPE); }
 };
 
 /// Second order, two-stage implicit-explicit (IMEX) Runge-Kutta (RK) method
@@ -1077,7 +1077,7 @@ public:
    void Step(Vector &x, real_t &t, real_t &dt) override;
 
    bool SupportsImplicitVariableType(ImplicitVariableType var) const override
-   { return (var == ImplicitVariableType::SLOPE); };
+   { return (var == ImplicitVariableType::SLOPE); }
 };
 
 /// Second order, 2/3-stage implicit-explicit (IMEX) Runge-Kutta (RK) method
@@ -1097,7 +1097,7 @@ public:
    void Step(Vector &x, real_t &t, real_t &dt) override;
 
    bool SupportsImplicitVariableType(ImplicitVariableType var) const override
-   { return (var == ImplicitVariableType::SLOPE); };
+   { return (var == ImplicitVariableType::SLOPE); }
 };
 
 /// Third order, 3/4-stage implicit-explicit (IMEX) Runge-Kutta (RK) method
@@ -1117,7 +1117,7 @@ public:
    void Step(Vector &x, real_t &t, real_t &dt) override;
 
    bool SupportsImplicitVariableType(ImplicitVariableType var) const override
-   { return (var == ImplicitVariableType::SLOPE); };
+   { return (var == ImplicitVariableType::SLOPE); }
 };
 
 

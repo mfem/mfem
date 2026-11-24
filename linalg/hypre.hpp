@@ -1215,7 +1215,7 @@ public:
    /** By default, the l1-norms take their sign from the corresponding diagonal
        entries in the associated matrix. */
    void SetPositiveDiagonal(bool pos = true) { pos_l1_norms = pos; }
-   bool IsPositiveDiagonal() const { return pos_l1_norms; };
+   bool IsPositiveDiagonal() const { return pos_l1_norms; }
 
    /** Explicitly indicate whether the linear system matrix A is symmetric. If A
        is symmetric, the smoother will also be symmetric. In this case, calling

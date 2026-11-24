@@ -52,7 +52,7 @@ private:
    mutable DenseMatrix dshape[2], hessian[2], blockJ[2][2], blockC[2][2], elmatJ_p,
            elmatC_p;
 public:
-   C0InteriorPenaltyIntegrator(mfem::real_t eta_) : eta(eta_) {};
+   C0InteriorPenaltyIntegrator(mfem::real_t eta_) : eta(eta_) {}
 
    using BilinearFormIntegrator::AssembleFaceMatrix;
 

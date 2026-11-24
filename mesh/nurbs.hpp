@@ -141,7 +141,7 @@ public:
    /** @brief Return the reference coordinate in [0,1] for parameter @a u
        in the element beginning at knot @a ni. */
    real_t GetRefPoint(real_t u, int ni) const
-   { return (u-knot(ni))/(knot(ni+1)-knot(ni)); };
+   { return (u-knot(ni))/(knot(ni+1)-knot(ni)); }
 
    /** @brief Return the knot location for element reference coordinate @a xi
        in [0,1], for the element beginning at knot @a ni. */
@@ -854,7 +854,7 @@ private:
 
    // TODO: does this still need to be virtual?
    /// Helper function for @a GenerateOffsets().
-   virtual void SetDofToPatch() { };
+   virtual void SetDofToPatch() { }
 
 public:
    /// Copy constructor: deep copy
@@ -886,10 +886,10 @@ public:
 
    /// Generate connections between boundaries, such as periodic BCs.
    void ConnectBoundaries(Array<int> &master, Array<int> &slave);
-   const Array<int> &GetMaster() const { return master; };
-   Array<int> &GetMaster()  { return master; };
-   const Array<int> &GetSlave() const { return slave; };
-   Array<int> &GetSlave()  { return slave; };
+   const Array<int> &GetMaster() const { return master; }
+   Array<int> &GetMaster()  { return master; }
+   const Array<int> &GetSlave() const { return slave; }
+   Array<int> &GetSlave()  { return slave; }
 
    /** @brief Set the DOFs of @a merged to values from active elements in
        @a num_pieces of Gridfunctions @a gf_array. */
@@ -967,13 +967,13 @@ public:
    int GetNDof()      const { return NumOfActiveDofs; }
 
    /// Return the local DOF number for a given global DOF number @a glob.
-   int GetActiveDof(int glob) const { return activeDof[glob]; };
+   int GetActiveDof(int glob) const { return activeDof[glob]; }
 
    /// Return the dof index whilst accounting for periodic boundaries.
    int DofMap(int dof) const
    {
       return (d_to_d.Size() > 0) ? d_to_d[dof] : dof;
-   };
+   }
 
    /// Return KnotVectors in @a kv in each dimension for patch @a p.
    void GetPatchKnotVectors(int p, Array<const KnotVector *> &kv) const;

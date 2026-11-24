@@ -118,8 +118,8 @@ void TMOP_AddMultPA_C0_3D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPMultCoefKernels3D, TMOP_AddMultPA_C0_3D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultCoefKernels3D);
+MFEM_TMOP_MDQ_REGISTER(TMOPMultCoefKernels3D, TMOP_AddMultPA_C0_3D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultCoefKernels3D)
 
 void TMOP_Integrator::AddMultPA_C0_3D(const Vector &x, Vector &y) const
 {
@@ -215,8 +215,8 @@ void TMOP_AddMultPA_AdaptLim_3D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPMultAdaptLim3D, TMOP_AddMultPA_AdaptLim_3D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultAdaptLim3D);
+MFEM_TMOP_MDQ_REGISTER(TMOPMultAdaptLim3D, TMOP_AddMultPA_AdaptLim_3D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultAdaptLim3D)
 
 void TMOP_Integrator::AddMultPA_AdaptLim_3D([[maybe_unused]] const Vector &x,
                                             Vector &y) const

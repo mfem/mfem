@@ -58,8 +58,8 @@ void TMOP_MinDetJpr_2D(const int NE,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPMinDetJpr2D, TMOP_MinDetJpr_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPMinDetJpr2D);
+MFEM_TMOP_MDQ_REGISTER(TMOPMinDetJpr2D, TMOP_MinDetJpr_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPMinDetJpr2D)
 
 real_t TMOPNewtonSolver::MinDetJpr_2D(const FiniteElementSpace *fes,
                                       const Vector &D) const
