@@ -18,8 +18,17 @@ GPU computing
 
 - Fixed RAJA CUDA/HIP element coverage when using a smaller fixed launch grid.
 
+- Fixed the Umpire device memory types, which allocated on the device 0 when
+  the configured device was another one.
+
 Discretization improvements
 ---------------------------
+- Fixed H1 transfer in L2ProjectionGridTransfer on non-conforming meshes in
+  serial and parallel. The fully assembled operator now applies inverse lumped
+  mass scaling after true-DOF assembly. Element assembly now handles hanging-node
+  constraints and refined-element mappings correctly, including for
+  coefficient-weighted transfer.
+
 - Fixed the backward operator of InterpolationGridTransfer for Nedelec spaces
   of order 2 and above on 3D elements with triangular faces, which previously
   ignored the DOF orientation transformations.
@@ -39,15 +48,34 @@ Meshing improvements
   of essential boundaries were not essential, and on serial meshes, those of
   all interior boundaries were.
 
+- NURBS mesh HDF5 file I/O is now supported, by using mesh-explorer (option 'S')
+  or Mesh::SaveNURBSHDF5 for writing and the usual Mesh constructors or loaders
+  for reading.
+
 Linear and nonlinear solvers
 ----------------------------
+- Fixed the AmgX resource shared by the AmgXSolver instances, which used the
+  configuration and the communicator of the first instance after its
+  destruction, and the creation of several serial AmgXSolver instances, which
+  initialized AmgX again.
+
 - Fixed HypreParaSails::SetOperator, which read the communicator of the
   previous operator, possibly destroyed, e.g. by ParNonlinearForm::GetGradient
   in a NewtonSolver.
+
+- Added SuperLUSolver::SetRelaxedSupernodeSize and
+  SuperLUSolver::SetMaxSupernodeSize to set the maximum sizes of the relaxed
+  supernodes and of the supernodes in SuperLU_DIST 8.0 or newer.
+
 - Fixed the PETSc wrappers on GPUs when the device memory type is an Umpire
   one (the default when MFEM is built with Umpire): the vectors given to PETSc
   were host vectors while the PETSc matrices and preconditioners computed on
   the device, so that the PETSc solvers returned wrong solutions.
+
+- Fixed SuperLUSolver with a 3D process grid and SuperLU_DIST 9.0 or newer,
+  which crashed when it was destroyed or given a new operator: the factors,
+  which all the process layers hold since SuperLU_DIST 9.0, are now freed on all
+  of them.
 
 New and updated examples and miniapps
 -------------------------------------
@@ -59,15 +87,20 @@ Miscellaneous
 - Added continuous benchmarking of selected tests/benchmarks in GitHub CI
   using CodSpeed (https://codspeed.io), enabled by the new CMake option
   MFEM_USE_CODSPEED.
+
 - Sped up AddMult_a_AAt for matrices of width up to 3 by sweeping the result by
   column so the inner loop vectorizes. This roughly doubles the speed of full
   assembly for DiffusionIntegrator at higher orders.
+
+- Fixed marked PA/EA diagonal assembly erasing earlier integrator contributions
+  and EA boundary assembly double-counting contributions from reused scratch
+  storage.
 
 - Fixed a bug in the Method of Moving Asymptotes (MMA) solver that would cause
   failure if an MPI rank had no design parameters (aka decision variables).
   Also plugged a MPI communicator leak that would cause memory leaks.
 
-- Removes the SidreDataCollection class from MFEM in favor of the
+- Removed the SidreDataCollection class from MFEM in favor of the
   MFEMSidreDataCollection class in the Axom library (https://github.com/llnl/axom).
 
 
