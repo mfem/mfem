@@ -103,6 +103,9 @@ Miscellaneous
 - Removed the SidreDataCollection class from MFEM in favor of the
   MFEMSidreDataCollection class in the Axom library (https://github.com/llnl/axom).
 
+- Added DenseMatrixStack for storing stacks of dense matrices with
+  layer-specific dimensions, including rectangular local operators.
+
 
 Version 4.10, released on Sep 1, 2026
 =====================================
