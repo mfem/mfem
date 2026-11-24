@@ -1939,11 +1939,10 @@ void TMOP_Metric_321::AssembleH(const DenseMatrix &Jpt,
    const real_t c1 = weight*c0*c0;
    const real_t c2 = -2*c0*c1;
    const real_t c3 = c2*ie.Get_I2();
-   ie.Assemble_ddI1(weight, A.GetData());
-   ie.Assemble_ddI2(c1, A.GetData());
-   ie.Assemble_ddI3b(c3, A.GetData());
-   ie.Assemble_TProd(c2, ie.Get_dI2(), ie.Get_dI3b(), A.GetData());
-   ie.Assemble_TProd(-3*c0*c3, ie.Get_dI3b(), A.GetData());
+   // Same terms as ddI1, ddI2, ddI3b and the two TProds, in two passes over A.
+   ie.Assemble_ddI2_TProd(c1, c2, ie.Get_dI2(), ie.Get_dI3b(), -3*c0*c3,
+                          A.GetData());
+   ie.Assemble_ddI1_ddI2_struct_ddI3b(weight, c1, c3, A.GetData());
 }
 
 real_t TMOP_Metric_322::EvalWMatrixForm(const DenseMatrix &Jpt) const
@@ -4300,6 +4299,32 @@ void TMOP_Integrator::ParUpdateAfterMeshTopologyChange()
 }
 #endif
 
+// On non-tensor-product elements CalcDShape ends in a dense solve whose result
+// depends only on the point, so the cached DofToQuad table gives the same
+// values. Tensor-product elements gain nothing, NURBS ones depend on the
+// element, and a rule registered by the user can change after it is cached.
+const DofToQuad *TMOP_Integrator::ShapeGradTable(
+   const FiniteElement &el, const IntegrationRule &ir) const
+{
+   if (!UsesGeneratedRule(el) ||
+       Geometry::IsTensorProduct(el.GetGeomType()) ||
+       el.GetDerivType() != FiniteElement::GRAD) { return nullptr; }
+   return &el.GetDofToQuad(ir, DofToQuad::FULL);
+}
+
+static void GetDShape(const FiniteElement &el, const DofToQuad *d2q, int q,
+                      const IntegrationPoint &ip, DenseMatrix &DSh)
+{
+   if (!d2q) { el.CalcDShape(ip, DSh); return; }
+   // G is ordered (nqpt, dim, ndof) with nqpt fastest
+   const int ndof = d2q->ndof, dim = DSh.Width(), nqpt = d2q->nqpt;
+   const real_t *G = d2q->G.HostRead();
+   for (int d = 0; d < dim; d++)
+   {
+      for (int j = 0; j < ndof; j++) { DSh(j, d) = G[q + nqpt*(d + dim*j)]; }
+   }
+}
+
 real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
                                          ElementTransformation &T,
                                          const Vector &d_el)
@@ -4338,6 +4363,7 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
    PMatI.UseExternalData(elfun.GetData(), dof, dim);
 
    const IntegrationRule &ir = EnergyIntegrationRule(el);
+   const DofToQuad *d2q = ShapeGradTable(el, ir);
 
    energy = 0.0;
    DenseTensor Jtr(dim, dim, ir.GetNPoints());
@@ -4417,7 +4443,7 @@ real_t TMOP_Integrator::GetElementEnergy(const FiniteElement &el,
       const real_t weight =
          (integ_over_target) ? ip.weight * Jtr(i).Det() : ip.weight;
 
-      el.CalcDShape(ip, DSh);
+      GetDShape(el, d2q, i, ip, DSh);
       MultAtB(PMatI, DSh, Jpr);
       Mult(Jpr, Jrt, Jpt);
 
@@ -4699,6 +4725,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
 
    const IntegrationRule &ir = ActionIntegrationRule(el);
    const int nqp = ir.GetNPoints();
+   const DofToQuad *d2q = ShapeGradTable(el, ir);
 
    elvect = 0.0;
    Vector weights(nqp);
@@ -4763,7 +4790,7 @@ void TMOP_Integrator::AssembleElementVectorExact(const FiniteElement &el,
       weights(q) = (integ_over_target) ? ip.weight * Jtr(q).Det() : ip.weight;
       real_t weight_m = weights(q) * metric_normal;
 
-      el.CalcDShape(ip, DSh);
+      GetDShape(el, d2q, q, ip, DSh);
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
 
@@ -4872,6 +4899,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
 
    const IntegrationRule &ir = GradientIntegrationRule(el);
    const int nqp = ir.GetNPoints();
+   const DofToQuad *d2q = ShapeGradTable(el, ir);
 
    elmat = 0.0;
    Vector weights(nqp);
@@ -4929,7 +4957,7 @@ void TMOP_Integrator::AssembleElementGradExact(const FiniteElement &el,
       weights(q) = (integ_over_target) ? ip.weight * Jtr_q.Det() : ip.weight;
       real_t weight_m = weights(q) * metric_normal;
 
-      el.CalcDShape(ip, DSh);
+      GetDShape(el, d2q, q, ip, DSh);
       Mult(DSh, Jrt, DS);
       MultAtB(PMatI, DS, Jpt);
 
