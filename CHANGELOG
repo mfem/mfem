@@ -23,6 +23,10 @@ GPU computing
 
 Discretization improvements
 ---------------------------
+- DeltaCoefficient sources with center lying on a shared mesh entity are
+  distributed uniformly by element count across all containing elements, making
+  assembly independent of mesh ordering and parallel partitioning.
+
 - Fixed H1 transfer in L2ProjectionGridTransfer on non-conforming meshes in
   serial and parallel. The fully assembled operator now applies inverse lumped
   mass scaling after true-DOF assembly. Element assembly now handles hanging-node
