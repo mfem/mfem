@@ -53,8 +53,8 @@ public:
    BlockOperator(const Array<int> & row_offsets, const Array<int> & col_offsets);
 
    //! Constructor for BlockOperators with a specified number of row
-   //! and column blocks and overall dimensions. Offsets must be explicitly set
-   //! using SetOffsets (if operating on a Vector).
+   //! and column blocks and overall dimensions.
+   /// @note Offsets must be explicitly set using SetOffsets (if operating on a Vector).
    BlockOperator(int nrow, int ncol, int ht = 0, int wt = 0);
 
    /// Copy assignment is not supported
@@ -71,6 +71,8 @@ public:
     */
    void SetDiagonalBlock(int iblock, Operator *op, real_t c = 1.0);
    //! Add a block op in the block-entry (iblock, jblock).
+   /// @note The operator's height and width will be validated against
+   /// the offsets, if they are set.
    /**
     * irow, icol: The block will be inserted in location (irow, icol).
     * op: the Operator to be inserted.
@@ -79,6 +81,8 @@ public:
    void SetBlock(int iRow, int iCol, Operator *op, real_t c = 1.0);
 
    //! Set the row and column offsets.
+   /// @note The height and width of all non-null/zero blocks will be
+   /// validated against the offsets.
    void SetOffsets(const Array<int> &row_offsets, const Array<int> &col_offsets);
 
    //! Return the number of row blocks
