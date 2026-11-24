@@ -541,6 +541,38 @@ TEST_CASE("InterfaceTransferSolve", "[SubMesh]")
    CHECK((x_sub.Norml2() / x_sub.Size()) == MFEM_Approx(0.0, 1e-7, 1e-7));
 }
 
+TEST_CASE("Boundary SubMesh of 2D NCMesh", "[SubMesh]")
+{
+   const auto element_type = GENERATE(Element::QUADRILATERAL,
+                                      Element::TRIANGLE);
+   Mesh parent = Mesh::MakeCartesian2D(2, 2, element_type);
+   parent.EnsureNCMesh(true);
+   parent.GeneralRefinement(Array<int> {0});
+
+   Array<int> boundary_attributes {1};
+   SubMesh submesh = SubMesh::CreateFromBoundary(parent, boundary_attributes);
+
+   REQUIRE(parent.Nonconforming());
+   CHECK(submesh.Dimension() == 1);
+   CHECK_FALSE(submesh.Nonconforming());
+   REQUIRE(submesh.GetNE() > 0);
+
+   constexpr int order = 2;
+   H1_FECollection parent_fec(order, parent.Dimension());
+   H1_FECollection submesh_fec(order, submesh.Dimension());
+   FiniteElementSpace parent_fes(&parent, &parent_fec);
+   FiniteElementSpace submesh_fes(&submesh, &submesh_fec);
+   GridFunction parent_gf(&parent_fes), submesh_gf(&submesh_fes),
+                expected_submesh_gf(&submesh_fes);
+   FunctionCoefficient coeff([](const Vector &x) { return x(0) + 2.0*x(1); });
+   parent_gf.ProjectCoefficient(coeff);
+   expected_submesh_gf.ProjectCoefficient(coeff);
+
+   SubMesh::Transfer(parent_gf, submesh_gf);
+   submesh_gf -= expected_submesh_gf;
+   REQUIRE(submesh_gf.Norml2() < 1e-10);
+}
+
 /**
  * @brief Helper class for testing a NCMesh
  *
