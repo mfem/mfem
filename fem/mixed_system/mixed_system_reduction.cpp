@@ -1377,25 +1377,26 @@ void MixedSystemPotentialReduction::ReduceRHS(const BlockVector &b,
    const Vector &bp = b.GetBlock(1);
 
    Vector b_r;
-   const Operator *tr_cP = NULL;
 
-   if (!Parallel() && !(tr_cP = fes_u.GetConformingProlongation()))
+   if (!Parallel())
    {
-      b_tr.SetSize(fes_u.GetVSize());
-      b_r.SetDataAndSize(b_tr.GetData(), b_tr.Size());
-      b_r = bu;
+      const SparseMatrix *tr_cR = fes_u.GetConformingRestriction();
+      if (!tr_cR)
+      {
+         b_tr.SetSize(fes_u.GetVSize());
+         b_r.SetDataAndSize(b_tr.GetData(), b_tr.Size());
+         b_r = bu;
+      }
+      else
+      {
+         b_r.SetSize(fes_u.GetVSize());
+         tr_cR->MultTranspose(bu, b_r);
+      }
    }
    else
    {
       b_r.SetSize(fes_u.GetVSize());
-      if (!Parallel())
-      {
-         tr_cP->Mult(bu, b_r);
-      }
-      else
-      {
-         fes_u.GetProlongationMatrix()->Mult(bu, b_r);
-      }
+      fes_u.GetRestrictionOperator()->MultTranspose(bu, b_r);
    }
 
    for (int el = 0; el < NE; el++)
@@ -1426,6 +1427,7 @@ void MixedSystemPotentialReduction::ReduceRHS(const BlockVector &b,
 
    if (!Parallel())
    {
+      const SparseMatrix *tr_cP = fes_u.GetConformingProlongation();
       if (tr_cP)
       {
          b_tr.SetSize(tr_cP->Width());
