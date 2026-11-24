@@ -1794,6 +1794,11 @@ void MixedBilinearForm::Assemble(int skip_zeros)
       Array<int> test_vdofs2;
       const FiniteElement *trial_face_fe, *test_fe1, *test_fe2;
 
+#ifdef MFEM_USE_MPI
+      ParMixedBilinearForm *pform = dynamic_cast<ParMixedBilinearForm*>(this);
+      ParMesh *pmesh = pform ? static_cast<ParMesh*>(mesh) : nullptr;
+#endif // MFEM_USE_MPI
+
       int nfaces = mesh->GetNumFaces();
       for (int i = 0; i < nfaces; i++)
       {
@@ -1810,6 +1815,11 @@ void MixedBilinearForm::Assemble(int skip_zeros)
          }
          else
          {
+#ifdef MFEM_USE_MPI
+            // Shared faces are assembled in ParMixedBilinearForm
+            if (pform && pmesh->FaceIsTrueInterior(i)) { continue; }
+#endif // MFEM_USE_MPI
+
             // The test_fe2 object is really a dummy and not used on the
             // boundaries, but we can't dereference a NULL pointer, and we don't
             // want to actually make a fake element.
