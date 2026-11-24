@@ -123,6 +123,10 @@ Miscellaneous
   the copy assignment operator and the Vector assignment operator that
   ComplexGridFunction already has.
 
+- Added DenseMatrixStack for storing stacks of dense matrices with
+  layer-specific dimensions, including rectangular local operators.
+
+
 Version 4.10, released on Sep 1, 2026
 =====================================
 
