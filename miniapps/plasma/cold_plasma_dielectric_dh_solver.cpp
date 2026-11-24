@@ -875,7 +875,7 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
       nkbcs_ = new Array<ComplexVectorCoefficientByAttr*>(nbcs_->Size());
       for (int i=0; i<nbcs_->Size(); i++)
       {
-         nkbcs_[i] = new ComplexVectorCoefficientByAttr;
+         (*nkbcs_)[i] = new ComplexVectorCoefficientByAttr;
          (*nkbcs_)[i]->attr = (*nbcs_)[i]->attr;
          (*nkbcs_)[i]->attr_marker.SetSize(pmesh.bdr_attributes.Max());
          (*nkbcs_)[i]->attr_marker = 0;
@@ -1007,13 +1007,16 @@ CPDSolverDH::CPDSolverDH(ParMesh & pmesh, int order, double omega,
    m4i_->AddDomainIntegrator(new VectorFEMassIntegrator(*susceptImCoef_));
 
    // For Core power dissipation
+   // Core = volume attribute 4, SOL = volume attribute 3 (if present).
+   // Guard the indices: meshes with fewer attributes (e.g. 1..3) would
+   // otherwise write past the end of the marker arrays.
    core_attr_marker_.SetSize(pmesh.attributes.Max());
    core_attr_marker_ = 0;
-   core_attr_marker_[3] = 1;
+   if (core_attr_marker_.Size() > 3) { core_attr_marker_[3] = 1; }
 
    sol_attr_marker_.SetSize(pmesh.attributes.Max());
    sol_attr_marker_ = 0;
-   sol_attr_marker_[2] = 1;
+   if (sol_attr_marker_.Size() > 2) { sol_attr_marker_[2] = 1; }
 
    // Core power dissipation
    m4cr_ = new ParBilinearForm(HCurlFESpace_);
@@ -1988,7 +1991,7 @@ CPDSolverDH::Solve()
           }
           phi_->Distribute(PHI);
       */
-      while (H_iter_ < 200)
+      while (H_iter_ < 3)
       {
          nzD12_->Update();
          nzD12_->Assemble();
@@ -2012,7 +2015,7 @@ CPDSolverDH::Solve()
          gmres.SetKDim(200);
          gmres.SetRelTol(1e-5);
          gmres.SetAbsTol(1e-5);
-         gmres.SetMaxIter(2000);
+         gmres.SetMaxIter(5000);
          gmres.SetPrintLevel(1);
          gmres.SetOperator(schur);
 

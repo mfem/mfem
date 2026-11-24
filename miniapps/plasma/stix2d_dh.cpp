@@ -1313,7 +1313,7 @@ int main(int argc, char *argv[])
       std::complex<double> S = S_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof,
                                              res_lim, Rval,Lval);
-      std::complex<double> P = P_cold_plasma(omega, kvecmag, nue, numbers,
+      std::complex<double> P = P_cold_plasma(omega, kvecmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof);
       std::complex<double> D = D_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof,
@@ -3930,7 +3930,7 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
    D_ = D_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
                       nuprof_, res_lim_, Rval_, Lval_);
-   P_ = P_cold_plasma(omega_, k_, nue_, numbers_, charges_, masses_,
+   P_ = P_cold_plasma(omega_, k_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_, nuprof_);
 
    switch (type_)
@@ -4198,7 +4198,7 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    D_ = D_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
                       nuprof_, res_lim_, Rval_, Lval_);
-   P_ = P_cold_plasma(omega_, k_, nue_, numbers_, charges_, masses_,
+   P_ = P_cold_plasma(omega_, k_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_, nuprof_);
 
    switch (type_)

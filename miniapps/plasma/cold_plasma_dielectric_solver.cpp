@@ -718,7 +718,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
       nkbcs_ = new Array<ComplexVectorCoefficientByAttr*>(nbcs_->Size());
       for (int i=0; i<nbcs_->Size(); i++)
       {
-         nkbcs_[i] = new ComplexVectorCoefficientByAttr;
+         (*nkbcs_)[i] = new ComplexVectorCoefficientByAttr;
          (*nkbcs_)[i]->attr = (*nbcs_)[i]->attr;
          (*nkbcs_)[i]->attr_marker.SetSize(pmesh.bdr_attributes.Max());
          (*nkbcs_)[i]->attr_marker = 0;
@@ -733,6 +733,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
             new ScalarVectorProductCoefficient(omega_, *(*nbcs_)[i]->real);
       }
    }
+
    /*
    // Magnetization
    if ( m_src_ != NULL )
@@ -805,7 +806,7 @@ CPDSolver::CPDSolver(ParMesh & pmesh, int order, double omega,
    }
    /*
    if ( sbcReCoef_ && sbcImCoef_ )
-   {
+   {                                                                                                                                                                        
       if (pa_)
       {
          MFEM_ABORT("sbcCoef_: Partial Assembly has not yet been tested for "

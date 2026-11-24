@@ -257,72 +257,136 @@ void j_src_i(const Vector &x, Vector &j)
 void e_bc_r(const Vector &x, Vector &E);
 void e_bc_i(const Vector &x, Vector &E);
 
-class PortBCHfield : public VectorCoefficient
+// ---------------------------------------------------------------------
+// Coaxial TEM port fields.
+//
+// Each port is described by 10 parameters (in -portbcv or the -portbc file):
+//    V0  theta  b  a  x0 y0 z0  nx ny nz
+// V0, theta : forward (incident) voltage amplitude and phase
+// b, a      : outer conductor inner radius and inner conductor radius
+// x0,y0,z0  : a point on the coax axis lying in the port plane
+// nx,ny,nz  : unit normal of the port pointing INTO the computational
+//             domain (direction of the incident wave), e.g. (-1,0,0)
+//
+// TEM mode:  H_inc = V0 e^{i theta} / (2 pi rho Z0) phi_hat,
+//            phi_hat = n_in x rho_hat,  Z0 = eta0/(2 pi) ln(b/a),
+//            so that the incident power is |V0|^2 / (2 Z0).
+// ---------------------------------------------------------------------
+class CoaxTEMBase : public VectorCoefficient
 {
-private:
-   Vector params_;
-   Vector x_;
-   double V0_;
-   double b_;
-   double a_;
-   double x0_;
-   double y0_;
-   double z0_;
-   double nhatx_;
-   double nhaty_;
-   double nhatz_;
+protected:
+   const Vector params_;
    int index_;
+   bool realPart_;
+   mutable Vector x_;
+
+   // Incident TEM wave at the evaluation point:
+   //    H_inc = H phi_hat,   E_inc = eta0 H rho_hat.
+   // Returns false at points on the coax axis.
+   bool IncidentH(ElementTransformation &T, const IntegrationPoint &ip,
+                  complex<double> &H, Vector &phi_hat,
+                  Vector *rho_hat = NULL) const
+   {
+      T.Transform(ip, x_);
+
+      const double V0    = params_[index_ + 0];
+      const double theta = params_[index_ + 1];
+      const double b     = params_[index_ + 2];
+      const double a     = params_[index_ + 3];
+
+      Vector c(3), n(3);
+      for (int k=0; k<3; k++)
+      {
+         c[k] = params_[index_ + 4 + k];
+         n[k] = params_[index_ + 7 + k];
+      }
+      n /= n.Norml2();
+
+      // Radial vector in the port plane
+      Vector rho(3);
+      for (int k=0; k<3; k++) { rho[k] = x_[k] - c[k]; }
+      const double rn = rho * n;
+      for (int k=0; k<3; k++) { rho[k] -= rn * n[k]; }
+      const double rhonorm = rho.Norml2();
+      if (rhonorm < 1e-12 * b) { return false; }
+
+      if (rho_hat) { rho_hat->SetSize(3); rho_hat->Set(1.0 / rhonorm, rho); }
+
+      // phi_hat = n x rho_hat
+      phi_hat.SetSize(3);
+      phi_hat[0] = (n[1]*rho[2] - n[2]*rho[1]) / rhonorm;
+      phi_hat[1] = (n[2]*rho[0] - n[0]*rho[2]) / rhonorm;
+      phi_hat[2] = (n[0]*rho[1] - n[1]*rho[0]) / rhonorm;
+
+      const double eta0 = sqrt(mu0_ / epsilon0_);
+      const double Z0   = eta0 / (2.0 * M_PI) * log(b / a);
+
+      H = V0 * exp(complex<double>(0.0, theta)) / (2.0 * M_PI * rhonorm * Z0);
+      return true;
+   }
 
 public:
-   PortBCHfield(const Vector &params, int index)
-      : VectorCoefficient(3), params_(params), index_(index), x_(3)
-   {  
-      MFEM_ASSERT(params.Size() % 9 == 0,
-                  "Incorrect number of parameters provided to "
-                  "PortBCHfield");
+   CoaxTEMBase(const Vector &params, int index, bool realPart)
+      : VectorCoefficient(3), params_(params), index_(index),
+        realPart_(realPart), x_(3)
+   {
+      MFEM_VERIFY(params.Size() >= index + 10,
+                  "Coax port requires 10 parameters per port: "
+                  "V0 theta b a x0 y0 z0 nx ny nz");
+      MFEM_VERIFY(params[index + 2] > params[index + 3] &&
+                  params[index + 3] > 0.0,
+                  "Coax port requires b > a > 0.");
    }
+};
+
+// Total tangential H on the port (Dirichlet, i.e. ideal current source).
+// Kept for backwards compatibility; use with -port-dbc.
+class PortBCHfield : public CoaxTEMBase
+{
+public:
+   PortBCHfield(const Vector &params, int index, bool realPart)
+      : CoaxTEMBase(params, index, realPart) {}
 
    void Eval(Vector &V, ElementTransformation &T,
              const IntegrationPoint &ip)
    {
       V.SetSize(3); V = 0.0;
-      T.Transform(ip, x_);
+      complex<double> H; Vector phi_hat;
+      if (!IncidentH(T, ip, H, phi_hat)) { return; }
+      const double s = realPart_ ? H.real() : H.imag();
+      V.Set(s, phi_hat);
+   }
+};
 
-      V0_ = params_[0+index_];
-      b_ = params_[1+index_];
-      a_ = params_[2+index_];
-      x0_ = params_[3+index_];
-      y0_ = params_[4+index_];
-      z0_ = params_[5+index_];
-      nhatx_ = params_[6+index_];
-      nhaty_ = params_[7+index_];
-      nhatz_ = params_[8+index_];
+// Source term for a matched TEM port (default).
+//
+// With outward normal n, the H-formulation boundary term is
+//    i omega \oint (n x E) . conj(v).
+// Splitting the port field into an incident wave (travelling along -n)
+// and an outgoing reflected wave gives
+//    n x E = eta0 H_t - 2 eta0 H_inc,t = eta0 H_t + n x (2 E_inc).
+// The eta0 H_t part is supplied by the absorbing BC on the port surface
+// (eta = eta0, the TEM wave impedance).
+//
+// The solver adds Neumann data K through VectorFEBoundaryTangentLFIntegrator,
+// which assembles i omega \int (n x K) . v  (note the n x).  Hence the
+// source is simply
+//    K = 2 E_inc = 2 eta0 H_inc rho_hat   (radial, tangent to the port).
+class PortIncidentK : public CoaxTEMBase
+{
+public:
+   PortIncidentK(const Vector &params, int index, bool realPart)
+      : CoaxTEMBase(params, index, realPart) {}
 
-
-      Vector r(3);
-      r[0] = x_[0]-x0_;
-      r[1] = x_[1]-y0_;
-      r[2] = x_[2]-z0_;
-
-      Vector rdisk(3);
-      rdisk[0] = r[0] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhatx_;
-      rdisk[1] = r[1] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhaty_;
-      rdisk[2] = r[2] - (r[0]*nhatx_+r[1]*nhaty_+r[2]*nhatz_)*nhatz_;
-     
-      double rdisknorm = rdisk.Norml2();
-
-      double Efield = (V0_/log(b_/a_))*(1.0/r.Norml2());
-
-      double Hfield = (1/376.73)*Efield;
-
-      Vector thetadisk(3);
-      thetadisk[0] = nhaty_*(rdisk[2]/rdisknorm) - nhatz_*(rdisk[1]/rdisknorm);
-      thetadisk[1] = nhatz_*(rdisk[0]/rdisknorm) - nhatx_*(rdisk[2]/rdisknorm);
-      thetadisk[2] = nhatx_*(rdisk[1]/rdisknorm) - nhaty_*(rdisk[0]/rdisknorm);
-
-      V[0] = Hfield*thetadisk[0];
-      V[1] = Hfield*thetadisk[1];
-      V[2] = Hfield*thetadisk[2];
+   void Eval(Vector &V, ElementTransformation &T,
+             const IntegrationPoint &ip)
+   {
+      V.SetSize(3); V = 0.0;
+      complex<double> H; Vector phi_hat, rho_hat;
+      if (!IncidentH(T, ip, H, phi_hat, &rho_hat)) { return; }
+      const complex<double> K = 2.0 * sqrt(mu0_ / epsilon0_) * H;
+      const double s = realPart_ ? K.real() : K.imag();
+      V.Set(s, rho_hat);
    }
 };
 
@@ -543,6 +607,7 @@ int main(int argc, char *argv[])
    bool visualization = false;
    bool visit = true;
    bool pml = false;
+   bool port_dbc = false; // false: matched TEM port, true: Dirichlet H port
    bool thermal = false;
    bool coords3d = false;
 
@@ -584,6 +649,9 @@ int main(int argc, char *argv[])
    PlasmaProfile::Type nipt_vac = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type nipt_sol = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type nipt_cor = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type nept_vac = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type nept_sol = PlasmaProfile::CONSTANT;
+   PlasmaProfile::Type nept_cor = PlasmaProfile::CONSTANT;
    PlasmaProfile::Type tipt = PlasmaProfile::CONSTANT;
    BFieldProfile::Type bpt = BFieldProfile::CONSTANT;
    Array<int> dpa_vac;
@@ -595,6 +663,9 @@ int main(int argc, char *argv[])
    Array<int> nipa_vac;
    Array<int> nipa_sol;
    Array<int> nipa_cor;
+   Array<int> nepa_vac;
+   Array<int> nepa_sol;
+   Array<int> nepa_cor;
    Vector dpp_def;
    Vector dpp_vac;
    Vector dpp_sol;
@@ -609,13 +680,16 @@ int main(int argc, char *argv[])
    Vector nipp_vac;
    Vector nipp_sol;
    Vector nipp_cor;
+   Vector nepp_vac;
+   Vector nepp_sol;
+   Vector nepp_cor;
    Vector tipp;
    int nuprof = 0;
    double res_lim = 0.01;
 
    Array<int> abcs; // Absorbing BC attributes
    Array<int> sbca; // Sheath BC attributes
-   Array<int> peca; // Perfect Electric Conductor BC attributes
+   Array<int> peca; // Perfect Magnetic Conductor BC attributes
    Array<int> dbca1; // Dirichlet BC attributes
    Array<int> dbca2; // Dirichlet BC attributes
    Array<int> dbcas; // Dirichlet BC attributes for multi-strap antenna source
@@ -816,6 +890,48 @@ int main(int argc, char *argv[])
                   "location of 0 point, unit vector along gradient, "
                   "   ELLIPTIC_COS: value at -1, value at 1, "
                   "radius in x, radius in y, location of center.");
+   args.AddOption(&nepa_vac, "-nepa-vac", "-vac-ne-profile-attr",
+                  "Electron Collisions Profile in Vacuum");
+   args.AddOption((int*)&nept_vac, "-nep-vac", "--vac-ne-profile",
+                  "Electron Collisions Profile Type in Vacuum: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&nepp_vac, "-nepp-vac", "--vac-ne-profile-params",
+                  "Electron Collisions Profile Parameters in Vacuum:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&nepa_sol, "-nepa-sol", "-sol-ne-profile-attr",
+                  "Electron Collisions Profile Scrape-off Layer Attributes");
+   args.AddOption((int*)&nept_sol, "-nep-sol", "--sol-ne-profile",
+                  "Electron Collisions Profile Type in Scrape-off Layer: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&nepp_sol, "-nepp-sol", "--sol-ne-profile-params",
+                  "Electron Collisions Profile Parameters in Scrape-off Layer:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
+   args.AddOption(&nepa_cor, "-nepa-core", "-core-ne-profile-attr",
+                  "Electron Collisions Profile Core Attributes");
+   args.AddOption((int*)&nept_cor, "-nep-core", "--core-ne-profile",
+                  "Electron Collisions Profile Type (for ions) in Core region: \n"
+                  "0 - Constant, 1 - Constant Gradient, "
+                  "2 - Hyprebolic Tangent, 3 - Elliptic Cosine.");
+   args.AddOption(&nepp_cor, "-nepp-core", "--core-ne-profile-params",
+                  "Electron Collisions Profile Parameters in Core region:\n"
+                  "   CONSTANT: density value\n"
+                  "   GRADIENT: value, location, gradient (7 params)\n"
+                  "   TANH:     value at 0, value at 1, skin depth, "
+                  "location of 0 point, unit vector along gradient, "
+                  "   ELLIPTIC_COS: value at -1, value at 1, "
+                  "radius in x, radius in y, location of center.");
    args.AddOption((int*)&nipt, "-nip", "--ion-collision-profile",
                   "Ion Collisions Profile Type: \n"
                   "0 - Constant, 1 - Constant Gradient, "
@@ -964,7 +1080,7 @@ int main(int argc, char *argv[])
    args.AddOption(&sbca, "-sbcs", "--sheath-bc-surf",
                   "Sheath Boundary Condition Surfaces");
    args.AddOption(&peca, "-pecs", "--pec-bc-surf",
-                  "Perfect Electrical Conductor Boundary Condition Surfaces");
+                  "Perfect Magnetic Conductor Boundary Condition Surfaces");
    args.AddOption(&dbcaw, "-dbcs-pw", "--dirichlet-bc-pw-surf",
                   "Dirichlet Boundary Condition Surfaces Using Plane Wave");
    args.AddOption(&dbca1, "-dbcs1", "--dirichlet-bc-1-surf",
@@ -996,10 +1112,17 @@ int main(int argc, char *argv[])
                   "(Re(v_x) Re(v_y) Re(v_z) Im(v_x) Im(v_y) Im(v_z))");
    args.AddOption(&portbca, "-portbca", "--port-bc-surf",
                   "Port Boundary Condition Surfaces");
-   args.AddOption(&portbcv, "-portbcv", "--port-bc-surf",
-                  "Port Boundary Condition Values");
+   args.AddOption(&portbcv, "-portbcv", "--port-bc-vals",
+                  "Port Boundary Condition Values, 10 per port: "
+                  "V0 theta b a x0 y0 z0 nx ny nz "
+                  "(n = unit normal pointing into the domain)");
    args.AddOption(&portbc_file, "-portbc", "--portbc-file",
                   "Port BC input file.");
+   args.AddOption(&port_dbc, "-port-dbc", "--port-dirichlet",
+                  "-port-matched", "--port-matched",
+                  "Coax port type: Dirichlet tangential H (ideal current "
+                  "source, reflecting) or matched TEM port (absorbing + "
+                  "incident wave, default).");
    args.AddOption(&maxit, "-maxit", "--max-amr-iterations",
                   "Max number of iterations in the main AMR loop.");
    args.AddOption(&herm_conv, "-herm", "--hermitian", "-no-herm",
@@ -1286,7 +1409,7 @@ int main(int argc, char *argv[])
       std::complex<double> S = S_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof, res_lim,
                                              Rval,Lval);
-      std::complex<double> P = P_cold_plasma(omega, kvecmag, nue, numbers,
+      std::complex<double> P = P_cold_plasma(omega, kvecmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof);
       std::complex<double> D = D_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof, res_lim,
@@ -1400,7 +1523,8 @@ int main(int argc, char *argv[])
                             BasisType::GaussLobatto, 3);
    ND_ParFESpace HCurlFESpace(&pmesh, order, pmesh.Dimension());
    RT_ParFESpace HDivFESpace(&pmesh, order, pmesh.Dimension());
-   L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension());
+   L2_ParFESpace L2FESpace(&pmesh, order, pmesh.Dimension(),
+                           BasisType::GaussLobatto, 3);
 
    ParGridFunction BField(&HDivFESpace);
    ParGridFunction temperature_gf;
@@ -1475,8 +1599,7 @@ int main(int argc, char *argv[])
 
    PlasmaProfile::CoordSystem coord_sys =
       cyl ? PlasmaProfile::POLOIDAL : PlasmaProfile::CARTESIAN_3D;
-   PlasmaProfile nueCoef(nept, nepp, true, coord_sys, coords3d, eqdsk);
-   nue_gf.ProjectCoefficient(nueCoef);
+
    PlasmaProfile TiCoef(tipt, tipp, true, coord_sys, coords3d, eqdsk);
    iontemp_gf.ProjectCoefficient(TiCoef);
 
@@ -1531,6 +1654,22 @@ int main(int argc, char *argv[])
    {
       rhoCoef.SetParams(dpa_cor, dpt_cor, dpp_cor);
    }
+
+   PlasmaProfile nueCoef(nept, nepp, true, coord_sys, coords3d, eqdsk);
+   if (nepa_vac.Size() > 0)
+   {
+      nueCoef.SetParams(nepa_vac, nept_vac, nepp_vac);
+   }
+   if (nepa_sol.Size() > 0)
+   {
+      nueCoef.SetParams(nepa_sol, nept_sol, nepp_sol);
+   }
+   if (nepa_cor.Size() > 0)
+   {
+      nueCoef.SetParams(nepa_cor, nept_cor, nepp_cor);
+   }
+
+   nue_gf.ProjectCoefficient(nueCoef);
 
    PlasmaProfile nuiCoef(nipt, nipp, true, coord_sys, coords3d, eqdsk);
    if (nipa_vac.Size() > 0)
@@ -1624,7 +1763,15 @@ int main(int argc, char *argv[])
    }
    else
    {
-      if (phase_shift)
+      // Default: no phase shift, k = 0.  Without this, kReVec/kImVec stay
+      // empty when neither -k-vec nor -w is given, and the logging output
+      // and k-vector coefficients below read through a null pointer.
+      if (!phase_shift)
+      {
+         kReVec.SetSize(3); kReVec = 0.0;
+         kImVec.SetSize(3); kImVec = 0.0;
+      }
+      else
       {
          if (kVec.Size() >= 3)
          {
@@ -1745,6 +1892,28 @@ int main(int argc, char *argv[])
    }
 
    // Create a coefficient describing the surface admittance
+   // A matched coax port needs an absorbing BC (eta = eta0) on the port
+   // surface to carry away the reflected TEM wave.  Add the port
+   // attributes to the absorbing surfaces unless they are already there.
+   if (portbca.Size() > 0 && !port_dbc &&
+       !(abcs.Size() == 1 && abcs[0] == -1))
+   {
+      for (int i=0; i<portbca.Size(); i++)
+      {
+         if (abcs.Find(portbca[i]) >= 0) { continue; }
+         MFEM_VERIFY(pw_eta_.Size() == 0,
+                     "Matched coax port: when -pwz is used, the port "
+                     "attribute " << portbca[i] << " must be listed in -abcs "
+                     "with impedance eta0 = 376.73 Ohm.");
+         abcs.Append(portbca[i]);
+      }
+      if (Mpi::Root())
+      {
+         cout << "Absorbing surfaces (incl. matched coax ports): ";
+         abcs.Print(cout);
+      }
+   }
+
    Coefficient * etaCoef = SetupImpedanceCoefficient(pmesh, abcs);
 
    // Create tensor coefficients describing the dielectric permittivity
@@ -2108,16 +2277,16 @@ int main(int argc, char *argv[])
 
       if (Mpi::Root())
       {
-         cout << "Reading in " << arr.Size()/9 << " Port BC Input(s)" << endl;
+         cout << "Reading in " << arr.Size()/10 << " Port BC Input(s)" << endl;
       }
 
       infile.close();
 
-      if (arr.Size() % 9 != 0)
+      if (arr.Size() % 10 != 0)
       {
          if (Mpi::Root())
          {
-            cout << "Incorrect number of port BC inputs! Need 9 for each port." << endl;
+            cout << "Incorrect number of port BC inputs! Need 10 for each port." << endl;
          }
          return 1;
       }
@@ -2131,11 +2300,26 @@ int main(int argc, char *argv[])
 
    }
 
+   if (portbca.Size() > 0)
+   {
+      MFEM_VERIFY(portbcv.Size() == 10 * portbca.Size(),
+                  "Coax port: need 10 values (V0 theta b a x0 y0 z0 nx ny nz) "
+                  "per port surface; got " << portbcv.Size() << " values for "
+                  << portbca.Size() << " port(s).");
+      if (Mpi::Root())
+      {
+         cout << "Coax port type: "
+              << (port_dbc ? "Dirichlet tangential H (current source)"
+                  : "matched TEM (absorbing + incident wave)") << endl;
+      }
+   }
+
    // Setup coefficients for Dirichlet BC
+   // (In the H formulation PEC walls are natural: impose nothing.
+   //  -pecs sets n x H = 0, i.e. a perfect MAGNETIC conductor.)
    int dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) +
                   (dbcas.Size() > 0) + (dbcaw.Size() > 0);
-   if (portbca.Size() > 0){dbcsSize = (peca.Size() > 0) + (dbca1.Size() > 0) + (dbca2.Size() > 0) +
-                  (dbcas.Size() > 0) + (dbcaw.Size() > 0) + portbca.Size();}
+   if (port_dbc) { dbcsSize += portbca.Size(); }
 
    Array<ComplexVectorCoefficientByAttr*> dbcs(dbcsSize);
 
@@ -2229,6 +2413,26 @@ int main(int argc, char *argv[])
          c++;
       }
 
+      if (port_dbc && portbca.Size() > 0)
+      {
+         for (int i=0; i<portbca.Size(); i++)
+         {
+            int index = i*10;
+            dbcs[c] = new ComplexVectorCoefficientByAttr;
+            dbcs[c]->attr.SetSize(1);
+            dbcs[c]->attr[0]=portbca[i];
+            dbcs[c]->real = new PortBCHfield(portbcv, index, true);
+            dbcs[c]->imag = new PortBCHfield(portbcv, index, false);
+            if (Mpi::Root())
+            {
+               mfem::out << "Dirichlet port surface: ";
+               dbcs[c]->attr.Print(mfem::out);
+            }
+            c++;
+         }
+      }
+
+      /*
       Array<int> temp_attribute(1);
       if (portbca.Size() > 0)
       {
@@ -2244,9 +2448,11 @@ int main(int argc, char *argv[])
             c++;
          }
       }
+      */
    }
 
    int nbcsSize = (nbca1.Size() > 0) + (nbca2.Size() > 0) + (nbcaw.Size() > 0);
+   if (!port_dbc) { nbcsSize += portbca.Size(); }
 
    Array<ComplexVectorCoefficientByAttr*> nbcs(nbcsSize);
 
@@ -2319,6 +2525,26 @@ int main(int argc, char *argv[])
          nbcs[c]->real = &EReCoef;
          nbcs[c]->imag = &EImCoef;
          c++;
+      }
+      // Matched TEM port: incident-wave source K = 2 E_inc (radial).
+      // The reflected wave is absorbed by the ABC added to abcs above.
+      if (!port_dbc && portbca.Size() > 0)
+      {
+         for (int i=0; i<portbca.Size(); i++)
+         {
+            int index = i*10;
+            nbcs[c] = new ComplexVectorCoefficientByAttr;
+            nbcs[c]->attr.SetSize(1);
+            nbcs[c]->attr[0]=portbca[i];
+            nbcs[c]->real = new PortIncidentK(portbcv, index, true);
+            nbcs[c]->imag = new PortIncidentK(portbcv, index, false);
+            if (Mpi::Root())
+            {
+               mfem::out << "Matched port surface: ";
+               nbcs[c]->attr.Print(mfem::out);
+            }
+            c++;
+         }
       }
    }
 
@@ -2918,7 +3144,7 @@ SetupImpedanceCoefficient(const Mesh & mesh, const Array<int> & abcs)
                   "Each impedance value must be associated with exactly one "
                   "absorbing boundary surface.");
 
-      pw_bdr_eta_.SetSize(mesh.bdr_attributes.Size());
+      pw_bdr_eta_.SetSize(mesh.bdr_attributes.Max());
 
       if ( abcs[0] == -1 )
       {
@@ -4975,7 +5201,7 @@ ColdPlasmaPlaneWaveH::ColdPlasmaPlaneWaveH(char type,
    D_ = D_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
                       nuprof_, res_lim_, Rval_, Lval_);
-   P_ = P_cold_plasma(omega_, k_, nue_, numbers_, charges_, masses_,
+   P_ = P_cold_plasma(omega_, k_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_, nuprof_);
 
    switch (type_)
@@ -5242,7 +5468,7 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    D_ = D_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
                       nuprof_, res_lim_, Rval_, Lval_);
-   P_ = P_cold_plasma(omega_, k_, nue_, numbers_, charges_, masses_,
+   P_ = P_cold_plasma(omega_, k_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_, nuprof_);
 
    switch (type_)

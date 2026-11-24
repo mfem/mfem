@@ -20,9 +20,185 @@ using namespace common;
 namespace plasma
 {
 
+// k_parallel [1/m] used by the warm-plasma dielectric wherever the supplied
+// k is below 1 1/m (e.g. no phase factor). Set from stix3d with -kpar.
+static double warm_kpar_default_ = 18.0;
+void   SetWarmKparDefault(double kpar) { warm_kpar_default_ = kpar; }
+double GetWarmKparDefault() { return warm_kpar_default_; }
+
 complex<double> Zfunction(complex<double> xi)
 {
    return complex<double>(0,1)*sqrt(M_PI)*Faddeeva::w(xi);
+}
+
+// Conventions (exp(-i omega t)), signed Om_s = q_s B / m_s:
+//   R_s = -wp^2 / ( w (w + i nu_s + Om_s) )
+//   L_s = -wp^2 / ( w (w + i nu_s + i nu_res - Om_s) )
+//   P_s = -wp^2 / ( w (w + i nu_s) )
+//   R = 1 + sum R_s,  L = 1 + sum L_s,  S = (R+L)/2,  D = (R-L)/2,  P = 1 + sum P_s
+// Electrons (i == 0): collisions ONLY through m_eff = m (1 + i nu_ei/omega)  (nu_s = 0)
+// Ions (i >= 1):      omega -> omega + i*nui in every denominator
+// nu_res = res_lim * omega * exp(-(1 - Re(Om)/omega)^2): extra L-only damping near the
+//   cyclotron resonance. It affects L, S and D, but NOT R or P.
+
+// ---------------------------------------------------------------- shared helpers
+
+// Per-species R and L contributions.
+static inline void species_RL(double omega,
+                              double nu_R,
+                              double nu_L,
+                              const complex<double> & w_p,
+                              const complex<double> & w_c,
+                              complex<double> & Rs,
+                              complex<double> & Ls)
+{
+   const complex<double> I(0.0, 1.0);
+   const complex<double> wp2 = w_p * w_p;
+   Rs = -wp2 / (omega * (omega + I * nu_R + w_c));
+   Ls = -wp2 / (omega * (omega + I * nu_L - w_c));
+}
+
+// 1 + i nu_ei/omega, the factor multiplying the electron mass.
+static inline complex<double>
+electron_collision_correction(double omega,
+                              double nue,
+                              int nuprof,
+                              const Vector & number,
+                              const Vector & charge,
+                              const Vector & mass,
+                              const Vector & temp)
+{
+   double n = fabs(number[0]);
+   double q = charge[0];
+   double m = mass[0];
+   double Te = fabs(temp[0]) * q_;
+   double coul_log = CoulombLog(n, Te);
+   double nuei = (nuprof == 0) ?
+                 nu_ei(q, coul_log, m, Te, n) + nue :
+                 nue;
+   return complex<double>(1.0, nuei / omega);
+}
+
+// Extra L-only damping near the cyclotron resonance.
+static inline double resonance_damping(double omega,
+                                       double res_lim,
+                                       const complex<double> & w_c)
+{
+   if (res_lim == 0.0) { return 0.0; }
+   return res_lim * omega * exp(-pow(1.0 - w_c.real() / omega, 2));
+}
+
+// Everything one species needs.
+struct SpeciesTerms
+{
+   complex<double> Rs, Ls, Ps;
+};
+
+static inline SpeciesTerms species_terms(int i,
+                                         double omega,
+                                         double Bmag,
+                                         double nui,
+                                         double res_lim,
+                                         const complex<double> & collision_correction,
+                                         const Vector & number,
+                                         const Vector & charge,
+                                         const Vector & mass)
+{
+   const complex<double> I(0.0, 1.0);
+   double n = fabs(number[i]);                         
+   double q = charge[i];
+   double m = mass[i];
+   complex<double> m_eff = m;
+   if (i == 0) { m_eff = m * collision_correction; }
+
+   complex<double> w_c = omega_c(Bmag, q, m_eff);
+   complex<double> w_p = omega_p(n, q, m_eff);
+
+   double nu_s = (i == 0) ? 0.0 : nui;
+   double nu_res = resonance_damping(omega, res_lim, w_c);
+
+   SpeciesTerms t;
+   species_RL(omega, nu_s, nu_s + nu_res, w_p, w_c, t.Rs, t.Ls);
+   t.Ps = -w_p * w_p / (omega * (omega + I * nu_s));
+   return t;
+}
+
+complex<double> S_cold_plasma(double omega,
+                              double kparallel,
+                              double Bmag,
+                              double nue,
+                              double nui,
+                              const Vector & number,
+                              const Vector & charge,
+                              const Vector & mass,
+                              const Vector & temp,
+                              double iontemp,
+                              int nuprof,
+                              double res_lim,
+                              double Rval,
+                              double Lval)
+{
+   complex<double> cc = electron_collision_correction(omega, nue, nuprof,
+                                                      number, charge, mass, temp);
+   complex<double> val(1.0, 0.0);
+   for (int i=0; i<number.Size(); i++)
+   {
+      SpeciesTerms t = species_terms(i, omega, Bmag, nui, res_lim, cc,
+                                     number, charge, mass);
+      val += 0.5 * (t.Rs + t.Ls);
+   }
+
+   return val;
+}
+
+complex<double> D_cold_plasma(double omega,
+                              double kparallel,
+                              double Bmag,
+                              double nue,
+                              double nui,
+                              const Vector & number,
+                              const Vector & charge,
+                              const Vector & mass,
+                              const Vector & temp,
+                              double iontemp,
+                              int nuprof,
+                              double res_lim,
+                              double Rval,
+                              double Lval)
+{
+   complex<double> cc = electron_collision_correction(omega, nue, nuprof,
+                                                      number, charge, mass, temp);
+   complex<double> val(0.0, 0.0);
+   for (int i=0; i<number.Size(); i++)
+   {
+      SpeciesTerms t = species_terms(i, omega, Bmag, nui, res_lim, cc,
+                                     number, charge, mass);
+      val += 0.5 * (t.Rs - t.Ls);
+   }
+   return val;
+}
+
+complex<double> P_cold_plasma(double omega,
+                              double kparallel,
+                              double nue,
+                              double nui,
+                              const Vector & number,
+                              const Vector & charge,
+                              const Vector & mass,
+                              const Vector & temp,
+                              double iontemp,
+                              int nuprof)
+{
+   complex<double> cc = electron_collision_correction(omega, nue, nuprof,
+                                                      number, charge, mass, temp);
+   complex<double> val(1.0, 0.0);
+   for (int i=0; i<number.Size(); i++)
+   {
+      SpeciesTerms t = species_terms(i, omega, 0.0, nui, 0.0, cc,
+                                     number, charge, mass);
+      val += t.Ps;
+   }
+   return val;
 }
 
 void StixCoefs_cold_plasma(Vector &V,
@@ -36,43 +212,27 @@ void StixCoefs_cold_plasma(Vector &V,
                            const Vector & temp,
                            double iontemp,
                            int nuprof,
+                           double res_lim,
                            bool realPart)
 {
    V.SetSize(5);
+   complex<double> cc = electron_collision_correction(omega, nue, nuprof,
+                                                      number, charge, mass, temp);
    complex<double> S(1.0, 0.0);
    complex<double> P(1.0, 0.0);
    complex<double> D(0.0, 0.0);
    complex<double> R(1.0, 0.0);
    complex<double> L(1.0, 0.0);
-   double n = number[0];
-   double q = charge[0];
-   double m = mass[0];
-   double Te = temp[0] * q_;
-   //double Ti = iontemp * q_;
-   double coul_log = CoulombLog(n, Te);
-   double nuei = (nuprof == 0) ?
-                 nu_ei(q, coul_log, m, Te, n) :
-                 nue;
-   complex<double> collision_correction(1.0, nuei/omega);
-   double nui_res = 0.0;
 
    for (int i=0; i<number.Size(); i++)
    {
-      double n = number[i];
-      double q = charge[i];
-      double m = mass[i];
-      complex<double> m_eff = m;
-      if (i == 0) { m_eff = m * collision_correction; }
-      if (i == 1) { nui_res = nui; }
-      complex<double> w_c =
-         omega_c(Bmag, q, m_eff) - complex<double>(0.0, nui_res);
-      complex<double> w_p = omega_p(n, q, m_eff);
-
-      S -= w_p * w_p / (omega * omega - w_c * w_c);
-      P -= w_p * w_p / (omega * omega);
-      D += w_p * w_p * w_c / (omega * (omega * omega - w_c * w_c));
-      R -= w_p * w_p / (omega * (omega + w_c));
-      L -= w_p * w_p / (omega * (omega - w_c));
+      SpeciesTerms t = species_terms(i, omega, Bmag, nui, res_lim, cc,
+                                     number, charge, mass);
+      R += t.Rs;
+      L += t.Ls;
+      S += 0.5 * (t.Rs + t.Ls);
+      D += 0.5 * (t.Rs - t.Ls);
+      P += t.Ps;
    }
    if (realPart)
    {
@@ -103,31 +263,14 @@ complex<double> R_cold_plasma(double omega,
                               double iontemp,
                               int nuprof)
 {
+   complex<double> cc = electron_collision_correction(omega, nue, nuprof,
+                                                      number, charge, mass, temp);
    complex<double> val(1.0, 0.0);
-   double n = number[0];
-   double q = charge[0];
-   double m = mass[0];
-   double Te = temp[0] * q_;
-   //double Ti = iontemp * q_;
-   double coul_log = CoulombLog(n, Te);
-   double nuei = (nuprof == 0) ?
-                 nu_ei(q, coul_log, m, Te, n)  :
-                 nue;
-   complex<double> collision_correction(1.0, nuei/omega);
-   double nui_res = 0.0;
-
    for (int i=0; i<number.Size(); i++)
    {
-      double n = number[i];
-      double q = charge[i];
-      double m = mass[i];
-      complex<double> m_eff = m;
-      if (i == 0) { m_eff = m * collision_correction; }
-      if (i == 1) { nui_res = nui; }
-      complex<double> w_c =
-         omega_c(Bmag, q, m_eff) - complex<double>(0.0, nui_res);
-      complex<double> w_p = omega_p(n, q, m_eff);
-      val -= w_p * w_p / (omega * (omega + w_c));
+      SpeciesTerms t = species_terms(i, omega, Bmag, nui, 0.0, cc,
+                                     number, charge, mass);
+      val += t.Rs;
    }
    return val;
 }
@@ -144,177 +287,14 @@ complex<double> L_cold_plasma(double omega,
                               int nuprof,
                               double res_lim)
 {
+   complex<double> cc = electron_collision_correction(omega, nue, nuprof,
+                                                      number, charge, mass, temp);
    complex<double> val(1.0, 0.0);
-   double n = number[0];
-   double q = charge[0];
-   double m = mass[0];
-   double Te = temp[0] * q_;
-   //double Ti = iontemp * q_;
-   double coul_log = CoulombLog(n, Te);
-   double nuei = (nuprof == 0) ?
-                 nu_ei(q, coul_log, m, Te, n) :
-                 nue;
-   complex<double> collision_correction(1.0, nuei/omega);
-   double nui_res = 0.0;
-
    for (int i=0; i<number.Size(); i++)
    {
-      double n = number[i];
-      double q = charge[i];
-      double m = mass[i];
-      complex<double> m_eff = m;
-      if (i == 0) { m_eff = m * collision_correction; }
-      if (i == 1) { nui_res = nui; }
-      complex<double> w_c =
-         omega_c(Bmag, q, m_eff) - complex<double>(0.0, nui_res);
-      if (res_lim != 0.0)
-      {
-         double expw_c = exp(-pow(1.0 - w_c.real() / omega, 2));
-         w_c -= complex<double>(0.0, res_lim * omega * expw_c);
-      }
-      complex<double> w_p = omega_p(n, q, m_eff);
-      val -= w_p * w_p / (omega * (omega - w_c));
-   }
-   return val;
-}
-
-
-complex<double> S_cold_plasma(double omega,
-                              double kparallel,
-                              double Bmag,
-                              double nue,
-                              double nui,
-                              const Vector & number,
-                              const Vector & charge,
-                              const Vector & mass,
-                              const Vector & temp,
-                              double iontemp,
-                              int nuprof,
-                              double res_lim,
-                              double Rval,
-                              double Lval)
-{
-   complex<double> val(1.0, 0.0);
-   double n = number[0];
-   double q = charge[0];
-   double m = mass[0];
-   double Te = temp[0] * q_;
-   double Ti = iontemp * q_;
-   double coul_log = CoulombLog(n, Te);
-   double nuei = (nuprof == 0) ?
-                 nu_ei(q, coul_log, m, Te, n) :
-                 nue;
-   complex<double> collision_correction(1.0, nuei/omega);
-   double nui_res = 0.0;
-
-   for (int i=0; i<number.Size(); i++)
-   {
-      double n = number[i];
-      double q = charge[i];
-      double m = mass[i];
-      complex<double> m_eff = m;
-      if (i == 0) { m_eff = m * collision_correction; }
-      if (i == 1) { nui_res = nui; }
-      complex<double> w_c =
-         omega_c(Bmag, q, m_eff) - complex<double>(0.0, nui_res);
-      complex<double> w_c_c = w_c;
-      complex<double> num(1.0, 0.0);
-      if (res_lim != 0.0)
-      {
-         double expw_c = exp(-pow(1.0 - w_c.real() / omega, 2));
-         w_c_c -= complex<double>(0.0, res_lim * omega * expw_c);
-         num += complex<double>(0.0, 0.5 * res_lim * expw_c);
-      }
-      complex<double> w_p = omega_p(n, q, m_eff);
-      val -= w_p * w_p * num / ((omega + w_c) * (omega - w_c_c));
-   }
-   return val;
-}
-
-complex<double> D_cold_plasma(double omega,
-                              double kparallel,
-                              double Bmag,
-                              double nue,
-                              double nui,
-                              const Vector & number,
-                              const Vector & charge,
-                              const Vector & mass,
-                              const Vector & temp,
-                              double iontemp,
-                              int nuprof,
-                              double res_lim,
-                              double Rval,
-                              double Lval)
-{
-   complex<double> val(0.0, 0.0);
-   double n = number[0];
-   double q = charge[0];
-   double m = mass[0];
-   double Te = temp[0] * q_;
-   double Ti = iontemp * q_;
-   double coul_log = CoulombLog(n, Te);
-   double nuei = (nuprof == 0) ?
-                 nu_ei(q, coul_log, m, Te, n) :
-                 nue;
-   complex<double> collision_correction(1.0, nuei/omega);
-   double nui_res = 0.0;
-
-   for (int i=0; i<number.Size(); i++)
-   {
-      double n = number[i];
-      double q = charge[i];
-      double m = mass[i];
-      complex<double> m_eff = m;
-      if (i == 0) { m_eff = m*collision_correction; }
-      if (i == 1) { nui_res = nui; }
-      complex<double> w_c =
-         omega_c(Bmag, q, m_eff) - complex<double>(0.0, nui_res);
-      complex<double> w_c_c = w_c;
-      complex<double> num = w_c;
-      if (res_lim != 0.0)
-      {
-         double expw_c = exp(-pow(1.0 - w_c.real() / omega, 2));
-         w_c_c -= complex<double>(0.0, res_lim * omega * expw_c);
-         num -= complex<double>(0.0, 0.5 * omega * res_lim * expw_c);
-      }
-      complex<double> w_p = omega_p(n, q, m_eff);
-      val += w_p * w_p * num / (omega * (omega + w_c) * (omega - w_c_c));
-   }
-   return val;
-}
-
-
-complex<double> P_cold_plasma(double omega,
-                              double kparallel,
-                              double nue,
-                              const Vector & number,
-                              const Vector & charge,
-                              const Vector & mass,
-                              const Vector & temp,
-                              double iontemp,
-                              int nuprof)
-{
-   complex<double> val(1.0, 0.0);
-   double n = number[0];
-   double q = charge[0];
-   double m = mass[0];
-   double Te = temp[0] * q_;
-   double Ti = iontemp * q_;
-   double coul_log = CoulombLog(n, Te);
-   double nuei = (nuprof == 0) ?
-                 nu_ei(q, coul_log, m, Te, n) :
-                 nue;
-   complex<double> collision_correction(1.0, nuei/omega);
-
-   for (int i=0; i<number.Size(); i++)
-   {
-      double n = number[i];
-      double q = charge[i];
-      double m = mass[i];
-      complex<double> m_eff = m;
-      if (i == 0) { m_eff = m*collision_correction; }
-      complex<double> w_p = omega_p(n, q, m_eff);
-      val -= w_p * w_p / (omega * omega);
+      SpeciesTerms t = species_terms(i, omega, Bmag, nui, res_lim, cc,
+                                     number, charge, mass);
+      val += t.Ls;
    }
    return val;
 }
@@ -334,14 +314,12 @@ complex<double> epxx_warm_plasma_by_species(double omega,
                               double Lval,
                               int i)
 {
-   if (kparallel < 1.0){kparallel = 18.0;}
-   double n = number[i];
-   if (n < 0) {n = -number[i];}
+   if (kparallel < 1.0){kparallel = warm_kpar_default_;}
+   double n = fabs(number[i]);  
    double q = charge[i];
    double m = mass[i];
-   double Te = temp[0] * q_;
+   double Te = fabs(temp[0]) * q_;
    double Ti = iontemp * q_;
-   if (Te < 0.0) {Te = -temp[0] * q_;}
 
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
@@ -361,8 +339,7 @@ complex<double> epxx_warm_plasma_by_species(double omega,
    double rho_i = 0.0;
    for (int j=1; j<number.Size(); j++)
    {
-      double temp_den = number[j];
-      if (temp_den < 0) {temp_den = -number[j];}
+      double temp_den = fabs(number[j]); 
       rho_i += temp_den*mass[j]*amu_;
    }
    double kperp = (omega*sqrt(mu0_*rho_i))/Bmag;
@@ -414,14 +391,12 @@ complex<double> epyy_warm_plasma_by_species(double omega,
                               double Lval,
                               int i)
 {
-   if (kparallel < 1.0){kparallel = 18.0;}
-   double n = number[i];
-   if (n < 0) {n = -number[i];}
+   if (kparallel < 1.0){kparallel = warm_kpar_default_;}
+   double n = fabs(number[i]);  
    double q = charge[i];
    double m = mass[i];
-   double Te = temp[0] * q_;
+   double Te = fabs(temp[0]) * q_;
    double Ti = iontemp * q_;
-   if (Te < 0.0) {Te = -temp[0] * q_;}
    
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
@@ -441,8 +416,7 @@ complex<double> epyy_warm_plasma_by_species(double omega,
    double rho_i = 0.0;
    for (int j=1; j<number.Size(); j++)
    {
-      double temp_den = number[j];
-      if (temp_den < 0) {temp_den = -number[j];}
+      double temp_den = fabs(number[j]); 
       rho_i += temp_den*mass[j]*amu_;
    }
    double kperp = (omega*sqrt(mu0_*rho_i))/Bmag;
@@ -482,14 +456,12 @@ complex<double> epxy_warm_plasma_by_species(double omega,
                               double Lval,
                               int i)
 {
-   if (kparallel < 1.0){kparallel = 18.0;}
-   double n = number[i];
-   if (n < 0) {n = -number[i];}
+   if (kparallel < 1.0){kparallel = warm_kpar_default_;}
+   double n = fabs(number[i]);  
    double q = charge[i];
    double m = mass[i];
-   double Te = temp[0] * q_;
+   double Te = fabs(temp[0]) * q_;
    double Ti = iontemp * q_;
-   if (Te < 0.0) {Te = -temp[0] * q_;}
    
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
@@ -509,8 +481,7 @@ complex<double> epxy_warm_plasma_by_species(double omega,
    double rho_i = 0.0;
    for (int j=1; j<number.Size(); j++)
    {
-      double temp_den = number[j];
-      if (temp_den < 0) {temp_den = -number[j];}
+      double temp_den = fabs(number[j]); 
       rho_i += temp_den*mass[j]*amu_;
    }
    double kperp = (omega*sqrt(mu0_*rho_i))/Bmag;
@@ -544,14 +515,12 @@ complex<double> epzz_warm_plasma_by_species(double omega,
                               int nuprof,
                               int i)
 {
-   if (kparallel < 1.0){kparallel = 18.0;}
-   double n = number[i];
-   if (n < 0) {n = -number[i];}
+   if (kparallel < 1.0){kparallel = warm_kpar_default_;}
+   double n = fabs(number[i]);  
    double q = charge[i];
    double m = mass[i];
-   double Te = temp[0] * q_;
+   double Te = fabs(temp[0]) * q_;
    double Ti = iontemp * q_;
-   if (Te < 0.0) {Te = -temp[0] * q_;}
    
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
@@ -571,8 +540,7 @@ complex<double> epzz_warm_plasma_by_species(double omega,
    double rho_i = 0.0;
    for (int j=1; j<number.Size(); j++)
    {
-      double temp_den = number[j];
-      if (temp_den < 0) {temp_den = -number[j];}
+      double temp_den = fabs(number[j]); 
       rho_i += temp_den*mass[j]*amu_;
    }
    double kperp = (omega*sqrt(mu0_*rho_i))/Bmag;
@@ -602,14 +570,12 @@ complex<double> epyz_warm_plasma_by_species(double omega,
                               double Lval,
                               int i)
 {
-   if (kparallel < 1.0){kparallel = 18.0;}
-   double n = number[i];
-   if (n < 0) {n = -number[i];}
+   if (kparallel < 1.0){kparallel = warm_kpar_default_;}
+   double n = fabs(number[i]);  
    double q = charge[i];
    double m = mass[i];
-   double Te = temp[0] * q_;
+   double Te = fabs(temp[0]) * q_;
    double Ti = iontemp * q_;
-   if (Te < 0.0) {Te = -temp[0] * q_;}
    
    double coul_log = CoulombLog(n, Te);
    double nuei = (nuprof == 0) ?
@@ -629,8 +595,7 @@ complex<double> epyz_warm_plasma_by_species(double omega,
    double rho_i = 0.0;
    for (int j=1; j<number.Size(); j++)
    {
-      double temp_den = number[j];
-      if (temp_den < 0) {temp_den = -number[j];}
+      double temp_den = fabs(number[j]); 
       rho_i += temp_den*mass[j]*amu_;
    }
    double kperp = (omega*sqrt(mu0_*rho_i))/Bmag;
@@ -648,17 +613,17 @@ complex<double> epyz_warm_plasma_by_species(double omega,
 // Jim's old sheath impedance parameterization code for Kohno et al 2017
 double gabsANY(double x)
 {
-   return 0.00013542350902761945 - 0.052148081768838075*x +
-          0.2834385542799402*x*exp(-x) + 0.03053282857790852*pow(x,
-                                                                 2) - 0.006477393187352886*pow(x, 3) + 0.0006099729221975197*pow(x,
-                                                                       4) - 0.00002165822780075613*pow(x, 5);
+   return 0.00013542350902761945 - 0.052148081768838075*x 
+         + 0.2834385542799402*x*exp(-x) + 0.03053282857790852*pow(x,2.0) 
+         - 0.006477393187352886*pow(x,3.0) + 0.0006099729221975197*pow(x,4.0) 
+         - 0.00002165822780075613*pow(x, 5.0);
 }
 
 double gargANY(double x)
 {
-   return -1.5282736631594822 + 0.7292398258852378*x - 0.17951815090296652*pow(x,
-                                                                               2) + 0.01982701480205563*pow(x, 3) - 0.0008171081897105175*pow(x,
-                                                                                     4) + 1.8339439276641656*tanh(0.91*x);
+   return -1.5282736631594822 + 0.7292398258852378*x 
+            - 0.17951815090296652*pow(x,2.0) + 0.01982701480205563*pow(x,3.0) 
+            - 0.0008171081897105175*pow(x,4.0) + 1.8339439276641656*tanh(0.91*x);
 }
 
 complex<double> ficmplxANY1(double x)
@@ -669,22 +634,24 @@ complex<double> ficmplxANY1(double x)
 
 double xafun(double x)
 {
-   return 1.0042042386309231 - 0.040348243785481734*x + 0.0015928747555414683*pow(
-             x, 2) - 0.000028423592601970268*pow(x, 3)+ 0.06435835731325179*tanh(0.5*x);
+   return 1.0042042386309231 - 0.040348243785481734*x 
+      + 0.0015928747555414683*pow(x, 2.0) - 0.000028423592601970268*pow(x,3.0)
+      + 0.06435835731325179*tanh(0.5*x);
 }
 
 double maxfun(double x)
 {
-   return 0.10853383673713796 - 0.006244170771533145*x +
-          0.00024234826741913128*pow(x, 2) - 4.199121776132657e-6*pow(x,
-                                                                      3)+ 0.008906384119401499*tanh(0.5*x);
+   return 0.10853383673713796 - 0.006244170771533145*x 
+         + 0.00024234826741913128*pow(x,2.0) 
+         - 4.199121776132657e-6*pow(x,3.0)+ 0.008906384119401499*tanh(0.5*x);
 }
 
 complex<double> ficmplxANY(double omega, double vpp)
 {return (maxfun(vpp)/maxfun(10))*ficmplxANY1(omega*xafun(10)/xafun(vpp));}
 
 double vrectfun(double x)
-{   return 3.069981715829813 + 0.06248514679413549*x + 0.04681196334146159*pow(x, 2) - 0.002436325220160285*pow(x, 3) + 0.00004692674475799567*pow(x, 4);}
+{   return 3.069981715829813 + 0.06248514679413549*x + 0.04681196334146159*pow(x,2.0) 
+    - 0.002436325220160285*pow(x,3.0) + 0.00004692674475799567*pow(x,4.0);}
 
 complex<double> fdcmplxANY(double omega, double vpp)
 {
@@ -695,10 +662,13 @@ complex<double> fdcmplxANY(double omega, double vpp)
 }
 
 complex<double> fecmplxANY(double vpp)
-{   return 1.4912697017617276 - 0.39149171343072803*exp(-vpp) - 0.35029055741496556*vpp + 0.04370283762859965*pow(vpp, 2) - 0.0029806529060161235*pow(vpp, 3) + 0.00010448291016092317*pow(vpp, 4)- 1.4687221698127053e-6*pow(vpp, 5);}
+{   return 1.4912697017617276 - 0.39149171343072803*exp(-vpp) - 0.35029055741496556*vpp 
+   + 0.04370283762859965*pow(vpp, 2.0) - 0.0029806529060161235*pow(vpp, 3.0) 
+   + 0.00010448291016092317*pow(vpp, 4.0) - 1.4687221698127053e-6*pow(vpp, 5.0);}
 
 complex<double> ftotcmplxANY(double omega, double vpp)
 { return ficmplxANY(omega, vpp) + fdcmplxANY(omega, vpp) + fecmplxANY(vpp);}
+
 // """""""""""""""""""""""""""""""""""""""""""""""""""""""
 
 double mu(double mass_e, double mass_i)
@@ -838,7 +808,6 @@ complex<double> ytot(double w, double wci, double bx, double xi,
 
 double debye(double Te, double n0)
 {
-   //return (7.43e2*pow((Te/n0_cm),0.5));
    if (n0 < 0.0){n0 = -n0;}
    return sqrt((epsilon0_*Te*q_)/(n0*q_*q_));
 }
@@ -1001,9 +970,9 @@ double SheathImpedance::Eval(ElementTransformation &T,
 
    complex<double> phi = EvalSheathPotential(T, ip); // Units: V
 
-   double density_val = EvalIonDensity(T, ip);       // Units: # / m^3
+   double density_val = fabs(EvalIonDensity(T, ip));       // Units: # / m^3
 
-   if (density_val < 0.0){ density_val = -density_val;}
+   //if (density_val < 0.0){ density_val = -density_val;}
 
    double temp_val = 10.0; //EvalElectronTemp(T, ip);        // Units: eV
 
@@ -1297,7 +1266,7 @@ double StixLCoef::Eval(ElementTransformation &T,
          complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, 0.0, nuprof_, 0.0);
-         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+         kparallel = sqrt(pure_coldL).real()*(omega_/3e8);
       }
       complex<double> exx(1.0,0.0);
       complex<double> exy(0.0,0.0);
@@ -1376,7 +1345,7 @@ double StixRCoef::Eval(ElementTransformation &T,
          complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, 0.0, nuprof_, 0.0);
-         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+         kparallel = sqrt(pure_coldL).real()*(omega_/3e8);
       }
       complex<double> exx(1.0,0.0);
       complex<double> exy(0.0,0.0);
@@ -1461,7 +1430,7 @@ double StixSCoef::Eval(ElementTransformation &T,
          complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, 0.0, nuprof_, 0.0);
-         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+         kparallel = sqrt(pure_coldL).real()*(omega_/3e8);
       }
       for (int i=0; i<density_vals_.Size(); i++)
       {
@@ -1541,7 +1510,7 @@ double StixDCoef::Eval(ElementTransformation &T,
          complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, 0.0, nuprof_, 0.0);
-         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+         kparallel = sqrt(pure_coldL).real()*(omega_/3e8);
       }  
       for (int i=0; i<density_vals_.Size(); i++)
       {
@@ -1601,7 +1570,7 @@ double StixPCoef::Eval(ElementTransformation &T,
    this->fillTemperatureVals(T, ip);
 
    // Evaluate Stix Coefficient
-   complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, density_vals_,
+   complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, nui_vals_, density_vals_,
                                      charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
 
    complex<double> ezz(1.0,0.0);
@@ -1613,7 +1582,7 @@ double StixPCoef::Eval(ElementTransformation &T,
          complex<double> pure_coldL = L_cold_plasma(omega_, Bmag_, 0.0, 0.0,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, 0.0, nuprof_, 0.0);
-         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+         kparallel = sqrt(pure_coldL).real()*(omega_/3e8);
       }
       for (int i=0; i<density_vals_.Size(); i++)
       {
@@ -1751,7 +1720,7 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    complex<double> S = S_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
-   complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, density_vals_,
+   complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, nui_vals_, density_vals_,
                                      charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
    complex<double> D = D_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
@@ -1764,7 +1733,7 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
          complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, 0.0, nuprof_, 0.0);
-         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+         kparallel = sqrt(pure_coldL).real()*(omega_/3e8);
       }
       complex<double> exx(1.0,0.0);
       complex<double> eyy(1.0,0.0);
@@ -1810,7 +1779,7 @@ void DielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
       complex<double> ep12 = eyz*val;
 
       complex<double> ep20 = 0.0;
-      complex<double> ep21 = -eyz;
+      complex<double> ep21 = -eyz*val;
       complex<double> ep22 = ezz;
 
       if (s != 0.0)
@@ -1964,7 +1933,7 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
    complex<double> S = S_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
-   complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, density_vals_,
+   complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, nui_vals_, density_vals_,
                                      charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
    complex<double> D = D_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
@@ -1977,7 +1946,7 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
          complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, 0.0, nuprof_, 0.0);
-         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+         kparallel = sqrt(pure_coldL).real()*(omega_/3e8);
       }
       complex<double> exx(1.0,0.0);
       complex<double> eyy(1.0,0.0);
@@ -2023,7 +1992,7 @@ void InverseDielectricTensor::Eval(DenseMatrix &epsilonInv,
       complex<double> ep12 = eyz*val;
 
       complex<double> ep20 = 0.0;
-      complex<double> ep21 = -eyz;
+      complex<double> ep21 = -eyz*val;
       complex<double> ep22 = ezz;
 
       if (s != 0.0)
@@ -2156,7 +2125,7 @@ void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
    complex<double> S = S_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
-   complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, density_vals_,
+   complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, nui_vals_, density_vals_,
                                      charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
    complex<double> D = D_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
@@ -2170,7 +2139,7 @@ void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
          complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, 0.0, nuprof_, 0.0);
-         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+         kparallel = sqrt(pure_coldL).real()*(omega_/3e8);
       }
       complex<double> exx(0.0,0.0);
       complex<double> eyy(0.0,0.0);
@@ -2216,7 +2185,7 @@ void SusceptibilityTensor::Eval(DenseMatrix &suscept, ElementTransformation &T,
       complex<double> ep12 = eyz*val;
 
       complex<double> ep20 = 0.0;
-      complex<double> ep21 = -eyz;
+      complex<double> ep21 = -eyz*val;
       complex<double> ep22 = ezz;
 
       if (s != 0.0)
@@ -2325,7 +2294,7 @@ void SusceptibilityTensorbySpecies::Eval(DenseMatrix &suscept, ElementTransforma
    complex<double> S = S_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
-   complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, density_vals_,
+   complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, nui_vals_, density_vals_,
                                      charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
    complex<double> D = D_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
@@ -2338,7 +2307,7 @@ void SusceptibilityTensorbySpecies::Eval(DenseMatrix &suscept, ElementTransforma
          complex<double> pure_coldL = L_cold_plasma(omega_, Bmag, 0.0, 0.0,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, 0.0, nuprof_, 0.0);
-         kparallel = sqrt(pure_coldL.real())*(3e8/omega_);
+         kparallel = sqrt(pure_coldL).real()*(omega_/3e8);
       }
       complex<double> exx = epxx_warm_plasma_by_species(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                           density_vals_, charges_, masses_, temp_vals_, Ti_vals_, nuprof_, 
@@ -2367,7 +2336,7 @@ void SusceptibilityTensorbySpecies::Eval(DenseMatrix &suscept, ElementTransforma
       complex<double> ep12 = eyz*val;
 
       complex<double> ep20 = 0.0;
-      complex<double> ep21 = -eyz;
+      complex<double> ep21 = -eyz*val;
       complex<double> ep22 = ezz;
 
       if (s != 0.0)
@@ -2489,7 +2458,7 @@ void SPDDielectricTensor::Eval(DenseMatrix &epsilon, ElementTransformation &T,
    complex<double> S = S_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
                                      temp_vals_, Ti_vals_, nuprof_, res_lim_, R.real(),L.real());
-   complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, density_vals_,
+   complex<double> P = P_cold_plasma(omega_, kparallel, nue_vals_, nui_vals_, density_vals_,
                                      charges_, masses_, temp_vals_, Ti_vals_, nuprof_);
    complex<double> D = D_cold_plasma(omega_, kparallel, Bmag, nue_vals_, nui_vals_,
                                      density_vals_, charges_, masses_,
@@ -2597,37 +2566,37 @@ void lambdaPML::Eval(DenseMatrix &lambdaPML, ElementTransformation &T,
 
       
       double x0 = 2.2404;
-      double delta_x = 0.15;
+      double delta_x = 0.1404;
 
       if (xyz_[0] <= x0)
       {
-         sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
+         sig_u = 1.0 + (1.0 + 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
       }
       
-      double y0 = 0.565;
-      double y1 = -0.565;
-      double delta_y = 0.22;
+      double y0 = 0.42; //0.565;
+      double y1 = 0.08; // -0.565;
+      double delta_y = 0.08; //0.22;
       if (xyz_[1] >= y0)
       {
-         sig_v = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[1]-y0)/delta_y),2.0); // y
+         sig_v = 1.0 + (1.0 + 2.0*val)*pow((fabs(xyz_[1]-y0)/delta_y),2.0); // y
       }
       if (xyz_[1] <= y1)
       {
-         sig_v = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[1]-y1)/delta_y),2.0); // y
+         sig_v = 1.0 + (1.0 + 2.0*val)*pow((fabs(xyz_[1]-y1)/delta_y),2.0); // y
       }
 
-      double z0 = 0.3;
-      double z1 = -0.3;
-      double delta_z = 0.2;
+      double z0 = 0.48; //0.3;
+      double z1 = 0.08; //-0.3;
+      double delta_z = 0.08; //0.2;
       if (xyz_[2] >= z0)
       {
-         sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z0)/delta_z),2.0); // z
+         sig_w = 1.0 + (1.0 + 2.0*val)*pow((fabs(xyz_[2]-z0)/delta_z),2.0); // z
       }
       if (xyz_[2] <= z1)
       {
-         sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
+         sig_w = 1.0 + (1.0 + 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
       }
-      
+
       /*
       double x0 = 0.2;
       double x1 = 0.8;
@@ -2721,37 +2690,37 @@ void sigmaPML::Eval(DenseMatrix &sigmaPML, ElementTransformation &T,
       complex<double> sig_w = constant;
 
       double x0 = 2.2404;
-      double delta_x = 0.15;
+      double delta_x = 0.1404;
 
       if (xyz_[0] <= x0)
       {
-         sig_u = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
+         sig_u = 1.0 + (1.0 + 2.0*val)*pow((fabs(xyz_[0]-x0)/delta_x),2.0); // x
       }
       
-      double y0 = 0.565;
-      double y1 = -0.565;
-      double delta_y = 0.22;
+      double y0 = 0.42; //0.565;
+      double y1 = 0.08; // -0.565;
+      double delta_y = 0.08; //0.22;
       if (xyz_[1] >= y0)
       {
-         sig_v = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[1]-y0)/delta_y),2.0); // y
+         sig_v = 1.0 + (1.0 + 2.0*val)*pow((fabs(xyz_[1]-y0)/delta_y),2.0); // y
       }
       if (xyz_[1] <= y1)
       {
-         sig_v = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[1]-y1)/delta_y),2.0); // y
+         sig_v = 1.0 + (1.0 + 2.0*val)*pow((fabs(xyz_[1]-y1)/delta_y),2.0); // y
       }
 
-      double z0 = 0.3;
-      double z1 = -0.3;
-      double delta_z = 0.2;
+      double z0 = 0.48; //0.3;
+      double z1 = 0.08; //-0.3;
+      double delta_z = 0.08; //0.2;
       if (xyz_[2] >= z0)
       {
-         sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z0)/delta_z),2.0); // z
+         sig_w = 1.0 + (1.0 + 2.0*val)*pow((fabs(xyz_[2]-z0)/delta_z),2.0); // z
       }
       if (xyz_[2] <= z1)
       {
-         sig_w = 1.0 + (1.0 - 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
+         sig_w = 1.0 + (1.0 + 2.0*val)*pow((fabs(xyz_[2]-z1)/delta_z),2.0); // z
       }
-      
+   
       /*
       double x0 = 0.2;
       double x1 = 0.8;
@@ -2825,6 +2794,7 @@ PlasmaProfile::PlasmaProfile(Type type, const Vector & params,
    MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
                << ", for profile of type: " << type << ".");
+   CheckInputs(type); 
 
    paramsByAttr_[0] = 0;
    params_.resize(1);
@@ -2840,6 +2810,7 @@ void PlasmaProfile::SetParams(Type type, const Vector &params)
    MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
                << ", for profile of type: " << type << ".");
+   CheckInputs(type); 
 
    params_[0].type = type;
    params_[0].params = params;
@@ -2851,6 +2822,7 @@ void PlasmaProfile::SetParams(const Array<int> attr,
    MFEM_VERIFY(params.Size() == np_[type],
                "Incorrect number of parameters, " << params.Size()
                << ", for profile of type: " << type << ".");
+   CheckInputs(type); 
 
    const int i = params_.size();
    params_.resize(i+1);
@@ -2861,6 +2833,17 @@ void PlasmaProfile::SetParams(const Array<int> attr,
    {
       paramsByAttr_[attr[j]] = i;
    }
+}
+
+void PlasmaProfile::CheckInputs(Type type) const
+{
+   MFEM_VERIFY(!NeedsInterpData(type) || interp_field_,
+               "PlasmaProfile type " << type << " needs a data file, but none "
+               "was loaded. Check that the file given to -mdpt-data (density) "
+               "or -mtpt-data (temperature) exists in the run directory.");
+   MFEM_VERIFY(!NeedsEQDSK(type) || eqdsk_,
+               "PlasmaProfile type " << type << " needs an EQDSK file, but none "
+               "was loaded. Check the -eqdsk file.");
 }
 
 double PlasmaProfile::Eval(ElementTransformation &T,
@@ -3055,14 +3038,17 @@ double PlasmaProfile::EvalByType(Type type,
          double nu0 = params[0];
          double decay = params[1];
          double shift = params[2];
-         //double nu0_2 = params[3];
-         //double decay_2 = params[4];
+         double nu0_2 = params[3];
+         double decay_2 = params[4];
+         double shift2 = params[5];
          double rho = sqrt(cyl_ ? (rz_ * rz_) :
                            (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
 
          double d = cyl_ ? rz_[0] : xyz_[0];
 
-         return nu0*exp(-(xyz_[0]-shift)/decay);
+         double val = nu0*exp(-(xyz_[0]-shift)/decay);
+
+         return  val;
                //2e8*exp(pow(xyz_[1],2.0)/0.07)+2e8*exp(pow(xyz_[2],2.0)/0.05);
                 //+ nu0_2*exp(-pow((d-2.45),2.0)/decay_2);
       }
@@ -3075,9 +3061,9 @@ double PlasmaProfile::EvalByType(Type type,
          double rho = sqrt(cyl_ ? (rz_ * rz_):
                            (pow(xyz_[0], 2) + pow(xyz_[1], 2)));
 
-         //double d = cyl_ ? rz_[0] : xyz_[0];
+         double d = cyl_ ? rz_[0] : xyz_[0];
 
-         return nu0*exp(-pow(rho-rad_res_loc, 2)/width);
+         return nu0*exp(-pow(d-rad_res_loc, 2)/width);
       }
       break;
       case CMODDEN:
@@ -3652,10 +3638,10 @@ double PlasmaProfile::EvalByType(Type type,
       break;
       case SIMP_SHEATH:
       {
-         double pmax = 1.38e20;
-         double pmin = 1e18;
-         double lambda_n = 2.4; // Damping length
-         double nu = 85.0; // Strength of decline
+         double pmax = 1.431937986e20;
+         double pmin = params[1];
+         double lambda_n = params[2]; // Damping length
+         double nu = 45.0; // Strength of decline
          double den = params[0];
 
          double pmin1 = 1.0;
@@ -3672,19 +3658,30 @@ double PlasmaProfile::EvalByType(Type type,
          if (den == 1)
          {
             
-            val = (pmax - pmin) * pow(cosh(pow((xyz_[0] / lambda_n), nu)), -1.0) + pmin;
-            if (xyz_[0] <= 2.2404){val = 1.38e20;}
-            if (val < 1e18){val = 1e18;}
+            //val = (pmax - pmin) * pow(cosh(pow((xyz_[0] / lambda_n), nu)), -1.0) + pmin;
+            //double m = (pmax-pmin)/(2.2404-params[2]);
+            //double b = pmax - m*2.2404;
+            //val = m*xyz_[0] + b;
+            val = interp_field_->InterpDataR(xyz_[0]);
+            double xpml = 2.2404;
+            if (xyz_[0] <= xpml){val = pmax;}
+            //if (xyz_[0] >= 2.45){val = pmin*exp(-(xyz_[0]-2.45)/0.02);}
+            if (val < pmin || xyz_[0] >= 2.48){val = pmin;}
          }
          else
          {
+            val = interp_field_->InterpDataR(xyz_[0]);
+            double xpml = 2.2404;
+            if (xyz_[0] <= xpml){val = 6.051345465e3;}
+            if (val < pmin){val = pmin;}
+            if (xyz_[0] >= 2.45){val = 1.0;}
          
-            double te1 = (pmax1 - pmin1)* pow(cosh(pow((xyz_[0] / lam1), n1)),
-                                           -1.0) + pmin1;
+            //double te1 = (pmax1 - pmin1)* pow(cosh(pow((xyz_[0] / lam1), n1)),
+            //                               -1.0) + pmin1;
          
-            double te2 = (pmax2 - pmin2)* pow(cosh(pow((xyz_[0] / lam2), n2)),
-                                           -1.0) + pmin2;
-            val = te1 + te2;
+            //double te2 = (pmax2 - pmin2)* pow(cosh(pow((xyz_[0] / lam2), n2)),
+            //                               -1.0) + pmin2;
+            //val = te1 + te2;
             //if (xyz_[0] <= 2.2404){val = 6103.17078;}
             //if (xyz_[0] >= 2.404){val = 1.0;}
          }
@@ -3696,8 +3693,13 @@ double PlasmaProfile::EvalByType(Type type,
       {
          double pmin = params[0];
          double pmax = params[1];
+         double val = pmax*exp(-(xyz_[0]-2.45)/0.006);
+         if (val < pmin){val = pmin;}
 
-         return pmax*pow((pmin/pmax),xyz_[0]);
+         double L  = 0.65 / log(1.43e6);              // = 0.04586 m
+         double ne = 1.43e20 * exp(-(xyz_[0] - 1.9) / L);   // 1.43e20 at 1.9 m, 1e14 at 2.55 m
+
+         return ne;//pmax*pow((pmin/pmax),xyz_[0]);
       }
       break;
       case LDIP:
@@ -3749,45 +3751,120 @@ double PlasmaProfile::EvalByType(Type type,
          double psiRZ_edge = eqdsk_->GetPsiBdry();
          double norm_psi_ = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
 
-         double value = 0.0;
          double floor_val = params[1];
+
+         double value = 1.0;
 
          // density profile: ----------------------
          if (params[0] == 0)
          {
             value = interp_field_->InterpDataR(norm_psi_);
             if (value < floor_val){value = 1e8;}
-         }
-         /*
+         }    
+         
          if (params[0] == 1)
          {
             value = interp_field_->InterpDataR(norm_psi_);
             if (value < floor_val){value = 10.0;}
          }
+         
+         return value;
+      }
+      break;
+      case LDIP_DAMP:
+      {
+         // setting coordinates: ------------------
+         // For stix2d:
+         double r = cyl_ ? rz_[0] : xyz_[0];
+         double z = cyl_ ? rz_[1] : xyz_[1];
+
+         // For stix3d:
+         if (dim_)
+         {
+            r = sqrt(xyz_[0] * xyz_[0] + xyz_[1] * xyz_[1]);
+            z = xyz_[2]; 
+
+            if (coords3d_)
+            {
+               r = sqrt(xyz_[0] * xyz_[0] + xyz_[2] * xyz_[2]);
+               z = xyz_[1]; 
+            }           
+         }
+
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = r; xTokVec[1] = z;
+
+         // finding B field data: -----------------
+         double cosphi = xyz_[0] / rz_[0];
+         double sinphi = xyz_[1] / rz_[0];
+
+         double b_pol_data[2];
+         Vector b_pol(b_pol_data, 2); b_pol = 0.0;
+         double b_tor = 0.0;
+
+         eqdsk_->InterpBPolRZ(rz_, b_pol);
+         b_tor = eqdsk_->InterpBTorRZ(rz_);
+         double coros = params[4];
+         double fluxfactor = 1.0;
+         if (coros != 0) {fluxfactor = 2.0*M_PI;}
+
+         double Bmag = sqrt(b_pol[0]*b_pol[0] + b_pol[1]*b_pol[1] 
+            + (b_tor*b_tor*fluxfactor*fluxfactor))/fluxfactor;
+         // artifical temp profile: ---------------
+
+         double mmin = params[0]*1.66054e-27;
+         double md = 2.01410178*1.66054e-27;
+         double q = 1.6022e-19;
+
+         double w_cmin = q*Bmag/mmin;
+         double w_cd = q*Bmag/md;
+         double f = params[1];
+
+         double nw1 = (f*2.0*M_PI) / w_cmin;
+         double nw2 = (f*2.0*M_PI) / w_cd;
+         double floor_val = params[2];
+         double gwidth = params[3];
+
+         double value1 = floor_val*exp(-pow((nw1 - 1.0),2.0)/gwidth) 
+                       + (6e-3)*floor_val*exp(-pow((nw1 - 2.0),2.0)/gwidth) 
+                       + (1e-4)*floor_val*exp(-pow((nw1 - 3.0),2.0)/gwidth)
+                       + (2e-6)*floor_val*exp(-pow((nw1 - 4.0),2.0)/gwidth);
+         /*
+         double value2 = floor_val*exp(-pow((nw2 - 1.0),2.0)/gwidth) 
+                       + floor_val*exp(-pow((nw2 - 2.0),2.0)/gwidth) 
+                       + floor_val*exp(-pow((nw2 - 3.0),2.0)/gwidth)
+                       + floor_val*exp(-pow((nw2 - 4.0),2.0)/gwidth);
          */
 
-         // artifical temp profile: ---------------
-         else
-         {
-            
-            double md = 1.66054e-27;
-            double q = 1.6022e-19;
-            double w_cd = q*Bmag/md;
-            double nw = (5.0e6*2.0*M_PI) / w_cd;
-            double gwidth = 0.01;
-            /*
-            value = 20 - 19.9999*exp(-pow((nw - 1.0),2.0)/gwidth) 
-                       - 19.999*exp(-pow((nw - 2.0),2.0)/gwidth) 
-                       - 19.99*exp(-pow((nw - 3.0),2.0)/gwidth)
-                       - 19.9*exp(-pow((nw - 4.0),2.0)/gwidth);
-            if (value < floor_val){value = 1.0;}
-            */
-            //double nu0 = 1e8;
-            value = floor_val*exp(-pow((nw - 1.0),2.0)/gwidth) 
-                       + floor_val*exp(-pow((nw - 2.0),2.0)/gwidth) 
-                       + floor_val*exp(-pow((nw - 3.0),2.0)/gwidth)
-                       + floor_val*exp(-pow((nw - 4.0),2.0)/gwidth);
-         }
+         return value1;
+      }
+      break;
+      case MIRROR:
+      {
+         const double R = sqrt(xyz_[0] * xyz_[0] + xyz_[2] * xyz_[2]);
+
+         // Evaluate slightly off the axis: at R = 0 InterpBPolRZ skips the
+         // 1/R and would return B_Z = dPsi/dR = 0 instead of its finite limit.
+         const double r_min = 1e-4 * eqdsk_->GetRExtent();
+
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = std::max(R, r_min);
+         xTokVec[1] = xyz_[1];
+
+         double psiRZ = 0.0;
+         psiRZ = eqdsk_->InterpPsiRZ(xTokVec);
+
+         //double psiRZ_center = eqdsk_->GetPsiCenter();
+         //double psiRZ_edge = eqdsk_->GetPsiBdry();
+         //double norm_psi_ = fabs((psiRZ - psiRZ_center)/(psiRZ_center - psiRZ_edge));
+
+         double value = 0.0;
+         double floor_val = params[0];
+
+         value = interp_field_->InterpDataR(psiRZ);
+         if (value < floor_val){value = floor_val;}
 
          return value;
       }
@@ -4204,14 +4281,16 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          double r = xyz_[0];
          double z = xyz_[2]; 
 
-         V[0] = p_[0];
+         V[0] = (1.85*p_[0])/r;
          V[1] = (1.85*p_[1])/r; 
-         V[2] = p_[2];
+         V[2] = (1.85*p_[2])/r;
 
-         
+         double xpml = 2.2404;
          if (xyz_[0] <= 2.2404)
          {
-            V[1] = (1.85*p_[1])/2.2404; 
+            V[0] = (1.85*p_[0])/xpml; 
+            V[1] = (1.85*p_[1])/xpml; 
+            V[2] = (1.85*p_[2])/xpml; 
          }
 
 
@@ -4219,6 +4298,50 @@ void BFieldProfile::Eval(Vector &V, ElementTransformation &T,
          {
             double vmag = sqrt(V * V);
             V /= vmag;
+         }
+      }
+      break;
+      case B_MIR:
+      {
+         // EQDSK fields are given in cylindrical (R, phi, Z). The 3D mesh is
+         // the (R, Z) section revolved about the y axis, so
+         //    R = sqrt(x^2 + z^2),  Z = y,  x = R cos(phi),  z = -R sin(phi)
+         //    R_hat   = ( x/R, 0,  z/R)
+         //    Z_hat   = (   0, 1,    0)
+         //    phi_hat = ( z/R, 0, -x/R)      (R_hat x phi_hat = Z_hat)
+         // BR = -1/R dPsi/dZ,  BZ = 1/R dPsi/dR,  Bphi = Fpol/R
+         double b_pol_data[2];
+         Vector b_pol(b_pol_data, 2); b_pol = 0.0;
+         double b_tor = 0.0;
+
+         const double R = sqrt(xyz_[0] * xyz_[0] + xyz_[2] * xyz_[2]);
+
+         // Evaluate slightly off the axis: at R = 0 InterpBPolRZ skips the
+         // 1/R and would return B_Z = dPsi/dR = 0 instead of its finite limit.
+         const double r_min = 1e-4 * eqdsk_->GetRExtent();
+
+         double x_tok_data[2];
+         Vector xTokVec(x_tok_data, 2);
+         xTokVec[0] = std::max(R, r_min);
+         xTokVec[1] = xyz_[1];
+
+         eqdsk_->InterpBPolRZ(xTokVec, b_pol);   // (B_R, B_Z)
+         b_tor = eqdsk_->InterpBTorRZ(xTokVec);  //  B_phi
+         if (R < r_min) { b_tor = 0.0; }         // no B_phi on the axis
+
+         // Unit vectors in the (x, z) plane (any direction works on the axis,
+         // where B_R and B_phi vanish by symmetry)
+         const double cx = (R > 0.0) ? xyz_[0] / R : 1.0;
+         const double cz = (R > 0.0) ? xyz_[2] / R : 0.0;
+
+         V[0] = b_pol[0] * cx + b_tor * cz;   // B_R R_hat + B_phi phi_hat
+         V[1] = b_pol[1];                     // B_Z along y
+         V[2] = b_pol[0] * cz - b_tor * cx;
+
+         if (unit_)
+         {
+            double vmag = sqrt(V * V);
+            if (vmag > 0.0) { V /= vmag; }
          }
       }
       break;

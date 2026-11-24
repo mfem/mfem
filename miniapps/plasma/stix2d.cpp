@@ -1205,7 +1205,7 @@ int main(int argc, char *argv[])
       std::complex<double> S = S_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof,
                                              res_lim, Rval,Lval);
-      std::complex<double> P = P_cold_plasma(omega, kvecmag, nue, numbers,
+      std::complex<double> P = P_cold_plasma(omega, kvecmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof);
       std::complex<double> D = D_cold_plasma(omega, kvecmag, Bmag, nue, nui, numbers,
                                              charges, masses, temps, Ti, nuprof,
@@ -3251,17 +3251,48 @@ void curve_current_source_tahi_r(const Vector &x, Vector &j)
 
    double theta = atan2(z, r);
 
+   int pos = 3;
+
+   // position 1:
    // bottom strap:
    double rmin1 = 0.96143 - 2.14493*z;
    double rmax1 = 1.18232 - 2.14493*z;
    double zmin1 = 1.427714*r + 0.068772;
    double zmax1 = 1.427714*r + 0.093012;
 
-   // top bottom:
+   // top strap:
    double rmin2 = 1.23037 - 1.56361*z;
    double rmax2 = 1.40400 - 1.56361*z;
    double zmin2 = 1.087187*r + 0.184562;
    double zmax2 = 1.087187*r + 0.205030;
+
+   if (pos == 2)
+   {
+      // bottom strap
+      rmin1 = 0.950939 -1.233611*z;
+      rmax1 = 1.099411 -1.233611*z;
+      zmin1 = 0.868148*r + 0.193535;
+      zmax1 = 0.868148*r + 0.211978;
+
+      // top strap 
+      rmin2 = 1.160972 -0.944688*z;
+      rmax2 = 1.289590 -0.944688*z;
+      zmin2 = 0.658448*r + 0.304163;
+      zmax2 = 0.658448*r + 0.320838;
+   }
+
+   if (pos == 3)
+   {
+      rmin1 = 0.817290 + 5.599094*z;
+      rmax1 = 1.349062 + 5.599094*z;
+      zmin1 = -484.337698*r + 1478.403006;
+      zmax1 = -484.337698*r + 1485.148364;
+
+      rmin2 = -0.184315 + 22.665230*z;
+      rmax2 = 1.936838 + 22.665230*z;
+      zmin2 = 7.614544*r - 23.191473;
+      zmax2 = 7.614544*r - 23.084515;
+   }
 
    if (z >= zmin1 && z <= zmax1 &&
        r >= rmin1 && r <= rmax1)
@@ -3396,12 +3427,12 @@ void curve_current_source_tahi_i(const Vector &x, Vector &j)
 
 void curve_current_source_r(const Vector &x, Vector &j)
 {
-   curve_current_source_v2_r(x, j);
+   curve_current_source_tahi_r(x, j);
 }
 
 void curve_current_source_i(const Vector &x, Vector &j)
 {
-   curve_current_source_v2_i(x, j);
+   curve_current_source_tahi_i(x, j);
 }
 
 void e_bc_r(const Vector &x, Vector &E)
@@ -3487,7 +3518,7 @@ ColdPlasmaPlaneWaveE::ColdPlasmaPlaneWaveE(char type,
    D_ = D_cold_plasma(omega_, k_, Bmag_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_,
                       nuprof_, res_lim_, Rval_, Lval_);
-   P_ = P_cold_plasma(omega_, k_, nue_, numbers_, charges_, masses_,
+   P_ = P_cold_plasma(omega_, k_, nue_, nui_, numbers_, charges_, masses_,
                       temps_, Ti_, nuprof_);
 
    switch (type_)

@@ -72,22 +72,23 @@ inline std::complex<double> vthermal(std::complex<double> Te   /* Joules */,
    return sqrt( (2.0 * Te) / ( mass * amu_ ) );
 }
 
-// Coulomb logarithm
 inline double CoulombLog(double n, double Te)
 {
-   double ntemp = n;
-   if (n < 0) {ntemp = -1.0*n;}
-   return log((4.0 * M_PI * pow(epsilon0_ * Te, 1.5)) / (pow(q_,
-                                                             3) * sqrt(ntemp)));
+   const double ntemp = std::max(fabs(n), 1.0);          // m^-3
+   const double Tsafe = std::max(fabs(Te), 0.1 * q_);    // >= 0.1 eV
+   const double lnL = log((4.0 * M_PI * pow(epsilon0_ * Tsafe, 1.5)) /
+                          (pow(q_, 3) * sqrt(ntemp)));
+   return std::max(lnL, 1.0);
 }
 
-// Collisional frequency between electrons and ions
+// Collisional frequency between electrons and ions (Te in Joules)
 inline double nu_ei(double charge, double coul_log, double mass,
                     double Te, double number)
 {
-   return (8.0 * number * M_PI * pow(charge * q_, 4) * coul_log) /
+   const double Tsafe = std::max(fabs(Te), 0.1 * q_);    // >= 0.1 eV
+   return (8.0 * fabs(number) * M_PI * pow(charge * q_, 4) * coul_log) /
           (3.0 * sqrt(2.0 * M_PI * me_kg_) * pow(4.0 * M_PI * epsilon0_, 2)
-           * pow(Te, 1.5));
+           * pow(Tsafe, 1.5));
 }
 
 // Collisional frequency profile from Kohno et al 2017:
@@ -96,14 +97,18 @@ inline double nu_art(double x)
    return (1e14*exp(-x/0.1));
 }
 
-void StixCoefs_cold_plasma(Vector &V, double omega, double Bmag,
-                           double nue, double nui,
+void StixCoefs_cold_plasma(Vector &V,
+                           double omega,
+                           double Bmag,
+                           double nue,
+                           double nui,
                            const Vector & number,
                            const Vector & charge,
                            const Vector & mass,
                            const Vector & temp,
                            double iontemp,
                            int nuprof,
+                           double res_lim,                      
                            bool realPart);
 
 std::complex<double> R_cold_plasma(double omega, double Bmag,
@@ -152,13 +157,18 @@ std::complex<double> D_cold_plasma(double omega,
                                    double Lval);
 
 std::complex<double> P_cold_plasma(double omega,
-                                   double kparallel, double nue,
+                                   double kparallel, 
+                                   double nue, double nui,
                                    const Vector & number,
                                    const Vector & charge,
                                    const Vector & mass,
                                    const Vector & temp,
                                    double iontemp,
                                    int nuprof);
+
+// k_parallel [1/m] used by the warm dielectric where the supplied k < 1 1/m
+void   SetWarmKparDefault(double kpar);
+double GetWarmKparDefault();
 
 std::complex<double> epxx_warm_plasma_by_species(double omega,
                                    double kparallel, double Bmag,
@@ -984,7 +994,9 @@ public:
               INTERP_VALUE           = 16,
               SIMP_SHEATH            = 17,
               CUSTOM                 = 18,
-              LDIP                   = 19
+              LDIP                   = 19,
+              LDIP_DAMP              = 20,
+              MIRROR                 = 21
              };
 
 private:
@@ -1007,7 +1019,7 @@ private:
    G_EQDSK_Data *eqdsk_;
    Interp_Data *interp_field_;
 
-   const int np_[20] = {1, 7, 9, 7, 4, 7, 3, 3, 3, 1, 11, 8, 8, 6, 2, 5,1,1,2,3};
+   const int np_[22] = {1,7,9,7,4,7,3,3,3,1,11,8,8,6,2,5,1,3,2,3,5,1};
 
    mutable Vector xyz_; // 3D coordinate in computational mesh
    mutable Vector rz_;  // 2D coordinate in poloidal cross section
@@ -1016,6 +1028,19 @@ private:
                      const Vector &params,
                      ElementTransformation &T,
                      const IntegrationPoint &ip);
+   
+   // Profile types that dereference interp_field_ / eqdsk_
+   static bool NeedsInterpData(Type t)
+   {
+      return t == INTERP_VALUE || t == SIMP_SHEATH || t == LDIP || t == MIRROR;
+   }
+   static bool NeedsEQDSK(Type t)
+   {
+      return t == POLOIDAL_H_MODE_DEN || t == POLOIDAL_H_MODE_TEMP ||
+             t == POLOIDAL_CORE || t == POLOIDAL_SOL || t == RHO_CORE ||
+             t == LDIP || t == LDIP_DAMP || t == MIRROR;
+   }
+   void CheckInputs(Type type) const;
 
 public:
    PlasmaProfile(Type type, const Vector & params, bool dim,
@@ -1049,7 +1074,8 @@ public:
               B_EQDSK_POLOIDAL = 5,
               B_TOR            = 6,
               B_WHAM           = 7,
-              B_R              = 8
+              B_R              = 8,
+              B_MIR            = 9
              };
 
 private:
@@ -1062,7 +1088,7 @@ private:
 
    G_EQDSK_Data *eqdsk_;
 
-   const int np_[9] = {3, 7, 6, 8, 4, 1, 1, 2, 3};
+   const int np_[10] = {3, 7, 6, 8, 4, 1, 1, 2, 3, 1};
 
    // mutable Vector x3_; // Not currently used
    mutable Vector xyz_; // 3D coordinate in computational mesh
