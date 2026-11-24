@@ -331,7 +331,8 @@ public:
       Complex_Hypre_ParCSR,   ///< ID for class ComplexHypreParMatrix.
       Complex_DenseMat,  ///< ID for class ComplexDenseMatrix
       MFEM_Block_Matrix,     ///< ID for class BlockMatrix.
-      MFEM_Block_Operator   ///< ID for the base class BlockOperator.
+      MFEM_Block_Operator,   ///< ID for the base class BlockOperator.
+      MFEM_Identity_Operator ///< ID for the class IdentityOperator.
    };
 
    /// Return the type ID of the Operator class.
@@ -885,6 +886,8 @@ public:
 
    /// Application of the transpose
    void MultTranspose(const Vector &x, Vector &y) const override { y = x; }
+
+   virtual Type GetType() const { return MFEM_Identity_Operator; }
 };
 
 /// Returns true if P is the identity prolongation, i.e. if it is either NULL or
