@@ -268,7 +268,10 @@ public:
        hypre_partitioning_descr "here" for a description of the @a col array.
 
        If @a is_device_ptr is true, the pointer @a data_ is assumed to be
-       allocated in the memory location HYPRE_MEMORY_DEVICE. */
+       allocated in the memory location HYPRE_MEMORY_DEVICE. Otherwise, @a data_
+       is treated as plain host memory, MemoryType::HOST. To use the data of an
+       MFEM Vector, use the constructor with a Vector @a base, or
+       WrapMemoryRead(), WrapMemoryReadWrite() or WrapMemoryWrite(). */
    HypreParVector(MPI_Comm comm, HYPRE_BigInt glob_size, real_t *data_,
                   HYPRE_BigInt *col, bool is_device_ptr = false);
    /** @brief Creates a vector that uses the data of the Vector @a base,
