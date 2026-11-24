@@ -49,6 +49,7 @@ list(APPEND HDRS
   blockmatrix.hpp
   blockoperator.hpp
   blockvector.hpp
+  complex.hpp
   complex_densemat.hpp
   complex_operator.hpp
   constraints.hpp

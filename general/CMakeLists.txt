@@ -46,6 +46,7 @@ list(APPEND HDRS
   gecko.hpp
   globals.hpp
   zstr.hpp
+  zpng.hpp
   hash.hpp
   hash_util.hpp
   isockstream.hpp
