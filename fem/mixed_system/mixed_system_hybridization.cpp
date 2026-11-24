@@ -1257,6 +1257,15 @@ void MixedSystemHybridization::ComputeH(ComputeHMode mode,
    Array<int> faces;
    if (!H_) { H_.reset(new SparseMatrix(c_fes.GetVSize())); }
 
+#if defined(MFEM_USE_DOUBLE)
+   constexpr real_t mtol = 1e-12;
+#elif defined(MFEM_USE_SINGLE)
+   constexpr real_t mtol = 4e-6;
+#else
+#error "Only single and double precision are supported!"
+   constexpr real_t mtol = 1.;
+#endif
+
    for (int el = 0; el < NE; el++)
    {
       int a_dofs_size = Af_f_offsets[el+1] - Af_f_offsets[el];
@@ -1359,6 +1368,9 @@ void MixedSystemHybridization::ComputeH(ComputeHMode mode,
             }
 
             mfem::AddMult(CAiBt, BAiCt, H_l);
+
+            // threshold the contributions, note that symmetry is not guaranteed
+            H_l.Threshold(mtol * H_l.MaxMaxNorm());
 
             if (f1 == f2)
             {
