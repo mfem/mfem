@@ -206,7 +206,10 @@ static void TestSubProblem(SparseMatrix &M)
 
 int main(int argc, char *argv[])
 {
+   bool visualization = false; // accepted for the test harness; unused
    OptionsParser args(argc, argv);
+   args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
+                  "--no-visualization", "Unused; there is nothing to plot.");
    args.Parse();
    if (!args.Good()) { args.PrintUsage(std::cout); return 1; }
 
