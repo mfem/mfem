@@ -239,6 +239,57 @@ TEST_CASE("Domain Integration (Vector Field)",
    }
 }
 
+static void DeltaTestField(const Vector &x, Vector &v)
+{
+   v.SetSize(3);
+   v(0) = std::sin(3.0 * x(1)) + x(2);
+   v(1) = std::cos(2.0 * x(0)) * x(2);
+   v(2) = 1.0 + std::sin(4.0 * x(0) + 2.0 * x(1));
+}
+
+TEST_CASE("Domain Integration (Vector Delta)",
+          "[ND_FECollection]"
+          "[LinearForm]"
+          "[DeltaCoefficient]")
+{
+   // The load vector b of a vector delta d delta(x - x0) satisfies
+   // b . u = u_h(x0) . d for any u_h in the space. On tetrahedra, the face
+   // dofs of Nedelec elements of order >= 2 need the DofTransformation of the
+   // element, as in the assembly of the other domain integrators.
+   const int order = GENERATE(1, 2, 3);
+   CAPTURE(order);
+
+   Mesh mesh = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON);
+   ND_FECollection fec(order, 3);
+   FiniteElementSpace fes(&mesh, &fec);
+
+   VectorFunctionCoefficient ucoef(3, DeltaTestField);
+   GridFunction u(&fes);
+   u.ProjectCoefficient(ucoef);
+
+   const Vector dir({0.3, -0.5, 0.8});
+   const real_t centers[4][3] = {{0.31, 0.47, 0.23}, {0.71, 0.13, 0.62},
+      {0.27, 0.83, 0.91}, {0.55, 0.61, 0.38}
+   };
+   for (const auto &c : centers)
+   {
+      VectorDeltaCoefficient delta(dir, c[0], c[1], c[2], 1.0);
+      LinearForm b(&fes);
+      b.AddDomainIntegrator(new VectorFEDomainLFIntegrator(delta));
+      b.Assemble();
+
+      DenseMatrix point(3, 1);
+      for (int d = 0; d < 3; d++) { point(d, 0) = c[d]; }
+      Array<int> elem_ids;
+      Array<IntegrationPoint> ips;
+      REQUIRE(mesh.FindPoints(point, elem_ids, ips, false) == 1);
+      Vector u_x0;
+      u.GetVectorValue(elem_ids[0], ips[0], u_x0);
+
+      REQUIRE(b * u == MFEM_Approx(u_x0 * dir));
+   }
+}
+
 #ifdef MFEM_USE_MPI
 
 TEST_CASE("Domain Integration in Parallel (Scalar Field)",
