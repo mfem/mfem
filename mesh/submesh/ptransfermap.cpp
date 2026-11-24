@@ -175,7 +175,21 @@ void ParTransferMap::Transfer(const ParGridFunction &src,
       CorrectFaceOrientations(*sub_fes_, src, dst,
                               &sub_to_parent_map_);
 
+      // For NC spaces, GroupCommunicator stores shared ND/RT dofs in a
+      // canonical orientation. Convert the parent vector to that orientation
+      // before reducing it and restore its usual local representation
+      // afterwards. The conforming path is already handled by
+      // CorrectFaceOrientations above.
+      auto *parent_fes = dst.ParFESpace();
+      if (parent_fes->Nonconforming())
+      {
+         parent_fes->ApplyDofSigns(dst.HostReadWrite());
+      }
       CommunicateSharedVdofs(dst);
+      if (parent_fes->Nonconforming())
+      {
+         parent_fes->ApplyDofSigns(dst.HostReadWrite());
+      }
    }
    else if (category_ == TransferCategory::SubMeshToSubMesh)
    {

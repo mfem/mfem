@@ -754,6 +754,10 @@ TEST_CASE("Non-Contiguous ParSubMesh Transfers", "[Parallel],[SubMesh]")
    const int dim = GENERATE(2, 3);
    const auto fec_type = GENERATE(FECType::H1, FECType::ND,
                                   FECType::RT, FECType::L2);
+   const int refinement_mode = GENERATE(0, 1, 2, 3);
+   const bool nc_submesh = refinement_mode == 3;
+   const int refinement_attribute =
+      refinement_mode == 0 ? 0 : (refinement_mode == 2 ? 2 : 1);
 
    // Construct and distribute the checkerboard parent mesh. Use the smallest
    // side length of at least three that is divisible by the rank count. This
@@ -763,30 +767,66 @@ TEST_CASE("Non-Contiguous ParSubMesh Transfers", "[Parallel],[SubMesh]")
    const int num_ranks = Mpi::WorldSize();
    const int side_length = num_ranks * ((3 + num_ranks - 1) / num_ranks);
    Mesh serial_mesh = CheckerboardMesh(dim, side_length);
+   if (refinement_attribute != 0)
+   {
+      serial_mesh.EnsureNCMesh(true);
+   }
    Array<int> partitioning(serial_mesh.GetNE());
    for (int el = 0; el < partitioning.Size(); el++)
    {
       partitioning[el] = el % Mpi::WorldSize();
    }
    ParMesh mesh(MPI_COMM_WORLD, serial_mesh, partitioning);
+   if (refinement_attribute != 0)
+   {
+      // Refine one checkerboard region after partitioning. Modes 1 and 2
+      // introduce hanging interfaces only at the boundary between the two test
+      // submeshes. Mode 3 selects attributes 1 and 2 in the first submesh, so
+      // these interfaces are internal to that submesh as well as NC in the
+      // parent.
+      Array<int> elements_to_refine;
+      for (int el = 0; el < mesh.GetNE(); el++)
+      {
+         if (mesh.GetAttribute(el) == refinement_attribute)
+         {
+            elements_to_refine.Append(el);
+         }
+      }
+      mesh.GeneralRefinement(elements_to_refine);
+   }
 
    CAPTURE(dim);
    CAPTURE(fec_type);
+   CAPTURE(refinement_mode);
+   CAPTURE(refinement_attribute);
 
-   // Checkerboard pattern including corners
-   Array<int> attr13{1, 3};
+   // The usual pair separates checkerboard corners from their neighbors. For
+   // mode 3, include attributes 1 and 2 in the first submesh so that refining
+   // attribute 1 creates hanging interfaces within a non-contiguous submesh.
+   Array<int> attr13(nc_submesh && dim == 3 ? 3 : 2);
+   attr13[0] = 1;
+   attr13[1] = nc_submesh ? 2 : 3;
+   if (nc_submesh && dim == 3) { attr13[2] = 4; }
    ParSubMesh submesh13 = ParSubMesh::CreateFromDomain(mesh, attr13);
 
-   // Complementary checkerboard pattern excluding corners
-   Array<int> attr24(dim - 1);
-   attr24[0] = 2;
-   if (dim == 3) { attr24[1] = 4; }
+   // The second submesh contains the complementary checkerboard attributes.
+   Array<int> attr24(nc_submesh ? 1 : dim - 1);
+   attr24[0] = nc_submesh ? 3 : 2;
+   if (!nc_submesh && dim == 3) { attr24[1] = 4; }
    ParSubMesh submesh24 = ParSubMesh::CreateFromDomain(mesh, attr24);
-   // Verify that every rank owns elements in both portions of the usual
-   // checkerboard split. This avoids a rank-local transfer test that never
-   // has to communicate data from one of its submeshes.
-   REQUIRE(submesh13.GetNE() > 0);
-   REQUIRE(submesh24.GetNE() > 0);
+   if (!nc_submesh)
+   {
+      // Verify that every rank owns elements in both portions of the usual
+      // checkerboard split. This avoids a rank-local transfer test that never
+      // has to communicate data from one of its submeshes.
+      REQUIRE(submesh13.GetNE() > 0);
+      REQUIRE(submesh24.GetNE() > 0);
+   }
+   if (nc_submesh)
+   {
+      REQUIRE(mesh.Nonconforming());
+      REQUIRE(submesh13.Nonconforming());
+   }
 
    // Project a field onto the full domain
    FiniteElementCollection *fec = create_fec(fec_type, order, dim);
@@ -807,16 +847,77 @@ TEST_CASE("Non-Contiguous ParSubMesh Transfers", "[Parallel],[SubMesh]")
 
    // Transfer portion of the parent field to its submesh
    ParFiniteElementSpace fes13(&submesh13, fec);
-   ParGridFunction gf13(&fes13);
+   if (nc_submesh)
+   {
+      // This field space is constructed on the NC submesh, not just an NC
+      // parent whose hanging interfaces lie outside the selected attributes.
+      REQUIRE(fes13.Nonconforming());
+   }
+   ParGridFunction gf13(&fes13), gf13_ex(&fes13);
+   if (fec_type == FECType::H1 || fec_type == FECType::L2)
+   {
+      gf13_ex.ProjectCoefficient(coeff);
+   }
+   else
+   {
+      gf13_ex.ProjectCoefficient(vcoeff);
+   }
    ParSubMesh::Transfer(gf0, gf13);
+   Vector tmp = gf13;
+   tmp -= gf13_ex;
+   REQUIRE(GlobalLpNorm(2.0, tmp.Norml2(), mesh.GetComm()) < 1e-10 * nrm);
 
    // Transfer complimentary portion of the parent field to its submesh
    ParFiniteElementSpace fes24(&submesh24, fec);
-   ParGridFunction gf24(&fes24);
+   ParGridFunction gf24(&fes24), gf24_ex(&fes24);
+   if (fec_type == FECType::H1 || fec_type == FECType::L2)
+   {
+      gf24_ex.ProjectCoefficient(coeff);
+   }
+   else
+   {
+      gf24_ex.ProjectCoefficient(vcoeff);
+   }
    ParSubMesh::Transfer(gf0, gf24);
+   tmp = gf24;
+   tmp -= gf24_ex;
+   REQUIRE(GlobalLpNorm(2.0, tmp.Norml2(), mesh.GetComm()) < 1e-10 * nrm);
+
+   // Verify each reverse transfer against a parent already holding the exact
+   // field. This detects a bad write at a submesh interface directly, rather
+   // than allowing the subsequent transfer of the complementary submesh to
+   // overwrite it.
+   ParGridFunction gf1(&fes);
+   gf1 = gf0;
+   ParSubMesh::Transfer(gf13, gf1);
+   tmp = gf1;
+   tmp -= gf0;
+   CHECK(GlobalLpNorm(2.0, tmp.Norml2(), mesh.GetComm()) < 1e-10 * nrm);
+
+   gf1 = gf0;
+   ParSubMesh::Transfer(gf24, gf1);
+   tmp = gf1;
+   tmp -= gf0;
+   CHECK(GlobalLpNorm(2.0, tmp.Norml2(), mesh.GetComm()) < 1e-10 * nrm);
+
+   // Verify that each submesh survives an individual reverse round trip.
+   gf1 = 0.0;
+   ParSubMesh::Transfer(gf13, gf1);
+   ParGridFunction gf13_roundtrip(&fes13);
+   ParSubMesh::Transfer(gf1, gf13_roundtrip);
+   tmp = gf13_roundtrip;
+   tmp -= gf13_ex;
+   REQUIRE(GlobalLpNorm(2.0, tmp.Norml2(), mesh.GetComm()) < 1e-10 * nrm);
+
+   gf1 = 0.0;
+   ParSubMesh::Transfer(gf24, gf1);
+   ParGridFunction gf24_roundtrip(&fes24);
+   ParSubMesh::Transfer(gf1, gf24_roundtrip);
+   tmp = gf24_roundtrip;
+   tmp -= gf24_ex;
+   REQUIRE(GlobalLpNorm(2.0, tmp.Norml2(), mesh.GetComm()) < 1e-10 * nrm);
 
    // Create a target field on the full domain
-   ParGridFunction gf1(&fes);
    gf1 = 0.0;
 
    // Transfer both portions and compare to original field
@@ -897,6 +998,26 @@ void CheckProjectMatch(ParMesh &mesh, ParSubMesh &submesh, FECType fec_type,
       ParSubMesh::Transfer(gf, sub_gf);
       auto tmp = sub_gf_ext;
       tmp -= sub_gf;
+      CHECK_GLOBAL_NORM(tmp);
+   }
+   SECTION("SubMeshToParent")
+   {
+      // The parent is initialized with the exact field so that the transfer
+      // only needs to overwrite the portion represented by the submesh.
+      ParSubMesh::Transfer(sub_gf, gf);
+      Vector tmp = gf_ext;
+      tmp -= gf;
+      CHECK_GLOBAL_NORM(tmp);
+
+      // Also start from zero and transfer back to a new submesh grid function.
+      // This verifies that every submesh DoF survives the reverse transfer,
+      // rather than only checking that existing parent values are preserved.
+      gf = 0.0;
+      ParSubMesh::Transfer(sub_gf, gf);
+      ParGridFunction sub_gf_roundtrip(&sub_fes);
+      ParSubMesh::Transfer(gf, sub_gf_roundtrip);
+      tmp = sub_gf_ext;
+      tmp -= sub_gf_roundtrip;
       CHECK_GLOBAL_NORM(tmp);
    }
    SECTION("PRConstraint")
