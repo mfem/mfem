@@ -18,6 +18,7 @@
 #include "../general/binaryio.hpp"
 #include "../general/communication.hpp"
 
+#include <algorithm>
 #include <numeric> // std::accumulate
 #include <map>
 #include <climits> // INT_MIN, INT_MAX
@@ -147,7 +148,7 @@ void ParNCMesh::Update()
    CommGroup self;
    self.push_back(MyRank);
    groups.push_back(self);
-   group_id[self] = 0;
+   group_id[self] = SelfGroupId;
 
    for (int i = 0; i < 3; i++)
    {
@@ -199,9 +200,14 @@ void ParNCMesh::BuildFaceList()
 
    face_list.Clear();
    shared_faces.Clear();
+
+   // In 2D, the boundary faces are collected by BuildEdgeList, as in the serial
+   // NCMesh::BuildFaceList.
+   if (Dim < 3) { return; }
+
    boundary_faces.SetSize(0);
 
-   if (Dim < 3 || !leaf_elements.Size()) { return; }
+   if (!leaf_elements.Size()) { return; }
 
    int nfaces = NFaces + NGhostFaces;
 
@@ -383,6 +389,9 @@ void ParNCMesh::BuildVertexList()
    // This is an extension of NCMesh::BuildVertexList() which also determines
    // vertex ownership and creates vertex processor groups.
 
+   GetEdgeList();
+   if (Dim >= 3) { GetFaceList(); }
+
    int nvertices = NVertices + NGhostVertices;
 
    tmp_owner.SetSize(nvertices);
@@ -398,6 +407,78 @@ void ParNCMesh::BuildVertexList()
    entity_elem_local[0] = -1;
 
    NCMesh::BuildVertexList();
+
+   // The owner needs a local slave to build the vertex constraint.
+   // Vertex-neighbor ghosts give all sharing ranks the same candidates.
+   Array<int> hanging_owner(nvertices);
+   hanging_owner = INT_MAX;
+
+   auto owner_rank = [&](int entity, int index, int nlocal)
+   {
+      // For a ghost, SelfGroupId means unknown owner, not self.
+      if (index < 0 || index >= entity_owner[entity].Size() ||
+          (index >= nlocal && entity_owner[entity][index] == SelfGroupId))
+      {
+         return INT_MAX;
+      }
+      return groups[entity_owner[entity][index]][0];
+   };
+   auto update_owner = [&](int vertex, int owner, const int *master, int nmaster)
+   {
+      if (vertex >= 0 && vertex < nvertices && owner != INT_MAX &&
+          std::find(master, master + nmaster, vertex) == master + nmaster)
+      {
+         hanging_owner[vertex] = std::min(hanging_owner[vertex], owner);
+      }
+   };
+
+   int mv[4], me[4], mo[4], sv[4];
+   for (const auto &master : edge_list.masters)
+   {
+      GetEdgeVertices(master, mv);
+      for (int i = master.slaves_begin; i < master.slaves_end; i++)
+      {
+         const Slave &slave = edge_list.slaves[i];
+         const int owner = owner_rank(1, slave.index, NEdges);
+         if (owner == INT_MAX) { continue; }
+         MFEM_ASSERT(slave.element >= 0, "observed slave edge has no element");
+         GetEdgeVertices(slave, sv);
+         update_owner(sv[0], owner, mv, 2);
+         update_owner(sv[1], owner, mv, 2);
+      }
+   }
+   for (const auto &master : face_list.masters)
+   {
+      const int nmv = GetFaceVerticesEdges(master, mv, me, mo);
+      for (int i = master.slaves_begin; i < master.slaves_end; i++)
+      {
+         const Slave &slave = face_list.slaves[i];
+         if (slave.index >= 0)
+         {
+            if (slave.element < 0 || elements[slave.element].rank < 0) { continue; }
+            const int owner = owner_rank(2, slave.index, NFaces);
+            const int nsv = GetFaceVerticesEdges(slave, sv, me, mo);
+            for (int j = 0; j < nsv; j++)
+            {
+               update_owner(sv[j], owner, mv, nmv);
+            }
+         }
+         else
+         {
+            const int edge = FlipIndexSign(slave.index);
+            const int owner = owner_rank(1, edge, NEdges);
+            if (owner == INT_MAX) { continue; }
+            MFEM_ASSERT(slave.element >= 0, "observed edge-face slave has no element");
+            GetEdgeVertices(slave, sv);
+            update_owner(sv[0], owner, mv, nmv);
+            update_owner(sv[1], owner, mv, nmv);
+         }
+      }
+   }
+   for (int i = 0; i < nvertices; i++)
+   {
+      if (hanging_owner[i] != INT_MAX) { tmp_owner[i] = hanging_owner[i]; }
+   }
 
    InitOwners(nvertices, entity_owner[0]);
    MakeSharedList(vertex_list, shared_vertices);
@@ -415,8 +496,8 @@ void ParNCMesh::InitOwners(int num, Array<GroupId> &entity_owner_)
    entity_owner_.SetSize(num);
    for (int i = 0; i < num; i++)
    {
-      entity_owner_[i] =
-         (tmp_owner[i] != INT_MAX) ? GetSingletonGroup(tmp_owner[i]) : 0;
+      entity_owner_[i] = (tmp_owner[i] != INT_MAX) ?
+                         GetSingletonGroup(tmp_owner[i]) : SelfGroupId;
    }
 }
 
@@ -440,9 +521,9 @@ void ParNCMesh::MakeSharedList(const NCList &list, NCList &shared)
             master_flag |= slave_flag;
             slave_flag |= master_old_flag;
          }
-         else // special case: prism edge-face constraint
+         else // special case: edge-face constraint
          {
-            if (entity_owner[1][FlipIndexSign(si)] != MyRank)
+            if (entity_owner[1][FlipIndexSign(si)] != SelfGroupId)
             {
                master_flag |= 0x2;
             }
@@ -504,7 +585,7 @@ ParNCMesh::GroupId ParNCMesh::GetGroupId(const CommGroup &group)
 {
    if (group.size() == 1 && group[0] == MyRank)
    {
-      return 0;
+      return SelfGroupId;
    }
    MFEM_ASSERT(group_sorted(group), "invalid group");
    GroupId &id = group_id[group];
@@ -703,16 +784,16 @@ void ParNCMesh::CalcFaceOrientations()
    }
 }
 
-void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
+void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_marked,
                                    Array<int> &bdr_vertices,
                                    Array<int> &bdr_edges, Array<int> &bdr_faces)
 {
-   NCMesh::GetBoundaryClosure(bdr_attr_is_ess, bdr_vertices, bdr_edges, bdr_faces);
+   NCMesh::GetBoundaryClosure(bdr_attr_marked, bdr_vertices, bdr_edges, bdr_faces);
 
    if (Dim == 3)
    {
-      // Mark masters of shared slave boundary faces as essential boundary
-      // faces. Some master faces may only have slave children.
+      // Add the masters of shared slave boundary faces with marked attributes.
+      // Some master faces may only have slave children.
       for (const auto &mf : shared_faces.masters)
       {
          if (elements[mf.element].rank != MyRank) { continue; }
@@ -725,7 +806,7 @@ void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
                continue;
             }
             const Face &face = *GetFace(elements[sf.element], sf.local);
-            if (face.Boundary() && bdr_attr_is_ess[face.attribute - 1])
+            if (face.Boundary() && bdr_attr_marked[face.attribute - 1])
             {
                bdr_faces.Append(mf.index);
             }
@@ -734,8 +815,8 @@ void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
    }
    else if (Dim == 2)
    {
-      // Mark masters of shared slave boundary edges as essential boundary
-      // edges. Some master edges may only have slave children.
+      // Add the masters of shared slave boundary edges with marked attributes.
+      // Some master edges may only have slave children.
       for (const auto &me : shared_edges.masters)
       {
          if (elements[me.element].rank != MyRank) { continue; }
@@ -743,22 +824,13 @@ void ParNCMesh::GetBoundaryClosure(const Array<int> &bdr_attr_is_ess,
          {
             const auto &se = GetEdgeList().slaves[j];
             Face *face = GetFace(elements[se.element], se.local);
-            if (face && face->Boundary() && bdr_attr_is_ess[face->attribute - 1])
+            if (face && face->Boundary() && bdr_attr_marked[face->attribute - 1])
             {
                bdr_edges.Append(me.index);
             }
          }
       }
    }
-
-   // Filter, sort and unique an array, so it contains only local unique values.
-   auto FilterSortUnique = [](Array<int> &v, int N)
-   {
-      // Perform the O(N) filter before the O(NlogN) sort.
-      auto local = std::remove_if(v.begin(), v.end(), [N](int i) { return i >= N; });
-      std::sort(v.begin(), local);
-      v.SetSize(std::distance(v.begin(), std::unique(v.begin(), local)));
-   };
 
    FilterSortUnique(bdr_vertices, NVertices);
    FilterSortUnique(bdr_edges, NEdges);
