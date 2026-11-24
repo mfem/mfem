@@ -166,7 +166,7 @@ DerefineMatrixOp::DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
          if (fespace->IsVariableOrder())
          {
             const FiniteElement *fe = fespace->GetFE(emb.parent);
-            const DenseTensor &pmats = dtrans.point_matrices[geom];
+            const DenseMatrixStack &pmats = dtrans.point_matrices[geom];
             const int ldof = fe->GetDof();
 
             IsoparametricTransformation isotr;
