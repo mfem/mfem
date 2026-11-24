@@ -293,7 +293,8 @@ int main(int argc, char *argv[])
          GridFunction Bhat;
          Bhat.MakeTRef(trace_space.get(), X, 0);
          Bhat = 0.;
-         Bhat.ProjectBdrCoefficient(Bcoeff, bdr_B);
+         TangentTraceCoefficient Bbc_coeff(Bcoeff);
+         Bhat.ProjectBdrCoefficient(Bbc_coeff, bdr_B);
          Bhat.SetTrueVector();
 
          darcy->GetHybridization()->SetEssentialBC(bdr_B);

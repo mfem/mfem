@@ -1084,6 +1084,51 @@ void MatrixRestrictedCoefficient::Eval(DenseMatrix &K, ElementTransformation &T,
    }
 }
 
+void TangentTraceCoefficient::Eval(Vector &v, ElementTransformation &Tr,
+                                   const IntegrationPoint &ip)
+{
+   MFEM_ASSERT(vdim == Tr.GetSpaceDim()-1, "Wrong dimension!");
+   MFEM_ASSERT(Tr.GetDimension() == Tr.GetSpaceDim()-1, "Not a trace face");
+   if (vdim == 1) { Q.Eval(v, Tr, ip); return; }
+
+   Vector vq(3);
+   v.SetSize(3);
+   Q.Eval(vq, Tr, ip);
+
+   // Boundary element transformation differs from the face transformation
+   // in its ordering of vertices. The face definition is needed to match
+   // definition of the tangential trace inside the domain
+   ElementTransformation *Tr_J = &Tr;
+   if (Tr.ElementType == ElementTransformation::BDR_ELEMENT)
+   {
+      const int face = Tr.mesh->GetBdrElementFaceIndex(Tr.ElementNo);
+      Tr_J = const_cast<Mesh*>(Tr.mesh)->
+             GetFaceElementTransformations(face, FaceElementTransformations::HAVE_FACE);
+
+   }
+
+   Tr_J->SetIntPoint(&ip);
+   const DenseMatrix &J = Tr_J->Jacobian();
+
+   // Do not assume othogonality of the tangents and project to the traces
+   // with inverse metric
+   Vector t[2] = {Vector(3), Vector(3)};
+   real_t tvq[2];
+
+   for (int a = 0; a < 2; a++)
+   {
+      J.GetColumn(a, t[a]);
+      const real_t norm_a = t[a].Norml2();
+      if (norm_a > 0.) { t[a] /= norm_a; }
+      tvq[a] = t[a] * vq;
+   }
+
+   const real_t tt = t[0] * t[1];
+   const real_t det = 1. - tt*tt;
+   v(0) = (tvq[0] - tt*tvq[1]) / det;
+   v(1) = (tvq[1] - tt*tvq[0]) / det;
+}
+
 void SumCoefficient::SetTime(real_t t)
 {
    if (a) { a->SetTime(t); }

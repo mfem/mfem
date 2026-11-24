@@ -1445,6 +1445,19 @@ public:
              const IntegrationPoint &ip) override;
 };
 
+/** Vector coefficient extracting the components of a general vector field
+    corresponding to tangential trace. */
+class TangentTraceCoefficient : public VectorCoefficient
+{
+   VectorCoefficient &Q;
+public:
+   TangentTraceCoefficient(VectorCoefficient &Q_)
+      : VectorCoefficient(std::max(Q_.GetVDim()-1,1)), Q(Q_) { }
+
+   void Eval(Vector &v, ElementTransformation &Tr,
+             const IntegrationPoint &ip) override;
+};
+
 /// Coefficients based on sums, products, or other functions of coefficients.
 ///@{
 /** @brief Scalar coefficient defined as the linear combination of two scalar
