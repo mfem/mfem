@@ -38,6 +38,10 @@ Discretization improvements
   faces. This affected, e.g., essential DOFs and boundary projections, and
   could write out of bounds after lowering element orders.
 
+- Fixed ParGridFunction::ProjectBdrCoefficientTangent for fixed-order Nedelec
+  spaces of order 2 and above on meshes with shared triangular faces, which
+  previously ignored the DOF orientation transformations on these faces.
+
 - Added class VectorQuadratureSpace that represents a vector (multi-component)
   version of the scalar (single-component) class QuadratureSpaceBase.
 
