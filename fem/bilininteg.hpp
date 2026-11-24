@@ -801,7 +801,7 @@ public:
          AssembleHDGFaceMat<>(fx, trace_el, el1, el2, elmat,
                               trace_el, el1, el2, Trans);
       else
-         AssembleFaceMat<>(fx, el1, trace_el, el1, trace_el,
+         AssembleFaceMat<>(fx, el1, el1, trace_el, trace_el,
                            elmat, trace_el, el1, el2, Trans);
    }
 
