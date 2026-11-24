@@ -31,7 +31,6 @@
 #include "linearform.hpp"
 #include "nonlinearform.hpp"
 #include "bilinearform.hpp"
-#include "fefunctional.hpp"
 #include "hybridization.hpp"
 #include "datacollection.hpp"
 #include "estimators.hpp"

@@ -56,8 +56,6 @@
 #error This example requires that MFEM is built with MFEM_USE_HIOP=YES
 #endif
 
-#if 0 // Disabled: uses the removed OptimizationProblem interface.
-
 using namespace std;
 using namespace mfem;
 
@@ -806,6 +804,3 @@ double inflow_function(const Vector &x)
    }
    return 0.0;
 }
-#else
-int main() { return 0; }
-#endif

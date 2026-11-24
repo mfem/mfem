@@ -15,7 +15,6 @@
 #include "../config/config.hpp"
 
 #ifdef MFEM_USE_HIOP
-#if 0 // Disabled: uses the removed OptimizationProblem interface.
 #include "../general/globals.hpp"
 #include "solvers.hpp"
 
@@ -274,6 +273,5 @@ public:
 
 } // mfem namespace
 
-#endif
 #endif //MFEM_USE_HIOP
 #endif //MFEM_HIOP guard
