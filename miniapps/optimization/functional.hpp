@@ -18,6 +18,7 @@
 
 namespace mfem
 {
+/// @brief Base class for functionals F: R^n -> R, with input as a MultiVector
 class Functional : public Operator
 {
 private:
