@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
    StopWatch chrono;
 
    // 1. Parse command-line options.
-   const char *mesh_file = "../data/beam-tet.mesh";
+   const char *mesh_file = "../../data/beam-tet.mesh";
    int order = 1;
    real_t td = 0.5;
    Array<int> bbcs;

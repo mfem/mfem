@@ -69,7 +69,6 @@ examples/ex3[0-9]
 examples/ex3[0-9]p
 examples/ex4[0-9]
 examples/ex4[0-9]p
-examples/ex5-max-dg
 
 examples/refined.mesh
 examples/displaced.mesh
@@ -161,6 +160,7 @@ examples/hdg/displaced.mesh
 examples/hdg/mesh.*
 examples/hdg/ex5
 examples/hdg/ex5p
+examples/hdg/ex5-max
 examples/hdg/ex5.mesh
 examples/hdg/ex5-p-*.bp
 examples/hdg/ex6
@@ -174,6 +174,8 @@ examples/hdg/ex21p
 examples/hdg/sol.*
 examples/hdg/sol_p.*
 examples/hdg/sol_u.*
+examples/hdg/sol_E.*
+examples/hdg/sol_B.*
 examples/hdg/ex6p-checkpoint.*
 examples/hdg/Example5*
 examples/hdg/ParaView
