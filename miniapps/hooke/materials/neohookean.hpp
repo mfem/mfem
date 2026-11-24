@@ -73,10 +73,12 @@ struct NeoHookeanMaterial
       T vol;
       if constexpr (std::is_same_v<T, mfem::real_t>)
       {
-         // J - 1 cancels near the reference configuration: the accuracy
-         // target 1e-10, below single precision, requires a formulation of
-         // the volumetric stress that avoids the cancellation.
-         MFEM_POSEIDON_CALL_TAU(1e-10, volumetric_stress<T>, dudx, D1, &vol);
+         // J - 1 cancels near the reference configuration, so the accuracy
+         // target asks for a formulation of the volumetric stress that avoids
+         // the cancellation. In single precision the target is looser, since
+         // the stress is rounded to float.
+         MFEM_POSEIDON_CALL_TAU(MFEM_PRECISION_SWITCH(1e-10, 1e-9),
+                                volumetric_stress<T>, dudx, D1, &vol);
       }
       else
       {
