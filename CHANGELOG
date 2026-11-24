@@ -41,6 +41,9 @@ Discretization improvements
 - Added class VectorQuadratureSpace that represents a vector (multi-component)
   version of the scalar (single-component) class QuadratureSpaceBase.
 
+- Fixed ParGridFunction::Update() with a cached true vector when some ranks have
+  no true DOFs: an MPI error or a hang after a conforming refinement.
+
 Meshing improvements
 --------------------
 - Fixed the essential DOFs on interior boundaries of 2D non-conforming meshes
@@ -51,6 +54,13 @@ Meshing improvements
 - NURBS mesh HDF5 file I/O is now supported, by using mesh-explorer (option 'S')
   or Mesh::SaveNURBSHDF5 for writing and the usual Mesh constructors or loaders
   for reading.
+
+- ParMesh::Rebalance(partition) supports conforming meshes of triangles and
+  tetrahedra, straight or curved, without gathering the mesh; it refuses, on all
+  ranks and before the mesh changes, meshes it cannot move.
+
+- After such a rebalance, ParFiniteElementSpace::Update and
+  ParGridFunction::Update transfer H1, L2, ND and RT fields of uniform order.
 
 Linear and nonlinear solvers
 ----------------------------

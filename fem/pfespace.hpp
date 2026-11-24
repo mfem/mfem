@@ -255,11 +255,25 @@ private:
                                             bool partial = false);
 
    /** Calculate a GridFunction migration matrix after mesh load balancing.
-       The result is a parallel permutation matrix that can be used to update
-       all grid functions defined on this space. */
+       The result is a parallel matrix that can be used to update all grid
+       functions defined on this space. For a conforming mesh, see
+       ConformingRebalanceMatrix(). */
    HypreParMatrix* RebalanceMatrix(int old_ndofs,
                                    const Table* old_elem_dof,
                                    const Table* old_elem_fos);
+
+   /** RebalanceMatrix() for a conforming mesh: a migration matrix, whose rows
+       are the new local (vector) DOFs and columns the old local DOFs of all
+       ranks. Each new DOF takes the value of the same DOF of the first new
+       local element that contains it (in the order of the previous rank and
+       index of the elements), read from that element's previous owner, with
+       the signs and, for the DOFs inside the faces of ND tetrahedra whose
+       orientations differ, the block of the DOF transformations of the new
+       and the old face orientations. The DOFs of the vertices of no element
+       take the values of the same vertices on the same rank. */
+   HypreParMatrix* ConformingRebalanceMatrix(int old_ndofs,
+                                             const Table* old_elem_dof,
+                                             const Table* old_elem_fos);
 
    /** Calculate a GridFunction restriction matrix after mesh derefinement.
        The matrix is constructed so that the new grid function interpolates
@@ -569,7 +583,34 @@ public:
                                 OperatorHandle &T) const override;
 
    /** Reflect changes in the mesh. Calculate one of the refinement/derefinement
-       /rebalance matrices, unless want_transform is false. */
+       /rebalance matrices, unless want_transform is false.
+
+       After ParMesh::Rebalance() of a conforming mesh, the update operator
+       (GetUpdateOperator()) is a migration matrix from the old local vectors
+       of all ranks to the new ones, valid until the next update or
+       UpdatesFinished(); ParGridFunction::Update() applies it. The values move
+       with the elements, for H1, L2, ND and RT spaces of any uniform order,
+       scalar or vector, with the signs and DOF transformations of the new
+       edge and face orientations. Each new DOF takes its value from the first
+       new local element that contains it (see
+       ParMesh::GetRebalanceOldElements() for their order). A grid function
+       whose copies of each shared DOF agree (for example, one set from true
+       DOFs) gives the same function after the transfer. Where the copies
+       differ, as those of the nodes of a curved mesh after a parallel
+       refinement, by round-off (each rank computes the new shared nodes from
+       its own elements), the value of that element is taken, and the copies
+       are not made to agree. A true vector cached in a grid function
+       (GridFunction::SetTrueVector()) is refreshed by its Update() on the
+       ranks where it was not empty: call SetTrueVector() again, on all the
+       ranks, to have it on the ranks that had no true DOFs.
+
+       The transfer is checked here, after the space is rebuilt for the new
+       mesh, as ParMesh::Rebalance() checks that of the nodes before the mesh
+       changes: a transfer too large for the arrays or messages of the
+       rebalance, or the transfer of a variable-order space, is refused with
+       an error on all ranks. The space and its grid functions must then be
+       built again: calling Update() again does nothing, as the space is
+       already that of the new mesh, without an update operator. */
    void Update(bool want_transform = true) override;
 
    /** P-refine and update the space. If @a want_transfer, also maintain the old

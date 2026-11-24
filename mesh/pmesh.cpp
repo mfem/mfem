@@ -3706,7 +3706,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
       Array<int> group_edges;
 
-      MPI_Request request;
+      MPI_Request *requests = new MPI_Request[GetNGroups()-1];
       MPI_Status  status;
       Vertex V;
       V(2) = 0.0;
@@ -3744,6 +3744,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
             // MPI_Barrier(MyComm);
 
             // (a) send the type of interface splitting
+            int req_count = 0;
             for (int i = 0; i < GetNGroups()-1; i++)
             {
                group_sedge.GetRow(i, group_edges);
@@ -3767,7 +3768,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
                      neighbor = gtopo.GetNeighborRank(nbs[0]);
                   }
                   MPI_Isend(edge_splittings[i], edges_in_group, MPI_INT,
-                            neighbor, 0, MyComm, &request);
+                            neighbor, 0, MyComm, &requests[req_count++]);
                }
             }
 
@@ -3817,6 +3818,8 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
 
             int nr = need_refinement;
             MPI_Allreduce(&nr, &need_refinement, 1, MPI_INT, MPI_LOR, MyComm);
+
+            MPI_Waitall(req_count, requests, MPI_STATUSES_IGNORE);
          }
       }
       while (need_refinement == 1);
@@ -3840,6 +3843,7 @@ void ParMesh::LocalRefinement(const Array<int> &marked_el, int type)
       }
       delete [] edge_splittings;
 
+      delete [] requests;
       delete [] iBuf;
 
       // 5. Update the boundary elements.
@@ -4068,8 +4072,11 @@ void ParMesh::RebalanceImpl(const Array<int> *partition)
 {
    if (Conforming())
    {
-      MFEM_ABORT("Load balancing is currently not supported for conforming"
-                 " meshes.");
+      MFEM_VERIFY(partition, "ParMesh::Rebalance() without a partition is not"
+                  " supported for conforming meshes, use"
+                  " ParMesh::Rebalance(partition).");
+      RebalanceConforming(*partition);
+      return;
    }
 
    if (Nodes)
@@ -7105,6 +7112,13 @@ void ParMesh::Swap(ParMesh &other)
    // Keep Print() behavior consistent after move/swap operations.
    mfem::Swap(print_shared, other.print_shared);
    mfem::Swap(print_interfaces, other.print_interfaces);
+
+   mfem::Swap(rebalance_old_rank, other.rebalance_old_rank);
+   mfem::Swap(rebalance_old_index, other.rebalance_old_index);
+   mfem::Swap(rebalance_dest, other.rebalance_dest);
+   mfem::Swap(rebalance_iso_old, other.rebalance_iso_old);
+   mfem::Swap(rebalance_iso_new, other.rebalance_iso_new);
+   mfem::Swap(rebalance_sequence, other.rebalance_sequence);
 }
 
 void ParMesh::Destroy()
@@ -7121,6 +7135,15 @@ void ParMesh::Destroy()
    shared_edges.DeleteAll();
 
    face_nbr_el_to_face = nullptr;
+
+   // The migration of the last conforming Rebalance() describes the mesh that
+   // is destroyed (Load() starts the sequence of the next one again).
+   rebalance_old_rank.DeleteAll();
+   rebalance_old_index.DeleteAll();
+   rebalance_dest.DeleteAll();
+   rebalance_iso_old.DeleteAll();
+   rebalance_iso_new.DeleteAll();
+   rebalance_sequence = -1;
 }
 
 ParMesh::~ParMesh()
