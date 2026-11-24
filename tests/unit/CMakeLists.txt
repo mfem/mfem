@@ -200,7 +200,7 @@ set(UNIT_TESTS_SRCS
 )
 
 #-----------------------------------------------------------
-# SERIAL TESTS: unit_tests
+# SERIAL AND PARALLEL TESTS: unit_tests
 #-----------------------------------------------------------
 if (MFEM_USE_CUDA)
     set_property(SOURCE unit_test_main.cpp ${UNIT_TESTS_SRCS}
@@ -216,7 +216,7 @@ target_link_libraries(unit_tests_srcs PUBLIC mfem)
 add_dependencies(unit_tests_srcs
       ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
 
-# All serial unit tests are built into a single executable, 'unit_tests'.
+# Serial and parallel unit tests share the 'unit_tests' executable.
 mfem_add_executable(unit_tests unit_test_main.cpp)
 target_link_libraries(unit_tests unit_tests_srcs)
 add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} unit_tests)
@@ -239,7 +239,22 @@ endif()
 if (MFEM_USE_OPENMP)
   list(APPEND UNIT_TEST_DEVICES omp)
   if (MFEM_USE_RAJA)
-    list(APPEND UNIT_TEST_DEVICES raja-omp)
+    # MFEM and RAJA can be built with different OpenMP settings.
+    include(CMakePushCheckState)
+    include(CheckCXXSourceCompiles)
+    cmake_push_check_state(RESET)
+    set(CMAKE_REQUIRED_LIBRARIES RAJA)
+    check_cxx_source_compiles("
+      #include <RAJA/config.hpp>
+      #ifndef RAJA_ENABLE_OPENMP
+      #error RAJA was built without OpenMP
+      #endif
+      int main() { return 0; }
+      " MFEM_RAJA_USE_OPENMP)
+    cmake_pop_check_state()
+    if (MFEM_RAJA_USE_OPENMP)
+      list(APPEND UNIT_TEST_DEVICES raja-omp)
+    endif()
   endif()
 endif()
 if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
@@ -249,90 +264,72 @@ if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
 endif()
 
 #-----------------------------------------------------------
-# SERIAL SEDOV + TMOP TESTS:
-#   sedov_tests_{cpu,debug,gpu,gpu_uvm}
-#   tmop_pa_tests_{cpu,debug,gpu}
+# SEDOV + TMOP TESTS: one serial and one MPI executable per miniapp
 #-----------------------------------------------------------
-# Function to add one device serial test from the tests/unit/miniapp directory.
-# All device unit tests are built into a separate executable, in order to be
-# able to change the device.
-function(add_serial_miniapp_test name test_uvm)
+function(add_miniapp_test name test_uvm)
     string(TOUPPER ${name} NAME)
-
-    set(${NAME}_TESTS_SRCS miniapps/test_${name}.cpp)
+    set(src miniapps/test_${name}.cpp)
     if (MFEM_USE_CUDA)
-        set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-    endif(MFEM_USE_CUDA)
+        set_property(SOURCE ${src} PROPERTY LANGUAGE CUDA)
+    endif()
     if (MFEM_USE_HIP)
-       set_property(SOURCE ${${NAME}_TESTS_SRCS} PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
-    endif(MFEM_USE_HIP)
-
-    mfem_add_executable(${name}_tests_cpu ${${NAME}_TESTS_SRCS})
-    # some of these meshes aren't actually used right now,
-    # but add dependency just in case.
-    add_dependencies(${name}_tests_cpu copy_miniapps_multidomain_data)
-    add_dependencies(${name}_tests_cpu copy_miniapps_nurbs_data)
-    add_dependencies(${name}_tests_cpu copy_miniapps_meshing_data)
-    add_dependencies(${name}_tests_cpu ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
-    target_compile_definitions(${name}_tests_cpu PUBLIC MFEM_${NAME}_DEVICE="cpu")
-    target_link_libraries(${name}_tests_cpu mfem)
-    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_cpu)
-    if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-        add_test(NAME ${name}_tests_cpu COMMAND ${name}_tests_cpu)
+        set_property(SOURCE ${src} PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
     endif()
 
-    mfem_add_executable(${name}_tests_debug ${${NAME}_TESTS_SRCS})
-    # some of these meshes aren't actually used right now,
-    # but add dependency just in case.
-    add_dependencies(${name}_tests_debug copy_miniapps_multidomain_data)
-    add_dependencies(${name}_tests_debug copy_miniapps_nurbs_data)
-    add_dependencies(${name}_tests_debug copy_miniapps_meshing_data)
-    add_dependencies(${name}_tests_debug ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
-    target_compile_definitions(${name}_tests_debug PUBLIC MFEM_${NAME}_DEVICE="debug")
-    target_link_libraries(${name}_tests_debug mfem)
-    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_debug)
-    if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-        add_test(NAME ${name}_tests_debug COMMAND ${name}_tests_debug)
+    set(variants serial)
+    if (MFEM_USE_MPI)
+        list(APPEND variants parallel)
     endif()
-
-    if (MFEM_USE_CUDA OR MFEM_USE_HIP)
-        mfem_add_executable(${name}_tests_gpu ${${NAME}_TESTS_SRCS})
-        # some of these meshes aren't actually used right now,
-        # but add dependency just in case.
-        add_dependencies(${name}_tests_gpu copy_miniapps_multidomain_data)
-        add_dependencies(${name}_tests_gpu copy_miniapps_nurbs_data)
-        add_dependencies(${name}_tests_gpu copy_miniapps_meshing_data)
-        add_dependencies(${name}_tests_gpu ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
-        target_compile_definitions(${name}_tests_gpu PUBLIC MFEM_${NAME}_DEVICE="gpu")
-        target_link_libraries(${name}_tests_gpu mfem)
-        add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${name}_tests_gpu)
-        if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-            add_test(NAME ${name}_tests_gpu COMMAND ${name}_tests_gpu)
+    foreach(variant IN LISTS variants)
+        if (variant STREQUAL "parallel")
+            set(executable p${name}_tests)
+        else()
+            set(executable ${name}_tests)
         endif()
+        mfem_add_executable(${executable} ${src})
+        target_link_libraries(${executable} mfem)
+        if (variant STREQUAL "parallel")
+            target_compile_definitions(${executable} PRIVATE MFEM_${NAME}_MPI=1)
+        endif()
+        add_dependencies(${executable}
+            copy_miniapps_multidomain_data copy_miniapps_nurbs_data
+            copy_miniapps_meshing_data ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
+        add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} ${executable})
 
-        if (test_uvm)
-            mfem_add_executable(${name}_tests_gpu_uvm ${${NAME}_TESTS_SRCS})
-            # some of these meshes aren't actually used right now,
-            # but add dependency just in case.
-            add_dependencies(${name}_tests_gpu_uvm copy_miniapps_multidomain_data)
-            add_dependencies(${name}_tests_gpu_uvm copy_miniapps_nurbs_data)
-            add_dependencies(${name}_tests_gpu_uvm copy_miniapps_meshing_data)
-            add_dependencies(${name}_tests_gpu_uvm ${MFEM_TEST_EXEC_PREREQUISITES_TARGET_NAME})
-            target_compile_definitions(${name}_tests_gpu_uvm PUBLIC
-               MFEM_${NAME}_DEVICE="gpu:uvm")
-            target_link_libraries(${name}_tests_gpu_uvm mfem)
-            add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME}
-               ${name}_tests_gpu_uvm)
-            if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-                add_test(NAME ${name}_tests_gpu_uvm COMMAND ${name}_tests_gpu_uvm)
+        set(devices ${UNIT_TEST_DEVICES})
+        # Parallel TMOP has never supported the debug device.
+        if (variant STREQUAL "serial" OR test_uvm)
+            # Old GPU hypre cannot switch to CPU for parallel Sedov/debug.
+            if (NOT (variant STREQUAL "parallel" AND MFEM_DEBUG AND
+                     (HYPRE_USING_CUDA OR HYPRE_USING_HIP) AND
+                     MFEM_HYPRE_VERSION LESS 23100))
+                list(APPEND devices debug)
             endif()
         endif()
-    endif()
-endfunction(add_serial_miniapp_test)
+        if (test_uvm AND (MFEM_USE_CUDA OR MFEM_USE_HIP))
+            list(APPEND devices gpu:uvm)
+        endif()
+        if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
+            foreach(device IN LISTS devices)
+                string(REPLACE ":" "_" dev_name ${device})
+                if (variant STREQUAL "parallel")
+                    foreach(np 1 ${MFEM_MPI_NP})
+                        add_test(NAME ${executable}_${dev_name}_np=${np}
+                            COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
+                            ${MPIEXEC_PREFLAGS} $<TARGET_FILE:${executable}>
+                            ${MPIEXEC_POSTFLAGS} --device ${device})
+                    endforeach()
+                else()
+                    add_test(NAME ${executable}_${dev_name}
+                        COMMAND ${executable} --device ${device})
+                endif()
+            endforeach()
+        endif()
+    endforeach()
+endfunction()
 
-add_serial_miniapp_test(sedov ON)  # UVM ON
-add_serial_miniapp_test(tmop_pa OFF)  # UVM OFF
-# TMOP tests need meshes in ../../miniapps/meshing
+add_miniapp_test(sedov ON)
+add_miniapp_test(tmop_pa OFF)
 
 #-----------------------------------------------------------
 # SERIAL CEED TESTS:
@@ -366,111 +363,18 @@ if (MFEM_USE_CEED)
 endif()
 
 #-----------------------------------------------------------
-# PARALLEL TESTS: punit_tests
+# PARALLEL RUNS OF unit_tests
 #-----------------------------------------------------------
-# Define executables and tests
-if (MFEM_USE_MPI)
-    # punit_tests
-    if (MFEM_USE_CUDA)
-        set_property(SOURCE punit_test_main.cpp PROPERTY LANGUAGE CUDA)
-    endif()
-    mfem_add_executable(punit_tests punit_test_main.cpp)
-    # some of these meshes aren't actually used right now,
-    # but add dependency just in case.
-    add_dependencies(punit_tests copy_miniapps_multidomain_data)
-    add_dependencies(punit_tests copy_miniapps_nurbs_data)
-    target_link_libraries(punit_tests unit_tests_srcs)
-    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} punit_tests)
+if (MFEM_USE_MPI AND MFEM_USE_DOUBLE)
     foreach(np 1 ${MFEM_MPI_NP})
-        if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-            foreach(device IN LISTS UNIT_TEST_DEVICES)
-                add_test(NAME punit_tests_${device}_np=${np}
-                      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
-                      ${MPIEXEC_PREFLAGS} $<TARGET_FILE:punit_tests>
-                      --device ${device} ${MPIEXEC_POSTFLAGS})
-            endforeach()
-        endif()
-    endforeach()
-endif(MFEM_USE_MPI)
-
-#-----------------------------------------------------------
-# PARALLEL SEDOV + TMOP TESTS:
-#   psedov_tests_{cpu,debug,gpu,gpu_uvm}
-#   ptmop_pa_tests_{cpu,gpu}
-#-----------------------------------------------------------
-# Function to add one MPI executable for a test.
-function(add_mpi_executable_test name dev)
-    string(TOUPPER ${name} NAME)
-    string(REPLACE "_" ":" DEV ${dev})
-    mfem_add_executable(p${name}_tests_${dev} ${PAR_${NAME}_TESTS_SRCS})
-    target_compile_definitions(p${name}_tests_${dev} PUBLIC MFEM_${NAME}_MPI=1)
-    target_compile_definitions(p${name}_tests_${dev} PUBLIC MFEM_${NAME}_DEVICE="${DEV}")
-    target_link_libraries(p${name}_tests_${dev} mfem)
-    # some of these meshes aren't actually used right now,
-    # but add dependency just in case.
-    add_dependencies(p${name}_tests_${dev} copy_miniapps_multidomain_data)
-    add_dependencies(p${name}_tests_${dev} copy_miniapps_nurbs_data)
-    add_dependencies(${MFEM_ALL_TESTS_TARGET_NAME} p${name}_tests_${dev})
-endfunction(add_mpi_executable_test)
-
-# Function to add one test from the tests/unit/miniapp directory.
-function(add_parallel_miniapp_test name HYPRE_MM)
-    string(TOUPPER ${name} NAME)
-
-    function(add_mpi_unit_test DEV NP)
-        set(test_name p${name}_tests_${DEV})
-        if (MFEM_USE_DOUBLE) # otherwise returns MFEM_SKIP_RETURN_VALUE
-            add_test(NAME ${test_name}_np=${NP}
-                COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${NP}
-                ${MPIEXEC_PREFLAGS} $<TARGET_FILE:${test_name}>
-                ${MPIEXEC_POSTFLAGS})
-        endif()
-    endfunction()
-
-    set(PAR_${NAME}_TESTS_SRCS miniapps/test_${name}.cpp)
-    if (MFEM_USE_CUDA)
-        set_property(SOURCE ${PAR_${NAME}_TESTS_SRCS} PROPERTY LANGUAGE CUDA)
-    endif()
-
-    set(backends cpu)
-    if (HYPRE_MM)
-        # psedov_tests_debug_* will return MFEM_SKIP_RETURN_VALUE when all of
-        # the following conditions are met:
-        # * MFEM_SEDOV_MPI is defined (true here)
-        # * MFEM_DEBUG is defined
-        # * MFEM_SEDOV_DEVICE is "debug" (the case added here)
-        # * HypreUsingGPU() is true; this is the same as: HYPRE_USING_GPU is
-        #   defined and MFEM_HYPRE_VERSION < 23100 (if the version is >= 23100,
-        #   the code will switch to HYPRE running on CPU).
-        # We check these conditions here to skip the "debug" backend and avoid
-        # the ctest failure.
-        if (NOT ((${name} STREQUAL "sedov") AND MFEM_DEBUG AND
-                 (HYPRE_USING_CUDA OR HYPRE_USING_HIP) AND
-                 (${MFEM_HYPRE_VERSION} LESS "23100")))
-            list(APPEND backends debug)
-        endif()
-    endif()
-    if (MFEM_USE_CUDA OR MFEM_USE_HIP)
-        list(APPEND backends gpu)
-        if (HYPRE_MM)
-            list(APPEND backends gpu_uvm)
-        endif()
-    endif()
-
-    set(MPI_NPS 1 ${MFEM_MPI_NP})
-    foreach(dev ${backends})
-        add_mpi_executable_test(${name} ${dev})
-        foreach(np ${MPI_NPS})
-            add_mpi_unit_test(${dev} ${np})
+        foreach(device IN LISTS UNIT_TEST_DEVICES)
+            add_test(NAME unit_tests_${device}_np=${np}
+                COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${np}
+                ${MPIEXEC_PREFLAGS} $<TARGET_FILE:unit_tests>
+                ${MPIEXEC_POSTFLAGS} --parallel --device ${device})
         endforeach()
     endforeach()
-endfunction(add_parallel_miniapp_test)
-
-# Additional MPI unit tests
-if (MFEM_USE_MPI)
-    add_parallel_miniapp_test(sedov TRUE)
-    add_parallel_miniapp_test(tmop_pa FALSE)
-endif(MFEM_USE_MPI)
+endif()
 
 #-----------------------------------------------------------
 # SERIAL DEBUG-DEVICE TESTS:

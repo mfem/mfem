@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define CATCH_CONFIG_NOSTDOUT
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
 #include "run_unit_tests.hpp"
@@ -2145,6 +2146,7 @@ int sedov(int myid, int argc, char *argv[])
    delete pmesh;
    return 0;
 }
+
 } // namespace mfem
 
 static int argn(const char *argv[], int argc =0)
@@ -2176,12 +2178,12 @@ static void sedov_tests(int myid)
 }
 
 #ifdef MFEM_SEDOV_MPI
-TEST_CASE("Sedov", "[Sedov], [Parallel]")
+TEST_CASE("Sedov", "[Sedov][GPU][Parallel]")
 {
    sedov_tests(Mpi::WorldRank());
 }
 #else
-TEST_CASE("Sedov", "[Sedov]")
+TEST_CASE("Sedov", "[Sedov][GPU]")
 {
    sedov_tests(0);
 }
@@ -2199,26 +2201,26 @@ int main(int argc, char *argv[])
    mfem::Mpi::Init();
    mfem::Hypre::Init();
 #endif
-#ifdef MFEM_SEDOV_DEVICE
-   Device device(MFEM_SEDOV_DEVICE);
-#else
-   Device device("cpu"); // make sure hypre runs on CPU, if possible
-#endif
-   device.Print();
-
-#if defined(MFEM_SEDOV_MPI) && defined(MFEM_DEBUG) && defined(MFEM_SEDOV_DEVICE)
-   if (HypreUsingGPU() && !strcmp(MFEM_SEDOV_DEVICE, "debug"))
+   CatchSessionOptions options;
+   options.configure_cpu = true;
+   options.enable_data = false;
+   options.enable_all = false;
+#if defined(MFEM_SEDOV_MPI) && defined(MFEM_DEBUG)
+   options.before_tests = []()
    {
-      cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
-           << "is NOT supported with the GPU version of hypre.\n\n";
-      return MFEM_SKIP_RETURN_VALUE;
-   }
+      if (HypreUsingGPU() && Device::Allows(Backend::DEBUG_DEVICE))
+      {
+         cout << "\nAs of mfem-4.3 and hypre-2.22.0 (July 2021) this unit test\n"
+              << "is NOT supported with the GPU version of hypre.\n\n";
+         return MFEM_SKIP_RETURN_VALUE;
+      }
+      return 0;
+   };
 #endif
-
 #ifdef MFEM_SEDOV_MPI
-   return RunCatchSession(argc, argv, {"[Parallel]"}, Root());
+   options.root = Root();
+   return RunCatchSession(argc, argv, {"[Parallel]"}, options);
 #else
-   // Exclude parallel tests.
-   return RunCatchSession(argc, argv, {"~[Parallel]"});
+   return RunCatchSession(argc, argv, {"~[Parallel]"}, options);
 #endif
 }

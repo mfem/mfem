@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define CATCH_CONFIG_NOSTDOUT
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
 #include "run_unit_tests.hpp"
@@ -16,11 +17,12 @@
 int main(int argc, char *argv[])
 {
 #ifdef MFEM_USE_SINGLE
-   std::cout << "\nThe serial unit tests are not supported in single"
+   std::cout << "\nThe unit tests are not supported in single"
              " precision.\n\n";
    return MFEM_SKIP_RETURN_VALUE;
 #endif
 
-   // Exclude parallel tests.
-   return RunCatchSession(argc, argv, {"~[Parallel]"});
+   CatchSessionOptions options;
+   options.enable_parallel = true;
+   return RunCatchSession(argc, argv, {}, options);
 }

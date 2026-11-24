@@ -12,6 +12,7 @@
 #ifndef MFEM_RUN_UNIT_TEST
 #define MFEM_RUN_UNIT_TEST
 
+#include <functional>
 #include <memory>
 #include "unit_tests.hpp"
 
@@ -19,9 +20,35 @@ bool launch_all_non_regression_tests = false;
 bool verbose_tests = false;
 std::string mfem_data_dir;
 
+static inline bool Root()
+{
+#ifdef MFEM_USE_MPI
+   return mfem::Mpi::IsInitialized() ? mfem::Mpi::Root() : true;
+#else
+   return true;
+#endif
+}
+
+/// Options and extension hooks for executables using the shared Catch runner.
+struct CatchSessionOptions
+{
+   bool root = true;
+   bool configure_cpu = false;
+   // Offer --parallel in MPI builds and select serial/parallel test tags.
+   bool enable_parallel = false;
+   bool enable_all = true;
+   bool enable_data = true;
+   // A fixed device is always configured and cannot be changed from the CLI.
+   const char *fixed_device = nullptr;
+   // Called before parsing; append executable-specific options to session.cli().
+   std::function<void(Catch::Session &)> configure_cli;
+   // Called after device setup; a nonzero result skips running the session.
+   std::function<int()> before_tests;
+};
+
 static int RunCatchSession(int argc, char *argv[],
                            const std::vector<std::string> &testsOrTags,
-                           bool root=true, bool configure_cpu=false)
+                           const CatchSessionOptions &options = {})
 {
    // There must be exactly one instance.
    Catch::Session session;
@@ -29,16 +56,33 @@ static int RunCatchSession(int argc, char *argv[],
    // Build a new command line parser on top of Catch's
    using namespace Catch::clara;
    bool enable_mfem_out = false;
-   std::string device_config = "cpu";
-   // Catch reserves -d for test durations.
+   bool parallel = false;
+   std::string device_config = options.fixed_device ? options.fixed_device : "cpu";
    auto cli = session.cli()
-              | Opt(device_config, "device") ["--device"]
-              ("MFEM device backend (default: cpu)")
-              | Opt(launch_all_non_regression_tests) ["--all"] ("all tests")
-              | Opt(mfem_data_dir, "") ["--data"] ("mfem/data repository")
               | Opt(enable_mfem_out) ["--enable-output"] ("enable mfem::out")
               | Opt(verbose_tests) ["--verbose"] ("verbose output");
+   // Catch reserves -d for test durations.
+   if (!options.fixed_device)
+   {
+      cli |= Opt(device_config, "device") ["--device"]
+             ("MFEM device backend (default: cpu)");
+   }
+   if (options.enable_all)
+   {
+      cli |= Opt(launch_all_non_regression_tests) ["--all"] ("all tests");
+   }
+   if (options.enable_data)
+   {
+      cli |= Opt(mfem_data_dir, "path") ["--data"] ("mfem/data repository");
+   }
+#ifdef MFEM_USE_MPI
+   if (options.enable_parallel)
+   {
+      cli |= Opt(parallel) ["--parallel"] ("run parallel tests using MPI");
+   }
+#endif
    session.cli(cli);
+   if (options.configure_cli) { options.configure_cli(session); }
 
    // For floating point comparisons, print 8 digits for single precision
    // values, and 16 digits for double precision values.
@@ -49,18 +93,42 @@ static int RunCatchSession(int argc, char *argv[],
    int r = session.applyCommandLine(argc, argv);
    if (r != 0) { return r; }
 
+   bool root = options.root;
+#ifdef MFEM_USE_MPI
+   if (parallel)
+   {
+      mfem::Mpi::Init();
+      mfem::Hypre::Init();
+      root = Root();
+   }
+#endif
+
    // Serial CPU tests may select their own device or memory types. Parallel
    // CPU tests need an explicit device so hypre uses the CPU when possible.
    std::unique_ptr<mfem::Device> device;
-   if (device_config != "cpu" || configure_cpu)
+   if (device_config != "cpu" || options.configure_cpu || options.fixed_device ||
+       parallel)
    {
       device.reset(new mfem::Device(device_config.c_str()));
+   }
+
+   if (options.before_tests)
+   {
+      r = options.before_tests();
+      if (r != 0) { return r; }
    }
 
    auto cfg = session.configData();
    cfg.testsOrTags.insert(cfg.testsOrTags.end(), testsOrTags.begin(),
                           testsOrTags.end());
-   if (device_config != "cpu") { cfg.testsOrTags.push_back("[GPU]"); }
+   if (options.enable_parallel)
+   {
+      cfg.testsOrTags.push_back(parallel ? "[Parallel]" : "~[Parallel]");
+   }
+   if (device_config != "cpu" && !options.fixed_device)
+   {
+      cfg.testsOrTags.push_back("[GPU]");
+   }
    if (mfem_data_dir == "") { cfg.testsOrTags.push_back("~[MFEMData]"); }
    session.useConfigData(cfg);
 
@@ -82,15 +150,6 @@ static int RunCatchSession(int argc, char *argv[],
    int result = session.run();
 
    return result;
-}
-
-static inline bool Root()
-{
-#ifdef MFEM_USE_MPI
-   return mfem::Mpi::IsInitialized() ? mfem::Mpi::Root() : true;
-#else
-   return true;
-#endif
 }
 
 #ifdef CATCH_CONFIG_NOSTDOUT

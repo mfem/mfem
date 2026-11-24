@@ -9,6 +9,7 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
+#define CATCH_CONFIG_NOSTDOUT
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
 #include "run_unit_tests.hpp"
@@ -680,6 +681,7 @@ int tmop(int id, Req &res, int argc, char *argv[])
 
    return EXIT_SUCCESS;
 }
+
 
 } // namespace mfem
 
@@ -1396,12 +1398,12 @@ static void tmop_tests(int id = 0, bool all = false)
 }
 
 #ifdef MFEM_TMOP_PA_MPI
-TEST_CASE("tmop_pa", "[TMOP_PA], [Parallel]")
+TEST_CASE("tmop_pa", "[TMOP_PA][GPU][Parallel]")
 {
    tmop_tests(Mpi::WorldRank(), launch_all_non_regression_tests);
 }
 #else
-TEST_CASE("tmop_pa", "[TMOP_PA]")
+TEST_CASE("tmop_pa", "[TMOP_PA][GPU]")
 {
    tmop_tests(0, launch_all_non_regression_tests);
 }
@@ -1419,17 +1421,13 @@ int main(int argc, char *argv[])
    mfem::Mpi::Init();
    mfem::Hypre::Init();
 #endif
-#ifdef MFEM_TMOP_PA_DEVICE
-   Device device(MFEM_TMOP_PA_DEVICE);
-#else
-   Device device("cpu"); // make sure hypre runs on CPU, if possible
-#endif
-   device.Print();
-
+   CatchSessionOptions options;
+   options.configure_cpu = true;
+   options.enable_data = false;
 #ifdef MFEM_TMOP_PA_MPI
-   return RunCatchSession(argc, argv, { "[Parallel]" }, Root());
+   options.root = Root();
+   return RunCatchSession(argc, argv, {"[Parallel]"}, options);
 #else
-   // Exclude parallel tests.
-   return RunCatchSession(argc, argv, { "~[Parallel]" });
+   return RunCatchSession(argc, argv, {"~[Parallel]"}, options);
 #endif
 }
