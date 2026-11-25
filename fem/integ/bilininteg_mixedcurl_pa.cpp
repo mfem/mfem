@@ -19,6 +19,54 @@
 namespace mfem
 {
 
+namespace internal
+{
+
+SmemPAHcurlL2Apply3DKernelsType SmemPAHcurlL2Apply3DKernels::Fallback(int, int)
+{
+   return SmemPAHcurlL2Apply3D<0,0>;
+}
+
+/// Register the existing specializations once, on first use.
+static void RegisterSmemPAHcurlL2Apply3DKernels()
+{
+   struct Kernels
+   {
+      Kernels()
+      {
+         SmemPAHcurlL2Apply3DKernels::Specialization<2,3>::Add();
+         SmemPAHcurlL2Apply3DKernels::Specialization<3,4>::Add();
+         SmemPAHcurlL2Apply3DKernels::Specialization<4,5>::Add();
+         SmemPAHcurlL2Apply3DKernels::Specialization<5,6>::Add();
+      }
+   };
+   static Kernels kernels;
+}
+
+SmemPAHcurlL2ApplyTranspose3DKernelsType
+SmemPAHcurlL2ApplyTranspose3DKernels::Fallback(int, int)
+{
+   return SmemPAHcurlL2ApplyTranspose3D<0,0>;
+}
+
+/// Register the existing specializations once, on first use.
+static void RegisterSmemPAHcurlL2ApplyTranspose3DKernels()
+{
+   struct Kernels
+   {
+      Kernels()
+      {
+         SmemPAHcurlL2ApplyTranspose3DKernels::Specialization<2,3>::Add();
+         SmemPAHcurlL2ApplyTranspose3DKernels::Specialization<3,4>::Add();
+         SmemPAHcurlL2ApplyTranspose3DKernels::Specialization<4,5>::Add();
+         SmemPAHcurlL2ApplyTranspose3DKernels::Specialization<5,6>::Add();
+      }
+   };
+   static Kernels kernels;
+}
+
+} // namespace internal
+
 namespace
 {
 
@@ -1249,35 +1297,10 @@ void MixedVectorCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
 
       if (Device::Allows(Backend::DEVICE_MASK))
       {
-         const int ID = (dofs1D << 4) | quad1D;
-         switch (ID)
-         {
-            case 0x23:
-               return internal::SmemPAHcurlL2Apply3D<2,3>(
-                         dofs1D, quad1D, ndata, ne,
-                         mapsO->B, mapsC->B, mapsC->G,
-                         pa_data, x, y);
-            case 0x34:
-               return internal::SmemPAHcurlL2Apply3D<3,4>(
-                         dofs1D, quad1D, ndata, ne,
-                         mapsO->B, mapsC->B, mapsC->G,
-                         pa_data, x, y);
-            case 0x45:
-               return internal::SmemPAHcurlL2Apply3D<4,5>(
-                         dofs1D, quad1D, ndata, ne,
-                         mapsO->B, mapsC->B, mapsC->G,
-                         pa_data, x, y);
-            case 0x56:
-               return internal::SmemPAHcurlL2Apply3D<5,6>(
-                         dofs1D, quad1D, ndata, ne,
-                         mapsO->B, mapsC->B, mapsC->G,
-                         pa_data, x, y);
-            default:
-               return internal::SmemPAHcurlL2Apply3D(
-                         dofs1D, quad1D, ndata, ne,
-                         mapsO->B, mapsC->B, mapsC->G,
-                         pa_data, x, y);
-         }
+         internal::RegisterSmemPAHcurlL2Apply3DKernels();
+         return internal::SmemPAHcurlL2Apply3DKernels::Run(
+                   dofs1D, quad1D,
+                   dofs1D,quad1D,ndata,ne,mapsO->B,mapsC->B,mapsC->G,pa_data,x,y);
       }
       else
       {
@@ -1404,35 +1427,10 @@ void MixedVectorWeakCurlIntegrator::AddMultPA(const Vector &x, Vector &y) const
       const int ndata = coeffDim == 1 ? 1 : 9;
       if (Device::Allows(Backend::DEVICE_MASK))
       {
-         const int ID = (dofs1D << 4) | quad1D;
-         switch (ID)
-         {
-            case 0x23:
-               return internal::SmemPAHcurlL2ApplyTranspose3D<2,3>(
-                         dofs1D, quad1D, ndata,
-                         ne, mapsO->B, mapsC->B,
-                         mapsC->G, pa_data, x, y);
-            case 0x34:
-               return internal::SmemPAHcurlL2ApplyTranspose3D<3,4>(
-                         dofs1D, quad1D, ndata,
-                         ne, mapsO->B, mapsC->B,
-                         mapsC->G, pa_data, x, y);
-            case 0x45:
-               return internal::SmemPAHcurlL2ApplyTranspose3D<4,5>(
-                         dofs1D, quad1D, ndata,
-                         ne, mapsO->B, mapsC->B,
-                         mapsC->G, pa_data, x, y);
-            case 0x56:
-               return internal::SmemPAHcurlL2ApplyTranspose3D<5,6>(
-                         dofs1D, quad1D, ndata,
-                         ne, mapsO->B, mapsC->B,
-                         mapsC->G, pa_data, x, y);
-            default:
-               return internal::SmemPAHcurlL2ApplyTranspose3D(
-                         dofs1D, quad1D, ndata, ne,
-                         mapsO->B, mapsC->B,
-                         mapsC->G, pa_data, x, y);
-         }
+         internal::RegisterSmemPAHcurlL2ApplyTranspose3DKernels();
+         return internal::SmemPAHcurlL2ApplyTranspose3DKernels::Run(
+                   dofs1D, quad1D,
+                   dofs1D,quad1D,ndata,ne,mapsO->B,mapsC->B,mapsC->G,pa_data,x,y);
       }
       else
       {

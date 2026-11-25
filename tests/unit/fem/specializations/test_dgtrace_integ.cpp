@@ -22,4 +22,7 @@ TEST_CASE("DGTrace Kernel Specializations", "[Specializations]")
    using namespace mfem;
 
    DGTraceIntegrator::AddSpecialization<2, 2, 3>();
+
+   internal::EADGTraceAssembleIntKernels::Specialization<2, 2, 3>::Add();
+   internal::EADGTraceAssembleBdrKernels::Specialization<2, 2, 3>::Add();
 }

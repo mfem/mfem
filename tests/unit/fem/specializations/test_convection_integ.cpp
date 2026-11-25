@@ -22,4 +22,6 @@ TEST_CASE("Convection Kernel Specializations", "[Specializations]")
    using namespace mfem;
 
    ConvectionIntegrator::AddSpecialization<2, 2, 4>();
+
+   internal::EAConvectionAssembleKernels::Specialization<2, 1, 3>::Add();
 }

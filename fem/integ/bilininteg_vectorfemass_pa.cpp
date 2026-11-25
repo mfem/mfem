@@ -14,6 +14,33 @@
 
 namespace mfem
 {
+
+namespace internal
+{
+
+SmemPAHcurlMassAssembleDiagonal3DKernelsType
+SmemPAHcurlMassAssembleDiagonal3DKernels::Fallback(int, int)
+{
+   return SmemPAHcurlMassAssembleDiagonal3D<0,0>;
+}
+
+/// Register the existing specializations once, on first use.
+static void RegisterSmemPAHcurlMassAssembleDiagonal3DKernels()
+{
+   struct Kernels
+   {
+      Kernels()
+      {
+         SmemPAHcurlMassAssembleDiagonal3DKernels::Specialization<2,3>::Add();
+         SmemPAHcurlMassAssembleDiagonal3DKernels::Specialization<3,4>::Add();
+         SmemPAHcurlMassAssembleDiagonal3DKernels::Specialization<4,5>::Add();
+         SmemPAHcurlMassAssembleDiagonal3DKernels::Specialization<5,6>::Add();
+      }
+   };
+   static Kernels kernels;
+}
+
+} // namespace internal
 /// \cond DO_NOT_DOCUMENT
 VectorFEMassIntegrator::ApplyKernelType
 VectorFEMassIntegrator::ApplyPAKernels::Fallback(
@@ -255,30 +282,10 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
       {
          if (Device::Allows(Backend::DEVICE_MASK))
          {
-            const int ID = (dofs1D << 4) | quad1D;
-            switch (ID)
-            {
-               case 0x23:
-                  return internal::SmemPAHcurlMassAssembleDiagonal3D<2,3>(
-                            dofs1D, quad1D, ne, symmetric,
-                            mapsO->B, mapsC->B, pa_data, diag);
-               case 0x34:
-                  return internal::SmemPAHcurlMassAssembleDiagonal3D<3,4>(
-                            dofs1D, quad1D, ne, symmetric,
-                            mapsO->B, mapsC->B, pa_data, diag);
-               case 0x45:
-                  return internal::SmemPAHcurlMassAssembleDiagonal3D<4,5>(
-                            dofs1D, quad1D, ne, symmetric,
-                            mapsO->B, mapsC->B, pa_data, diag);
-               case 0x56:
-                  return internal::SmemPAHcurlMassAssembleDiagonal3D<5,6>(
-                            dofs1D, quad1D, ne, symmetric,
-                            mapsO->B, mapsC->B, pa_data, diag);
-               default:
-                  return internal::SmemPAHcurlMassAssembleDiagonal3D(
-                            dofs1D, quad1D, ne, symmetric,
-                            mapsO->B, mapsC->B, pa_data, diag);
-            }
+            internal::RegisterSmemPAHcurlMassAssembleDiagonal3DKernels();
+            return internal::SmemPAHcurlMassAssembleDiagonal3DKernels::Run(
+                      dofs1D, quad1D,
+                      dofs1D,quad1D,ne,symmetric,mapsO->B,mapsC->B,pa_data,diag);
          }
          else
          {
@@ -320,10 +327,11 @@ void VectorFEMassIntegrator::AssembleDiagonalPA(Vector& diag)
 void VectorFEMassIntegrator::AddMultPA(const Vector &x, Vector &y) const
 {
    const bool scalar_coeff = !(DQ || MQ);
-   ApplyPAKernels::Run(trial_fetype, test_fetype, dim, dofs1D, dofs1Dtest,
-                       quad1D, ne, symmetric, scalar_coeff, mapsO->B, mapsC->B,
-                       mapsOtest->Bt, mapsCtest->Bt, pa_data, x, y, dofs1D,
-                       dofs1Dtest, quad1D);
+   ApplyPAKernels::Run(
+      trial_fetype, test_fetype, dim, dofs1D, dofs1Dtest,
+      quad1D, ne, symmetric, scalar_coeff, mapsO->B, mapsC->B,
+      mapsOtest->Bt, mapsCtest->Bt, pa_data, x, y, dofs1D,
+      dofs1Dtest, quad1D);
 }
 
 void VectorFEMassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
@@ -343,10 +351,11 @@ void VectorFEMassIntegrator::AddAbsMultPA(const Vector &x, Vector &y) const
    absBto_t.Abs();
    absBtc_t.Abs();
 
-   ApplyPAKernels::Run(trial_fetype, test_fetype, dim, dofs1D, dofs1Dtest,
-                       quad1D, ne, symmetric, scalar_coeff, absBo, absBc,
-                       absBto_t, absBtc_t, abs_pa_data, x, y, dofs1D,
-                       dofs1Dtest, quad1D);
+   ApplyPAKernels::Run(
+      trial_fetype, test_fetype, dim, dofs1D, dofs1Dtest,
+      quad1D, ne, symmetric, scalar_coeff, absBo, absBc,
+      absBto_t, absBtc_t, abs_pa_data, x, y, dofs1D,
+      dofs1Dtest, quad1D);
 }
 
 void VectorFEMassIntegrator::AddMultTransposePA(const Vector &x,

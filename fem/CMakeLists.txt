@@ -275,6 +275,7 @@ set(HDRS
   lor/lor_ads.hpp
   lor/lor_ams.hpp
   lor/lor_batched.hpp
+  lor/lor_batched_kernels.hpp
   lor/lor_h1.hpp
   lor/lor_dg.hpp
   lor/lor_nd.hpp
@@ -296,8 +297,10 @@ set(HDRS
   qspace.hpp
   quadinterpolator.hpp
   quadinterpolator_face.hpp
+  quadinterpolator_face_kernels.hpp
   restriction.hpp
   normal_deriv_restriction.hpp
+  normal_deriv_restriction_kernels.hpp
   fespacehierarchy.hpp
   staticcond.hpp
   tbilinearform.hpp

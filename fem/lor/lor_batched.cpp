@@ -9,7 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-#include "lor_batched.hpp"
+#include "lor_batched_kernels.hpp"
+#include "../kernel_dispatch.hpp"
 #include "../../fem/quadinterpolator.hpp"
 #include "../../general/forall.hpp"
 #include <climits>
@@ -565,36 +566,6 @@ void BatchedLORAssembly::SparseIJToCSR(OperatorHandle &A) const
    FillJAndData(*A_mat);
 }
 
-template <int ORDER, int SDIM, typename LOR_KERNEL>
-static void Assemble_(LOR_KERNEL &kernel, int dim)
-{
-   if (dim == 2) { kernel.template Assemble2D<ORDER,SDIM>(); }
-   else if (dim == 3) { kernel.template Assemble3D<ORDER>(); }
-   else { MFEM_ABORT("Unsupported dimension"); }
-}
-
-template <int ORDER, typename LOR_KERNEL>
-static void Assemble_(LOR_KERNEL &kernel, int dim, int sdim)
-{
-   if (sdim == 2) { Assemble_<ORDER,2>(kernel, dim); }
-   else if (sdim == 3) { Assemble_<ORDER,3>(kernel, dim); }
-   else { MFEM_ABORT("Unsupported space dimension."); }
-}
-
-template <typename LOR_KERNEL>
-static void Assemble_(LOR_KERNEL &kernel, int dim, int sdim, int order)
-{
-   switch (order)
-   {
-      case 1: Assemble_<1>(kernel, dim, sdim); break;
-      case 2: Assemble_<2>(kernel, dim, sdim); break;
-      case 3: Assemble_<3>(kernel, dim, sdim); break;
-      case 4: Assemble_<4>(kernel, dim, sdim); break;
-      case 5: Assemble_<5>(kernel, dim, sdim); break;
-      default: MFEM_ABORT("No kernel order " << order << "!");
-   }
-}
-
 template <typename LOR_KERNEL>
 void BatchedLORAssembly::AssemblyKernel(BilinearForm &a)
 {
@@ -604,7 +575,9 @@ void BatchedLORAssembly::AssemblyKernel(BilinearForm &a)
    const int sdim = fes_ho.GetMesh()->SpaceDimension();
    const int order = fes_ho.GetMaxElementOrder();
 
-   Assemble_(kernel, dim, sdim, order);
+   static internal::BatchedLORAssemblyKernels<LOR_KERNEL> kernels;
+   internal::BatchedLORAssemblyKernels<LOR_KERNEL>::AssembleKernels::Run(
+      order, kernel, dim, sdim);
 }
 
 void BatchedLORAssembly::AssembleWithoutBC(BilinearForm &a, OperatorHandle &A)

@@ -186,6 +186,11 @@ set(UNIT_TESTS_SRCS
   fem/specializations/test_dgtrace_integ.cpp
   fem/specializations/test_dgdiffusion_integ.cpp
   fem/specializations/test_dgmassinv.cpp
+  fem/specializations/test_hdiv_ea.cpp
+  fem/specializations/test_elasticity_integ.cpp
+  fem/specializations/test_qinterp_face.cpp
+  fem/specializations/test_normal_deriv_restriction.cpp
+  fem/specializations/test_lor_batched.cpp
   fem/specializations/test_qinterp_det.cpp
   fem/specializations/test_qinterp_eval.cpp
   fem/specializations/test_qinterp_grad.cpp

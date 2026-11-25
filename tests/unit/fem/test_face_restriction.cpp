@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "mfem.hpp"
+#include "fem/normal_deriv_restriction.hpp"
 #include "unit_tests.hpp"
 
 using namespace mfem;
@@ -166,3 +167,56 @@ TEST_CASE("L2 Face Restriction", "[FaceRestriction][Parallel]")
 }
 
 #endif
+
+TEST_CASE("Normal derivative restriction specializations and fallback",
+          "[FaceRestriction][KernelDispatch][GPU]")
+{
+   const int dim = GENERATE(2, 3);
+   // D1D=2 and D1D=8 are registered; D1D=9 exercises the runtime fallback.
+   const int order = GENERATE(1, 7, 8);
+   const auto ordering = GENERATE(Ordering::byNODES, Ordering::byVDIM);
+   const auto face_type = GENERATE(FaceType::Interior, FaceType::Boundary);
+   CAPTURE(dim, order, ordering, face_type);
+
+   Mesh mesh = MakeCartesianMesh(2, dim);
+   L2_FECollection fec(order, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec, 1, ordering);
+   L2NormalDerivativeFaceRestriction restriction(
+      fes, ElementDofOrdering::LEXICOGRAPHIC, face_type);
+   FunctionCoefficient coefficient([dim](const Vector &x)
+   {
+      real_t sum = 0.0;
+      for (int j = 0; j < dim; ++j) { sum += x[j]; }
+      return sum;
+   });
+   GridFunction x(&fes);
+   x.ProjectCoefficient(coefficient);
+   const int nf = fes.GetNFbyType(face_type);
+   const int nd = dim == 2 ? order + 1 : (order + 1)*(order + 1);
+   Vector rx(nd*2*nf);
+   restriction.Mult(x, rx);
+   const auto derivatives = Reshape(rx.HostRead(), nd, 1, 2, nf);
+   for (int f = 0; f < nf; ++f)
+   {
+      for (int side = 0; side < 2; ++side)
+      {
+         const real_t expected = face_type == FaceType::Boundary && side == 1 ?
+                                 0.0 : 0.5;
+         for (int d = 0; d < nd; ++d)
+         {
+            REQUIRE(derivatives(d,0,side,f) == MFEM_Approx(expected));
+         }
+      }
+   }
+
+   // Check the transpose and its accumulation factor independently through
+   // the adjoint identity, starting from a nonzero destination.
+   Vector y(rx.Size()), z(fes.GetVSize()), initial(fes.GetVSize());
+   y.Randomize(1);
+   initial.Randomize(2);
+   z = initial;
+   const real_t a = -0.75;
+   restriction.AddMultTranspose(y, z, a);
+   z -= initial;
+   REQUIRE((x*z) == MFEM_Approx(a*(rx*y)));
+}

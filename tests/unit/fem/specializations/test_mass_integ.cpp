@@ -23,4 +23,6 @@ TEST_CASE("Mass Kernel Specializations", "[Specializations]")
 
    MassIntegrator::AddSpecialization<2, 1, 3>();
    MassIntegrator::AddSimplexSpecialization<2, 2, 4>();
+
+   internal::EAMassAssembleKernels::Specialization<2, 1, 3>::Add();
 }

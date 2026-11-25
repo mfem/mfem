@@ -15,6 +15,7 @@
 #include "../../config/config.hpp"
 #include "../../general/array.hpp"
 #include "../../general/forall.hpp"
+#include "../kernel_dispatch.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/vector.hpp"
 #include "../bilininteg.hpp"
@@ -3338,6 +3339,63 @@ CurlCurlIntegrator::DiagonalPAKernels::Kernel()
    MFEM_ABORT("");
 }
 /// \endcond DO_NOT_DOCUMENT
+} // namespace mfem
+
+// Additional runtime-dispatched kernels. Include this header to register
+// specializations with the corresponding table's Specialization<...>::Add().
+namespace mfem
+{
+namespace internal
+{
+
+using SmemPAHcurlMassAssembleDiagonal3DKernelsType = decltype(
+                                                        &SmemPAHcurlMassAssembleDiagonal3D<0,0>);
+MFEM_REGISTER_KERNELS(SmemPAHcurlMassAssembleDiagonal3DKernels,
+                      SmemPAHcurlMassAssembleDiagonal3DKernelsType,
+                      (int, int));
+
+template <int D1D, int Q1D>
+SmemPAHcurlMassAssembleDiagonal3DKernelsType
+SmemPAHcurlMassAssembleDiagonal3DKernels::Kernel()
+{
+   return SmemPAHcurlMassAssembleDiagonal3D<D1D,Q1D>;
+}
+
+} // namespace internal
+} // namespace mfem
+
+// Additional runtime-dispatched kernels. Include this header to register
+// specializations with the corresponding table's Specialization<...>::Add().
+namespace mfem
+{
+namespace internal
+{
+
+using SmemPAHcurlL2Apply3DKernelsType = decltype(&SmemPAHcurlL2Apply3D<0,0>);
+MFEM_REGISTER_KERNELS(SmemPAHcurlL2Apply3DKernels,
+                      SmemPAHcurlL2Apply3DKernelsType,
+                      (int, int));
+
+template <int D1D, int Q1D>
+SmemPAHcurlL2Apply3DKernelsType SmemPAHcurlL2Apply3DKernels::Kernel()
+{
+   return SmemPAHcurlL2Apply3D<D1D,Q1D>;
+}
+
+using SmemPAHcurlL2ApplyTranspose3DKernelsType = decltype(
+                                                    &SmemPAHcurlL2ApplyTranspose3D<0,0>);
+MFEM_REGISTER_KERNELS(SmemPAHcurlL2ApplyTranspose3DKernels,
+                      SmemPAHcurlL2ApplyTranspose3DKernelsType,
+                      (int, int));
+
+template <int D1D, int Q1D>
+SmemPAHcurlL2ApplyTranspose3DKernelsType
+SmemPAHcurlL2ApplyTranspose3DKernels::Kernel()
+{
+   return SmemPAHcurlL2ApplyTranspose3D<D1D,Q1D>;
+}
+
+} // namespace internal
 } // namespace mfem
 
 #endif

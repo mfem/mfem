@@ -17,64 +17,64 @@
 namespace mfem
 {
 
+namespace internal
+{
+
+EAMassAssembleKernelsType EAMassAssembleKernels::Fallback(int DIM, int, int)
+{
+   if (DIM == 1) { return EAMassAssemble1D<0,0>; }
+   if (DIM == 2) { return EAMassAssemble2D<0,0>; }
+   if (DIM == 3) { return EAMassAssemble3D<0,0>; }
+   MFEM_ABORT("Unknown kernel.");
+}
+
+/// Register the existing specializations once, on first use.
+static void RegisterEAMassAssembleKernels()
+{
+   struct Kernels
+   {
+      Kernels()
+      {
+         EAMassAssembleKernels::Specialization<1,2,2>::Add();
+         EAMassAssembleKernels::Specialization<1,3,3>::Add();
+         EAMassAssembleKernels::Specialization<1,4,4>::Add();
+         EAMassAssembleKernels::Specialization<1,5,5>::Add();
+         EAMassAssembleKernels::Specialization<1,6,6>::Add();
+         EAMassAssembleKernels::Specialization<1,7,7>::Add();
+         EAMassAssembleKernels::Specialization<1,8,8>::Add();
+         EAMassAssembleKernels::Specialization<1,9,9>::Add();
+         EAMassAssembleKernels::Specialization<2,2,2>::Add();
+         EAMassAssembleKernels::Specialization<2,3,3>::Add();
+         EAMassAssembleKernels::Specialization<2,4,4>::Add();
+         EAMassAssembleKernels::Specialization<2,5,5>::Add();
+         EAMassAssembleKernels::Specialization<2,6,6>::Add();
+         EAMassAssembleKernels::Specialization<2,7,7>::Add();
+         EAMassAssembleKernels::Specialization<2,8,8>::Add();
+         EAMassAssembleKernels::Specialization<2,9,9>::Add();
+         EAMassAssembleKernels::Specialization<3,2,3>::Add();
+         EAMassAssembleKernels::Specialization<3,3,4>::Add();
+         EAMassAssembleKernels::Specialization<3,4,5>::Add();
+         EAMassAssembleKernels::Specialization<3,5,6>::Add();
+         EAMassAssembleKernels::Specialization<3,6,7>::Add();
+         EAMassAssembleKernels::Specialization<3,7,8>::Add();
+         EAMassAssembleKernels::Specialization<3,8,9>::Add();
+      }
+   };
+   static Kernels kernels;
+}
+
+} // namespace internal
+
 void MassIntegrator::AssembleEA_(Vector &ea_data,
                                  const bool add)
 {
-   using internal::EAMassAssemble1D;
-   using internal::EAMassAssemble2D;
-   using internal::EAMassAssemble3D;
-
    MFEM_VERIFY(maps->mode != DofToQuad::RAGGED_TENSOR,
                "AssembleEA not implemented for ragged tensor bases");
    const Array<real_t> &B = maps->B;
-   if (dim == 1)
-   {
-      auto kernel = EAMassAssemble1D<0,0>;
-      switch ((dofs1D << 4 ) | quad1D)
-      {
-         case 0x22: kernel = EAMassAssemble1D<2,2>; break;
-         case 0x33: kernel = EAMassAssemble1D<3,3>; break;
-         case 0x44: kernel = EAMassAssemble1D<4,4>; break;
-         case 0x55: kernel = EAMassAssemble1D<5,5>; break;
-         case 0x66: kernel = EAMassAssemble1D<6,6>; break;
-         case 0x77: kernel = EAMassAssemble1D<7,7>; break;
-         case 0x88: kernel = EAMassAssemble1D<8,8>; break;
-         case 0x99: kernel = EAMassAssemble1D<9,9>; break;
-      }
-      return kernel(ne,B,pa_data,ea_data,add,dofs1D,quad1D);
-   }
-   else if (dim == 2)
-   {
-      auto kernel = EAMassAssemble2D<0,0>;
-      switch ((dofs1D << 4 ) | quad1D)
-      {
-         case 0x22: kernel = EAMassAssemble2D<2,2>; break;
-         case 0x33: kernel = EAMassAssemble2D<3,3>; break;
-         case 0x44: kernel = EAMassAssemble2D<4,4>; break;
-         case 0x55: kernel = EAMassAssemble2D<5,5>; break;
-         case 0x66: kernel = EAMassAssemble2D<6,6>; break;
-         case 0x77: kernel = EAMassAssemble2D<7,7>; break;
-         case 0x88: kernel = EAMassAssemble2D<8,8>; break;
-         case 0x99: kernel = EAMassAssemble2D<9,9>; break;
-      }
-      return kernel(ne,B,pa_data,ea_data,add,dofs1D,quad1D);
-   }
-   else if (dim == 3)
-   {
-      auto kernel = EAMassAssemble3D<0,0>;
-      switch ((dofs1D << 4 ) | quad1D)
-      {
-         case 0x23: kernel = EAMassAssemble3D<2,3>; break;
-         case 0x34: kernel = EAMassAssemble3D<3,4>; break;
-         case 0x45: kernel = EAMassAssemble3D<4,5>; break;
-         case 0x56: kernel = EAMassAssemble3D<5,6>; break;
-         case 0x67: kernel = EAMassAssemble3D<6,7>; break;
-         case 0x78: kernel = EAMassAssemble3D<7,8>; break;
-         case 0x89: kernel = EAMassAssemble3D<8,9>; break;
-      }
-      return kernel(ne,B,pa_data,ea_data,add,dofs1D,quad1D);
-   }
-   MFEM_ABORT("Unknown kernel.");
+   internal::RegisterEAMassAssembleKernels();
+   return internal::EAMassAssembleKernels::Run(
+             dim, dofs1D, quad1D,
+             ne,B,pa_data,ea_data,add,dofs1D,quad1D);
 }
 
 void MassIntegrator::AssembleEA(const FiniteElementSpace &fes,
