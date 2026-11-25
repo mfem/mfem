@@ -1732,32 +1732,46 @@ public:
       auto report = domain.Validate(geometry);
       if (!report.Succeeded()) { return report; }
       if (order < 0)
-      { return MomentFailure(CutQuadratureReport::Status::InvalidInput,
-                             "Negative quadrature order."); }
+      {
+         return MomentFailure(CutQuadratureReport::Status::InvalidInput,
+                              "Negative quadrature order.");
+      }
       if (order == 0)
-      { return MomentFailure(CutQuadratureReport::Status::Unsupported,
-                             "Moment fitting requires positive order."); }
+      {
+         return MomentFailure(CutQuadratureReport::Status::Unsupported,
+                              "Moment fitting requires positive order.");
+      }
       if (geometry != Geometry::SEGMENT && geometry != Geometry::SQUARE &&
           geometry != Geometry::CUBE)
-      { return MomentFailure(CutQuadratureReport::Status::Unsupported,
-                             "Moment fitting supports segments, quads, and hexes."); }
+      {
+         return MomentFailure(CutQuadratureReport::Status::Unsupported,
+                              "Moment fitting supports segments, quads, and hexes.");
+      }
       if (domain.NumConstraints() > 1)
-      { return MomentFailure(CutQuadratureReport::Status::Unsupported,
-                             "Moment fitting supports one level-set constraint."); }
+      {
+         return MomentFailure(CutQuadratureReport::Status::Unsupported,
+                              "Moment fitting supports one level-set constraint.");
+      }
       if (geometry == Geometry::CUBE &&
           order + (domain.Codimension() ? 0 : 1) > 7)
-      { return MomentFailure(CutQuadratureReport::Status::Unsupported,
-                             "Moment-fitting order exceeds the 3D basis limit."); }
+      {
+         return MomentFailure(CutQuadratureReport::Status::Unsupported,
+                              "Moment-fitting order exceeds the 3D basis limit.");
+      }
       if (fixed_points)
       {
          if (!domain.NumConstraints() || domain.Codimension() ||
              geometry == Geometry::SEGMENT)
-         { return MomentFailure(CutQuadratureReport::Status::Unsupported,
-                                "Unsupported prescribed moment-fitting nodes."); }
+         {
+            return MomentFailure(CutQuadratureReport::Status::Unsupported,
+                                 "Unsupported prescribed moment-fitting nodes.");
+         }
          const int needed = SurfaceBasisSize(geometry, order + 1);
          if (fixed_points->GetNPoints() < needed)
-         { return MomentFailure(CutQuadratureReport::Status::Unsupported,
-                                "Too few prescribed moment-fitting nodes."); }
+         {
+            return MomentFailure(CutQuadratureReport::Status::Unsupported,
+                                 "Too few prescribed moment-fitting nodes.");
+         }
       }
       return {};
    }

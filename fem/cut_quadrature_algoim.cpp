@@ -98,7 +98,8 @@ CutQuadratureReport AlgoimPolynomial::Classify(
    CutDomain::LevelSetSign sign, Region &region) const
 {
    region = Region::Cut;
-   const auto bounds = std::minmax_element(coefficients.begin(), coefficients.end());
+   const auto bounds = std::minmax_element(coefficients.begin(),
+                                           coefficients.end());
    const real_t lower = *bounds.first, upper = *bounds.second;
    const bool surface = sign == CutDomain::LevelSetSign::Zero;
    if (lower == 0 && upper == 0)
@@ -191,7 +192,8 @@ struct GeneralFunction
       }
       else
       {
-         return Checked(dynamic_cast<const AlgoimIntervalLevelSet<Dimension> &>(level_set)
+         return Checked(dynamic_cast<const AlgoimIntervalLevelSet<Dimension> &>
+                        (level_set)
                         .EvalInterval(point) * sign);
       }
    }
@@ -249,7 +251,8 @@ CutQuadratureReport ComputeGeneral(
       auto report = polynomial.Classify(sign, region);
       if (!report.Succeeded()) { return report; }
    }
-   GeneralFunction<Dimension> function{
+   GeneralFunction<Dimension> function
+   {
       level_set, source ? &polynomial : nullptr,
       sign == CutDomain::LevelSetSign::Positive ? -1.0 : 1.0};
    if (!source)
@@ -297,9 +300,9 @@ CutQuadratureReport ComputeGeneral(
    if (region == Region::Full)
    { rule = IntRules.Get(level_set.GetReferenceGeometry(), order); return {}; }
    const auto quadrature = algoim::quadGen<Dimension>(
-      function, algoim::HyperRectangle<real_t, Dimension>(0.0, 1.0),
-      sign == CutDomain::LevelSetSign::Zero ? Dimension : -1, -1,
-      order / 2 + 1);
+                              function, algoim::HyperRectangle<real_t, Dimension>(0.0, 1.0),
+                              sign == CutDomain::LevelSetSign::Zero ? Dimension : -1, -1,
+                              order / 2 + 1);
    if (quadrature.nodes.size() > size_t(std::numeric_limits<int>::max()))
    { return {CutQuadratureReport::Status::NumericalFailure, "Too many ALGOIM nodes."}; }
    rule.SetSize(static_cast<int>(quadrature.nodes.size()));
@@ -337,7 +340,7 @@ CutQuadratureReport GenerateAlgoimGeneral(
 #ifdef MFEM_USE_LAPACKE
 template <int Dimension>
 void CopyPolynomialCoefficients(const AlgoimPolynomial &polynomial,
-                               algoim::xarray<real_t, Dimension> &target)
+                                algoim::xarray<real_t, Dimension> &target)
 {
    for (auto indices = target.loop(); ~indices; ++indices)
    {
@@ -353,18 +356,19 @@ bool NearlyProportional(const AlgoimPolynomial &first,
                         const AlgoimPolynomial &second)
 {
    const int extent = std::max(first.extent, second.extent);
-   const size_t count = std::max(first.coefficients.size(), second.coefficients.size());
+   const size_t count = std::max(first.coefficients.size(),
+                                 second.coefficients.size());
    std::array<std::vector<real_t>, 2> coefficients;
    for (int index = 0; index < 2; ++index)
    {
       const auto &polynomial = index == 0 ? first : second;
       std::vector<real_t> storage(polynomial.coefficients.size());
       algoim::xarray<real_t, Dimension> source(storage.data(),
-         algoim::uvector<int, Dimension>(polynomial.extent));
+                                               algoim::uvector<int, Dimension>(polynomial.extent));
       CopyPolynomialCoefficients(polynomial, source);
       coefficients[index].resize(count);
       algoim::xarray<real_t, Dimension> elevated(coefficients[index].data(),
-         algoim::uvector<int, Dimension>(extent));
+                                                 algoim::uvector<int, Dimension>(extent));
       algoim::bernstein::bernsteinElevate(source, elevated);
       algoim::bernstein::normalise(elevated);
    }
@@ -374,7 +378,8 @@ bool NearlyProportional(const AlgoimPolynomial &first,
       const real_t first_value = Checked(coefficients[0][index]);
       const real_t second_value = Checked(coefficients[1][index]);
       same_residual = std::max(same_residual, std::abs(first_value - second_value));
-      opposite_residual = std::max(opposite_residual, std::abs(first_value + second_value));
+      opposite_residual = std::max(opposite_residual,
+                                   std::abs(first_value + second_value));
    }
    const real_t tolerance = 64 * real_t(Dimension) * extent *
                             std::numeric_limits<real_t>::epsilon();
@@ -437,7 +442,7 @@ CutQuadratureReport ComputePolynomialRule(
                for (int dimension = 0; dimension < 3; ++dimension)
                {
                   coordinates[dimension] = dimension == axis ? extrusion.x :
-                                            (coordinate++ == 0 ? point.x : point.y);
+                                           (coordinate++ == 0 ? point.x : point.y);
                }
                rule.IntPoint(output++).Set3w(coordinates[0], coordinates[1],
                                              coordinates[2], point.weight * extrusion.weight);
@@ -489,24 +494,24 @@ CutQuadratureReport ComputePolynomialRule(
    if (domain.Codimension())
    {
       quadrature->integrate_surf(algoim::AutoMixed, order / 2 + 1,
-         [&](const auto &coordinates, real_t weight, const auto &)
-         { append(coordinates, weight); });
+                                 [&](const auto &coordinates, real_t weight, const auto &)
+      { append(coordinates, weight); });
    }
    else
    {
       quadrature->integrate(algoim::AutoMixed, order / 2 + 1,
-         [&](const auto &coordinates, real_t weight)
+                            [&](const auto &coordinates, real_t weight)
+      {
+         for (size_t index = 0; index < polynomials.size(); ++index)
          {
-            for (size_t index = 0; index < polynomials.size(); ++index)
-            {
-               const real_t value = algoim::bernstein::evalBernsteinPoly(
-                                       *polynomials[index], coordinates);
-               if ((signs[index] == CutDomain::LevelSetSign::Positive && value <= 0) ||
-                   (signs[index] == CutDomain::LevelSetSign::Negative && value >= 0))
-               { return; }
-            }
-            append(coordinates, weight);
-         });
+            const real_t value = algoim::bernstein::evalBernsteinPoly(
+                                    *polynomials[index], coordinates);
+            if ((signs[index] == CutDomain::LevelSetSign::Positive && value <= 0) ||
+                (signs[index] == CutDomain::LevelSetSign::Negative && value >= 0))
+            { return; }
+         }
+         append(coordinates, weight);
+      });
    }
    if (nodes.size() > size_t(std::numeric_limits<int>::max()))
    { return {CutQuadratureReport::Status::NumericalFailure, "Too many ALGOIM nodes."}; }
@@ -541,7 +546,8 @@ CutQuadratureReport GenerateAlgoimPolynomial(
       if (!data.empty() && polynomial.extent == data[0].extent)
       {
          bool same = true, opposite = true;
-         for (size_t coefficient = 0; coefficient < polynomial.coefficients.size(); ++coefficient)
+         for (size_t coefficient = 0; coefficient < polynomial.coefficients.size();
+              ++coefficient)
          {
             const real_t first = data[0].coefficients[coefficient];
             const real_t second = polynomial.coefficients[coefficient];
@@ -556,8 +562,8 @@ CutQuadratureReport GenerateAlgoimPolynomial(
          }
       }
       if (!data.empty() && (geometry == Geometry::SQUARE ?
-                           NearlyProportional<2>(data[0], polynomial) :
-                           NearlyProportional<3>(data[0], polynomial)))
+                            NearlyProportional<2>(data[0], polynomial) :
+                            NearlyProportional<3>(data[0], polynomial)))
       {
          return {CutQuadratureReport::Status::NumericalFailure,
                  "Nearly proportional polynomial constraints cannot be resolved reliably."};
@@ -661,7 +667,7 @@ public:
                 !std::isfinite(point.y) ||
                 (geometry == Geometry::CUBE && !std::isfinite(point.z)) ||
                 !Geometry::CheckPoint(geometry, point,
-                                     128 * std::numeric_limits<real_t>::epsilon()))
+                                      128 * std::numeric_limits<real_t>::epsilon()))
             { report = {CutQuadratureReport::Status::NumericalFailure, "Invalid ALGOIM quadrature node."}; break; }
          }
       }
@@ -705,17 +711,18 @@ std::unique_ptr<CutQuadratureBackend> CreateCutQuadratureBackend(
    if (name == "algoim-auto")
    {
       return std::unique_ptr<CutQuadratureBackend>
-         (new AlgoimBackend(Algorithm::Automatic));
+             (new AlgoimBackend(Algorithm::Automatic));
    }
    if (name == "algoim-general")
    {
       return std::unique_ptr<CutQuadratureBackend>
-         (new AlgoimBackend(Algorithm::General)); }
+             (new AlgoimBackend(Algorithm::General));
+   }
 #ifdef MFEM_USE_LAPACKE
    if (name == "algoim-polynomial")
    {
       return std::unique_ptr<CutQuadratureBackend>
-         (new AlgoimBackend(Algorithm::Polynomial));
+             (new AlgoimBackend(Algorithm::Polynomial));
    }
 #endif
    return nullptr;

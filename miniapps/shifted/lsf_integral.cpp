@@ -28,15 +28,19 @@ int main(int argc, char *argv[])
 #endif
    const char *mesh_file = "";
    const char *algorithm = "algoim-auto";
-   int dimension = 2, cells = 2, refinements = 0, degree = 2, order = 10, shape = 1;
+   int dimension = 2, cells = 2, refinements = 0, degree = 2, order = 10,
+       shape = 1;
    bool visualization = false;
    OptionsParser args(argc, argv);
-   args.AddOption(&mesh_file, "-m", "--mesh", "Optional quadrilateral/hexahedral mesh.");
+   args.AddOption(&mesh_file, "-m", "--mesh",
+                  "Optional quadrilateral/hexahedral mesh.");
    args.AddOption(&algorithm, "-cq", "--cut-quadrature",
                   "algoim-auto, algoim-general, or algoim-polynomial.");
-   args.AddOption(&dimension, "-dim", "--dimension", "Generated unit box dimension.");
+   args.AddOption(&dimension, "-dim", "--dimension",
+                  "Generated unit box dimension.");
    args.AddOption(&cells, "-n", "--cells", "Generated cells per coordinate axis.");
-   args.AddOption(&refinements, "-rs", "--refine-serial", "Serial uniform refinements.");
+   args.AddOption(&refinements, "-rs", "--refine-serial",
+                  "Serial uniform refinements.");
    args.AddOption(&degree, "-o", "--order", "Polynomial level-set degree.");
    args.AddOption(&order, "-ao", "--aorder", "Nominal cut quadrature order.");
    args.AddOption(&shape, "-ls", "--level-set",
@@ -97,7 +101,8 @@ int main(int argc, char *argv[])
       if (shape == 3)
       { second_level_set.Project(second_coefficient, transformation, *finite_element); }
       CutQuadratureReport report;
-      for (int surface = 0; surface < (shape == 3 ? 1 : 2) && report.Succeeded(); ++surface)
+      for (int surface = 0; surface < (shape == 3 ? 1 : 2) &&
+           report.Succeeded(); ++surface)
       {
          auto domain = surface ? CutDomain::Surface(level_set) :
                        CutDomain::Positive(level_set);

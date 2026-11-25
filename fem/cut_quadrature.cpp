@@ -219,7 +219,8 @@ void PolynomialLevelSet::Project(Coefficient &coefficient,
                "Projection geometry mismatch.");
    PointGuard guard(transformation);
    L2_FECollection collection(new_element.GetOrder(), new_element.GetDim());
-   const FiniteElement &nodal = *collection.FiniteElementForGeometry(new_element.GetGeomType());
+   const FiniteElement &nodal = *collection.FiniteElementForGeometry(
+                                   new_element.GetGeomType());
    Vector values(nodal.GetDof());
    nodal.Project(coefficient, transformation, values);
    MFEM_VERIFY(FiniteVector(values), "Nonfinite projected coefficient.");
@@ -238,7 +239,8 @@ real_t PolynomialLevelSet::Eval(const IntegrationPoint &point) const
    element->CalcShape(point, shape);
    return shape * dofs;
 }
-void PolynomialLevelSet::EvalGradient(const IntegrationPoint &point, Vector &gradient) const
+void PolynomialLevelSet::EvalGradient(const IntegrationPoint &point,
+                                      Vector &gradient) const
 {
    const FiniteElement &finite_element = GetFE();
    DenseMatrix derivatives(finite_element.GetDof(), finite_element.GetDim());
@@ -257,11 +259,13 @@ void PolynomialLevelSet::GetBernsteinCoefficients(
       bernstein_element.GetGeomType() == GetReferenceGeometry() &&
       bernstein_element.GetOrder() == element->GetOrder(),
       "Expected the matching native Bernstein space.");
-   if (const auto *positive = dynamic_cast<const PositiveTensorFiniteElement *>(element))
+   if (const auto *positive = dynamic_cast<const PositiveTensorFiniteElement *>
+                              (element))
    {
       const auto &source_map = positive->GetDofMap();
       const auto &target_map =
-         dynamic_cast<const PositiveTensorFiniteElement &>(bernstein_element).GetDofMap();
+         dynamic_cast<const PositiveTensorFiniteElement &>
+         (bernstein_element).GetDofMap();
       coefficients.SetSize(dofs.Size());
       for (int index = 0; index < dofs.Size(); ++index)
       {
@@ -274,12 +278,15 @@ void PolynomialLevelSet::GetBernsteinCoefficients(
    MFEM_VERIFY(FiniteVector(coefficients), "Bernstein conversion failed.");
 }
 
-FunctionLevelSet::FunctionLevelSet(Geometry::Type new_geometry, ValueFunction new_value,
-                                 GradientFunction new_gradient)
-   : geometry(new_geometry), value(std::move(new_value)), gradient(std::move(new_gradient))
+FunctionLevelSet::FunctionLevelSet(Geometry::Type new_geometry,
+                                   ValueFunction new_value,
+                                   GradientFunction new_gradient)
+   : geometry(new_geometry), value(std::move(new_value)),
+     gradient(std::move(new_gradient))
 { MFEM_VERIFY(ValidGeometry(geometry) && value && gradient, "Invalid level-set callbacks."); }
 real_t FunctionLevelSet::Eval(const IntegrationPoint &point) const { return value(point); }
-void FunctionLevelSet::EvalGradient(const IntegrationPoint &point, Vector &result) const
+void FunctionLevelSet::EvalGradient(const IntegrationPoint &point,
+                                    Vector &result) const
 { result.SetSize(GetDim()); gradient(point, result); }
 
 CutDomain CutDomain::Positive(const ReferenceLevelSet &level_set)
@@ -333,12 +340,13 @@ void CutQuadratureMapping::Clear()
    physical_points.SetSize(0);
    physical_conormals.SetSize(0, 0, 0); measure_scaling.SetSize(0);
 }
-CutQuadratureGenerator::CutQuadratureGenerator(const CutQuadratureBackend &implementation)
+CutQuadratureGenerator::CutQuadratureGenerator(const CutQuadratureBackend
+                                               &implementation)
    : backend(implementation) { }
 
 CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
-   const CutDomain &domain, int order, CutQuadrature &out,
-   const IntegrationRule *fixed_points) const try
+                                                     const CutDomain &domain, int order, CutQuadrature &out,
+                                                     const IntegrationRule *fixed_points) const try
 {
    out.Clear();
    auto report = domain.Validate(geometry);
@@ -417,14 +425,15 @@ catch (const std::exception &error)
 }
 
 CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
-   const CutQuadrature &reference, int requested_data,
-   CutQuadratureMapping &out) try
+                                     const CutQuadrature &reference, int requested_data,
+                                     CutQuadratureMapping &out) try
 {
    out.Clear();
    const int valid_data = CutQuadratureMapping::PHYSICAL_POINTS |
                           CutQuadratureMapping::PHYSICAL_CONORMALS |
                           CutQuadratureMapping::MEASURE_SCALING;
-   if (!ValidGeometry(reference.geometry) || reference.geometry != transformation.GetGeometryType() ||
+   if (!ValidGeometry(reference.geometry) ||
+       reference.geometry != transformation.GetGeometryType() ||
        reference.region == CutQuadrature::Region::Unknown ||
        (requested_data & ~valid_data))
    { return Failure(CutQuadratureReport::Status::InvalidInput, "Invalid mapping request."); }
@@ -435,7 +444,8 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
    if (dimension < 1 || space_dimension < dimension || codimension < 0 ||
        codimension > dimension ||
        (codimension && (reference.conormals.SizeI() != dimension ||
-                       reference.conormals.SizeJ() != codimension || reference.conormals.SizeK() != count)))
+                        reference.conormals.SizeJ() != codimension ||
+                        reference.conormals.SizeK() != count)))
    { return Failure(CutQuadratureReport::Status::InvalidInput, "Invalid reference conormal dimensions."); }
    PointGuard guard(transformation);
    if (requested_data & CutQuadratureMapping::PHYSICAL_POINTS)

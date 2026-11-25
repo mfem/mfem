@@ -35,7 +35,8 @@ TEST_CASE("DenseMatrix init-list construction", "[DenseMatrix]")
    }
 }
 
-TEST_CASE("DenseMatrix embedded weights avoid Gram determinant cancellation", "[DenseMatrix]")
+TEST_CASE("DenseMatrix embedded weights avoid Gram determinant cancellation",
+          "[DenseMatrix]")
 {
    for (real_t scale : {1e-100, 1., 1e100})
    {

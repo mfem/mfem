@@ -289,7 +289,7 @@ public:
 /// Construct a compiled-in backend by name.
 /// Returns nullptr if the name is unknown or the backend is unavailable.
 std::unique_ptr<CutQuadratureBackend>
-   CreateCutQuadratureBackend(const std::string &name);
+CreateCutQuadratureBackend(const std::string &name);
 
 /// Physical geometric data evaluated at cut-quadrature points.
 struct CutQuadratureMapping

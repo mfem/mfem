@@ -48,7 +48,8 @@ public:
    real_t Eval(const IntegrationPoint &point) const override
    { return function(Coordinates(point)); }
 
-   void EvalGradient(const IntegrationPoint &point, Vector &gradient) const override
+   void EvalGradient(const IntegrationPoint &point,
+                     Vector &gradient) const override
    {
       const auto values = function.grad(Coordinates(point));
       gradient.SetSize(Dimension);
