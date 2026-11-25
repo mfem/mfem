@@ -95,6 +95,8 @@ protected:
    const Operator *elemR; // not owned
    mutable Gradient Grad;
 
+   void SetupRestrictionOperators();
+
 public:
    PANonlinearFormExtension(const NonlinearForm *nlf);
 

@@ -28,14 +28,21 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
    elemR(nullptr),
    Grad(*this)
 {
-   if (!DeviceCanUseCeed())
+
+}
+
+void PANonlinearFormExtension::SetupRestrictionOperators()
+{
+   if (!DeviceCanUseCeed()) { return; }
+   ElementDofOrdering ordering = GetEVectorOrdering(fes);
+   elemR = fes->GetElementRestriction(ordering);
+   if (elemR)
    {
-      elemR = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-      // TODO: optimize for the case when 'elemR' is identity
       xe.SetSize(elemR->Height(), Device::GetMemoryType());
       ye.SetSize(elemR->Height(), Device::GetMemoryType());
+      ye.UseDevice(true);
    }
-   ye.UseDevice(true);
+
 }
 
 real_t PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
@@ -55,6 +62,8 @@ void PANonlinearFormExtension::Assemble()
    MFEM_VERIFY(nlf->GetInteriorFaceIntegrators().Size() == 0 &&
                nlf->GetBdrFaceIntegrators().Size() == 0,
                "face integrators are not supported yet");
+               
+   SetupRestrictionOperators();
 
    for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(fes); }
 }
@@ -88,9 +97,7 @@ Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
 void PANonlinearFormExtension::Update()
 {
    height = width = fes.GetVSize();
-   elemR = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-   xe.SetSize(elemR->Height());
-   ye.SetSize(elemR->Height());
+   elemR = nullptr;
    Grad.Update();
 }
 
