@@ -567,6 +567,7 @@ real_t DenseMatrix::Weight() const
    }
    else if ((Height() == 3) && (Width() == 2))
    {
+      // The cross-product form avoids cancellation in the Gram determinant.
       const real_t *values = data;
       const real_t cross_x = values[1] * values[5] - values[2] * values[4];
       const real_t cross_y = values[2] * values[3] - values[0] * values[5];
