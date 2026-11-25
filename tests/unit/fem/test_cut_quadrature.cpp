@@ -131,19 +131,6 @@ TEST_CASE("Polynomial cut level sets preserve coefficients and gradients",
          REQUIRE(gradient(0) == MFEM_Approx(2*point.x));
          REQUIRE(gradient(1) == MFEM_Approx(2));
          if (dimension == 3) { REQUIRE(gradient(2) == MFEM_Approx(3)); }
-         L2_FECollection positive(2, dimension, BasisType::Positive);
-         Vector coefficients;
-         const auto &positive_element = *positive.FiniteElementForGeometry(geometry);
-         level_set.GetBernsteinCoefficients(positive_element, coefficients);
-         if (basis == BasisType::Positive)
-         {
-            for (int index = 0; index < coefficients.Size(); ++index)
-            { REQUIRE(coefficients(index) == level_set.GetDofs()(index)); }
-         }
-         PolynomialLevelSet converted;
-         converted.Set(positive_element, coefficients);
-         coefficients = 0.;
-         REQUIRE(converted.Eval(point) == MFEM_Approx(exact));
       }
       Mesh mesh = dimension == 2 ?
                   Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL) :
@@ -157,31 +144,6 @@ TEST_CASE("Polynomial cut level sets preserve coefficients and gradients",
       const auto &point = Geometries.GetCenter(geometry);
       REQUIRE(extracted.Eval(point) == MFEM_Approx(coefficient.Eval(identity,
                                                                     point)));
-   }
-}
-
-TEST_CASE("Cut polynomial conversion retains small interpolation entries",
-          "[CutQuadrature]")
-{
-   IsoparametricTransformation identity;
-   identity.SetIdentityTransformation(Geometry::CUBE);
-   FunctionCoefficient coefficient([](const Vector &point)
-   { return point(0) + point(1) + point(2) - 0.9; });
-   L2_FECollection positive(4, 3, BasisType::Positive);
-   const auto &target = *positive.FiniteElementForGeometry(Geometry::CUBE);
-   for (int basis : {BasisType::GaussLegendre, BasisType::Positive})
-   {
-      L2_FECollection collection(4, 3, basis);
-      PolynomialLevelSet level_set;
-      level_set.Project(coefficient, identity,
-                        *collection.FiniteElementForGeometry(Geometry::CUBE));
-      Vector coefficients;
-      level_set.GetBernsteinCoefficients(target, coefficients);
-      for (int index = 0; index < coefficients.Size(); ++index)
-      {
-         const real_t exact = ((index % 5) + (index / 5) % 5 + index / 25) / 4.0 - 0.9;
-         REQUIRE(std::abs(coefficients(index) - exact) < 2e-13);
-      }
    }
 }
 
@@ -616,6 +578,31 @@ TEST_CASE("Cut mapping remains stable on sheared and embedded elements",
 }
 
 #ifdef MFEM_USE_ALGOIM
+TEST_CASE("ALGOIM converts polynomial level-set bases internally",
+          "[CutQuadrature]")
+{
+   IsoparametricTransformation identity;
+   identity.SetIdentityTransformation(Geometry::CUBE);
+   FunctionCoefficient coefficient([](const Vector &point)
+   { return point(0) + point(1) + point(2) - 0.9; });
+   auto backend = CreateCutQuadratureBackend("algoim-general");
+   CutQuadratureGenerator generator(*backend);
+   for (int basis : {BasisType::GaussLegendre, BasisType::Positive})
+   {
+      L2_FECollection collection(4, 3, basis);
+      PolynomialLevelSet level_set;
+      level_set.Project(coefficient, identity,
+                        *collection.FiniteElementForGeometry(Geometry::CUBE));
+      CutQuadrature output;
+      auto report = generator.Generate(Geometry::CUBE,
+                                       CutDomain::Positive(level_set),
+                                       8, output);
+      INFO(report.message);
+      REQUIRE(report.Succeeded());
+      REQUIRE(Measure(output.rule) == MFEM_Approx(1.0 - std::pow(0.9, 3)/6));
+   }
+}
+
 TEST_CASE("ALGOIM cut phases and planes on tensor cells", "[CutQuadrature]")
 {
    auto backend = CreateCutQuadratureBackend("algoim-auto");

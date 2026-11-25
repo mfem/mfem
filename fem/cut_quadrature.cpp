@@ -17,15 +17,25 @@ namespace
 
 CutQuadratureReport Failure(CutQuadratureReport::Status status,
                             const std::string &message)
-{ return {status, message}; }
+{
+   return {status, message};
+}
 
 bool ValidGeometry(Geometry::Type geometry)
-{ return geometry >= Geometry::POINT && geometry < Geometry::NUM_GEOMETRIES; }
+{
+   return geometry >= Geometry::POINT &&
+          geometry < Geometry::NUM_GEOMETRIES;
+}
 
 bool FiniteVector(const Vector &values)
 {
    for (int index = 0; index < values.Size(); ++index)
-   { if (!std::isfinite(values(index))) { return false; } }
+   {
+      if (!std::isfinite(values(index)))
+      {
+         return false;
+      }
+   }
    return true;
 }
 
@@ -42,20 +52,29 @@ bool ValidPoint(Geometry::Type geometry, const IntegrationPoint &point)
 bool SupportedElement(const FiniteElement &element)
 {
    const auto geometry = element.GetGeomType();
-   if (geometry != Geometry::SEGMENT && geometry != Geometry::SQUARE &&
-       geometry != Geometry::CUBE) { return false; }
+   if (geometry != Geometry::SEGMENT &&
+       geometry != Geometry::SQUARE &&
+       geometry != Geometry::CUBE)
+   {
+      return false;
+   }
    const auto expected_space = geometry == Geometry::SEGMENT ?
                                FunctionSpace::Pk : FunctionSpace::Qk;
    if (element.GetRangeType() != FiniteElement::SCALAR ||
        element.GetMapType() != FiniteElement::VALUE ||
        element.Space() != expected_space || element.HasAnisotropicOrders() ||
-       element.GetOrder() < 0 || element.GetOrder() == std::numeric_limits<int>::max())
-   { return false; }
+       element.GetOrder() < 0 ||
+       element.GetOrder() == std::numeric_limits<int>::max())
+   {
+      return false;
+   }
    int count = 1;
    for (int axis = 0; axis < element.GetDim(); ++axis)
    {
       if (count > std::numeric_limits<int>::max() / (element.GetOrder() + 1))
-      { return false; }
+      {
+         return false;
+      }
       count *= element.GetOrder() + 1;
    }
    return element.GetDof() == count &&
@@ -93,7 +112,10 @@ void ConvertNodalDofs(const FiniteElement &source, const Vector &values,
 bool FactorQR(const DenseMatrix &matrix, DenseMatrix &basis,
               DenseMatrix &triangular, real_t &measure)
 {
-   if (matrix.Width() > matrix.Height()) { return false; }
+   if (matrix.Width() > matrix.Height())
+   {
+      return false;
+   }
    basis = matrix;
    triangular.SetSize(matrix.Width());
    triangular = 0.;
@@ -104,7 +126,10 @@ bool FactorQR(const DenseMatrix &matrix, DenseMatrix &basis,
       real_t norm = 0;
       for (int row = 0; row < basis.Height(); ++row)
       {
-         if (!std::isfinite(basis(row, column))) { return false; }
+         if (!std::isfinite(basis(row, column)))
+         {
+            return false;
+         }
          norm = std::hypot(norm, basis(row, column));
       }
       scale = std::max(scale, norm);
@@ -118,20 +143,31 @@ bool FactorQR(const DenseMatrix &matrix, DenseMatrix &basis,
          {
             real_t product = 0;
             for (int row = 0; row < basis.Height(); ++row)
-            { product += basis(row, previous) * basis(row, column); }
+            {
+               product += basis(row, previous) * basis(row, column);
+            }
             triangular(previous, column) += product;
             for (int row = 0; row < basis.Height(); ++row)
-            { basis(row, column) -= product * basis(row, previous); }
+            {
+               basis(row, column) -= product * basis(row, previous);
+            }
          }
       }
       real_t norm = 0;
       for (int row = 0; row < basis.Height(); ++row)
-      { norm = std::hypot(norm, basis(row, column)); }
-      if (norm <= tolerance || !std::isfinite(norm)) { return false; }
+      {
+         norm = std::hypot(norm, basis(row, column));
+      }
+      if (norm <= tolerance || !std::isfinite(norm))
+      {
+         return false;
+      }
       triangular(column, column) = norm;
       measure *= norm;
       for (int row = 0; row < basis.Height(); ++row)
-      { basis(row, column) /= norm; }
+      {
+         basis(row, column) /= norm;
+      }
    }
    return true;
 }
@@ -144,7 +180,8 @@ bool FullRank(const DenseMatrix &matrix)
 }
 
 void SolveUpperTranspose(const DenseMatrix &triangular,
-                         const DenseMatrix &right_hand_side, DenseMatrix &solution)
+                         const DenseMatrix &right_hand_side,
+                         DenseMatrix &solution)
 {
    solution.SetSize(right_hand_side.Height(), right_hand_side.Width());
    for (int column = 0; column < solution.Width(); ++column)
@@ -153,7 +190,9 @@ void SolveUpperTranspose(const DenseMatrix &triangular,
       {
          real_t value = right_hand_side(row, column);
          for (int previous = 0; previous < row; ++previous)
-         { value -= triangular(previous, row) * solution(previous, column); }
+         {
+            value -= triangular(previous, row) * solution(previous, column);
+         }
          solution(row, column) = value / triangular(row, row);
       }
    }
@@ -218,15 +257,23 @@ void PolynomialLevelSet::Project(Coefficient &coefficient,
 }
 
 const FiniteElement &PolynomialLevelSet::GetFE() const
-{ MFEM_VERIFY(element, "Uninitialized polynomial level set."); return *element; }
+{
+   MFEM_VERIFY(element, "Uninitialized polynomial level set.");
+   return *element;
+}
+
 Geometry::Type PolynomialLevelSet::GetReferenceGeometry() const
-{ return element ? element->GetGeomType() : Geometry::INVALID; }
+{
+   return element ? element->GetGeomType() : Geometry::INVALID;
+}
+
 real_t PolynomialLevelSet::Eval(const IntegrationPoint &point) const
 {
    Vector shape(GetFE().GetDof());
    element->CalcShape(point, shape);
    return shape * dofs;
 }
+
 void PolynomialLevelSet::EvalGradient(const IntegrationPoint &point,
                                       Vector &gradient) const
 {
@@ -236,83 +283,108 @@ void PolynomialLevelSet::EvalGradient(const IntegrationPoint &point,
    gradient.SetSize(finite_element.GetDim());
    derivatives.MultTranspose(dofs, gradient);
 }
-void PolynomialLevelSet::GetBernsteinCoefficients(
-   const FiniteElement &bernstein_element, Vector &coefficients) const
-{
-   coefficients.SetSize(0);
-   MFEM_VERIFY(element, "Uninitialized polynomial level set.");
-   MFEM_VERIFY(
-      SupportedElement(bernstein_element) &&
-      dynamic_cast<const PositiveTensorFiniteElement *>(&bernstein_element) &&
-      bernstein_element.GetGeomType() == GetReferenceGeometry() &&
-      bernstein_element.GetOrder() == element->GetOrder(),
-      "Expected the matching native Bernstein space.");
-   if (const auto *positive = dynamic_cast<const PositiveTensorFiniteElement *>
-                              (element))
-   {
-      const auto &source_map = positive->GetDofMap();
-      const auto &target_map =
-         dynamic_cast<const PositiveTensorFiniteElement &>
-         (bernstein_element).GetDofMap();
-      coefficients.SetSize(dofs.Size());
-      for (int index = 0; index < dofs.Size(); ++index)
-      {
-         coefficients(target_map.Size() ? target_map[index] : index) =
-            dofs(source_map.Size() ? source_map[index] : index);
-      }
-      return;
-   }
-   ConvertNodalDofs(*element, dofs, bernstein_element, coefficients);
-   MFEM_VERIFY(FiniteVector(coefficients), "Bernstein conversion failed.");
-}
 
 FunctionLevelSet::FunctionLevelSet(Geometry::Type new_geometry,
                                    ValueFunction new_value,
                                    GradientFunction new_gradient)
    : geometry(new_geometry), value(std::move(new_value)),
      gradient(std::move(new_gradient))
-{ MFEM_VERIFY(ValidGeometry(geometry) && value && gradient, "Invalid level-set callbacks."); }
-real_t FunctionLevelSet::Eval(const IntegrationPoint &point) const { return value(point); }
+{
+   MFEM_VERIFY(ValidGeometry(geometry) && value && gradient,
+               "Invalid level-set callbacks.");
+}
+
+real_t FunctionLevelSet::Eval(const IntegrationPoint &point) const
+{
+   return value(point);
+}
+
 void FunctionLevelSet::EvalGradient(const IntegrationPoint &point,
                                     Vector &result) const
-{ result.SetSize(GetDim()); gradient(point, result); }
+{
+   result.SetSize(GetDim());
+   gradient(point, result);
+}
 
 CutDomain CutDomain::Positive(const ReferenceLevelSet &level_set)
-{ CutDomain domain; return domain.Add(level_set, LevelSetSign::Positive); }
+{
+   CutDomain domain;
+   return domain.Add(level_set, LevelSetSign::Positive);
+}
+
 CutDomain CutDomain::Negative(const ReferenceLevelSet &level_set)
-{ CutDomain domain; return domain.Add(level_set, LevelSetSign::Negative); }
+{
+   CutDomain domain;
+   return domain.Add(level_set, LevelSetSign::Negative);
+}
+
 CutDomain CutDomain::Surface(const ReferenceLevelSet &level_set)
-{ CutDomain domain; return domain.Add(level_set, LevelSetSign::Zero); }
+{
+   CutDomain domain;
+   return domain.Add(level_set, LevelSetSign::Zero);
+}
+
 CutDomain &CutDomain::Add(const ReferenceLevelSet &level_set, LevelSetSign sign)
-{ constraints.push_back({level_set, sign}); return *this; }
-int CutDomain::NumConstraints() const { return static_cast<int>(constraints.size()); }
-const CutDomain::Constraint &CutDomain::GetConstraint(int index) const { return constraints.at(index); }
+{
+   constraints.push_back({level_set, sign});
+   return *this;
+}
+
+int CutDomain::NumConstraints() const
+{
+   return static_cast<int>(constraints.size());
+}
+
+const CutDomain::Constraint &CutDomain::GetConstraint(int index) const
+{
+   return constraints.at(index);
+}
+
 int CutDomain::Codimension() const
 {
    int result = 0;
    for (const auto &constraint : constraints)
-   { result += constraint.sign == LevelSetSign::Zero; }
+   {
+      result += constraint.sign == LevelSetSign::Zero;
+   }
    return result;
 }
+
 CutQuadratureReport CutDomain::Validate(Geometry::Type geometry) const
 {
    if (!ValidGeometry(geometry))
-   { return Failure(CutQuadratureReport::Status::InvalidInput, "Invalid geometry."); }
+   {
+      return Failure(CutQuadratureReport::Status::InvalidInput,
+                     "Invalid geometry.");
+   }
    if (Codimension() > Geometry::Dimension[geometry])
-   { return Failure(CutQuadratureReport::Status::InvalidInput, "Invalid codimension."); }
+   {
+      return Failure(CutQuadratureReport::Status::InvalidInput,
+                     "Invalid codimension.");
+   }
    for (int index = 0; index < NumConstraints(); ++index)
    {
       const auto &constraint = constraints[index];
       if (constraint.sign != LevelSetSign::Positive &&
           constraint.sign != LevelSetSign::Negative &&
           constraint.sign != LevelSetSign::Zero)
-      { return Failure(CutQuadratureReport::Status::InvalidInput, "Invalid level-set constraint."); }
+      {
+         return Failure(CutQuadratureReport::Status::InvalidInput,
+                        "Invalid level-set constraint.");
+      }
       if (constraint.level_set.get().GetReferenceGeometry() != geometry)
-      { return Failure(CutQuadratureReport::Status::InvalidInput, "Level-set geometry mismatch."); }
+      {
+         return Failure(CutQuadratureReport::Status::InvalidInput,
+                        "Level-set geometry mismatch.");
+      }
       for (int previous = 0; previous < index; ++previous)
       {
-         if (&constraints[previous].level_set.get() == &constraint.level_set.get())
-         { return Failure(CutQuadratureReport::Status::InvalidInput, "Repeated level-set constraint."); }
+         if (&constraints[previous].level_set.get() ==
+             &constraint.level_set.get())
+         {
+            return Failure(CutQuadratureReport::Status::InvalidInput,
+                           "Repeated level-set constraint.");
+         }
       }
    }
    return {};
@@ -320,50 +392,85 @@ CutQuadratureReport CutDomain::Validate(Geometry::Type geometry) const
 
 void CutQuadrature::Clear()
 {
-   geometry = Geometry::INVALID; codimension = 0; region = Region::Unknown;
-   rule.SetSize(0); rule.SetOrder(-1); conormals.SetSize(0, 0, 0);
+   geometry = Geometry::INVALID;
+   codimension = 0;
+   region = Region::Unknown;
+   rule.SetSize(0);
+   rule.SetOrder(-1);
+   conormals.SetSize(0, 0, 0);
 }
+
 void CutQuadratureMapping::Clear()
 {
    physical_points.SetSize(0);
-   physical_conormals.SetSize(0, 0, 0); measure_scaling.SetSize(0);
+   physical_conormals.SetSize(0, 0, 0);
+   measure_scaling.SetSize(0);
 }
-CutQuadratureGenerator::CutQuadratureGenerator(const CutQuadratureBackend
-                                               &implementation)
+
+CutQuadratureGenerator::CutQuadratureGenerator(
+   const CutQuadratureBackend &implementation)
    : backend(implementation) { }
 
-CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
-                                                     const CutDomain &domain, int order, CutQuadrature &out,
-                                                     const IntegrationRule *fixed_points) const try
+CutQuadratureReport CutQuadratureGenerator::Generate(
+   Geometry::Type geometry, const CutDomain &domain, int order,
+   CutQuadrature &out, const IntegrationRule *fixed_points) const try
 {
    out.Clear();
    auto report = domain.Validate(geometry);
-   if (!report.Succeeded()) { return report; }
+   if (!report.Succeeded())
+   {
+      return report;
+   }
    if (order < 0)
-   { return Failure(CutQuadratureReport::Status::InvalidInput, "Negative quadrature order."); }
+   {
+      return Failure(CutQuadratureReport::Status::InvalidInput,
+                     "Negative quadrature order.");
+   }
    if (fixed_points)
    {
       if (domain.Codimension() || !fixed_points->GetNPoints())
-      { return Failure(CutQuadratureReport::Status::InvalidInput, "Invalid prescribed volume nodes."); }
+      {
+         return Failure(CutQuadratureReport::Status::InvalidInput,
+                        "Invalid prescribed volume nodes.");
+      }
       for (int index = 0; index < fixed_points->GetNPoints(); ++index)
       {
          if (!ValidPoint(geometry, fixed_points->IntPoint(index)))
-         { return Failure(CutQuadratureReport::Status::InvalidInput, "Invalid prescribed node."); }
+         {
+            return Failure(CutQuadratureReport::Status::InvalidInput,
+                           "Invalid prescribed node.");
+         }
       }
    }
    report = backend.CheckSupport(geometry, domain, order, fixed_points);
-   if (!report.Succeeded()) { return report; }
+   if (!report.Succeeded())
+   {
+      return report;
+   }
    report = backend.Generate(geometry, domain, order, out, fixed_points);
-   if (!report.Succeeded()) { out.Clear(); return report; }
+   if (!report.Succeeded())
+   {
+      out.Clear();
+      return report;
+   }
    auto fail = [&](CutQuadratureReport::Status status, const char *message)
-   { out.Clear(); return Failure(status, message); };
+   {
+      out.Clear();
+      return Failure(status, message);
+   };
    if ((out.region != CutQuadrature::Region::Full &&
         out.region != CutQuadrature::Region::Empty &&
         out.region != CutQuadrature::Region::Cut) ||
        (out.region == CutQuadrature::Region::Full && domain.Codimension() > 0))
-   { return fail(CutQuadratureReport::Status::NumericalFailure, "Invalid backend region."); }
+   {
+      return fail(CutQuadratureReport::Status::NumericalFailure,
+                  "Invalid backend region.");
+   }
    if (fixed_points && out.GetNPoints() != fixed_points->GetNPoints())
-   { return fail(CutQuadratureReport::Status::NumericalFailure, "Backend changed prescribed nodes."); }
+   {
+      return fail(CutQuadratureReport::Status::NumericalFailure,
+                  "Backend changed prescribed nodes.");
+   }
    out.geometry = geometry;
    out.codimension = domain.Codimension();
    out.rule.SetOrder(order);
@@ -371,37 +478,62 @@ CutQuadratureReport CutQuadratureGenerator::Generate(Geometry::Type geometry,
    const int codimension = domain.Codimension();
    const int count = out.GetNPoints();
    out.conormals.SetSize(0, 0, 0);
-   if (codimension) { out.conormals.SetSize(dimension, codimension, count); out.conormals = 0.; }
+   if (codimension)
+   {
+      out.conormals.SetSize(dimension, codimension, count);
+      out.conormals = 0.;
+   }
    for (int index = 0; index < count; ++index)
    {
       auto &point = out.rule.IntPoint(index);
       point.index = index;
       if (!std::isfinite(point.weight) || !ValidPoint(geometry, point) ||
           (out.region == CutQuadrature::Region::Empty && point.weight != 0))
-      { return fail(CutQuadratureReport::Status::NumericalFailure, "Invalid quadrature node."); }
+      {
+         return fail(CutQuadratureReport::Status::NumericalFailure,
+                     "Invalid quadrature node.");
+      }
       if (fixed_points)
       {
          const auto &prescribed = fixed_points->IntPoint(index);
          if (point.x != prescribed.x ||
              (dimension > 1 && point.y != prescribed.y) ||
              (dimension > 2 && point.z != prescribed.z))
-         { return fail(CutQuadratureReport::Status::NumericalFailure, "Backend moved a prescribed node."); }
+         {
+            return fail(CutQuadratureReport::Status::NumericalFailure,
+                        "Backend moved a prescribed node.");
+         }
       }
-      if (point.weight == 0 || !codimension) { continue; }
+      if (point.weight == 0 || !codimension)
+      {
+         continue;
+      }
       DenseMatrix normals(dimension, codimension);
       Vector normal(dimension);
       int column = 0;
-      for (int constraint = 0; constraint < domain.NumConstraints(); ++constraint)
+      for (int constraint = 0;
+           constraint < domain.NumConstraints(); ++constraint)
       {
          const auto &condition = domain.GetConstraint(constraint);
-         if (condition.sign != CutDomain::LevelSetSign::Zero) { continue; }
+         if (condition.sign != CutDomain::LevelSetSign::Zero)
+         {
+            continue;
+         }
          condition.level_set.get().EvalGradient(point, normal);
-         if (normal.Size() != dimension || !FiniteVector(normal) || normal.Norml2() == 0)
-         { return fail(CutQuadratureReport::Status::DegenerateGeometry, "Singular level-set gradient."); }
-         normal /= normal.Norml2(); normals.SetCol(column++, normal);
+         if (normal.Size() != dimension ||
+             !FiniteVector(normal) || normal.Norml2() == 0)
+         {
+            return fail(CutQuadratureReport::Status::DegenerateGeometry,
+                        "Singular level-set gradient.");
+         }
+         normal /= normal.Norml2();
+         normals.SetCol(column++, normal);
       }
       if (!FullRank(normals))
-      { return fail(CutQuadratureReport::Status::DegenerateGeometry, "Dependent conormals."); }
+      {
+         return fail(CutQuadratureReport::Status::DegenerateGeometry,
+                     "Dependent conormals.");
+      }
       out.conormals(index) = normals;
    }
    return report;
@@ -412,9 +544,9 @@ catch (const std::exception &error)
    return Failure(CutQuadratureReport::Status::NumericalFailure, error.what());
 }
 
-CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
-                                     const CutQuadrature &reference, int requested_data,
-                                     CutQuadratureMapping &out) try
+CutQuadratureReport MapCutQuadrature(
+   ElementTransformation &transformation, const CutQuadrature &reference,
+   int requested_data, CutQuadratureMapping &out) try
 {
    out.Clear();
    const int valid_data = CutQuadratureMapping::PHYSICAL_POINTS |
@@ -424,7 +556,10 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
        reference.geometry != transformation.GetGeometryType() ||
        reference.region == CutQuadrature::Region::Unknown ||
        (requested_data & ~valid_data))
-   { return Failure(CutQuadratureReport::Status::InvalidInput, "Invalid mapping request."); }
+   {
+      return Failure(CutQuadratureReport::Status::InvalidInput,
+                     "Invalid mapping request.");
+   }
    const int dimension = Geometry::Dimension[reference.geometry];
    const int space_dimension = transformation.GetSpaceDim();
    const int codimension = reference.codimension;
@@ -439,42 +574,73 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
                      "Invalid reference conormal dimensions.");
    }
    if (requested_data & CutQuadratureMapping::PHYSICAL_POINTS)
-   { out.physical_points.SetSize(space_dimension, count); }
-   if ((requested_data & CutQuadratureMapping::PHYSICAL_CONORMALS) && codimension)
-   { out.physical_conormals.SetSize(space_dimension, codimension, count); out.physical_conormals = 0.; }
+   {
+      out.physical_points.SetSize(space_dimension, count);
+   }
+   if ((requested_data & CutQuadratureMapping::PHYSICAL_CONORMALS) &&
+       codimension)
+   {
+      out.physical_conormals.SetSize(space_dimension, codimension, count);
+      out.physical_conormals = 0.;
+   }
    if (requested_data & CutQuadratureMapping::MEASURE_SCALING)
-   { out.measure_scaling.SetSize(count); out.measure_scaling = 0.; }
+   {
+      out.measure_scaling.SetSize(count);
+      out.measure_scaling = 0.;
+   }
    auto fail = [&](CutQuadratureReport::Status status, const char *message)
-   { out.Clear(); return Failure(status, message); };
+   {
+      out.Clear();
+      return Failure(status, message);
+   };
    for (int index = 0; index < count; ++index)
    {
       const auto &point = reference.rule.IntPoint(index);
-      if (!std::isfinite(point.weight) || !ValidPoint(reference.geometry, point))
-      { return fail(CutQuadratureReport::Status::InvalidInput, "Invalid reference node or weight."); }
+      if (!std::isfinite(point.weight) ||
+          !ValidPoint(reference.geometry, point))
+      {
+         return fail(CutQuadratureReport::Status::InvalidInput,
+                     "Invalid reference node or weight.");
+      }
       if (requested_data & CutQuadratureMapping::PHYSICAL_POINTS)
       {
          Vector physical(space_dimension);
          transformation.Transform(point, physical);
          if (!FiniteVector(physical))
-         { return fail(CutQuadratureReport::Status::NumericalFailure, "Nonfinite physical point."); }
+         {
+            return fail(CutQuadratureReport::Status::NumericalFailure,
+                        "Nonfinite physical point.");
+         }
          out.physical_points.SetCol(index, physical);
       }
-      if (point.weight == 0) { continue; }
+      if (point.weight == 0)
+      {
+         continue;
+      }
       const bool map_conormals =
-         codimension && (requested_data & CutQuadratureMapping::PHYSICAL_CONORMALS);
+         codimension &&
+         (requested_data & CutQuadratureMapping::PHYSICAL_CONORMALS);
       if (!(requested_data & CutQuadratureMapping::MEASURE_SCALING) &&
           !map_conormals)
-      { continue; }
+      {
+         continue;
+      }
       transformation.SetIntPoint(&point);
       const DenseMatrix &jacobian = transformation.Jacobian();
       DenseMatrix mapping_basis, mapping_upper;
       real_t mapping_measure;
       if (!FactorQR(jacobian, mapping_basis, mapping_upper, mapping_measure))
-      { return fail(CutQuadratureReport::Status::DegenerateGeometry, "Singular element mapping."); }
+      {
+         return fail(CutQuadratureReport::Status::DegenerateGeometry,
+                     "Singular element mapping.");
+      }
       const real_t physical_volume = space_dimension == dimension ?
                                      std::abs(jacobian.Det()) : mapping_measure;
       if (!(physical_volume > 0) || !std::isfinite(physical_volume))
-      { return fail(CutQuadratureReport::Status::DegenerateGeometry, "Invalid element measure."); }
+      {
+         return fail(CutQuadratureReport::Status::DegenerateGeometry,
+                     "Invalid element measure.");
+      }
       real_t scaling = physical_volume;
       if (codimension)
       {
@@ -482,14 +648,21 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
          DenseMatrix normal_basis, normal_upper;
          real_t normal_measure;
          if (!FactorQR(normals, normal_basis, normal_upper, normal_measure))
-         { return fail(CutQuadratureReport::Status::DegenerateGeometry, "Dependent reference conormals."); }
+         {
+            return fail(CutQuadratureReport::Status::DegenerateGeometry,
+                        "Dependent reference conormals.");
+         }
          DenseMatrix dual;
          SolveUpperTranspose(mapping_upper, normal_basis, dual);
          DenseMatrix dual_basis, dual_upper;
          real_t dual_measure;
          if (!FactorQR(dual, dual_basis, dual_upper, dual_measure))
-         { return fail(CutQuadratureReport::Status::DegenerateGeometry, "Dependent physical conormals."); }
-         scaling = codimension == dimension ? 1 : physical_volume * dual_measure;
+         {
+            return fail(CutQuadratureReport::Status::DegenerateGeometry,
+                        "Dependent physical conormals.");
+         }
+         scaling = codimension == dimension ?
+                   1 : physical_volume * dual_measure;
          if (map_conormals)
          {
             DenseMatrix original_dual;
@@ -501,16 +674,25 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
                Vector normal(space_dimension);
                physical.GetColumn(column, normal);
                if (!FiniteVector(normal) || normal.Norml2() == 0)
-               { return fail(CutQuadratureReport::Status::DegenerateGeometry, "Invalid physical conormal."); }
-               normal /= normal.Norml2(); physical.SetCol(column, normal);
+               {
+                  return fail(CutQuadratureReport::Status::DegenerateGeometry,
+                              "Invalid physical conormal.");
+               }
+               normal /= normal.Norml2();
+               physical.SetCol(column, normal);
             }
             out.physical_conormals(index) = physical;
          }
       }
       if (!(scaling > 0) || !std::isfinite(scaling))
-      { return fail(CutQuadratureReport::Status::NumericalFailure, "Invalid manifold measure."); }
+      {
+         return fail(CutQuadratureReport::Status::NumericalFailure,
+                     "Invalid manifold measure.");
+      }
       if (requested_data & CutQuadratureMapping::MEASURE_SCALING)
-      { out.measure_scaling(index) = scaling; }
+      {
+         out.measure_scaling(index) = scaling;
+      }
    }
    return {};
 }

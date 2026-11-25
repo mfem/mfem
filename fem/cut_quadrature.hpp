@@ -63,8 +63,7 @@ public:
 
     Default construction leaves the object uninitialized. GetReferenceGeometry
     returns INVALID while uninitialized. Evaluation and GetFE require
-    successful initialization.
-    There is no retained Bernstein conversion or element-dependent cache. */
+    successful initialization. */
 class PolynomialLevelSet : public ReferenceLevelSet
 {
 public:
@@ -72,16 +71,13 @@ public:
 
    void Set(const FiniteElement &element, const Vector &values);
 
-   /** Extract local scalar dofs, including the local dof transformation.
-       The GridFunction and its finite-element space must remain valid and
-       unchanged for the lifetime of the borrowed finite element. */
+   /// Extract local scalar dofs, including the local dof transformation.
+   /// The GridFunction and its finite-element space must remain valid and
+   /// unchanged for the lifetime of the borrowed finite element.
    void Set(const GridFunction &function, int element);
 
-   /** Project coefficient(T(point)) into the supplied reference polynomial
-       space. Projection is local; it does not construct a mesh-wide field.
-       Interpolate in the matching Gauss-Legendre nodal tensor space, then
-       convert to the supplied basis. Exactly representable polynomials are
-       preserved, including for positive (Bernstein) elements. */
+   /// Project coefficient into the supplied reference polynomial space.
+   /// The projection is local; it does not construct a mesh-wide field.
    void Project(Coefficient &coefficient,
                 ElementTransformation &transformation,
                 const FiniteElement &element);
@@ -89,16 +85,6 @@ public:
    bool IsInitialized() const { return element != nullptr; }
    const FiniteElement &GetFE() const;
    const Vector &GetDofs() const { return dofs; }
-
-   /** Convert exactly, up to roundoff, to a supplied supported Bernstein
-       basis on the same reference geometry spanning this polynomial space.
-       No interpolation or degree reduction is permitted. Output uses MFEM
-       dof ordering and the geometry's native basis: barycentric on simplices,
-       tensor-product on boxes. Exporting tensor-product data to ALGOIM needs
-       a permutation; exporting simplex data to a box needs a separate basis
-       conversion and domain restriction inside the backend. */
-   void GetBernsteinCoefficients(const FiniteElement &bernstein_element,
-                                 Vector &coefficients) const;
 
    Geometry::Type GetReferenceGeometry() const override;
    real_t Eval(const IntegrationPoint &point) const override;
@@ -273,13 +259,12 @@ public:
       Geometry::Type geometry, const CutDomain &domain, int order,
       const IntegrationRule *fixed_points = nullptr) const = 0;
 
-   /** Generate the reference rule and region directly in @a out.
-
-       This method validates its inputs independently of CheckSupport.
-       Nonzero-weight nodes must lie in the domain closure; surface nodes must
-       lie on the interface, and weights may be signed. A prescribed point
-       layout keeps its coordinates and order, using zero weights for an empty
-       domain. On failure @a out is cleared. */
+   /// Generate the reference rule and region directly in @a out. This method
+   /// validates its inputs independently of CheckSupport. Nonzero-weight nodes
+   /// must lie in the domain closure; surface nodes must lie on the interface,
+   /// and weights may be signed. A prescribed point layout keeps its
+   /// coordinates and order, using zero weights for an empty domain.
+   /// On failure @a out is cleared.
    virtual CutQuadratureReport Generate(
       Geometry::Type geometry, const CutDomain &domain, int order,
       CutQuadrature &out,

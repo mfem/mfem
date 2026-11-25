@@ -63,19 +63,56 @@ struct AlgoimPolynomial
    }
 };
 
+void BernsteinCoefficients(const PolynomialLevelSet &level_set,
+                           const PositiveTensorFiniteElement &target,
+                           Vector &coefficients)
+{
+   const FiniteElement &source = level_set.GetFE();
+   const Vector &source_values = level_set.GetDofs();
+   if (const auto *positive =
+          dynamic_cast<const PositiveTensorFiniteElement *>(&source))
+   {
+      const auto &source_map = positive->GetDofMap();
+      const auto &target_map = target.GetDofMap();
+      coefficients.SetSize(source_values.Size());
+      for (int index = 0; index < source_values.Size(); ++index)
+      {
+         coefficients(target_map.Size() ? target_map[index] : index) =
+            source_values(source_map.Size() ? source_map[index] : index);
+      }
+      return;
+   }
+
+   DenseMatrix interpolation(source.GetDof(), target.GetDof());
+   Vector shape(target.GetDof());
+   for (int index = 0; index < source.GetDof(); ++index)
+   {
+      target.CalcShape(source.GetNodes().IntPoint(index), shape);
+      interpolation.SetRow(index, shape);
+   }
+   DenseMatrixInverse inverse(interpolation);
+   coefficients.SetSize(target.GetDof());
+   inverse.Mult(source_values, coefficients);
+   for (int index = 0; index < coefficients.Size(); ++index)
+   {
+      MFEM_VERIFY(std::isfinite(coefficients(index)),
+                  "ALGOIM Bernstein conversion failed.");
+   }
+}
+
 void AlgoimPolynomial::Set(const PolynomialLevelSet &level_set)
 {
    dimension = level_set.GetDim();
    extent = level_set.GetFE().GetOrder() + 1;
    L2_FECollection collection(extent - 1, dimension, BasisType::Positive);
-   const auto &positive =
-      *collection.FiniteElementForGeometry(level_set.GetReferenceGeometry());
+   const auto &positive = dynamic_cast<const PositiveTensorFiniteElement &>(
+                             *collection.FiniteElementForGeometry(
+                                level_set.GetReferenceGeometry()));
    Vector values;
-   level_set.GetBernsteinCoefficients(positive, values);
+   BernsteinCoefficients(level_set, positive, values);
    const real_t scale = values.Normlinf();
    if (scale > 0) { values /= scale; }
-   const auto &mapping =
-      dynamic_cast<const PositiveTensorFiniteElement &>(positive).GetDofMap();
+   const auto &mapping = positive.GetDofMap();
    coefficients.resize(values.Size());
    for (int index = 0; index < values.Size(); ++index)
    { coefficients[index] = values(mapping.Size() ? mapping[index] : index); }
