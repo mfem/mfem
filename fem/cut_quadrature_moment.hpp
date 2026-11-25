@@ -23,16 +23,14 @@ class ReferenceLevelSet;
 
 #ifdef MFEM_USE_LAPACK
 
-/**
- @brief Class for subdomain IntegrationRules by means of moment-fitting
+/** @brief Class for subdomain IntegrationRules by means of moment-fitting
 
- Class for subdomain (surface and subdomain) IntegrationRules by means of
- moment-fitting. The class provides different functions to construct the
- IntegrationRules. The construction is done as described in Mueller et al. in
- "Highly accurate surface and volume integration on implicit domains by means of
- moment-fitting" (2013, see
- https://onlinelibrary.wiley.com/doi/full/10.1002/nme.4569).
-*/
+    Class for subdomain (surface and subdomain) IntegrationRules by means of
+    moment-fitting. The class provides different functions to construct the
+    IntegrationRules. The construction is done as described in Mueller et al. in
+    "Highly accurate surface and volume integration on implicit domains by
+     means of moment-fitting", 2013.
+    (see https://onlinelibrary.wiley.com/doi/full/10.1002/nme.4569) */
 class MomentFittingIntRules
 {
 protected:

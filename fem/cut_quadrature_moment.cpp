@@ -1574,24 +1574,24 @@ public:
       if (order == 0)
       {
          return MomentFailure(CutQuadratureReport::Status::Unsupported,
-                              "Moment fitting requires positive order.");
+                              "Requires positive order.");
       }
       if (geometry != Geometry::SEGMENT && geometry != Geometry::SQUARE &&
           geometry != Geometry::CUBE)
       {
          return MomentFailure(CutQuadratureReport::Status::Unsupported,
-                              "Moment fitting supports segments, quads, and hexes.");
+                              "Supports only segments / quads / hexes.");
       }
       if (domain.NumConstraints() > 1)
       {
          return MomentFailure(CutQuadratureReport::Status::Unsupported,
-                              "Moment fitting supports one level-set constraint.");
+                              "Supports only one level-set constraint.");
       }
       if (geometry == Geometry::CUBE &&
           order + (domain.Codimension() ? 0 : 1) > 7)
       {
          return MomentFailure(CutQuadratureReport::Status::Unsupported,
-                              "Moment-fitting order exceeds the 3D basis limit.");
+                              "Order exceeds the 3D basis limit.");
       }
       if (fixed_points)
       {
@@ -1613,8 +1613,7 @@ public:
 
    CutQuadratureReport Generate(
       Geometry::Type geometry, const CutDomain &domain, int order,
-      CutQuadrature &out,
-      const IntegrationRule *fixed_points) const override
+      CutQuadrature &out, const IntegrationRule *fixed_points) const override
    {
       out.Clear();
       auto report = CheckSupport(geometry, domain, order, fixed_points);
@@ -1636,10 +1635,15 @@ public:
       MomentFittingIntRules rules(order, constraint.level_set.get(), sign,
                                   fixed_points);
       if (constraint.sign == CutDomain::LevelSetSign::Zero)
-      { rules.GetSurfaceIntegrationRule(transformation, out.rule); }
+      {
+         rules.GetSurfaceIntegrationRule(transformation, out.rule);
+      }
       else
-      { rules.GetVolumeIntegrationRule(transformation, out.rule); }
-      out.region = HasNonzeroWeight(out.rule) ? CutQuadrature::Region::Cut :
+      {
+         rules.GetVolumeIntegrationRule(transformation, out.rule);
+      }
+      out.region = HasNonzeroWeight(out.rule) ?
+                   CutQuadrature::Region::Cut :
                    CutQuadrature::Region::Empty;
       report.moment_degree = order;
       return report;
