@@ -318,7 +318,7 @@ int main(int argc, char *argv[])
       //                 P = [ diag(M)         0         ]
       //                     [  0       B diag(M)^-1 B^T ]
       //
-      //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
+      //     Here we use HypreBoomerAMG to approximate the inverse of the
       //     pressure Schur Complement
       HypreParMatrix *MinvBt = NULL;
       HypreParMatrix *S = NULL;
