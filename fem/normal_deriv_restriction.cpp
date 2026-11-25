@@ -349,18 +349,21 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
                                    t?vd:d, d, t?d:ne_shared, t?ne_shared:vd);
    auto d_y = Reshape(y.Write(), q, vd, 2, nf);
 
-   mfem::forall_2D(nf, 2, q, [=] MFEM_HOST_DEVICE (int f) -> void
+   // a single face is well under a warp, so z batches faces to fill one
+   constexpr int NBZ = T_D1D ? (32 / (2 * T_D1D) > 0 ? 32 / (2 * T_D1D) : 1) : 1;
+   mfem::forall_2D_batch(nf, 2, q, NBZ, [=] MFEM_HOST_DEVICE (int f) -> void
    {
       constexpr int MD = (T_D1D) ? T_D1D : DofQuadLimits::MAX_D1D;
+      const int fz = MFEM_THREAD_ID(z);
 
       MFEM_SHARED real_t G_s[MD*MD];
       DeviceMatrix G(G_s, q, d);
 
-      MFEM_SHARED int E[2];
-      MFEM_SHARED int FID[2];
-      MFEM_SHARED int F2V[2][MD];
+      MFEM_SHARED int E[NBZ][2];
+      MFEM_SHARED int FID[NBZ][2];
+      MFEM_SHARED int F2V[NBZ][2][MD];
 
-      if (MFEM_THREAD_ID(x) == 0)
+      if (MFEM_THREAD_ID(x) == 0 && fz == 0)
       {
          MFEM_FOREACH_THREAD(j, y, d)
          {
@@ -375,25 +378,25 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
       {
          if (MFEM_THREAD_ID(y) == 0)
          {
-            E[side] = f2e(side, 0, f);
-            FID[side] = f2e(side, 1, f);
+            E[fz][side] = f2e(side, 0, f);
+            FID[fz][side] = f2e(side, 1, f);
          }
 
          MFEM_FOREACH_THREAD(j, y, d)
          {
-            F2V[side][j] = f2v(j, side, f);
+            F2V[fz][side][j] = f2v(j, side, f);
          }
       }
       MFEM_SYNC_THREAD;
 
       MFEM_FOREACH_THREAD(side, x, 2)
       {
-         const int el = E[side];
+         const int el = E[fz][side];
          const bool shared = (el >= num_elem);
          const auto &d_x_e = shared ? d_x_shared : d_x;
          const int el_idx = shared ? el - num_elem : el;
 
-         const int face_id = FID[side];
+         const int face_id = FID[fz][side];
 
          MFEM_FOREACH_THREAD(p, y, q)
          {
@@ -406,7 +409,7 @@ void L2NormalDerivativeFaceRestriction::Mult2D(const Vector &x, Vector &y) const
             }
             else
             {
-               const int ij = F2V[side][p];
+               const int ij = F2V[fz][side][p];
                const int i = ij % q;
                const int j = ij / q;
 
