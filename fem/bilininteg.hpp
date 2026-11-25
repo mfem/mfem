@@ -61,7 +61,7 @@ public:
 
    virtual void AssemblePABoundary(const FiniteElementSpace &fes);
 
-   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+   void AssemblePAInteriorFaces(const FiniteElementSpace &fes) override;
 
    virtual void AssemblePABoundaryFaces(const FiniteElementSpace &fes);
 

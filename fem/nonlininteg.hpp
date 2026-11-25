@@ -100,6 +100,11 @@ public:
    virtual void AssemblePA(const FiniteElementSpace &trial_fes,
                            const FiniteElementSpace &test_fes);
 
+   /// Method defining partial assembly on the interior faces of @a fes.
+   /** The result of the partial assembly is stored internally so that it can be
+       used later in the methods AddMultPA(). */
+   virtual void AssemblePAInteriorFaces(const FiniteElementSpace &fes);
+
    /** @brief Prepare the integrator for partial assembly (PA) gradient
        evaluations on the given FE space @a fes at the state @a x. */
    /** The result of the partial assembly is stored internally so that it can be
