@@ -579,24 +579,28 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(
    auto d_x = Reshape(x.ReadWrite(), t?vd:d, d, t?d:ne, t?ne:vd);
    auto d_y = Reshape(y.Read(), q, vd, 2, nf);
 
-   mfem::forall_2D(ne_type, d, d, [=] MFEM_HOST_DEVICE (int e)
+   // a single element is under a warp, so z batches elements to fill one
+   constexpr int NBZ = T_D1D ? (32 / (T_D1D * T_D1D) > 0 ?
+                                32 / (T_D1D * T_D1D) : 1) : 1;
+   mfem::forall_2D_batch(ne_type, d, d, NBZ, [=] MFEM_HOST_DEVICE (int e)
    {
       constexpr int MD = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      const int fz = MFEM_THREAD_ID(z);
 
-      MFEM_SHARED real_t y_s[MD];
-      MFEM_SHARED int pp[MD];
-      MFEM_SHARED int jj;
-      if (MFEM_THREAD_ID(x) == 0 && MFEM_THREAD_ID(y) == 0) { jj = 0; }
+      MFEM_SHARED real_t y_s[NBZ][MD];
+      MFEM_SHARED int pp[NBZ][MD];
+      MFEM_SHARED int jj[NBZ];
+      if (MFEM_THREAD_ID(x) == 0 && MFEM_THREAD_ID(y) == 0) { jj[fz] = 0; }
 
       MFEM_SHARED real_t BG[MD*MD];
       DeviceMatrix G(BG, q, d);
 
-      MFEM_SHARED real_t x_s[MD*MD];
-      DeviceMatrix xx(x_s, d, d);
+      MFEM_SHARED real_t x_s[NBZ][MD*MD];
+      DeviceMatrix xx(x_s[fz], d, d);
 
-      MFEM_SHARED int el; // global element index
-      MFEM_SHARED int faces[4];
-      MFEM_SHARED int sides[4];
+      MFEM_SHARED int el[NBZ]; // global element index
+      MFEM_SHARED int faces[NBZ][4];
+      MFEM_SHARED int sides[NBZ][4];
 
       MFEM_FOREACH_THREAD(i,x,d)
       {
@@ -611,52 +615,54 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(
       {
          if (MFEM_THREAD_ID(x) == 0)
          {
-            el = e2f(0, e);
+            el[fz] = e2f(0, e);
          }
 
          MFEM_FOREACH_THREAD(i, x, 4)
          {
-            faces[i] = e2f(1 + i, e);
-            sides[i] = e2f(5 + i, e);
+            faces[fz][i] = e2f(1 + i, e);
+            sides[fz][i] = e2f(5 + i, e);
          }
       }
       MFEM_SYNC_THREAD;
 
       for (int face_id=0; face_id < 4; ++face_id)
       {
-         const int f = faces[face_id];
+         const int f = faces[fz][face_id];
+         // barriers sit outside the guard, so every element walks the same count
+         const bool active = (f >= 0);
+         const int side = active ? sides[fz][face_id] : 0;
 
-         if (f < 0) { continue; }
-
-         const int side = sides[face_id];
-
-         if (MFEM_THREAD_ID(y) == 0)
+         if (active && MFEM_THREAD_ID(y) == 0)
          {
             MFEM_FOREACH_THREAD(p,x,d)
             {
-               y_s[p] = d_y(p, 0, side, f);
+               y_s[fz][p] = d_y(p, 0, side, f);
 
                const int ij = f2v(p, side, f);
                const int i = ij % q;
                const int j = ij / q;
 
-               pp[(face_id == 0 || face_id == 2) ? i : j] = p;
+               pp[fz][(face_id == 0 || face_id == 2) ? i : j] = p;
                if (MFEM_THREAD_ID(x) == 0)
                {
-                  jj = (face_id == 0 || face_id == 2) ? j : i;
+                  jj[fz] = (face_id == 0 || face_id == 2) ? j : i;
                }
             }
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(k,x,d)
+         if (active)
          {
-            MFEM_FOREACH_THREAD(l,y,d)
+            MFEM_FOREACH_THREAD(k,x,d)
             {
-               const int p = (face_id == 0 || face_id == 2) ? pp[k] : pp[l];
-               const int kk = (face_id == 0 || face_id == 2) ? l : k;
-               const real_t g = G(jj, kk);
-               xx(k,l) += g * y_s[p];
+               MFEM_FOREACH_THREAD(l,y,d)
+               {
+                  const int p = (face_id == 0 || face_id == 2) ? pp[fz][k] : pp[fz][l];
+                  const int kk = (face_id == 0 || face_id == 2) ? l : k;
+                  const real_t g = G(jj[fz], kk);
+                  xx(k,l) += g * y_s[fz][p];
+               }
             }
          }
       }
@@ -667,7 +673,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose2D(
          MFEM_FOREACH_THREAD(l,y,d)
          {
             const int c = 0;
-            d_x(t?c:k, t?k:l, t?l:el, t?el:c) += xx(k,l);
+            d_x(t?c:k, t?k:l, t?l:el[fz], t?el[fz]:c) += xx(k,l);
          }
       }
    });
@@ -702,33 +708,38 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
    auto d_x = Reshape(x.ReadWrite(), t?vd:d, d, d, t?d:ne, t?ne:vd);
    const auto d_y = Reshape(y.Read(), q2d, vd, 2, nf);
 
-   mfem::forall_2D(ne_type, q, q, [=] MFEM_HOST_DEVICE (int e) -> void
+   // a single element is under a warp, so z batches elements to fill one
+   constexpr int NBZ = T_D1D ? (32 / (T_D1D * T_D1D) > 0 ?
+                                32 / (T_D1D * T_D1D) : 1) : 1;
+   mfem::forall_2D_batch(ne_type, q, q, NBZ, [=] MFEM_HOST_DEVICE (int e) -> void
    {
       static constexpr int MD = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      const int fz = MFEM_THREAD_ID(z);
 
-      MFEM_SHARED int pp[MD][MD];
-      MFEM_SHARED real_t y_s[MD*MD];
-      MFEM_SHARED int jj;
-      if (MFEM_THREAD_ID(x) == 0 && MFEM_THREAD_ID(y) == 0) { jj = 0; }
+      MFEM_SHARED int pp[NBZ][MD][MD];
+      MFEM_SHARED real_t y_s[NBZ][MD*MD];
+      MFEM_SHARED int jj[NBZ];
+      if (MFEM_THREAD_ID(x) == 0 && MFEM_THREAD_ID(y) == 0) { jj[fz] = 0; }
 
-      MFEM_SHARED real_t xx_s[MD*MD*MD];
-      auto xx = Reshape(xx_s, d, d, d);
+      MFEM_SHARED real_t xx_s[NBZ][MD*MD*MD];
+      auto xx = Reshape(xx_s[fz], d, d, d);
 
       MFEM_SHARED real_t G_s[MD*MD];
       DeviceMatrix G(G_s, q, d);
 
-      MFEM_SHARED int el;
-      MFEM_SHARED int faces[6];
-      MFEM_SHARED int sides[6];
+      MFEM_SHARED int el[NBZ];
+      MFEM_SHARED int faces[NBZ][6];
+      MFEM_SHARED int sides[NBZ][6];
 
       // Load G into shared memory
-      MFEM_FOREACH_THREAD(j, x, d)
+      if (fz == 0)
       {
-         MFEM_FOREACH_THREAD(i, y, q)
+         MFEM_FOREACH_THREAD(j, x, d)
          {
-            G(i, j) = a * G_(i, j);
-            G(i, j) = a * G_(i, j);
-            G(i, j) = a * G_(i, j);
+            MFEM_FOREACH_THREAD(i, y, q)
+            {
+               G(i, j) = a * G_(i, j);
+            }
          }
       }
 
@@ -736,13 +747,13 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
       {
          if (MFEM_THREAD_ID(x) == 0)
          {
-            el = e2f(0, e); // global element index
+            el[fz] = e2f(0, e); // global element index
          }
 
          MFEM_FOREACH_THREAD(i, x, 6)
          {
-            faces[i] = e2f(1 + i, e);
-            sides[i] = e2f(7 + i, e);
+            faces[fz][i] = e2f(1 + i, e);
+            sides[fz][i] = e2f(7 + i, e);
          }
       }
 
@@ -760,50 +771,53 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
 
       for (int face_id = 0; face_id < 6; ++face_id)
       {
-         const int f = faces[face_id];
-
-         if (f < 0)
-         {
-            continue;
-         }
-
-         const int side = sides[face_id];
+         const int f = faces[fz][face_id];
+         // barriers sit outside the guard, so every element walks the same count
+         const bool active = (f >= 0);
+         const int side = active ? sides[fz][face_id] : 0;
 
          // is this face parallel to the x-y plane in reference coordinates?
          const bool xy_plane = (face_id == 0 || face_id == 5);
          const bool xz_plane = (face_id == 1 || face_id == 3);
 
-         MFEM_FOREACH_THREAD(p1, x, q)
+         if (active)
          {
-            MFEM_FOREACH_THREAD(p2, y, q)
+            MFEM_FOREACH_THREAD(p1, x, q)
             {
-               const int p = p1 + q * p2;
-               y_s[p] = d_y(p, 0, side, f);
-
-               const int ijk = f2v(p, side, f);
-               const int k = ijk / q2d;
-               const int i = ijk % q;
-               const int j = (ijk - q2d*k) / q;
-
-               pp[(xy_plane || xz_plane) ? i : j][(xy_plane) ? j : k] = p;
-               if (MFEM_THREAD_ID(x) == 0 && MFEM_THREAD_ID(y) == 0)
+               MFEM_FOREACH_THREAD(p2, y, q)
                {
-                  jj = (xy_plane) ? k : (xz_plane) ? j : i;
+                  const int p = p1 + q * p2;
+                  y_s[fz][p] = d_y(p, 0, side, f);
+
+                  const int ijk = f2v(p, side, f);
+                  const int k = ijk / q2d;
+                  const int i = ijk % q;
+                  const int j = (ijk - q2d*k) / q;
+
+                  pp[fz][(xy_plane || xz_plane) ? i : j][(xy_plane) ? j : k] = p;
+                  if (MFEM_THREAD_ID(x) == 0 && MFEM_THREAD_ID(y) == 0)
+                  {
+                     jj[fz] = (xy_plane) ? k : (xz_plane) ? j : i;
+                  }
                }
             }
          }
          MFEM_SYNC_THREAD;
 
-         MFEM_FOREACH_THREAD(n, x, d)
+         if (active)
          {
-            MFEM_FOREACH_THREAD(m, y, d)
+            MFEM_FOREACH_THREAD(n, x, d)
             {
-               for (int l = 0; l < d; ++l)
+               MFEM_FOREACH_THREAD(m, y, d)
                {
-                  const int p = (xy_plane) ? pp[l][m] : (xz_plane) ? pp[l][n] : pp[m][n];
-                  const int kk = (xy_plane) ? n : (xz_plane) ? m : l;
-                  const real_t g = G(jj, kk);
-                  xx(l, m, n) += g * y_s[p];
+                  for (int l = 0; l < d; ++l)
+                  {
+                     const int p = (xy_plane) ? pp[fz][l][m] :
+                                   (xz_plane) ? pp[fz][l][n] : pp[fz][m][n];
+                     const int kk = (xy_plane) ? n : (xz_plane) ? m : l;
+                     const real_t g = G(jj[fz], kk);
+                     xx(l, m, n) += g * y_s[fz][p];
+                  }
                }
             }
          }
@@ -818,7 +832,7 @@ void L2NormalDerivativeFaceRestriction::AddMultTranspose3D(
             for (int l = 0; l < d; ++l)
             {
                const int c = 0;
-               d_x(t?c:l, t?l:m, t?m:n, t?n:el, t?el:c) += xx(l, m, n);
+               d_x(t?c:l, t?l:m, t?m:n, t?n:el[fz], t?el[fz]:c) += xx(l, m, n);
             }
          }
       }
