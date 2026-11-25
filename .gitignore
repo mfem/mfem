@@ -161,6 +161,7 @@ examples/hdg/mesh.*
 examples/hdg/ex5
 examples/hdg/ex5p
 examples/hdg/ex5-max
+examples/hdg/ex5p-max
 examples/hdg/ex5.mesh
 examples/hdg/ex5-p-*.bp
 examples/hdg/ex6
