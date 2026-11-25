@@ -282,8 +282,7 @@ struct GeneralFunction
       else
       {
          return Checked(dynamic_cast<const AlgoimIntervalLevelSet<Dimension> &>
-                        (level_set)
-                        .EvalInterval(point) * sign);
+                        (level_set).EvalInterval(point) * sign);
       }
    }
 
