@@ -48,23 +48,26 @@ int main(int argc, char *argv[])
    real_t tol = 1e-6;
    bool visualization = false;
 
-   int max_iterations = 20;
+   int proximal_iterations = 20;
    int newton_iterations = 10;
-   real_t increment_u = 0.1;
+   real_t min_newt_tol = 1e-8;
+   real_t increment_u = -mfem::infinity();
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&ref_levels, "-r", "--ref_levels",
                   "Number of uniform mesh refinements.");
-   args.AddOption(&max_iterations, "-i", "--iterations",
-                  "Maximum number of iterations.");
+   args.AddOption(&proximal_iterations, "-i", "--iterations",
+                  "Maximum number of proximal iterations.");
    args.AddOption(&newton_iterations, "-ni", "--newton_iters",
                   "Maximum number of newton solver iterations.");
    args.AddOption(&alpha, "-a", "--alpha",
                   "Alpha parameter for boundary condition.");
    args.AddOption(&tol, "-tol", "--tolerance",
                   "Iteration tolerance.");
+   args.AddOption(&min_newt_tol, "-mnt", "--min-newton-tol",
+                  "Minimum Newton update tolerance.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -77,6 +80,7 @@ int main(int argc, char *argv[])
    if (order < 1)
    {
       mfem::err << "Require order >= 1" << endl;
+      return 1;
    }
    args.PrintOptions(cout);
 
@@ -207,8 +211,8 @@ int main(int argc, char *argv[])
    }
 
    // 11. Each Newton step solves the linearized saddle point system:
-   //             | K    -B^T | | δu |   | -R_u |
-   //             | B     M   | | δκ | = | -R_κ |.
+   //             | K    -B^T | | δu |   | R_u |
+   //             | B     M   | | δκ | = | R_κ |.
    //     K is the elasticity stiffness matrix, B is the normal-trace coupling,
    //     and M is the boundary mass matrix weighted by α exp(-ψ).
 
@@ -221,12 +225,13 @@ int main(int argc, char *argv[])
    b_force.AddDomainIntegrator(new VectorDomainLFIntegrator(f_coeff));
    b_force.Assemble();
 
-   // Assemble (exp(-ψ) - ϕ, q)_Γ, reassemble whenever ψ changes.
+   // Assemble (exp(-ψ) - ϕ, q)_Γ directly into the residual when ψ changes.
    GridFunctionCoefficient psi_cf(&psi_gf);
    TransformedCoefficient exp_neg_psi(&psi_cf, ExponentialFunction);
    SumCoefficient exp_minus_gap(exp_neg_psi, gap_cf, 1.0, -1.0);
    LinearForm b1(&L2fes);
    b1.AddDomainIntegrator(new DomainLFIntegrator(exp_minus_gap, &ir));
+   b1.MakeRef(&L2fes, residual.GetBlock(1), 0);
 
    // 11b. Assemble the fixed bilinear forms and set up the block Jacobian.
    // Assemble K, the matrix of the elasticity bilinear form a(u,v).
@@ -328,7 +333,7 @@ int main(int argc, char *argv[])
    }
 
    // 15. Perform proximal iterations, with an inner Newton solve.
-   for (int k = 0; k < max_iterations; k++)
+   for (int k = 0; k < proximal_iterations; k++)
    {
       // Store the previous displacement to measure the update.
       GridFunction u_tmp(&H1fes);
@@ -340,8 +345,7 @@ int main(int argc, char *argv[])
       for (int j = 0; j < newton_iterations; j++)
       {
          // Keep ψ_old fixed and recover ψ = ψ_old - ακ.
-         psi_gf = psi_old_gf;
-         psi_gf.Add(-alpha, kappa_gf);
+         add(psi_old_gf, -alpha, kappa_gf, psi_gf);
 
          // Assemble the nonlinear residual at the current (u, κ).
          // R_u = K u - B^T κ - f.
@@ -358,7 +362,6 @@ int main(int argc, char *argv[])
          // Reassemble the nonlinear boundary linearform.
          // R_κ = B u + assemble_Γ(exp(-ψ) - ϕ).
          b1.Assemble();
-         residual.GetBlock(1) = b1;
          residual.GetBlock(1) += disp_lift_contact;
          A10.AddMult(u_gf, residual.GetBlock(1));
 
@@ -381,21 +384,20 @@ int main(int argc, char *argv[])
 
             prec.SetDiagonalBlock(1,&P11);
 
-            // Solve J (δu, δκ) = -R, then update both unknowns.
-            residual *= -1.0;
+            // Solve J (δu, δκ) = R, then subtract the correction.
             delta = 0.0;
             gmres.Mult(residual, delta);
+            MFEM_VERIFY(gmres.GetConverged(), "Linear solver failed to converge");
             int num_iter = gmres.GetNumIterations();
             mfem::out << "\tLinear solver iterations: " << num_iter << endl;
-            x += delta;
+            x -= delta;
          }
 
          delete S;
 
-         psi_gf = psi_old_gf;
-         psi_gf.Add(-alpha, kappa_gf);
+         add(psi_old_gf, -alpha, kappa_gf, psi_gf);
 
-         // Check the displacement update for Newton convergence.
+         // Check Newton convergence using the PG increment and tolerance floor.
          u_tmp -= u_gf;
          real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
          u_tmp = u_gf;
@@ -403,13 +405,13 @@ int main(int argc, char *argv[])
          mfem::out << "\tNewton iteration: " << j+1
                    << ", Newton_update_size = " << Newton_update_size << endl;
 
-         if (Newton_update_size < increment_u)
+         if (Newton_update_size < std::max(increment_u, min_newt_tol))
          {
             break;
          }
       }
 
-      // update visualization
+      // Update visualization.
       if (visualization)
       {
          displacement_sock << "solution\n" << mesh << u_gf << flush;
@@ -429,7 +431,7 @@ int main(int argc, char *argv[])
       psi_old_gf = psi_gf;
       alpha *= 2.0;
 
-      if (increment_u < tol || k == max_iterations-1)
+      if (increment_u < tol || k == proximal_iterations-1)
       {
          break;
       }

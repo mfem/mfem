@@ -53,23 +53,26 @@ int main(int argc, char *argv[])
    real_t tol = 1e-6;
    bool visualization = false;
 
-   int max_iterations = 20;
+   int proximal_iterations = 20;
    int newton_iterations = 10;
-   real_t increment_u = 0.1;
+   real_t min_newt_tol = 1e-8;
+   real_t increment_u = -mfem::infinity();
 
    OptionsParser args(argc, argv);
    args.AddOption(&order, "-o", "--order",
                   "Finite element order (polynomial degree).");
    args.AddOption(&ref_levels, "-r", "--ref_levels",
                   "Number of uniform mesh refinements.");
-   args.AddOption(&max_iterations, "-i", "--iterations",
-                  "Maximum number of iterations.");
+   args.AddOption(&proximal_iterations, "-i", "--iterations",
+                  "Maximum number of proximal iterations.");
    args.AddOption(&newton_iterations, "-ni", "--newton_iters",
                   "Maximum number of newton solver iterations.");
    args.AddOption(&alpha, "-a", "--alpha",
                   "Alpha parameter for boundary condition.");
    args.AddOption(&tol, "-tol", "--tolerance",
                   "Iteration tolerance.");
+   args.AddOption(&min_newt_tol, "-mnt", "--min-newton-tol",
+                  "Minimum Newton update tolerance.");
    args.AddOption(&visualization, "-vis", "--visualization", "-no-vis",
                   "--no-visualization",
                   "Enable or disable GLVis visualization.");
@@ -82,6 +85,7 @@ int main(int argc, char *argv[])
    if (order < 1)
    {
       if (myid == 0) { mfem::err << "Require order >= 1" << endl; }
+      return 1;
    }
    if (myid == 0)
    {
@@ -216,8 +220,8 @@ int main(int argc, char *argv[])
    kappa_gf.GetTrueDofs(tx.GetBlock(1));
 
    // 11. Each Newton step solves the linearized saddle point system:
-   //             | K    -B^T | | δu |   | -R_u |
-   //             | B     M   | | δκ | = | -R_κ |.
+   //             | K    -B^T | | δu |   | R_u |
+   //             | B     M   | | δκ | = | R_κ |.
    //     K is the elasticity stiffness matrix, B is the normal-trace coupling,
    //     and M is the boundary mass matrix weighted by α exp(-ψ).
 
@@ -287,13 +291,13 @@ int main(int argc, char *argv[])
    }
 
    // Construct the fixed AMG approximation P00 ≈ K^(-1).
-   HypreBoomerAMG *P00 = new HypreBoomerAMG(*A00);
-   P00->SetElasticityOptions(&H1fes);
-   P00->SetPrintLevel(0);
+   HypreBoomerAMG P00(*A00);
+   P00.SetElasticityOptions(&H1fes);
+   P00.SetPrintLevel(0);
 
    // Approximate the action of P^(-1) using P00, P11, and B.
    BlockLowerTriangularPreconditioner prec(toffsets);
-   prec.SetDiagonalBlock(0,P00);
+   prec.SetDiagonalBlock(0,&P00);
    prec.SetBlock(1,0,A10);
 
    // 13. Configure the linear solver.
@@ -340,7 +344,7 @@ int main(int argc, char *argv[])
    }
 
    // 15. Perform proximal iterations, with an inner Newton solve.
-   for (int k = 0; k < max_iterations; k++)
+   for (int k = 0; k < proximal_iterations; k++)
    {
       // Store the previous displacement to measure the update.
       ParGridFunction u_tmp(&H1fes);
@@ -357,8 +361,7 @@ int main(int argc, char *argv[])
          // Keep ψ_old fixed and recover ψ = ψ_old - ακ.
          u_gf.SetFromTrueDofs(tx.GetBlock(0));
          kappa_gf.SetFromTrueDofs(tx.GetBlock(1));
-         psi_gf = psi_old_gf;
-         psi_gf.Add(-alpha, kappa_gf);
+         add(psi_old_gf, -alpha, kappa_gf, psi_gf);
 
          // Assemble the nonlinear residual at the current (u, κ).
          // R_u = K u - B^T κ - f.
@@ -399,16 +402,16 @@ int main(int argc, char *argv[])
 
             prec.SetDiagonalBlock(1,&P11);
 
-            // Solve J (δu, δκ) = -R, then update both unknowns.
-            residual *= -1.0;
+            // Solve J (δu, δκ) = R, then subtract the correction.
             delta = 0.0;
             gmres.Mult(residual, delta);
+            MFEM_VERIFY(gmres.GetConverged(), "Linear solver failed to converge");
             int num_iter = gmres.GetNumIterations();
             if (myid == 0)
             {
                mfem::out << "\tLinear solver iterations: " << num_iter << endl;
             }
-            tx += delta;
+            tx -= delta;
          }
 
          delete S;
@@ -416,10 +419,9 @@ int main(int argc, char *argv[])
 
          u_gf.SetFromTrueDofs(tx.GetBlock(0));
          kappa_gf.SetFromTrueDofs(tx.GetBlock(1));
-         psi_gf = psi_old_gf;
-         psi_gf.Add(-alpha, kappa_gf);
+         add(psi_old_gf, -alpha, kappa_gf, psi_gf);
 
-         // Check the displacement update for Newton convergence.
+         // Check Newton convergence using the PG increment and tolerance floor.
          u_tmp -= u_gf;
          real_t Newton_update_size = u_tmp.ComputeL2Error(zero);
          u_tmp = u_gf;
@@ -430,13 +432,13 @@ int main(int argc, char *argv[])
                       << ", Newton_update_size = " << Newton_update_size << endl;
          }
 
-         if (Newton_update_size < increment_u)
+         if (Newton_update_size < std::max(increment_u, min_newt_tol))
          {
             break;
          }
       }
 
-      // update visualization
+      // Update visualization.
       if (visualization)
       {
          displacement_sock << "parallel " << num_procs << " " << myid << "\n";
@@ -461,7 +463,7 @@ int main(int argc, char *argv[])
       psi_old_gf = psi_gf;
       alpha *= 2.0;
 
-      if (increment_u < tol || k == max_iterations-1)
+      if (increment_u < tol || k == proximal_iterations-1)
       {
          break;
       }
@@ -469,7 +471,6 @@ int main(int argc, char *argv[])
    }
 
    // 16. Release the pointers.
-   delete P00;
    delete BDinvBt;
    delete A00;
    delete A01;

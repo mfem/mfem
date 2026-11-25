@@ -28,7 +28,7 @@ real_t GapFunction(const Vector &x)
    return x(dim-1) - plane_g;
 }
 
-/// @brief Set the initial displacement to -0.1 in z direction.
+/// @brief Set the initial displacement to zero.
 void InitialGuess(const Vector &x, Vector &u)
 {
    const int dim = x.Size();
