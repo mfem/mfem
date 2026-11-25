@@ -282,6 +282,70 @@ TEST_CASE("Derefinement leaves unchanged L2 element dofs exact",
    }
 }
 
+TEST_CASE("Derefinement preserves unchanged simplex and tensor element dofs",
+          "[AMR][Coarsen][GPU]")
+{
+   const auto type = GENERATE(Element::TRIANGLE, Element::QUADRILATERAL,
+                              Element::TETRAHEDRON, Element::HEXAHEDRON);
+   const int dim = (type == Element::TRIANGLE ||
+                    type == Element::QUADRILATERAL) ? 2 : 3;
+   H1_FECollection h1(2, dim);
+   ND_FECollection nd(1, dim);
+   RT_FECollection rt(1, dim);
+   L2_FECollection l2(2, dim);
+   const FiniteElementCollection *collections[] = { &h1, &nd, &rt, &l2 };
+   for (const auto *fec : collections)
+   {
+      CAPTURE(type, fec->Name());
+      Mesh mesh = dim == 2 ? Mesh::MakeCartesian2D(3, 1, type, true) :
+                  Mesh::MakeCartesian3D(3, 1, 1, type);
+      const int coarse_count = mesh.GetNE();
+      mesh.GetElement(coarse_count - 1)->SetAttribute(2);
+      mesh.EnsureNCMesh(true);
+      mesh.GeneralRefinement(Array<int>({0}));
+
+      FiniteElementSpace fes(&mesh, fec);
+      auto unchanged_dofs = [&](Array<int> &dofs)
+      {
+         for (int elem = 0; elem < mesh.GetNE(); elem++)
+         {
+            if (mesh.GetAttribute(elem) == 2)
+            {
+               fes.GetElementDofs(elem, dofs);
+               return;
+            }
+         }
+         FAIL("Missing unchanged element");
+      };
+      Array<int> dofs;
+      unchanged_dofs(dofs);
+      Vector expected(dofs.Size());
+      for (int node = 0; node < dofs.Size(); node++)
+      {
+         expected[node] = node % 2 ? -node : node;
+      }
+      GridFunction field(&fes);
+      field = 0.0;
+      field.SetSubVector(dofs, expected);
+
+      Vector error(mesh.GetNE());
+      error = 0.0;
+      REQUIRE(mesh.DerefineByError(error, 1.0));
+      REQUIRE(mesh.GetNE() == coarse_count);
+      fes.Update();
+      field.Update();
+
+      unchanged_dofs(dofs);
+      REQUIRE(dofs.Size() == expected.Size());
+      Vector actual(dofs.Size());
+      field.GetSubVector(dofs, actual.HostWrite());
+      for (int node = 0; node < dofs.Size(); node++)
+      {
+         CHECK(actual[node] == expected[node]);
+      }
+   }
+}
+
 TEST_CASE("AMR Coarsen L2 Element","[AMR][Coarsen][CUDA]")
 {
    std::vector<int> orders_1d{0,1,2,3};
