@@ -1,4 +1,4 @@
-//                                MFEM Example 5
+//                     MFEM Example 5 (Maxwell) - HDG Version
 //
 // Compile with: make ex5
 //
@@ -27,18 +27,22 @@
 //                                 sigma*E - curl B = f
 //                                 curl E  + mu*B   = g
 //
-//               with natural boundary condition -B = <given pressure>.
+//               with natural boundary condition -B = <given magnetic field>.
 //               Here, we use a given exact solution (E,B) and compute the
-//               corresponding r.h.s. (f,g).  We discretize with Raviart-Thomas
-//               finite elements (velocity E) and piecewise discontinuous
-//               polynomials (pressure B).
+//               corresponding r.h.s. (f,g).  We piecewise discontinuous
+//               polynomials finite elements (electric field E and magnetic
+//               field B).
 //
-//               The example demonstrates the use of the DarcyForm class, as
-//               well as hybridization of mixed systems and the collective
-//               saving of several grid functions in VisIt (visit.llnl.gov) and
-//               ParaView (paraview.org) formats.
+//               The example demonstrates the use of the MixedSystemForm class,
+//               as well as algebraic reduction and hybridization of mixed
+//               systems and the collective saving of several grid functions in
+//               VisIt (visit.llnl.gov) and ParaView (paraview.org) formats.
 //
-//               We recommend viewing examples 1-4 before viewing this example.
+//               We recommend viewing the standard version of this example
+//               to understand the extension for the Local / Hybridizable
+//               Discontinuous Galerkin methods. The benefits of lower
+//               iterations count, number of DOFs, and essential pressure trace
+//               boundary condition can be assessed.
 
 #include "mfem.hpp"
 #include <fstream>
@@ -378,7 +382,7 @@ int main(int argc, char *argv[])
       //                     [  0       B diag(M)^-1 B^T ]
       //
       //     Here we use Symmetric Gauss-Seidel to approximate the inverse of the
-      //     pressure Schur Complement
+      //     magnetic field Schur Complement
       unique_ptr<SparseMatrix> MinvBt, S;
       unique_ptr<Solver> invM, invS;
 
