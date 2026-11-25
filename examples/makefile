@@ -68,6 +68,9 @@ endif
 ifeq ($(MFEM_USE_CALIPER),YES)
    SUBDIRS += caliper
 endif
+ifeq ($(MFEM_USE_MAGMA),YES)
+   SUBDIRS += magma
+endif
 
 SUBDIRS_ALL = $(addsuffix /all,$(SUBDIRS))
 SUBDIRS_TEST = $(addsuffix /test,$(SUBDIRS))
