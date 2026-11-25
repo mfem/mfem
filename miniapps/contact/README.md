@@ -1,5 +1,5 @@
 # Contact Miniapp 
-Frictionless contact mechanics examples using MFEM and the Tribol contact library.
+Frictionless contact benchmarks and Coulomb-friction ironing using MFEM and Tribol.
 
 ## Description
 
@@ -13,6 +13,12 @@ condition. Linear systems arising in the IP iterations are solved with
 **Conjugate Gradient (CG)** preconditioned by the recently introduced
  **AMG with Filtering (AMGF)** solver. Benchmark examples include the two-block 
  compression, ironing, and beam-sphere contact tests. 
+
+Both frictionless and Coulomb contact use Tribol's formulation-backed single
+mortar with frozen geometry within each load increment. Frictionless contact
+uses the same nonmortar/multiplier surface as Coulomb contact, passed first to
+the formulation API. The bulk model can still use nonlinear elasticity
+for beam-sphere contact. Enzyme is not required for either mortar mode.
 
 ---
 
@@ -44,6 +50,60 @@ mpirun -np 4 contact -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4 -amgf
 
 This example runs the **two-block** frictionless contact problem with linear 
 elasticity and **AMG with Filtering (AMGF)** preconditioning.
+
+### Coulomb friction in the ironing problem
+
+A positive `-mu` enables Coulomb friction for `-prob 1`. The original ironing
+loads run on two MPI ranks with:
+
+```bash
+mpirun -np 2 contact -prob 1 -sr 0 -pr 0 -tr 2 -mu 0.1 \
+  -nsteps 4 -msteps 6 -no-vis
+```
+
+A shorter regression case uses `-nsteps 1 -msteps 1 -indent 0.02 -travel 0.04`.
+Use Tribol's 3D vector-LM frictional single mortar API (`e7212777` or later on
+`feature/ebchin/coulomb-formulation`), with MPI and Redecomp. Enzyme is not
+required. The parent topology and partition remain fixed, and the bulk model
+remains small-strain linear elasticity.
+
+`OptContactProblem` owns the mechanics and frozen mortar data for both contact
+modes. `IPSolver` and `CoulombSolver` implement the same single-increment
+`ContactSolver::Solve()` interface; the load driver sets boundary conditions,
+subdivides increments, and updates coordinates after acceptance. Solver failure
+returns the initial displacement and restores persistent multiplier input.
+The existing `IPSolver::Mult()` API and external linear-solver support remain.
+
+Coulomb mortar holds weights and normals fixed within each increment, using
+`k = k_start + G * (u - u_start)` and contact residual `G^T * lambda`.
+MFEM enforces the normal complementarity and Coulomb disk projection with a
+Newton/FGMRES solve. Compression-positive pressure is `-n . lambda`, the
+opening-positive weighted gap is `n . k`, and tangential slip is `k - (n . k)*n`.
+Previous-step coordinates advance only after accepting an increment. Both
+frictionless and Coulomb ironing use the flat substrate as the nonmortar surface
+carrying the multipliers, and the curved iron as the mortar surface. Both modes
+use formulation-backed mortar. Reported open/stick/slip counts
+include supported contact nodes; unsupported dual nodes are listed separately.
+`-amgf` is supported by the IP
+solver; Coulomb runs use `-no-amgf` (the default).
+
+`-indent` and `-travel` set total downward and horizontal displacement;
+negative travel reverses the sliding direction. Defaults preserve the original
+loads `1.0/1.4` and `3.0/1.4`. `-fstep` limits a Coulomb displacement increment
+(default `0.05`). Failed solves retry with smaller increments and return a
+nonzero exit status if subdivision is exhausted. Acceptance checks pressure,
+the linearized gap, complementarity, the friction cone, and dissipation; it
+does not certify the exact geometric gap after a finite increment.
+
+`-mu 0.0` selects scalar frictionless mortar with the IP solver. Use
+`-coulomb -mu 0.0` to compare zero and positive friction through the same
+Coulomb solver and surface assignment.
+After building `contact`, run the projection derivative checks and the
+friction/frictionless regressions with:
+
+```bash
+ctest --test-dir <mfem-build-dir> -R 'contact_(coulomb|ironing)' --output-on-failure
+```
 
 ### Notes
 

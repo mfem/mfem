@@ -10,9 +10,72 @@
 // CONTRIBUTING.md for details.
 
 #include "optcontactproblem.hpp"
+#include "coulomblaw.hpp"
 
 namespace mfem
 {
+
+// Vector mortar data shares the problem's mechanics and parent coordinates.
+struct OptContactProblem::CoulombData
+{
+   real_t coefficient;      ///< Nonnegative Coulomb coefficient.
+   bool registered = false; ///< Whether this data owns a live coupling scheme.
+   /// Reference configuration and last accepted coordinates supplied to Tribol.
+   ParGridFunction reference_coordinates, previous_coordinates;
+   Vector base_displacement, base_gap, normals; ///< Frozen affine kinematics.
+   /// Frozen kinematic derivative G and force coupling G^T.
+   std::unique_ptr<HypreParMatrix> gap_jacobian, force_jacobian;
+   Array2D<int> node_dofs; ///< Cartesian true DOFs of each owned dual node.
+   Array<int> supported;   ///< Whether mortar integration supports each node.
+   static constexpr int scheme = 0; ///< Owned coupling scheme ID.
+   /// Pressure per weighted gap/slip, used only to scale projection equations.
+   static constexpr real_t equation_scale = 100.0;
+
+   /** @brief Initialize the reference fields before any load is applied.
+       @param space Borrowed parent displacement space.
+       @param friction Validated Coulomb coefficient. */
+   CoulombData(ParFiniteElementSpace *space, real_t friction)
+      : coefficient(friction), reference_coordinates(space),
+        previous_coordinates(space)
+   {
+      space->GetParMesh()->GetNodes(reference_coordinates);
+      previous_coordinates = reference_coordinates;
+   }
+
+   /// Destroy transfer matrices and the scheme before its borrowed fields.
+   ~CoulombData()
+   {
+      gap_jacobian.reset();
+      force_jacobian.reset();
+      if (registered)
+      {
+         tribol::finalize();
+      }
+   }
+};
+
+OptContactProblem::~OptContactProblem()
+{
+   ReleaseMemory();
+}
+
+void OptContactProblem::EnableCoulomb(real_t coefficient)
+{
+   MFEM_VERIFY(std::isfinite(coefficient) && coefficient >= 0.0,
+               "Coulomb friction must be finite and nonnegative.");
+   MFEM_VERIFY(!problem->IsNonlinear() && !bound_constraints,
+               "Coulomb mortar requires linear mechanics without IP bounds.");
+   MFEM_VERIFY(!coulomb_data,
+               "Select Coulomb mortar once before forming contact.");
+   coulomb_data = std::make_unique<CoulombData>(vfes, coefficient);
+}
+
+Vector &OptContactProblem::GetContactMultipliers()
+{
+   MFEM_VERIFY(coulomb_data && coulomb_data->registered,
+               "Form the Coulomb contact system before accessing multipliers.");
+   return tribol::getMfemContactPressure(CoulombData::scheme);
+}
 
 void OptContactProblem::ReleaseMemory()
 {
@@ -77,6 +140,12 @@ void OptContactProblem::FormContactSystem(ParGridFunction * coords_,
 
    coords = coords_;
    xref.SetDataAndSize(xref_.GetData(), xref_.Size());
+
+   if (coulomb_data)
+   {
+      FormCoulombSystem(xref_);
+      return;
+   }
 
    ComputeGapJacobian();
 
@@ -399,15 +468,21 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
 
    tribol::registerMfemCouplingScheme(
       coupling_scheme_id, mesh1_id, mesh2_id,
-      *pmesh, *coords, mortar_attrs, non_mortar_attrs,
+      *pmesh, *coords, non_mortar_attrs, mortar_attrs,
       tribol::SURFACE_TO_SURFACE,
-      tribol::NO_SLIDING,
+      tribol::NO_CASE,
       tribol::SINGLE_MORTAR,
       tribol::FRICTIONLESS,
       tribol::LAGRANGE_MULTIPLIER,
       tribol::BINNING_GRID
    );
 
+   // Formulations place multipliers on the first, nonmortar surface.
+   ParGridFunction reference_coordinates(coords->ParFESpace());
+   pmesh->GetNodes(reference_coordinates);
+   tribol::registerMfemReferenceCoords(coupling_scheme_id, reference_coordinates);
+   tribol::setMfemUseSingleMortarFormulation(coupling_scheme_id, true, false);
+   tribol::getMfemContactPressure(coupling_scheme_id) = 0.0;
    tribol::setBinningProximityScale(coupling_scheme_id, ratio);
 
    // Access Tribol's pressure grid function (on the contact surface)
@@ -424,25 +499,19 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    Mcslumpfull.SetSize(Mcs->Height()); //Vector
    Mcs->Mult(onecs, Mcslumpfull);
 
-   // Set Tribol options for Lagrange multiplier enforcement
-   tribol::setLagrangeMultiplierOptions(
-      coupling_scheme_id,
-      tribol::ImplicitEvalMode::MORTAR_RESIDUAL_JACOBIAN
-   );
-
    // Update contact mesh decomposition
    tribol::updateMfemParallelDecomposition();
 
-   // Update contact gaps, forces, and tangent stiffness
+   // Calculate scalar gaps and their frozen-geometry derivative.
    int cycle = 1;   // pseudo cycle
    real_t t = 1.0;  // pseudo time
    real_t dt = 1.0; // pseudo dt
-   tribol::update(cycle, t, dt);
+   MFEM_VERIFY(tribol::update(cycle, t, dt) == 0,
+               "Tribol scalar mortar calculation failed.");
 
-   // Return contact contribution to the tangent stiffness matrix
-   auto A_blk = tribol::getMfemBlockJacobian(coupling_scheme_id);
-
-   HypreParMatrix * Mfull = (HypreParMatrix *)(&A_blk->GetBlock(1,0));
+   // Normalize the weighted gap derivative for the scalar IP constraints.
+   auto Mfull = tribol::getMfemWeightedGapJacobian(coupling_scheme_id);
+   MFEM_VERIFY(Mfull, "The scalar mortar formulation must supply a gap Jacobian.");
    Mfull->InvScaleRows(Mcslumpfull); // scaling
    HypreParMatrix * Me = Mfull->EliminateCols(ess_tdofs);
    delete Me;
@@ -450,6 +519,8 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    int h = Mfull->Height();
    SparseMatrix merged;
    Mfull->MergeDiagAndOffd(merged);
+   // Remove stored zeros before they inflate the IP matrix-product graph.
+   if (merged.NumNonZeroElems() > 0) { merged.Threshold(0.0); }
    Array<int> nonzero_rows;
 
    real_t max_l1_row_norm = 0.0;
@@ -521,13 +592,7 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    delete [] J;
 #endif
 
-   Vector gap_full;
-   tribol::getMfemGap(coupling_scheme_id, gap_full);
-
-   auto& P_submesh = *pressure.ParFESpace()->GetProlongationMatrix();
-   Vector gap_true(P_submesh.Width());
-
-   P_submesh.MultTranspose(gap_full,gap_true);
+   const auto gap_true = tribol::getMfemContactGap(coupling_scheme_id);
    gap.SetSize(nrows);
    Mcslump.SetSize(nrows);
 
@@ -539,6 +604,239 @@ HypreParMatrix * OptContactProblem::SetupTribol(ParMesh * pmesh,
    gap /= Mcslump;
    tribol::finalize();
    return M;
+}
+
+void OptContactProblem::FormCoulombSystem(const Vector &displacement)
+{
+   auto &data = *coulomb_data;
+   const int scheme = CoulombData::scheme;
+   if (!data.registered)
+   {
+      // Formulations place scalar and vector multipliers on the nonmortar side.
+      tribol::registerMfemCouplingScheme(
+          scheme, 0, 1, *problem->GetMesh(), *coords, nonmortar_attrs,
+          mortar_attrs, tribol::SURFACE_TO_SURFACE, tribol::NO_CASE,
+          tribol::SINGLE_MORTAR, tribol::FRICTION_COULOMB,
+          tribol::LAGRANGE_MULTIPLIER, tribol::BINNING_GRID,
+          tribol::ExecutionMode::Sequential);
+      data.registered = true;
+      tribol::registerMfemReferenceCoords(scheme, data.reference_coordinates);
+      tribol::registerMfemPreviousCoords(scheme, data.previous_coordinates);
+      tribol::setMfemUseSingleMortarFormulation(scheme, true, false);
+      tribol::setBinningProximityScale(scheme, tribol_ratio);
+      tribol::getMfemContactPressure(scheme) = 0.0;
+   }
+   data.previous_coordinates = *coords;
+   data.base_displacement = displacement;
+   // Repartition contact onto one rank for these small benchmark surfaces.
+   tribol::updateMfemParallelDecomposition(1, true);
+   real_t dt = 1.0;
+   if (tribol::update(0, 0.0, dt))
+   {
+      throw std::runtime_error("Tribol frozen mortar calculation failed.");
+   }
+   // Copy through lvalues: moving a HypreParVector into its Vector base would
+   // leave the data tied to the temporary Hypre object's lifetime.
+   const auto gap_values = tribol::getMfemContactGap(scheme);
+   const auto normal_values = tribol::getMfemNodalNormals(scheme);
+   data.base_gap = gap_values;
+   data.normals = normal_values;
+   data.gap_jacobian = tribol::getMfemWeightedGapJacobian(scheme);
+   data.force_jacobian = tribol::getMfemDfDp(scheme);
+   MFEM_VERIFY(data.gap_jacobian && data.force_jacobian,
+               "Frozen frictional mortar must supply both coupling matrices.");
+
+   auto &space = *tribol::getMfemPressure(scheme).ParFESpace();
+   dimU = vfes->GetTrueVSize();
+   dimM = dimC = dimG = space.GetTrueVSize();
+   num_constraints = space.GlobalTrueVSize();
+   Array<int> owned;
+   for (int node = 0; node < space.GetNDofs(); ++node)
+   {
+      if (space.GetLocalTDofNumber(space.DofToVDof(node, 0)) >= 0)
+      {
+         owned.Append(node);
+      }
+   }
+   data.node_dofs.SetSize(owned.Size(), 3);
+   data.supported.SetSize(owned.Size());
+   SparseMatrix rows;
+   data.gap_jacobian->MergeDiagAndOffd(rows);
+   for (int i = 0; i < owned.Size(); ++i)
+   {
+      data.supported[i] = 0;
+      for (int d = 0; d < 3; ++d)
+      {
+         const int tdof =
+             space.GetLocalTDofNumber(space.DofToVDof(owned[i], d));
+         data.node_dofs(i, d) = tdof;
+         if (rows.GetRowNorml1(tdof) > 0.0)
+         {
+            data.supported[i] = 1;
+         }
+      }
+   }
+}
+
+OptContactProblem::CoulombLawResult
+OptContactProblem::EvaluateCoulombLaw(const Vector &displacement,
+                                      bool derivatives) const
+{
+   const auto &data = *coulomb_data;
+   const int scheme = CoulombData::scheme;
+   const auto &multiplier = tribol::getMfemContactPressure(scheme);
+   Vector increment(displacement);
+   increment -= data.base_displacement;
+   Vector kinematics(data.base_gap.Size());
+   data.gap_jacobian->Mult(increment, kinematics);
+   kinematics += data.base_gap;
+   CoulombLawResult result;
+   result.equation.SetSize(multiplier.Size());
+   result.equation = 0.0;
+   result.gap.SetSize(data.supported.Size());
+   result.pressure.SetSize(data.supported.Size());
+   result.slip.SetSize(multiplier.Size());
+   result.slip = 0.0;
+   result.state.SetSize(data.supported.Size());
+   SparseMatrix dk(multiplier.Size()), dl(multiplier.Size());
+   Array<real_t> normal(3), kinematic(3), multiplier_node(3);
+   for (int node = 0; node < data.supported.Size(); ++node)
+   {
+      for (int d = 0; d < 3; ++d)
+      {
+         const int i = data.node_dofs(node, d);
+         normal[d] = data.normals[i];
+         kinematic[d] = kinematics[i];
+         multiplier_node[d] = multiplier[i];
+      }
+      const auto law = internal::EvaluateCoulombProjection(
+          normal, kinematic, multiplier_node, data.coefficient,
+          CoulombData::equation_scale, data.supported[node]);
+      result.gap[node] = law.gap;
+      result.pressure[node] = law.pressure;
+      result.state[node] = law.state;
+      for (int d = 0; d < 3; ++d)
+      {
+         const int row = data.node_dofs(node, d);
+         result.equation[row] = law.equation[d];
+         result.slip[row] = law.slip[d];
+         if (derivatives)
+         {
+            for (int e = 0; e < 3; ++e)
+            {
+               dk.Set(row, data.node_dofs(node, e), law.dk(d, e));
+               dl.Set(row, data.node_dofs(node, e), law.dl(d, e));
+            }
+         }
+      }
+   }
+   if (derivatives)
+   {
+      auto &space = *tribol::getMfemPressure(scheme).ParFESpace();
+      auto assemble = [&](SparseMatrix &local)
+      {
+         local.Finalize();
+         auto matrix = std::make_unique<HypreParMatrix>(
+             comm, space.GlobalTrueVSize(), space.GetTrueDofOffsets(), &local);
+         HypreStealOwnership(*matrix, local);
+         matrix->CopyRowStarts();
+         matrix->CopyColStarts();
+         return matrix;
+      };
+      result.dk = assemble(dk);
+      result.dl = assemble(dl);
+   }
+   return result;
+}
+
+Vector OptContactProblem::CoulombResidual(const Vector &displacement) const
+{
+   const auto &data = *coulomb_data;
+   const int scheme = CoulombData::scheme;
+   auto law = EvaluateCoulombLaw(displacement, false);
+   const auto &multiplier = tribol::getMfemContactPressure(scheme);
+   const int ndofs = displacement.Size();
+   Vector residual(ndofs + multiplier.Size());
+   Vector bulk(residual, 0, ndofs), force(ndofs);
+   problem->GetGradient(displacement, bulk);
+   data.force_jacobian->Mult(multiplier, force);
+   bulk += force;
+   bulk.SetSubVector(problem->GetEssentialDofs(), 0.0);
+   Vector constraints(residual, ndofs, multiplier.Size());
+   constraints = law.equation;
+   return residual;
+}
+
+std::unique_ptr<BlockOperator>
+OptContactProblem::CoulombJacobian(const Vector &displacement) const
+{
+   const auto &data = *coulomb_data;
+   auto law = EvaluateCoulombLaw(displacement, true);
+   Array<int> offsets(3);
+   offsets[0] = 0;
+   offsets[1] = displacement.Size();
+   offsets[2] = offsets[1] + law.equation.Size();
+   auto jacobian = std::make_unique<BlockOperator>(offsets);
+   jacobian->owns_blocks = 1;
+   auto stiffness =
+       std::make_unique<HypreParMatrix>(*problem->GetHessian(displacement));
+   auto j01 = std::make_unique<HypreParMatrix>(*data.force_jacobian);
+   auto j10 = std::unique_ptr<HypreParMatrix>(
+       ParMult(law.dk.get(), data.gap_jacobian.get(), true));
+   j01->EliminateRows(problem->GetEssentialDofs());
+   delete j10->EliminateCols(problem->GetEssentialDofs());
+   jacobian->SetBlock(0, 0, stiffness.release());
+   jacobian->SetBlock(0, 1, j01.release());
+   jacobian->SetBlock(1, 0, j10.release());
+   jacobian->SetBlock(1, 1, law.dl.release());
+   return jacobian;
+}
+
+bool OptContactProblem::CheckCoulombContact(const Vector &displacement) const
+{
+   const auto &data = *coulomb_data;
+   const int scheme = CoulombData::scheme;
+   auto law = EvaluateCoulombLaw(displacement, false);
+   const auto &multiplier = tribol::getMfemContactPressure(scheme);
+   Array<int> counts(4), global_counts(4);
+   counts = 0;
+   int invalid = 0, any_invalid = 0;
+   constexpr real_t tolerance = 1.0e-6;
+   for (int node = 0; node < data.supported.Size(); ++node)
+   {
+      // Count unsupported dual nodes separately while checking their zero LM.
+      ++counts[data.supported[node] ? law.state[node] : 3];
+      real_t tangent_squared = 0.0, dissipation = 0.0;
+      for (int d = 0; d < 3; ++d)
+      {
+         const int i = data.node_dofs(node, d);
+         const real_t tangent =
+             multiplier[i] + law.pressure[node] * data.normals[i];
+         tangent_squared += tangent * tangent;
+         dissipation += tangent * law.slip[i];
+      }
+      const real_t limit = data.coefficient * std::max(0.0, law.pressure[node]);
+      if (!std::isfinite(law.pressure[node]) || !std::isfinite(law.gap[node]) ||
+          !std::isfinite(tangent_squared) || !std::isfinite(dissipation) ||
+          law.pressure[node] < -tolerance || law.gap[node] < -tolerance ||
+          std::abs(law.pressure[node] * law.gap[node]) > tolerance ||
+          std::sqrt(tangent_squared) > limit + tolerance ||
+          dissipation < -tolerance)
+      {
+         invalid = 1;
+      }
+   }
+   MPI_Allreduce(&invalid, &any_invalid, 1, MPI_INT, MPI_MAX, comm);
+   MPI_Allreduce(counts.GetData(), global_counts.GetData(), 4, MPI_INT, MPI_SUM,
+                 comm);
+   if (!any_invalid && Mpi::Root())
+   {
+      out << " Coulomb contact: open=" << global_counts[0]
+          << " stick=" << global_counts[1] << " slip=" << global_counts[2]
+          << " unsupported=" << global_counts[3]
+          << '\n';
+   }
+   return !any_invalid;
 }
 
 }

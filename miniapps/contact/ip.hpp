@@ -13,6 +13,7 @@
 #define MFEM_IPSOLVER
 
 #include "optcontactproblem.hpp"
+#include "contactsolver.hpp"
 
 namespace mfem
 {
@@ -51,11 +52,28 @@ namespace mfem
  * 2. Set solver options e.g.,  SetTol, SetMaxIter, SetLinearSolver
  * 3. Use Mult to apply the solver.
  */
-class IPSolver
+class IPSolver : public ContactSolver
 {
 public:
    /// Construct interior-point solver
    IPSolver(OptContactProblem*);
+
+   /** @brief Solve with the configured linear solver or AMG/AMGF-preconditioned CG.
+       @param initial Last accepted displacement; boundary data are already set.
+       @return Convergence information and solution, or initial on failure. */
+   ContactSolveResult Solve(const Vector &initial) override;
+
+   /** @brief Configure the default CG preconditioner used by Solve().
+       @param filtering Whether to use AMG with filtering.
+       @param direct_solver Filtered-subspace direct solver selection.
+       @param relaxation Hypre AMG relaxation type. */
+   void SetAMGOptions(bool filtering, const std::string &direct_solver,
+                      int relaxation)
+   {
+      use_filtering = filtering;
+      filtered_solver = direct_solver;
+      amg_relax_type = relaxation;
+   }
 
    /// Apply the interior-point solver
    void Mult(const Vector&, Vector &);
@@ -86,6 +104,9 @@ public:
 
    virtual ~IPSolver();
 protected:
+   bool use_filtering = false; ///< Default CG preconditioner selection.
+   std::string filtered_solver = "auto"; ///< AMGF direct solver backend.
+   int amg_relax_type = 8; ///< Hypre AMG smoother selection.
    /// OptContactProblem (not owned).
    OptContactProblem* problem = nullptr;
 

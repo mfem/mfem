@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "ip.hpp"
+#include "solver_utils.hpp"
 
 namespace mfem
 {
@@ -17,6 +18,7 @@ namespace mfem
 IPSolver::IPSolver(OptContactProblem * problem_)
    : problem(problem_)
 {
+   MFEM_VERIFY(!problem->UsesCoulomb(), "IPSolver requires scalar gap constraints.");
    abs_tol  = 1.e-2; // Tolerance of the optimizer
    max_iter = 20;   // Maximum iterations
    mu_k     = 1.0;  // Log-barrier penalty parameter
@@ -127,6 +129,65 @@ IPSolver::IPSolver(OptContactProblem * problem_)
    zlk.SetSize(dimM); zlk = 0.0;
 
    MPI_Comm_rank(comm, &myid);
+}
+
+ContactSolveResult IPSolver::Solve(const Vector &initial)
+{
+   std::unique_ptr<ParallelDirectSolver> subspace;
+   std::unique_ptr<Solver> prec;
+   CGSolver cg(problem->GetComm());
+   Solver *external = solver;
+   if (!external)
+   {
+      if (use_filtering)
+      {
+         auto amg = std::make_unique<AMGFSolver>();
+         amg->GetAMG().SetSystemsOptions(3);
+         amg->GetAMG().SetPrintLevel(0);
+         amg->GetAMG().SetRelaxType(amg_relax_type);
+         subspace = std::make_unique<ParallelDirectSolver>(comm, filtered_solver);
+         subspace->SetPrintLevel(0);
+         amg->SetFilteredSubspaceSolver(*subspace);
+         amg->SetFilteredSubspaceTransferOperator(
+            *problem->GetContactSubspaceTransferOperator());
+         prec = std::move(amg);
+      }
+      else
+      {
+         auto amg = std::make_unique<HypreBoomerAMG>();
+         amg->SetSystemsOptions(3);
+         amg->SetPrintLevel(0);
+         amg->SetRelaxType(amg_relax_type);
+         prec = std::move(amg);
+      }
+      cg.SetPrintLevel(0);
+      cg.SetRelTol(1.0e-10);
+      cg.SetMaxIter(10000);
+      cg.SetPreconditioner(*prec);
+      solver = &cg;
+   }
+   ContactSolveResult result;
+   result.displacement.SetSize(initial.Size());
+   result.displacement = 0.0;
+   try
+   {
+      Mult(initial, result.displacement);
+   }
+   catch (...)
+   {
+      solver = external;
+      throw;
+   }
+   solver = external;
+   result.converged = GetConverged();
+   result.iterations = GetNumIterations();
+   result.linear_iterations = GetLinearSolverIterations();
+   if (!result.converged)
+   {
+      result.displacement = initial;
+      result.message = "Interior-point solver did not converge.";
+   }
+   return result;
 }
 
 void IPSolver::Mult(const Vector &x0, Vector &xf)

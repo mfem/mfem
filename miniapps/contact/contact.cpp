@@ -21,6 +21,8 @@
 // Problem 1: ironing (linear elasticity)
 // mpirun -np 4 ./contact -prob 1 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 6 -amgf -amgf-fsolver auto
 // mpirun -np 4 ./contact -prob 1 -sr 0 -pr 0 -tr 2 -nsteps 4  -msteps 6 -no-amgf
+// mpirun -np 2 ./contact -prob 1 -sr 0 -pr 0 -tr 2 -mu 0.1 -nsteps 1 -msteps 1
+//   -indent 0.02 -travel 0.04 -fstep 0.02 -no-vis
 
 // Problem 2: beam–sphere (linear or non-linear elasticity)
 // mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -lin -amgf -amgf-fsolver auto
@@ -29,13 +31,17 @@
 // mpirun -np 4 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 6 -msteps 0 -nonlin -no-amgf
 
 // Description:
-// This miniapp solves benchmark frictionless contact problems using a
-// self-contained Interior Point (IP) optimizer. Contact constraints
-// are supplied by Tribol. The linear systems inside the IP iterations
+// This miniapp solves frictionless benchmarks and Coulomb-friction ironing.
+// Frictionless problems use a self-contained Interior Point (IP) optimizer.
+// Tribol supplies the contact constraints. Linear systems in the IP iterations
 // are solved with PCG, preconditioned by either standard HypreBoomerAMG
 // or AMG with Filtering (AMGF). AMGF enhances AMG by applying an additional
 // subspace-correction step on a small subspace associated with the contact interface.
 
+// Coulomb ironing freezes mortar weights and normals for each load increment.
+// It solves displacement and Cartesian multiplier equations with Newton/FGMRES.
+// Failed trials restore displacement, multipliers, and previous-step geometry.
+//
 // Notes:
 //  1. Non-linear elasticity is supported only for -prob 2. If -nonlin is
 //     requested for -prob 0/1, the app falls back to the linear model.
@@ -51,7 +57,8 @@
 #include <fstream>
 #include <iostream>
 #include "ip.hpp"
-#include "solver_utils.hpp"
+#include "coulombsolver.hpp"
+#include <cmath>
 
 using namespace std;
 using namespace mfem;
@@ -100,6 +107,11 @@ int main(int argc, char *argv[])
    real_t tribol_ratio = 8.0;
    // Enable/disable AMGF preconditioner (default is AMG)
    bool amgf = false;
+   bool coulomb = false;
+   real_t friction_coefficient = 0.0;
+   real_t friction_max_increment = 0.05;
+   real_t indentation = 1.0 / 1.4;
+   real_t ironing_distance = 3.0 / 1.4;
 
    // Direct solver for AMGF filtered subspace
    // Choices:"auto", "mumps", "cpardiso", "superlu", "strumpack"
@@ -137,6 +149,18 @@ int main(int argc, char *argv[])
    args.AddOption(&tribol_ratio, "-tr", "--tribol-proximity-parameter",
                   "Tribol-proximity-parameter.");
 
+   args.AddOption(&coulomb, "-coulomb", "--coulomb", "-no-coulomb",
+                  "--no-coulomb", "Use frozen-geometry Coulomb mortar, including at zero friction.");
+   args.AddOption(&friction_coefficient, "-mu", "--friction-coefficient",
+                  "Coulomb coefficient for ironing; positive values enable Coulomb mortar.");
+   args.AddOption(&friction_max_increment, "-fstep", "--friction-max-increment",
+                  "Maximum imposed displacement per Coulomb load increment.");
+
+   args.AddOption(&indentation, "-indent", "--indentation",
+                  "Total prescribed downward displacement for problems 0 and 1.");
+   args.AddOption(&ironing_distance, "-travel", "--ironing-distance",
+                  "Total prescribed horizontal displacement after indentation.");
+
    args.Parse();
    if (!args.Good())
    {
@@ -146,6 +170,7 @@ int main(int argc, char *argv[])
       }
       return 1;
    }
+   coulomb = coulomb || friction_coefficient > 0.0;
    if (myid == 0)
    {
       args.PrintOptions(cout);
@@ -156,6 +181,21 @@ int main(int argc, char *argv[])
                prob_no <= 2, "Unknown test problem number: " << prob_no);
 
    prob_name = (problem_name)prob_no;
+
+   if (!std::isfinite(friction_coefficient) || friction_coefficient < 0.0 ||
+       !std::isfinite(friction_max_increment) || friction_max_increment <= 0.0 ||
+       !std::isfinite(indentation) || indentation <= 0.0 ||
+       !std::isfinite(ironing_distance) || nsteps <= 0 || msteps < 0 ||
+       (coulomb && (prob_name != ironing || amgf)))
+   {
+      if (myid == 0)
+      {
+         cerr << "Use nonnegative -mu, positive -fstep and -nsteps, and "
+              << "nonnegative -msteps. Coulomb friction requires -prob 1 "
+              << "and -no-amgf. Use positive -indent and finite -travel.\n";
+      }
+      return 1;
+   }
 
    // Only the beam–sphere supports non-linear elasticity; fall back if needed.
    if (nonlinear && prob_name!=problem_name::beamsphere)
@@ -245,8 +285,8 @@ int main(int argc, char *argv[])
    {
       case twoblock:
       case  ironing:
-         mortar_attr.insert(3);
-         nonmortar_attr.insert(4);
+         mortar_attr.insert(4);
+         nonmortar_attr.insert(3);
          break;
       case beamsphere:
          mortar_attr.insert(6);
@@ -305,12 +345,11 @@ int main(int argc, char *argv[])
    real_t p = 40.0;
    ConstantCoefficient f(p);
 
-   // 8. Construct the contact optimization problem wrapper. It sets up the
-   // contact system using Tribol and provides operators for objective evaluation,
-   // gradients, Hessians, and constraints. It also provides the filtered subspace
-   // transfer operator used by AMGF
+   // Frictionless runs use scalar mortar and the IP optimizer. Coulomb ironing
+   // uses vector mortar and solves the coupled equilibrium/traction equations.
    OptContactProblem contact(&prob, mortar_attr, nonmortar_attr,
                              tribol_ratio, bound_constraints);
+   if (coulomb) { contact.EnableCoulomb(friction_coefficient); }
 
    int dim = pmesh.Dimension();
    Vector ess_values(dim); ess_values = 0.0;
@@ -319,6 +358,8 @@ int main(int argc, char *argv[])
    {
       ess_bdr.SetSize(pmesh.bdr_attributes.Max());
    }
+
+   Vector previous_boundary(dim); previous_boundary = 0.0;
 
    // 9. Time/load stepping loop.
    int total_steps = nsteps + msteps;
@@ -343,14 +384,13 @@ int main(int argc, char *argv[])
             }
             if (i < nsteps)
             {
-               ess_values[2] = -1.0/1.4*(i+1)/nsteps;
+               ess_values[2] = -indentation*(i+1)/nsteps;
             }
             else
             {
-               ess_values[0] = 3.0/1.4*(i+1-nsteps)/msteps;
-               ess_values[2] = -1.0/1.4;
+               ess_values[0] = ironing_distance*(i+1-nsteps)/msteps;
+               ess_values[2] = -indentation;
             }
-            prob.SetDisplacementDirichletData(ess_values, ess_bdr);
             break;
          case beamsphere:
             if (ess_bdr.Size())
@@ -358,120 +398,134 @@ int main(int argc, char *argv[])
                ess_bdr = 0; ess_bdr[2] = 1;
             }
             f.constant = -p*(i+1)/nsteps;
-            prob.SetNeumannPressureData(f,ess_bdr);
             break;
          default:
             MFEM_ABORT("Should be unreachable");
             break;
       }
 
-      // 9(b). Assemble the elasticity system with current BCs.
-      prob.FormLinearSystem();
-
-      // Store the current (reference) displacement in true dofs.
-      Vector xref;
-      x_gf.GetTrueDofs(xref);
-
-      // 9(c). Form the contact system. This also builds the filtered subspace
-      // transfer used by AMGF.
-      contact.FormContactSystem(&new_coords, xref);
-
-      // 9(d). Activate bound constraints after a few steps in the non-linear case.
-      int activation_step = 2;
-      if (bound_constraints && i>activation_step)
+      // Use one load driver for both solvers. Coulomb geometry is refreshed
+      // only after an accepted increment, whose displacement is kept in x_gf.
+      const Vector boundary_start(previous_boundary);
+      Vector boundary_change(ess_values); boundary_change -= boundary_start;
+      const real_t distance = boundary_change.Normlinf();
+      const real_t maximum_fraction = coulomb && distance > 0.0 ?
+                                     std::min(1.0, friction_max_increment / distance) : 1.0;
+      real_t fraction = 0.0, increment = maximum_fraction;
+      const real_t minimum_fraction = maximum_fraction / 1024.0;
+      int iterations = 0, accepted_steps = 0;
+      Array<int> linear_iterations;
+      real_t residual_norm = 0.0, Einitial = 0.0, Efinal = 0.0;
+      const int activation_step = 2;
+      bool contact_needs_update = true;
+      while (fraction < 1.0)
       {
-         contact.ActivateBoundConstraints();
-      }
-
-      // 9(e). Choose preconditioner: AMGF (with direct solver for subspace) or AMG.
-      Solver * prec = nullptr;
-      ParallelDirectSolver * subspacesolver = nullptr;
-#if MFEM_HYPRE_VERSION >= 23000
-      // new l1-hybrid symmetric Gauss-Seidel smoother
-      int amg_relax_type = 88;
-#else
-      int amg_relax_type = (!amgf && prob_name==problem_name::ironing) ? 18 : 8;
-#endif
-
-      if (amgf)
-      {
-         prec = new AMGFSolver();
-         auto * amgfprec = dynamic_cast<AMGFSolver *>(prec);
-         amgfprec->GetAMG().SetSystemsOptions(3);
-         amgfprec->GetAMG().SetPrintLevel(0);
-         amgfprec->GetAMG().SetRelaxType(amg_relax_type);
-         subspacesolver = new ParallelDirectSolver(MPI_COMM_WORLD, amgf_fsolver);
-         subspacesolver->SetPrintLevel(0);
-         amgfprec->SetFilteredSubspaceSolver(*subspacesolver);
-         amgfprec->SetFilteredSubspaceTransferOperator(
-            *contact.GetContactSubspaceTransferOperator());
-      }
-      else
-      {
-         prec = new HypreBoomerAMG();
-         auto * amgprec = dynamic_cast<HypreBoomerAMG *>(prec);
-         amgprec->SetSystemsOptions(3);
-         amgprec->SetPrintLevel(0);
-         amgprec->SetRelaxType(amg_relax_type);
-      }
-
-      // 9(f). Linear solver used inside the IP optimizer.
-      CGSolver cgsolver(MPI_COMM_WORLD);
-      cgsolver.SetPrintLevel(0);
-      cgsolver.SetRelTol(1e-10);
-      cgsolver.SetMaxIter(10000);
-      cgsolver.SetPreconditioner(*prec);
-
-      // 9(g). Interior-Point optimizer driving contact resolution.
-      IPSolver optimizer(&contact);
-      optimizer.SetTol(1e-6);
-      optimizer.SetMaxIter(100);
-      optimizer.SetLinearSolver(&cgsolver);
-      optimizer.SetPrintLevel(0);
-
-      // Initial guess = previous reference configuration.
-      x_gf.SetTrueVector();
-      int ndofs = prob.GetFESpace()->GetTrueVSize();
-      Vector x0(ndofs); x0 = 0.0;
-      x0.Set(1.0, xref);
-
-      // Solve for the next step displacement (xf).
-      Vector xf(ndofs); xf = 0.0;
-      optimizer.Mult(x0, xf);
-
-      delete prec;
-      if (subspacesolver) { delete subspacesolver; }
-
-      // Update internal state for next step (for bound constraints).
-      Vector dx(xf); dx -= x0;
-      if (bound_constraints)
-      {
-         contact.SetDisplacement(dx, (i>=activation_step));
-      }
-
-      // 9(h). Report objective values, dofs, IP and CG iteration counts.
-      int eval_err;
-      real_t Einitial = contact.E(x0, eval_err);
-      real_t Efinal = contact.E(xf, eval_err);
-      Array<int> & PCGiterations = optimizer.GetLinearSolverIterations();
-
-      if (Mpi::Root())
-      {
-         mfem::out << " Initial Energy objective        = " << Einitial << endl;
-         mfem::out << " Final Energy objective          = " << Efinal << endl;
-         mfem::out << " Optimizer number of iterations  = " <<
-                   optimizer.GetNumIterations() << endl;
-         mfem::out << " PCG number of iterations        = " ;
-         for (int i = 0; i < PCGiterations.Size(); ++i)
+         const real_t next = std::min(1.0, fraction + increment);
+         Vector trial_boundary(boundary_start);
+         trial_boundary.Add(next, boundary_change);
+         prob.UpdateRHS();
+         if (prob_name == beamsphere)
          {
-            std::cout << PCGiterations[i] << " ";
+            prob.SetNeumannPressureData(f, ess_bdr);
          }
-         mfem::out << "\n";
+         else
+         {
+            prob.SetDisplacementDirichletData(trial_boundary, ess_bdr);
+         }
+         prob.FormLinearSystem();
+         Vector initial;
+         x_gf.GetTrueDofs(initial);
+         // Failed Coulomb trials restore multipliers and retain this geometry.
+         if (contact_needs_update)
+         {
+            contact.FormContactSystem(&new_coords, initial);
+            contact_needs_update = false;
+         }
+         if (bound_constraints && i > activation_step)
+         {
+            contact.ActivateBoundConstraints();
+         }
+
+         std::unique_ptr<ContactSolver> solver;
+         if (coulomb)
+         {
+            solver = std::make_unique<CoulombSolver>(contact);
+         }
+         else
+         {
+            auto ip = std::make_unique<IPSolver>(&contact);
+#if MFEM_HYPRE_VERSION >= 23000
+            int amg_relax_type = 88;
+#else
+            int amg_relax_type = (!amgf && prob_name == ironing) ? 18 : 8;
+#endif
+            ip->SetAMGOptions(amgf, amgf_fsolver, amg_relax_type);
+            ip->SetTol(1.0e-6);
+            ip->SetMaxIter(100);
+            ip->SetPrintLevel(0);
+            solver = std::move(ip);
+         }
+         auto result = solver->Solve(initial);
+         iterations += result.iterations;
+         linear_iterations.Append(result.linear_iterations);
+         residual_norm = result.residual_norm;
+         if (!result.converged)
+         {
+            increment *= 0.5;
+            if (!coulomb || increment < minimum_fraction)
+            {
+               if (myid == 0) { cerr << result.message << '\n'; }
+               delete paraview_dc;
+               return 1;
+            }
+            if (myid == 0)
+            {
+               out << " Retrying Coulomb load with displacement increment "
+                   << increment * distance << ": " << result.message << '\n';
+            }
+            continue;
+         }
+         if (!coulomb)
+         {
+            int eval_err;
+            Einitial = contact.E(initial, eval_err);
+            Efinal = contact.E(result.displacement, eval_err);
+         }
+         if (bound_constraints)
+         {
+            Vector dx(result.displacement); dx -= initial;
+            contact.SetDisplacement(dx, i >= activation_step);
+         }
+         x_gf.SetFromTrueDofs(result.displacement);
+         add(ref_coords, x_gf, new_coords);
+         contact_needs_update = true;
+         previous_boundary = trial_boundary;
+         fraction = next;
+         ++accepted_steps;
+         increment = std::min(2.0 * increment, maximum_fraction);
+      }
+
+      if (myid == 0)
+      {
+         if (coulomb)
+         {
+            out << " Coulomb accepted substeps       = " << accepted_steps
+                << "\n Newton corrections              = " << iterations
+                << "\n FGMRES iterations               = " << linear_iterations.Sum()
+                << "\n Coupled residual norm           = " << residual_norm << '\n';
+         }
+         else
+         {
+            out << " Initial Energy objective        = " << Einitial << endl;
+            out << " Final Energy objective          = " << Efinal << endl;
+            out << " Optimizer number of iterations  = " << iterations << endl;
+            out << " PCG number of iterations        = ";
+            for (int count : linear_iterations) { out << count << " "; }
+            out << '\n';
+         }
       }
 
       // 9(i). Visualization outputs.
-      x_gf.SetFromTrueDofs(xf);
-      add(ref_coords,x_gf,new_coords);
       pmesh_copy.SetNodes(new_coords);
       xcopy_gf = x_gf;
       xcopy_gf.SetTrueVector();
@@ -499,9 +553,6 @@ int main(int argc, char *argv[])
          }
       }
 
-      // 9(j). Update RHS/load for the next step (if any).
-      if (i == total_steps-1) { break; }
-      prob.UpdateRHS();
    }
 
    // 10. Cleanup.
