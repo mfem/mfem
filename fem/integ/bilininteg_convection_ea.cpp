@@ -17,6 +17,8 @@
 namespace mfem
 {
 
+/// \cond DO_NOT_DOCUMENT
+
 namespace internal
 {
 
@@ -62,6 +64,8 @@ static void RegisterEAConvectionAssembleKernels()
 }
 
 } // namespace internal
+
+/// \endcond DO_NOT_DOCUMENT
 
 void ConvectionIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                       Vector &ea_data,

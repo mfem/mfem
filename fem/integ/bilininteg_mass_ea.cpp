@@ -17,6 +17,8 @@
 namespace mfem
 {
 
+/// \cond DO_NOT_DOCUMENT
+
 namespace internal
 {
 
@@ -64,6 +66,8 @@ static void RegisterEAMassAssembleKernels()
 }
 
 } // namespace internal
+
+/// \endcond DO_NOT_DOCUMENT
 
 void MassIntegrator::AssembleEA_(Vector &ea_data,
                                  const bool add)

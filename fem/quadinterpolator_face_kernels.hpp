@@ -18,6 +18,8 @@
 #include "../linalg/dtensor.hpp"
 #include "../linalg/kernels.hpp"
 
+/// \cond DO_NOT_DOCUMENT
+
 namespace mfem
 {
 
@@ -596,5 +598,7 @@ FaceEvalKernelsType FaceEvalKernels::Kernel()
 } // namespace internal
 
 } // namespace mfem
+
+/// \endcond DO_NOT_DOCUMENT
 
 #endif

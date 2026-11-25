@@ -1447,8 +1447,6 @@ MassIntegrator::DiagonalPAKernels::Fallback(
    return nullptr;
 }
 
-/// \endcond DO_NOT_DOCUMENT
-
 } // namespace mfem
 
 // Additional runtime-dispatched kernels. Include this header to register
@@ -1483,5 +1481,7 @@ EAMassAssembleKernelsType EAMassAssembleKernels::Kernel()
 
 } // namespace internal
 } // namespace mfem
+
+/// \endcond DO_NOT_DOCUMENT
 
 #endif

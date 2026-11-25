@@ -91,6 +91,8 @@ bool FaceQuadratureInterpolator::SupportsFESpace(const FiniteElementSpace &fes)
              tfe->GetBasisType() == BasisType::Positive);
 }
 
+/// \cond DO_NOT_DOCUMENT
+
 namespace internal
 {
 
@@ -168,6 +170,8 @@ static void RegisterFaceEvalKernels()
 }
 
 } // namespace internal
+
+/// \endcond DO_NOT_DOCUMENT
 
 void FaceQuadratureInterpolator::Mult(
    const Vector &e_vec, unsigned eval_flags,

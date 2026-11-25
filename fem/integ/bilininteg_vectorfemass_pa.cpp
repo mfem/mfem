@@ -15,6 +15,8 @@
 namespace mfem
 {
 
+/// \cond DO_NOT_DOCUMENT
+
 namespace internal
 {
 
@@ -41,7 +43,7 @@ static void RegisterSmemPAHcurlMassAssembleDiagonal3DKernels()
 }
 
 } // namespace internal
-/// \cond DO_NOT_DOCUMENT
+
 VectorFEMassIntegrator::ApplyKernelType
 VectorFEMassIntegrator::ApplyPAKernels::Fallback(
    FiniteElement::DerivType TrialType, FiniteElement::DerivType TestType,

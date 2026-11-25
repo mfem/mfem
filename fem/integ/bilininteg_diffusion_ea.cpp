@@ -17,6 +17,8 @@
 namespace mfem
 {
 
+/// \cond DO_NOT_DOCUMENT
+
 namespace internal
 {
 
@@ -61,6 +63,8 @@ static void RegisterEADiffusionAssembleKernels()
 }
 
 } // namespace internal
+
+/// \endcond DO_NOT_DOCUMENT
 
 void DiffusionIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                      Vector &ea_data,

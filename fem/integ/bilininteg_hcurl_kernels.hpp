@@ -3338,7 +3338,6 @@ CurlCurlIntegrator::DiagonalPAKernels::Kernel()
    }
    MFEM_ABORT("");
 }
-/// \endcond DO_NOT_DOCUMENT
 } // namespace mfem
 
 // Additional runtime-dispatched kernels. Include this header to register
@@ -3397,5 +3396,7 @@ SmemPAHcurlL2ApplyTranspose3DKernels::Kernel()
 
 } // namespace internal
 } // namespace mfem
+
+/// \endcond DO_NOT_DOCUMENT
 
 #endif

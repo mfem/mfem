@@ -1254,8 +1254,6 @@ DiffusionIntegrator::DiagonalPAKernels::Fallback(int dim, int, int)
    return nullptr;
 }
 
-/// \endcond DO_NOT_DOCUMENT
-
 } // namespace mfem
 
 // Additional runtime-dispatched kernels. Include this header to register
@@ -1516,5 +1514,7 @@ EADiffusionAssembleKernelsType EADiffusionAssembleKernels::Kernel()
 
 } // namespace internal
 } // namespace mfem
+
+/// \endcond DO_NOT_DOCUMENT
 
 #endif

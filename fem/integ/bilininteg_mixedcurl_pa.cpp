@@ -19,6 +19,8 @@
 namespace mfem
 {
 
+/// \cond DO_NOT_DOCUMENT
+
 namespace internal
 {
 
@@ -66,6 +68,8 @@ static void RegisterSmemPAHcurlL2ApplyTranspose3DKernels()
 }
 
 } // namespace internal
+
+/// \endcond DO_NOT_DOCUMENT
 
 namespace
 {

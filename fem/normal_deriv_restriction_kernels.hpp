@@ -20,6 +20,8 @@
 #include "fe/face_map_utils.hpp"
 #include "../general/forall.hpp"
 
+/// \cond DO_NOT_DOCUMENT
+
 namespace mfem
 {
 
@@ -579,5 +581,7 @@ NormalDerivativeAddMultTransposeKernels::Kernel()
 } // namespace internal
 
 } // namespace mfem
+
+/// \endcond DO_NOT_DOCUMENT
 
 #endif

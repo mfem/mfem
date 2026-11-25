@@ -786,7 +786,6 @@ DGTraceIntegrator::ApplyKernelType DGTraceIntegrator::ApplyPATKernels::Kernel()
 }
 } // namespace mfem
 
-/// \endcond DO_NOT_DOCUMENT
 // Additional runtime-dispatched kernels. Include this header to register
 // specializations with the corresponding table's Specialization<...>::Add().
 namespace mfem
@@ -1108,5 +1107,7 @@ EADGTraceAssembleBdrKernelsType EADGTraceAssembleBdrKernels::Kernel()
 
 } // namespace internal
 } // namespace mfem
+
+/// \endcond DO_NOT_DOCUMENT
 
 #endif

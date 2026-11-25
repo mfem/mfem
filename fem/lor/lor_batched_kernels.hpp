@@ -20,6 +20,8 @@
 #include "../kernel_dispatch.hpp"
 #include "../../general/forall.hpp"
 
+/// \cond DO_NOT_DOCUMENT
+
 namespace mfem
 {
 namespace internal
@@ -77,5 +79,7 @@ BatchedLORAssemblyKernels<LOR_KERNEL>::AssembleKernels::Fallback(int order)
 } // namespace internal
 
 } // namespace mfem
+
+/// \endcond DO_NOT_DOCUMENT
 
 #endif

@@ -230,6 +230,8 @@ L2NormalDerivativeFaceRestriction::L2NormalDerivativeFaceRestriction(
    }
 }
 
+/// \cond DO_NOT_DOCUMENT
+
 namespace internal
 {
 
@@ -306,6 +308,8 @@ static void RegisterNormalDerivativeAddMultTransposeKernels()
 }
 
 } // namespace internal
+
+/// \endcond DO_NOT_DOCUMENT
 
 void L2NormalDerivativeFaceRestriction::Mult(const Vector &x, Vector &y) const
 {

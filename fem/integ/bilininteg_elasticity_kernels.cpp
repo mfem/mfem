@@ -18,6 +18,8 @@ namespace mfem
 namespace internal
 {
 
+/// \cond DO_NOT_DOCUMENT
+
 ElasticityComponentAddMultPAKernelsType
 ElasticityComponentAddMultPAKernels::Fallback(int, int, int)
 {
@@ -106,6 +108,8 @@ static void RegisterElasticityAssembleEAKernels()
    };
    static Kernels kernels;
 }
+
+/// \endcond DO_NOT_DOCUMENT
 
 void ElasticityComponentAddMultPA(const int dim, const int nDofs,
                                   const FiniteElementSpace &fespace, const CoefficientVector &lambda,

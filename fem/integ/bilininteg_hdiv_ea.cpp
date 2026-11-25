@@ -35,6 +35,8 @@ namespace mfem
 //
 // These two integrators are distinguished using coeff_dim.
 
+/// \cond DO_NOT_DOCUMENT
+
 namespace internal
 {
 
@@ -66,6 +68,8 @@ static void RegisterEAHdivAssembleKernels()
 }
 
 } // namespace internal
+
+/// \endcond DO_NOT_DOCUMENT
 
 void VectorFEMassIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                         Vector &ea_data,

@@ -72,6 +72,8 @@ static void EADGTraceAssemble1DBdr(const int NF,
    });
 }
 
+/// \cond DO_NOT_DOCUMENT
+
 namespace internal
 {
 
@@ -146,6 +148,8 @@ static void RegisterEADGTraceAssembleBdrKernels()
 }
 
 } // namespace internal
+
+/// \endcond DO_NOT_DOCUMENT
 
 void DGTraceIntegrator::AssembleEAInteriorFaces(const FiniteElementSpace& fes,
                                                 Vector &ea_data_int,

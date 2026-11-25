@@ -421,6 +421,8 @@ void ElasticityAssembleEA_(const int i_block,
 
 } // namespace mfem
 
+/// \cond DO_NOT_DOCUMENT
+
 // Additional runtime-dispatched kernels. Include this header to register
 // specializations with the corresponding table's Specialization<...>::Add().
 namespace mfem
@@ -478,5 +480,7 @@ ElasticityAssembleEAKernelsType ElasticityAssembleEAKernels::Kernel()
 
 } // namespace internal
 } // namespace mfem
+
+/// \endcond DO_NOT_DOCUMENT
 
 #endif
