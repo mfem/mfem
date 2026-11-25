@@ -10,13 +10,55 @@
 // CONTRIBUTING.md for details.
 
 #include "qfunction.hpp"
+#include "qfunction_random.hpp"
 #include "quadinterpolator.hpp"
 #include "quadinterpolator_face.hpp"
 #include "../general/forall.hpp"
 #include "../mesh/pmesh.hpp"
+#include <cmath>
 
 namespace mfem
 {
+
+QuadratureGaussianSampler::QuadratureGaussianSampler(
+   std::uint64_t seed_, std::uint32_t stream_id_)
+   : seed(seed_), stream_id(stream_id_)
+{ }
+
+void QuadratureGaussianSampler::Generate(
+   std::uint64_t sample_id, QuadratureFunction &normal_q) const
+{
+   const QuadratureSpaceBase *space = normal_q.GetSpace();
+   MFEM_VERIFY(space && normal_q.GetVDim() > 0,
+               "A quadrature space and positive vector dimension are required.");
+   MFEM_VERIFY(std::uint64_t(normal_q.Size()) ==
+               std::uint64_t(space->GetSize()) * normal_q.GetVDim(),
+               "Quadrature function storage does not match its space.");
+   const int size = normal_q.Size();
+   if (size == 0) { return; }
+   const std::uint32_t key_low = std::uint32_t(seed);
+   const std::uint32_t key_high = std::uint32_t(seed >> 32);
+   const std::uint32_t sample_low = std::uint32_t(sample_id);
+   const std::uint32_t sample_high = std::uint32_t(sample_id >> 32);
+   const std::uint32_t stream = stream_id;
+   real_t *values = normal_q.Write();
+   mfem::forall(size / 2 + size % 2, [=] MFEM_HOST_DEVICE(int pair)
+   {
+      const auto random = internal::Philox4x32(
+         std::uint32_t(pair), stream, sample_low, sample_high, key_low, key_high);
+      const double uniform_radius =
+         (double(random.words[0]) + 0.5) * (1.0 / 4294967296.0);
+      const double uniform_angle =
+         (double(random.words[1]) + 0.5) * (1.0 / 4294967296.0);
+      const double radius = sqrt(-2.0 * log(uniform_radius));
+      const double angle = 6.283185307179586476925286766559 * uniform_angle;
+      values[2 * pair] = real_t(radius * cos(angle));
+      if (2 * pair + 1 < size)
+      {
+         values[2 * pair + 1] = real_t(radius * sin(angle));
+      }
+   });
+}
 
 QuadratureFunction &QuadratureFunction::operator=(real_t value)
 {

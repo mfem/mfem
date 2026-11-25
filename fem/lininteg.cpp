@@ -15,6 +15,11 @@
 
 namespace mfem
 {
+bool LinearFormIntegrator::SupportsDevice(const FiniteElementSpace &fes) const
+{
+   return SupportsDevice() && UsesTensorBasis(fes);
+}
+
 void LinearFormIntegrator::AssembleDevice(const FiniteElementSpace &fes,
                                           const Array<int> &markers,
                                           Vector &b)

@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "qspace.hpp"
 #include "gridfunc.hpp"
+#include <cstdint>
 
 namespace mfem
 {
@@ -240,6 +241,36 @@ public:
    {
       if (own_qspace) { delete qspace; }
    }
+};
+
+/// Stateless generation of standard-normal quadrature entries.
+class QuadratureGaussianSampler
+{
+   std::uint64_t seed;
+   std::uint32_t stream_id;
+
+public:
+   /** @brief Create a sampler with an explicit random seed and stream ID.
+
+       No MPI communication or automatic rank-based stream selection is
+       performed. For a distributed realization, use a common @a seed and
+       Generate() sample ID across ranks, with a distinct @a stream_id on each
+       rank, such as its rank in the finite element space communicator. Using
+       the same seed, stream ID, and sample ID on multiple ranks repeats their
+       random sequences at matching local indices instead of providing
+       independent noise. Use a different seed for an independent field stream.
+   */
+   explicit QuadratureGaussianSampler(std::uint64_t seed = 0,
+                                      std::uint32_t stream_id = 0);
+
+   /** @brief Overwrite @a normal_q with the sample identified by @a sample_id.
+
+       Repeating a sample ID replays the sample for an unchanged mesh partition,
+       quadrature layout, and vector dimension. Replay after repartitioning is
+       not supported. This operation is local, performs no MPI communication,
+       and accepts empty local quadrature storage.
+   */
+   void Generate(std::uint64_t sample_id, QuadratureFunction &normal_q) const;
 };
 
 // Inline methods

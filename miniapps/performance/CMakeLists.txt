@@ -48,6 +48,31 @@ add_mfem_miniapp(performance_ex1
   LIBRARIES mfem
   EXTRA_OPTIONS ${PERFORMANCE_CXX_OPTIONS})
 
+add_mfem_miniapp(white_noise_bench
+  MAIN white_noise_bench.cpp
+  LIBRARIES mfem)
+
+if (MFEM_ENABLE_TESTING)
+  function(add_white_noise_smoke geometry space vdim ordering order)
+    set(test_name white_noise_bench_${geometry}_${space}_v${vdim})
+    set(test_args -g ${geometry} -s ${space} -vd ${vdim} -ord ${ordering}
+      -o ${order} -n 1 -ns 2 -nb 2 -nw 1 -nv 512)
+    if (MFEM_USE_MPI)
+      add_test(NAME ${test_name}
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} ${MFEM_MPI_NP}
+        ${MPIEXEC_PREFLAGS} $<TARGET_FILE:white_noise_bench> ${test_args}
+        ${MPIEXEC_POSTFLAGS})
+    else()
+      add_test(NAME ${test_name} COMMAND white_noise_bench ${test_args})
+    endif()
+    set_tests_properties(${test_name} PROPERTIES TIMEOUT 60 LABELS "white-noise")
+  endfunction()
+  add_white_noise_smoke(quad h1 1 nodes 1)
+  add_white_noise_smoke(tri l2 3 vdim 1)
+  add_white_noise_smoke(hex h1 3 nodes 1)
+  add_white_noise_smoke(tet l2 1 vdim 0)
+endif()
+
 if (MFEM_ENABLE_TESTING)
   add_test(NAME performance_ex1_ser
     COMMAND performance_ex1 -no-vis -r 2)

@@ -56,6 +56,7 @@ set(SRCS
   integ/lininteg_domain.cpp
   integ/lininteg_domain_grad.cpp
   integ/lininteg_domain_vectorfe.cpp
+  integ/lininteg_white_noise.cpp
   integ/nonlininteg_vecconvection_pa.cpp
   integ/nonlininteg_vecconvection_pa_diag.cpp
   integ/nonlininteg_vecconvection_pa_grad.cpp
@@ -289,6 +290,7 @@ set(HDRS
   nonlinearform_ext.hpp
   nonlininteg.hpp
   qfunction.hpp
+  qfunction_random.hpp
   qinterp/det.hpp
   qinterp/eval.hpp
   qinterp/eval_hdiv.hpp

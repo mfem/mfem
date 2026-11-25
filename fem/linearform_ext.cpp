@@ -115,7 +115,9 @@ void LinearFormExtension::Update()
 {
    const FiniteElementSpace &fes = *lf->FESpace();
    const Mesh &mesh = *fes.GetMesh();
-   constexpr ElementDofOrdering ordering = ElementDofOrdering::LEXICOGRAPHIC;
+   const ElementDofOrdering ordering = UsesTensorBasis(fes) ?
+                                      ElementDofOrdering::LEXICOGRAPHIC :
+                                      ElementDofOrdering::NATIVE;
 
    MFEM_VERIFY(lf->Size() == fes.GetVSize(), "");
 
