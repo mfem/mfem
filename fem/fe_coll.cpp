@@ -408,6 +408,10 @@ FiniteElementCollection *FiniteElementCollection::New(const char *name)
                                 BasisType::GetType(name[3]),
                                 BasisType::GetType(name[4]));
    }
+   else if (!strncmp(name, "NDPos_", 6))
+   {
+      fec = new NDPos_FECollection(atoi(name + 10), atoi(name + 6));
+   }
    else if (!strncmp(name, "Local_", 6))
    {
       fec = new Local_FECollection(name + 6);
@@ -3070,6 +3074,86 @@ ND_FECollection::~ND_FECollection()
    }
 }
 
+NDPos_FECollection::NDPos_FECollection(int p, int dim)
+   : FiniteElementCollection(p), dim(dim)
+{
+   MFEM_VERIFY(p >= 1, "NDPos_FECollection requires order >= 1.");
+   MFEM_VERIFY(dim == 2 || dim == 3,
+               "NDPos_FECollection requires dimension 2 or 3.");
+   snprintf(ndpos_name, 32, "NDPos_%dD_P%d", dim, p);
+
+   for (int g = 0; g < Geometry::NumGeom; g++)
+   {
+      elements[g] = NULL;
+      geom_dof[g] = 0;
+   }
+   for (int i = 0; i < 2; i++) { SegDofOrd[i] = NULL; }
+   for (int i = 0; i < 6; i++) { TriDofOrd[i] = NULL; }
+
+   elements[Geometry::SEGMENT] = new NDPos_SegmentElement(p);
+   elements[Geometry::TRIANGLE] = new NDPos_TriangleElement(p);
+   if (dim == 3)
+   {
+      elements[Geometry::TETRAHEDRON] = new NDPos_TetrahedronElement(p);
+   }
+
+   geom_dof[Geometry::SEGMENT] = p;
+   geom_dof[Geometry::TRIANGLE] = p*(p - 1);
+   geom_dof[Geometry::TETRAHEDRON] = p*(p - 1)*(p - 2)/2;
+
+   SegDofOrd[0] = new int[2*p];
+   SegDofOrd[1] = SegDofOrd[0] + p;
+   for (int i = 0; i < p; i++) { SegDofOrd[0][i] = i; }
+   SegDofOrd[1][0] = -1; // the Whitney mode changes sign
+   for (int i = 1; i < p; i++)
+   {
+      SegDofOrd[1][i] = p - i; // gradient modes are only reversed
+   }
+
+   const int nfdof = p*(p - 1);
+   TriDofOrd[0] = nfdof ? new int[6*nfdof] : NULL;
+   for (int ori = 0; ori < 6; ori++)
+   {
+      TriDofOrd[ori] = nfdof ? TriDofOrd[0] + ori*nfdof : NULL;
+      for (int i = 0; i < nfdof; i++) { TriDofOrd[ori][i] = i; }
+   }
+}
+
+const FiniteElement *NDPos_FECollection::FiniteElementForGeometry(
+   Geometry::Type GeomType) const
+{
+   return elements[GeomType];
+}
+
+const StatelessDofTransformation *
+NDPos_FECollection::DofTransformationForGeometry(
+   Geometry::Type GeomType) const
+{
+   const FiniteElement *fe = FiniteElementForGeometry(GeomType);
+   if (fe && GetOrder() > 1) { return fe->GetDofTransformation(); }
+   return NULL;
+}
+
+const int *NDPos_FECollection::DofOrderForOrientation(
+   Geometry::Type GeomType, int Or) const
+{
+   if (GeomType == Geometry::SEGMENT)
+   {
+      return (Or > 0) ? SegDofOrd[0] : SegDofOrd[1];
+   }
+   if (GeomType == Geometry::TRIANGLE)
+   {
+      return TriDofOrd[Or%6];
+   }
+   return NULL;
+}
+
+NDPos_FECollection::~NDPos_FECollection()
+{
+   delete [] SegDofOrd[0];
+   delete [] TriDofOrd[0];
+   for (int g = 0; g < Geometry::NumGeom; g++) { delete elements[g]; }
+}
 
 ND_Trace_FECollection::ND_Trace_FECollection(const int p, const int dim,
                                              const int cb_type,

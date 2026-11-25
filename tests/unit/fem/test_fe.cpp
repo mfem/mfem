@@ -326,6 +326,37 @@ TEST_CASE("Nedelec Triangular Finite Element",
    }
 }
 
+TEST_CASE("Nedelec Triangular Finite Element with Bernstein Basis",
+          "[NDPos_TriangleElement]"
+          "[VectorFiniteElement]"
+          "[FiniteElement]")
+{
+   for (int p = 1; p<=3; p++)
+   {
+      NDPos_TriangleElement fe(p);
+
+      if (p == 1)
+      {
+         SECTION("Attributes")
+         {
+            REQUIRE( fe.GetDim()            == 2                            );
+            REQUIRE( fe.GetGeomType()       == Geometry::TRIANGLE           );
+            REQUIRE( fe.Space()             == (int) FunctionSpace::Pk      );
+            REQUIRE( fe.GetRangeType()      == (int) FiniteElement::VECTOR  );
+            REQUIRE( fe.GetMapType()        == (int) FiniteElement::H_CURL  );
+            REQUIRE( fe.GetDerivType()      == (int) FiniteElement::CURL    );
+            REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::SCALAR  );
+            REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::INTEGRAL);
+         }
+      }
+      SECTION("Sizes for p = " + std::to_string(p))
+      {
+         REQUIRE( fe.GetDof()   == p*(p+2) );
+         REQUIRE( fe.GetOrder() == p       );
+      }
+   }
+}
+
 TEST_CASE("Nedelec Quadrilateral Finite Element",
           "[ND_QuadrilateralElement]"
           "[VectorFiniteElement]"
@@ -365,6 +396,37 @@ TEST_CASE("Nedelec Tetrahedron Finite Element",
    for (int p = 1; p<=4; p++)
    {
       ND_TetrahedronElement fe(p);
+
+      if (p == 1)
+      {
+         SECTION("Attributes")
+         {
+            REQUIRE( fe.GetDim()            == 3                           );
+            REQUIRE( fe.GetGeomType()       == Geometry::TETRAHEDRON       );
+            REQUIRE( fe.Space()             == (int) FunctionSpace::Pk     );
+            REQUIRE( fe.GetRangeType()      == (int) FiniteElement::VECTOR );
+            REQUIRE( fe.GetMapType()        == (int) FiniteElement::H_CURL );
+            REQUIRE( fe.GetDerivType()      == (int) FiniteElement::CURL   );
+            REQUIRE( fe.GetDerivRangeType() == (int) FiniteElement::VECTOR );
+            REQUIRE( fe.GetDerivMapType()   == (int) FiniteElement::H_DIV  );
+         }
+      }
+      SECTION("Sizes for p = " + std::to_string(p))
+      {
+         REQUIRE( fe.GetDof()   == p*(p+2)*(p+3)/2 );
+         REQUIRE( fe.GetOrder() == p               );
+      }
+   }
+}
+
+TEST_CASE("Nedelec Tetrahedron Finite Element with Bernstein Basis",
+          "[NDPos_TetrahedronElement]"
+          "[VectorFiniteElement]"
+          "[FiniteElement]")
+{
+   for (int p = 1; p<=4; p++)
+   {
+      NDPos_TetrahedronElement fe(p);
 
       if (p == 1)
       {
