@@ -10,10 +10,10 @@
 namespace mfem
 {
 
-/** Optional interval capability for general ALGOIM quadrature.
-    Include this header explicitly; ALGOIM types are not part of the common API.
-    Evaluations must preserve ALGOIM's affine interval/remainder semantics.
-    Callbacks must not invoke nested interval algorithms or quadrature. */
+/// Optional interval capability for general ALGOIM quadrature.
+/// Include this header explicitly; ALGOIM types are not part of the common API.
+/// Evaluations must preserve ALGOIM's affine interval/remainder semantics.
+/// Callbacks must not invoke nested interval algorithms or quadrature.
 template <int Dimension>
 class AlgoimIntervalLevelSet : public ReferenceLevelSet
 {
@@ -30,10 +30,10 @@ public:
       const IntervalVector &point) const = 0;
 };
 
-/** Own a functor with scalar-templated operator() and grad() methods.
-    Both methods must accept algoim::uvector<Scalar, Dimension> for real and
-    interval scalars. Referenced objects captured by the functor must outlive
-    this level set. No polynomial approximation is made. */
+/// Own a functor with scalar-templated operator() and grad() methods.
+/// Both methods must accept algoim::uvector<Scalar, Dimension> for real and
+/// interval scalars. Referenced objects captured by the functor must outlive
+/// this level set. No polynomial approximation is made.
 template <int Dimension, typename Functor>
 class AlgoimFunctionLevelSet : public AlgoimIntervalLevelSet<Dimension>
 {

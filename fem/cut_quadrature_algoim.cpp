@@ -35,11 +35,18 @@ struct AlgoimPolynomial
    template <typename Scalar>
    Scalar Evaluate(const Scalar *point, int derivative = -1) const
    {
-      if (derivative >= 0 && extent == 1) { return Scalar(0); }
-      const auto &source = derivative < 0 ? coefficients : derivatives[derivative];
+      if (derivative >= 0 && extent == 1)
+      {
+         return Scalar(0);
+      }
+      const auto &source = derivative < 0 ?
+                           coefficients : derivatives[derivative];
       std::vector<Scalar> values;
       values.reserve(source.size());
-      for (real_t value : source) { values.emplace_back(value); }
+      for (real_t value : source)
+      {
+         values.emplace_back(value);
+      }
       size_t count = values.size();
       for (int axis = 0; axis < dimension; ++axis)
       {
@@ -111,11 +118,16 @@ void AlgoimPolynomial::Set(const PolynomialLevelSet &level_set)
    Vector values;
    BernsteinCoefficients(level_set, positive, values);
    const real_t scale = values.Normlinf();
-   if (scale > 0) { values /= scale; }
+   if (scale > 0)
+   {
+      values /= scale;
+   }
    const auto &mapping = positive.GetDofMap();
    coefficients.resize(values.Size());
    for (int index = 0; index < values.Size(); ++index)
-   { coefficients[index] = values(mapping.Size() ? mapping[index] : index); }
+   {
+      coefficients[index] = values(mapping.Size() ? mapping[index] : index);
+   }
    int stride = 1;
    for (int axis = 0; axis < dimension; ++axis)
    {
@@ -123,9 +135,13 @@ void AlgoimPolynomial::Set(const PolynomialLevelSet &level_set)
       derivative.clear();
       for (int index = 0; index < values.Size(); ++index)
       {
-         if ((index / stride) % extent == extent - 1) { continue; }
-         derivative.push_back((extent - 1) *
-                              (coefficients[index + stride] - coefficients[index]));
+         if ((index / stride) % extent == extent - 1)
+         {
+            continue;
+         }
+         derivative.push_back(
+            (extent - 1) *
+            (coefficients[index + stride] - coefficients[index]));
       }
       stride *= extent;
    }
@@ -142,12 +158,19 @@ CutQuadratureReport AlgoimPolynomial::Classify(
    if (lower == 0 && upper == 0)
    {
       if (surface)
-      { return {CutQuadratureReport::Status::DegenerateGeometry, "Identically zero equality constraint."}; }
+      {
+         return {CutQuadratureReport::Status::DegenerateGeometry,
+                 "Identically zero equality constraint."};
+      }
       region = Region::Empty;
    }
    else if (surface)
    {
-      if (lower > 0 || upper < 0) { region = Region::Empty; return {}; }
+      if (lower > 0 || upper < 0)
+      {
+         region = Region::Empty;
+         return {};
+      }
       int stride = 1;
       for (int axis = 0; axis < dimension; ++axis)
       {
@@ -157,27 +180,38 @@ CutQuadratureReport AlgoimPolynomial::Classify(
             for (size_t index = 0; index < coefficients.size(); ++index)
             {
                if ((index / stride) % extent == size_t(side * (extent - 1)))
-               { maximum = std::max(maximum, std::abs(coefficients[index])); }
+               {
+                  maximum = std::max(maximum, std::abs(coefficients[index]));
+               }
             }
             if (maximum <= 64 * std::numeric_limits<real_t>::epsilon())
-            { return {CutQuadratureReport::Status::DegenerateGeometry, "Interface coincides with an element facet."}; }
+            {
+               return {CutQuadratureReport::Status::DegenerateGeometry,
+                       "Interface coincides with an element facet."};
+            }
          }
          stride *= extent;
       }
    }
    else if ((sign == CutDomain::LevelSetSign::Positive && lower >= 0) ||
             (sign == CutDomain::LevelSetSign::Negative && upper <= 0))
-   { region = Region::Full; }
+   {
+      region = Region::Full;
+   }
    else if ((sign == CutDomain::LevelSetSign::Positive && upper <= 0) ||
             (sign == CutDomain::LevelSetSign::Negative && lower >= 0))
-   { region = Region::Empty; }
+   {
+      region = Region::Empty;
+   }
    return {};
 }
 
 real_t Checked(real_t value)
 {
    if (!std::isfinite(value))
-   { throw std::runtime_error("Nonfinite ALGOIM function evaluation."); }
+   {
+      throw std::runtime_error("Nonfinite ALGOIM function evaluation.");
+   }
    return value;
 }
 
@@ -187,8 +221,13 @@ algoim::Interval<Dimension> Checked(const algoim::Interval<Dimension> &value)
    Checked(value.alpha);
    Checked(value.eps);
    if (value.eps < 0)
-   { throw std::runtime_error("Negative ALGOIM interval remainder."); }
-   for (int axis = 0; axis < Dimension; ++axis) { Checked(value.beta(axis)); }
+   {
+      throw std::runtime_error("Negative ALGOIM interval remainder.");
+   }
+   for (int axis = 0; axis < Dimension; ++axis)
+   {
+      Checked(value.beta(axis));
+   }
    return value;
 }
 
@@ -196,8 +235,15 @@ template <int Dimension>
 class IntervalGuard
 {
 public:
-   IntervalGuard() : saved(algoim::Interval<Dimension>::delta()) { }
-   ~IntervalGuard() { algoim::Interval<Dimension>::delta() = saved; }
+   IntervalGuard() : saved(algoim::Interval<Dimension>::delta())
+   {
+   }
+
+   ~IntervalGuard()
+   {
+      algoim::Interval<Dimension>::delta() = saved;
+   }
+
 private:
    algoim::uvector<real_t, Dimension> saved;
 };
@@ -216,15 +262,21 @@ struct GeneralFunction
       {
          std::array<Scalar, Dimension> coordinates;
          for (int axis = 0; axis < Dimension; ++axis)
-         { coordinates[axis] = point(axis); }
+         {
+            coordinates[axis] = point(axis);
+         }
          return Checked(polynomial->Evaluate(coordinates.data()) * sign);
       }
       if constexpr (std::is_same<Scalar, real_t>::value)
       {
          IntegrationPoint reference;
          reference.Init(0);
-         reference.x = point(0); reference.y = point(1);
-         if constexpr (Dimension == 3) { reference.z = point(2); }
+         reference.x = point(0);
+         reference.y = point(1);
+         if constexpr (Dimension == 3)
+         {
+            reference.z = point(2);
+         }
          return Checked(level_set.Eval(reference) * sign);
       }
       else
@@ -242,41 +294,58 @@ struct GeneralFunction
       algoim::uvector<Scalar, Dimension> result;
       if (polynomial)
       {
-         std::array<Scalar, Dimension> coordinates;
+         std::array<Scalar, Dimension> coords;
          for (int axis = 0; axis < Dimension; ++axis)
-         { coordinates[axis] = point(axis); }
+         {
+            coords[axis] = point(axis);
+         }
          for (int axis = 0; axis < Dimension; ++axis)
-         { result(axis) = polynomial->Evaluate(coordinates.data(), axis) * sign; }
+         {
+            result(axis) = polynomial->Evaluate(coords.data(), axis) * sign;
+         }
       }
       else if constexpr (std::is_same<Scalar, real_t>::value)
       {
          IntegrationPoint reference;
          reference.Init(0);
-         reference.x = point(0); reference.y = point(1);
-         if constexpr (Dimension == 3) { reference.z = point(2); }
+         reference.x = point(0);
+         reference.y = point(1);
+         if constexpr (Dimension == 3)
+         {
+            reference.z = point(2);
+         }
          Vector gradient;
          level_set.EvalGradient(reference, gradient);
          if (gradient.Size() != Dimension)
-         { throw std::runtime_error("Invalid ALGOIM gradient dimension."); }
+         {
+            throw std::runtime_error("Invalid ALGOIM gradient dimension.");
+         }
          for (int axis = 0; axis < Dimension; ++axis)
-         { result(axis) = gradient(axis) * sign; }
+         {
+            result(axis) = gradient(axis) * sign;
+         }
       }
       else
       {
-         result = dynamic_cast<const AlgoimIntervalLevelSet<Dimension> &>(level_set)
-                  .EvalIntervalGradient(point);
+         result = dynamic_cast<const AlgoimIntervalLevelSet<Dimension> &>
+                  (level_set).EvalIntervalGradient(point);
          for (int axis = 0; axis < Dimension; ++axis)
-         { result(axis) *= sign; }
+         {
+            result(axis) *= sign;
+         }
       }
-      for (int axis = 0; axis < Dimension; ++axis) { Checked(result(axis)); }
+      for (int axis = 0; axis < Dimension; ++axis)
+      {
+         Checked(result(axis));
+      }
       return result;
    }
 };
 
 template <int Dimension>
-CutQuadratureReport ComputeGeneral(
-   const ReferenceLevelSet &level_set, CutDomain::LevelSetSign sign, int order,
-   IntegrationRule &rule, Region &region)
+CutQuadratureReport ComputeGeneral(const ReferenceLevelSet &level_set,
+                                   CutDomain::LevelSetSign sign, int order,
+                                   IntegrationRule &rule, Region &region)
 {
    IntervalGuard<Dimension> guard;
    AlgoimPolynomial polynomial;
@@ -286,7 +355,10 @@ CutQuadratureReport ComputeGeneral(
    {
       polynomial.Set(*source);
       auto report = polynomial.Classify(sign, region);
-      if (!report.Succeeded()) { return report; }
+      if (!report.Succeeded())
+      {
+         return report;
+      }
    }
    GeneralFunction<Dimension> function
    {
@@ -305,18 +377,30 @@ CutQuadratureReport ComputeGeneral(
       }
       const auto value = function(box);
       const real_t deviation = value.maxDeviation();
-      if (!std::isfinite(value.alpha) || !std::isfinite(deviation) || deviation < 0)
-      { return {CutQuadratureReport::Status::NumericalFailure, "Invalid interval bounds."}; }
+      if (!std::isfinite(value.alpha) ||
+          !std::isfinite(deviation) || deviation < 0)
+      {
+         return {CutQuadratureReport::Status::NumericalFailure,
+                 "Invalid interval bounds."};
+      }
       if (value.alpha == 0 && deviation == 0)
       {
          if (sign == CutDomain::LevelSetSign::Zero)
-         { return {CutQuadratureReport::Status::DegenerateGeometry, "Identically zero equality constraint."}; }
+         {
+            return {CutQuadratureReport::Status::DegenerateGeometry,
+                    "Identically zero equality constraint."};
+         }
          region = Region::Empty;
       }
       else if (value.alpha - deviation > 0)
-      { region = Region::Empty; }
+      {
+         region = Region::Empty;
+      }
       else if (value.alpha + deviation < 0)
-      { region = sign == CutDomain::LevelSetSign::Zero ? Region::Empty : Region::Full; }
+      {
+         region = sign == CutDomain::LevelSetSign::Zero ?
+                  Region::Empty : Region::Full;
+      }
       if (sign == CutDomain::LevelSetSign::Zero && region == Region::Cut)
       {
          for (int axis = 0; axis < Dimension; ++axis)
@@ -327,29 +411,47 @@ CutQuadratureReport ComputeGeneral(
                box(axis) = Interval(side);
                const auto face = function(box);
                if (face.alpha == 0 && face.maxDeviation() == 0)
-               { return {CutQuadratureReport::Status::DegenerateGeometry, "Interface coincides with an element facet."}; }
+               {
+                  return {CutQuadratureReport::Status::DegenerateGeometry,
+                          "Interface coincides with an element facet."};
+               }
             }
             box(axis) = saved;
          }
       }
    }
-   if (region == Region::Empty) { return {}; }
+   if (region == Region::Empty)
+   {
+      return {};
+   }
    if (region == Region::Full)
-   { rule = IntRules.Get(level_set.GetReferenceGeometry(), order); return {}; }
-   const auto quadrature = algoim::quadGen<Dimension>(
-                              function, algoim::HyperRectangle<real_t, Dimension>(0.0, 1.0),
-                              sign == CutDomain::LevelSetSign::Zero ? Dimension : -1, -1,
-                              order / 2 + 1);
+   {
+      rule = IntRules.Get(level_set.GetReferenceGeometry(), order);
+      return {};
+   }
+   const auto quadrature =
+      algoim::quadGen<Dimension>(
+         function,
+         algoim::HyperRectangle<real_t, Dimension>(0.0, 1.0),
+         sign == CutDomain::LevelSetSign::Zero ? Dimension : -1,
+         -1, order / 2 + 1);
    if (quadrature.nodes.size() > size_t(std::numeric_limits<int>::max()))
-   { return {CutQuadratureReport::Status::NumericalFailure, "Too many ALGOIM nodes."}; }
+   {
+      return {CutQuadratureReport::Status::NumericalFailure,
+              "Too many ALGOIM nodes."};
+   }
    rule.SetSize(static_cast<int>(quadrature.nodes.size()));
    for (int index = 0; index < rule.GetNPoints(); ++index)
    {
       const auto &node = quadrature.nodes[index];
       auto &point = rule.IntPoint(index);
       point.Init(index);
-      point.x = node.x(0); point.y = node.x(1);
-      if constexpr (Dimension == 3) { point.z = node.x(2); }
+      point.x = node.x(0);
+      point.y = node.x(1);
+      if constexpr (Dimension == 3)
+      {
+         point.z = node.x(2);
+      }
       point.weight = node.w;
    }
    region = rule.GetNPoints() ? Region::Cut : Region::Empty;
@@ -383,7 +485,10 @@ void CopyPolynomialCoefficients(const AlgoimPolynomial &polynomial,
    {
       int offset = 0, stride = 1;
       for (int axis = 0; axis < Dimension; ++axis)
-      { offset += indices(axis) * stride; stride *= polynomial.extent; }
+      {
+         offset += indices(axis) * stride;
+         stride *= polynomial.extent;
+      }
       target.l(indices) = polynomial.coefficients[offset];
    }
 }
@@ -400,12 +505,14 @@ bool NearlyProportional(const AlgoimPolynomial &first,
    {
       const auto &polynomial = index == 0 ? first : second;
       std::vector<real_t> storage(polynomial.coefficients.size());
-      algoim::xarray<real_t, Dimension> source(storage.data(),
-                                               algoim::uvector<int, Dimension>(polynomial.extent));
+      algoim::xarray<real_t, Dimension> source(
+         storage.data(),
+         algoim::uvector<int, Dimension>(polynomial.extent));
       CopyPolynomialCoefficients(polynomial, source);
       coefficients[index].resize(count);
-      algoim::xarray<real_t, Dimension> elevated(coefficients[index].data(),
-                                                 algoim::uvector<int, Dimension>(extent));
+      algoim::xarray<real_t, Dimension> elevated(
+         coefficients[index].data(),
+         algoim::uvector<int, Dimension>(extent));
       algoim::bernstein::bernsteinElevate(source, elevated);
       algoim::bernstein::normalise(elevated);
    }
@@ -414,7 +521,8 @@ bool NearlyProportional(const AlgoimPolynomial &first,
    {
       const real_t first_value = Checked(coefficients[0][index]);
       const real_t second_value = Checked(coefficients[1][index]);
-      same_residual = std::max(same_residual, std::abs(first_value - second_value));
+      same_residual = std::max(same_residual,
+                               std::abs(first_value - second_value));
       opposite_residual = std::max(opposite_residual,
                                    std::abs(first_value + second_value));
    }
@@ -440,10 +548,16 @@ CutQuadratureReport ComputePolynomialRule(
             {
                if (std::abs(value) > 64 * polynomial.extent *
                    std::numeric_limits<real_t>::epsilon())
-               { independent = false; break; }
+               {
+                  independent = false;
+                  break;
+               }
             }
          }
-         if (!independent) { continue; }
+         if (!independent)
+         {
+            continue;
+         }
          std::vector<AlgoimPolynomial> reduced;
          for (const auto &polynomial : data)
          {
@@ -452,21 +566,33 @@ CutQuadratureReport ComputePolynomialRule(
             slice.extent = polynomial.extent;
             int stride = 1;
             for (int previous = 0; previous < axis; ++previous)
-            { stride *= polynomial.extent; }
-            for (size_t index = 0; index < polynomial.coefficients.size(); ++index)
+            {
+               stride *= polynomial.extent;
+            }
+            for (size_t index = 0;
+                 index < polynomial.coefficients.size(); ++index)
             {
                if ((index / stride) % polynomial.extent == 0)
-               { slice.coefficients.push_back(polynomial.coefficients[index]); }
+               {
+                  slice.coefficients.push_back(polynomial.coefficients[index]);
+               }
             }
             reduced.push_back(std::move(slice));
          }
          IntegrationRule plane;
          auto report = ComputePolynomialRule<2>(reduced, signs, domain, order,
                                                 plane, region);
-         if (!report.Succeeded()) { return report; }
+         if (!report.Succeeded())
+         {
+            return report;
+         }
          const auto &line = IntRules.Get(Geometry::SEGMENT, order);
-         if (plane.GetNPoints() > std::numeric_limits<int>::max() / line.GetNPoints())
-         { return {CutQuadratureReport::Status::NumericalFailure, "Too many extruded ALGOIM nodes."}; }
+         if (plane.GetNPoints() >
+             std::numeric_limits<int>::max() / line.GetNPoints())
+         {
+            return {CutQuadratureReport::Status::NumericalFailure,
+                    "Too many extruded ALGOIM nodes."};
+         }
          rule.SetSize(plane.GetNPoints() * line.GetNPoints());
          int output = 0;
          for (int index = 0; index < plane.GetNPoints(); ++index)
@@ -478,11 +604,13 @@ CutQuadratureReport ComputePolynomialRule(
                int coordinate = 0;
                for (int dimension = 0; dimension < 3; ++dimension)
                {
-                  coordinates[dimension] = dimension == axis ? extrusion.x :
-                                           (coordinate++ == 0 ? point.x : point.y);
+                  coordinates[dimension] =
+                     dimension == axis ? extrusion.x :
+                     (coordinate++ == 0 ? point.x : point.y);
                }
-               rule.IntPoint(output++).Set3w(coordinates[0], coordinates[1],
-                                             coordinates[2], point.weight * extrusion.weight);
+               rule.IntPoint(output++).Set3w(
+                  coordinates[0], coordinates[1], coordinates[2],
+                  point.weight * extrusion.weight);
             }
          return {};
       }
@@ -493,35 +621,50 @@ CutQuadratureReport ComputePolynomialRule(
    {
       const auto &polynomial = data[index];
       storage[index].resize(polynomial.coefficients.size());
-      polynomials.emplace_back(new algoim::xarray<real_t, Dimension>(
-                                  storage[index].data(),
-                                  algoim::uvector<int, Dimension>(polynomial.extent)));
+      polynomials.emplace_back(
+         new algoim::xarray<real_t, Dimension>(
+            storage[index].data(),
+            algoim::uvector<int, Dimension>(polynomial.extent)));
       auto &target = *polynomials.back();
       CopyPolynomialCoefficients(polynomial, target);
       std::vector<real_t> reduced_storage = storage[index];
-      algoim::xarray<real_t, Dimension> reduced(reduced_storage.data(), target.ext());
+      algoim::xarray<real_t, Dimension> reduced(
+         reduced_storage.data(), target.ext());
       if (algoim::bernstein::autoReduction(reduced))
       {
          auto extents = reduced.ext();
          for (int axis = 0; axis < Dimension; ++axis)
-         { extents(axis) = std::max(2, extents(axis)); }
+         {
+            extents(axis) = std::max(2, extents(axis));
+         }
          target.alterExtent(extents);
          algoim::bernstein::bernsteinElevate(reduced, target);
       }
    }
    std::unique_ptr<algoim::ImplicitPolyQuadrature<Dimension>> quadrature;
    if (data.size() == 1)
-   { quadrature.reset(new algoim::ImplicitPolyQuadrature<Dimension>(*polynomials[0])); }
+   {
+      quadrature.reset(new algoim::ImplicitPolyQuadrature<Dimension>
+                       (*polynomials[0]));
+   }
    else
-   { quadrature.reset(new algoim::ImplicitPolyQuadrature<Dimension>(*polynomials[0], *polynomials[1])); }
+   {
+      quadrature.reset(
+         new algoim::ImplicitPolyQuadrature<Dimension>(
+            *polynomials[0], *polynomials[1]));
+   }
    std::vector<IntegrationPoint> nodes;
    auto append = [&](const algoim::uvector<real_t, Dimension> &coordinates,
                      real_t weight)
    {
       IntegrationPoint point;
       point.Init(0);
-      point.x = coordinates(0); point.y = coordinates(1);
-      if constexpr (Dimension == 3) { point.z = coordinates(2); }
+      point.x = coordinates(0);
+      point.y = coordinates(1);
+      if constexpr (Dimension == 3)
+      {
+         point.z = coordinates(2);
+      }
       point.weight = weight;
       nodes.push_back(point);
    };
@@ -530,9 +673,12 @@ CutQuadratureReport ComputePolynomialRule(
                  "Update the polynomial ALGOIM order limit.");
    if (domain.Codimension())
    {
-      quadrature->integrate_surf(algoim::AutoMixed, order / 2 + 1,
-                                 [&](const auto &coordinates, real_t weight, const auto &)
-      { append(coordinates, weight); });
+      quadrature->integrate_surf(
+         algoim::AutoMixed, order / 2 + 1,
+         [&](const auto &coordinates, real_t weight, const auto &)
+      {
+         append(coordinates, weight);
+      });
    }
    else
    {
@@ -543,18 +689,27 @@ CutQuadratureReport ComputePolynomialRule(
          {
             const real_t value = algoim::bernstein::evalBernsteinPoly(
                                     *polynomials[index], coordinates);
-            if ((signs[index] == CutDomain::LevelSetSign::Positive && value <= 0) ||
-                (signs[index] == CutDomain::LevelSetSign::Negative && value >= 0))
-            { return; }
+            if ((signs[index] == CutDomain::LevelSetSign::Positive &&
+                 value <= 0) ||
+                (signs[index] == CutDomain::LevelSetSign::Negative &&
+                 value >= 0))
+            {
+               return;
+            }
          }
          append(coordinates, weight);
       });
    }
    if (nodes.size() > size_t(std::numeric_limits<int>::max()))
-   { return {CutQuadratureReport::Status::NumericalFailure, "Too many ALGOIM nodes."}; }
+   {
+      return {CutQuadratureReport::Status::NumericalFailure,
+              "Too many ALGOIM nodes."};
+   }
    rule.SetSize(static_cast<int>(nodes.size()));
    for (int index = 0; index < rule.GetNPoints(); ++index)
-   { rule.IntPoint(index) = nodes[index]; }
+   {
+      rule.IntPoint(index) = nodes[index];
+   }
    region = nodes.empty() ? Region::Empty : Region::Cut;
    return {};
 }
@@ -572,18 +727,31 @@ CutQuadratureReport GenerateAlgoimPolynomial(
       const auto *source = dynamic_cast<const PolynomialLevelSet *>(
                               &constraint.level_set.get());
       if (!source)
-      { return {CutQuadratureReport::Status::Unsupported, "Polynomial ALGOIM requires polynomial inputs."}; }
+      {
+         return {CutQuadratureReport::Status::Unsupported,
+                 "Polynomial ALGOIM requires polynomial inputs."};
+      }
       polynomial.Set(*source);
       Region classification;
       auto report = polynomial.Classify(constraint.sign, classification);
-      if (!report.Succeeded()) { return report; }
+      if (!report.Succeeded())
+      {
+         return report;
+      }
       if (classification == Region::Empty)
-      { region = Region::Empty; return {}; }
-      if (classification == Region::Full) { continue; }
+      {
+         region = Region::Empty;
+         return {};
+      }
+      if (classification == Region::Full)
+      {
+         continue;
+      }
       if (!data.empty() && polynomial.extent == data[0].extent)
       {
          bool same = true, opposite = true;
-         for (size_t coefficient = 0; coefficient < polynomial.coefficients.size();
+         for (size_t coefficient = 0;
+              coefficient < polynomial.coefficients.size();
               ++coefficient)
          {
             const real_t first = data[0].coefficients[coefficient];
@@ -594,7 +762,10 @@ CutQuadratureReport GenerateAlgoimPolynomial(
          if (same || opposite)
          {
             if ((constraint.sign == signs[0]) != same)
-            { region = Region::Empty; return {}; }
+            {
+               region = Region::Empty;
+               return {};
+            }
             continue;
          }
       }
@@ -603,25 +774,37 @@ CutQuadratureReport GenerateAlgoimPolynomial(
                             NearlyProportional<3>(data[0], polynomial)))
       {
          return {CutQuadratureReport::Status::NumericalFailure,
-                 "Nearly proportional polynomial constraints cannot be resolved reliably."};
+                 "Nearly proportional polynomial constraints cannot be "
+                 "resolved reliably."};
       }
       data.push_back(std::move(polynomial));
       signs.push_back(constraint.sign);
    }
    if (data.empty())
-   { rule = IntRules.Get(geometry, order); region = Region::Full; return {}; }
+   {
+      rule = IntRules.Get(geometry, order);
+      region = Region::Full;
+      return {};
+   }
    return geometry == Geometry::SQUARE ?
           ComputePolynomialRule<2>(data, signs, domain, order, rule, region) :
           ComputePolynomialRule<3>(data, signs, domain, order, rule, region);
 }
 #endif
 
-enum class Algorithm { Automatic, General, Polynomial };
+enum class Algorithm
+{
+   Automatic,
+   General,
+   Polynomial
+};
 
 class AlgoimBackend : public CutQuadratureBackend
 {
 public:
-   explicit AlgoimBackend(Algorithm algorithm) : algorithm(algorithm) { }
+   explicit AlgoimBackend(Algorithm algorithm) : algorithm(algorithm)
+   {
+   }
 
    std::string Name() const override
    {
@@ -635,40 +818,68 @@ public:
       const IntegrationRule *fixed_points) const override
    {
       auto report = domain.Validate(geometry);
-      if (!report.Succeeded()) { return report; }
+      if (!report.Succeeded())
+      {
+         return report;
+      }
       if (order < 0)
-      { return {CutQuadratureReport::Status::InvalidInput, "Negative quadrature order."}; }
+      {
+         return {CutQuadratureReport::Status::InvalidInput,
+                 "Negative quadrature order."};
+      }
       if (geometry != Geometry::SQUARE && geometry != Geometry::CUBE)
-      { return {CutQuadratureReport::Status::Unsupported, "ALGOIM supports quads and hexes."}; }
+      {
+         return {CutQuadratureReport::Status::Unsupported,
+                 "ALGOIM supports quads and hexes."};
+      }
       if (fixed_points)
-      { return {CutQuadratureReport::Status::Unsupported, "Unsupported ALGOIM prescribed nodes."}; }
+      {
+         return {CutQuadratureReport::Status::Unsupported,
+                 "Unsupported ALGOIM prescribed nodes."};
+      }
       const int count = domain.NumConstraints();
       const bool polynomial = UsePolynomial(domain);
       if (polynomial)
       {
 #ifndef MFEM_USE_LAPACKE
-         return {CutQuadratureReport::Status::Unsupported, "Polynomial ALGOIM requires LAPACKE."};
+         return {CutQuadratureReport::Status::Unsupported,
+                 "Polynomial ALGOIM requires LAPACKE."};
 #else
          if (count > 2 || (count > 1 && domain.Codimension()))
-         { return {CutQuadratureReport::Status::Unsupported, "Polynomial ALGOIM supports two signs or one surface."}; }
+         {
+            return {CutQuadratureReport::Status::Unsupported,
+                    "Polynomial ALGOIM supports two signs or one surface."};
+         }
          for (int index = 0; index < count; ++index)
          {
             if (!dynamic_cast<const PolynomialLevelSet *>(
                    &domain.GetConstraint(index).level_set.get()))
-            { return {CutQuadratureReport::Status::Unsupported, "Polynomial ALGOIM requires polynomial inputs."}; }
+            {
+               return {CutQuadratureReport::Status::Unsupported,
+                       "Polynomial ALGOIM requires polynomial inputs."};
+            }
          }
 #endif
       }
       else
       {
          if (count > 1)
-         { return {CutQuadratureReport::Status::Unsupported, "General ALGOIM supports one active level set."}; }
+         {
+            return {CutQuadratureReport::Status::Unsupported,
+                    "General ALGOIM supports one active level set."};
+         }
          if (count && !SupportsAlgoimIntervals(
                 domain.GetConstraint(0).level_set.get()))
-         { return {CutQuadratureReport::Status::Unsupported, "General ALGOIM requires interval-capable inputs."}; }
+         {
+            return {CutQuadratureReport::Status::Unsupported,
+                    "General ALGOIM requires interval-capable inputs."};
+         }
       }
       if (order / 2 + 1 > (polynomial ? 100 : 10))
-      { return {CutQuadratureReport::Status::Unsupported, "Quadrature order exceeds the selected ALGOIM limit."}; }
+      {
+         return {CutQuadratureReport::Status::Unsupported,
+                 "Quadrature order exceeds the selected ALGOIM limit."};
+      }
       return {};
    }
 
@@ -681,20 +892,34 @@ public:
       IntegrationRule &rule = out.rule;
       Region &region = out.region;
       auto report = CheckSupport(geometry, domain, order, fixed_points);
-      if (!report.Succeeded()) { return report; }
+      if (!report.Succeeded())
+      {
+         return report;
+      }
       try
       {
          if (!domain.NumConstraints())
-         { rule = IntRules.Get(geometry, order); region = Region::Full; }
+         {
+            rule = IntRules.Get(geometry, order);
+            region = Region::Full;
+         }
 #ifdef MFEM_USE_LAPACKE
          else if (UsePolynomial(domain))
-         { report = GenerateAlgoimPolynomial(geometry, domain, order, rule, region); }
+         {
+            report = GenerateAlgoimPolynomial(
+                        geometry, domain, order, rule, region);
+         }
 #endif
          else
-         { report = GenerateAlgoimGeneral(geometry, domain, order, rule, region); }
+         {
+            report = GenerateAlgoimGeneral(
+                        geometry, domain, order, rule, region);
+         }
       }
       catch (const std::exception &error)
-      { report = {CutQuadratureReport::Status::NumericalFailure, error.what()}; }
+      {
+         report = {CutQuadratureReport::Status::NumericalFailure, error.what()};
+      }
       if (report.Succeeded())
       {
          for (int index = 0; index < rule.GetNPoints(); ++index)
@@ -704,17 +929,26 @@ public:
                 !std::isfinite(point.y) ||
                 (geometry == Geometry::CUBE && !std::isfinite(point.z)) ||
                 !Geometry::CheckPoint(geometry, point,
-                                      128 * std::numeric_limits<real_t>::epsilon()))
-            { report = {CutQuadratureReport::Status::NumericalFailure, "Invalid ALGOIM quadrature node."}; break; }
+                                      128 *
+                                      std::numeric_limits<real_t>::epsilon()))
+            {
+               report = {CutQuadratureReport::Status::NumericalFailure,
+                         "Invalid ALGOIM quadrature node."};
+               break;
+            }
          }
       }
       if (!report.Succeeded())
-      { out.Clear(); }
+      {
+         out.Clear();
+      }
       else
       {
          rule.SetOrder(order);
          for (int index = 0; index < rule.GetNPoints(); ++index)
-         { rule.IntPoint(index).index = index; }
+         {
+            rule.IntPoint(index).index = index;
+         }
       }
       return report;
    }
@@ -725,13 +959,17 @@ private:
    bool UsePolynomial(const CutDomain &domain) const
    {
       if (algorithm != Algorithm::Automatic)
-      { return algorithm == Algorithm::Polynomial; }
+      {
+         return algorithm == Algorithm::Polynomial;
+      }
 #ifdef MFEM_USE_LAPACKE
       for (int index = 0; index < domain.NumConstraints(); ++index)
       {
          if (!dynamic_cast<const PolynomialLevelSet *>(
                 &domain.GetConstraint(index).level_set.get()))
-         { return false; }
+         {
+            return false;
+         }
       }
       return true;
 #else
@@ -744,7 +982,10 @@ private:
 std::unique_ptr<CutQuadratureBackend> CreateCutQuadratureBackend(
    const std::string &name)
 {
-   if (name == "moment") { return CreateMomentCutQuadratureBackend(); }
+   if (name == "moment")
+   {
+      return CreateMomentCutQuadratureBackend();
+   }
    if (name == "algoim-auto")
    {
       return std::unique_ptr<CutQuadratureBackend>
