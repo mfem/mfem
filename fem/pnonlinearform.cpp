@@ -242,6 +242,139 @@ void ParNonlinearForm::Update()
    NonlinearForm::Update();
 }
 
+namespace
+{
+
+class ParametricGradientOperator : public Operator
+{
+private:
+   const Operator &prolongation;
+   const Operator &phys_grad;
+   const ParametricStateTransformation &transformation;
+   Vector param_state;
+   Vector phys_residual;
+   const Array<int> &ess_tdofs;
+
+   mutable Vector true_direction;
+   mutable Vector param_direction;
+   mutable Vector phys_direction;
+   mutable Vector phys_action;
+   mutable Vector param_action;
+
+public:
+   ParametricGradientOperator(
+      const Operator &prolongation_, const Operator &phys_grad_,
+      const ParametricStateTransformation &transformation_,
+      const Vector &param_state_, const Vector &phys_residual_,
+      const Array<int> &ess_tdofs_)
+      : Operator(prolongation_.Width()), prolongation(prolongation_),
+        phys_grad(phys_grad_), transformation(transformation_),
+        param_state(param_state_), phys_residual(phys_residual_),
+        ess_tdofs(ess_tdofs_) { }
+
+   void Mult(const Vector &direction, Vector &action) const override
+   {
+      true_direction = direction;
+      for (int i = 0; i < ess_tdofs.Size(); i++)
+      {
+         true_direction(ess_tdofs[i]) = 0.0;
+      }
+
+      param_direction.SetSize(prolongation.Height());
+      prolongation.Mult(true_direction, param_direction);
+
+      transformation.PushForwardTangent(param_state, param_direction,
+                                        phys_direction);
+      phys_action.SetSize(phys_grad.Height());
+      phys_grad.Mult(phys_direction, phys_action);
+      transformation.PullBackGradientAction(param_state, phys_residual,
+                                            param_direction, phys_action,
+                                            param_action);
+
+      action.SetSize(prolongation.Width());
+      prolongation.MultTranspose(param_action, action);
+      for (int i = 0; i < ess_tdofs.Size(); i++)
+      {
+         action(ess_tdofs[i]) = direction(ess_tdofs[i]);
+      }
+   }
+};
+
+}
+
+ParametricParNonlinearForm::ParametricParNonlinearForm(
+   ParFiniteElementSpace *pf, ParametricStateTransformation &transformation_)
+   : ParNonlinearForm(pf), transformation(&transformation_), param_grad(nullptr)
+{
+   MFEM_VERIFY(P != nullptr, "parallel prolongation operator is required");
+}
+
+const Vector &ParametricParNonlinearForm::Prolongate(const Vector &t) const
+{
+   MFEM_VERIFY(ext == nullptr,
+               "ParametricParNonlinearForm currently supports only full "
+               "assembly");
+
+   param_state = NonlinearForm::Prolongate(t);
+   transformation->TransformPrimal(param_state, phys_state);
+   MFEM_VERIFY(phys_state.Size() == fes->GetVSize(),
+               "invalid transformed state size");
+   return phys_state;
+}
+
+real_t ParametricParNonlinearForm::GetEnergy(const Vector &t) const
+{
+   return GetParGridFunctionEnergy(Prolongate(t));
+}
+
+void ParametricParNonlinearForm::Mult(const Vector &t, Vector &r) const
+{
+   MFEM_VERIFY(!fnfi.Size(),
+               "shared face terms are not implemented for parametric forms");
+
+   NonlinearForm::Mult(t, r);
+   phys_residual = aux2;
+   MFEM_VERIFY(param_state.Size() == phys_residual.Size(),
+               "incompatible local state and residual sizes: "
+               << param_state.Size() << " != " << phys_residual.Size());
+   transformation->PullBackDual(param_state, phys_residual, param_residual);
+
+   r.SetSize(Width());
+   P->MultTranspose(param_residual, r);
+   for (int i = 0; i < ess_tdof_list.Size(); i++)
+   {
+      r(ess_tdof_list[i]) = 0.0;
+   }
+}
+
+Operator &ParametricParNonlinearForm::GetGradient(const Vector &t) const
+{
+   MFEM_VERIFY(!fnfi.Size(),
+               "shared face terms are not implemented for parametric forms");
+
+   NonlinearForm::Mult(t, param_residual);
+   phys_residual = aux2;
+   Operator &phys_gradient = NonlinearForm::GetGradient(t);
+
+   delete param_grad;
+   param_grad = new ParametricGradientOperator(
+                   *P, phys_gradient, *transformation, param_state,
+                   phys_residual, ess_tdof_list);
+   return *param_grad;
+}
+
+void ParametricParNonlinearForm::Update()
+{
+   delete param_grad;
+   param_grad = nullptr;
+   ParNonlinearForm::Update();
+}
+
+ParametricParNonlinearForm::~ParametricParNonlinearForm()
+{
+   delete param_grad;
+}
+
 
 ParBlockNonlinearForm::ParBlockNonlinearForm(Array<ParFiniteElementSpace *> &pf)
    : BlockNonlinearForm()

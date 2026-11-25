@@ -21,6 +21,41 @@
 namespace mfem
 {
 
+/** @brief Nonlinear transformation between a parametric state and the state
+    seen by finite element integrators. */
+/** The transformation acts on local (L-vector) states. In parallel, this means
+    that it is applied after true-dof prolongation and before element
+    restriction. */
+class ParametricStateTransformation
+{
+public:
+   virtual ~ParametricStateTransformation() = default;
+
+   /// Transform the parametric state: @a x = Phi(@a t).
+   virtual void TransformPrimal(const Vector &t, Vector &x) const = 0;
+
+   /// Apply the tangent map: @a dx = DPhi(@a t) @a dt.
+   virtual void PushForwardTangent(const Vector &t, const Vector &dt,
+                                   Vector &dx) const = 0;
+
+   /// Apply the dual map: @a rt = DPhi(@a t)^T @a rx.
+   virtual void PullBackDual(const Vector &t, const Vector &rx,
+                             Vector &rt) const = 0;
+
+   /** @brief Apply the gradient of the pulled-back residual.
+
+       Given @a hx_dx = Hx DPhi(t) dt and the physical residual @a rx, compute
+       @a rt = DPhi(t)^T hx_dx + rx : D2Phi(t)[dt]. */
+   virtual void PullBackGradientAction(const Vector &t, const Vector &rx,
+                                       const Vector &dt,
+                                       const Vector &hx_dx,
+                                       Vector &rt) const = 0;
+
+   /// Optional inverse transformation, used to initialize a parametric state.
+   virtual void TransformPrimalInverse(const Vector &, Vector &)
+   { MFEM_ABORT("The inverse parametric transformation is not implemented."); }
+};
+
 class NonlinearForm : public Operator
 {
 protected:
@@ -73,7 +108,7 @@ protected:
    const SparseMatrix *cP; // not owned
 
    bool Serial() const { return (!P || cP); }
-   const Vector &Prolongate(const Vector &x) const;
+   virtual const Vector &Prolongate(const Vector &x) const;
 
 public:
    /// Construct a NonlinearForm on the given FiniteElementSpace, @a f.

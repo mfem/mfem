@@ -178,6 +178,11 @@ protected:
    mutable GridFunction x_0;
    mutable bool periodic = false;
 
+   // Is there a parametrization (e.g. x(t), y(t) for 2D) in the TMOP problem.
+   mutable bool parametric = false;
+   // The parametrization is implemented by ParametricParNonlinearForm.
+   mutable bool parametric_form = false;
+
    // Line search step is rejected if min(detJ) <= min_detJ_limit.
    real_t min_detJ_limit = 0.0;
 
