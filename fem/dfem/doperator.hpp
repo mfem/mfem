@@ -443,6 +443,67 @@ inline HypreParMatrix *ParallelAssembleBlock(
               trial_fes.Dof_TrueDof_Matrix());
 }
 
+/// @brief Pool of quadrature point caches for the derivatives 
+/// of a DifferentiableOperator.
+///
+/// - One slot per integrator and registered derivative.
+/// - Each DerivativeOperator owns one cache per slot it uses.
+/// - Each slot keeps at most one spare: a cache no derivative holds.
+///
+///   cache <-- Take(slot)    at the first cached use
+///   cache --> Return(slot)  on destruction: kept as spare, or freed
+///
+class QpCachePool
+{
+public:
+
+   /// Add a vector to the pool and return its index.
+   size_t AddSlot()
+   {
+      pool.emplace_back();
+      return pool.size() - 1;
+   }
+
+   /// Move spare in QpCachePool(slot) --> cache
+   /// @param slot The index of the slot to take the cache from.
+   /// @param cache The vector to fill with the spare from the pool. It must be empty.
+   void Take(size_t slot, Vector &cache)
+   {
+      MFEM_ASSERT(slot < pool.size(), "invalid qp cache slot " << slot);
+      MFEM_ASSERT(cache.Size() == 0, "the qp cache to fill is not empty");
+      cache.Swap(pool[slot]);
+   }
+
+   /// Return vector pool <--- cache
+   /// @param slot The index of the slot to return the cache to.
+   /// @param cache The vector to return to the pool. It will be emptied.
+   /// @note If the pool is closed or the slot already has a spare, the cache will be destroyed.
+   void Return(size_t slot, Vector &cache)
+   {
+      MFEM_ASSERT(slot < pool.size(), "invalid qp cache slot " << slot);
+      if (!closed && pool[slot].Size() == 0) { pool[slot].Swap(cache); }
+      cache.Destroy();
+   }
+
+   /// Free the spares. The caches held by derivatives are not affected.
+   void ReleaseSpares()
+   {
+      for (Vector &spare : pool) { spare.Destroy(); }
+   }
+
+   /// Free the spares and free the caches returned from now on. Called when
+   /// the DifferentiableOperator is destroyed, as no cache is taken after.
+   void Close()
+   {
+      ReleaseSpares();
+      closed = true;
+   }
+
+private:
+   std::vector<Vector> pool;
+   bool closed = false;
+};
+
 } // namespace detail
 
 /// Class representing the derivative (Jacobian) operator of a
@@ -1196,6 +1257,7 @@ public:
 
    ~DifferentiableOperator() override
    {
+      qp_cache_pool->Close();
       detail::DeleteOwnedEVectors(AllIntegrators(), infields_l, residual_l);
    }
 
@@ -1714,6 +1776,12 @@ private:
    // split integrators that register the same derivative field.
    std::vector<std::unique_ptr<Vector>> integrator_qp_caches;
 
+   /// The quadrature point caches of the derivatives, one slot per integrator
+   /// and derivative. Shared with the derivatives, which return their caches
+   /// to it when they are destroyed.
+   std::shared_ptr<detail::QpCachePool> qp_cache_pool =
+      std::make_shared<detail::QpCachePool>();
+
    std::map<size_t, size_t> assembled_vector_sizes;
 
    bool use_tensor_product_structure = true;
@@ -2053,6 +2121,7 @@ void DifferentiableOperator::AddIntegrator(
                                   [[maybe_unused]] auto &assemble_diagonal_cbs,
                                   [[maybe_unused]] auto &action_cbs,
                                   [[maybe_unused]] Vector &callback_qp_cache,
+                                  [[maybe_unused]] size_t callback_cache_slot,
                                   const IntegratorContext<entity_t> &callback_ctx,
                                   auto &qf, auto outputs)
       {
@@ -2213,6 +2282,7 @@ void DifferentiableOperator::AddIntegrator(
                              cbs.second_derivative_assemble_diagonal,
                              cbs.second_derivative_action,
                              second_qp_cache,
+                             qp_cache_pool->AddSlot(),
                              derivative_ctx, second_dqfunc,
                              first_derivative_outputs);
          };
@@ -2281,6 +2351,7 @@ void DifferentiableOperator::AddIntegrator(
                           entity_callbacks.derivative_assemble_diagonal,
                           entity_callbacks.derivative_action,
                           qp_cache,
+                          qp_cache_pool->AddSlot(),
                           ctx, qfunc, outputs);
       }
    }, derivative_ids);
