@@ -31,6 +31,18 @@ TEST_CASE("AttrToMarker", "[Mesh][AttributeSets]")
    }
 }
 
+#ifdef MFEM_USE_METIS
+TEST_CASE("Single mesh partition", "[Mesh]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(3, 2, Element::TRIANGLE);
+   std::unique_ptr<int[]> partitioning(mesh.GeneratePartitioning(1));
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      REQUIRE(partitioning[i] == 0);
+   }
+}
+#endif
+
 TEST_CASE("Element-wise construction", "[Mesh]")
 {
    SECTION("Quadrilateral")
