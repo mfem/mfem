@@ -35,6 +35,7 @@
 #include "mfem.hpp"
 #include "ex44.hpp"
 #include <iostream>
+#include <memory>
 
 using namespace std;
 using namespace mfem;
@@ -255,7 +256,7 @@ int main(int argc, char *argv[])
    A10.EliminateCols(col_markers);
 
    // Store B^T.
-   SparseMatrix *A01 = Transpose(A10);
+   std::unique_ptr<SparseMatrix> A01(Transpose(A10));
 
    // Newton Jacobian: J = [ K  -B^T; B  M ].
    // M = α A11, where A11 is the mass matrix weighted by exp(-ψ).
@@ -263,7 +264,7 @@ int main(int argc, char *argv[])
    BlockOperator A(offsets);
    A.SetBlock(0,0,&A00);
    A.SetBlock(1,0,&A10);
-   A.SetBlock(0,1,A01,-1.0);
+   A.SetBlock(0,1,A01.get(),-1.0);
 
    // 12. Construct the block preconditioner P = [ K  0; B  S ].
    // Approximate the Schur complement by S = M + B D^(-1) B^T, D = diag(K).
@@ -272,7 +273,7 @@ int main(int argc, char *argv[])
    Vector A00_diag(A00.Height());
    A00.GetDiag(A00_diag);
 
-   SparseMatrix *BDinvBt;
+   std::unique_ptr<SparseMatrix> BDinvBt;
    {
       Vector A00_diag_inv(A00_diag.Size());
       for (int i = 0; i < A00_diag.Size(); i++)
@@ -281,16 +282,16 @@ int main(int argc, char *argv[])
       }
       SparseMatrix DinvBt(*A01);
       DinvBt.ScaleRows(A00_diag_inv);
-      BDinvBt = Mult(A10, DinvBt);
+      BDinvBt.reset(Mult(A10, DinvBt));
    }
 
    // Construct the fixed Gauss-Seidel approximation P00 ≈ K^(-1).
-   GSSmoother *P00 = new GSSmoother(A00);
-   P00->iterative_mode = false;
+   GSSmoother P00(A00);
+   P00.iterative_mode = false;
 
    // Approximate the action of P^(-1) using P00, P11, and B.
    BlockLowerTriangularPreconditioner prec(offsets);
-   prec.SetDiagonalBlock(0,P00);
+   prec.SetDiagonalBlock(0,&P00);
    prec.SetBlock(1,0,&A10);
 
    // 13. Configure the linear solver.
@@ -375,7 +376,7 @@ int main(int argc, char *argv[])
          A.SetBlock(1,1,&A11,alpha);
 
          // Construct S = M + B D^(-1) B^T for the current Newton iterate.
-         SparseMatrix *S = Add(alpha, A11, 1.0, *BDinvBt);
+         std::unique_ptr<SparseMatrix> S(Add(alpha, A11, 1.0, *BDinvBt));
 
          {
             // Construct the Gauss-Seidel approximation P11 ≈ S^(-1).
@@ -392,8 +393,6 @@ int main(int argc, char *argv[])
             mfem::out << "\tLinear solver iterations: " << num_iter << endl;
             x -= delta;
          }
-
-         delete S;
 
          add(psi_old_gf, -alpha, kappa_gf, psi_gf);
 
@@ -437,11 +436,6 @@ int main(int argc, char *argv[])
       }
 
    }
-
-   // 16. Release the pointers.
-   delete P00;
-   delete BDinvBt;
-   delete A01;
 
    return 0;
 }

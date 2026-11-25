@@ -35,6 +35,7 @@
 #include "mfem.hpp"
 #include "ex44.hpp"
 #include <iostream>
+#include <memory>
 
 using namespace std;
 using namespace mfem;
@@ -249,7 +250,7 @@ int main(int argc, char *argv[])
    a00.AddDomainIntegrator(new ElasticityIntegrator(one, lambda, mu));
    a00.Assemble();
    a00.Finalize();
-   HypreParMatrix *A00 = a00.ParallelAssemble();
+   std::unique_ptr<HypreParMatrix> A00(a00.ParallelAssemble());
    Vector disp_lift_elast(H1fes.GetTrueVSize());
    A00->Mult(disp_lift_tv, disp_lift_elast);
    A00->EliminateBC(ess_tdof_list, mfem::Operator::DIAG_ONE);
@@ -259,21 +260,24 @@ int main(int argc, char *argv[])
    a10.AddBoundaryDomainIntegrator(new MixedFormIntegrator(n_tilde_c, dim));
    a10.Assemble();
    a10.Finalize();
-   HypreParMatrix *A10 = a10.ParallelAssemble();
+   std::unique_ptr<HypreParMatrix> A10(a10.ParallelAssemble());
    Vector disp_lift_contact(L2fes.GetTrueVSize());
    A10->Mult(disp_lift_tv, disp_lift_contact);
-   delete A10->EliminateCols(ess_tdof_list);
+   {
+      std::unique_ptr<HypreParMatrix> eliminated_cols(
+         A10->EliminateCols(ess_tdof_list));
+   }
 
    // Store B^T.
-   HypreParMatrix *A01 = A10->Transpose();
+   std::unique_ptr<HypreParMatrix> A01(A10->Transpose());
 
    // Newton Jacobian: J = [ K  -B^T; B  M ].
    // M = α A11, where A11 is the mass matrix weighted by exp(-ψ).
    // A11 is assembled inside the Newton loop.
    BlockOperator A(toffsets);
-   A.SetBlock(0,0,A00);
-   A.SetBlock(1,0,A10);
-   A.SetBlock(0,1,A01,-1.0);
+   A.SetBlock(0,0,A00.get());
+   A.SetBlock(1,0,A10.get());
+   A.SetBlock(0,1,A01.get(),-1.0);
 
    // 12. Construct the block preconditioner P = [ K  0; B  S ].
    // Approximate the Schur complement by S = M + B D^(-1) B^T, D = diag(K).
@@ -283,11 +287,11 @@ int main(int argc, char *argv[])
                            A00->GetRowStarts());
    A00->GetDiag(A00_diag);
 
-   HypreParMatrix *BDinvBt;
+   std::unique_ptr<HypreParMatrix> BDinvBt;
    {
       HypreParMatrix DinvBt(*A01);
       DinvBt.InvScaleRows(A00_diag);
-      BDinvBt = ParMult(A10, &DinvBt);
+      BDinvBt.reset(ParMult(A10.get(), &DinvBt));
    }
 
    // Construct the fixed AMG approximation P00 ≈ K^(-1).
@@ -298,7 +302,7 @@ int main(int argc, char *argv[])
    // Approximate the action of P^(-1) using P00, P11, and B.
    BlockLowerTriangularPreconditioner prec(toffsets);
    prec.SetDiagonalBlock(0,&P00);
-   prec.SetBlock(1,0,A10);
+   prec.SetBlock(1,0,A10.get());
 
    // 13. Configure the linear solver.
    GMRESSolver gmres(MPI_COMM_WORLD);
@@ -389,11 +393,11 @@ int main(int argc, char *argv[])
          a11.AddDomainIntegrator(new MassIntegrator(exp_neg_psi, &ir));
          a11.Assemble();
          a11.Finalize();
-         HypreParMatrix *A11 = a11.ParallelAssemble();
-         A.SetBlock(1,1,A11,alpha);
+         std::unique_ptr<HypreParMatrix> A11(a11.ParallelAssemble());
+         A.SetBlock(1,1,A11.get(),alpha);
 
          // Construct S = M + B D^(-1) B^T for the current Newton iterate.
-         HypreParMatrix *S = Add(alpha, *A11, 1.0, *BDinvBt);
+         std::unique_ptr<HypreParMatrix> S(Add(alpha, *A11, 1.0, *BDinvBt));
 
          {
             // Construct the AMG approximation P11 ≈ S^(-1).
@@ -413,9 +417,6 @@ int main(int argc, char *argv[])
             }
             tx -= delta;
          }
-
-         delete S;
-         delete A11;
 
          u_gf.SetFromTrueDofs(tx.GetBlock(0));
          kappa_gf.SetFromTrueDofs(tx.GetBlock(1));
@@ -469,12 +470,6 @@ int main(int argc, char *argv[])
       }
 
    }
-
-   // 16. Release the pointers.
-   delete BDinvBt;
-   delete A00;
-   delete A01;
-   delete A10;
 
    return 0;
 }
