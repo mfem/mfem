@@ -235,6 +235,53 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
    }
 }
 
+TEST_CASE("Derefinement leaves unchanged L2 element dofs exact",
+          "[AMR][Coarsen][GPU]")
+{
+   Mesh mesh = Mesh::MakeCartesian1D(2);
+   mesh.EnsureNCMesh(true);
+   Array<int> marked({0});
+   mesh.GeneralRefinement(marked);
+
+   const int column = GENERATE(0, 1, 2, 3);
+   CAPTURE(column);
+   L2_FECollection fec(3, 1, BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec);
+   GridFunction field(&fes);
+   Array<int> dofs;
+   Vector center;
+   real_t *values = field.HostWrite();
+   for (int elem = 0; elem < mesh.GetNE(); elem++)
+   {
+      mesh.GetElementCenter(elem, center);
+      fes.GetElementDofs(elem, dofs);
+      for (int node = 0; node < dofs.Size(); node++)
+      {
+         values[dofs[node]] = (center[0] < 0.5) ? 2.0 : real_t(node == column);
+      }
+   }
+
+   Vector error(mesh.GetNE());
+   error = 0.0;
+   REQUIRE(mesh.DerefineByError(error, 1.0));
+   REQUIRE(mesh.GetNE() == 2);
+   fes.Update();
+   field.Update();
+
+   const real_t *result = field.HostRead();
+   for (int elem = 0; elem < mesh.GetNE(); elem++)
+   {
+      mesh.GetElementCenter(elem, center);
+      fes.GetElementDofs(elem, dofs);
+      for (int node = 0; node < dofs.Size(); node++)
+      {
+         const real_t value = result[dofs[node]];
+         if (center[0] < 0.5) { CHECK(value == Approx(2.0)); }
+         else { CHECK(value == real_t(node == column)); }
+      }
+   }
+}
+
 TEST_CASE("AMR Coarsen L2 Element","[AMR][Coarsen][CUDA]")
 {
    std::vector<int> orders_1d{0,1,2,3};
