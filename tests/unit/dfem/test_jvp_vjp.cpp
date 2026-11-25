@@ -200,5 +200,107 @@ TEST_CASE("dFEM JVP-VJP 3D", "[Parallel][dFEM][GPU]")
    TestJvpVjp<3>(GenAll(meshs, extra), p);
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+template<int DIM>
+struct cubic_qf
+{
+   inline MFEM_HOST_DEVICE void operator()(const dreal_t &u,
+                                           const tensor<real_t, DIM, DIM> &J,
+                                           const real_t &w,
+                                           dreal_t &v) const
+   { v = u * u * u * w * det(J); }
+};
+
+// Two derivatives with respect to the same field at different states must not
+// affect each other, whatever the order in which they are used.
+TEST_CASE("dFEM derivative cache per state", "[Parallel][dFEM]")
+{
+   Mesh smesh("../../data/inline-quad.mesh");
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+   pmesh.EnsureNodes();
+   auto *nodes = static_cast<ParGridFunction *>(pmesh.GetNodes());
+   smesh.Clear();
+
+   Array<int> attr(pmesh.attributes.Max());
+   attr = 1;
+   H1_FECollection fec(2, 2);
+   ParFiniteElementSpace fes(&pmesh, &fec);
+   const auto &ir = IntRules.Get(pmesh.GetTypicalElementGeometry(), 6);
+   const int n = fes.GetTrueVSize();
+
+   DifferentiableOperator F({ { U, &fes }, { X, nodes->ParFESpace() } },
+                            { { U, &fes } }, pmesh);
+   constexpr auto kernels = DerivativeKernels::Action |
+                            DerivativeKernels::Apply |
+                            DerivativeKernels::ApplyTranspose |
+                            DerivativeKernels::AssembleMatrix;
+   cubic_qf<2> qf;
+   F.AddDomainIntegrator<LocalQFBackend, kernels>(
+      qf, Inputs<Value<U>, Gradient<X>, Weight> {}, Outputs<Value<U>> {}, ir,
+      attr, Derivatives<U> {});
+
+   Vector N, X1(n), X2(n), dir(n), ref(n), y1(n), y2(n), y3(n);
+   nodes->GetTrueDofs(N);
+   X1.Randomize(1);
+   X2.Randomize(2);
+   X2 += 1.0;
+   dir.Randomize(3);
+   MultiVector S1{ X1, N }, S2{ X2, N }, mdir{ dir }, mref{ ref };
+   MultiVector m1{ y1 }, m2{ y2 }, m3{ y3 };
+
+   // Reference at S1 from the direct action, which uses no cache.
+   F.GetDerivative(U, S1, false)->Mult(dir, mref);
+
+   const auto comm = pmesh.GetComm();
+   auto max_diff = [&](const Vector &a, const Vector &b)
+   {
+      Vector d(a);
+      d -= b;
+      return GlobalLpNorm(infinity(), d.Normlinf(), comm);
+   };
+
+   // Apply the derivative at S1, then the one at S2, then the one at S1 again.
+   auto interleave = [&](auto apply)
+   {
+      auto d1 = F.GetDerivative(U, S1, true), d2 = F.GetDerivative(U, S2, true);
+      apply(*d1, m1);
+      apply(*d2, m2);
+      apply(*d1, m3);
+      REQUIRE(max_diff(y1, ref) == MFEM_Approx(0.0));
+      REQUIRE(max_diff(y2, ref) > 1e-6); // the two states differ
+      REQUIRE(max_diff(y3, ref) == MFEM_Approx(0.0));
+   };
+
+   SECTION("Mult")
+   {
+      interleave([&](DerivativeOperator &d, MultiVector &y)
+      { d.Mult(dir, y); });
+   }
+
+   // The derivative is symmetric, so the reference applies here too.
+   SECTION("MultTranspose")
+   {
+      interleave([&](DerivativeOperator &d, MultiVector &y)
+      { d.MultTranspose(mdir, y); });
+   }
+
+   SECTION("Assemble")
+   {
+      auto d1 = F.GetDerivative(U, S1, false);
+      auto d2 = F.GetDerivative(U, S2, false);
+      SparseMatrix *A1 = nullptr, *A2 = nullptr, *A3 = nullptr;
+      d1->Assemble(A1);
+      d2->Assemble(A2);
+      d1->Assemble(A3);
+      std::unique_ptr<SparseMatrix> D12(Add(1.0, *A1, -1.0, *A2));
+      std::unique_ptr<SparseMatrix> D13(Add(1.0, *A1, -1.0, *A3));
+      REQUIRE(D12->MaxNorm() > 1e-6);
+      REQUIRE(D13->MaxNorm() == MFEM_Approx(0.0));
+      delete A1;
+      delete A2;
+      delete A3;
+   }
+}
+
 #endif // _WIN32
 #endif // MFEM_USE_MPI
