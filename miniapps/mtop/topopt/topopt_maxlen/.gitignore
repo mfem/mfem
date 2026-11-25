@@ -1,5 +1,6 @@
 DiffuTopOpt
 DiffuMaxTemp
+DiffuMaxTemp_pnorm
 ElastTopOpt_std
 ElastTopOpt_pnorm
 ElastTopOpt_maxlen

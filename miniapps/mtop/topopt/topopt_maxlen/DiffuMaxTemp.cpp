@@ -342,8 +342,10 @@ int main(int argc, char *argv[])
         std::unique_ptr<HypreParVector> sens_rhs_tv(sens_rhs.ParallelAssemble());
         filter.MultTranspose(*sens_rhs_tv, dgtemp.GetBlock(0));
 
-        // constraint (unnormalized):  G − ε ≤ 0
-        fival(0) = tres - epsilon;                      // update constraint value
+        // normalize the constraint by the current epsilon:  G/ε − 1 ≤ 0
+        // (a violation of size ε stays O(1) for MMA as ε decays)
+        fival(0) = tres / epsilon - 1.0;                // update constraint value
+        dgtemp /= epsilon;
         dfidx[0] = dgtemp;                              // update constraint gradient
 
         // intermediate ParaView output, written before the MMA update so that
@@ -458,7 +460,7 @@ int main(int argc, char *argv[])
                       << "  volume = " << fixed      << setprecision(4) << vol  << '\n'
                       << "  res    = " << scientific << setprecision(3) << tres << '\n'
                       << "  eps    = " << epsilon << '\n'
-                      << "  fival  = " << tres - epsilon << '\n'
+                      << "  fival  = " << tres / epsilon - 1.0 << '\n'
                       << "  maxT   = " << fixed      << setprecision(4) << maxT
                       << "  (T_max = " << T_max << ")" << endl;
         }

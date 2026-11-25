@@ -304,3 +304,108 @@ public:
         dGdalpha.Neg();
     }
 };
+
+// p-norm of the temperature (volume-averaged):
+//
+//    P(T) = ( 1/|Ω| ∫ |T|^p dx )^{1/p}            P ≤ max|T|,   P → max|T| as p → ∞
+//    dP/dT_i = P^{1−p} / |Ω| ∫ |T|^{p−1} sgn(T) φ_i dx
+//
+// T ≥ 0 by the maximum principle (q ≥ 0, T = 0 on the sink); |T| only guards
+// against small high-order undershoots.  |T|^p is a high-degree polynomial, so
+// both the value and the gradient use a rule of order ceil(p) * fe_order, unless
+// ir_order > 0 is given.
+class TemperaturePNorm : public QuantityOfInterest
+{
+protected:
+   ParGridFunction &T;
+   ParFiniteElementSpace *fes;
+   MPI_Comm comm;
+   real_t p;
+   int ir_order;
+   real_t domain_volume;
+
+   // |T|^q sgn(T)^s  at a quadrature point
+   class PowCoefficient : public Coefficient
+   {
+      GridFunction &T;
+      real_t q;
+      bool signed_;
+   public:
+      PowCoefficient(GridFunction &T_, real_t q_, bool signed__)
+         : T(T_), q(q_), signed_(signed__) { }
+      real_t Eval(ElementTransformation &Tr, const IntegrationPoint &ip) override
+      {
+         const real_t t = T.GetValue(Tr, ip);
+         const real_t v = std::pow(std::abs(t), q);
+         return (signed_ && t < 0.0) ? -v : v;
+      }
+   };
+
+   const IntegrationRule &GetRule(int e) const
+   {
+      return IntRules.Get(fes->GetFE(e)->GetGeomType(), ir_order);
+   }
+
+   // global  ∫ |T|^p dx
+   real_t IntegratePow()
+   {
+      PowCoefficient Tp(T, p, false);
+      real_t loc = 0.0;
+      for (int e = 0; e < fes->GetNE(); e++)
+      {
+         ElementTransformation *Tr = fes->GetElementTransformation(e);
+         const IntegrationRule &ir = GetRule(e);
+         for (int k = 0; k < ir.GetNPoints(); k++)
+         {
+            const IntegrationPoint &ip = ir.IntPoint(k);
+            Tr->SetIntPoint(&ip);
+            loc += ip.weight * Tr->Weight() * Tp.Eval(*Tr, ip);
+         }
+      }
+      real_t glob;
+      MPI_Allreduce(&loc, &glob, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM, comm);
+      return glob;
+   }
+
+public:
+   TemperaturePNorm(ParGridFunction &T_, real_t p_, int ir_order_ = 0)
+      : T(T_), fes(T_.ParFESpace()), comm(T_.ParFESpace()->GetComm()), p(p_)
+   {
+      MFEM_VERIFY(p >= 1.0, "p-norm exponent must be >= 1");
+      ir_order = (ir_order_ > 0) ? ir_order_
+                 : (int)std::ceil(p) * fes->GetMaxElementOrder();
+
+      ConstantCoefficient one(1.0);
+      ParLinearForm vol(fes);
+      vol.AddDomainIntegrator(new DomainLFIntegrator(one));
+      vol.Assemble();
+      ParGridFunction ones(fes);  ones = 1.0;
+      domain_volume = vol(ones);   // ParLinearForm::operator() is global
+   }
+
+   // P(T) for the current T
+   real_t Eval() override
+   {
+      return std::pow(IntegratePow() / domain_volume, 1.0 / p);
+   }
+
+   // dP/dT as a true-dof vector on T's space
+   void GetGrad(Vector &dPdT) override
+   {
+      const real_t P = Eval();
+      PowCoefficient Tp1(T, p - 1.0, true);
+
+      ParLinearForm lf(fes);
+      // a single rule for all elements (one element type in this mesh)
+      lf.AddDomainIntegrator(new DomainLFIntegrator(Tp1, &GetRule(0)));
+      lf.Assemble();
+      std::unique_ptr<HypreParVector> v(lf.ParallelAssemble());
+
+      dPdT.SetSize(fes->GetTrueVSize());
+      dPdT = *v;
+      dPdT *= (P > 0.0) ? std::pow(P, 1.0 - p) / domain_volume : 0.0;
+   }
+
+   real_t GetDomainVolume() const { return domain_volume; }
+   int GetIntRuleOrder() const { return ir_order; }
+};
