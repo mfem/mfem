@@ -90,17 +90,6 @@ void ConvertNodalDofs(const FiniteElement &source, const Vector &values,
    }
 }
 
-class PointGuard
-{
-public:
-   explicit PointGuard(ElementTransformation &transformation)
-      : transformation(transformation), point(transformation.GetIntPointPointer()) { }
-   ~PointGuard() { transformation.SetIntPoint(point); }
-private:
-   ElementTransformation &transformation;
-   const IntegrationPoint *point;
-};
-
 bool FactorQR(const DenseMatrix &matrix, DenseMatrix &basis,
               DenseMatrix &triangular, real_t &measure)
 {
@@ -217,7 +206,6 @@ void PolynomialLevelSet::Project(Coefficient &coefficient,
    MFEM_VERIFY(SupportedElement(new_element), "Unsupported projection space.");
    MFEM_VERIFY(transformation.GetGeometryType() == new_element.GetGeomType(),
                "Projection geometry mismatch.");
-   PointGuard guard(transformation);
    L2_FECollection collection(new_element.GetOrder(), new_element.GetDim());
    const FiniteElement &nodal = *collection.FiniteElementForGeometry(
                                    new_element.GetGeomType());
@@ -446,8 +434,10 @@ CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
        (codimension && (reference.conormals.SizeI() != dimension ||
                         reference.conormals.SizeJ() != codimension ||
                         reference.conormals.SizeK() != count)))
-   { return Failure(CutQuadratureReport::Status::InvalidInput, "Invalid reference conormal dimensions."); }
-   PointGuard guard(transformation);
+   {
+      return Failure(CutQuadratureReport::Status::InvalidInput,
+                     "Invalid reference conormal dimensions.");
+   }
    if (requested_data & CutQuadratureMapping::PHYSICAL_POINTS)
    { out.physical_points.SetSize(space_dimension, count); }
    if ((requested_data & CutQuadratureMapping::PHYSICAL_CONORMALS) && codimension)

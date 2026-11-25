@@ -333,9 +333,7 @@ struct CutQuadratureMapping
     return DegenerateGeometry. Conormals and scaling at zero-weight nodes are
     zero and are not geometric data. Physical positions may still be mapped
     there. On failure out is cleared, never partly usable.
-    Standard exceptions from mapping evaluation return NumericalFailure.
-
-    The transformation's current integration point is restored on return. */
+    Standard exceptions from mapping evaluation return NumericalFailure. */
 CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
                                      const CutQuadrature &reference,
                                      int requested_data,
