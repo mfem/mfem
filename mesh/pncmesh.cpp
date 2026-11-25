@@ -1109,8 +1109,8 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
 {
    ClearAuxPM();
 
-   const NCList &shared = (Dim == 3) ? GetSharedFaces() : GetSharedEdges();
-   const NCList &full_list = (Dim == 3) ? GetFaceList() : GetEdgeList();
+   const NCList &shared = GetSharedList(Dim-1);
+   const NCList &full_list = GetNCList(Dim-1);
 
    Array<Element*> fnbr;
    Array<Connection> send_elems;
@@ -1306,6 +1306,10 @@ void ParNCMesh::GetFaceNeighbors(ParMesh &pmesh)
          int local[2];
          int o = get_face_orientation(*face, *e[1], *e[0], local);
          fi.Elem2Inf = 64*local[1] + o;
+      }
+      else if (Dim == 1)
+      {
+         fi.Elem2Inf = 64*find_node(*e[0], face->p1);
       }
       else
       {
