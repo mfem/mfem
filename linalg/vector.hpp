@@ -38,6 +38,8 @@
 namespace mfem
 {
 
+class DenseMatrix;
+
 /** Count the number of entries in an array of doubles for which isfinite
     is false, i.e. the entry is a NaN or +/-Inf. */
 inline int CheckFinite(const real_t *v, const int n);
@@ -488,6 +490,8 @@ public:
    void Randomize(int seed = 0);
    /// Returns the l2 norm of the vector.
    real_t Norml2() const;
+   /// Returns the l2 norm of the vector, scalled using a metric
+   real_t Norm2(const DenseMatrix &metric) const;
    /// Returns the l_infinity norm of the vector.
    real_t Normlinf() const;
    /// Returns the l_1 norm of the vector.
