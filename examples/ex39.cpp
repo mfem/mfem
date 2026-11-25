@@ -5,6 +5,7 @@
 // Sample runs:  ex39
 //               ex39 -ess "Southern Boundary"
 //               ex39 -src Base
+//               ex39 -m ../data/compass_nc.mesh
 //
 // Description:  This example code demonstrates the use of named attribute
 //               sets in MFEM to specify material regions, boundary regions,
