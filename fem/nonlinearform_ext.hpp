@@ -92,7 +92,10 @@ protected:
    mutable Vector xe, ye;
    const FiniteElementSpace &fes;
    const Array<NonlinearFormIntegrator*> &dnfi;
+   const Array<NonlinearFormIntegrator*> &fnfi;
    const Operator *elemR; // not owned
+   const FaceRestriction *int_face_restrict_lex; // not owned
+   mutable Vector int_face_X, int_face_Y; ///< Interior face E-vectors
    mutable Gradient Grad;
 
    void SetupRestrictionOperators();

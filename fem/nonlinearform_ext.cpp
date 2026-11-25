@@ -25,7 +25,9 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
    NonlinearFormExtension(nlf),
    fes(*nlf->FESpace()),
    dnfi(*nlf->GetDNFI()),
+   fnfi(nlf->GetInteriorFaceIntegrators()),
    elemR(nullptr),
+   int_face_restrict_lex(nullptr),
    Grad(*this)
 {
 
@@ -43,6 +45,17 @@ void PANonlinearFormExtension::SetupRestrictionOperators()
       ye.UseDevice(true);
    }
 
+   // Construct the face restriction operators only if the nonlinear form has
+   // interior face integrators.
+   if (int_face_restrict_lex == nullptr && fnfi.Size() > 0)
+   {
+      int_face_restrict_lex = fes.GetFaceRestriction(
+                                          ElementDofOrdering::LEXICOGRAPHIC,
+                                          FaceType::Interior);
+      int_face_X.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
+      int_face_Y.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
+      int_face_Y.UseDevice(true); // ensure 'int_face_Y = 0.0' is done on device
+   }
 }
 
 real_t PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
@@ -98,6 +111,7 @@ void PANonlinearFormExtension::Update()
 {
    height = width = fes.GetVSize();
    elemR = nullptr;
+   int_face_restrict_lex = nullptr;
    Grad.Update();
 }
 
