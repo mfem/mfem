@@ -16,107 +16,10 @@
 #include "../general/array.hpp"
 #include "intrules.hpp"
 #include "eltrans.hpp"
-#include "coefficient.hpp"
-
-
 
 namespace mfem
 {
-/**
- @brief Abstract class for construction of IntegrationRules in cut elements.
-
- Interface for construction of cut-surface and cut-volume IntegrationRules. The
- cut is specified by the zero level set of a given Coefficient.
-*/
-class CutIntegrationRules
-{
-protected:
-   /// Order of the IntegrationRule.
-   int Order;
-   /// The zero level set of this Coefficient defines the cut surface.
-   Coefficient* LvlSet;
-   /// Space order for the LS projection.
-   int lsOrder;
-
-   /// @name Tolerances used for point comparisons
-   ///@{
-#ifdef MFEM_USE_DOUBLE
-   static constexpr real_t tol_1 = 1e-12;
-   static constexpr real_t tol_2 = 1e-15;
-#elif defined(MFEM_USE_SINGLE)
-   static constexpr real_t tol_1 = 1e-5;
-   static constexpr real_t tol_2 = 1e-7;
-#endif
-   ///@}
-
-   /** @brief Constructor to set up the generated cut IntegrationRules.
-
-       @param [in] order  Order of the constructed IntegrationRule.
-       @param [in] lvlset Coefficient whose zero level set specifies the cut.
-       @param [in] lsO    Polynomial degree for projecting the level-set
-                          Coefficient to a GridFunction, which is used to
-                          compute gradients and normals. */
-   CutIntegrationRules(int order, Coefficient& lvlset, int lsO = 2)
-      : Order(order), LvlSet(&lvlset), lsOrder(lsO)
-   { MFEM_VERIFY(order > 0 && lsO > 0, "Invalid input") }
-
-public:
-
-   /// Change the order of the constructed IntegrationRule.
-   virtual void SetOrder(int order);
-
-   /// Change the Coefficient whose zero level set specifies the cut.
-   virtual void SetLevelSetCoefficient(Coefficient &ls) { LvlSet = &ls; }
-
-   /// Change the polynomial degree for projecting the level set Coefficient
-   /// to a GridFunction, which is used to compute local gradients and normals.
-   virtual void SetLevelSetProjectionOrder(int order);
-
-   /**
-    @brief Construct a cut-surface IntegrationRule.
-
-    Construct an IntegrationRule to integrate on the surface given by the
-    already specified level set function, for the element given by @a Tr.
-
-    @param [in]  Tr     Specifies the IntegrationRule's associated mesh element.
-    @param [out] result IntegrationRule on the cut-surface
-   */
-   virtual void GetSurfaceIntegrationRule(ElementTransformation& Tr,
-                                          IntegrationRule& result) = 0;
-
-   /**
-    @brief Construct a cut-volume IntegrationRule.
-
-    Construct an IntegrationRule to integrate in the subdomain given by the
-    positive values of the already specified level set function, for the element
-    given by @a Tr.
-
-    @param [in]  Tr     Specifies the IntegrationRule's associated mesh element.
-    @param [out] result IntegrationRule for the cut-volume
-    @param [in]  sir    Corresponding IntegrationRule for the surface, which can
-                        be used to avoid computations.
-   */
-   virtual void GetVolumeIntegrationRule(ElementTransformation& Tr,
-                                         IntegrationRule& result,
-                                         const IntegrationRule* sir = NULL) = 0;
-
-   /**
-    @brief Compute transformation quadrature weights for surface integration.
-
-    Compute the transformation weights for integration over the cut-surface in
-    reference space.
-
-    @param [in]  Tr      Specifies the IntegrationRule's associated element.
-    @param [in]  sir     IntegrationRule defining the IntegrationPoints
-    @param [out] weights Vector containing the transformation weights.
-   */
-   virtual void GetSurfaceWeights(ElementTransformation &Tr,
-                                  const IntegrationRule &sir,
-                                  Vector &weights) = 0;
-
-   /// @brief Destructor of CutIntegrationRules
-   virtual ~CutIntegrationRules() {}
-};
+class ReferenceLevelSet;
 
 #ifdef MFEM_USE_LAPACK
 
@@ -130,9 +33,22 @@ public:
  moment-fitting" (2013, see
  https://onlinelibrary.wiley.com/doi/full/10.1002/nme.4569).
 */
-class MomentFittingIntRules : public CutIntegrationRules
+class MomentFittingIntRules
 {
 protected:
+   /// Order of the constructed rule.
+   int Order;
+   /// Level set in the containing reference element's coordinates.
+   const ReferenceLevelSet &level_set;
+   /// Selects the positive (+1) or negative (-1) side of the level set.
+   real_t level_set_sign;
+#ifdef MFEM_USE_DOUBLE
+   static constexpr real_t tol_1 = 1e-12;
+   static constexpr real_t tol_2 = 1e-15;
+#elif defined(MFEM_USE_SINGLE)
+   static constexpr real_t tol_1 = 1e-5;
+   static constexpr real_t tol_2 = 1e-7;
+#endif
    /// @brief Space Dimension of the element
    int dim;
    /// @brief Number of divergence-free basis functions for surface integration
@@ -160,12 +76,9 @@ protected:
     change.
 
     @param [in] order Order of the IntegrationRule
-    @param [in] levelset level-set function defining the implicit interface
-    @param [in] lsO polynomial degree for approximation of level-set function
     @param [in] Tr ElementTransformation to initialize the members with
    */
-   void InitSurface(int order, Coefficient& levelset, int lsO,
-                    ElementTransformation& Tr);
+   void InitSurface(int order, ElementTransformation& Tr);
 
    /**
     @brief Initialization for volume IntegrationRule
@@ -175,16 +88,18 @@ protected:
     change.
 
     @param [in] order Order of the IntegrationRule
-    @param [in] levelset level-set function defining the implicit interface
-    @param [in] lsO polynomial degree for approximation of level-set function
     @param [in] Tr ElementTransformation to initialize the members with
    */
-   void InitVolume(int order, Coefficient& levelset, int lsO,
-                   ElementTransformation& Tr);
+   void InitVolume(int order, ElementTransformation& Tr);
 
    /// @brief Initialize the MomentFittingIntRules
-   void Init(int order, Coefficient& levelset, int lsO)
-   { Order = order; LvlSet = &levelset; lsOrder = lsO; FaceWeightsComp = 0.;}
+   void Init(int order) { Order = order; FaceWeightsComp = 0.; }
+
+   real_t Eval(ElementTransformation &transformation,
+               const IntegrationPoint &point) const;
+   void EvalGradient(ElementTransformation &transformation,
+                     const IntegrationPoint &point, Vector &gradient) const;
+   real_t Bisect(ElementTransformation &transformation) const;
 
    /// @brief Clear stored data of the MomentFittingIntRules
    void Clear();
@@ -292,25 +207,24 @@ protected:
 
 public:
 
-   /** @brief Constructor to set up the generated cut IntegrationRules.
+   /** Construct a moment-fitting rule generator for one signed level set.
 
-       @param [in] order  Order of the constructed IntegrationRule.
-       @param [in] lvlset Coefficient whose zero level set specifies the cut.
-       @param [in] lsO    Polynomial degree for projecting the level-set
-                          Coefficient to a GridFunction, which is used to
-                          compute gradients and normals. */
-   MomentFittingIntRules(int order, Coefficient& lvlset, int lsO,
+       The level set is evaluated in the coordinates of its reference element;
+       @a level_set_sign must be +1 or -1. The level set and optional prescribed
+       points must outlive this object. */
+   MomentFittingIntRules(int order, const ReferenceLevelSet &level_set,
+                         real_t level_set_sign,
                          const IntegrationRule *points = nullptr)
-      : CutIntegrationRules(order, lvlset, lsO),
+      : Order(order), level_set(level_set), level_set_sign(level_set_sign),
         dim(-1), nBasis(-1), nBasisVolume(-1), fixed_points(points),
         VolumeSVD(nullptr)
-   { FaceWeights.SetSize(1); FaceWeightsComp.SetSize(1); }
-
-   /// Change the order of the constructed IntegrationRule.
-   void SetOrder(int order) override;
-
-   using CutIntegrationRules::SetLevelSetCoefficient;
-   using CutIntegrationRules::SetLevelSetProjectionOrder;
+   {
+      MFEM_VERIFY(order > 0 &&
+                  (level_set_sign == 1.0 || level_set_sign == -1.0),
+                  "Invalid moment-fitting input.");
+      FaceWeights.SetSize(1);
+      FaceWeightsComp.SetSize(1);
+   }
 
    /**
     @brief Construct a cut-surface IntegrationRule.
@@ -322,7 +236,7 @@ public:
     @param [out] result IntegrationRule on the cut-surface
    */
    void GetSurfaceIntegrationRule(ElementTransformation& Tr,
-                                  IntegrationRule& result) override;
+                                  IntegrationRule& result);
 
    /**
     @brief Construct a cut-volume IntegrationRule.
@@ -338,24 +252,10 @@ public:
    */
    void GetVolumeIntegrationRule(ElementTransformation& Tr,
                                  IntegrationRule& result,
-                                 const IntegrationRule* sir = nullptr) override;
-
-   /**
-    @brief Compute transformation quadrature weights for surface integration.
-
-    Compute the transformation weights for integration over the cut-surface in
-    reference space.
-
-    @param [in]  Tr      Specifies the IntegrationRule's associated element.
-    @param [in]  sir     IntegrationRule defining the IntegrationPoints
-    @param [out] weights Vector containing the transformation weights.
-   */
-   void GetSurfaceWeights(ElementTransformation &Tr,
-                          const IntegrationRule &sir,
-                          Vector &weights) override;
+                                 const IntegrationRule* sir = nullptr);
 
    /// @brief Destructor of MomentFittingIntRules
-   ~MomentFittingIntRules() override { delete VolumeSVD; }
+   ~MomentFittingIntRules() { delete VolumeSVD; }
 };
 
 #endif //MFEM_USE_LAPACK
