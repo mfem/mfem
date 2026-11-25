@@ -79,6 +79,10 @@ void PANonlinearFormExtension::Assemble()
    SetupRestrictionOperators();
 
    for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(fes); }
+   for (int i = 0; i < fnfi.Size(); ++i)
+   {
+      fnfi[i]->AssemblePAInteriorFaces(fes);
+   }
 }
 
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
