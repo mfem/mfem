@@ -17,7 +17,8 @@
 //              * ex38 -i volumetric3d -o 3 -r 4 -m 1
 //
 // Description: Integrate functions over implicit interfaces and subdomains
-//              bounded by implicit interfaces using cut quadrature.
+//              bounded by implicit interfaces using cut quadrature in an
+//              MFEM LinearFormIntegrator.
 
 #include "mfem.hpp"
 #include <cmath>
@@ -32,11 +33,7 @@ namespace
 
 enum class IntegrationType
 {
-   Volumetric1D,
-   Surface2D,
-   Volumetric2D,
-   Surface3D,
-   Volumetric3D
+   Volumetric1D, Surface2D, Volumetric2D, Surface3D, Volumetric3D
 };
 
 bool ParseIntegrationType(const char *name, IntegrationType &type)
@@ -101,8 +98,7 @@ real_t Integrand(IntegrationType type, const Vector &point)
          return 4.0 - 3.0*point(0)*point(0) +
                 2.0*point(1)*point(1) - point(2)*point(2);
       case IntegrationType::Volumetric2D:
-      case IntegrationType::Volumetric3D:
-         return 1.0;
+      case IntegrationType::Volumetric3D: return 1.0;
    }
    return 0.0;
 }
@@ -113,9 +109,9 @@ real_t ExactSurfaceIntegral(IntegrationType type)
    switch (type)
    {
       case IntegrationType::Volumetric1D: return 0.3025;
-      case IntegrationType::Surface2D: return 2.0*pi;
+      case IntegrationType::Surface2D:    return 2.0*pi;
       case IntegrationType::Volumetric2D: return 7.26633616541076;
-      case IntegrationType::Surface3D: return 40.0*pi/3.0;
+      case IntegrationType::Surface3D:    return 40.0*pi/3.0;
       case IntegrationType::Volumetric3D: return 9.90182151329315;
    }
    return 0.0;
@@ -125,9 +121,73 @@ real_t ExactVolumeIntegral(IntegrationType type)
 {
    const real_t pi = std::acos(-1.0);
    if (type == IntegrationType::Volumetric1D)
-   { return std::pow(0.55, 3)/3.0; }
+   {
+      return std::pow(0.55, 3)/3.0;
+   }
    return type == IntegrationType::Volumetric2D ? 9.0*pi/8.0 : 3.0*pi/4.0;
 }
+
+// Supply element-specific cut rules to MFEM's standard domain integrator.
+// DomainLFIntegrator performs the integration. This adapter only generates
+// the rule for the current element and converts its physical measure scaling
+// to the weight convention expected by DomainLFIntegrator.
+class CutLFIntegrator : public DomainLFIntegrator
+{
+private:
+   const GridFunction &level_set;
+   const CutQuadratureGenerator &generator;
+   int order;
+   bool surface;
+   IntegrationRule integration_rule;
+
+public:
+   CutLFIntegrator(const GridFunction &level_set_, Coefficient &integrand_,
+                   const CutQuadratureGenerator &generator_, int order_,
+                   bool surface_)
+      : DomainLFIntegrator(integrand_), level_set(level_set_),
+        generator(generator_), order(order_), surface(surface_) { }
+
+   bool SupportsDevice() const override { return false; }
+
+   void AssembleRHSElementVect(const FiniteElement &element,
+                               ElementTransformation &transf,
+                               Vector &elem_vector) override
+   {
+      PolynomialLevelSet reference_level_set;
+      reference_level_set.Set(level_set, transf.ElementNo);
+      const CutDomain domain = surface ?
+                               CutDomain::Surface(reference_level_set) :
+                               CutDomain::Positive(reference_level_set);
+      CutQuadrature quadrature;
+      auto report = generator.Generate(transf.GetGeometryType(), domain,
+                                       order, quadrature);
+      MFEM_VERIFY(report.Succeeded(), report.message);
+
+      integration_rule = quadrature.rule;
+      if (surface)
+      {
+         // DomainLFIntegrator multiplies rule weights by Tr.Weight(). Only a
+         // surface rule needs this correction: replace the volume scaling by
+         // the cut surface's tangential measure scaling, mu.
+         CutQuadratureMapping mapping;
+         int req_data = CutQuadratureMapping::MEASURE_SCALING;
+         report = MapCutQuadrature(transf, quadrature, req_data, mapping);
+         MFEM_VERIFY(report.Succeeded(), report.message);
+         for (int index = 0; index < quadrature.GetNPoints(); ++index)
+         {
+            auto &point = integration_rule.IntPoint(index);
+            transf.SetIntPoint(&point);
+            point.weight *= mapping.measure_scaling(index) / transf.Weight();
+         }
+      }
+
+      // Give the cut rule to the standard DomainLFIntegrator and integrate.
+      SetIntegrationRule(integration_rule);
+      DomainLFIntegrator::AssembleRHSElementVect(element, transf, elem_vector);
+   }
+
+   using LinearFormIntegrator::AssembleRHSElementVect;
+};
 
 }
 
@@ -178,10 +238,14 @@ int main(int argc, char *argv[])
    for (int vertex = 0; vertex < mesh.GetNV(); ++vertex)
    {
       for (int axis = 0; axis < dimension; ++axis)
-      { mesh.GetVertex(vertex)[axis] -= dimension == 1 ? 0.0 : 1.6; }
+      {
+         mesh.GetVertex(vertex)[axis] -= dimension == 1 ? 0.0 : 1.6;
+      }
    }
    for (int level = 0; level < refinements; ++level)
-   { mesh.UniformRefinement(); }
+   {
+      mesh.UniformRefinement();
+   }
 
    FunctionCoefficient coefficient([type](const Vector &point)
    { return LevelSet(type, point); });
@@ -191,56 +255,32 @@ int main(int argc, char *argv[])
    field.ProjectCoefficient(coefficient);
 
    CutQuadratureGenerator generator(*backend);
-   real_t surface_integral = 0.0, volume_integral = 0.0;
-   for (int element = 0; element < mesh.GetNE(); ++element)
+   FunctionCoefficient integrand([type](const Vector &point)
    {
-      auto &transformation = *mesh.GetElementTransformation(element);
-      PolynomialLevelSet level_set;
-      level_set.Set(field, element);
-      const int integrals = HasVolumeIntegral(type) ? 2 : 1;
-      for (int integral = 0; integral < integrals; ++integral)
-      {
-         const bool surface = integral == 0;
-         const auto domain = surface ? CutDomain::Surface(level_set) :
-                             CutDomain::Positive(level_set);
-         CutQuadrature quadrature;
-         auto report = generator.Generate(transformation.GetGeometryType(),
-                                          domain, order, quadrature);
-         CutQuadratureMapping mapping;
-         if (report.Succeeded())
-         {
-            report = MapCutQuadrature(
-                        transformation, quadrature,
-                        CutQuadratureMapping::PHYSICAL_POINTS |
-                        CutQuadratureMapping::MEASURE_SCALING, mapping);
-         }
-         if (!report.Succeeded())
-         {
-            cerr << report.message << '\n';
-            return 2;
-         }
-         Vector point(dimension);
-         for (int index = 0; index < quadrature.GetNPoints(); ++index)
-         {
-            mapping.physical_points.GetColumn(index, point);
-            const real_t physical_weight =
-               quadrature.rule.IntPoint(index).weight *
-               mapping.measure_scaling(index);
-            (surface ? surface_integral : volume_integral) +=
-               physical_weight * Integrand(type, point);
-         }
-      }
+      return Integrand(type, point);
+   });
+   LinearForm surface(&space);
+   surface.AddDomainIntegrator(new CutLFIntegrator(field, integrand,
+                                                   generator, order, true));
+   surface.Assemble();
+
+   LinearForm volume(&space);
+   if (HasVolumeIntegral(type))
+   {
+      volume.AddDomainIntegrator(new CutLFIntegrator(field, integrand,
+                                                     generator, order, false));
+      volume.Assemble();
    }
 
    const real_t exact_surface = ExactSurfaceIntegral(type);
    cout << setprecision(16)
-        << "Surface: " << surface_integral
-        << ", error: " << abs(surface_integral - exact_surface) << '\n';
+        << "Surface: " << surface.Sum()
+        << ", error: " << abs(surface.Sum() - exact_surface) << '\n';
    if (HasVolumeIntegral(type))
    {
       const real_t exact_volume = ExactVolumeIntegral(type);
-      cout << "Volume: " << volume_integral
-           << ", error: " << abs(volume_integral - exact_volume) << '\n';
+      cout << "Volume: " << volume.Sum()
+           << ", error: " << abs(volume.Sum() - exact_volume) << '\n';
    }
 
    if (visualization)
