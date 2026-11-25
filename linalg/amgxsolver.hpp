@@ -31,10 +31,10 @@ namespace mfem
 /** @brief
    MFEM wrapper for Nvidia's multigrid library, AmgX (github.com/NVIDIA/AMGX)
 
-   AmgX requires building MFEM with CUDA, and AMGX enabled. For distributed
-   memory parallelism, MPI and Hypre (version 16.0+) are also required. Although
-   CUDA is required for building, the AmgX solver is compatible with a MFEM CPU
-   device configuration.
+   AmgX requires building MFEM with AMGX enabled. For distributed memory
+   parallelism, MPI and Hypre (version 2.16.0+) are also required. Although the
+   CUDA toolkit is required for building, the AmgX solver is compatible with an
+   MFEM CPU device configuration.
 
    The AmgXSolver class is designed to work as a solver or preconditioner for
    existing MFEM solvers. The AmgX solver class may be configured in one of
