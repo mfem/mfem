@@ -9,11 +9,13 @@
 //
 //              minimize 1/2 [λ (∇·u, ∇·u) + 2μ (ε(u), ε(u))] - (f,u)
 //              subject to          u·ñ ≤ ϕ on Γ,
+//                                  u = u_D on Γ_D,
 //
 //              where ε(u) = (∇u + ∇uᵀ)/2 is the symmetric gradient of
 //              the displacement u, λ and μ are the Lamé parameters,
 //              f is a body force, ϕ is a gap function, and ñ is a
-//              fixed approximation of the contact normal.
+//              fixed approximation of the contact normal. u_D is the
+//              prescribed displacement on the Dirichlet boundary Γ_D.
 //
 //              This corresponds to a unilateral Signorini-type contact
 //              problem, where the displacement u on the contact boundary
@@ -144,13 +146,13 @@ int main(int argc, char *argv[])
    }
 
    // Prescribe the displacement on the inner surface of the wheel.
-   Vector g(dim);
-   g = 0.0; g[dim - 1] = -0.1;
-   VectorConstantCoefficient g_coeff(g);
+   Vector u_D(dim);
+   u_D = 0.0; u_D[dim - 1] = -0.1;
+   VectorConstantCoefficient u_D_coeff(u_D);
 
    GridFunction disp_lift(&H1fes);
    disp_lift = 0.0;
-   disp_lift.ProjectBdrCoefficient(g_coeff, ess_bdr);
+   disp_lift.ProjectBdrCoefficient(u_D_coeff, ess_bdr);
 
    // 8. Allocate grid functions and block vectors.
    GridFunction u_gf;                     // displacement
@@ -190,7 +192,7 @@ int main(int argc, char *argv[])
    // 10. Initialize displacement, latent variable, and the Newton state.
    VectorFunctionCoefficient init_u_c(dim, InitialGuess);
    u_gf.ProjectCoefficient(init_u_c);
-   u_gf.ProjectBdrCoefficient(g_coeff, ess_bdr);
+   u_gf.ProjectBdrCoefficient(u_D_coeff, ess_bdr);
    u_old_gf = u_gf;
 
    // Create a temporary trace grid function to project the initial ψ
