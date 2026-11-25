@@ -307,6 +307,7 @@ miniapps/fluids/navier/navier_turbchan
 miniapps/fluids/navier/navier_cht
 miniapps/fluids/navier/navier_bifurcation
 miniapps/fluids/navier/Navier_Bifurcation_[0-9]*
+miniapps/fluids/navier/navier_windtunnel
 miniapps/fluids/navier/ParaView
 miniapps/fluids/navier/tgv_out*.txt
 miniapps/fluids/navier/*_output
@@ -463,6 +464,7 @@ tests/unit/ceed_tests
 tests/unit/debug_device_tests
 tests/unit/parallel_in_serial.mesh
 tests/unit/parallel_in_serial.gf
+tests/unit/navier_solver_tests
 
 # Benchmark binaries
 tests/benchmarks/bench_ceed

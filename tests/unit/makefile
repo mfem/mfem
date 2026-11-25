@@ -86,6 +86,7 @@ SEQ_UNIT_TESTS = unit_tests $(if $(USE_GPU),gpu_unit_tests)
 SEQ_UNIT_TESTS += $(SEQ_SEDOV_TESTS) $(SEQ_TMOP_TESTS)
 PAR_UNIT_TESTS = punit_tests $(if $(USE_GPU),pgpu_unit_tests)
 PAR_UNIT_TESTS += $(PAR_SEDOV_TESTS) $(PAR_TMOP_TESTS)
+PAR_UNIT_TESTS += navier_solver_tests
 
 # Ceed tests
 USE_CEED := $(MFEM_USE_CEED:NO=)
@@ -115,6 +116,26 @@ unit_tests: $(SEQ_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_D
 
 punit_tests: $(PAR_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(PAR_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
+NAVIER_SOLVER_DIR = $(MFEM_DIR)/miniapps/fluids/navier
+NAVIER_TEST_OBJ = miniapps/test_navier_solver.o
+NAVIER_SOLVER_TEST_OBJ = miniapps/navier_solver.o
+
+navier_solver_tests: $(PAR_MAIN_OBJ) $(NAVIER_TEST_OBJ) \
+$(NAVIER_SOLVER_TEST_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(CCC) $(PAR_MAIN_OBJ) $(NAVIER_TEST_OBJ) $(NAVIER_SOLVER_TEST_OBJ) \
+	$(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+
+$(NAVIER_TEST_OBJ): $(SRC)miniapps/test_navier_solver.cpp $(HEADER_FILES) \
+$(NAVIER_SOLVER_DIR)/navier_solver.hpp $(CONFIG_MK)
+	@mkdir -p $(@D)
+	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -I$(NAVIER_SOLVER_DIR) \
+	-c $(abspath $(<)) -o $(@)
+
+$(NAVIER_SOLVER_TEST_OBJ): $(NAVIER_SOLVER_DIR)/navier_solver.cpp \
+$(NAVIER_SOLVER_DIR)/navier_solver.hpp $(CONFIG_MK)
+	@mkdir -p $(@D)
+	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
 
 gpu_unit_tests: $(GPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(GPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
