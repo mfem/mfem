@@ -628,7 +628,7 @@ class DerivativeAssemble
    /// Column space of every row block. GetDerivative differentiates w.r.t. one
    /// field, so there is exactly one trial space. Null when that field is not
    /// an FE space, in which case nothing can be assembled.
-   const ParFiniteElementSpace *trial_fes;
+   const FiniteElementSpace *trial_fes;
    /// Per-output row geometry of the quadrature point cache. DerivativeSetup
    /// lays that cache out over every output FieldOperator, so reading it needs
    /// all of them.
@@ -696,14 +696,14 @@ public:
    input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
    trial_field_uf(find_union_field_index(ctx_in, derivative_id)),
    trial_fes(
-      [&]() -> const ParFiniteElementSpace *
+      [&]() -> const FiniteElementSpace *
    {
       // Not every field is an FE space: a derivative w.r.t. a ParameterSpace or
       // a QuadratureSpace has no basis to assemble columns against. That is
       // only an error if assembly is actually requested, so keep it null here
       // and report it in operator() instead of aborting registration.
       if (trial_field_uf >= ctx_in.unionfds.size()) { return nullptr; }
-      const auto *fes = std::get_if<const ParFiniteElementSpace *>(
+      const auto *fes = std::get_if<const FiniteElementSpace *>(
          &ctx_in.unionfds[trial_field_uf].data);
       return fes ? *fes : nullptr;
    }()),
@@ -722,7 +722,7 @@ public:
       [&]
    {
       // A row block can only be assembled when both its trial and test fields are
-      // ParFiniteElementSpaces. Quadrature and parameter spaces have no element
+      // FiniteElementSpaces. Quadrature and parameter spaces have no element
       // basis or ElementRestriction through which to form a SparseMatrix.
       //
       // Identity outputs are also excluded for now as it has no supported mapping from
@@ -817,7 +817,7 @@ public:
 
       MFEM_VERIFY(trial_fes != nullptr,
                   "DerivativeAssemble: the differentiated field is not a "
-                  "ParFiniteElementSpace, so the columns of the derivative "
+                  "FiniteElementSpace, so the columns of the derivative "
                   "have no basis to be assembled against");
 
       if (banks.size() < ctx.outfds.size()) { banks.resize(ctx.outfds.size()); }
@@ -832,7 +832,7 @@ public:
          MFEM_VERIFY(bank_size <= std::numeric_limits<int>::max(),
                      "DerivativeAssemble: the entity matrices, "
                      << bank_size << " entries, do not fit in a Vector");
-         const ParFiniteElementSpace *test_fes = output_groups->fes[g];
+         const FiniteElementSpace *test_fes = output_groups->fes[g];
          const size_t f = g;
          future::detail::EntityMatrices &m = banks[f];
          if (!m.used)

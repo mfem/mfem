@@ -22,9 +22,9 @@ namespace mfem::future
 /// This struct is used to store information about a field.
 struct FieldDescriptor
 {
+   /// A ParFiniteElementSpace is stored as its FiniteElementSpace base.
    using data_variant_t =
       std::variant<const FiniteElementSpace *,
-      const ParFiniteElementSpace *,
       const VectorQuadratureSpace *,
       const ParameterSpace *>;
 

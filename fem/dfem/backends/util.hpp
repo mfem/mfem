@@ -302,8 +302,7 @@ inline const FieldBasis GetFieldBasis(const FieldDescriptor &f,
    {
       using T = std::decay_t<decltype(arg)>;
 
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
       {
          constexpr RestrictionDescriptor r = EntityTraits<entity_t>::restriction;
          if constexpr (r.is_face_restriction)
@@ -415,15 +414,13 @@ inline void check_consistency(
       else if constexpr (is_value_fop<input_t>::value)
       {
          MFEM_ASSERT(std::holds_alternative<const FiniteElementSpace *>(fd.data) ||
-                     std::holds_alternative<const ParFiniteElementSpace *>(fd.data) ||
                      std::holds_alternative<const ParameterSpace *>(fd.data),
                      "Value FieldOperator requested on non "
                      "VectorQuadratureSpace");
       }
       else if constexpr (is_gradient_fop<input_t>::value)
       {
-         MFEM_ASSERT(std::holds_alternative<const FiniteElementSpace *>(fd.data) ||
-                     std::holds_alternative<const ParFiniteElementSpace *>(fd.data),
+         MFEM_ASSERT(std::holds_alternative<const FiniteElementSpace *>(fd.data),
                      "Value FieldOperator requested on non "
                      "VectorQuadratureSpace");
       }

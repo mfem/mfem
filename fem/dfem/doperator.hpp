@@ -12,7 +12,6 @@
 
 #include "../../config/config.hpp" // IWYU pragma: keep
 
-#ifdef MFEM_USE_MPI
 #include <memory>
 #include <set>
 #include <utility>
@@ -421,6 +420,7 @@ inline SparseMatrix *AssembleEntityMatrices(const EntityMatrices &m)
    return M;
 }
 
+#ifdef MFEM_USE_MPI
 /// @brief The HypreParMatrix of the local row block @a local, which maps the
 /// L-vectors of @a trial_fes to those of @a test_fes.
 inline HypreParMatrix *ParallelAssembleBlock(
@@ -442,6 +442,7 @@ inline HypreParMatrix *ParallelAssembleBlock(
    return RAP(test_fes.Dof_TrueDof_Matrix(), &dA,
               trial_fes.Dof_TrueDof_Matrix());
 }
+#endif // MFEM_USE_MPI
 
 } // namespace detail
 
@@ -851,6 +852,7 @@ public:
       A = SingleBlock(blocks);
    }
 
+#ifdef MFEM_USE_MPI
    /// @brief Assemble the row blocks of the derivative operator into
    /// HypreParMatrices.
    ///
@@ -861,22 +863,25 @@ public:
       std::vector<SparseMatrix *> local;
       Assemble(local);
 
+      const auto *trial =
+         std::get_if<const FiniteElementSpace *>(&direction.data);
       const auto *trial_fes =
-         std::get_if<const ParFiniteElementSpace *>(&direction.data);
-      MFEM_VERIFY(trial_fes && *trial_fes,
+         trial ? dynamic_cast<const ParFiniteElementSpace *>(*trial) : nullptr;
+      MFEM_VERIFY(trial_fes,
                   "HypreParMatrix assembly requires a ParFiniteElementSpace "
                   "derivative field");
       A.assign(outfds.size(), nullptr);
       for (size_t i = 0; i < local.size(); i++)
       {
          if (local[i] == nullptr) { continue; }
+         const auto *test =
+            std::get_if<const FiniteElementSpace *>(&outfds[i].data);
          const auto *test_fes =
-            std::get_if<const ParFiniteElementSpace *>(&outfds[i].data);
-         MFEM_VERIFY(test_fes && *test_fes,
+            test ? dynamic_cast<const ParFiniteElementSpace *>(*test) : nullptr;
+         MFEM_VERIFY(test_fes,
                      "HypreParMatrix assembly requires a ParFiniteElementSpace "
                      "output field");
-         A[i] = detail::ParallelAssembleBlock(*local[i], **test_fes,
-                                              **trial_fes);
+         A[i] = detail::ParallelAssembleBlock(*local[i], *test_fes, *trial_fes);
          delete local[i];
       }
    }
@@ -895,6 +900,7 @@ public:
       Assemble(blocks);
       A = SingleBlock(blocks);
    }
+#endif // MFEM_USE_MPI
 
    /// @brief Assemble the derivative of a functional into a Vector.
    ///
@@ -940,7 +946,7 @@ public:
    /// diagonal. Squareness alone cannot pick the block when several output
    /// fields live on the trial space, so the row is named rather than inferred.
    /// Output field ids may differ from the differentiated field's id while
-   /// sharing its ParFiniteElementSpace, in which case several row blocks are
+   /// sharing its FiniteElementSpace, in which case several row blocks are
    /// square at once. Naming the output field id resolves the ambiguity.
    ///
    /// @param out_field_id The output field whose row block is wanted.
@@ -957,14 +963,14 @@ public:
                   "output field of this operator");
 
       const auto *test_pf =
-         std::get_if<const ParFiniteElementSpace *>(&outfds[diagonal_idx].data);
+         std::get_if<const FiniteElementSpace *>(&outfds[diagonal_idx].data);
       MFEM_VERIFY(test_pf && *test_pf,
-                  "AssembleDiagonal: test field must be a ParFiniteElementSpace");
+                  "AssembleDiagonal: test field must be a FiniteElementSpace");
       const auto *trial_pf =
-         std::get_if<const ParFiniteElementSpace *>(&direction.data);
+         std::get_if<const FiniteElementSpace *>(&direction.data);
       MFEM_VERIFY(trial_pf && *trial_pf,
                   "AssembleDiagonal: the differentiated field must be a "
-                  "ParFiniteElementSpace");
+                  "FiniteElementSpace");
       MFEM_VERIFY(*test_pf == *trial_pf,
                   "AssembleDiagonal: the requested row block is not square and "
                   "so has no diagonal; its test space is not the trial space "
@@ -1192,7 +1198,7 @@ public:
    DifferentiableOperator(
       const std::vector<FieldDescriptor> &infds,
       const std::vector<FieldDescriptor> &outfds,
-      const ParMesh &mesh);
+      const Mesh &mesh);
 
    ~DifferentiableOperator() override
    {
@@ -1294,9 +1300,14 @@ public:
       for (size_t i = 0; i < outfds.size(); i++)
       {
          const real_t local = residual_l[i]->Sum();
-         real_t global;
-         MPI_Allreduce(&local, &global, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
-                       mesh.GetComm());
+         real_t global = local;
+#ifdef MFEM_USE_MPI
+         if (const auto *pmesh = dynamic_cast<const ParMesh *>(&mesh))
+         {
+            MPI_Allreduce(&local, &global, 1, MPITypeMap<real_t>::mpi_type,
+                          MPI_SUM, pmesh->GetComm());
+         }
+#endif
          if constexpr (std::is_same_v<y_t, MultiVector>) { y[i] = global; }
          else { y.GetBlock(i) = global; }
       }
@@ -1676,7 +1687,7 @@ private:
       return it->second[integrator];
    }
 
-   const ParMesh &mesh;
+   const Mesh &mesh;
 
    MultLevel mult_level = TVECTOR;
 
@@ -2288,4 +2299,3 @@ void DifferentiableOperator::AddIntegrator(
 
 } // namespace mfem::future
 
-#endif // MFEM_USE_MPI

@@ -16,6 +16,7 @@
 
 #include "../../general/array.hpp"
 #include "../../linalg/vector.hpp"
+#include "../../mesh/mesh.hpp"
 #include "fielddescriptor.hpp"
 
 namespace mfem::future
@@ -29,7 +30,7 @@ namespace mfem::future
 template <typename entity_t>
 struct IntegratorContext
 {
-   const ParMesh &mesh;
+   const Mesh &mesh;
 
    ///<--- Entities
    const int nentities;               // Total number of entities for entity_t

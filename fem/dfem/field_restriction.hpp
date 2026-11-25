@@ -12,8 +12,6 @@
 
 #include "../../config/config.hpp" // IWYU pragma: keep
 
-#ifdef MFEM_USE_MPI
-
 #include "util.hpp"
 
 namespace mfem::future
@@ -45,8 +43,7 @@ std::shared_ptr<const Operator> get_element_restriction(
    return std::visit([&o](auto&& arg) -> std::shared_ptr<const Operator>
    {
       using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *>
-                    || std::is_same_v<T, const ParFiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
       {
          // Non-owning shared_ptr with no-op deleter
          return std::shared_ptr<const Operator>(arg->GetElementRestriction(o), [](
@@ -91,8 +88,7 @@ std::shared_ptr<const Operator> get_face_restriction(const FieldDescriptor &f,
    return std::visit([&o, &ft, &m](auto&& arg) -> std::shared_ptr<const Operator>
    {
       using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
       {
          // The L2 face restriction gathers the element dofs on the face, which
          // only give the trace for a basis with nodes on the element boundary.
@@ -558,4 +554,3 @@ void restriction(const FieldDescriptor &u,
 
 } // namespace mfem::future
 
-#endif // MFEM_USE_MPI

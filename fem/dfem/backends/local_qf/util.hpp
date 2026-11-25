@@ -1117,7 +1117,7 @@ struct OutputFieldGroups
    /// Group index -> FieldDescriptor::id, in ctx.outfds order.
    std::vector<int> field_ids;
    /// Group index -> finite element space, or null for a non-FE field.
-   std::vector<const ParFiniteElementSpace *> fes;
+   std::vector<const FiniteElementSpace *> fes;
    /// Group index -> vector dimension of the output field.
    std::vector<int> test_vdim;
    /// Group index -> number of dofs of one entity (an element, or a boundary
@@ -1156,7 +1156,7 @@ struct OutputFieldGroups
       {
          const int group = output_to_group[o];
          test_vdim[group] = get<o>(outputs).vdim;
-         const auto *group_fes = std::get_if<const ParFiniteElementSpace *>(
+         const auto *group_fes = std::get_if<const FiniteElementSpace *>(
                                     &descriptors[group].data);
          fes[group] = group_fes ? *group_fes : nullptr;
          if (fes[group] != nullptr)

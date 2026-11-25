@@ -12,8 +12,6 @@
 
 #include "../../config/config.hpp" // IWYU pragma: keep
 
-#ifdef MFEM_USE_MPI
-
 #include "../qfunction.hpp"
 #include "../quadinterpolator_face.hpp"
 #include "util.hpp"
@@ -370,8 +368,8 @@ private:
 struct EntityMatrices
 {
    Vector data;
-   const ParFiniteElementSpace *test_fes = nullptr;
-   const ParFiniteElementSpace *trial_fes = nullptr;
+   const FiniteElementSpace *test_fes = nullptr;
+   const FiniteElementSpace *trial_fes = nullptr;
    RestrictionDescriptor restriction {};
    /// Whether an integrator wrote the row block in the current assembly.
    bool used = false;
@@ -536,4 +534,3 @@ void DeleteOwnedEVectors(const kinds_t &kinds, groups_t &... other)
 
 } // namespace mfem::future
 
-#endif // MFEM_USE_MPI

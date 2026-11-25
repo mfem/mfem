@@ -13,8 +13,6 @@
 
 #include <algorithm>
 
-#ifdef MFEM_USE_MPI
-
 using namespace mfem;
 using namespace mfem::future;
 
@@ -93,7 +91,7 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
 DifferentiableOperator::DifferentiableOperator(
    const std::vector<FieldDescriptor> &infds,
    const std::vector<FieldDescriptor> &outfds,
-   const ParMesh &mesh) :
+   const Mesh &mesh) :
    Operator(),
    mesh(mesh),
    infds(infds),
@@ -280,8 +278,12 @@ void FDJacobian::Mult(const Vector &v, Vector &y) const
    {
       const real_t vnorm_local = v.Norml2();
       real_t vnorm;
+#ifdef MFEM_USE_MPI
       MPI_Allreduce(&vnorm_local, &vnorm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                     MPI_COMM_WORLD);
+#else
+      vnorm = vnorm_local;
+#endif
       eps = lambda * (lambda + xnorm / vnorm);
    }
 
@@ -310,4 +312,3 @@ void FDJacobian::Mult(const Vector &v, Vector &y) const
    }
 }
 
-#endif // MFEM_USE_MPI

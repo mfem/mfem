@@ -56,7 +56,7 @@ class DerivativeAssembleDiagonal
    const size_t trial_field_uf;
    /// Column space of every row block; null when the differentiated field is
    /// not an FE space, in which case no block has a diagonal.
-   const ParFiniteElementSpace *trial_fes;
+   const FiniteElementSpace *trial_fes;
    const std::array<int, n_outputs> out_vdim;
    const std::array<int, n_outputs> out_op_dim;
    const std::array<int, n_outputs> out_offsets;
@@ -124,10 +124,10 @@ public:
    input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
    trial_field_uf(find_union_field_index(ctx_in, derivative_id)),
    trial_fes(
-      [&]() -> const ParFiniteElementSpace *
+      [&]() -> const FiniteElementSpace *
    {
       if (trial_field_uf >= ctx_in.unionfds.size()) { return nullptr; }
-      const auto *fes = std::get_if<const ParFiniteElementSpace *>(
+      const auto *fes = std::get_if<const FiniteElementSpace *>(
          &ctx_in.unionfds[trial_field_uf].data);
       return fes ? *fes : nullptr;
    }()),

@@ -13,8 +13,6 @@
 
 #include "../../../../config/config.hpp"
 
-#ifdef MFEM_USE_MPI
-
 #include "kernels.hpp"
 
 namespace mfem::future
@@ -86,4 +84,3 @@ template struct LocalQFHOBackend<3, 16>;
 
 } // namespace mfem::future
 
-#endif // MFEM_USE_MPI

@@ -27,7 +27,6 @@
 
 #include "../../general/communication.hpp"
 
-#ifdef MFEM_USE_MPI
 #include "../fe/fe_base.hpp"
 #include "../fespace.hpp"
 #include "../pfespace.hpp"
@@ -611,7 +610,11 @@ void pretty_print(const std::unordered_map<K,std::array<T,N>>& map)
 inline
 void print_mpi_root(const std::string& msg)
 {
+#ifdef MFEM_USE_MPI
    auto myrank = Mpi::WorldRank();
+#else
+   auto myrank = 0;
+#endif
    if (myrank == 0)
    {
       out << msg << std::endl;
@@ -625,6 +628,7 @@ void print_mpi_root(const std::string& msg)
 inline
 void print_mpi_sync(const std::string& msg)
 {
+#ifdef MFEM_USE_MPI
    auto myrank = static_cast<size_t>(Mpi::WorldRank());
    auto nranks = static_cast<size_t>(Mpi::WorldSize());
 
@@ -673,6 +677,9 @@ void print_mpi_sync(const std::string& msg)
 
    // Final barrier to ensure completion
    MPI_Barrier(MPI_COMM_WORLD);
+#else
+   out << msg << std::endl;
+#endif
 }
 
 /// @brief Pretty print an mfem::Vector with MPI rank
@@ -1442,8 +1449,12 @@ public:
       op.Mult(x, f);
 
       const real_t xnorm_local = x.Norml2();
+#ifdef MFEM_USE_MPI
       MPI_Allreduce(&xnorm_local, &xnorm, 1, MPITypeMap<real_t>::mpi_type, MPI_SUM,
                     MPI_COMM_WORLD);
+#else
+      xnorm = xnorm_local;
+#endif
    }
 
    void Mult(const Vector &v, Vector &y) const override;
@@ -1497,8 +1508,7 @@ int GetVSize(const FieldDescriptor &f)
       }
 
       using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
       {
          return arg->GetVSize();
       }
@@ -1540,10 +1550,6 @@ void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
       {
          arg->GetElementVDofs(el, vdofs);
       }
-      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         arg->GetElementVDofs(el, vdofs);
-      }
       else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
          MFEM_ABORT("internal error");
@@ -1578,10 +1584,6 @@ int GetTrueVSize(const FieldDescriptor &f)
       {
          return arg->GetTrueVSize();
       }
-      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         return arg->GetTrueVSize();
-      }
       else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
          return arg->GetVSize();
@@ -1612,10 +1614,6 @@ int GetVDim(const FieldDescriptor &f)
       {
          return arg->GetVDim();
       }
-      else if constexpr (std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         return arg->GetVDim();
-      }
       else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
       {
          return arg->GetVDim();
@@ -1643,8 +1641,7 @@ int GetDimension(const FieldDescriptor &f)
    return std::visit([](auto && arg)
    {
       using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
       {
          return EntityTraits<entity_t>::Dimension(*arg->GetMesh());
       }
@@ -1672,8 +1669,7 @@ std::variant<const QuadratureInterpolator *, const Operator *>get_qinterp(
    return std::visit([&ir](auto && arg) -> const QuadratureInterpolator*
    {
       using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
       {
          return arg->GetQuadratureInterpolator(ir);
       }
@@ -1713,8 +1709,7 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
    return std::visit([&ir, &mode](auto&& arg) -> const DofToQuad*
    {
       using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *>
-                    || std::is_same_v<T, const ParFiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
       {
          return &EntityTraits<entity_t>::TypicalFE(*arg)->GetDofToQuad(ir, mode);
       }
@@ -1748,8 +1743,7 @@ void CheckCompatibility(const FieldDescriptor &f)
    std::visit([](auto && arg)
    {
       using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
+      if constexpr (std::is_same_v<T, const FiniteElementSpace *>)
       {
          if constexpr (std::is_same_v<field_operator_t, Value<>>)
          {
@@ -2230,4 +2224,3 @@ inline SparseMatrix *AddSparseMatrices(const SparseMatrix &A,
 
 } // namespace mfem::future
 
-#endif // MFEM_USE_MPI
