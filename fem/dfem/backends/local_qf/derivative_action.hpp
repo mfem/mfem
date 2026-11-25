@@ -192,7 +192,8 @@ public:
    //////////////////////////////////////////////////////////////////
    void operator()(const std::vector<Vector *> &xe,
                    const Vector *direction_l,
-                   std::vector<Vector *> &ye)
+                   std::vector<Vector *> &ye,
+                   const std::vector<Vector> & /*qp_caches*/)
    {
       if (ctx.marked_entities.Size() == 0) { return; }
 

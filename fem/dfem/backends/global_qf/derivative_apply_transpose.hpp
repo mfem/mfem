@@ -83,9 +83,9 @@ struct DerivativeApplyTranspose
       qfunc_t /*qfunc*/,
       inputs_t inputs,
       outputs_t outputs,
-      const Vector &qp_cache):
+      size_t qp_cache_slot):
       ctx(ctx), inputs(std::move(inputs)), outputs(std::move(outputs)),
-      qp_cache(qp_cache)
+      qp_cache_slot(qp_cache_slot)
    {
       create_fop_to_fd(this->inputs, ctx.infds, input_to_infd);
       create_fop_to_fd(this->outputs, ctx.outfds, output_to_outfd);
@@ -154,8 +154,10 @@ struct DerivativeApplyTranspose
    void operator()(
       const std::vector<Vector *> & /*xe*/,
       const Vector *direction_l,
-      std::vector<Vector *> &ye) const
+      std::vector<Vector *> &ye,
+      const std::vector<Vector> &qp_caches) const
    {
+      const Vector &qp_cache = qp_caches[qp_cache_slot];
       if (ctx.marked_entities.Size() == 0) { return; }
 
       MFEM_ASSERT(direction_l != nullptr,
@@ -226,7 +228,7 @@ private:
    IntegratorContext<entity_t> ctx;
    inputs_t inputs;
    outputs_t outputs;
-   const Vector &qp_cache;
+   size_t qp_cache_slot;
 
    std::array<size_t, n_inputs> input_to_infd;
    std::array<size_t, n_outputs> output_to_outfd;

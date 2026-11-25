@@ -610,7 +610,7 @@ class DerivativeAssemble
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
 
    const IntegratorContext<entity_t> ctx;
-   const Vector &qp_cache;
+   const size_t qp_cache_slot;
    inputs_t inputs;
    outputs_t outputs;
    const bool use_sum_factorization;
@@ -654,10 +654,10 @@ public:
                       qfunc_t /*qfunc*/,
                       inputs_t inputs_in,
                       outputs_t outputs_in,
-                      const Vector &qp_cache_in,
+                      size_t qp_cache_slot_in,
                       std::shared_ptr<const OutputFieldGroups<outputs_t>>
                       output_groups_in):
-      ctx(ctx_in), qp_cache(qp_cache_in), inputs(inputs_in),
+      ctx(ctx_in), qp_cache_slot(qp_cache_slot_in), inputs(inputs_in),
       outputs(outputs_in), use_sum_factorization(
          [&]
    {
@@ -800,8 +800,10 @@ public:
    /// row block belonging to output field f. Slots this integrator writes
    /// nothing assemblable to -- quadrature or parameter spaces, or fields it
    /// does not touch at all -- are left alone.
-   void operator()(std::vector<future::detail::EntityMatrices> &banks) const
+   void operator()(std::vector<future::detail::EntityMatrices> &banks,
+                   const std::vector<Vector> &qp_caches) const
    {
+      const Vector &qp_cache = qp_caches[qp_cache_slot];
       if (ctx.marked_entities.Size() == 0) { return; }
 
       const bool any_assemblable =

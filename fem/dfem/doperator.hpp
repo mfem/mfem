@@ -41,7 +41,8 @@ using action_t =
 // of the qfunction and shadow qfunction pointers (to manage scratch variables) for the derivative action.
 struct derivative_setup_t
 {
-   using apply_t = std::function<void(const std::vector<Vector *> &)>;
+   using apply_t = std::function<void(const std::vector<Vector *> &,
+                                      std::vector<Vector> &)>;
 
    derivative_setup_t() = default;
 
@@ -50,7 +51,11 @@ struct derivative_setup_t
                                             std::decay_t<func_t>, derivative_setup_t>>>
                                          derivative_setup_t(func_t &&func) : apply(std::forward<func_t>(func)) { }
 
-   void operator()(const std::vector<Vector *> &xe) const { apply(xe); }
+   void operator()(const std::vector<Vector *> &xe,
+                   std::vector<Vector> &qp_caches) const
+   {
+      apply(xe, qp_caches);
+   }
 
    template <typename qfunc_t>
    qfunc_t *GetQFunction() const
@@ -77,7 +82,8 @@ struct derivative_action_t
 {
    using apply_t = std::function<void(const std::vector<Vector *> &,
                                       const Vector *,
-                                      std::vector<Vector *> &)>;
+                                      std::vector<Vector *> &,
+                                      const std::vector<Vector> &)>;
 
    derivative_action_t() = default;
 
@@ -88,9 +94,10 @@ struct derivative_action_t
 
    void operator()(const std::vector<Vector *> &xe,
                    const Vector *de,
-                   std::vector<Vector *> &ye) const
+                   std::vector<Vector *> &ye,
+                   const std::vector<Vector> &qp_caches) const
    {
-      apply(xe, de, ye);
+      apply(xe, de, ye, qp_caches);
    }
 
    template <typename qfunc_t>
@@ -118,14 +125,16 @@ struct derivative_action_t
 /// column, one row block per output field, so the callback adds to a vector
 /// indexed by position in the operator's output FieldDescriptors.
 using assemble_entity_matrices_callback_t =
-   std::function<void(std::vector<detail::EntityMatrices> &)>;
+   std::function<void(std::vector<detail::EntityMatrices> &,
+                      const std::vector<Vector> &)>;
 
 /// @brief Type alias for a function that assembles the diagonal of one row
 /// block of a derivative operator into an E-vector
 ///
 /// The first argument names the output (test) field whose row block is wanted;
 /// only a square block has a diagonal at all.
-using assemble_diagonal_callback_t = std::function<void(int, Vector &)>;
+using assemble_diagonal_callback_t =
+   std::function<void(int, Vector &, const std::vector<Vector> &)>;
 
 /// @brief Type alias for a function that applies the appropriate restriction to
 /// the solution and parameters
@@ -239,6 +248,14 @@ struct OperatorCallbacks
    second_derivative_kernels;
    ///@}
 
+   /// @name Quadrature point cache slots
+   /// The QpCachePool slot of each integrator whose derivative uses a cache.
+   ///@{
+   DerivativeMap<size_t, size_t> derivative_cache_slots;
+   DerivativeMap<second_derivative_key_t, size_t>
+   second_derivative_cache_slots;
+   ///@}
+
    DerivativeSetupMap derivative_setup;
    DerivativeActionMap derivative_action;
    DerivativeActionMap derivative_apply;
@@ -258,6 +275,10 @@ struct OperatorCallbacks
    const DerivativeMap<size_t, DerivativeKernels> &Kernels(size_t) const
    {
       return derivative_kernels;
+   }
+   const DerivativeMap<size_t, size_t> &CacheSlots(size_t) const
+   {
+      return derivative_cache_slots;
    }
    const DerivativeSetupMap &Setup(size_t) const { return derivative_setup; }
    const DerivativeActionMap &Action(size_t) const { return derivative_action; }
@@ -279,6 +300,11 @@ struct OperatorCallbacks
       const second_derivative_key_t &) const
    {
       return second_derivative_kernels;
+   }
+   const DerivativeMap<second_derivative_key_t, size_t> &CacheSlots(
+      const second_derivative_key_t &) const
+   {
+      return second_derivative_cache_slots;
    }
    const SecondDerivativeSetupMap &Setup(const second_derivative_key_t &) const
    {
@@ -324,6 +350,8 @@ struct DerivativeCallbacks
    std::vector<assemble_diagonal_callback_t> assemble_diagonal;
    /// The DerivativeKernels of each integrator that registered the derivative.
    std::vector<DerivativeKernels> kernels;
+   /// The QpCachePool slots of the integrators whose derivative uses a cache.
+   std::vector<size_t> cache_slots;
 };
 
 template <typename map_t>
@@ -375,6 +403,7 @@ DerivativeIntegrators MakeDerivativeIntegrators(
    callbacks.actions =
       FindOrEmpty(cached_apply ? c.Apply(key) : c.Action(key), key);
    callbacks.kernels = FindOrEmpty(c.Kernels(key), key);
+   callbacks.cache_slots = FindOrEmpty(c.CacheSlots(key), key);
    callbacks.transpose = FindOrEmpty(c.Transpose(key), key);
    callbacks.assemble_sparse = FindOrEmpty(c.AssembleSparse(key), key);
    callbacks.assemble_diagonal = FindOrEmpty(c.AssembleDiagonal(key), key);
@@ -443,16 +472,27 @@ inline HypreParMatrix *ParallelAssembleBlock(
               trial_fes.Dof_TrueDof_Matrix());
 }
 
-/// @brief Pool of quadrature point caches for the derivatives 
+/// @brief Pool of quadrature point caches for the derivatives
 /// of a DifferentiableOperator.
 ///
-/// - One slot per integrator and registered derivative.
+/// Motivation:
+/// - Derivatives with respect to the same field at different states must not
+///   share a cache, so each DerivativeOperator owns its caches.
+/// - Allocating them in every DerivativeOperator would allocate at every
+///   GetDerivative(), e.g. every Newton step; the pool reuses the caches of
+///   destroyed derivatives instead.
+///
+/// Mechanism:
+/// - One slot per integrator and registered derivative that uses a cache.
 /// - Each DerivativeOperator owns one cache per slot it uses.
 /// - Each slot keeps at most one spare: a cache no derivative holds.
 ///
 ///   cache <-- Take(slot)    at the first cached use
 ///   cache --> Return(slot)  on destruction: kept as spare, or freed
 ///
+/// Ownership: the DifferentiableOperator owns the pool through a
+/// std::shared_ptr, its derivatives observe it through a std::weak_ptr. A
+/// derivative destroyed after its operator frees its caches instead.
 class QpCachePool
 {
 public:
@@ -463,6 +503,9 @@ public:
       pool.emplace_back();
       return pool.size() - 1;
    }
+
+   /// The number of slots.
+   size_t NumSlots() const { return pool.size(); }
 
    /// Move spare in QpCachePool(slot) --> cache
    /// @param slot The index of the slot to take the cache from.
@@ -477,11 +520,11 @@ public:
    /// Return vector pool <--- cache
    /// @param slot The index of the slot to return the cache to.
    /// @param cache The vector to return to the pool. It will be emptied.
-   /// @note If the pool is closed or the slot already has a spare, the cache will be destroyed.
+   /// @note If the slot already has a spare, the cache will be destroyed.
    void Return(size_t slot, Vector &cache)
    {
       MFEM_ASSERT(slot < pool.size(), "invalid qp cache slot " << slot);
-      if (!closed && pool[slot].Size() == 0) { pool[slot].Swap(cache); }
+      if (pool[slot].Size() == 0) { pool[slot].Swap(cache); }
       cache.Destroy();
    }
 
@@ -491,17 +534,8 @@ public:
       for (Vector &spare : pool) { spare.Destroy(); }
    }
 
-   /// Free the spares and free the caches returned from now on. Called when
-   /// the DifferentiableOperator is destroyed, as no cache is taken after.
-   void Close()
-   {
-      ReleaseSpares();
-      closed = true;
-   }
-
 private:
    std::vector<Vector> pool;
-   bool closed = false;
 };
 
 } // namespace detail
@@ -534,12 +568,15 @@ public:
    /// operator this is the derivative of, with the callbacks of the derivative
    /// @a key (see detail::MakeDerivativeIntegrators()). @a copy_used_outputs if
    /// the derivative has the same output fields as that operator.
+   ///
+   /// @a qp_cache_pool is the pool of that operator, see detail::QpCachePool.
    template <typename key_t, typename vector_t>
    DerivativeOperator(
       const int &height,
       const int &width,
       const detail::OperatorIntegrators &domain_parent,
       const detail::OperatorIntegrators &boundary_parent,
+      std::shared_ptr<detail::QpCachePool> qp_cache_pool,
       const key_t &key,
       bool copy_used_outputs,
       const FieldDescriptor &direction,
@@ -559,6 +596,8 @@ public:
       boundary_integrators(detail::MakeDerivativeIntegrators(
                               boundary_parent, key, cached_apply, outfds.size(),
                               copy_used_outputs)),
+      qp_cache_pool(qp_cache_pool), // Converting-constructor from shared_ptr
+      qp_caches(qp_cache_pool->NumSlots()),
       direction(direction),
       lvector_mode(lvector_mode),
       functional_gradient(functional_gradient),
@@ -656,6 +695,7 @@ public:
       const int &width,
       const detail::OperatorIntegrators &domain_parent,
       const detail::OperatorIntegrators &boundary_parent,
+      std::shared_ptr<detail::QpCachePool> qp_cache_pool,
       size_t derivative_id,
       bool copy_used_outputs,
       const std::vector<FieldDescriptor> &infds,
@@ -671,6 +711,8 @@ public:
       boundary_integrators(detail::MakeDerivativeIntegrators(
                               boundary_parent, derivative_id, false,
                               outfds.size(), copy_used_outputs)),
+      qp_cache_pool(qp_cache_pool),
+      qp_caches(qp_cache_pool->NumSlots()),
       lvector_mode(lvector_mode)
    {
       daction_l.resize(outfds.size());
@@ -684,6 +726,17 @@ public:
 
    ~DerivativeOperator() override
    {
+      // If the pool is gone, the caches are freed with this operator.
+      if (const auto pool = qp_cache_pool.lock())
+      {
+         for (auto *k : AllIntegrators())
+         {
+            for (size_t slot : k->callbacks.cache_slots)
+            {
+               pool->Return(slot, qp_caches[slot]);
+            }
+         }
+      }
       detail::DeleteOwnedEVectors(AllIntegrators(), infields_l, daction_l,
                                   transpose_result_l);
    }
@@ -824,7 +877,8 @@ public:
          k->ev.ZeroInputResults(infds);
          for (const auto &f : k->callbacks.transpose)
          {
-            f(k->ev.in_e, &transpose_direction_l, k->ev.in_result_e);
+            f(k->ev.in_e, &transpose_direction_l, k->ev.in_result_e,
+              qp_caches);
          }
       }
       detail::TransposeInputResults(AllIntegrators(),
@@ -879,7 +933,10 @@ public:
          // A_e = sum_i A_e^i for every entity e, A_e^i that of integrator i.
          auto &banks = k->callbacks.entity_matrices;
          for (auto &m : banks) { m.used = false; }
-         for (const auto &f : k->callbacks.assemble_sparse) { f(banks); }
+         for (const auto &f : k->callbacks.assemble_sparse)
+         {
+            f(banks, qp_caches);
+         }
          MFEM_ASSERT(banks.size() <= blocks.size(), "internal error");
 
          // Assemble the sum into one matrix per row block f:
@@ -1037,7 +1094,8 @@ public:
          k->ev.ZeroOutputs(outfds);
          for (const auto &f : k->callbacks.assemble_diagonal)
          {
-            f(static_cast<int>(out_field_id), *k->ev.out_e[diagonal_idx]);
+            f(static_cast<int>(out_field_id), *k->ev.out_e[diagonal_idx],
+              qp_caches);
          }
       }
       detail::TransposeOutputs(AllIntegrators(),
@@ -1094,6 +1152,12 @@ private:
    mutable detail::DerivativeIntegrators domain_integrators;
    mutable detail::DerivativeIntegrators boundary_integrators;
 
+   /// The pool of the operator this is the derivative of, which owns it, and
+   /// the caches taken from it, indexed by slot. Only the slots in the
+   /// cache_slots of the integrators are taken, on the first EnsureQpCache().
+   std::weak_ptr<detail::QpCachePool> qp_cache_pool;
+   mutable std::vector<Vector> qp_caches;
+
    FieldDescriptor direction;
 
    mutable std::vector<Vector *> daction_l;
@@ -1148,11 +1212,21 @@ private:
       {
          captured_state[i]->SyncMemory(*infields_l[i]);
       }
+      const auto pool = qp_cache_pool.lock();
+      MFEM_VERIFY(pool, "the derivative is used after the "
+                  "DifferentiableOperator it was taken from was destroyed");
+      for (auto *k : AllIntegrators())
+      {
+         for (size_t slot : k->callbacks.cache_slots)
+         {
+            pool->Take(slot, qp_caches[slot]);
+         }
+      }
       for (auto *k : AllIntegrators())
       {
          for (const auto &setup_callback : k->callbacks.setup)
          {
-            setup_callback(k->ev.in_e);
+            setup_callback(k->ev.in_e, qp_caches);
          }
       }
       qp_cache_filled = true;
@@ -1216,7 +1290,7 @@ private:
          k->ev.ZeroOutputs(outfds);
          for (const auto &f : k->callbacks.actions)
          {
-            f(k->ev.in_e, dir_l, k->ev.out_e);
+            f(k->ev.in_e, dir_l, k->ev.out_e, qp_caches);
          }
       }
       detail::TransposeOutputs(AllIntegrators(),
@@ -1257,7 +1331,6 @@ public:
 
    ~DifferentiableOperator() override
    {
-      qp_cache_pool->Close();
       detail::DeleteOwnedEVectors(AllIntegrators(), infields_l, residual_l);
    }
 
@@ -1772,13 +1845,10 @@ private:
    std::function<void(Vector &, Vector &)> output_restriction_transpose;
    restriction_callback_t restriction_callback;
 
-   // One qp_cache per integrator, useful to support multiple
-   // split integrators that register the same derivative field.
-   std::vector<std::unique_ptr<Vector>> integrator_qp_caches;
-
    /// The quadrature point caches of the derivatives, one slot per integrator
-   /// and derivative. Shared with the derivatives, which return their caches
-   /// to it when they are destroyed.
+   /// and derivative that uses a cache. This operator is its only owner: it is
+   /// a std::shared_ptr only so that the derivatives can observe it through a
+   /// std::weak_ptr.
    std::shared_ptr<detail::QpCachePool> qp_cache_pool =
       std::make_shared<detail::QpCachePool>();
 
@@ -2120,8 +2190,7 @@ void DifferentiableOperator::AddIntegrator(
                                   &assemble_sparsematrix_callbacks,
                                   [[maybe_unused]] auto &assemble_diagonal_cbs,
                                   [[maybe_unused]] auto &action_cbs,
-                                  [[maybe_unused]] Vector &callback_qp_cache,
-                                  [[maybe_unused]] size_t callback_cache_slot,
+                                  [[maybe_unused]] auto &cache_slots,
                                   const IntegratorContext<entity_t> &callback_ctx,
                                   auto &qf, auto outputs)
       {
@@ -2146,12 +2215,15 @@ void DifferentiableOperator::AddIntegrator(
          [[maybe_unused]] const bool disable_assemble = !any_assemblable_output;
 
          // Setup the qp cache for the derivative. Only for registered kernels that actually need it.
+         [[maybe_unused]] size_t cache_slot = 0;
          if constexpr (NeedsQpCache(kernels))
          {
+            cache_slot = qp_cache_pool->AddSlot();
+            cache_slots[callback_key].push_back(cache_slot);
             setup_callbacks[callback_key].push_back(
                MakeSharedCallback<derivative_setup_t>(
                   backend_t::template MakeDerivativeSetup<derivative_idx>(
-                     callback_ctx, qf, inputs, outputs, callback_qp_cache)));
+                     callback_ctx, qf, inputs, outputs, cache_slot)));
          }
 
          // Apply the derivative to the qp cache
@@ -2160,7 +2232,7 @@ void DifferentiableOperator::AddIntegrator(
             apply_callbacks[callback_key].push_back(
                MakeSharedCallback<derivative_action_t>(
                   backend_t::template MakeDerivativeApply<derivative_idx>(
-                     callback_ctx, qf, inputs, outputs, callback_qp_cache)));
+                     callback_ctx, qf, inputs, outputs, cache_slot)));
          }
 
          // Apply the transpose of the derivative to the qp cache
@@ -2170,7 +2242,7 @@ void DifferentiableOperator::AddIntegrator(
             transpose_callbacks[callback_key].push_back(
                MakeSharedCallback<derivative_action_t>(
                   backend_t::template MakeDerivativeApplyTranspose<derivative_idx>(
-                     callback_ctx, qf, inputs, outputs, callback_qp_cache)));
+                     callback_ctx, qf, inputs, outputs, cache_slot)));
          }
 
          if constexpr (HasAnyKernel(
@@ -2191,7 +2263,7 @@ void DifferentiableOperator::AddIntegrator(
                   assemble_sparsematrix_callbacks[callback_key].push_back(
                      MakeSharedCallback<assemble_entity_matrices_callback_t>(
                         backend_t::template MakeDerivativeAssemble<derivative_idx>(
-                           callback_ctx, qf, inputs, outputs, callback_qp_cache,
+                           callback_ctx, qf, inputs, outputs, cache_slot,
                            output_groups)));
                }
 
@@ -2204,7 +2276,7 @@ void DifferentiableOperator::AddIntegrator(
                      MakeSharedCallback<assemble_diagonal_callback_t>(
                         backend_t::template
                         MakeDerivativeAssembleDiagonal<derivative_idx>(
-                           callback_ctx, qf, inputs, outputs, callback_qp_cache,
+                           callback_ctx, qf, inputs, outputs, cache_slot,
                            output_groups)));
                }
             }
@@ -2263,8 +2335,6 @@ void DifferentiableOperator::AddIntegrator(
          auto create_second_derivative_callbacks = [&](auto j)
          {
             constexpr size_t direction_idx = decltype(j)::value;
-            integrator_qp_caches.emplace_back(std::make_unique<Vector>());
-            Vector &second_qp_cache = *integrator_qp_caches.back();
             const second_derivative_key_t derivative_key{idx, direction_idx};
             const auto derivative_ctx =
                set_second_derivative_fds(derivative_key, derivative_outputs_fds,
@@ -2281,8 +2351,7 @@ void DifferentiableOperator::AddIntegrator(
                              cbs.second_derivative_assemble_sparse,
                              cbs.second_derivative_assemble_diagonal,
                              cbs.second_derivative_action,
-                             second_qp_cache,
-                             qp_cache_pool->AddSlot(),
+                             cbs.second_derivative_cache_slots,
                              derivative_ctx, second_dqfunc,
                              first_derivative_outputs);
          };
@@ -2324,7 +2393,8 @@ void DifferentiableOperator::AddIntegrator(
          derivative_action_t grad_callback =
             [grad_action](const std::vector<Vector *> &xe,
                           const Vector * /*direction*/,
-                          std::vector<Vector *> &ye)
+                          std::vector<Vector *> &ye,
+                          const std::vector<Vector> & /*qp_caches*/)
          {
             grad_action(xe, ye);
          };
@@ -2337,8 +2407,6 @@ void DifferentiableOperator::AddIntegrator(
       }
       else
       {
-         integrator_qp_caches.emplace_back(std::make_unique<Vector>());
-         Vector &qp_cache = *integrator_qp_caches.back();
          // Record the requested kernels: DerivativeOperator needs them to
          // check that every integrator has the kernel it runs
          entity_callbacks.derivative_kernels[idx].push_back(kernels);
@@ -2350,8 +2418,7 @@ void DifferentiableOperator::AddIntegrator(
                           entity_callbacks.derivative_assemble_sparse,
                           entity_callbacks.derivative_assemble_diagonal,
                           entity_callbacks.derivative_action,
-                          qp_cache,
-                          qp_cache_pool->AddSlot(),
+                          entity_callbacks.derivative_cache_slots,
                           ctx, qfunc, outputs);
       }
    }, derivative_ids);

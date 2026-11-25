@@ -48,7 +48,7 @@ class DerivativeSetup
    const inputs_t inputs;
    const outputs_t outputs;
    const IntegratorContext<entity_t> ctx;
-   Vector &qp_cache;
+   const size_t qp_cache_slot;
    // inputs: dtq, idx, B, G, d1d, q1d, vdim
    const FieldMetadata<n_inputs> in_data;
    // Jacobian cache metadata
@@ -67,9 +67,9 @@ public:
                    qfunc_t qfunc,
                    inputs_t inputs,
                    outputs_t outputs,
-                   Vector &qp_cache):
+                   size_t qp_cache_slot):
       qfunc(std::move(qfunc)), inputs(inputs), outputs(outputs), ctx(ctx),
-      qp_cache(qp_cache),
+      qp_cache_slot(qp_cache_slot),
       in_data(MakeFieldMetadata(ctx, inputs, ctx.infds)),
       output_size_on_qp(
          [&]
@@ -93,14 +93,15 @@ public:
       MFEM_ASSERT(nfields <= ctx.unionfds.size(),
                   "LocalQFBackend: the q-function uses more fields than the "
                   "operator has");
-
-      qp_cache.SetSize(ne * nq * residual_size_on_qp);
-      qp_cache.UseDevice(true);
    }
 
    //////////////////////////////////////////////////////////////////
-   void operator()(const std::vector<Vector *> &xe)
+   void operator()(const std::vector<Vector *> &xe,
+                   std::vector<Vector> &qp_caches)
    {
+      Vector &qp_cache = qp_caches[qp_cache_slot];
+      qp_cache.SetSize(ne * nq * residual_size_on_qp);
+      qp_cache.UseDevice(true);
       if (ctx.marked_entities.Size() == 0) { return; }
 
       // Quadrature index is fastest-varying so that adjacent threads (one per

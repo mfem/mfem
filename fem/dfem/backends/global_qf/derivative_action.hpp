@@ -104,7 +104,8 @@ struct DerivativeAction
    void operator()(
       const std::vector<Vector *> &xe,
       const Vector *de,
-      std::vector<Vector *> &ye)
+      std::vector<Vector *> &ye,
+      const std::vector<Vector> & /*qp_caches*/)
    {
       if (ctx.marked_entities.Size() == 0) { return; }
       InitBuffers();

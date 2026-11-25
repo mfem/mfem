@@ -47,6 +47,7 @@ struct DerivativeCallbackSet
 {
    const detail::OperatorIntegrators &domain_integrators;
    const detail::OperatorIntegrators &boundary_integrators;
+   const std::shared_ptr<detail::QpCachePool> &qp_cache_pool;
    const DerivativeMap<key_t, FieldDescriptor> &outfds;
 };
 
@@ -78,6 +79,7 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
              GetTotalVSize({infds[dfidx]}, lvector_mode),
              callbacks.domain_integrators,
              callbacks.boundary_integrators,
+             callbacks.qp_cache_pool,
              key,
              doutfds == default_outfds,
              infds[dfidx],
@@ -154,7 +156,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
              derivative_id, x, infds, outfds,
              DerivativeCallbackSet<size_t>
    {
-      domain_integrators, boundary_integrators, derivative_outfds
+      domain_integrators, boundary_integrators, qp_cache_pool,
+      derivative_outfds
    },
    false,
    mult_level == MultLevel::LVECTOR,
@@ -168,7 +171,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
              derivative_id, x, infds, outfds,
              DerivativeCallbackSet<size_t>
    {
-      domain_integrators, boundary_integrators, derivative_outfds
+      domain_integrators, boundary_integrators, qp_cache_pool,
+      derivative_outfds
    },
    use_cached_setup,
    mult_level == MultLevel::LVECTOR,
@@ -193,6 +197,7 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
              GetTotalVSize({infds[dfidx]}, mult_level == MultLevel::LVECTOR),
              domain_integrators,
              boundary_integrators,
+             qp_cache_pool,
              derivative_id,
              doutfds == outfds,
              infds,
@@ -217,7 +222,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
              infds, outfds,
              DerivativeCallbackSet<second_derivative_key_t>
    {
-      domain_integrators, boundary_integrators, second_derivative_outfds
+      domain_integrators, boundary_integrators, qp_cache_pool,
+      second_derivative_outfds
    },
    false,
    mult_level == MultLevel::LVECTOR);
@@ -241,7 +247,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
              infds, outfds,
              DerivativeCallbackSet<second_derivative_key_t>
    {
-      domain_integrators, boundary_integrators, second_derivative_outfds
+      domain_integrators, boundary_integrators, qp_cache_pool,
+      second_derivative_outfds
    },
    use_cached_setup,
    mult_level == MultLevel::LVECTOR);

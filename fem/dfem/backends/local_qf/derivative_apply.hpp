@@ -49,7 +49,7 @@ class DerivativeApply
    const inputs_t inputs;
    const outputs_t outputs;
    const IntegratorContext<entity_t> ctx;
-   const Vector &qp_cache;
+   const size_t qp_cache_slot;
    // inputs/outputs: dtq, idx, B, G, d1d, q1d, vdim
    const FieldMetadata<n_inputs> in_data;
    const FieldMetadata<n_outputs> out_data;
@@ -76,8 +76,8 @@ public:
                    qfunc_t /*qfunc*/,
                    inputs_t inputs,
                    outputs_t outputs,
-                   const Vector &qp_cache_in):
-      inputs(inputs), outputs(outputs), ctx(ctx), qp_cache(qp_cache_in),
+                   size_t qp_cache_slot):
+      inputs(inputs), outputs(outputs), ctx(ctx), qp_cache_slot(qp_cache_slot),
       in_data(MakeFieldMetadata(ctx, inputs, ctx.infds)),
       out_data(MakeFieldMetadata(ctx, outputs, ctx.outfds)),
       input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
@@ -124,7 +124,7 @@ public:
    { return kernel_tile_size(q1d, in_data.d1ds(), out_data.d1ds()); }
 
    template<typename Backend>
-   void run_kernels(std::vector<Vector *> &ye) const
+   void run_kernels(std::vector<Vector *> &ye, const Vector &qp_cache) const
    {
       Backend::Run(dim,
                    tile_size(),
@@ -148,8 +148,10 @@ public:
    //////////////////////////////////////////////////////////////////
    void operator()(const std::vector<Vector *> &,
                    const Vector *direction_l,
-                   std::vector<Vector *> &ye) const
+                   std::vector<Vector *> &ye,
+                   const std::vector<Vector> &qp_caches) const
    {
+      const Vector &qp_cache = qp_caches[qp_cache_slot];
       if (ctx.marked_entities.Size() == 0) { return; }
 
       MFEM_ASSERT(direction_l != nullptr,
@@ -162,11 +164,11 @@ public:
                   ElementDofOrdering::LEXICOGRAPHIC);
       if (tile_size() <= LocalQFLOBackendMQ1())
       {
-         run_kernels<DerivativeApplyLO>(ye);
+         run_kernels<DerivativeApplyLO>(ye, qp_cache);
       }
       else if (tile_size() <= LocalQFHOBackendMQ1())
       {
-         run_kernels<DerivativeApplyHO>(ye);
+         run_kernels<DerivativeApplyHO>(ye, qp_cache);
       }
       else
       {

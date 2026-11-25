@@ -75,11 +75,11 @@ struct LocalQFBackend
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
-      Vector &qp_cache)
+      size_t qp_cache_slot)
    {
       return LocalQFImpl::DerivativeSetup<
              derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(ctx, qfunc, inputs,
-                                                                    outputs, qp_cache);
+                                                                    outputs, qp_cache_slot);
    }
 
    template<
@@ -93,11 +93,11 @@ struct LocalQFBackend
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
-      const Vector &qp_cache)
+      size_t qp_cache_slot)
    {
       return LocalQFImpl::DerivativeApply<
              derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(ctx, qfunc, inputs,
-                                                                    outputs, qp_cache);
+                                                                    outputs, qp_cache_slot);
    }
 
    template<
@@ -111,11 +111,11 @@ struct LocalQFBackend
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
-      const Vector &qp_cache)
+      size_t qp_cache_slot)
    {
       return LocalQFImpl::DerivativeApplyTranspose<
              derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(ctx, qfunc, inputs,
-                                                                    outputs, qp_cache);
+                                                                    outputs, qp_cache_slot);
    }
 
    template<
@@ -129,12 +129,12 @@ struct LocalQFBackend
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
-      const Vector &qp_cache,
+      size_t qp_cache_slot,
       std::shared_ptr<const OutputFieldGroups<outputs_t>> output_groups)
    {
       return LocalQFImpl::DerivativeAssemble<
              derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(ctx, qfunc, inputs,
-                                                                    outputs, qp_cache,
+                                                                    outputs, qp_cache_slot,
                                                                     output_groups);
    }
 
@@ -149,12 +149,12 @@ struct LocalQFBackend
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
-      const Vector &qp_cache,
+      size_t qp_cache_slot,
       std::shared_ptr<const OutputFieldGroups<outputs_t>> output_groups)
    {
       return LocalQFImpl::DerivativeAssembleDiagonal<
              derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>(ctx, qfunc, inputs,
-                                                                    outputs, qp_cache,
+                                                                    outputs, qp_cache_slot,
                                                                     output_groups);
    }
 };

@@ -45,7 +45,7 @@ class DerivativeAssembleDiagonal
    static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
 
    const IntegratorContext<entity_t> ctx;
-   const Vector &qp_cache;
+   const size_t qp_cache_slot;
    inputs_t inputs;
    outputs_t outputs;
    const bool use_sum_factorization;
@@ -82,10 +82,10 @@ public:
                               qfunc_t /*qfunc*/,
                               inputs_t inputs_in,
                               outputs_t outputs_in,
-                              const Vector &qp_cache_in,
+                              size_t qp_cache_slot_in,
                               std::shared_ptr<const OutputFieldGroups<outputs_t>>
                               output_groups_in):
-      ctx(ctx_in), qp_cache(qp_cache_in), inputs(inputs_in),
+      ctx(ctx_in), qp_cache_slot(qp_cache_slot_in), inputs(inputs_in),
       outputs(outputs_in), use_sum_factorization(
          [&]
    {
@@ -253,7 +253,7 @@ public:
    int tile_size() const { return kernel_tile_size(q1d, input_dtq_maps, output_dtq_maps); }
 
    template<typename Backend>
-   void run_kernels(const int g) const
+   void run_kernels(const int g, const Vector &qp_cache) const
    {
       Backend::Run(dim,
                    tile_size(),
@@ -286,8 +286,10 @@ public:
    /// output field @a out_field_id. Adds nothing if the integrator writes no
    /// square, basis-backed block for that field; the caller is responsible for
    /// rejecting a row that no integrator can serve.
-   void operator()(const int out_field_id, Vector &diag_e) const
+   void operator()(const int out_field_id, Vector &diag_e,
+                   const std::vector<Vector> &qp_caches) const
    {
+      const Vector &qp_cache = qp_caches[qp_cache_slot];
       const int g = FindGroup(out_field_id);
       if (g < 0 || !group_has_diagonal[g]) { return; }
       if (ctx.marked_entities.Size() == 0) { return; }
@@ -307,11 +309,11 @@ public:
 
       if (tile_size() <= LocalQFLOBackendMQ1())
       {
-         run_kernels<DerivativeAssembleDiagonalLO>(g);
+         run_kernels<DerivativeAssembleDiagonalLO>(g, qp_cache);
       }
       else if (tile_size() <= LocalQFHOBackendMQ1())
       {
-         run_kernels<DerivativeAssembleDiagonalHO>(g);
+         run_kernels<DerivativeAssembleDiagonalHO>(g, qp_cache);
       }
       else
       {

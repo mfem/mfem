@@ -90,13 +90,13 @@ struct DerivativeSetup
       const qfunc_t &qfunc,
       inputs_t inputs,
       outputs_t outputs,
-      Vector &qp_cache) :
+      size_t qp_cache_slot) :
       ctx(ctx),
       qfunc(qfunc),
       qfunc_shadow(detail::MakeQFunctionShadowStorage(this->qfunc)),
       inputs(inputs),
       outputs(outputs),
-      qp_cache(qp_cache)
+      qp_cache_slot(qp_cache_slot)
    {
       create_fop_to_fd(inputs, ctx.infds, input_to_infd);
       create_fop_to_fd(outputs, ctx.outfds, output_to_outfd);
@@ -162,10 +162,6 @@ struct DerivativeSetup
       });
 
       residual_size_on_qp = total_out_size_on_qp * trial_vdim * total_trial_op_dim;
-      // The cache is indexed by entity, as the LocalQF kernels that read it
-      // expect; only the entities of ctx.marked_entities are set.
-      qp_cache.SetSize(residual_size_on_qp * num_qp * ctx.nentities);
-      qp_cache.UseDevice(true);
    }
 
    /// Allocates the quadrature point buffers on the first call, so that the
@@ -181,8 +177,14 @@ struct DerivativeSetup
       buffers_ready = true;
    }
 
-   void operator()(const std::vector<Vector *> &xe)
+   void operator()(const std::vector<Vector *> &xe,
+                   std::vector<Vector> &qp_caches)
    {
+      Vector &qp_cache = qp_caches[qp_cache_slot];
+      // The cache is indexed by entity, as the LocalQF kernels that read it
+      // expect; only the entities of ctx.marked_entities are set.
+      qp_cache.SetSize(residual_size_on_qp * num_qp * ctx.nentities);
+      qp_cache.UseDevice(true);
       if (ctx.marked_entities.Size() == 0) { return; }
       InitBuffers();
 
@@ -272,7 +274,7 @@ struct DerivativeSetup
    /// The inputs interpolated on every call, the others are constant.
    static constexpr auto interpolated_inputs = varying_inputs<inputs_t>();
    outputs_t outputs;
-   Vector &qp_cache;
+   size_t qp_cache_slot;
 
    std::array<size_t, ninputs> input_to_infd;
    std::array<size_t, noutputs> output_to_outfd;

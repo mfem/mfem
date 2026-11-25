@@ -69,7 +69,7 @@ class DerivativeApplyTranspose
    const inputs_t inputs;
    const outputs_t outputs;
    const IntegratorContext<entity_t> ctx;
-   const Vector &qp_cache; // Jacobian cache from DerivativeSetup
+   const size_t qp_cache_slot; // Jacobian cache from DerivativeSetup
    // inputs/outputs: dtq, idx, B, G, d1d, q1d, vdim
    const FieldMetadata<n_inputs> in_data; // trial / derivative fields
    const FieldMetadata<n_outputs> out_data; // test / cotangent fields
@@ -95,8 +95,8 @@ public:
                             qfunc_t /*qfunc*/,
                             inputs_t inputs,
                             outputs_t outputs,
-                            const Vector &qp_cache):
-      inputs(inputs), outputs(outputs), ctx(ctx), qp_cache(qp_cache),
+                            size_t qp_cache_slot):
+      inputs(inputs), outputs(outputs), ctx(ctx), qp_cache_slot(qp_cache_slot),
       in_data(MakeFieldMetadata(ctx, inputs, ctx.infds)),
       out_data(MakeFieldMetadata(ctx, outputs, ctx.outfds)),
       output_size_on_qp(
@@ -144,7 +144,7 @@ public:
    { return kernel_tile_size(q1d, in_data.d1ds(), out_data.d1ds()); }
 
    template<typename Backend>
-   void run_kernels(std::vector<Vector *> &ye) const
+   void run_kernels(std::vector<Vector *> &ye, const Vector &qp_cache) const
    {
       Backend::Run(dim,
                    tile_size(),
@@ -166,8 +166,10 @@ public:
    //////////////////////////////////////////////////////////////////
    void operator()(const std::vector<Vector *> & /*xe*/,
                    const Vector *direction_l,
-                   std::vector<Vector *> &ye) const
+                   std::vector<Vector *> &ye,
+                   const std::vector<Vector> &qp_caches) const
    {
+      const Vector &qp_cache = qp_caches[qp_cache_slot];
       if (ctx.marked_entities.Size() == 0) { return; }
 
       MFEM_ASSERT(direction_l != nullptr,
@@ -200,11 +202,11 @@ public:
 
       if (tile_size() <= LocalQFLOBackendMQ1())
       {
-         run_kernels<DerivativeApplyTransposeLO>(ye);
+         run_kernels<DerivativeApplyTransposeLO>(ye, qp_cache);
       }
       else if (tile_size() <= LocalQFHOBackendMQ1())
       {
-         run_kernels<DerivativeApplyTransposeHO>(ye);
+         run_kernels<DerivativeApplyTransposeHO>(ye, qp_cache);
       }
       else
       {
