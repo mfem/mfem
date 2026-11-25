@@ -658,7 +658,7 @@ void ScalarWaveGuide(int mode, ParGridFunction &x)
    lobpcg.SetOperator(*A);
    lobpcg.Solve();
 
-   x = lobpcg.GetEigenvector(mode);
+   x.Distribute(lobpcg.GetEigenvector(mode));
 
    delete A;
    delete M;
@@ -714,7 +714,7 @@ void VectorWaveGuide(int mode, ParGridFunction &x)
    ame.SetOperator(*A);
    ame.Solve();
 
-   x = ame.GetEigenvector(mode);
+   x.Distribute(ame.GetEigenvector(mode));
 
    delete A;
    delete M;
@@ -780,7 +780,7 @@ void PseudoScalarWaveGuide(int mode, ParGridFunction &x_l2)
    lobpcg.SetOperator(*A);
    lobpcg.Solve();
 
-   x = lobpcg.GetEigenvector(mode);
+   x.Distribute(lobpcg.GetEigenvector(mode));
 
    x_l2.ProjectCoefficient(xCoef);
 
