@@ -69,6 +69,7 @@ set(MFEM_USE_BENCHMARK @MFEM_USE_BENCHMARK@)
 set(MFEM_USE_PARELAG @MFEM_USE_PARELAG@)
 set(MFEM_USE_TRIBOL @MFEM_USE_TRIBOL@)
 set(MFEM_USE_ENZYME @MFEM_USE_ENZYME@)
+set(MFEM_USE_POSEIDON @MFEM_USE_POSEIDON@)
 
 set(MFEM_CXX_COMPILER "@CMAKE_CXX_COMPILER@")
 set(MFEM_CXX_FLAGS "@CMAKE_CXX_FLAGS@")
@@ -120,6 +121,13 @@ endif()
 if (MFEM_USE_ENZYME)
   # the mfem target links to the ClangEnzymeFlags target provided by Enzyme
   find_dependency(Enzyme HINTS "@Enzyme_DIR@")
+endif()
+
+if (MFEM_USE_POSEIDON)
+   if (MFEM_USE_HIP)
+      set(POSEIDON_GPU_RUNTIME HIP)
+   endif()
+   find_dependency(Poseidon HINTS @POSEIDON_DIR@)
 endif()
 
 if (NOT TARGET mfem)

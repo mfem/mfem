@@ -11,6 +11,7 @@
 #pragma once
 
 #include "../../fieldoperator.hpp"
+#include "../../numerics.hpp"
 #include "kernels.hpp"
 #include "util.hpp"
 
@@ -61,7 +62,7 @@ constexpr bool action_outputs_direct_value_v =
    std::make_index_sequence<tuple_size<outputs_t>::value>>::value;
 
 template<typename qfunc_t, typename inputs_t, typename outputs_t,
-         typename entity_t>
+         typename entity_t, typename numerics_t = Numerics<>>
 class Action
 {
    static constexpr auto inout_tuple =
@@ -158,8 +159,20 @@ class Action
       std::index_sequence<InIs...>,
       std::index_sequence<OutIs...>)
    {
-      qfunc(direct_input_arg<backend_t, InIs>(rargs, in_XE, qx, qy, qz, e)...,
+      if constexpr (numerics_has_v<Tolerance, numerics_t>)
+      {
+         using tolerance_t = numerics_item_t<Tolerance, numerics_t>;
+         call_qfunc_tolerance<tolerance_t>(
+            qfunc,
+            direct_input_arg<backend_t, InIs>(rargs, in_XE, qx, qy, qz, e)...,
             direct_output_arg<OutIs>(out_YE, qx, qy, qz, e)...);
+      }
+      else
+      {
+         qfunc(
+            direct_input_arg<backend_t, InIs>(rargs, in_XE, qx, qy, qz, e)...,
+            direct_output_arg<OutIs>(out_YE, qx, qy, qz, e)...);
+      }
    }
 
    const qfunc_t qfunc;
@@ -365,7 +378,15 @@ public:
                      // --------------------------------------
                      // Call the quadrature function
                      // --------------------------------------
-                     call_qfunc_no_move(qfunc, qargs);
+                     if constexpr (numerics_has_v<Tolerance, numerics_t>)
+                     {
+                        call_qfunc_tolerance_no_move<
+                        numerics_item_t<Tolerance, numerics_t>>(qfunc, qargs);
+                     }
+                     else
+                     {
+                        call_qfunc_no_move(qfunc, qargs);
+                     }
 
                      // --------------------------------------
                      // Pushing arguments from qargs tuple to registers
@@ -442,13 +463,14 @@ public:
 
 // Low Order kernels
 template<typename qfunc_t, typename inputs_t, typename outputs_t,
-         typename entity_t>
+         typename entity_t, typename numerics_t>
 template<int DIM, int Q1D>
-inline typename Action<qfunc_t, inputs_t, outputs_t, entity_t>::KernelType
-Action<qfunc_t, inputs_t, outputs_t, entity_t>::ActionLO::Kernel()
+inline typename
+Action<qfunc_t, inputs_t, outputs_t, entity_t, numerics_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t, entity_t, numerics_t>::ActionLO::Kernel()
 {
    static_assert(Q1D <= LocalQFLOBackend<DIM>::MQ1);
-   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t>;
+   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t, numerics_t>;
    if constexpr (DIM == 3 && Q1D == LocalQFLOBackendMQ1() &&
                  action_outputs_direct_value_v<qfunc_t, inputs_t, outputs_t>)
    {
@@ -462,12 +484,13 @@ Action<qfunc_t, inputs_t, outputs_t, entity_t>::ActionLO::Kernel()
 
 // Low Order fallback
 template<typename qfunc_t, typename inputs_t, typename outputs_t,
-         typename entity_t>
-inline typename Action<qfunc_t, inputs_t, outputs_t, entity_t>::KernelType
-Action<qfunc_t, inputs_t, outputs_t, entity_t>::ActionLO::Fallback(int dim,
-                                                                   int q1d)
+         typename entity_t, typename numerics_t>
+inline typename
+Action<qfunc_t, inputs_t, outputs_t, entity_t, numerics_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t, entity_t, numerics_t>::ActionLO::
+Fallback(int dim, int q1d)
 {
-   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t>;
+   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t, numerics_t>;
    using ActionLO = typename action_t::ActionLO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
    return DispatchLOKernelByDim<ActionLO, QFDIM>(dim, q1d);
@@ -475,23 +498,25 @@ Action<qfunc_t, inputs_t, outputs_t, entity_t>::ActionLO::Fallback(int dim,
 
 // High Order kernels
 template<typename qfunc_t, typename inputs_t, typename outputs_t,
-         typename entity_t>
+         typename entity_t, typename numerics_t>
 template<int DIM, int Q1D>
-inline typename Action<qfunc_t, inputs_t, outputs_t, entity_t>::KernelType
-Action<qfunc_t, inputs_t, outputs_t, entity_t>::ActionHO::Kernel()
+inline typename
+Action<qfunc_t, inputs_t, outputs_t, entity_t, numerics_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t, entity_t, numerics_t>::ActionHO::Kernel()
 {
-   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t>;
+   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t, numerics_t>;
    return action_t::template action_callback<LocalQFHOBackend<DIM, Q1D>, Q1D>;
 }
 
 // High Order fallback
 template<typename qfunc_t, typename inputs_t, typename outputs_t,
-         typename entity_t>
-inline typename Action<qfunc_t, inputs_t, outputs_t, entity_t>::KernelType
-Action<qfunc_t, inputs_t, outputs_t, entity_t>::ActionHO::Fallback(int dim,
-                                                                   int q1d)
+         typename entity_t, typename numerics_t>
+inline typename
+Action<qfunc_t, inputs_t, outputs_t, entity_t, numerics_t>::KernelType
+Action<qfunc_t, inputs_t, outputs_t, entity_t, numerics_t>::ActionHO::
+Fallback(int dim, int q1d)
 {
-   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t>;
+   using action_t = Action<qfunc_t, inputs_t, outputs_t, entity_t, numerics_t>;
    using ActionHO = typename action_t::ActionHO;
    constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
    return DispatchHOKernelByDim<ActionHO, QFDIM>(dim, q1d);

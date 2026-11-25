@@ -22,6 +22,8 @@
 
 #include "../scratch_bank.hpp"
 
+#include "../../numerics.hpp"
+
 namespace mfem::future
 {
 
@@ -189,19 +191,25 @@ struct GlobalQFBackend
     *
     * @param ctx The integrator context.
     * @param args The arguments to the action.
+    * @tparam numerics_t The numerical requirements of the integrator, which
+    * this backend does not support.
     * @return The action.
     */
    template<
       typename entity_t,
       typename qfunc_t,
       typename inputs_t,
-      typename outputs_t>
+      typename outputs_t,
+      typename numerics_t>
    auto static MakeAction(
       const IntegratorContext<entity_t> &ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
-      outputs_t outputs)
+      outputs_t outputs,
+      numerics_t)
    {
+      static_assert(std::is_same_v<numerics_t, Numerics<>>,
+                    "Numerics<...> is supported by the LocalQFBackend");
       return GlobalQFImpl::Action<detail::global_qfunc_t<qfunc_t>, inputs_t,
              outputs_t, entity_t>(ctx, qfunc, inputs, outputs);
    }
@@ -212,6 +220,8 @@ struct GlobalQFBackend
     * @tparam derivative_id The id of the derivative.
     * @param ctx The integrator context.
     * @param args The arguments to the derivative action.
+    * @tparam numerics_t The numerical requirements of the integrator, which
+    * this backend does not support.
     * @return The derivative action.
     */
    template<
@@ -219,13 +229,17 @@ struct GlobalQFBackend
       typename entity_t,
       typename qfunc_t,
       typename inputs_t,
-      typename outputs_t>
+      typename outputs_t,
+      typename numerics_t>
    auto static MakeDerivativeAction(
       const IntegratorContext<entity_t> &ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
-      outputs_t outputs)
+      outputs_t outputs,
+      numerics_t)
    {
+      static_assert(std::is_same_v<numerics_t, Numerics<>>,
+                    "Numerics<...> is supported by the LocalQFBackend");
       return GlobalQFImpl::DerivativeAction<
              derivative_id, detail::global_qfunc_t<qfunc_t>, inputs_t,
              outputs_t, entity_t>(ctx, qfunc, inputs, outputs);

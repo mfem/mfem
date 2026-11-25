@@ -255,6 +255,7 @@ void ElasticityAddMultPA_(const int nDofs, const FiniteElementSpace &fespace,
    const auto G = Reshape(maps.G.Read(), numPoints, d, nDofs);
    auto yDev = Reshape(y.ReadWrite(), nDofs, qSize, numEls);
    mfem::forall_2D(numEls, qSize, nDofs, [=] MFEM_HOST_DEVICE (int e)
+                   MFEM_POSEIDON_OPTIMIZE
    {
       MFEM_FOREACH_THREAD(i, y, nDofs)
       {

@@ -47,7 +47,8 @@ SHARED = NO
 
 # CUDA configuration options
 #
-# If you set MFEM_USE_ENZYME=YES, must use CUDA_CXX=clang++
+# If you set MFEM_USE_ENZYME=YES or MFEM_USE_POSEIDON=YES, must use
+# CUDA_CXX=clang++
 CUDA_CXX = nvcc
 # CUDA compute capability used during compilation, e.g. sm_60. Multiple
 # architectures can be requested as a comma-separated list, e.g. sm_70,sm_80.
@@ -206,6 +207,7 @@ MFEM_USE_BENCHMARK     = NO
 MFEM_USE_PARELAG       = NO
 MFEM_USE_TRIBOL        = NO
 MFEM_USE_ENZYME        = NO
+MFEM_USE_POSEIDON      = NO
 
 # Process MFEM_PRECISION -> MFEM_USE_SINGLE, MFEM_USE_DOUBLE
 ifneq ($(filter double Double DOUBLE,$(MFEM_PRECISION)),)
@@ -740,6 +742,39 @@ ifeq ($(MAKECMDGOALS)-$(MFEM_USE_ENZYME),config-YES)
 endif
 ENZYME_OPT = -fplugin=$(ENZYME_PLUGIN)
 ENZYME_LIB =
+
+# Poseidon configuration
+POSEIDON_DIR = @MFEM_DIR@/../poseidon
+POSEIDON_PLUGIN = $(abspath $(wildcard $(subst \
+   @MFEM_DIR@,$(MFEM_DIR),$(POSEIDON_DIR))/lib/Poseidon-*.$(SO_EXT)))
+# Enzyme's plugin of the same installation, used in the instrument mode
+POSEIDON_ENZYME_PLUGIN = $(abspath $(wildcard $(subst \
+   @MFEM_DIR@,$(MFEM_DIR),$(POSEIDON_DIR))/lib/ClangEnzyme-*.$(SO_EXT)))
+ifeq ($(MAKECMDGOALS)-$(MFEM_USE_POSEIDON),config-YES)
+   ifeq ($(POSEIDON_PLUGIN),)
+      $(error Unable to find the Poseidon plugin! Please set POSEIDON_DIR)
+   endif
+   ifneq ($(words $(POSEIDON_PLUGIN)),1)
+      $(error Multiple versions of the Poseidon plugin found! \
+              Please set POSEIDON_PLUGIN directly)
+   endif
+   ifeq ($(MFEM_POSEIDON_MODE)-$(POSEIDON_ENZYME_PLUGIN),instrument-)
+      $(error Unable to find the Enzyme plugin in POSEIDON_DIR! Please set \
+              POSEIDON_ENZYME_PLUGIN)
+   endif
+endif
+# Poseidon mode: plain, instrument (profile generation), or optimize (rewrite
+# using the profile directory MFEM_POSEIDON_PROFILE). Additional Poseidon flags,
+# e.g. -poseidon-tau=1e-12, can be set in MFEM_POSEIDON_FLAGS.
+MFEM_POSEIDON_MODE = plain
+MFEM_POSEIDON_PROFILE =
+MFEM_POSEIDON_FLAGS =
+# Poseidon flags are passed to the compiler only (with HIP, -mllvm flags also
+# reach the device linker, which does not load the plugin)
+POSEIDON_MLLVM = -Xclang -mllvm -Xclang
+POSEIDON_OPT = -fpass-plugin=$(POSEIDON_PLUGIN) -I$(POSEIDON_DIR)/include\
+ -ffp-contract=on $(foreach flag,$(MFEM_POSEIDON_FLAGS),$(POSEIDON_MLLVM) $(flag))
+POSEIDON_LIB = -L$(POSEIDON_DIR)/lib -lposeidon_profile
 
 # If YES, enable some informational messages
 VERBOSE = NO

@@ -232,6 +232,7 @@ set(HDRS
   dfem/fielddescriptor.hpp
   dfem/fieldoperator.hpp
   dfem/integrator_ctx.hpp
+  dfem/numerics.hpp
   dfem/parameterspace.hpp
   dfem/tensor_functions.hpp
   dfem/tuple.hpp

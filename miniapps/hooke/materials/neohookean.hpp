@@ -42,6 +42,23 @@ struct NeoHookeanMaterial
    static_assert(dim == 3, "NeoHookean model currently implemented only in 3D");
 
    /**
+    * @brief Compute the volumetric part of the stress response.
+    *
+    * @param[in] dudx derivative of the displacement
+    * @param[in] D1 material parameter
+    * @param[out] vol coefficient of the identity in the stress
+    */
+   template <typename T>
+   MFEM_HOST_DEVICE static void
+   volumetric_stress(const tensor<T, dim, dim> &dudx, mfem::real_t D1, T *vol)
+   {
+      static constexpr auto I = mfem::future::IsotropicIdentity<dim>();
+      T J = det(I + dudx);
+      T p = -2.0 * D1 * J * (J - 1);
+      *vol = -(p / J);
+   }
+
+   /**
     * @brief Compute the stress response.
     *
     * @param[in] dudx derivative of the displacement
@@ -53,9 +70,22 @@ struct NeoHookeanMaterial
    {
       static constexpr auto I = mfem::future::IsotropicIdentity<dim>();
       T J = det(I + dudx);
-      T p = -2.0 * D1 * J * (J - 1);
+      T vol;
+      if constexpr (std::is_same_v<T, mfem::real_t>)
+      {
+         // J - 1 cancels near the reference configuration, so the accuracy
+         // target asks for a formulation of the volumetric stress that avoids
+         // the cancellation. In single precision the target is looser, since
+         // the stress is rounded to float.
+         MFEM_POSEIDON_CALL_TAU(MFEM_PRECISION_SWITCH(1e-10, 1e-9),
+                                volumetric_stress<T>, dudx, D1, &vol);
+      }
+      else
+      {
+         volumetric_stress(dudx, D1, &vol);
+      }
       auto devB = dev(dudx + transpose(dudx) + dot(dudx, transpose(dudx)));
-      auto sigma = -(p / J) * I + 2 * (C1 / (T) pow(J, 5.0 / 3.0)) * devB;
+      auto sigma = vol * I + 2 * (C1 / (T) pow(J, 5.0 / 3.0)) * devB;
       return sigma;
    }
 

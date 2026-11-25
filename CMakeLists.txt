@@ -651,6 +651,29 @@ if (MFEM_USE_ENZYME)
     set(ENZYME_INCLUDE_DIRS ${ENZYME_DIR}/include)
 endif()
 
+if (MFEM_USE_POSEIDON)
+    if (MFEM_CUDA_COMPILER_IS_NVCC)
+      message(FATAL_ERROR " *** Cannot use nvcc with Poseidon! Set "
+        "CMAKE_CUDA_COMPILER to CUDA-enabled clang++.")
+    endif()
+    if (MFEM_USE_HIP)
+      set(POSEIDON_GPU_RUNTIME HIP)
+    endif()
+    find_package(Poseidon REQUIRED HINTS ${POSEIDON_DIR})
+    message(STATUS "Poseidon found in ${POSEIDON_DIR}.")
+    if (MFEM_POSEIDON_MODE STREQUAL "optimize")
+      if (NOT IS_DIRECTORY "${MFEM_POSEIDON_PROFILE}")
+        message(FATAL_ERROR " *** MFEM_POSEIDON_PROFILE = "
+          "'${MFEM_POSEIDON_PROFILE}' is not a directory. Set it to the "
+          "profile written by running a build with "
+          "MFEM_POSEIDON_MODE = instrument.")
+      endif()
+    elseif (NOT MFEM_POSEIDON_MODE MATCHES "^(plain|instrument)$")
+      message(FATAL_ERROR " *** Invalid MFEM_POSEIDON_MODE = "
+        "${MFEM_POSEIDON_MODE}, use plain, instrument, or optimize.")
+    endif()
+endif()
+
 if (MFEM_USE_PROTEUS)
     enable_language(C)
     find_package(proteus REQUIRED PATHS "${PROTEUS_DIR}")
@@ -832,6 +855,22 @@ if (MFEM_USE_MPI)
 endif()
 if (MFEM_USE_ENZYME)
   target_link_libraries(mfem PUBLIC ClangEnzymeFlags)
+endif()
+if (MFEM_USE_POSEIDON)
+  # The Poseidon package target of the mode carries its plugins, compile
+  # options, header and runtime libraries.
+  separate_arguments(POSEIDON_FLAGS UNIX_COMMAND "${MFEM_POSEIDON_FLAGS}")
+  if (MFEM_POSEIDON_MODE STREQUAL "instrument")
+    target_link_libraries(mfem PUBLIC Poseidon::ProfileGenerate)
+  elseif (MFEM_POSEIDON_MODE STREQUAL "optimize")
+    target_link_libraries(mfem PUBLIC Poseidon::ProfileUse)
+    list(APPEND POSEIDON_FLAGS
+      -poseidon-profile-use=${MFEM_POSEIDON_PROFILE})
+  else()
+    target_link_libraries(mfem PUBLIC Poseidon::Plain)
+  endif()
+  list(TRANSFORM POSEIDON_FLAGS PREPEND "SHELL:${POSEIDON_MLLVM} ")
+  target_compile_options(mfem PUBLIC ${POSEIDON_FLAGS})
 endif()
 
 set_target_properties(mfem PROPERTIES VERSION "${mfem_VERSION}")

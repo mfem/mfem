@@ -24,23 +24,36 @@ namespace mfem::future
 
 struct LocalQFBackend
 {
+#ifdef MFEM_USE_POSEIDON
+   template <typename numerics_t>
+   using kernel_numerics_t = numerics_t;
+#else
+   // Without Poseidon the kernels are the ones of an integrator without
+   // numerical requirements.
+   template <typename numerics_t>
+   using kernel_numerics_t = Numerics<>;
+#endif
+
    /**
     * @brief Make an action for a local Q-function backend.
     *
     * @param ctx The integrator context.
     * @param args The arguments to the action.
+    * @tparam numerics_t The numerical requirements of the integrator.
     * @return The action.
     */
    template<typename entity_t,
-            typename qfunc_t, typename inputs_t, typename outputs_t>
+            typename qfunc_t, typename inputs_t, typename outputs_t,
+            typename numerics_t>
    static auto MakeAction(
       const IntegratorContext<entity_t> &ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
-      outputs_t outputs)
+      outputs_t outputs,
+      numerics_t)
    {
-      return LocalQFImpl::Action<qfunc_t, inputs_t, outputs_t, entity_t>(
-                ctx, qfunc, inputs, outputs);
+      return LocalQFImpl::Action<qfunc_t, inputs_t, outputs_t, entity_t,
+             kernel_numerics_t<numerics_t>>(ctx, qfunc, inputs, outputs);
    }
 
    /**
@@ -49,18 +62,21 @@ struct LocalQFBackend
     * @tparam derivative_id The id of the derivative.
     * @param ctx The integrator context.
     * @param args The arguments to the derivative action.
+    * @tparam numerics_t The numerical requirements of the integrator.
     * @return The derivative action.
     */
    template<int id, typename entity_t,
-            typename qfunc_t, typename inputs_t, typename outputs_t>
+            typename qfunc_t, typename inputs_t, typename outputs_t,
+            typename numerics_t>
    static auto MakeDerivativeAction(
       const IntegratorContext<entity_t> &ctx,
       const qfunc_t &qfunc,
       inputs_t inputs,
-      outputs_t outputs)
+      outputs_t outputs,
+      numerics_t)
    {
       return LocalQFImpl::DerivativeAction<id, qfunc_t, inputs_t, outputs_t,
-             entity_t>(
+             entity_t, kernel_numerics_t<numerics_t>>(
                 ctx, qfunc, inputs, outputs);
    }
 

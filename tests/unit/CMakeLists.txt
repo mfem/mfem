@@ -33,7 +33,7 @@ endif()
 include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
 
 # The following list can be updated using (in bash):
-#    for d in dfem general linalg mesh fem enzyme; do ls -1 $d/*.cpp; done
+#    for d in dfem general linalg mesh fem enzyme poseidon; do ls -1 $d/*.cpp; done
 set(UNIT_TESTS_SRCS
   dfem/test_boundary.cpp
   dfem/test_diffusion.cpp
@@ -52,6 +52,7 @@ set(UNIT_TESTS_SRCS
   dfem/test_tuple.cpp
   dfem/test_multiple_inputs.cpp
   dfem/test_multiple_outputs.cpp
+  dfem/test_numerics.cpp
   dfem/test_pointwise_qf.cpp
   dfem/test_second_derivative.cpp
   dfem/test_tmop.cpp
@@ -207,6 +208,7 @@ set(UNIT_TESTS_SRCS
   fem/specializations/test_qinterp_tensoreval.cpp
   fem/specializations/test_qinterp_eval_hdiv.cpp
   enzyme/compatibility.cpp
+  poseidon/test_poseidon.cpp
   dfem/test_tensor_functions.cpp
   # The following are tested separately (keep the comment as a reminder).
   # This list can be updated using (in bash):
