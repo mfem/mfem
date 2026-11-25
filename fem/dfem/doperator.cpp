@@ -57,11 +57,12 @@ size_t DirectionId(size_t derivative_id) { return derivative_id; }
 size_t DirectionId(const second_derivative_key_t &key) { return key.second; }
 
 /// Build the DerivativeOperator of the derivative @a key in the direction
-/// of the field DirectionId(@a key), at the state @a x.
+/// of the field DirectionId(@a key), at the state @a x, or without a state
+/// if @a x is null.
 template <typename key_t, typename vector_t>
-std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
+std::shared_ptr<DerivativeOperator> MakeDerivativeOperator(
    const key_t &key,
-   const vector_t &x,
+   const vector_t *x,
    const std::vector<FieldDescriptor> &infds,
    const std::vector<FieldDescriptor> &default_outfds,
    const DerivativeCallbackSet<key_t> &callbacks,
@@ -74,21 +75,23 @@ std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
                "can't differentiate in the direction of field id "
                << DirectionId(key) << ", it is not an input field");
    const auto &doutfds = FindOrDefault(callbacks.outfds, key, default_outfds);
+   const int height = GetTotalVSize(doutfds, lvector_mode);
+   const int width = GetTotalVSize({infds[dfidx]}, lvector_mode);
+   if (x == nullptr)
+   {
+      return std::make_shared<DerivativeOperator>(
+                height, width,
+                callbacks.domain_integrators, callbacks.boundary_integrators,
+                callbacks.qp_cache_pool, key, doutfds == default_outfds,
+                infds[dfidx], infds, doutfds, lvector_mode,
+                functional_gradient, use_cached_setup);
+   }
    return std::make_shared<DerivativeOperator>(
-             GetTotalVSize(doutfds, lvector_mode),
-             GetTotalVSize({infds[dfidx]}, lvector_mode),
-             callbacks.domain_integrators,
-             callbacks.boundary_integrators,
-             callbacks.qp_cache_pool,
-             key,
-             doutfds == default_outfds,
-             infds[dfidx],
-             x,
-             infds,
-             doutfds,
-             lvector_mode,
-             functional_gradient,
-             use_cached_setup);
+             height, width,
+             callbacks.domain_integrators, callbacks.boundary_integrators,
+             callbacks.qp_cache_pool, key, doutfds == default_outfds,
+             infds[dfidx], *x, infds, doutfds, lvector_mode,
+             functional_gradient, use_cached_setup);
 }
 }
 
@@ -152,8 +155,8 @@ void DifferentiableOperator::DisableTensorProductStructure(bool disable)
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    size_t derivative_id, const Vector &x)
 {
-   return MakeStatefulDerivativeOperator(
-             derivative_id, x, infds, outfds,
+   return MakeDerivativeOperator(
+             derivative_id, &x, infds, outfds,
              DerivativeCallbackSet<size_t>
    {
       domain_integrators, boundary_integrators, qp_cache_pool,
@@ -167,8 +170,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
 std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
    size_t derivative_id, const MultiVector &x, const bool use_cached_setup)
 {
-   return MakeStatefulDerivativeOperator(
-             derivative_id, x, infds, outfds,
+   return MakeDerivativeOperator(
+             derivative_id, &x, infds, outfds,
              DerivativeCallbackSet<size_t>
    {
       domain_integrators, boundary_integrators, qp_cache_pool,
@@ -217,8 +220,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
    MFEM_ASSERT(HasFunctionalIntegrator(),
                "second derivatives are available only for functionals");
 
-   return MakeStatefulDerivativeOperator(
-             second_derivative_key_t{gradient_id, direction_id}, x,
+   return MakeDerivativeOperator(
+             second_derivative_key_t{gradient_id, direction_id}, &x,
              infds, outfds,
              DerivativeCallbackSet<second_derivative_key_t>
    {
@@ -242,8 +245,8 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
    MFEM_ASSERT(HasFunctionalIntegrator(),
                "second derivatives are available only for functionals");
 
-   return MakeStatefulDerivativeOperator(
-             second_derivative_key_t{gradient_id, direction_id}, x,
+   return MakeDerivativeOperator(
+             second_derivative_key_t{gradient_id, direction_id}, &x,
              infds, outfds,
              DerivativeCallbackSet<second_derivative_key_t>
    {

@@ -557,7 +557,7 @@ private:
 class DerivativeOperator : public Operator
 {
 public:
-   /// Constructor for the DerivativeOperator class.
+   /// Stateless constructor for derivatives that only read their qp caches.
    ///
    /// This is usually not called directly from a user. A DifferentiableOperator
    /// calls this constructor when using
@@ -570,7 +570,13 @@ public:
    /// the derivative has the same output fields as that operator.
    ///
    /// @a qp_cache_pool is the pool of that operator, see detail::QpCachePool.
-   template <typename key_t, typename vector_t>
+   ///
+   /// This constructor captures no state. It does the setup common to every
+   /// derivative (integrators, qp cache slots and work buffers).
+   /// Makes it easier to build a derivative whose qp caches are filled by its
+   /// creator, e.g. (needed for the collective GetDerivatives).
+   /// The stateful constructor below delegates to it and adds the state.
+   template <typename key_t>
    DerivativeOperator(
       const int &height,
       const int &width,
@@ -580,7 +586,6 @@ public:
       const key_t &key,
       bool copy_used_outputs,
       const FieldDescriptor &direction,
-      const vector_t &x,
       const std::vector<FieldDescriptor> &infds,
       const std::vector<FieldDescriptor> &outfds,
       const bool lvector_mode = false,
@@ -616,12 +621,6 @@ public:
                       "use_cached_setup to use the direct action");
       }
       daction_l.resize(outfds.size());
-      infields_l.resize(infds.size());
-      for (size_t i = 0; i < infds.size(); i++)
-      {
-         infields_l[i] = new Vector(GetVSize(infds[i]));
-         infields_l[i]->UseDevice(true);
-      }
 
       // Pre-allocate transpose workspace.
       int total_out_l_size = 0;
@@ -636,6 +635,39 @@ public:
       // Null-initialised: restriction_transpose / prepare_residual allocate on
       // first use and resize on subsequent calls.
       transpose_result_l.resize(infds.size(), nullptr);
+   }
+
+   /// Stateful constructor: like the one above, for the derivative at the
+   /// state @a x, which it captures for the direct action and for the setup
+   /// of its qp caches on first use.
+   template <typename key_t, typename vector_t>
+   DerivativeOperator(
+      const int &height,
+      const int &width,
+      const detail::OperatorIntegrators &domain_parent,
+      const detail::OperatorIntegrators &boundary_parent,
+      std::shared_ptr<detail::QpCachePool> qp_cache_pool,
+      const key_t &key,
+      bool copy_used_outputs,
+      const FieldDescriptor &direction,
+      const vector_t &x,
+      const std::vector<FieldDescriptor> &infds,
+      const std::vector<FieldDescriptor> &outfds,
+      const bool lvector_mode = false,
+      const bool functional_gradient = false,
+      const bool cached_apply = false) :
+      DerivativeOperator(height, width, domain_parent, boundary_parent,
+                         std::move(qp_cache_pool), key, copy_used_outputs,
+                         direction, infds, outfds, lvector_mode,
+                         functional_gradient, cached_apply)
+   {
+      // Size and allocate the L-vector for each input field.
+      infields_l.resize(infds.size());
+      for (size_t i = 0; i < infds.size(); i++)
+      {
+         infields_l[i] = new Vector(GetVSize(infds[i]));
+         infields_l[i]->UseDevice(true);
+      }
 
       // Prolong from T-vector to L-vector
       if constexpr (std::is_same_v<vector_t, Vector>)
