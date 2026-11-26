@@ -77,6 +77,13 @@ MFEM-owned scalar-templated tensor Bernstein evaluation, including derivative
 polynomials, without ALGOIM's LAPACKE-dependent Bernstein header. Data is local
 to the generation call.
 
+Supported VALUE-mapped tensor bases include nodal, positive (Bernstein), and
+IntegratedGLL elements. IntegratedGLL DOFs represent subcell averages, not point
+values; basis conversion preserves the represented polynomial. `Project` first
+interpolates the coefficient in the matching Gauss-Legendre nodal space, then
+converts that polynomial to the requested basis, including IntegratedGLL.
+INTEGRAL-mapped fields remain unsupported.
+
 For analytic functions, explicitly include `fem/cut_quadrature_algoim.hpp` and
 use `AlgoimFunctionLevelSet<Dimension, Functor>`. The functor must provide
 scalar-templated `operator()` and `grad()` accepting

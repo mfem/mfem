@@ -56,21 +56,36 @@ bool SupportedElement(const FiniteElement &element)
            dynamic_cast<const PositiveTensorFiniteElement *>(&element));
 }
 
-void ConvertNodalDofs(const FiniteElement &source, const Vector &values,
-                      const FiniteElement &target, Vector &converted)
+bool IsIntegratedGLL(const FiniteElement &element)
+{
+   const auto *tensor = dynamic_cast<const TensorBasisElement *>(&element);
+   return tensor && tensor->GetBasisType() == BasisType::IntegratedGLL;
+}
+
+void ConvertPolynomialDofs(const FiniteElement &source, const Vector &values,
+                           const FiniteElement &target, Vector &converted)
 {
    converted.SetSize(target.GetDof());
-   if (dynamic_cast<const PositiveTensorFiniteElement *>(&target))
+   if (dynamic_cast<const PositiveTensorFiniteElement *>(&target) ||
+       IsIntegratedGLL(target))
    {
-      DenseMatrix interpolation(source.GetDof(), target.GetDof());
-      Vector shape(target.GetDof());
-      for (int index = 0; index < source.GetDof(); ++index)
+      L2_FECollection nodal(source.GetOrder(), source.GetDim(),
+                            BasisType::GaussLegendre);
+      const auto &nodes =
+         nodal.FiniteElementForGeometry(source.GetGeomType())->GetNodes();
+      DenseMatrix interpolation(nodes.GetNPoints(), target.GetDof());
+      Vector samples(nodes.GetNPoints()), source_shape(source.GetDof()),
+             target_shape(target.GetDof());
+      for (int index = 0; index < nodes.GetNPoints(); ++index)
       {
-         target.CalcShape(source.GetNodes().IntPoint(index), shape);
-         interpolation.SetRow(index, shape);
+         const auto &point = nodes.IntPoint(index);
+         source.CalcShape(point, source_shape);
+         samples(index) = source_shape * values;
+         target.CalcShape(point, target_shape);
+         interpolation.SetRow(index, target_shape);
       }
       DenseMatrixInverse inverse(interpolation);
-      inverse.Mult(values, converted);
+      inverse.Mult(samples, converted);
    }
    else
    {
@@ -262,7 +277,7 @@ CutQuadratureReport PolynomialLevelSet::Project(Coefficient &coefficient,
    if (!FiniteVector(values))
    { return Failure(CutQuadratureStatus::NumericalFailure, "Nonfinite projected coefficient."); }
    Vector projected(new_element.GetDof());
-   ConvertNodalDofs(nodal, values, new_element, projected);
+   ConvertPolynomialDofs(nodal, values, new_element, projected);
    return Set(new_element, projected);
 }
 
@@ -310,7 +325,7 @@ CutQuadratureReport PolynomialLevelSet::GetBernsteinCoefficients(
       }
       return {};
    }
-   ConvertNodalDofs(*element, dofs, bernstein_element, coefficients);
+   ConvertPolynomialDofs(*element, dofs, bernstein_element, coefficients);
    if (!FiniteVector(coefficients))
    {
       coefficients.SetSize(0);

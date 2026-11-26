@@ -102,7 +102,8 @@ TEST_CASE("Polynomial cut level sets preserve coefficients and gradients", "[Cut
          return 0.2 + point(0)*point(0) + 2*point(1) +
                 (point.Size() == 3 ? 3*point(2) : 0);
       });
-      for (int basis : {BasisType::GaussLegendre, BasisType::Positive})
+      for (int basis : {BasisType::GaussLegendre, BasisType::Positive,
+                       BasisType::IntegratedGLL})
       {
          L2_FECollection collection(2, dimension, basis);
          const auto &element = *collection.FiniteElementForGeometry(geometry);
@@ -147,6 +148,152 @@ TEST_CASE("Polynomial cut level sets preserve coefficients and gradients", "[Cut
       REQUIRE(extracted.Eval(point) == MFEM_Approx(coefficient.Eval(identity, point)));
       REQUIRE_FALSE(extracted.Set(field, -1).Succeeded());
       REQUIRE(extracted.AsPolynomial() == nullptr);
+   }
+}
+
+TEST_CASE("IntegratedGLL cut level sets preserve native polynomial dofs",
+          "[CutQuadrature]")
+{
+   IntegrationRule samples(3);
+   samples.IntPoint(0).Set3(0.12, 0.34, 0.56);
+   samples.IntPoint(1).Set3(0.79, 0.65, 0.43);
+   samples.IntPoint(2).Set3(0.0, 1.0, 0.5);
+   for (int dimension : {2, 3})
+   {
+      const auto geometry = dimension == 2 ? Geometry::SQUARE : Geometry::CUBE;
+      IsoparametricTransformation identity;
+      identity.SetIdentityTransformation(geometry);
+      const auto &saved = Geometries.GetCenter(geometry);
+      Mesh mesh = dimension == 2 ?
+                  Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL) :
+                  Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
+      for (int degree : {0, 1, 2, 4})
+      {
+         CAPTURE(dimension, degree);
+         L2_FECollection collection(degree, dimension,
+                                     BasisType::IntegratedGLL);
+         L2_FECollection positive(degree, dimension, BasisType::Positive);
+         const auto &element = *collection.FiniteElementForGeometry(geometry);
+         const auto &bernstein = *positive.FiniteElementForGeometry(geometry);
+         FunctionCoefficient coefficient([degree](const Vector &point)
+         {
+            real_t value = 1;
+            for (int axis = 0; axis < point.Size(); ++axis)
+            { value *= 1 + std::pow(point(axis), degree); }
+            return 0.2 + value;
+         });
+         Vector native_dofs(element.GetDof());
+         element.Project(coefficient, identity, native_dofs);
+         identity.SetIntPoint(&saved);
+         FiniteElementSpace space(&mesh, &collection);
+         GridFunction field(&space);
+         field.ProjectCoefficient(coefficient);
+         PolynomialLevelSet stored, projected, extracted;
+         REQUIRE(stored.Set(element, native_dofs).Succeeded());
+         REQUIRE(projected.Project(coefficient, identity, element).Succeeded());
+         REQUIRE(extracted.Set(field, 0).Succeeded());
+         REQUIRE(identity.GetIntPointPointer() == &saved);
+         for (int index = 0; index < native_dofs.Size(); ++index)
+         {
+            REQUIRE(projected.GetDofs()(index) ==
+                    MFEM_Approx(native_dofs(index)));
+         }
+         for (const auto *level_set : {&stored, &projected, &extracted})
+         {
+            Vector coefficients;
+            REQUIRE(level_set->GetBernsteinCoefficients(
+                       bernstein, coefficients).Succeeded());
+            for (int index = 0; index < coefficients.Size(); ++index)
+            {
+               real_t exact = 1;
+               int offset = index;
+               for (int axis = 0; axis < dimension; ++axis)
+               {
+                  if (offset % (degree + 1) == degree) { exact *= 2; }
+                  offset /= degree + 1;
+               }
+               REQUIRE(coefficients(index) ==
+                       MFEM_Approx(0.2 + exact, 1e-11, 1e-11));
+            }
+            PolynomialLevelSet converted;
+            REQUIRE(converted.Set(bernstein, coefficients).Succeeded());
+            for (int index = 0; index < samples.GetNPoints(); ++index)
+            {
+               const auto &point = samples.IntPoint(index);
+               Vector coordinates(dimension), exact_gradient(dimension);
+               point.Get(coordinates.GetData(), dimension);
+               const real_t exact = coefficient.Eval(identity, point);
+               exact_gradient = 0.;
+               if (degree)
+               {
+                  for (int axis = 0; axis < dimension; ++axis)
+                  {
+                     exact_gradient(axis) =
+                        degree * std::pow(coordinates(axis), degree - 1);
+                     for (int other = 0; other < dimension; ++other)
+                     {
+                        if (other != axis)
+                        {
+                           exact_gradient(axis) *=
+                              1 + std::pow(coordinates(other), degree);
+                        }
+                     }
+                  }
+               }
+               const PolynomialLevelSet *candidates[] = {level_set, &converted};
+               for (const auto *candidate : candidates)
+               {
+                  REQUIRE(candidate->Eval(point) == MFEM_Approx(exact));
+                  Vector gradient;
+                  candidate->EvalGradient(point, gradient);
+                  for (int axis = 0; axis < dimension; ++axis)
+                  {
+                     REQUIRE(gradient(axis) ==
+                             MFEM_Approx(exact_gradient(axis)));
+                  }
+               }
+            }
+         }
+      }
+   }
+}
+
+TEST_CASE("IntegratedGLL cut projection preserves the nodal interpolant",
+          "[CutQuadrature]")
+{
+   for (int dimension : {2, 3})
+   {
+      const auto geometry = dimension == 2 ? Geometry::SQUARE : Geometry::CUBE;
+      IsoparametricTransformation identity;
+      identity.SetIdentityTransformation(geometry);
+      FunctionCoefficient coefficient([](const Vector &point)
+      {
+         real_t value = std::exp(point(0)) + std::sin(point(1));
+         return point.Size() == 3 ? value * std::exp(point(2)) : value;
+      });
+      L2_FECollection nodal_collection(2, dimension, BasisType::GaussLegendre);
+      L2_FECollection integrated_collection(2, dimension,
+                                           BasisType::IntegratedGLL);
+      const auto &nodal_element =
+         *nodal_collection.FiniteElementForGeometry(geometry);
+      const auto &integrated_element =
+         *integrated_collection.FiniteElementForGeometry(geometry);
+      PolynomialLevelSet nodal, integrated;
+      REQUIRE(nodal.Project(coefficient, identity, nodal_element).Succeeded());
+      REQUIRE(integrated.Project(coefficient, identity,
+                                 integrated_element).Succeeded());
+      REQUIRE(identity.GetIntPointPointer() == nullptr);
+      for (real_t coordinate : {0., 0.21, 0.79, 1.})
+      {
+         IntegrationPoint point;
+         point.Set3(coordinate, 1 - coordinate, 0.43);
+         REQUIRE(integrated.Eval(point) == MFEM_Approx(nodal.Eval(point)));
+         Vector expected, actual;
+         nodal.EvalGradient(point, expected);
+         integrated.EvalGradient(point, actual);
+         for (int axis = 0; axis < dimension; ++axis)
+         { REQUIRE(actual(axis) == MFEM_Approx(expected(axis))); }
+      }
    }
 }
 
@@ -614,6 +761,82 @@ TEST_CASE("ALGOIM cut phases and planes on tensor cells", "[CutQuadrature]")
    }
 }
 
+TEST_CASE("ALGOIM integrates IntegratedGLL cut phases and interfaces",
+          "[CutQuadrature]")
+{
+   std::vector<std::string> names = {"algoim-general"};
+#ifdef MFEM_USE_LAPACKE
+   names.push_back("algoim-polynomial");
+#endif
+   for (int dimension : {2, 3})
+   {
+      const auto geometry = dimension == 2 ? Geometry::SQUARE : Geometry::CUBE;
+      IsoparametricTransformation identity;
+      identity.SetIdentityTransformation(geometry);
+      for (int degree : {1, 2, 4})
+      {
+         L2_FECollection collection(degree, dimension,
+                                     BasisType::IntegratedGLL);
+         const auto &element = *collection.FiniteElementForGeometry(geometry);
+         for (int axis = 0; axis < dimension; ++axis)
+         {
+            FunctionCoefficient coefficient([axis](const Vector &point)
+            { return point(axis) - 0.37; });
+            Vector native_dofs(element.GetDof());
+            element.Project(coefficient, identity, native_dofs);
+            identity.SetIntPoint(nullptr);
+            for (bool project : {false, true})
+            {
+               PolynomialLevelSet level_set;
+               REQUIRE((project ?
+                        level_set.Project(coefficient, identity, element) :
+                        level_set.Set(element, native_dofs)).Succeeded());
+               Array<const ReferenceLevelSet *> level_sets(1);
+               level_sets[0] = &level_set;
+               for (const auto &name : names)
+               {
+                  CAPTURE(dimension, degree, axis, project, name);
+                  auto backend = CreateCutQuadratureBackend(name);
+                  REQUIRE(backend != nullptr);
+                  CutQuadratureGenerator generator(*backend);
+                  real_t phases = 0;
+                  for (int domain = 0; domain < 3; ++domain)
+                  {
+                     CutQuadratureRequest request;
+                     request.order = 6;
+                     request.domain =
+                        domain == 0 ? CutDomain::Positive() :
+                        (domain == 1 ? CutDomain::Negative() :
+                         CutDomain::Surface());
+                     CutQuadrature output;
+                     auto report = generator.Generate(geometry, level_sets,
+                                                      request, output);
+                     INFO(report.message);
+                     REQUIRE(report.Succeeded());
+                     const real_t exact = domain == 0 ? 0.63 :
+                                          (domain == 1 ? 0.37 : 1.0);
+                     REQUIRE(Measure(output.rule) == MFEM_Approx(exact));
+                     if (domain < 2) { phases += Measure(output.rule); }
+                     else
+                     {
+                        for (int index = 0; index < output.GetNPoints();
+                             ++index)
+                        {
+                           const auto &point = output.rule.IntPoint(index);
+                           REQUIRE(std::abs(level_set.Eval(point)) < 1e-12);
+                           REQUIRE(output.conormals(index)(axis, 0) ==
+                                   MFEM_Approx(1));
+                        }
+                     }
+                  }
+                  REQUIRE(phases == MFEM_Approx(1));
+               }
+            }
+         }
+      }
+   }
+}
+
 TEST_CASE("ALGOIM classifies constants and rejects unsupported requests", "[CutQuadrature]")
 {
    auto backend = CreateCutQuadratureBackend("algoim");
@@ -851,7 +1074,8 @@ TEST_CASE("General ALGOIM evaluates tensor polynomials independently of LAPACKE"
       const auto geometry = dimension == 2 ? Geometry::SQUARE : Geometry::CUBE;
       IsoparametricTransformation identity;
       identity.SetIdentityTransformation(geometry);
-      for (int basis : {BasisType::GaussLegendre, BasisType::Positive})
+      for (int basis : {BasisType::GaussLegendre, BasisType::Positive,
+                       BasisType::IntegratedGLL})
       {
          L2_FECollection collection(3, dimension, basis);
          FunctionCoefficient coefficient([](const Vector &point)
