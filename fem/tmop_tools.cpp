@@ -53,17 +53,25 @@ void AdvectorCG::ComputeAtNewPosition(const Vector &new_mesh_nodes,
       else
       {
          new_field_temp.SetSize(dof_cnt);
+         const real_t *src = new_field.HostRead();
+         real_t *dst = new_field_temp.HostWrite();
          for (int j = 0; j < dof_cnt; j++)
          {
-            new_field_temp(j) = new_field(i + j*ncomp);
+            dst[j] = src[i + j*ncomp];
          }
       }
       ComputeAtNewPositionScalar(new_mesh_nodes, new_field_temp);
-      if (fes_ordering == Ordering::byVDIM)
+      if (fes_ordering == Ordering::byNODES)
       {
+         new_field_temp.SyncAliasMemory(new_field);
+      }
+      else
+      {
+         const real_t *src = new_field_temp.HostRead();
+         real_t *dst = new_field.HostReadWrite();
          for (int j = 0; j < dof_cnt; j++)
          {
-            new_field(i + j*ncomp) = new_field_temp(j);
+            dst[i + j*ncomp] = src[j];
          }
       }
    }
@@ -123,15 +131,17 @@ void AdvectorCG::ComputeAtNewPositionScalar(const Vector &new_mesh_nodes,
       h_min = std::min(h_min, m->GetElementSize(i));
    }
    real_t v_max = 0.0;
-   const int s  = u.Size()/m->Dimension();
+   const FiniteElementSpace *ufes = u.FESpace();
+   const int ndofs = ufes->GetNDofs(), vdim = ufes->GetVDim();
 
    u.HostReadWrite();
-   for (int i = 0; i < s; i++)
+   for (int i = 0; i < ndofs; i++)
    {
       real_t vel = 0.;
-      for (int j = 0; j < m->Dimension(); j++)
+      for (int j = 0; j < vdim; j++)
       {
-         vel += u(i+j*s)*u(i+j*s);
+         const real_t u_ij = u(ufes->DofToVDof(i, j));
+         vel += u_ij * u_ij;
       }
       v_max = std::max(v_max, vel);
    }

@@ -261,7 +261,7 @@ public:
       Vector pos(3);
       T.Transform(ip, pos);
       K = 0.;
-      if (metric != 14 && metric != 85)
+      if (metric != 14 && metric != 36 && metric != 85)
       {
          const real_t xc = pos(0) - 0.5, yc = pos(1) - 0.5;
          const real_t r = sqrt(xc*xc + yc*yc);
@@ -276,11 +276,67 @@ public:
             tan2d = (1.-tan2*tan2)*(sf)/r;
          }
 
-         K(0, 1) = 0.0;
-         K(1, 0) = 0.0;
-         K(1, 1) = 1.0;
+         // Only K(0,0) depends on the position.
          if (comp == 0) { K(0, 0) = tan1d*xc - tan2d*xc; }
          else if (comp == 1) { K(0, 0) = tan1d*yc - tan2d*yc; }
+      }
+      else if (metric == 14 || metric == 36) // Size + Alignment
+      {
+         const real_t xc = pos(0), yc = pos(1);
+         const real_t theta = M_PI * yc * (1.0 - yc) * cos(2 * M_PI * xc);
+         // Derivative of theta with respect to the given component.
+         const real_t dtheta = (comp == 0) ?
+                               -2*M_PI*M_PI*yc*(1.0 - yc)*sin(2*M_PI*xc) :
+                               M_PI*(1.0 - 2.0*yc)*cos(2*M_PI*xc);
+         real_t alpha_bar = 0.1;
+
+         K(0, 0) = -sin(theta);
+         K(1, 0) =  cos(theta);
+         K(0, 1) = -cos(theta);
+         K(1, 1) = -sin(theta);
+
+         K *= alpha_bar * dtheta;
+      }
+      else if (metric == 85) // Shape + Alignment
+      {
+         real_t xc = pos(0)-0.5, yc = pos(1)-0.5;
+         real_t th = 22.5*M_PI/180.;
+         real_t xn =  cos(th)*xc + sin(th)*yc;
+         real_t yn = -sin(th)*xc + cos(th)*yc;
+         // Derivatives of xn and yn with respect to the given component.
+         const real_t dxn = (comp == 0) ?  cos(th) : sin(th);
+         const real_t dyn = (comp == 0) ? -sin(th) : cos(th);
+
+         real_t tfac = 20;
+         real_t s1 = 3;
+         real_t s2 = 2;
+         const real_t arg = tfac*yn + s2*std::sin(s1*M_PI*xn);
+         const real_t darg = tfac*dyn + s2*s1*M_PI*std::cos(s1*M_PI*xn)*dxn;
+         const real_t tanp = std::tanh(arg + 1), tanm = std::tanh(arg - 1);
+         real_t wgt = tanp - tanm;
+         real_t dwgt = (tanm*tanm - tanp*tanp)*darg;
+         if (wgt > 1) { wgt = 1; dwgt = 0; }
+         if (wgt < 0) { wgt = 0; dwgt = 0; }
+
+         xc = pos(0), yc = pos(1);
+         const real_t theta = M_PI * (yc) * (1.0 - yc) * cos(2 * M_PI * xc);
+         // Derivative of theta with respect to the given component.
+         const real_t dtheta = (comp == 0) ?
+                               -2*M_PI*M_PI*yc*(1.0 - yc)*sin(2*M_PI*xc) :
+                               M_PI*(1.0 - 2.0*yc)*cos(2*M_PI*xc);
+
+         const real_t asp_ratio_tar = 0.1 + 1*(1-wgt)*(1-wgt);
+         const real_t dasp_ratio_tar = -2*(1-wgt)*dwgt;
+         // a1 = asp_ratio_tar^(-1/2), a2 = asp_ratio_tar^(1/2).
+         const real_t a1 = 1/pow(asp_ratio_tar,0.5),
+                      a2 = pow(asp_ratio_tar,0.5);
+         const real_t da1 = -0.5*a1/asp_ratio_tar*dasp_ratio_tar,
+                      da2 =  0.5*a1*dasp_ratio_tar;
+
+         K(0, 0) = -sin(theta)*dtheta*a1 + cos(theta)*da1;
+         K(1, 0) =  cos(theta)*dtheta*a1 + sin(theta)*da1;
+         K(0, 1) = -cos(theta)*dtheta*a2 - sin(theta)*da2;
+         K(1, 1) = -sin(theta)*dtheta*a2 + cos(theta)*da2;
       }
    }
 };
