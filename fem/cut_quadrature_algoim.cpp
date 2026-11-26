@@ -531,6 +531,24 @@ bool NearlyProportional(const AlgoimPolynomial &first,
 }
 
 template <int Dimension>
+std::array<bool, Dimension> IndependentAxes(
+   const AlgoimPolynomial &polynomial)
+{
+   std::vector<real_t> storage(polynomial.coefficients.size());
+   algoim::xarray<real_t, Dimension> reduced(
+      storage.data(),
+      algoim::uvector<int, Dimension>(polynomial.extent));
+   CopyPolynomialCoefficients(polynomial, reduced);
+   algoim::bernstein::autoReduction(reduced);
+   std::array<bool, Dimension> independent;
+   for (int axis = 0; axis < Dimension; ++axis)
+   {
+      independent[axis] = reduced.ext(axis) == 1;
+   }
+   return independent;
+}
+
+template <int Dimension>
 CutQuadratureReport ComputePolynomialRule(
    const std::vector<AlgoimPolynomial> &data,
    const std::vector<CutDomain::LevelSetSign> &signs,
@@ -538,22 +556,21 @@ CutQuadratureReport ComputePolynomialRule(
 {
    if constexpr (Dimension == 3)
    {
+      std::array<bool, Dimension> independent;
+      independent.fill(true);
+      for (const auto &polynomial : data)
+      {
+         const auto polynomial_independent =
+            IndependentAxes<Dimension>(polynomial);
+         for (int axis = 0; axis < Dimension; ++axis)
+         {
+            independent[axis] = independent[axis] &&
+                                polynomial_independent[axis];
+         }
+      }
       for (int axis = 0; axis < Dimension; ++axis)
       {
-         bool independent = true;
-         for (const auto &polynomial : data)
-         {
-            for (real_t value : polynomial.derivatives[axis])
-            {
-               if (std::abs(value) > 64 * polynomial.extent *
-                   std::numeric_limits<real_t>::epsilon())
-               {
-                  independent = false;
-                  break;
-               }
-            }
-         }
-         if (!independent)
+         if (!independent[axis])
          {
             continue;
          }
