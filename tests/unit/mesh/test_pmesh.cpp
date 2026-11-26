@@ -297,6 +297,25 @@ TEST_CASE("ParMeshMakeSimplicial interior boundary", "[Parallel], [ParMesh]")
    }
 }
 
+TEST_CASE("ParMesh MakeRefined tetrahedra shared faces", "[Parallel][ParMesh]")
+{
+   // ParMesh::MakeRefined places the vertices of refined shared faces from
+   // the H1 face DOFs of the original mesh. At refinement factor 4 and above,
+   // those vertices must come from GetFaceDofs of the local face;
+   // GetSharedTriangleDofs can map them off the refined volume face table,
+   // and FinalizeParTopo then aborts in STable3D::operator().
+   Mesh serial = Mesh::MakeCartesian3D(2, 2, 2, Element::TETRAHEDRON);
+   ParMesh pmesh(MPI_COMM_WORLD, serial);
+
+   const int ref_factor = GENERATE(3, 4);
+   ParMesh refined =
+      ParMesh::MakeRefined(pmesh, ref_factor, BasisType::GaussLobatto);
+
+   REQUIRE(refined.GetNE() ==
+           pmesh.GetNE() * ref_factor * ref_factor * ref_factor);
+   REQUIRE(refined.CheckElementOrientation(false) == 0);
+}
+
 #endif // MFEM_USE_MPI
 
 } // namespace mfem
