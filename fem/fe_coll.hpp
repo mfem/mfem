@@ -477,7 +477,10 @@ public:
    int GetOpenBasisType() const { return ob_type; }
 
    FiniteElementCollection *Clone(int p) const override
-   { return new RT_FECollection(p, dim, cb_type, ob_type); }
+   {
+      MFEM_VERIFY(p >= 1, "RT collection order must be at least one");
+      return new RT_FECollection(p - 1, dim, cb_type, ob_type);
+   }
 
    int GetConstructorOrder() const override
    { return base_p-1; }
@@ -497,9 +500,10 @@ public:
 
    FiniteElementCollection *Clone(int p) const override
    {
+      MFEM_VERIFY(p >= 1, "RT trace collection order must be at least one");
       const int map_type = (strncmp(rt_name, "RT_Trace", 8) == 0)?
                            (FiniteElement::INTEGRAL):(FiniteElement::VALUE);
-      return new RT_Trace_FECollection(p, dim, map_type, ob_type);
+      return new RT_Trace_FECollection(p - 1, dim, map_type, ob_type);
    }
 };
 
@@ -515,9 +519,10 @@ public:
 
    FiniteElementCollection *Clone(int p) const override
    {
+      MFEM_VERIFY(p >= 1, "DG interface collection order must be at least one");
       const int map_type = (strncmp(rt_name, "DG_Iface", 8) == 0)?
                            (FiniteElement::VALUE):(FiniteElement::INTEGRAL);
-      return new DG_Interface_FECollection(p, dim, map_type, ob_type);
+      return new DG_Interface_FECollection(p - 1, dim, map_type, ob_type);
    }
 };
 
