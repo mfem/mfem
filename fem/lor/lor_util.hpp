@@ -416,7 +416,7 @@ MFEM_HOST_DEVICE inline void Get3DMatrixCoeff(
    {
       for (int l = 0; l < vdim; ++l) { vals[l] = coeff(l, i, j, k, e); }
    }
-};
+}
 
 // Assuming B is symmetric, compute the triple product AtBA in packed format
 MFEM_HOST_DEVICE inline void FillAtBA(

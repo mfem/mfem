@@ -170,8 +170,8 @@ void TMOP_AddMultPA_AdaptLim_2D(const real_t lim_normal,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPMultCoefKernels, TMOP_AddMultPA_C0_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultCoefKernels);
+MFEM_TMOP_MDQ_REGISTER(TMOPMultCoefKernels, TMOP_AddMultPA_C0_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultCoefKernels)
 
 void TMOP_Integrator::AddMultPA_C0_2D(const Vector &x, Vector &y) const
 {
@@ -202,8 +202,8 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &x, Vector &y) const
                             integ_over_target, b, bld, XL, X, Y, exp_lim, d, q);
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPMultAdaptLim, TMOP_AddMultPA_AdaptLim_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultAdaptLim);
+MFEM_TMOP_MDQ_REGISTER(TMOPMultAdaptLim, TMOP_AddMultPA_AdaptLim_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPMultAdaptLim)
 
 void TMOP_Integrator::AddMultPA_AdaptLim_2D([[maybe_unused]] const Vector &x,
                                             Vector &y) const

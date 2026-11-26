@@ -24,7 +24,7 @@ struct TMOP_PA_Metric_001 : TMOP_PA_Metric_2D
    {
       kernels::InvariantsEvaluator2D ie(Args().J(Jpt));
       return ie.Get_I1();
-   };
+   }
 
    MFEM_HOST_DEVICE void EvalP(const real_t (&Jpt)[4],
                                const real_t *w, real_t (&P)[4]) const final
@@ -71,6 +71,6 @@ using assemble = TMOPAssembleGradPA2D;
 using energy = TMOPEnergyPA2D;
 using mult = TMOPAddMultPA2D;
 
-MFEM_TMOP_REGISTER_METRIC(metric, assemble, energy, mult, 1);
+MFEM_TMOP_REGISTER_METRIC(metric, assemble, energy, mult, 1)
 
 } // namespace mfem

@@ -159,8 +159,8 @@ void TMOP_AssembleDiagPA_2D(const int NE,
    });
 }
 
-MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiag2D, TMOP_AssembleDiagPA_2D);
-MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiag2D);
+MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiag2D, TMOP_AssembleDiagPA_2D)
+MFEM_TMOP_MDQ_SPECIALIZE(TMOPAssembleDiag2D)
 
 void TMOP_Integrator::AssembleDiagonalPA_2D(Vector &diagonal) const
 {

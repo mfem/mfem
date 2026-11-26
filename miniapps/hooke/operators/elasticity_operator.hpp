@@ -312,7 +312,7 @@ public:
     *
     * @return T-vector degrees of freedom that have been marked as displaced
     */
-   const Array<int> &GetPrescribedDisplacementTDofs() { return displaced_tdof_list_; };
+   const Array<int> &GetPrescribedDisplacementTDofs() { return displaced_tdof_list_; }
 };
 
 } // namespace mfem

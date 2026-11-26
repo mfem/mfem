@@ -27,7 +27,7 @@ struct TMOP_PA_Metric_080 : TMOP_PA_Metric_2D
       const real_t I2b = ie.Get_I2b();
       const real_t eval_w_77 = 0.5 * (I2b * I2b + 1. / (I2b * I2b) - 2.);
       return w[0] * eval_w_02 + w[1] * eval_w_77;
-   };
+   }
 
    MFEM_HOST_DEVICE void EvalP(const real_t (&Jpt)[4],
                                const real_t *w, real_t (&P)[4]) const final
@@ -83,6 +83,6 @@ using assemble = TMOPAssembleGradPA2D;
 using energy = TMOPEnergyPA2D;
 using mult = TMOPAddMultPA2D;
 
-MFEM_TMOP_REGISTER_METRIC(metric, assemble, energy, mult, 80);
+MFEM_TMOP_REGISTER_METRIC(metric, assemble, energy, mult, 80)
 
 } // namespace mfem

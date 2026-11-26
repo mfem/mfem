@@ -100,7 +100,7 @@ int CheckPoisson(Mesh &mesh, int order, int disabled_boundary_attribute)
    }
    CHECK(satisfy_bc);
    return ess_tdof_list.Size();
-};
+}
 
 template <typename FECollection, bool TDOF>
 int CountEssentialDof(Mesh &mesh, int order, int attribute)
@@ -127,7 +127,7 @@ int CountEssentialDof(Mesh &mesh, int order, int attribute)
       fes.MarkerToList(ess_vdof_marker, vdof_list);
       return vdof_list.Size();
    }
-};
+}
 
 template int CountEssentialDof<H1_FECollection, false>(Mesh &, int, int);
 template int CountEssentialDof<ND_FECollection, false>(Mesh &, int, int);
@@ -700,7 +700,7 @@ void CheckPoisson(ParMesh &pmesh, int order,
       }
    }
    CHECK(satisfy_bc);
-};
+}
 
 std::unique_ptr<ParMesh> CheckParMeshNBE(Mesh &smesh,
                                          const std::unique_ptr<int[]> &partition)
@@ -713,7 +713,7 @@ std::unique_ptr<ParMesh> CheckParMeshNBE(Mesh &smesh,
 
    CHECK(nbe == smesh.GetNBE());
    return pmesh;
-};
+}
 
 bool CheckFaceInternal(ParMesh& pmesh, int f,
                        const std::map<int, int> &local_to_shared)
@@ -742,7 +742,7 @@ bool CheckFaceInternal(ParMesh& pmesh, int f,
       return true;
    }
    return false;
-};
+}
 
 std::array<real_t, 2> CheckL2Projection(ParMesh& pmesh, Mesh& smesh, int order,
                                         std::function<real_t(Vector const&)> exact_soln)
@@ -866,7 +866,7 @@ int CountEssentialDof(ParMesh &mesh, int order, int attribute)
       pfes.MarkerToList(ess_vdof_marker, vdof_list);
       return vdof_list.Size();
    }
-};
+}
 
 template int CountEssentialDof<H1_FECollection, false>(ParMesh &, int, int);
 template int CountEssentialDof<ND_FECollection, false>(ParMesh &, int, int);
@@ -883,7 +883,7 @@ int ParCountEssentialDof(ParMesh &mesh, int order, int attribute)
    MPI_Allreduce(MPI_IN_PLACE, &num_essential_dof, 1, MPI_INT, MPI_SUM,
                  MPI_COMM_WORLD);
    return num_essential_dof;
-};
+}
 
 template int ParCountEssentialDof<H1_FECollection, false>(ParMesh &, int, int);
 template int ParCountEssentialDof<ND_FECollection, false>(ParMesh &, int, int);

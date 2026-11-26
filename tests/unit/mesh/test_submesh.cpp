@@ -574,7 +574,7 @@ void CHECK_NORM(Vector &v, bool small = true)
    {
       REQUIRE(v.Norml2() > 1e-8);
    }
-};
+}
 
 void CheckProjectMatch(Mesh &mesh, SubMesh &submesh, FECType fec_type,
                        bool check_pr = true)

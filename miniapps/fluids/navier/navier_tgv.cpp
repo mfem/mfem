@@ -60,7 +60,7 @@ public:
       one_gf.ProjectCoefficient(onecoeff);
 
       volume = mass_lf->operator()(one_gf);
-   };
+   }
 
    real_t ComputeKineticEnergy(ParGridFunction &v)
    {
@@ -102,9 +102,9 @@ public:
                     MPI_COMM_WORLD);
 
       return 0.5 * global_integral / volume;
-   };
+   }
 
-   ~QuantitiesOfInterest() { delete mass_lf; };
+   ~QuantitiesOfInterest() { delete mass_lf; }
 
 private:
    ConstantCoefficient onecoeff;
