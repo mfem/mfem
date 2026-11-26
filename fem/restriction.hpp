@@ -16,6 +16,8 @@
 #include "../mesh/mesh.hpp"
 #include "normal_deriv_restriction.hpp"
 
+#include <vector>
+
 namespace mfem
 {
 
@@ -105,6 +107,71 @@ public:
    const Array<int> &Indices() const { return indices; }
    const Array<int> &Offsets() const { return offsets; }
    ///@}
+};
+
+/// @brief Operator that converts variable-order FiniteElementSpace L-vectors
+/// to order-grouped E-vectors.
+/** Elements are grouped by `(Geometry::Type, order)` in ascending order. Within
+    each group, the E-vector slice uses the standard `(dof_g, vdim, ne_g)`
+    layout, allowing standard tensor-product PA kernels to operate per group
+    via zero-copy `Vector::MakeRef` views. */
+class VarOrderElementRestriction : public ElementRestrictionOperator
+{
+protected:
+   struct Group
+   {
+      Geometry::Type geom = Geometry::INVALID;
+      int order = 0;
+      int dof = 0;
+      int offset = 0;
+      Array<int> elems;
+      Array<int> gather_map;
+   };
+
+   const FiniteElementSpace &fes;
+   const int ne;
+   const int vdim;
+   const bool byvdim;
+   const int ndofs;
+   std::vector<Group> groups;
+   Array<int> offsets;
+   Array<int> indices;
+   Array<int> vdim_strides;
+
+public:
+   VarOrderElementRestriction(const FiniteElementSpace&, ElementDofOrdering);
+
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override;
+
+   /// Compute Mult without applying signs based on DOF orientations.
+   void AbsMult(const Vector &x, Vector &y) const override;
+
+   /// Compute MultTranspose without applying signs based on DOF orientations.
+   void AbsMultTranspose(const Vector &x, Vector &y) const override;
+
+   /// @name Variable-order element group accessors
+   ///@{
+   int GetNumGroups() const { return static_cast<int>(groups.size()); }
+   Geometry::Type GetGroupGeometry(int g) const { return groups[g].geom; }
+   int GetGroupOrder(int g) const { return groups[g].order; }
+   int GetGroupDofs(int g) const { return groups[g].dof; }
+   int GetGroupNE(int g) const { return groups[g].elems.Size(); }
+   int GetGroupOffset(int g) const { return groups[g].offset; }
+   int GetGroupSize(int g) const
+   { return groups[g].dof * vdim * groups[g].elems.Size(); }
+   const Array<int> &GetGroupElements(int g) const { return groups[g].elems; }
+   int GetVDim() const { return vdim; }
+   ///@}
+
+   /// @private Not part of the public interface (device kernel limitation).
+   template <bool ABS> void TMult(const Vector &x, Vector &y) const;
+   /// @private Not part of the public interface (device kernel limitation).
+   template <bool ADD, bool ABS>
+   void TAddMultTranspose(const Vector &x, Vector &y,
+                          const real_t a = 1.0) const;
 };
 
 /// Operator that converts L2 FiniteElementSpace L-vectors to E-vectors.

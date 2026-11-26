@@ -267,6 +267,8 @@ void VectorFEMassIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                         Vector &ea_data,
                                         const bool add)
 {
+   MFEM_VERIFY(!fes.IsVariableOrder(),
+               "VectorFEMassIntegrator::AssembleEA does not support variable-order spaces.");
    AssemblePA(fes);
 
    if (trial_fetype != mfem::FiniteElement::DIV ||

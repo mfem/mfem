@@ -51,6 +51,9 @@ MFBilinearFormExtension::MFBilinearFormExtension(BilinearForm *form)
 
 void MFBilinearFormExtension::Assemble()
 {
+   MFEM_VERIFY(!a->FESpace()->IsVariableOrder() || DeviceCanUseCeed(),
+               "MFBilinearFormExtension does not support variable-order spaces "
+               "without libCEED.");
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)
@@ -331,6 +334,19 @@ void PABilinearFormExtension::SetupRestrictionOperators(const L2FaceValues m)
 
 void PABilinearFormExtension::Assemble()
 {
+   if (a->FESpace()->IsVariableOrder() && !DeviceCanUseCeed())
+   {
+      for (BilinearFormIntegrator *integ : *a->GetDBFI())
+      {
+         MFEM_VERIFY(!integ->Patchwise() && integ->SupportsVariableOrderPA(),
+                     "Integrator does not support variable-order partial assembly.");
+      }
+      MFEM_VERIFY(a->GetBBFI()->Size() == 0 &&
+                  a->GetFBFI()->Size() == 0 &&
+                  a->GetBFBFI()->Size() == 0,
+                  "Variable-order partial assembly only supports domain integrators.");
+   }
+
    SetupRestrictionOperators(L2FaceValues::DoubleValued);
 
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
@@ -391,6 +407,13 @@ static void AddWithMarkers_(
    });
 }
 
+static void AddWithMarkersVarOrder_(
+   const VarOrderElementRestriction &vr,
+   const Vector &x,
+   const Array<int> &markers,
+   const Array<int> &attributes,
+   Vector &y);
+
 void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
 {
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
@@ -398,6 +421,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
    auto assemble_diagonal_with_markers = [&](BilinearFormIntegrator &integ,
                                              const Array<int> *markers,
                                              const Array<int> &attributes,
+                                             const VarOrderElementRestriction *vr,
                                              Vector &d)
    {
       if (!markers)
@@ -408,13 +432,20 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
       if (attributes.Size() == 0) { return; }
       // Apply markers to this integrator's contribution, preserving the
       // diagonal contributions accumulated by earlier integrators.
-      tmp_evec.SetSize(d.Size());
+      tmp_evec.SetSize(d.Size(), d.GetMemory().GetMemoryType());
       tmp_evec.UseDevice(true);
       tmp_evec = 0.0;
       integ.AssembleDiagonalPA(tmp_evec);
-      const int ne = attributes.Size();
-      const int nd = d.Size() / ne;
-      AddWithMarkers_(ne, nd, tmp_evec, *markers, attributes, d);
+      if (vr)
+      {
+         AddWithMarkersVarOrder_(*vr, tmp_evec, *markers, attributes, d);
+      }
+      else
+      {
+         const int ne = attributes.Size();
+         const int nd = d.Size() / ne;
+         AddWithMarkers_(ne, nd, tmp_evec, *markers, attributes, d);
+      }
    };
 
    const int iSz = integrators.Size();
@@ -423,17 +454,19 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
       if (iSz > 0)
       {
          localY = 0.0;
+         const auto *H1elem_restrict =
+            dynamic_cast<const ElementRestriction*>(elem_restrict);
+         const auto *vr =
+            dynamic_cast<const VarOrderElementRestriction*>(elem_restrict);
          Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
          for (int i = 0; i < iSz; ++i)
          {
             assemble_diagonal_with_markers(*integrators[i], elem_markers[i],
-                                           *elem_attributes, localY);
+                                           *elem_attributes, vr, localY);
          }
-         const ElementRestriction* H1elem_restrict =
-            dynamic_cast<const ElementRestriction*>(elem_restrict);
-         if (H1elem_restrict)
+         if (H1elem_restrict || vr)
          {
-            H1elem_restrict->AbsMultTranspose(localY, y);
+            elem_restrict->AbsMultTranspose(localY, y);
          }
          else
          {
@@ -453,7 +486,7 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
       for (int i = 0; i < iSz; ++i)
       {
          assemble_diagonal_with_markers(*integrators[i], elem_markers[i],
-                                        *elem_attributes, y);
+                                        *elem_attributes, nullptr, y);
       }
    }
 
@@ -466,7 +499,8 @@ void PABilinearFormExtension::AssembleDiagonal(Vector &y) const
       for (int i = 0; i < n_bdr_integs; ++i)
       {
          assemble_diagonal_with_markers(*bdr_integs[i], bdr_markers[i],
-                                        *bdr_face_attributes, bdr_face_Y);
+                                        *bdr_face_attributes, nullptr,
+                                        bdr_face_Y);
       }
       bdr_face_restrict_lex->AddAbsMultTranspose(bdr_face_Y, y);
    }
@@ -553,9 +587,11 @@ void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
          Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
          auto H1elem_restrict =
             dynamic_cast<const ElementRestriction*>(elem_restrict);
-         if (H1elem_restrict && useAbs)
+         const auto *vr =
+            dynamic_cast<const VarOrderElementRestriction*>(elem_restrict);
+         if ((H1elem_restrict || vr) && useAbs)
          {
-            H1elem_restrict->AbsMult(x, localX);
+            elem_restrict->AbsMult(x, localX);
          }
          else
          {
@@ -565,11 +601,11 @@ void PABilinearFormExtension::MultInternal(const Vector &x, Vector &y,
          for (int i = 0; i < iSz; ++i)
          {
             AddMultWithMarkers(*integrators[i], localX, elem_markers[i],
-                               *elem_attributes, false, localY, useAbs);
+                               *elem_attributes, false, localY, useAbs, vr);
          }
-         if (H1elem_restrict && useAbs)
+         if ((H1elem_restrict || vr) && useAbs)
          {
-            H1elem_restrict->AbsMultTranspose(localY, y);
+            elem_restrict->AbsMultTranspose(localY, y);
          }
          else
          {
@@ -702,12 +738,14 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    if (elem_restrict)
    {
       Array<Array<int>*> &elem_markers = *a->GetDBFI_Marker();
+      const auto *vr =
+         dynamic_cast<const VarOrderElementRestriction*>(elem_restrict);
       elem_restrict->Mult(x, localX);
       localY = 0.0;
       for (int i = 0; i < iSz; ++i)
       {
          AddMultWithMarkers(*integrators[i], localX, elem_markers[i], *elem_attributes,
-                            true, localY);
+                            true, localY, false, vr);
       }
       elem_restrict->MultTranspose(localY, y);
    }
@@ -767,6 +805,42 @@ void PABilinearFormExtension::MultTranspose(const Vector &x, Vector &y) const
    }
 }
 
+static void AddWithMarkersVarOrder_(
+   const VarOrderElementRestriction &vr,
+   const Vector &x,
+   const Array<int> &markers,
+   const Array<int> &attributes,
+   Vector &y)
+{
+   if (attributes.Size() == 0) { return; }
+   MFEM_VERIFY(markers.Size() >= attributes.Max(),
+               "Attribute marker array is shorter than max element attribute.");
+   const int vdim = vr.GetVDim();
+   const real_t *d_x = x.Read();
+   const int *d_m = markers.Read();
+   const int *d_attr = attributes.Read();
+   real_t *d_y = y.ReadWrite();
+   const int n_groups = vr.GetNumGroups();
+   for (int g = 0; g < n_groups; ++g)
+   {
+      const int ne_g = vr.GetGroupNE(g);
+      if (ne_g == 0) { continue; }
+      const int nd_g = vr.GetGroupDofs(g) * vdim;
+      const int off_g = vr.GetGroupOffset(g);
+      const int *d_elems = vr.GetGroupElements(g).Read();
+      mfem::forall(ne_g, [=] MFEM_HOST_DEVICE (int ge)
+      {
+         const int attr = d_attr[d_elems[ge]];
+         if (attr <= 0 || d_m[attr - 1] == 0) { return; }
+         const int base = off_g + nd_g * ge;
+         for (int i = 0; i < nd_g; ++i)
+         {
+            d_y[base + i] += d_x[base + i];
+         }
+      });
+   }
+}
+
 void PABilinearFormExtension::AddMultNormalDerivativesWithMarkers(
    const BilinearFormIntegrator &integ,
    const Vector &x,
@@ -805,7 +879,8 @@ void PABilinearFormExtension::AddMultWithMarkers(
    const Array<int> &attributes,
    const bool transpose,
    Vector &y,
-   const bool useAbs) const
+   const bool useAbs,
+   const VarOrderElementRestriction *vr) const
 {
    if (markers)
    {
@@ -821,9 +896,16 @@ void PABilinearFormExtension::AddMultWithMarkers(
          if (transpose) { integ.AddMultTransposePA(x, tmp_evec); }
          else { integ.AddMultPA(x, tmp_evec); }
       }
-      const int ne = attributes.Size();
-      const int nd = x.Size() / ne;
-      AddWithMarkers_(ne, nd, tmp_evec, *markers, attributes, y);
+      if (vr)
+      {
+         AddWithMarkersVarOrder_(*vr, tmp_evec, *markers, attributes, y);
+      }
+      else if (attributes.Size() > 0)
+      {
+         const int ne = attributes.Size();
+         const int nd = x.Size() / ne;
+         AddWithMarkers_(ne, nd, tmp_evec, *markers, attributes, y);
+      }
    }
    else
    {
@@ -853,6 +935,8 @@ EABilinearFormExtension::EABilinearFormExtension(BilinearForm *form)
 
 void EABilinearFormExtension::Assemble()
 {
+   MFEM_VERIFY(!trial_fes->IsVariableOrder(),
+               "EABilinearFormExtension does not support variable-order spaces.");
    SetupRestrictionOperators(L2FaceValues::SingleValued);
 
    ne = trial_fes->GetMesh()->GetNE();
@@ -1728,6 +1812,8 @@ PAMixedBilinearFormExtension::PAMixedBilinearFormExtension(
 
 void PAMixedBilinearFormExtension::Assemble()
 {
+   MFEM_VERIFY(!trial_fes->IsVariableOrder() && !test_fes->IsVariableOrder(),
+               "PAMixedBilinearFormExtension does not support variable-order spaces.");
    Array<BilinearFormIntegrator*> &integrators = *a->GetDBFI();
    const int integratorCount = integrators.Size();
    for (int i = 0; i < integratorCount; ++i)

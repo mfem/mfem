@@ -19,6 +19,8 @@
 #include "../general/forall.hpp"
 
 #include <climits>
+#include <map>
+#include <utility>
 
 namespace mfem
 {
@@ -297,6 +299,254 @@ void ElementRestriction::FillSparseMatrix(const Vector &mat_ea,
    mat.GetMemoryJ().New(nnz, mat.GetMemoryJ().GetMemoryType());
    mat.GetMemoryData().New(nnz, mat.GetMemoryData().GetMemoryType());
    FillJAndData(mat_ea, mat);
+}
+
+VarOrderElementRestriction::VarOrderElementRestriction(
+   const FiniteElementSpace &f, ElementDofOrdering e_ordering)
+   : fes(f),
+     ne(fes.GetNE()),
+     vdim(fes.GetVDim()),
+     byvdim(fes.GetOrdering() == Ordering::byVDIM),
+     ndofs(fes.GetNDofs()),
+     offsets(ndofs + 1)
+{
+   MFEM_VERIFY(!f.IsDGSpace(),
+               "VarOrderElementRestriction does not support DG spaces.");
+
+   width = fes.GetVSize();
+   height = 0;
+
+   if (ne == 0)
+   {
+      offsets = 0;
+      return;
+   }
+
+   const Mesh *mesh = fes.GetMesh();
+   const bool dof_reorder = (e_ordering == ElementDofOrdering::LEXICOGRAPHIC);
+
+   std::map<std::pair<Geometry::Type, int>, std::vector<int>> group_elems;
+   for (int e = 0; e < ne; ++e)
+   {
+      const std::pair<Geometry::Type, int> key(
+         mesh->GetElementGeometry(e), fes.GetElementOrder(e));
+      group_elems[key].push_back(e);
+   }
+   groups.reserve(group_elems.size());
+   for (const auto &kv : group_elems)
+   {
+      groups.emplace_back();
+      Group &g = groups.back();
+      g.geom = kv.first.first;
+      g.order = kv.first.second;
+      g.elems.SetSize(static_cast<int>(kv.second.size()));
+      for (size_t i = 0; i < kv.second.size(); ++i)
+      {
+         g.elems[static_cast<int>(i)] = kv.second[i];
+      }
+   }
+
+   std::vector<const int*> group_dof_maps(groups.size(), nullptr);
+   for (size_t gi = 0; gi < groups.size(); ++gi)
+   {
+      Group &g = groups[gi];
+      const FiniteElement *fe = fes.GetFE(g.elems[0]);
+      g.dof = fe->GetDof();
+      g.offset = height;
+      const int ne_g = g.elems.Size();
+      height += g.dof * vdim * ne_g;
+      g.gather_map.SetSize(g.dof * ne_g);
+
+      if (dof_reorder)
+      {
+         for (int ge = 0; ge < ne_g; ++ge)
+         {
+            const FiniteElement *fe_e = fes.GetFE(g.elems[ge]);
+            const bool ok =
+               dynamic_cast<const TensorBasisElement*>(fe_e) != nullptr ||
+               dynamic_cast<const NodalFiniteElement*>(fe_e) != nullptr;
+            MFEM_VERIFY(ok,
+                        "Finite element not suitable for lexicographic ordering");
+         }
+         auto el_t = dynamic_cast<const TensorBasisElement*>(fe);
+         auto el_n = dynamic_cast<const NodalFiniteElement*>(fe);
+         const Array<int> &fe_dof_map =
+            el_n ? el_n->GetLexicographicOrdering() : el_t->GetDofMap();
+         MFEM_VERIFY(fe_dof_map.Size() == g.dof, "Invalid lexicographic dof map");
+         group_dof_maps[gi] = fe_dof_map.HostRead();
+      }
+   }
+
+   offsets = 0;
+   Array<int> el_dofs;
+   DofTransformation doftrans;
+   for (size_t gi = 0; gi < groups.size(); ++gi)
+   {
+      const Group &g = groups[gi];
+      const int ne_g = g.elems.Size();
+      for (int ge = 0; ge < ne_g; ++ge)
+      {
+         const int e = g.elems[ge];
+         fes.GetElementDofs(e, el_dofs, doftrans);
+         MFEM_VERIFY(doftrans.IsIdentity(),
+                     "VarOrderElementRestriction does not support spaces "
+                     "requiring DofTransformation.");
+         MFEM_VERIFY(el_dofs.Size() == g.dof,
+                     "Unexpected element DOF count in VarOrderElementRestriction.");
+         for (int d = 0; d < g.dof; ++d)
+         {
+            const int sgid = el_dofs[d];
+            const int gid = (sgid >= 0) ? sgid : -1 - sgid;
+            ++offsets[gid + 1];
+         }
+      }
+   }
+
+   for (int i = 1; i <= ndofs; ++i)
+   {
+      offsets[i] += offsets[i - 1];
+   }
+
+   const int total_edofs = offsets[ndofs];
+   indices.SetSize(total_edofs);
+   if (vdim > 1)
+   {
+      vdim_strides.SetSize(total_edofs);
+   }
+
+   for (size_t gi = 0; gi < groups.size(); ++gi)
+   {
+      Group &g = groups[gi];
+      const int ne_g = g.elems.Size();
+      const int dof_g = g.dof;
+      const int *dof_map = group_dof_maps[gi];
+      for (int ge = 0; ge < ne_g; ++ge)
+      {
+         const int e = g.elems[ge];
+         fes.GetElementDofs(e, el_dofs, doftrans);
+         for (int d = 0; d < dof_g; ++d)
+         {
+            const int sdid = dof_reorder ? dof_map[d] : 0;
+            const int did = dof_reorder ? (sdid >= 0 ? sdid : -1 - sdid) : d;
+            const int sgid = el_dofs[did];
+            const int gid = (sgid >= 0) ? sgid : -1 - sgid;
+            const bool plus = (sgid >= 0 && sdid >= 0) || (sgid < 0 && sdid < 0);
+            g.gather_map[ge * dof_g + d] = plus ? gid : -1 - gid;
+
+            const int evec_base = g.offset + d + dof_g * vdim * ge;
+            const int pos = offsets[gid]++;
+            indices[pos] = plus ? evec_base : -1 - evec_base;
+            if (vdim > 1)
+            {
+               vdim_strides[pos] = dof_g;
+            }
+         }
+      }
+   }
+
+   for (int i = ndofs; i > 0; --i)
+   {
+      offsets[i] = offsets[i - 1];
+   }
+   offsets[0] = 0;
+}
+
+template <bool ABS>
+void VarOrderElementRestriction::TMult(const Vector &x, Vector &y) const
+{
+   if (height == 0)
+   {
+      return;
+   }
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_x = Reshape(x.Read(), t ? vd : ndofs, t ? ndofs : vd);
+   real_t *y_ptr = y.Write();
+   for (const Group &g : groups)
+   {
+      const int ne_g = g.elems.Size();
+      if (ne_g == 0) { continue; }
+      const int nd = g.dof;
+      auto d_y = Reshape(y_ptr + g.offset, nd, vd, ne_g);
+      auto d_gather_map = g.gather_map.Read();
+      mfem::forall(nd * ne_g, [=] MFEM_HOST_DEVICE (int i)
+      {
+         const int gid = d_gather_map[i];
+         const bool plus = (gid >= 0);
+         const int j = plus ? gid : -1 - gid;
+         for (int c = 0; c < vd; ++c)
+         {
+            const real_t dof_value = d_x(t ? c : j, t ? j : c);
+            d_y(i % nd, c, i / nd) = (ABS || plus) ? dof_value : -dof_value;
+         }
+      });
+   }
+}
+
+void VarOrderElementRestriction::Mult(const Vector &x, Vector &y) const
+{
+   TMult<false>(x, y);
+}
+
+void VarOrderElementRestriction::AbsMult(const Vector &x, Vector &y) const
+{
+   TMult<true>(x, y);
+}
+
+template <bool ADD, bool ABS>
+void VarOrderElementRestriction::TAddMultTranspose(
+   const Vector &x, Vector &y, const real_t a) const
+{
+   if (ndofs == 0)
+   {
+      return;
+   }
+   const int vd = vdim;
+   const bool t = byvdim;
+   auto d_offsets = offsets.Read();
+   auto d_indices = indices.Read();
+   const int *d_strides = (vd > 1) ? vdim_strides.Read() : nullptr;
+   const real_t *d_x = (height > 0) ? x.Read() : nullptr;
+   auto d_y = Reshape(ADD ? y.ReadWrite() : y.Write(),
+                      t ? vd : ndofs, t ? ndofs : vd);
+
+   mfem::forall(ndofs, [=] MFEM_HOST_DEVICE (int i)
+   {
+      const int offset = d_offsets[i];
+      const int next_offset = d_offsets[i + 1];
+      for (int c = 0; c < vd; ++c)
+      {
+         real_t dof_value = 0.0;
+         for (int j = offset; j < next_offset; ++j)
+         {
+            const int raw = d_indices[j];
+            const bool plus = (raw >= 0);
+            const int evec_base = plus ? raw : -1 - raw;
+            const int stride = (vd > 1) ? d_strides[j] : 0;
+            const real_t val = d_x[evec_base + c * stride];
+            dof_value += (ABS || plus) ? val : -val;
+         }
+         if (ADD) { d_y(t ? c : i, t ? i : c) += a * dof_value; }
+         else { d_y(t ? c : i, t ? i : c) = a * dof_value; }
+      }
+   });
+}
+
+void VarOrderElementRestriction::MultTranspose(const Vector &x, Vector &y) const
+{
+   TAddMultTranspose<false, false>(x, y, 1.0);
+}
+
+void VarOrderElementRestriction::AddMultTranspose(
+   const Vector &x, Vector &y, const real_t a) const
+{
+   TAddMultTranspose<true, false>(x, y, a);
+}
+
+void VarOrderElementRestriction::AbsMultTranspose(
+   const Vector &x, Vector &y) const
+{
+   TAddMultTranspose<false, true>(x, y, 1.0);
 }
 
 static MFEM_HOST_DEVICE int GetMinElt(const int *my_elts, const int nbElts,
@@ -627,6 +877,7 @@ ConformingFaceRestriction::ConformingFaceRestriction(
 {
    height = vdim*nf*face_dofs;
    width = fes.GetVSize();
+   MFEM_VERIFY(!fes.IsVariableOrder(), "Variable-order spaces are not supported.");
    if (nf==0) { return; }
 
    CheckFESpace(f_ordering);
@@ -743,6 +994,7 @@ void ConformingFaceRestriction::AddAbsMultTranspose(
 void ConformingFaceRestriction::CheckFESpace(const ElementDofOrdering
                                              f_ordering)
 {
+   MFEM_VERIFY(!fes.IsVariableOrder(), "Variable-order spaces are not supported.");
 #ifdef MFEM_USE_MPI
 
    // If the underlying finite element space is parallel, ensure the face
@@ -1226,6 +1478,7 @@ void L2FaceRestriction::AddFaceMatricesToElementMatrices(const Vector &fea_data,
 
 void L2FaceRestriction::CheckFESpace()
 {
+   MFEM_VERIFY(!fes.IsVariableOrder(), "Variable-order spaces are not supported.");
 #ifdef MFEM_USE_MPI
 
    // If the underlying finite element space is parallel, ensure the face

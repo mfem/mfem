@@ -1494,14 +1494,28 @@ const ElementRestrictionOperator *FiniteElementSpace::GetElementRestriction(
    {
       if (L2E_lex.Ptr() == NULL)
       {
-         L2E_lex.Reset(new ElementRestriction(*this, e_ordering));
+         if (IsVariableOrder())
+         {
+            L2E_lex.Reset(new VarOrderElementRestriction(*this, e_ordering));
+         }
+         else
+         {
+            L2E_lex.Reset(new ElementRestriction(*this, e_ordering));
+         }
       }
       return L2E_lex.Is<ElementRestrictionOperator>();
    }
    // e_ordering == ElementDofOrdering::NATIVE
    if (L2E_nat.Ptr() == NULL)
    {
-      L2E_nat.Reset(new ElementRestriction(*this, e_ordering));
+      if (IsVariableOrder())
+      {
+         L2E_nat.Reset(new VarOrderElementRestriction(*this, e_ordering));
+      }
+      else
+      {
+         L2E_nat.Reset(new ElementRestriction(*this, e_ordering));
+      }
    }
    return L2E_nat.Is<ElementRestrictionOperator>();
 }
