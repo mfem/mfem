@@ -60,6 +60,7 @@ set(UNIT_TESTS_SRCS
   linalg/test_complex_operator.cpp
   linalg/test_constrainedsolver.cpp
   linalg/test_direct_solvers.cpp
+  linalg/test_dual.cpp
   linalg/test_hypre_ilu.cpp
   linalg/test_hypre_prec.cpp
   linalg/test_hypre_vector.cpp
