@@ -11,6 +11,8 @@
 
 set(SRCS
   attribute_sets.cpp
+  orientededgeset.cpp
+  entsets.cpp
   element.cpp
   exodus_writer.cpp
   face_nbr_geom.cpp
@@ -43,6 +45,8 @@ set(SRCS
 
 set(HDRS
   attribute_sets.hpp
+  orientededgeset.hpp
+  entsets.hpp
   element.hpp
   face_nbr_geom.hpp
   hexahedron.hpp
@@ -74,6 +78,7 @@ set(HDRS
 
 if (MFEM_USE_MPI)
   list(APPEND SRCS
+    pentsets.cpp
     pmesh.cpp
     pncmesh.cpp
     submesh/pncsubmesh.cpp
@@ -82,6 +87,7 @@ if (MFEM_USE_MPI)
   # If this list (HDRS -> HEADERS) is used for install, we probably want the
   # headers added all the time.
   list(APPEND HDRS
+    pentsets.hpp
     pmesh.hpp
     pncmesh.hpp
     submesh/pncsubmesh.hpp

@@ -6,6 +6,7 @@ namespace mfem {
  *
  * - Mesh
  * - NCMesh
+ * - EntitySets
  * - Element
  * - ElementTransformation
  *

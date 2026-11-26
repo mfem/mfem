@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-/// A set of integers
+/// A sorted, unique set of integers.
 class IntegerSet : public Array<int>
 {
 public:
@@ -74,6 +74,9 @@ public:
 
    /// Write the list of sets into table 't'.
    void AsTable(Table &t) const;
+
+   inline const IntegerSet & operator[](int i) const { return *TheList[i]; }
+   inline IntegerSet & operator[](int i) { return *TheList[i]; }
 
    ~ListOfIntegerSets();
 };
