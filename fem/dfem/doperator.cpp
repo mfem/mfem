@@ -257,6 +257,84 @@ std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
    mult_level == MultLevel::LVECTOR);
 }
 
+void DifferentiableOperator::GetDerivatives(
+   const size_t *derivative_ids, const size_t n, const MultiVector &x,
+   const bool use_cached_setup,
+   std::shared_ptr<DerivativeOperator> *derivatives)
+{
+   // Matrix-free: the same as GetDerivative() for each ID, as the direct
+   // actions need the state of each derivative.
+   if (!use_cached_setup)
+   {
+      for (size_t i = 0; i < n; i++)
+      {
+         derivatives[i] = GetDerivative(derivative_ids[i], x, false);
+      }
+      return;
+   }
+
+   // Cached: the derivatives get no state, their caches are filled together.
+   const MultiVector *no_state = nullptr;
+   const DerivativeCallbackSet<size_t> callbacks
+   {
+      domain_integrators, boundary_integrators, qp_cache_pool,
+      derivative_outfds
+   };
+
+   // Build the derivatives, without setting them up yet.
+   for (size_t i = 0; i < n; i++)
+   {
+      derivatives[i] = MakeDerivativeOperator(
+                          derivative_ids[i], no_state, infds, outfds,
+                          callbacks, true,
+                          mult_level == MultLevel::LVECTOR,
+                          IsFunctionalDerivative(derivative_ids[i]));
+   }
+
+   // Fill the caches of all of them at once.
+   DerivativeOperator::EnsureQpCaches(derivatives, n, x);
+}
+
+void DifferentiableOperator::GetSecondDerivatives(
+   const second_derivative_key_t *keys, const size_t n, const MultiVector &x,
+   const bool use_cached_setup,
+   std::shared_ptr<DerivativeOperator> *derivatives)
+{
+   // Matrix-free: the same as GetSecondDerivative() for each block, as the
+   // direct actions need the state of each derivative.
+   if (!use_cached_setup)
+   {
+      for (size_t i = 0; i < n; i++)
+      {
+         derivatives[i] =
+            GetSecondDerivative(keys[i].first, keys[i].second, x, false);
+      }
+      return;
+   }
+
+   MFEM_ASSERT(HasFunctionalIntegrator(),
+               "second derivatives are available only for functionals");
+
+   // Cached: the derivatives get no state, their caches are filled together.
+   const MultiVector *no_state = nullptr;
+   const DerivativeCallbackSet<second_derivative_key_t> callbacks
+   {
+      domain_integrators, boundary_integrators, qp_cache_pool,
+      second_derivative_outfds
+   };
+
+   // Build the derivatives, without setting them up yet.
+   for (size_t i = 0; i < n; i++)
+   {
+      derivatives[i] = MakeDerivativeOperator(
+                          keys[i], no_state, infds, outfds, callbacks, true,
+                          mult_level == MultLevel::LVECTOR);
+   }
+
+   // Fill the caches of all of them at once.
+   DerivativeOperator::EnsureQpCaches(derivatives, n, x);
+}
+
 bool DifferentiableOperator::HasSecondDerivative(size_t gradient_id,
                                                  size_t direction_id) const
 {

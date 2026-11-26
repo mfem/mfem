@@ -608,18 +608,11 @@ public:
       functional_gradient(functional_gradient),
       cached_apply(cached_apply)
    {
-      // The cached apply was asked for explicitly, so a missing one is an
-      // error here. A missing direct action is only an error in Mult(), as
-      // the derivative may be only transposed or assembled.
-      if (cached_apply)
-      {
-         MFEM_VERIFY(!functional_gradient,
-                     name << " is the gradient of a functional, which has "
-                           "no cached apply; drop use_cached_setup");
-         VerifyKernel(DerivativeKernels::Apply,
-                      "; either add it to all of them or drop "
-                      "use_cached_setup to use the direct action");
-      }
+      // A missing cached apply or direct action is only an error in Mult(),
+      // as the derivative may be only transposed or assembled.
+      MFEM_VERIFY(!(cached_apply && functional_gradient),
+                  name << " is the gradient of a functional, which has "
+                  "no cached apply; drop use_cached_setup");
       daction_l.resize(outfds.size());
 
       // Pre-allocate transpose workspace.
@@ -795,8 +788,13 @@ public:
    template <typename vector_t>
    void Mult(const Vector &x, vector_t &y) const
    {
-      // A missing cached apply was rejected by the constructor already.
-      if (!cached_apply)
+      if (cached_apply)
+      {
+         VerifyKernel(DerivativeKernels::Apply,
+                      "; either add it to all of them or drop "
+                      "use_cached_setup to use the direct action");
+      }
+      else
       {
          VerifyKernel(DerivativeKernels::Action,
                       "; either add it to all of them or, if all of them "
@@ -1151,6 +1149,9 @@ public:
    }
 
 private:
+   /// GetDerivatives() and GetSecondDerivatives() use EnsureQpCaches().
+   friend class DifferentiableOperator;
+
    /// The single non-null row block of @a blocks, for the scalar Assemble
    /// overloads.
    template <typename mat_t>
@@ -1233,35 +1234,100 @@ private:
          return;
       }
 
-      for (auto *k : AllIntegrators())
-      {
-         if (!k->callbacks.setup.empty())
-         {
-            k->ev.RestrictInputs(infds, infields_l);
-         }
-      }
-      for (size_t i = 0; i < captured_state.size(); i++)
-      {
-         captured_state[i]->SyncMemory(*infields_l[i]);
-      }
+      // The pool the caches are taken from.
       const auto pool = qp_cache_pool.lock();
       MFEM_VERIFY(pool, "the derivative is used after the "
                   "DifferentiableOperator it was taken from was destroyed");
+
+      // Per entity type: restrict the state, take the caches, run the
+      // setups.
       for (auto *k : AllIntegrators())
       {
+         if (k->callbacks.setup.empty()) { continue; }
+         k->ev.RestrictInputs(infds, infields_l);
          for (size_t slot : k->callbacks.cache_slots)
          {
             pool->Take(slot, qp_caches[slot]);
          }
-      }
-      for (auto *k : AllIntegrators())
-      {
          for (const auto &setup_callback : k->callbacks.setup)
          {
             setup_callback(k->ev.in_e, qp_caches);
          }
       }
+
+      // Under LVECTOR, sync the user's state the L-vectors alias.
+      for (size_t i = 0; i < captured_state.size(); i++)
+      {
+         captured_state[i]->SyncMemory(*infields_l[i]);
+      }
       qp_cache_filled = true;
+   }
+
+   /// @brief EnsureQpCache() for several derivatives at the state @a x,
+   /// prolonged and restricted once for all of them.
+   ///
+   /// Here the derivatives have no state, so the state is prolonged and
+   /// restricted once, used by the setups of all of them, and freed.
+   static void EnsureQpCaches(
+      const std::shared_ptr<DerivativeOperator> *derivatives, const size_t n,
+      const MultiVector &x)
+   {
+      // Pool and input fields, shared by all the derivatives.
+      const DerivativeOperator &first = *derivatives[0];
+      const auto pool = first.qp_cache_pool.lock();
+
+      // Prolong the state once.
+      std::vector<Vector *> state_l(first.infds.size());
+      for (size_t i = 0; i < first.infds.size(); i++)
+      {
+         state_l[i] = new Vector(GetVSize(first.infds[i]));
+         state_l[i]->UseDevice(true);
+      }
+      prolongation(first.infds, x, state_l, first.lvector_mode);
+
+      // E-vectors per entity type, restricted once, on first use.
+      std::array<detail::EntityEVectors, 2> state_e
+      {
+         {
+            detail::EntityEVectors(first.domain_integrators.ev, 0, false),
+            detail::EntityEVectors(first.boundary_integrators.ev, 0, false)
+         }
+      };
+      std::array<bool, 2> restricted {};
+
+      // Take the caches of each derivative and run its setups.
+      for (size_t i = 0; i < n; i++)
+      {
+         const auto &d = derivatives[i];
+         for (auto *k : d->AllIntegrators())
+         {
+            if (k->callbacks.setup.empty()) { continue; }
+            // The entity type of k, in the order of AllIntegrators().
+            const size_t t = (k == &d->domain_integrators) ? 0 : 1;
+            if (!restricted[t])
+            {
+               state_e[t].RestrictInputs(first.infds, state_l);
+               restricted[t] = true;
+            }
+            for (size_t slot : k->callbacks.cache_slots)
+            {
+               pool->Take(slot, d->qp_caches[slot]);
+            }
+            for (const auto &setup_callback : k->callbacks.setup)
+            {
+               setup_callback(state_e[t].in_e, d->qp_caches);
+            }
+         }
+         d->qp_cache_filled = true;
+      }
+
+      // Under LVECTOR, sync the user's state the L-vectors alias.
+      if (first.lvector_mode) { detail::SyncLVectorAliasMemory(x, state_l); }
+
+      // Free the state: the derivatives only keep their caches.
+      std::vector<Vector *> deleted;
+      detail::DeleteOwnedVectorPointersImpl(deleted, state_l);
+      for (auto &e : state_e) { e.DeleteOwned(deleted); }
    }
 
    /// The integrators of every entity type, the domain integrators first.
@@ -1614,9 +1680,9 @@ public:
    /// The returned operator uses the direct derivative-action callbacks by
    /// default. When @a use_cached_setup is true it uses the cached
    /// derivative-apply callbacks instead, which requires every integrator that
-   /// registered the derivative to have DerivativeKernels::Apply; asking for
-   /// them without it is an error reported here. The gradient of a functional
-   /// has no cached apply. A missing direct action (DerivativeKernels::Action)
+   /// registered the derivative to have DerivativeKernels::Apply. The gradient
+   /// of a functional has no cached apply. A missing cached apply
+   /// (DerivativeKernels::Apply) or direct action (DerivativeKernels::Action)
    /// is only reported by DerivativeOperator::Mult(), as the derivative may
    /// only be transposed or assembled.
    ///
@@ -1718,6 +1784,57 @@ public:
       size_t gradient_id, size_t direction_id, const MultiVector &x,
       const bool use_cached_setup = false);
 
+   ///--------------------------------------------------------------
+   /// Collective retrieval of first/second derivatives
+   /// with multiple derivative IDs.
+   ///---------------------------------------------------------------
+
+   /// @brief Create the derivative operators for several derivative IDs at
+   /// the same state.
+   ///
+   /// With @a use_cached_setup, the qp caches of all of them are set up here,
+   /// together (state prolonged/restricted once, and operators keep only their
+   /// caches).
+   ///
+   /// Without (for matrix-free action) this is equivalent to calling
+   /// GetDerivative(size_t, const MultiVector &, bool) for each ID separately.
+   ///
+   /// The number of IDs is deduced from the braced list, so the operators
+   /// can be bound by name:
+   /// @code
+   /// auto [dRdU, dRdP] = F.GetDerivatives({U, P}, x, true);
+   /// @endcode
+   ///
+   /// @param derivative_ids The derivative IDs to be computed.
+   /// @param x Current state stored in a MultiVector.
+   /// @param use_cached_setup Whether to use the cached derivative-apply
+   /// callbacks instead of the direct derivative actions.
+   /// @return One operator per ID, in the order of @a derivative_ids.
+   template <size_t N>
+   std::array<std::shared_ptr<DerivativeOperator>, N> GetDerivatives(
+      const size_t (&derivative_ids)[N], const MultiVector &x,
+      const bool use_cached_setup = false)
+   {
+      std::array<std::shared_ptr<DerivativeOperator>, N> derivatives;
+      GetDerivatives(derivative_ids, N, x, use_cached_setup,
+                     derivatives.data());
+      return derivatives;
+   }
+
+   /// @brief Create the second derivative operators of a functional for
+   /// several (gradient_id, direction_id) blocks at the same state.
+   /// Same as GetDerivatives(), but second derivatives require pairs
+   /// for @a keys, see second_derivative_key_t.
+   template <size_t N>
+   std::array<std::shared_ptr<DerivativeOperator>, N> GetSecondDerivatives(
+      const second_derivative_key_t (&keys)[N], const MultiVector &x,
+      const bool use_cached_setup = false)
+   {
+      std::array<std::shared_ptr<DerivativeOperator>, N> derivatives;
+      GetSecondDerivatives(keys, N, x, use_cached_setup, derivatives.data());
+      return derivatives;
+   }
+
    /// @brief Returns true if the second derivative block
    /// d/d(direction_id) grad_(gradient_id) has been registered, i.e. if it was
    /// requested through the SecondDerivatives of one of the integrators.
@@ -1770,6 +1887,19 @@ public:
    ///@}
 
 private:
+   /// GetDerivatives() for the @a n IDs @a derivative_ids, into the @a n
+   /// operators @a derivatives.
+   void GetDerivatives(const size_t *derivative_ids, const size_t n,
+                       const MultiVector &x, const bool use_cached_setup,
+                       std::shared_ptr<DerivativeOperator> *derivatives);
+
+   /// GetSecondDerivatives() for the @a n blocks @a keys, into the @a n
+   /// operators @a derivatives.
+   void GetSecondDerivatives(const second_derivative_key_t *keys,
+                             const size_t n, const MultiVector &x,
+                             const bool use_cached_setup,
+                             std::shared_ptr<DerivativeOperator> *derivatives);
+
    bool HasFunctionalIntegrator() const
    {
       return has_functional_integrator;
