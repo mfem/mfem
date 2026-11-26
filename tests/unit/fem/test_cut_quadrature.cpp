@@ -23,6 +23,7 @@ real_t Measure(const IntegrationRule &rule)
    return result;
 }
 
+#ifdef MFEM_USE_LAPACK
 real_t MonomialMoment(const IntegrationRule &rule,
                       int x_degree, int y_degree = 0, int z_degree = 0)
 {
@@ -35,6 +36,7 @@ real_t MonomialMoment(const IntegrationRule &rule,
    }
    return result;
 }
+#endif
 
 class TestCutBackend : public CutQuadratureBackend
 {
