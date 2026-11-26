@@ -25,8 +25,8 @@ struct AlgoimPolynomial
 {
    int dimension = 0;
    int extent = 0;
-   std::vector<real_t> coefficients;
-   std::array<std::vector<real_t>, 3> derivatives;
+   std::vector<algoim::real> coefficients;
+   std::array<std::vector<algoim::real>, 3> derivatives;
 
    void Set(const PolynomialLevelSet &level_set);
    CutQuadratureReport Classify(CutDomain::LevelSetSign sign,
@@ -43,7 +43,7 @@ struct AlgoimPolynomial
                            coefficients : derivatives[derivative];
       std::vector<Scalar> values;
       values.reserve(source.size());
-      for (real_t value : source)
+      for (algoim::real value : source)
       {
          values.emplace_back(value);
       }
@@ -153,7 +153,7 @@ CutQuadratureReport AlgoimPolynomial::Classify(
    region = Region::Cut;
    const auto bounds = std::minmax_element(coefficients.begin(),
                                            coefficients.end());
-   const real_t lower = *bounds.first, upper = *bounds.second;
+   const algoim::real lower = *bounds.first, upper = *bounds.second;
    const bool surface = sign == CutDomain::LevelSetSign::Zero;
    if (lower == 0 && upper == 0)
    {
@@ -176,7 +176,7 @@ CutQuadratureReport AlgoimPolynomial::Classify(
       {
          for (int side = 0; side < 2; ++side)
          {
-            real_t maximum = 0;
+            algoim::real maximum = 0;
             for (size_t index = 0; index < coefficients.size(); ++index)
             {
                if ((index / stride) % extent == size_t(side * (extent - 1)))
@@ -206,7 +206,9 @@ CutQuadratureReport AlgoimPolynomial::Classify(
    return {};
 }
 
-real_t Checked(real_t value)
+template <typename Scalar,
+          typename = std::enable_if_t<std::is_floating_point<Scalar>::value>>
+Scalar Checked(Scalar value)
 {
    if (!std::isfinite(value))
    {
@@ -245,7 +247,7 @@ public:
    }
 
 private:
-   algoim::uvector<real_t, Dimension> saved;
+   algoim::uvector<algoim::real, Dimension> saved;
 };
 
 template <int Dimension>
@@ -253,7 +255,7 @@ struct GeneralFunction
 {
    const ReferenceLevelSet &level_set;
    const AlgoimPolynomial *polynomial;
-   real_t sign;
+   algoim::real sign;
 
    template <typename Scalar>
    Scalar operator()(const algoim::uvector<Scalar, Dimension> &point) const
@@ -267,7 +269,7 @@ struct GeneralFunction
          }
          return Checked(polynomial->Evaluate(coordinates.data()) * sign);
       }
-      if constexpr (std::is_same<Scalar, real_t>::value)
+      if constexpr (std::is_same<Scalar, algoim::real>::value)
       {
          IntegrationPoint reference;
          reference.Init(0);
@@ -303,7 +305,7 @@ struct GeneralFunction
             result(axis) = polynomial->Evaluate(coords.data(), axis) * sign;
          }
       }
-      else if constexpr (std::is_same<Scalar, real_t>::value)
+      else if constexpr (std::is_same<Scalar, algoim::real>::value)
       {
          IntegrationPoint reference;
          reference.Init(0);
@@ -370,12 +372,12 @@ CutQuadratureReport ComputeGeneral(const ReferenceLevelSet &level_set,
       Interval::delta() = 0.5;
       for (int axis = 0; axis < Dimension; ++axis)
       {
-         algoim::uvector<real_t, Dimension> slope(0.0);
+         algoim::uvector<algoim::real, Dimension> slope(0.0);
          slope(axis) = 1;
          box(axis) = Interval(0.5, slope);
       }
       const auto value = function(box);
-      const real_t deviation = value.maxDeviation();
+      const algoim::real deviation = value.maxDeviation();
       if (!std::isfinite(value.alpha) ||
           !std::isfinite(deviation) || deviation < 0)
       {
@@ -431,7 +433,7 @@ CutQuadratureReport ComputeGeneral(const ReferenceLevelSet &level_set,
    const auto quadrature =
       algoim::quadGen<Dimension>(
          function,
-         algoim::HyperRectangle<real_t, Dimension>(0.0, 1.0),
+         algoim::HyperRectangle<algoim::real, Dimension>(0.0, 1.0),
          sign == CutDomain::LevelSetSign::Zero ? Dimension : -1,
          -1, order / 2 + 1);
    if (quadrature.nodes.size() > size_t(std::numeric_limits<int>::max()))
@@ -478,7 +480,7 @@ CutQuadratureReport GenerateAlgoimGeneral(
 #ifdef MFEM_USE_LAPACKE
 template <int Dimension>
 void CopyPolynomialCoefficients(const AlgoimPolynomial &polynomial,
-                                algoim::xarray<real_t, Dimension> &target)
+                                algoim::xarray<algoim::real, Dimension> &target)
 {
    for (auto indices = target.loop(); ~indices; ++indices)
    {
@@ -499,34 +501,35 @@ bool NearlyProportional(const AlgoimPolynomial &first,
    const int extent = std::max(first.extent, second.extent);
    const size_t count = std::max(first.coefficients.size(),
                                  second.coefficients.size());
-   std::array<std::vector<real_t>, 2> coefficients;
+   std::array<std::vector<algoim::real>, 2> coefficients;
    for (int index = 0; index < 2; ++index)
    {
       const auto &polynomial = index == 0 ? first : second;
-      std::vector<real_t> storage(polynomial.coefficients.size());
-      algoim::xarray<real_t, Dimension> source(
+      std::vector<algoim::real> storage(polynomial.coefficients.size());
+      algoim::xarray<algoim::real, Dimension> source(
          storage.data(),
          algoim::uvector<int, Dimension>(polynomial.extent));
       CopyPolynomialCoefficients(polynomial, source);
       coefficients[index].resize(count);
-      algoim::xarray<real_t, Dimension> elevated(
+      algoim::xarray<algoim::real, Dimension> elevated(
          coefficients[index].data(),
          algoim::uvector<int, Dimension>(extent));
       algoim::bernstein::bernsteinElevate(source, elevated);
       algoim::bernstein::normalise(elevated);
    }
-   real_t same_residual = 0, opposite_residual = 0;
+   algoim::real same_residual = 0, opposite_residual = 0;
    for (size_t index = 0; index < count; ++index)
    {
-      const real_t first_value = Checked(coefficients[0][index]);
-      const real_t second_value = Checked(coefficients[1][index]);
+      const algoim::real first_value = Checked(coefficients[0][index]);
+      const algoim::real second_value = Checked(coefficients[1][index]);
       same_residual = std::max(same_residual,
                                std::abs(first_value - second_value));
       opposite_residual = std::max(opposite_residual,
                                    std::abs(first_value + second_value));
    }
-   const real_t tolerance = 64 * real_t(Dimension) * extent *
-                            std::numeric_limits<real_t>::epsilon();
+   const algoim::real tolerance =
+      64 * algoim::real(Dimension) * extent *
+      std::numeric_limits<real_t>::epsilon();
    return std::min(same_residual, opposite_residual) <= tolerance;
 }
 
@@ -534,8 +537,8 @@ template <int Dimension>
 std::array<bool, Dimension> IndependentAxes(
    const AlgoimPolynomial &polynomial)
 {
-   std::vector<real_t> storage(polynomial.coefficients.size());
-   algoim::xarray<real_t, Dimension> reduced(
+   std::vector<algoim::real> storage(polynomial.coefficients.size());
+   algoim::xarray<algoim::real, Dimension> reduced(
       storage.data(),
       algoim::uvector<int, Dimension>(polynomial.extent));
    CopyPolynomialCoefficients(polynomial, reduced);
@@ -631,20 +634,21 @@ CutQuadratureReport ComputePolynomialRule(
          return {};
       }
    }
-   std::array<std::vector<real_t>, 2> storage;
-   std::vector<std::unique_ptr<algoim::xarray<real_t, Dimension>>> polynomials;
+   std::array<std::vector<algoim::real>, 2> storage;
+   std::vector<std::unique_ptr<
+      algoim::xarray<algoim::real, Dimension>>> polynomials;
    for (size_t index = 0; index < data.size(); ++index)
    {
       const auto &polynomial = data[index];
       storage[index].resize(polynomial.coefficients.size());
       polynomials.emplace_back(
-         new algoim::xarray<real_t, Dimension>(
+         new algoim::xarray<algoim::real, Dimension>(
             storage[index].data(),
             algoim::uvector<int, Dimension>(polynomial.extent)));
       auto &target = *polynomials.back();
       CopyPolynomialCoefficients(polynomial, target);
-      std::vector<real_t> reduced_storage = storage[index];
-      algoim::xarray<real_t, Dimension> reduced(
+      std::vector<algoim::real> reduced_storage = storage[index];
+      algoim::xarray<algoim::real, Dimension> reduced(
          reduced_storage.data(), target.ext());
       if (algoim::bernstein::autoReduction(reduced))
       {
@@ -670,8 +674,8 @@ CutQuadratureReport ComputePolynomialRule(
             *polynomials[0], *polynomials[1]));
    }
    std::vector<IntegrationPoint> nodes;
-   auto append = [&](const algoim::uvector<real_t, Dimension> &coordinates,
-                     real_t weight)
+   using AlgoimPoint = algoim::uvector<algoim::real, Dimension>;
+   auto append = [&](const AlgoimPoint &coordinates, algoim::real weight)
    {
       IntegrationPoint point;
       point.Init(0);
@@ -691,7 +695,7 @@ CutQuadratureReport ComputePolynomialRule(
    {
       quadrature->integrate_surf(
          algoim::AutoMixed, order / 2 + 1,
-         [&](const auto &coordinates, real_t weight, const auto &)
+         [&](const auto &coordinates, algoim::real weight, const auto &)
       {
          append(coordinates, weight);
       });
@@ -699,12 +703,13 @@ CutQuadratureReport ComputePolynomialRule(
    else
    {
       quadrature->integrate(algoim::AutoMixed, order / 2 + 1,
-                            [&](const auto &coordinates, real_t weight)
+                            [&](const auto &coordinates, algoim::real weight)
       {
          for (size_t index = 0; index < polynomials.size(); ++index)
          {
-            const real_t value = algoim::bernstein::evalBernsteinPoly(
-                                    *polynomials[index], coordinates);
+            const algoim::real value =
+               algoim::bernstein::evalBernsteinPoly(*polynomials[index],
+                                                     coordinates);
             if ((signs[index] == CutDomain::LevelSetSign::Positive &&
                  value <= 0) ||
                 (signs[index] == CutDomain::LevelSetSign::Negative &&
@@ -770,8 +775,8 @@ CutQuadratureReport GenerateAlgoimPolynomial(
               coefficient < polynomial.coefficients.size();
               ++coefficient)
          {
-            const real_t first = data[0].coefficients[coefficient];
-            const real_t second = polynomial.coefficients[coefficient];
+            const algoim::real first = data[0].coefficients[coefficient];
+            const algoim::real second = polynomial.coefficients[coefficient];
             same = same && first == second;
             opposite = opposite && first == -second;
          }

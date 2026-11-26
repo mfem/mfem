@@ -49,7 +49,9 @@ TEST_CASE("DenseMatrix embedded weights avoid Gram determinant cancellation",
    {
       for (real_t thickness : {real_t(1e-4), thin, thin / 16})
       {
-         DenseMatrix jacobian({{1., 1.}, {0., thickness}, {0., 2 * thickness}});
+         DenseMatrix jacobian(
+            {{real_t(1), real_t(1)}, {real_t(0), thickness},
+             {real_t(0), 2 * thickness}});
          jacobian *= scale;
          const real_t expected =
             std::sqrt(real_t(5)) * thickness * (scale * scale);
