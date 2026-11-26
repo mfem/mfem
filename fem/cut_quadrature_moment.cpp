@@ -1521,6 +1521,7 @@ void MomentFittingIntRules::GetVolumeIntegrationRule(ElementTransformation& Tr,
 namespace
 {
 
+#ifdef MFEM_USE_LAPACK
 CutQuadratureReport MomentFailure(CutQuadratureReport::Status status,
                                   const std::string &message)
 { return {status, message}; }
@@ -1554,7 +1555,6 @@ bool HasNonzeroWeight(const IntegrationRule &rule)
    return false;
 }
 
-#ifdef MFEM_USE_LAPACK
 class MomentBackend : public CutQuadratureBackend
 {
 public:
