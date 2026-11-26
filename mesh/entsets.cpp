@@ -1,0 +1,1393 @@
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+
+
+#include "entsets.hpp"
+#include "mesh.hpp"
+using namespace std;
+
+namespace mfem
+{
+
+map<EntitySets::EntityType,string> EntitySets::EntityTypeNames =
+   EntitySets::init_type_names();
+
+map<EntitySets::EntityType,string> EntitySets::init_type_names()
+{
+   map<EntityType,string> m;
+
+   m[INVALID] = "INVALID";
+   m[VERTEX]  = "VERTEX";
+   m[EDGE]    = "EDGE";
+   m[FACE]    = "FACE";
+   m[ELEMENT] = "ELEMENT";
+
+   return m;
+}
+
+EntitySets::EntitySets(Mesh & mesh)
+   : mesh_(&mesh),
+     edge_vertex_(NULL),
+     face_vertex_(NULL),
+     face_edge_(NULL),
+     NumOfVertices_(mesh.GetNV()),
+     NumOfEdges_(mesh.GetNEdges()),
+     NumOfElements_(mesh.GetNE()),
+     sets_(4),
+     set_names_(4),
+     set_index_by_name_(4)
+{
+}
+
+EntitySets::EntitySets(const EntitySets & ent_sets)
+   : mesh_(ent_sets.GetMesh()),
+     edge_vertex_(NULL),
+     face_vertex_(NULL),
+     face_edge_(NULL),
+     NumOfVertices_(mesh_->GetNV()),
+     NumOfEdges_(mesh_->GetNEdges()),
+     NumOfElements_(mesh_->GetNE()),
+     sets_(4),
+     set_names_(4),
+     set_index_by_name_(4)
+{
+   this->CopyEntitySets(ent_sets, VERTEX);
+   this->CopyEntitySets(ent_sets, EDGE);
+   this->CopyEntitySets(ent_sets, FACE);
+   this->CopyEntitySets(ent_sets, ELEMENT);
+
+   if ( ent_sets.GetEdgeVertexTable() )
+   {
+      edge_vertex_ = new Table(*ent_sets.GetEdgeVertexTable());
+   }
+   if ( ent_sets.GetFaceVertexTable() )
+   {
+      face_vertex_ = new Table(*ent_sets.GetFaceVertexTable());
+   }
+   if ( ent_sets.GetFaceEdgeTable() )
+   {
+      face_edge_ = new Table(*ent_sets.GetFaceEdgeTable());
+   }
+}
+
+EntitySets::EntitySets(Mesh & mesh, NCMesh &ncmesh)
+   : mesh_(&mesh),
+     edge_vertex_(NULL),
+     face_vertex_(NULL),
+     face_edge_(NULL),
+     NumOfVertices_(mesh_->GetNV()),
+     NumOfEdges_(mesh_->GetNEdges()),
+     NumOfElements_(mesh_->GetNE()),
+     sets_(4),
+     set_names_(4),
+     set_index_by_name_(4)
+{
+   this->BuildEntitySets(ncmesh, VERTEX);
+   this->BuildEntitySets(ncmesh, EDGE);
+   this->BuildEntitySets(ncmesh, FACE);
+   this->BuildEntitySets(ncmesh, ELEMENT);
+}
+
+EntitySets::~EntitySets()
+{
+   delete edge_vertex_;
+   delete face_edge_;
+   delete face_vertex_;
+}
+
+const string &
+EntitySets::GetTypeName(EntityType t)
+{
+   return EntityTypeNames[t];
+}
+
+bool
+EntitySets::SetExists(EntityType t, unsigned int s) const
+{
+   VerifyEntityType(t);
+   return s < sets_[t].size();
+}
+
+bool
+EntitySets::SetExists(EntityType t, const string & s) const
+{
+   VerifyEntityType(t);
+   map<string,int>::const_iterator it = set_index_by_name_[t].find(s);
+
+   return it != set_index_by_name_[t].end();
+}
+
+void
+EntitySets::Load(istream &input)
+{
+   VerifyCanModify();
+   if (!input)
+   {
+      MFEM_ABORT("Input stream is not open");
+   }
+
+   for (int t = VERTEX; t <= ELEMENT; t++)
+   {
+      sets_[t].clear();
+      set_names_[t].clear();
+      set_index_by_name_[t].clear();
+   }
+
+   string file_type;
+   input >> ws;
+   getline(input, file_type);
+   filter_dos(file_type);
+
+   bool mfem_sets_v10 = (file_type == "MFEM sets v1.0");
+   if ( mfem_sets_v10 )
+   {
+      int Dim = mesh_->Dimension();
+
+      LoadEntitySets(input, VERTEX, "vertex_sets");
+
+      if ( Dim > 1 )
+      {
+         LoadEntitySets(input, EDGE, "edge_sets");
+      }
+      if ( Dim > 2 )
+      {
+         LoadEntitySets(input, FACE, "face_sets");
+      }
+
+      LoadEntitySets(input, ELEMENT, "element_sets");
+   }
+   else
+   {
+      // Unknown input entity set format so this file has no entity sets
+      return;
+   }
+
+   // Face indices can be read before Mesh::FinalizeTopology() has generated
+   // the face elements. Build them before copying the face-to-vertex table.
+   if (GetNumSets(FACE) > 0 && mesh_->faces.Size() == 0)
+   {
+      mesh_->GetElementToFaceTable();
+      mesh_->GenerateFaces();
+   }
+   CopyMeshTables();
+}
+
+void
+EntitySets::LoadEntitySets(istream &input, EntityType t, const string & header)
+{
+   string ident;
+   int NumSets = -1;
+   int NumEntities = -1;
+   int g, v0, v1, v2, v3;
+
+   DSTable  *v_to_v   = NULL;
+   STable3D *face_tbl = NULL;
+
+   skip_comment_lines(input, '#');
+   input >> ident >> ws;
+
+   MFEM_VERIFY(ident == header, "invalid entity set file");
+   input >> NumSets >> ws;
+   MFEM_VERIFY(NumSets >= 0, "invalid number of entity sets");
+
+   sets_[t].clear();
+   set_names_[t].clear();
+   set_index_by_name_[t].clear();
+   sets_[t].resize(NumSets);
+   set_names_[t].resize(NumSets);
+   if ( NumSets > 0 )
+   {
+      if ( t == EDGE )
+      {
+         v_to_v = new DSTable(NumOfVertices_);
+         mesh_->GetVertexToVertexTable(*v_to_v);
+      }
+      else if ( t == FACE )
+      {
+         face_tbl = mesh_->GetFacesTable();
+      }
+   }
+   for (int i=0; i<NumSets; i++)
+   {
+      getline(input, ident);
+      filter_dos(ident);
+      MFEM_VERIFY(!ident.empty(), "EntitySets set names cannot be empty.");
+      MFEM_VERIFY(set_index_by_name_[t].count(ident) == 0,
+                  "EntitySets set name already exists.");
+      set_names_[t][i] = ident;
+      set_index_by_name_[t][ident] = i;
+
+      input >> NumEntities;
+      MFEM_VERIFY(input && NumEntities >= 0, "invalid number of set entities");
+      for (int j=0; j<NumEntities; j++)
+      {
+         switch (t)
+         {
+            case VERTEX:
+            case ELEMENT:
+               // Read vertex or element index
+               input >> v0;
+               MFEM_VERIFY(input, "invalid entity set entry");
+               VerifyEntityIndex(t, v0);
+               sets_[t][i].insert(v0);
+               break;
+            case EDGE:
+            {
+               // Read two segment vertices
+               input >> v0 >> v1;
+               MFEM_VERIFY(input, "invalid entity set entry");
+               VerifyVertexIndex(v0);
+               VerifyVertexIndex(v1);
+               const int edge = (*v_to_v)(v0, v1);
+               MFEM_VERIFY(edge >= 0,
+                           "The specified vertices do not define a mesh edge.");
+               sets_[t][i].insert(edge);
+               break;
+            }
+            case FACE:
+            {
+               // Read geometry type
+               input >> g;
+               if ( g == 2 )
+               {
+                  // Read triangle vertices
+                  input >> v0 >> v1 >> v2;
+                  MFEM_VERIFY(input, "invalid entity set entry");
+                  VerifyVertexIndex(v0);
+                  VerifyVertexIndex(v1);
+                  VerifyVertexIndex(v2);
+                  const int face = face_tbl->Index(v0, v1, v2);
+                  MFEM_VERIFY(face >= 0,
+                              "The specified vertices do not define a mesh face.");
+                  sets_[t][i].insert(face);
+               }
+               else if ( g == 3)
+               {
+                  // Read quadrilateral vertices
+                  input >> v0 >> v1 >> v2 >> v3;
+                  MFEM_VERIFY(input, "invalid entity set entry");
+                  VerifyVertexIndex(v0);
+                  VerifyVertexIndex(v1);
+                  VerifyVertexIndex(v2);
+                  VerifyVertexIndex(v3);
+                  const int face = (*face_tbl)(v0, v1, v2, v3);
+                  MFEM_VERIFY(face >= 0,
+                              "The specified vertices do not define a mesh face.");
+                  sets_[t][i].insert(face);
+               }
+               else
+               {
+                  MFEM_ABORT("Unknown face geometry type format: \""
+                             << g << "\"");
+               }
+               break;
+            }
+            default:
+               MFEM_ABORT("Unknown entity set type: \""
+                          << GetTypeName(t) << "\"");
+         }
+         input >> ws;
+      }
+   }
+   delete v_to_v;
+   delete face_tbl;
+}
+
+void
+EntitySets::Print(std::ostream &output) const
+{
+   output << "MFEM sets v1.0" << endl << endl;
+   // output << "dimension" << endl << mesh_->Dimension() << endl << endl;
+
+   this->PrintEntitySets(output, VERTEX, "vertex_sets");
+
+   if ( mesh_->Dimension() > 1 )
+   {
+      this->PrintEdgeSets(output);
+   }
+
+   if ( mesh_->Dimension() > 2 )
+   {
+      this->PrintFaceSets(output);
+   }
+
+   this->PrintEntitySets(output, ELEMENT, "element_sets");
+}
+
+void
+EntitySets::PrintEntitySets(std::ostream &output, EntityType t,
+                            const std::string & header) const
+{
+   output << header << endl << sets_[t].size() << endl << endl;
+   for (unsigned int s=0; s<sets_[t].size(); s++)
+   {
+      output << set_names_[t][s] << endl << sets_[t][s].size() << endl;
+
+      set<int>::iterator it;
+      unsigned int i = 0;
+      for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++, i++)
+      {
+         output << *it;
+         if ( i < sets_[t][s].size() - 1 )
+         {
+            output << " ";
+         }
+         else
+         {
+            output << endl << endl;
+         }
+      }
+   }
+}
+
+void
+EntitySets::PrintEdgeSets(std::ostream &output) const
+{
+   EntityType t = EDGE;
+
+   output << "edge_sets" << endl << sets_[t].size() << endl << endl;
+   for (unsigned int s=0; s<sets_[t].size(); s++)
+   {
+      output << set_names_[t][s] << endl << sets_[t][s].size() << endl;
+
+      set<int>::const_iterator it;
+      unsigned int i=0;
+      for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++, i++)
+      {
+         int edge = *it;
+         if ( edge < 0 )
+         {
+            output << "bad_edge_index:" << edge;
+            if ( i < sets_[t][s].size() - 1 )
+            {
+               output << " ";
+            }
+            else
+            {
+               output << endl << endl;
+            }
+            continue;
+         }
+         if ( edge_vertex_ )
+         {
+            int *v = edge_vertex_->GetRow(edge);
+            if ( v )
+            {
+               output << v[0] << " " << v[1];
+            }
+            else
+            {
+               output << "bad_vertex_info";
+            }
+         }
+         else
+         {
+            output << edge;
+         }
+         if ( i < sets_[t][s].size() - 1 )
+         {
+            output << " ";
+         }
+         else
+         {
+            output << endl << endl;
+         }
+      }
+   }
+}
+
+void
+EntitySets::PrintFaceSets(std::ostream &output) const
+{
+   EntityType t = FACE;
+
+   output << "face_sets" << endl << sets_[t].size() << endl << endl;
+   for (unsigned int s=0; s<sets_[t].size(); s++)
+   {
+      output << set_names_[t][s] << endl << sets_[t][s].size() << endl;
+
+      set<int>::const_iterator it;
+      unsigned int i=0;
+      for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++, i++)
+      {
+         int face = *it;
+         if ( face < 0 )
+         {
+            output << "bad_face";
+            if ( i < sets_[t][s].size() - 1 )
+            {
+               output << " ";
+            }
+            else
+            {
+               output << endl << endl;
+            }
+            continue;
+         }
+         if ( face_vertex_ )
+         {
+            int numv = face_vertex_->RowSize(face);
+            int *v = face_vertex_->GetRow(face);
+            output << numv - 1;
+            for (int j=0; j<numv; j++)
+            {
+               output << " " << v[j];
+            }
+         }
+         else
+         {
+            output << face;
+         }
+         output << endl;
+      }
+      output << endl;
+   }
+}
+
+void
+EntitySets::PrintSetInfo(std::ostream & output) const
+{
+   if ( GetNumSets(VERTEX) > 0 || GetNumSets(EDGE)    > 0 ||
+        GetNumSets(FACE)   > 0 || GetNumSets(ELEMENT) > 0 )
+   {
+      output << "\nMFEM Entity Sets:\n";
+   }
+   else
+   {
+      output << "\nNo MFEM Entity Sets defined\n";
+   }
+   this->PrintEntitySetInfo(output, VERTEX,  "Vertex");
+   this->PrintEntitySetInfo(output, EDGE,    "Edge");
+   this->PrintEntitySetInfo(output, FACE,    "Face");
+   this->PrintEntitySetInfo(output, ELEMENT, "Element");
+}
+
+void
+EntitySets::PrintEntitySetInfo(std::ostream & output, EntityType t,
+                               const string & ent_name) const
+{
+   if ( sets_[t].size() > 0 )
+   {
+      output << "  " << ent_name << " Sets (Index, Set Name, Size):\n";
+      for (unsigned int s=0; s<sets_[t].size(); s++)
+      {
+         output << '\t' << s
+                << '\t' << set_names_[t][s]
+                << '\t' << sets_[t][s].size()
+                << '\n';
+      }
+      output << '\n';
+   }
+}
+
+void
+EntitySets::CopyEntitySets(const EntitySets & ent_sets, EntityType t)
+{
+   unsigned int ns = ent_sets.GetNumSets(t);
+   sets_[t].resize(ns);
+   set_names_[t].resize(ns);
+   for (unsigned int s=0; s<ns; s++)
+   {
+      set_names_[t][s] = ent_sets.GetSetName(t, s);
+      set_index_by_name_[t][set_names_[t][s]] = s;
+
+      set<int>::iterator it;
+      for (it=ent_sets(t,s).begin(); it!=ent_sets(t,s).end(); it++)
+      {
+         sets_[t][s].insert(*it);
+      }
+   }
+}
+
+void
+EntitySets::BuildEntitySets(NCMesh &ncmesh, EntityType t)
+{
+   int es = ncmesh.ncent_sets->GetEntitySize(t);
+   unsigned int ns = ncmesh.ncent_sets->GetNumSets(t);
+
+   Array<int> inds(es);
+   auto root_node = [&ncmesh](int vertex)
+   {
+      return ncmesh.nodes.FindId(vertex, vertex);
+   };
+
+   sets_[t].resize(ns);
+   set_names_[t].resize(ns);
+   for (unsigned int s=0; s<ns; s++)
+   {
+      int ni = ncmesh.ncent_sets->GetNumEntities(t, s);
+      set_names_[t][s] = ncmesh.ncent_sets->GetSetName(t, s);
+      set_index_by_name_[t][set_names_[t][s]] = s;
+      switch (t)
+      {
+         case VERTEX:
+            for (int i=0; i<ni; i++)
+            {
+               const int node = root_node((*ncmesh.ncent_sets)(t, s, i));
+               if (node < 0) { continue; }
+               const int index = ncmesh.nodes[node].vert_index;
+               if (index >= 0) { sets_[t][s].insert(index); }
+            }
+            break;
+         case EDGE:
+            for (int i=0; i<ni; i++)
+            {
+               ncmesh.ncent_sets->GetEntityIndex(t, s, i, inds);
+               inds[0] = root_node(inds[0]);
+               inds[1] = root_node(inds[1]);
+               if (inds[0] < 0 || inds[1] < 0) { continue; }
+               BlockArray<int> ind_coll;
+               ncmesh.GetRefinedEdges(inds[0], inds[1],
+                                      ind_coll);
+
+               for (int j=0; j<ind_coll.Size(); j++)
+               {
+                  // sets_[t][s].insert(ind_coll[j]);
+                  sets_[t][s].insert(ncmesh.nodes[ind_coll[j]].edge_index);
+               }
+            }
+            break;
+         case FACE:
+            for (int i=0; i<ni; i++)
+            {
+               ncmesh.ncent_sets->GetEntityIndex(t, s, i, inds);
+               bool missing_root = false;
+               for (int j = 0; j < 3; j++)
+               {
+                  inds[j] = root_node(inds[j]);
+                  missing_root |= inds[j] < 0;
+               }
+               if (inds[3] >= 0)
+               {
+                  inds[3] = root_node(inds[3]);
+                  missing_root |= inds[3] < 0;
+               }
+               if (missing_root) { continue; }
+               BlockArray<int> ind_coll;
+               ncmesh.GetRefinedFaces(inds[0], inds[1], inds[2], inds[3],
+                                      ind_coll);
+
+               for (int j=0; j<ind_coll.Size(); j++)
+               {
+                  sets_[t][s].insert(ncmesh.faces[ind_coll[j]].index);
+               }
+            }
+            break;
+
+         case ELEMENT:
+            for (int i=0; i<ni; i++)
+            {
+               int elem = (*ncmesh.ncent_sets)(t, s, i);
+               BlockArray<int> ind_coll;
+               ncmesh.GetRefinedElements(elem, ind_coll);
+
+               for (int j=0; j<ind_coll.Size(); j++)
+               {
+                  sets_[t][s].insert(ncmesh.elements[ind_coll[j]].index);
+               }
+            }
+            break;
+         default:
+            MFEM_ABORT("Unknown entity set type: \"" << GetTypeName(t) << "\"");
+      }
+   }
+}
+
+unsigned int
+EntitySets::GetNumSets(EntityType t) const
+{
+   MFEM_VERIFY( t >= VERTEX && t <= ELEMENT,
+                "EntitySets Invalid entity type \"" << GetTypeName(t) << "\"");
+   return sets_[t].size();
+}
+
+const string &
+EntitySets::GetSetName(EntityType t, unsigned int s) const
+{
+   MFEM_VERIFY( t >= VERTEX && t <= ELEMENT,
+                "EntitySets Invalid entity type \"" << GetTypeName(t) << "\"");
+   MFEM_VERIFY(s < sets_[t].size(),"EntitySets:  set index out of range.");
+   return set_names_[t][s];
+}
+
+int
+EntitySets::GetSetIndex(EntityType t, const string & s) const
+{
+   MFEM_VERIFY( t >= VERTEX && t <= ELEMENT,
+                "EntitySets Invalid entity type \"" << GetTypeName(t) << "\"");
+
+   map<string,int>::const_iterator mit = set_index_by_name_[t].find(s);
+
+   MFEM_VERIFY( mit != set_index_by_name_[t].end(),
+                "EntitySets unrecognized set name \"" << s
+                << "\" for entity type \"" << GetTypeName(t) << "\"" );
+
+   return mit->second;
+}
+
+void EntitySets::VerifyEntityType(EntityType t) const
+{
+   MFEM_VERIFY(t >= VERTEX && t <= ELEMENT,
+               "EntitySets invalid entity type \"" << GetTypeName(t) << "\"");
+}
+
+void EntitySets::VerifySetIndex(EntityType t, int set_index) const
+{
+   VerifyEntityType(t);
+   MFEM_VERIFY(set_index >= 0 && set_index < (int)sets_[t].size(),
+               "EntitySets set index out of range.");
+}
+
+void EntitySets::VerifyVertexIndex(int vertex_index) const
+{
+   MFEM_VERIFY(vertex_index >= 0 && vertex_index < mesh_->GetNV(),
+               "EntitySets vertex index out of range.");
+}
+
+void EntitySets::VerifyEntityIndex(EntityType t, int entity_index) const
+{
+   VerifyEntityType(t);
+
+   int num_entities = 0;
+   switch (t)
+   {
+      case VERTEX:  num_entities = mesh_->GetNV(); break;
+      case EDGE:
+         MFEM_VERIFY(mesh_->Dimension() > 1,
+                     "Edge sets require a mesh of dimension at least two.");
+         num_entities = mesh_->GetNEdges();
+         break;
+      case FACE:
+         MFEM_VERIFY(mesh_->Dimension() > 2,
+                     "Face sets require a three-dimensional mesh.");
+         num_entities = mesh_->GetNumFaces();
+         break;
+      case ELEMENT: num_entities = mesh_->GetNE(); break;
+      default: MFEM_ABORT("invalid entity type");
+   }
+
+   MFEM_VERIFY(entity_index >= 0 && entity_index < num_entities,
+               "EntitySets entity index out of range.");
+}
+
+void EntitySets::VerifyCanModify() const
+{
+   MFEM_VERIFY(!mesh_->ncmesh,
+               "Entity sets must be defined before converting a mesh to a "
+               "nonconforming mesh.");
+}
+
+int EntitySets::AddSet(EntityType t, const string &name)
+{
+   VerifyCanModify();
+   VerifyEntityType(t);
+   MFEM_VERIFY(!name.empty(), "EntitySets set names cannot be empty.");
+   MFEM_VERIFY(name.find('\n') == string::npos && name.find('\r') == string::npos,
+               "EntitySets set names cannot contain line breaks.");
+   MFEM_VERIFY(!SetExists(t, name), "EntitySets set name already exists.");
+
+   const int set_index = sets_[t].size();
+   sets_[t].emplace_back();
+   set_names_[t].push_back(name);
+   set_index_by_name_[t][name] = set_index;
+   return set_index;
+}
+
+void EntitySets::AddEntity(EntityType t, int set_index, int entity_index)
+{
+   VerifyCanModify();
+   VerifySetIndex(t, set_index);
+   VerifyEntityIndex(t, entity_index);
+   sets_[t][set_index].insert(entity_index);
+
+   if (t == EDGE || t == FACE) { CopyMeshTables(); }
+}
+
+void EntitySets::AddEntity(EntityType t, const string &set_name,
+                           int entity_index)
+{
+   AddEntity(t, GetSetIndex(t, set_name), entity_index);
+}
+
+
+unsigned int
+EntitySets::GetNumEntities(EntityType t, unsigned int s) const
+{
+   MFEM_VERIFY( t >= VERTEX && t <= ELEMENT,
+                "EntitySets Invalid entity type \"" << GetTypeName(t) << "\"");
+   MFEM_VERIFY(s < sets_[t].size(),"EntitySets:  set index out of range.");
+
+   return sets_[t][s].size();
+}
+
+unsigned int
+EntitySets::GetNumEntities(EntityType t, const std::string & s) const
+{
+   return this->GetNumEntities(t, this->GetSetIndex(t, s));
+}
+
+void
+EntitySets::CopyMeshTables()
+{
+   if ( this->GetNumSets(EDGE) > 0 )
+   {
+      if ( edge_vertex_ ) { delete edge_vertex_; }
+      if ( mesh_->edge_vertex )
+      {
+         edge_vertex_ = new Table(*mesh_->edge_vertex);
+      }
+      else
+      {
+         edge_vertex_ = mesh_->GetEdgeVertexTable();
+         mesh_->edge_vertex = NULL;
+      }
+   }
+   if ( this->GetNumSets(FACE) > 0 )
+   {
+      if ( face_vertex_ ) { delete face_vertex_; }
+      if ( mesh_->face_vertex )
+      {
+         face_vertex_ = new Table(*mesh_->face_vertex);
+      }
+      else
+      {
+         face_vertex_ = mesh_->GetFaceVertexTable();
+         mesh_->face_vertex = NULL;
+      }
+   }
+   if ( this->GetNumSets(FACE) > 0 )
+   {
+      if ( face_edge_ ) { delete face_edge_; }
+      if ( mesh_->face_edge )
+      {
+         face_edge_ = new Table(*mesh_->face_edge);
+      }
+      else
+      {
+         face_edge_ = mesh_->GetFaceEdgeTable();
+         mesh_->face_edge = NULL;
+      }
+   }
+
+   NumOfVertices_ = mesh_->GetNV();
+   NumOfEdges_    = mesh_->GetNEdges();
+   NumOfElements_ = mesh_->GetNE();
+}
+
+void
+EntitySets::QuadUniformRefinement()
+{
+   // VERTEX Sets will be unchanged
+
+   // EDGE Sets will need to be augmented
+   if ( this->GetNumSets(EDGE) > 0 )
+   {
+      EntityType t = EDGE;
+      DSTable * v_to_v = new DSTable(mesh_->GetNV());
+      mesh_->GetVertexToVertexTable(*v_to_v);
+
+      int oedge = NumOfVertices_;
+      for (unsigned int s=0; s<this->GetNumSets(t); s++)
+      {
+         set<int>::iterator it;
+         set<int> new_set;
+         for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+         {
+            int old_edge = *it;
+            int *v = edge_vertex_->GetRow(old_edge);
+            new_set.insert((*v_to_v)(v[0], oedge + old_edge));
+            new_set.insert((*v_to_v)(v[1], oedge + old_edge));
+         }
+         sets_[t][s].clear();
+         for (it=new_set.begin(); it!=new_set.end(); it++)
+         {
+            sets_[t][s].insert(*it);
+         }
+      }
+      delete v_to_v;
+   }
+
+   // FACE Sets do not exist in 2D
+
+   // ELEMENT Sets will need to be augmented
+   EntityType t = ELEMENT;
+   for (unsigned int s=0; s<this->GetNumSets(t); s++)
+   {
+      set<int> new_elems;
+      for (int i = 0; i < mesh_->CoarseFineTr.embeddings.Size(); i++)
+      {
+         const int parent = mesh_->CoarseFineTr.embeddings[i].parent;
+         if (sets_[t][s].count(parent)) { new_elems.insert(i); }
+      }
+      sets_[t][s].swap(new_elems);
+   }
+
+   this->CopyMeshTables();
+}
+
+void
+EntitySets::HexUniformRefinement()
+{
+   // VERTEX Sets will be unchanged
+
+   // EDGE Sets will need to be augmented
+   DSTable * v_to_v = NULL;
+   if ( this->GetNumSets(EDGE) > 0 ||
+        this->GetNumSets(FACE) > 0 )
+   {
+      v_to_v = new DSTable(mesh_->GetNV());
+      mesh_->GetVertexToVertexTable(*v_to_v);
+   }
+   if ( this->GetNumSets(EDGE) > 0 )
+   {
+      EntityType t = EDGE;
+      int oedge = NumOfVertices_;
+      for (unsigned int s=0; s<this->GetNumSets(t); s++)
+      {
+         set<int>::iterator it;
+         set<int> new_set;
+         for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+         {
+            int old_edge = *it;
+            int *v = edge_vertex_->GetRow(old_edge);
+            new_set.insert((*v_to_v)(v[0], oedge + old_edge));
+            new_set.insert((*v_to_v)(v[1], oedge + old_edge));
+         }
+         sets_[t][s].clear();
+         for (it=new_set.begin(); it!=new_set.end(); it++)
+         {
+            sets_[t][s].insert(*it);
+         }
+      }
+   }
+   delete v_to_v;
+
+   // FACE Sets will need to be augmented
+   if ( this->GetNumSets(FACE) > 0 )
+   {
+      EntityType t = FACE;
+      STable3D * faces_tbl = mesh_->GetFacesTable();
+
+      int oedge = NumOfVertices_;
+      int oface = oedge + NumOfEdges_;
+
+      for (unsigned int s=0; s<this->GetNumSets(t); s++)
+      {
+         set<int>::iterator it;
+         set<int> new_set;
+         for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+         {
+            int old_face = *it;
+            int * v = face_vertex_->GetRow(old_face);
+            int * e = face_edge_->GetRow(old_face);
+            const int nv = face_vertex_->RowSize(old_face);
+            MFEM_VERIFY(nv == 3 || nv == 4, "invalid face geometry");
+
+            int mid[4];
+            for (int j = 0; j < nv; j++)
+            {
+               mid[j] = oedge + e[j];
+            }
+
+            // A face table does not preserve vertex orientation. Identify the
+            // two incident old edges for each vertex instead of relying on an
+            // ordering in face_vertex_.
+            for (int j = 0; j < nv; j++)
+            {
+               int adjacent_mid[2];
+               int nadjacent = 0;
+               for (int k = 0; k < nv; k++)
+               {
+                  const int *ev = edge_vertex_->GetRow(e[k]);
+                  if (ev[0] == v[j] || ev[1] == v[j])
+                  {
+                     adjacent_mid[nadjacent++] = mid[k];
+                  }
+               }
+               MFEM_VERIFY(nadjacent == 2, "invalid face-edge connectivity");
+
+               const int child = (nv == 3)
+                                 ? faces_tbl->Index(v[j], adjacent_mid[0],
+                                                    adjacent_mid[1])
+                                 : (*faces_tbl)(v[j], adjacent_mid[0],
+                                                oface + old_face,
+                                                adjacent_mid[1]);
+               MFEM_VERIFY(child >= 0, "refined face not found");
+               new_set.insert(child);
+            }
+
+            if (nv == 3)
+            {
+               const int child = faces_tbl->Index(mid[0], mid[1], mid[2]);
+               MFEM_VERIFY(child >= 0, "refined face not found");
+               new_set.insert(child);
+            }
+         }
+         sets_[t][s].clear();
+         for (it=new_set.begin(); it!=new_set.end(); it++)
+         {
+            sets_[t][s].insert(*it);
+         }
+      }
+      delete faces_tbl;
+   }
+
+   // ELEMENT Sets will need to be augmented
+   EntityType t = ELEMENT;
+   for (unsigned int s=0; s<this->GetNumSets(t); s++)
+   {
+      set<int> new_elems;
+      for (int i = 0; i < mesh_->CoarseFineTr.embeddings.Size(); i++)
+      {
+         const int parent = mesh_->CoarseFineTr.embeddings[i].parent;
+         if (sets_[t][s].count(parent)) { new_elems.insert(i); }
+      }
+      sets_[t][s].swap(new_elems);
+   }
+
+   this->CopyMeshTables();
+}
+void
+EntitySets::UniformRefinement2D()
+{
+   // VERTEX Sets will be unchanged
+
+   // EDGE Sets will need to be augmented
+   if ( this->GetNumSets(EDGE) > 0 )
+   {
+      EntityType t = EDGE;
+      DSTable * v_to_v = new DSTable(mesh_->GetNV());
+      mesh_->GetVertexToVertexTable(*v_to_v);
+
+      int oedge = NumOfVertices_;
+      for (unsigned int s=0; s<this->GetNumSets(t); s++)
+      {
+         set<int>::iterator it;
+         set<int> new_set;
+         for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+         {
+            int old_edge = *it;
+            int *v = edge_vertex_->GetRow(old_edge);
+            new_set.insert((*v_to_v)(v[0], oedge + old_edge));
+            new_set.insert((*v_to_v)(v[1], oedge + old_edge));
+         }
+         sets_[t][s].clear();
+         for (it=new_set.begin(); it!=new_set.end(); it++)
+         {
+            sets_[t][s].insert(*it);
+         }
+      }
+      delete v_to_v;
+   }
+
+   // FACE Sets do not exist in 2D
+
+   // ELEMENT sets contain only current entities, so replace each selected
+   // parent with all of its children. The embedding table handles every 2D
+   // geometry and the numbering used by Mesh::UniformRefinement2D_base().
+   EntityType t = ELEMENT;
+   for (unsigned int s=0; s<this->GetNumSets(t); s++)
+   {
+      set<int> new_elems;
+      for (int i = 0; i < mesh_->CoarseFineTr.embeddings.Size(); i++)
+      {
+         const int parent = mesh_->CoarseFineTr.embeddings[i].parent;
+         if (sets_[t][s].count(parent)) { new_elems.insert(i); }
+      }
+      sets_[t][s].swap(new_elems);
+   }
+
+   this->CopyMeshTables();
+}
+
+void
+EntitySets::UniformRefinement3D()
+{
+   // VERTEX Sets will be unchanged
+
+   // EDGE Sets will need to be augmented
+   DSTable * v_to_v = NULL;
+   if ( this->GetNumSets(EDGE) > 0 ||
+        this->GetNumSets(FACE) > 0 )
+   {
+      v_to_v = new DSTable(mesh_->GetNV());
+      mesh_->GetVertexToVertexTable(*v_to_v);
+   }
+   if ( this->GetNumSets(EDGE) > 0 )
+   {
+      EntityType t = EDGE;
+      int oedge = NumOfVertices_;
+      for (unsigned int s=0; s<this->GetNumSets(t); s++)
+      {
+         set<int>::iterator it;
+         set<int> new_set;
+         for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+         {
+            int old_edge = *it;
+            int *v = edge_vertex_->GetRow(old_edge);
+            new_set.insert((*v_to_v)(v[0], oedge + old_edge));
+            new_set.insert((*v_to_v)(v[1], oedge + old_edge));
+         }
+         sets_[t][s].clear();
+         for (it=new_set.begin(); it!=new_set.end(); it++)
+         {
+            sets_[t][s].insert(*it);
+         }
+      }
+   }
+   delete v_to_v;
+
+   // FACE Sets will need to be augmented
+   if ( this->GetNumSets(FACE) > 0 )
+   {
+      EntityType t = FACE;
+      STable3D * faces_tbl = mesh_->GetFacesTable();
+
+      int oedge = NumOfVertices_;
+      int oface = oedge + NumOfEdges_;
+
+      for (unsigned int s=0; s<this->GetNumSets(t); s++)
+      {
+         set<int>::iterator it;
+         set<int> new_set;
+         for (it=sets_[t][s].begin(); it!=sets_[t][s].end(); it++)
+         {
+            int old_face = *it;
+            int *v = face_vertex_->GetRow(old_face);
+            int *e = face_edge_->GetRow(old_face);
+            const int nv = face_vertex_->RowSize(old_face);
+            MFEM_VERIFY(nv == 3 || nv == 4, "invalid face geometry");
+
+            int mid[4];
+            for (int j = 0; j < nv; j++) { mid[j] = oedge + e[j]; }
+
+            // The face tables are unordered. Determine a corner's two child
+            // edges by incidence, which works for triangular and quad faces.
+            for (int j = 0; j < nv; j++)
+            {
+               int adjacent_mid[2];
+               int nadjacent = 0;
+               for (int k = 0; k < nv; k++)
+               {
+                  const int *ev = edge_vertex_->GetRow(e[k]);
+                  if (ev[0] == v[j] || ev[1] == v[j])
+                  {
+                     adjacent_mid[nadjacent++] = mid[k];
+                  }
+               }
+               MFEM_VERIFY(nadjacent == 2, "invalid face-edge connectivity");
+
+               const int child = (nv == 3)
+                                 ? faces_tbl->Index(v[j], adjacent_mid[0],
+                                                    adjacent_mid[1])
+                                 : (*faces_tbl)(v[j], adjacent_mid[0],
+                                                oface + old_face,
+                                                adjacent_mid[1]);
+               MFEM_VERIFY(child >= 0, "refined face not found");
+               new_set.insert(child);
+            }
+
+            if (nv == 3)
+            {
+               const int child = faces_tbl->Index(mid[0], mid[1], mid[2]);
+               MFEM_VERIFY(child >= 0, "refined face not found");
+               new_set.insert(child);
+            }
+         }
+         sets_[t][s].clear();
+         for (it=new_set.begin(); it!=new_set.end(); it++)
+         {
+            sets_[t][s].insert(*it);
+         }
+      }
+      delete faces_tbl;
+   }
+
+   // See UniformRefinement2D(): the embedding table gives the exact children
+   // for tetrahedra, pyramids, wedges, and hexahedra, including mixed meshes.
+   EntityType t = ELEMENT;
+   for (unsigned int s=0; s<this->GetNumSets(t); s++)
+   {
+      set<int> new_elems;
+      for (int i = 0; i < mesh_->CoarseFineTr.embeddings.Size(); i++)
+      {
+         const int parent = mesh_->CoarseFineTr.embeddings[i].parent;
+         if (sets_[t][s].count(parent)) { new_elems.insert(i); }
+      }
+      sets_[t][s].swap(new_elems);
+   }
+
+   this->CopyMeshTables();
+}
+const int NCEntitySets::entity_size_[] = {1,2,4,1};
+
+NCEntitySets::NCEntitySets(const EntitySets &ent_sets, NCMesh &ncmesh)
+   : ncmesh_(&ncmesh),
+     sets_(4),
+     set_names_(4),
+     set_index_by_name_(4)
+{
+   EntitySets::EntityType t = EntitySets::INVALID;
+   unsigned int ns = -1;
+
+   t = EntitySets::VERTEX;
+   ns = ent_sets.GetNumSets(t);
+
+   sets_[t].resize(ns);
+   set_names_[t].resize(ns);
+
+   for (unsigned int s=0; s<ns; s++)
+   {
+      unsigned int ni = ent_sets.GetNumEntities(t, s);
+
+      sets_[t][s].resize(ni);
+      set_names_[t][s] = ent_sets.GetSetName(t, s);
+      set_index_by_name_[t][set_names_[t][s]] = s;
+
+      set<int>::iterator it;
+      int i = 0;
+      for (it=ent_sets(t,s).begin();
+           it!=ent_sets(t,s).end(); it++, i++)
+      {
+         // NCMesh root nodes retain the original Mesh vertex indices across
+         // parallel rebalancing; HashTable node indices do not.
+         sets_[t][s][i] = *it;
+      }
+   }
+
+   t = EntitySets::EDGE;
+   ns = ent_sets.GetNumSets(t);
+
+   sets_[t].resize(ns);
+   set_names_[t].resize(ns);
+
+   for (unsigned int s=0; s<ns; s++)
+   {
+      unsigned int ni = ent_sets.GetNumEntities(t, s);
+
+      sets_[t][s].resize(2 * ni);
+      set_names_[t][s] = ent_sets.GetSetName(t, s);
+      set_index_by_name_[t][set_names_[t][s]] = s;
+
+      set<int>::iterator it;
+      int i = 0;
+      for (it=ent_sets(t,s).begin();
+           it!=ent_sets(t,s).end(); it++, i++)
+      {
+         int edge = *it;
+         int *v = ent_sets.edge_vertex_->GetRow(edge);
+         sets_[t][s][2 * i + 0] = v[0];
+         sets_[t][s][2 * i + 1] = v[1];
+      }
+   }
+
+   t = EntitySets::FACE;
+   ns = ent_sets.GetNumSets(t);
+
+   sets_[t].resize(ns);
+   set_names_[t].resize(ns);
+
+   for (unsigned int s=0; s<ns; s++)
+   {
+      unsigned int ni = ent_sets.GetNumEntities(t, s);
+
+      sets_[t][s].resize(4 * ni);
+      set_names_[t][s] = ent_sets.GetSetName(t, s);
+      set_index_by_name_[t][set_names_[t][s]] = s;
+
+      set<int>::iterator it;
+      int i = 0;
+      for (it=ent_sets(t,s).begin();
+           it!=ent_sets(t,s).end(); it++, i++)
+      {
+         int face = *it;
+         int *v = ent_sets.face_vertex_->GetRow(face);
+         int nv = ent_sets.face_vertex_->RowSize(face);
+         sets_[t][s][4 * i + 0] = v[0];
+         sets_[t][s][4 * i + 1] = v[1];
+         sets_[t][s][4 * i + 2] = v[2];
+         if ( nv > 3 )
+         {
+            sets_[t][s][4 * i + 3] = v[3];
+
+            // Unfortunately the face_vertex table doesn not store
+            // the topological order of the face vertices but we
+            // need this to find refined faces.  To recover this
+            // information we verify that edges connect vertex 0 to
+            // vertices 1 and 3.  If not then we swap either 1 or 3
+            // with vertex 2.
+            int e01 = ncmesh.nodes.FindId(ncmesh.vertex_nodeId[v[0]],
+                                          ncmesh.vertex_nodeId[v[1]]);
+            int e03 = ncmesh.nodes.FindId(ncmesh.vertex_nodeId[v[0]],
+                                          ncmesh.vertex_nodeId[v[3]]);
+
+            if ( e01 < 0 )
+            {
+               Swap(sets_[t][s][4 * i + 1],sets_[t][s][4 * i + 2]);
+            }
+            else if ( e03 < 0 )
+            {
+               Swap(sets_[t][s][4 * i + 3],sets_[t][s][4 * i + 2]);
+            }
+         }
+         else
+         {
+            sets_[t][s][4 * i + 3] = -1;
+         }
+      }
+   }
+
+   t = EntitySets::ELEMENT;
+   ns = ent_sets.GetNumSets(t);
+
+   sets_[t].resize(ns);
+   set_names_[t].resize(ns);
+
+   for (unsigned int s=0; s<ns; s++)
+   {
+      unsigned int ni = ent_sets.GetNumEntities(t, s);
+
+      sets_[t][s].resize(ni);
+      set_names_[t][s] = ent_sets.GetSetName(t, s);
+      set_index_by_name_[t][set_names_[t][s]] = s;
+
+      set<int>::iterator it;
+      int i = 0;
+      for (it=ent_sets(t,s).begin();
+           it!=ent_sets(t,s).end(); it++, i++)
+      {
+         sets_[t][s][i] = *it;
+      }
+   }
+}
+
+NCEntitySets::NCEntitySets(const NCEntitySets & ncent_sets)
+   : ncmesh_(ncent_sets.ncmesh_),
+     sets_(4),
+     set_names_(4),
+     set_index_by_name_(4)
+{
+   this->CopyNCEntitySets(ncent_sets, EntitySets::VERTEX);
+   this->CopyNCEntitySets(ncent_sets, EntitySets::EDGE);
+   this->CopyNCEntitySets(ncent_sets, EntitySets::FACE);
+   this->CopyNCEntitySets(ncent_sets, EntitySets::ELEMENT);
+}
+
+bool
+NCEntitySets::SetExists(EntitySets::EntityType t, unsigned int s) const
+{
+   return s < sets_[t].size();
+}
+
+bool
+NCEntitySets::SetExists(EntitySets::EntityType t, const string & s) const
+{
+   map<string,int>::const_iterator it = set_index_by_name_[t].find(s);
+
+   return it != set_index_by_name_[t].end();
+}
+
+unsigned int
+NCEntitySets::GetNumSets(EntitySets::EntityType t) const
+{
+   MFEM_ASSERT( t >= EntitySets::VERTEX && t <= EntitySets::ELEMENT,
+                "NCEntitySets Invalid entity type \"" << t << "\"");
+   return sets_[t].size();
+}
+
+int
+NCEntitySets::GetEntitySize(EntitySets::EntityType t)
+{
+   MFEM_ASSERT( t >= EntitySets::VERTEX && t <= EntitySets::ELEMENT,
+                "NCEntitySets Invalid entity type \"" << t << "\"");
+   return entity_size_[t];
+}
+
+const string &
+NCEntitySets::GetSetName(EntitySets::EntityType t, int s) const
+{
+   MFEM_ASSERT( t >= EntitySets::VERTEX && t <= EntitySets::ELEMENT,
+                "NCEntitySets Invalid entity type \"" << t << "\"");
+   return set_names_[t][s];
+}
+
+int
+NCEntitySets::GetSetIndex(EntitySets::EntityType t, const string & s) const
+{
+   MFEM_ASSERT( t >= EntitySets::VERTEX && t <= EntitySets::ELEMENT,
+                "NCEntitySets Invalid entity type \"" << t << "\"");
+
+   map<string,int>::const_iterator mit = set_index_by_name_[t].find(s);
+
+   MFEM_ASSERT( mit != set_index_by_name_[t].end(),
+                "NCEntitySets unrecognized set name \"" << s
+                << "\" for entity type \"" << t << "\"" );
+
+   return mit->second;
+}
+
+unsigned int
+NCEntitySets::GetNumEntities(EntitySets::EntityType t, int s) const
+{
+   MFEM_ASSERT( t >= EntitySets::VERTEX && t <= EntitySets::ELEMENT,
+                "NCEntitySets Invalid entity type \"" << t << "\"");
+   return sets_[t][s].size() / entity_size_[t];
+}
+
+unsigned int
+NCEntitySets::GetNumEntities(EntitySets::EntityType t,
+                             const std::string & s) const
+{
+   return this->GetNumEntities(t, this->GetSetIndex(t, s));
+}
+
+void
+NCEntitySets::GetEntityIndex(EntitySets::EntityType t, int s, int i,
+                             Array<int> & inds) const
+{
+   MFEM_ASSERT( t >= EntitySets::VERTEX && t <= EntitySets::ELEMENT,
+                "NCEntitySets Invalid entity type \"" << t << "\"");
+
+   inds.SetSize(entity_size_[t]);
+   for (int j=0; j<entity_size_[t]; j++)
+   {
+      inds[j] = sets_[t][s][entity_size_[t] * i + j];
+   }
+}
+
+void
+NCEntitySets::GetEntityIndex(EntitySets::EntityType t, const string & s,
+                             int i, Array<int> &inds) const
+{
+   return this->GetEntityIndex(t, this->GetSetIndex(t, s), i, inds);
+}
+
+void
+NCEntitySets::CopyNCEntitySets(const NCEntitySets & ncent_sets,
+                               EntitySets::EntityType t)
+{
+   unsigned int ns = ncent_sets.GetNumSets(t);
+   sets_[t].resize(ns);
+   set_names_[t].resize(ns);
+   for (unsigned int s=0; s<ns; s++)
+   {
+      set_names_[t][s] = ncent_sets.GetSetName(t, s);
+      set_index_by_name_[t][set_names_[t][s]] = s;
+
+      sets_[t][s].resize(ncent_sets(t,s).size());
+      for (unsigned int i=0; i<ncent_sets(t,s).size(); i++)
+      {
+         sets_[t][s][i] = ncent_sets(t,s,i);
+      }
+   }
+}
+
+}; // namespace mfem
