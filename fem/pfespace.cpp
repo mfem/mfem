@@ -2389,12 +2389,21 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFE(int i, int ndofs) const
                  " does not support NURBS!");
    }
 
+   if (ndofs <= 0 && IsVariableOrder() && i < face_nbr_element_dof.Size())
+   {
+      ndofs = face_nbr_element_dof.RowSize(i) / vdim;
+   }
+
    if (ndofs > 0)
    {
-      for (int order = fec->GetOrder(); ; ++order)
+      const int min_order =
+         (fec->GetContType() == FiniteElementCollection::DISCONTINUOUS) ? 0 : 1;
+      const int start_order = IsVariableOrder() ? min_order : fec->GetOrder();
+      for (int order = start_order; order <= MaxVarOrder; ++order)
       {
          const FiniteElement *FE =
             fec->GetFE(pmesh->face_nbr_elements[i]->GetGeometryType(), order);
+         if (!FE) { continue; }
          const int ndofs_order = FE->GetDof();
          if (ndofs_order == ndofs)
          {
@@ -2405,6 +2414,7 @@ const FiniteElement *ParFiniteElementSpace::GetFaceNbrFE(int i, int ndofs) const
             MFEM_ABORT("Finite element order not found in GetFaceNbrFE");
          }
       }
+      MFEM_ABORT("Finite element order not found in GetFaceNbrFE");
    }
    else
    {
@@ -2902,6 +2912,48 @@ void ParFiniteElementSpace::UnpackDofVar(int dof, int &entity, int &index,
 {
    order = -1;
    MFEM_ASSERT(dof >= 0, "");
+
+   auto unpack_edge_variant = [&](int edge)
+   {
+      int os = 0;
+      order = -1;
+      const int nvar = this->GetNVariants(1, edge);
+      for (int v = 0; v < nvar; ++v)
+      {
+         const int eo = this->GetEdgeOrder(edge, v);
+         const int dofs = fec->GetNumDof(Geometry::SEGMENT, eo);
+         if (edof < os + dofs)
+         {
+            order = eo;
+            break;
+         }
+         os += dofs;
+      }
+      MFEM_ASSERT(order >= 0, "");
+      edof -= os; // Local offset
+   };
+
+   auto unpack_face_variant = [&](int face)
+   {
+      int os = 0;
+      order = -1;
+      const Geometry::Type geom = pncmesh->GetFaceGeometry(face);
+      const int nvar = this->GetNVariants(2, face);
+      for (int v = 0; v < nvar; ++v)
+      {
+         const int fo = this->GetFaceOrder(face, v);
+         const int dofs = fec->GetNumDof(geom, fo);
+         if (edof < os + dofs)
+         {
+            order = fo;
+            break;
+         }
+         os += dofs;
+      }
+      MFEM_ASSERT(order >= 0, "");
+      edof -= os; // Local offset
+   };
+
    if (dof < ndofs)
    {
       if (dof < nvdofs) // regular vertex
@@ -2916,28 +2968,7 @@ void ParFiniteElementSpace::UnpackDofVar(int dof, int &entity, int &index,
          entity = 1;
          index = var_edge_dofmap[dof].index;
          edof = var_edge_dofmap[dof].edof;
-
-         // Convert from local to global offset.
-         int os = 0;
-         order = -1;
-         const int edge = index;
-         const int nvar = this->GetNVariants(1, edge);
-         for (int v=0; v<nvar; ++v)
-         {
-            const int eo = this->GetEdgeOrder(edge, v);
-            const int dofs = fec->GetNumDof(Geometry::SEGMENT, eo);
-            if (edof < os + dofs)
-            {
-               order = eo;
-               break;
-            }
-
-            os += dofs;
-         }
-
-         MFEM_ASSERT(order >= 0, "");
-
-         edof -= os;  // Local offset
+         unpack_edge_variant(index);
          return;
       }
       dof -= nedofs;
@@ -2946,29 +2977,7 @@ void ParFiniteElementSpace::UnpackDofVar(int dof, int &entity, int &index,
          entity = 2;
          index = var_face_dofmap[dof].index;
          edof = var_face_dofmap[dof].edof;
-
-         // Convert from local to global offset.
-         int os = 0;
-         order = -1;
-         const int face = index;
-         const Geometry::Type geom = pncmesh->GetFaceGeometry(face);
-         const int nvar = this->GetNVariants(2, face);
-         for (int v=0; v<nvar; ++v)
-         {
-            const int fo = this->GetFaceOrder(face, v);
-            const int dofs = fec->GetNumDof(geom, fo);
-            if (edof < os + dofs)
-            {
-               order = fo;
-               break;
-            }
-
-            os += dofs;
-         }
-
-         MFEM_ASSERT(order >= 0, "");
-
-         edof -= os;  // Local offset
+         unpack_face_variant(index);
          return;
       }
       MFEM_ABORT("Cannot unpack internal DOF");
@@ -2989,6 +2998,7 @@ void ParFiniteElementSpace::UnpackDofVar(int dof, int &entity, int &index,
          entity = 1;
          index = var_edge_dofmap[dof + nedofs].index;
          edof = var_edge_dofmap[dof + nedofs].edof;
+         unpack_edge_variant(index);
          return;
       }
 
@@ -2998,6 +3008,7 @@ void ParFiniteElementSpace::UnpackDofVar(int dof, int &entity, int &index,
          entity = 2;
          index = var_face_dofmap[dof + nfdofs].index;
          edof = var_face_dofmap[dof + nfdofs].edof;
+         unpack_face_variant(index);
          return;
       }
       MFEM_ABORT("Out of range DOF.");
@@ -3974,58 +3985,68 @@ bool ParFiniteElementSpace::OrderPropagation(
       }
    }
 
-   // Send messages
-   NeighborOrderMessage::IsendAll(send_msg, MyComm);
-
-   MPI_Barrier(MyComm); // This barrier is necessary for hp-refinement
+   // Send messages synchronously so TestAllSent() guarantees every message
+   // has been matched by a remote Recv() before entering MPI_Ibarrier.
+   for (auto &[dest_rank, msg] : send_msg)
+   {
+      msg.Issend(dest_rank, MyComm);
+   }
 
    NeighborOrderMessage recv_msg;
    recv_msg.SetNCMesh(pncmesh);
 
-   // Check for and receive incoming messages
-   int rank, size;
-   while (NeighborOrderMessage::IProbe(rank, size, MyComm))
+   // Non-blocking consensus (NBX): drain all incoming messages until every
+   // rank's synchronous sends have been received and MPI_Ibarrier completes.
+   // This guarantees no NEIGHBOR_ORDER_VM message is dropped or left in flight.
+   MPI_Request barrier = MPI_REQUEST_NULL;
+   int done = 0;
+   while (!done)
    {
-      // Note that Recv calls Decode(rank), setting msgs in recv_msg.
-      recv_msg.Recv(rank, size, MyComm);
-
-      for (const auto &ri : recv_msg.GetMsgs())
+      int rank, size;
+      while (NeighborOrderMessage::IProbe(rank, size, MyComm))
       {
-         const VarOrderBits mask = (VarOrderBits(1) << ri.order);
-         if (ri.entity == 1)
+         // Note that Recv calls Decode(rank), setting msgs in recv_msg.
+         recv_msg.Recv(rank, size, MyComm);
+
+         for (const auto &ri : recv_msg.GetMsgs())
          {
-            const VarOrderBits initOrders = edge_orders[ri.index];
-            edge_orders[ri.index] |= mask;
-            if (edge_orders[ri.index] != initOrders)
+            const VarOrderBits mask = (VarOrderBits(1) << ri.order);
+            if (ri.entity == 1)
             {
-               changed = true;
+               const VarOrderBits initOrders = edge_orders[ri.index];
+               edge_orders[ri.index] |= mask;
+               if (edge_orders[ri.index] != initOrders)
+               {
+                  changed = true;
+               }
             }
-         }
-         else if (ri.entity == 2)
-         {
-            const VarOrderBits initOrders = face_orders[ri.index];
-            face_orders[ri.index] |= mask;
-            if (face_orders[ri.index] != initOrders)
+            else if (ri.entity == 2)
             {
-               changed = true;
+               const VarOrderBits initOrders = face_orders[ri.index];
+               face_orders[ri.index] |= mask;
+               if (face_orders[ri.index] != initOrders)
+               {
+                  changed = true;
+               }
             }
-         }
-         else
-         {
-            MFEM_ABORT("Invalid entity type");
+            else
+            {
+               MFEM_ABORT("Invalid entity type");
+            }
          }
       }
-   }
 
-   // Clean up possible remaining messages in the queue to avoid receiving them
-   // erroneously in the next run
-   while (NeighborOrderMessage::IProbe(rank, size, MyComm))
-   {
-      recv_msg.RecvDrop(rank, size, MyComm);
+      if (barrier != MPI_REQUEST_NULL)
+      {
+         MPI_Test(&barrier, &done, MPI_STATUS_IGNORE);
+      }
+      else if (NeighborOrderMessage::TestAllSent(send_msg))
+      {
+         const int mpi_err = MPI_Ibarrier(MyComm, &barrier);
+         MFEM_VERIFY(mpi_err == MPI_SUCCESS, "");
+         MFEM_VERIFY(barrier != MPI_REQUEST_NULL, "");
+      }
    }
-
-   // Make sure we can discard all send buffers
-   NeighborOrderMessage::WaitAllSent(send_msg);
 
    orders_changed = (int) changed;
    MPI_Allreduce(MPI_IN_PLACE, &orders_changed, 1, MPI_INT, MPI_MAX, MyComm);
