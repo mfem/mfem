@@ -693,6 +693,24 @@ void mixed_second_derivative(const char *filename, int p)
                std::vector{FieldDescriptor{Rho, &fes}},
                MultiVector{drho, coords},
                one);
+
+   // Test the retrieval of the second derivative blocks in one call.
+   const second_derivative_key_t keys[] =
+   {
+      {U, U}, {U, Rho}, {Rho, U}, {Rho, Rho}
+   };
+   const auto blocks = functional_dop.GetSecondDerivatives(keys, X, true);
+   for (size_t b = 0; b < blocks.size(); b++)
+   {
+      const auto single = functional_dop.GetSecondDerivative(
+                             keys[b].first, keys[b].second, X);
+      HypreParMatrix *A_single = nullptr, *A_block = nullptr;
+      single->Assemble(A_single);
+      blocks[b]->Assemble(A_block);
+      TestSameMatrices(*A_single, *A_block);
+      delete A_single;
+      delete A_block;
+   }
 }
 
 // Registers the mixed functional with the given second derivative request and

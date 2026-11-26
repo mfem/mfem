@@ -111,6 +111,24 @@ static void VerifyJvpVjp(DifferentiableOperator &F,
 
    REQUIRE(InnerProduct(comm, dZ_star, dV) ==
            MFEM_Approx(InnerProduct(comm, dY_star, dY)));
+
+   // The same derivatives sharing one state give the same results.
+   const auto [dGu, dGv] = F.GetDerivatives({ U, V }, state, true);
+   Vector y(tvsize);
+   MultiVector my{ y };
+   auto same = [&](const Vector &expected)
+   {
+      y -= expected;
+      REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
+   };
+   dGu->Mult(dX, my);
+   same(dU);
+   dGv->Mult(dY, my);
+   same(dV);
+   dGu->MultTranspose(mdZ_star, my);
+   same(dX_star);
+   dGv->MultTranspose(mdZ_star, my);
+   same(dY_star);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
