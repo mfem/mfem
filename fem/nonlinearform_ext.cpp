@@ -72,9 +72,8 @@ real_t PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
 
 void PANonlinearFormExtension::Assemble()
 {
-   MFEM_VERIFY(nlf->GetInteriorFaceIntegrators().Size() == 0 &&
-               nlf->GetBdrFaceIntegrators().Size() == 0,
-               "face integrators are not supported yet");
+   MFEM_VERIFY(nlf->GetBdrFaceIntegrators().Size() == 0,
+               "bdr face integrators are not supported yet");
                
    SetupRestrictionOperators();
 
@@ -101,6 +100,31 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
       for (int i = 0; i < dnfi.Size(); ++i)
       {
          dnfi[i]->AddMultPA(x, y);
+      }
+   }
+
+   if (int_face_restrict_lex && fnfi.Size() > 0)
+   {
+      // See PABilinearFormExtension::MultInternal
+      const Vector *x_dg = &x;
+#ifdef MFEM_USE_MPI
+      ParGridFunction x_pgf;
+      if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes))
+      {
+         x_pgf.MakeRef(pfes, const_cast<Vector&>(x), 0);
+         x_dg = &x_pgf;
+      }
+#endif // MFEM_USE_MPI
+      int_face_restrict_lex->Mult(x_dg, int_face_X);
+      if (int_face_X.Size() > 0)
+      {
+         int_face_Y = 0.0;
+
+         for (int i = 0; i < fnfi.Size(); ++i)
+         {
+            fnfi[i]->AddMultPA(int_face_X, int_face_Y);
+         }
+         int_face_restrict_lex->AddMultTransposeInPlace(int_face_Y, y);
       }
    }
 }
