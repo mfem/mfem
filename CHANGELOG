@@ -23,6 +23,17 @@ GPU computing
 
 Discretization improvements
 ---------------------------
+- Preserved compatible high-order face modes in serial 3D variable-order H1
+  and ND spaces on nonconforming quadrilateral interfaces by enforcing
+  internal-edge compatibility equations rather than lowering the entire
+  master face order.
+
+- Fixed conforming ND edge-in-face interpolation and L2 projection, accounted
+  for source order in ND/RT local L2 transfer quadrature rules, aligned RT,
+  RT trace, and DG interface collection cloning with collection orders (with
+  corresponding RT LOR and DPG p-hierarchy updates), and limited 3D
+  normal-continuity order propagation to faces.
+
 - Fixed H1 transfer in L2ProjectionGridTransfer on non-conforming meshes in
   serial and parallel. The fully assembled operator now applies inverse lumped
   mass scaling after true-DOF assembly. Element assembly now handles hanging-node

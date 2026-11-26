@@ -84,7 +84,7 @@ LORBase::FESpaceType LORBase::GetFESpaceType() const
 int LORBase::GetLOROrder() const
 {
    FESpaceType type = GetFESpaceType();
-   return (type == L2 || type == RT) ? 0 : 1;
+   return (type == L2) ? 0 : 1;
 }
 
 void LORBase::ConstructLocalDofPermutation(Array<int> &perm_) const

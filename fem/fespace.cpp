@@ -18,10 +18,13 @@
 #include "ceed/interface/util.hpp"
 
 #include "derefmat_op.hpp"
+#include "hp_edge_trace.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>
+#include <limits>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -912,6 +915,141 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
    return R;
 }
 
+namespace
+{
+
+using internal::AddInternalEdgeCompatibility;
+using internal::HpConstraintRow;
+
+void ExpandHpDependencies(int dof, const SparseMatrix &deps,
+                          std::vector<HpConstraintRow> &expanded,
+                          Array<char> &state)
+{
+   if (state[dof] == 2) { return; }
+   MFEM_VERIFY(state[dof] == 0, "Cyclic hp dependencies before completion");
+   state[dof] = 1;
+   if (!deps.RowSize(dof)) { expanded[dof][dof] = 1.0; }
+   else
+   {
+      const int *cols = deps.GetRowColumns(dof);
+      const real_t *vals = deps.GetRowEntries(dof);
+      for (int i = 0; i < deps.RowSize(dof); i++)
+      {
+         ExpandHpDependencies(cols[i], deps, expanded, state);
+         for (const auto &entry : expanded[cols[i]])
+         {
+            expanded[dof][entry.first] += vals[i]*entry.second;
+         }
+      }
+   }
+   state[dof] = 2;
+}
+
+// Eliminate only the independent roots reached by extra trace constraints.
+// Rows from disjoint patches remain disjoint; no global dense matrix or LAPACK
+// operation is required. Each pivot depends only on later pivots or free roots,
+// so adding these rows preserves the original dependency DAG.
+void CompleteHpDependencies(SparseMatrix &deps,
+                            const std::vector<HpConstraintRow> &constraints,
+                            Array<bool> &zero_dofs)
+{
+   if (constraints.empty()) { return; }
+   std::vector<HpConstraintRow> expanded(deps.Height()), echelon;
+   std::vector<int> pivots;
+   std::map<int, int> pivot_number;
+   Array<char> state(deps.Height());
+   state = 0;
+   const real_t tol = 128*std::numeric_limits<real_t>::epsilon();
+   for (const auto &constraint : constraints)
+   {
+      HpConstraintRow row;
+      real_t scale = 0.0;
+      for (const auto &term : constraint)
+      {
+         if (term.second == 0.0) { continue; }
+         ExpandHpDependencies(term.first, deps, expanded, state);
+         for (const auto &entry : expanded[term.first])
+         {
+            const real_t value = term.second*entry.second;
+            row[entry.first] += value;
+            scale += std::abs(value);
+         }
+      }
+      // Visit only pivots reached by this sparse row, in elimination order.
+      // Scanning every earlier pivot would make disconnected patches quadratic.
+      std::set<int> active;
+      for (const auto &entry : row)
+      {
+         const auto it = pivot_number.find(entry.first);
+         if (it != pivot_number.end()) { active.insert(it->second); }
+      }
+      while (!active.empty())
+      {
+         const int i = *active.begin();
+         active.erase(active.begin());
+         const auto it = row.find(pivots[i]);
+         if (it == row.end()) { continue; }
+         const real_t factor = it->second;
+         row.erase(it);
+         for (const auto &entry : echelon[i])
+         {
+            const real_t value = factor*entry.second;
+            row[entry.first] -= value;
+            scale += std::abs(value);
+            const auto next = pivot_number.find(entry.first);
+            if (next != pivot_number.end()) { active.insert(next->second); }
+         }
+      }
+      auto pivot = row.end();
+      real_t maximum = 0.0;
+      for (auto it = row.begin(); it != row.end(); ++it)
+      {
+         if (std::abs(it->second) > maximum)
+         {
+            maximum = std::abs(it->second);
+            pivot = it;
+         }
+      }
+      if (maximum <= tol*scale) { continue; }
+      MFEM_VERIFY(pivot != row.end(), "Empty nonzero hp constraint");
+      const int dof = pivot->first;
+      const real_t diagonal = pivot->second;
+      row.erase(pivot);
+      for (auto it = row.begin(); it != row.end(); )
+      {
+         if (std::abs(it->second) <= tol*scale) { it = row.erase(it); }
+         else { it->second /= diagonal; ++it; }
+      }
+      pivot_number[dof] = int(pivots.size());
+      pivots.push_back(dof);
+      echelon.push_back(std::move(row));
+   }
+   if (pivots.empty()) { return; }
+
+   SparseMatrix completed(deps.Height());
+   Array<int> cols;
+   Vector vals;
+   for (int i = 0; i < deps.Height(); i++)
+   {
+      deps.GetRow(i, cols, vals);
+      completed.AddRow(i, cols, vals);
+   }
+   for (int i = 0; i < int(pivots.size()); i++)
+   {
+      const int dof = pivots[i];
+      MFEM_VERIFY(!deps.RowSize(dof), "Hp pivot must be an independent root");
+      if (echelon[i].empty()) { zero_dofs[dof] = true; }
+      for (const auto &entry : echelon[i])
+      {
+         completed.Add(dof, entry.first, -entry.second);
+      }
+   }
+   completed.Finalize();
+   deps.Swap(completed);
+}
+
+} // namespace
+
 void FiniteElementSpace::AddDependencies(
    SparseMatrix& deps, Array<int>& master_dofs, Array<int>& slave_dofs,
    DenseMatrix& I, int skipfirst)
@@ -1176,6 +1314,10 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // as a linear combination of the highest order set of DOFs.
    SparseMatrix inv_deps(ndofs);
 
+   std::vector<HpConstraintRow> compatibility;
+   const bool internal_edges = !relaxed_hp &&
+                               internal::SupportsInternalEdgeConstraints(*this);
+
    VariableOrderMinimumRule(deps);
 
    // Collect local face/edge dependencies, starting with faces
@@ -1231,6 +1373,13 @@ void FiniteElementSpace::BuildConformingInterpolation() const
                const auto *pm = list.point_matrices[master_geom][slave.matrix];
                AddEdgeFaceDependencies(deps, master_dofs, master_fe,
                                        slave_dofs, slave.index, pm);
+               if (internal_edges && master_geom == Geometry::SQUARE &&
+                   slave.Geom() == Geometry::SQUARE)
+               {
+                  AddInternalEdgeCompatibility(*this, master_dofs, *master_fe,
+                                               p, slave.index, *pm,
+                                               compatibility);
+               }
             }
          }
 
@@ -1259,11 +1408,15 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    deps.Finalize();
    inv_deps.Finalize();
 
+   Array<bool> zero_dofs(ndofs);
+   zero_dofs = false;
+   CompleteHpDependencies(deps, compatibility, zero_dofs);
+
    // DOFs that stayed independent are true DOFs
    int n_true_dofs = 0;
    for (int i = 0; i < ndofs; i++)
    {
-      if (!deps.RowSize(i)) { n_true_dofs++; }
+      if (!deps.RowSize(i) && !zero_dofs[i]) { n_true_dofs++; }
    }
 
    // if all dofs are true dofs leave cP and cR NULL
@@ -1316,7 +1469,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // Put identity in the prolongation matrix for true DOFs, and set cR_hp
    for (int i = 0, true_dof = 0; i < ndofs; i++)
    {
-      if (!deps.RowSize(i)) // true dof
+      if (!deps.RowSize(i) && !zero_dofs[i]) // true dof
       {
          cP->Add(i, true_dof, 1.0);
          cR_J[true_dof] = i;
@@ -1348,6 +1501,14 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // cP matrix), in the third iteration slaves of slaves of slaves, etc.
    bool finished;
    int n_finalized = n_true_dofs;
+   for (int i = 0; i < ndofs; i++)
+   {
+      if (zero_dofs[i])
+      {
+         finalized[i] = true;
+         n_finalized++;
+      }
+   }
    do
    {
       finished = true;
@@ -3044,6 +3205,10 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
 
    const bool localVar = elem_order.Size() == mesh->GetNE();
    const int baseOrder = fec->GetOrder();
+   const bool internal_edges = internal::SupportsInternalEdgeConstraints(*this);
+   // In 3D, normal continuity constrains faces, not their boundary edges.
+   const bool normal_faces = mesh->Dimension() == 3 &&
+                             fec->GetContType() == FiniteElementCollection::NORMAL;
 
    ApplyGhostElementOrdersToEdgesAndFaces(edge_orders, face_orders);
 
@@ -3182,6 +3347,15 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
                {
                   continue;  // Skip ghost faces
                }
+               if (normal_faces) { continue; }
+               if (internal_edges && master.Geom() == Geometry::SQUARE &&
+                   slave.Geom() == Geometry::SQUARE)
+               {
+                  // Edge-edge, edge-face, and internal-edge compatibility
+                  // equations enforce trace restrictions without lowering the
+                  // whole master face.
+                  continue;
+               }
 
                mesh->GetFaceEdges(slave.index, E, ori);
                for (int j = 0; j < E.Size(); j++)
@@ -3192,7 +3366,10 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
             else
             {
                // degenerate face (i.e., edge-face constraint)
-               slave_orders |= edge_orders[FlipIndexSign(slave.index)];
+               if (!normal_faces)
+               {
+                  slave_orders |= edge_orders[FlipIndexSign(slave.index)];
+               }
             }
          }
 

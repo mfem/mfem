@@ -1564,7 +1564,7 @@ void VectorFiniteElement::LocalL2Projection_RT(
    DenseMatrix fine_shape(fs, dim), coarse_shape(cs, cfe.GetDim());
    DenseMatrix fine_mass(fs), fine_coarse_mass(fs, cs); // initialized with 0
    const int ir_order =
-      std::max(GetOrder(), this->GetOrder()) + this->GetOrder();
+      std::max(cfe.GetOrder(), this->GetOrder()) + this->GetOrder();
    const IntegrationRule &ir = IntRules.Get(this->GetGeomType(), ir_order);
 
    Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
@@ -1644,25 +1644,32 @@ void VectorFiniteElement::LocalL2Projection_ND(
    const VectorFiniteElement &cfe,
    ElementTransformation &Trans, DenseMatrix &I) const
 {
-   Vector v(dim);
+   // As in LocalInterpolation_ND, Trans maps the reference element of this
+   // element into the reference element of cfe, whose dimension cdim may be
+   // larger (an edge of a face). A coarse field u restricts to J^T u.
+   const int cdim = cfe.GetDim();
+   Vector v(cdim);
    IntegrationPoint tr_ip;
 
    const int fs = dof, cs = cfe.GetDof();
    I.SetSize(fs, cs);
-   DenseMatrix fine_shape(fs, dim), coarse_shape(cs, cfe.GetDim());
+   DenseMatrix fine_shape(fs, dim), coarse_shape(cs, cdim);
    DenseMatrix fine_mass(fs), fine_coarse_mass(fs, cs); // initialized with 0
    const int ir_order =
-      std::max(GetOrder(), this->GetOrder()) + this->GetOrder();
+      std::max(cfe.GetOrder(), this->GetOrder()) + this->GetOrder();
    const IntegrationRule &ir = IntRules.Get(this->GetGeomType(), ir_order);
 
    Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
    const DenseMatrix &J = Trans.Jacobian();
+   MFEM_ASSERT(J.Height() == cdim && J.Width() == dim,
+               "Trans must map the reference space of this element into the"
+               " reference space of cfe");
    for (int i = 0; i < ir.GetNPoints(); i++)
    {
       const IntegrationPoint &ip = ir.IntPoint(i);
       this->CalcVShape(ip, fine_shape);
       Trans.Transform(ip, v);
-      tr_ip.Set(v.GetData(), dim);
+      tr_ip.Set(v.GetData(), cdim);
       cfe.CalcVShape(tr_ip, coarse_shape);
 
       AddMult_a_AAt(ip.weight, fine_shape, fine_mass);
@@ -1673,9 +1680,9 @@ void VectorFiniteElement::LocalL2Projection_ND(
             real_t Mkj = 0.0;
             for (int d1=0; d1<dim; ++d1)
             {
-               for (int d2=0; d2<dim; ++d2)
+               for (int d2=0; d2<cdim; ++d2)
                {
-                  Mkj += ip.weight*fine_shape(k,d1)*J(d1,d2)*coarse_shape(j,d2);
+                  Mkj += ip.weight*fine_shape(k,d1)*J(d2,d1)*coarse_shape(j,d2);
                }
             }
             fine_coarse_mass(k,j) += (fabs(Mkj) < 1e-12) ? 0.0 : Mkj;
@@ -1692,8 +1699,13 @@ void VectorFiniteElement::LocalInterpolation_ND(
 {
    if (!is_nodal) { return LocalL2Projection_ND(cfe, Trans, I); }
 
+   // Trans maps the reference element of this (fine) element into the
+   // reference element of cfe, which may have a higher dimension, e.g. an edge
+   // of a face (see FiniteElementSpace::AddEdgeFaceDependencies). Points and
+   // tangents are therefore vectors in the reference space of cfe.
+   const int cdim = cfe.GetDim();
    real_t vk[Geometry::MaxDim];
-   Vector xk(vk, dim);
+   Vector xk(vk, cdim);
    IntegrationPoint ip;
 #ifdef MFEM_THREAD_SAFE
    DenseMatrix vshape(cfe.GetDof(), cfe.GetDim());
@@ -1705,10 +1717,13 @@ void VectorFiniteElement::LocalInterpolation_ND(
    // assuming Trans is linear; this should be ok for all refinement types
    Trans.SetIntPoint(&Geometries.GetCenter(geom_type));
    const DenseMatrix &J = Trans.Jacobian();
+   MFEM_ASSERT(J.Height() == cdim && J.Width() == dim,
+               "Trans must map the reference space of this element into the"
+               " reference space of cfe");
    for (int k = 0; k < dof; k++)
    {
       Trans.Transform(Nodes.IntPoint(k), xk);
-      ip.Set3(vk);
+      ip.Set(vk, cdim);
       cfe.CalcVShape(ip, vshape);
       // xk = J t_k
       J.Mult(tk + d2t[k]*dim, vk);
@@ -1716,7 +1731,7 @@ void VectorFiniteElement::LocalInterpolation_ND(
       for (int j = 0; j < vshape.Height(); j++)
       {
          real_t Ikj = 0.;
-         for (int i = 0; i < dim; i++)
+         for (int i = 0; i < cdim; i++)
          {
             Ikj += vshape(j, i) * vk[i];
          }
