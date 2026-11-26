@@ -26,8 +26,10 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
    fes(*nlf->FESpace()),
    dnfi(*nlf->GetDNFI()),
    fnfi(nlf->GetInteriorFaceIntegrators()),
+   bfnfi(nlf->GetBdrFaceIntegrators()),
    elemR(nullptr),
    int_face_restrict_lex(nullptr),
+   bdr_face_restrict_lex(nullptr),
    Grad(*this)
 {
 
@@ -46,7 +48,7 @@ void PANonlinearFormExtension::SetupRestrictionOperators()
    }
 
    // Construct the face restriction operators only if the nonlinear form has
-   // interior face integrators.
+   // interior or boundary face integrators.
    if (int_face_restrict_lex == nullptr && fnfi.Size() > 0)
    {
       int_face_restrict_lex = fes.GetFaceRestriction(
@@ -55,6 +57,16 @@ void PANonlinearFormExtension::SetupRestrictionOperators()
       int_face_X.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       int_face_Y.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       int_face_Y.UseDevice(true); // ensure 'int_face_Y = 0.0' is done on device
+   }
+
+   if (bdr_face_restrict_lex == nullptr && bfnfi.Size() > 0)
+   {
+      bdr_face_restrict_lex = fes.GetFaceRestriction(
+                                          ElementDofOrdering::LEXICOGRAPHIC,
+                                          FaceType::Boundary);
+      bdr_face_X.SetSize(bdr_face_restrict_lex>Height(), Device::GetMemoryType());
+      bdr_face_Y.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
+      bdr_face_Y.UseDevice(true); // ensure 'bdr_face_Y = 0.0' is done on device
    }
 }
 
@@ -72,15 +84,16 @@ real_t PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
 
 void PANonlinearFormExtension::Assemble()
 {
-   MFEM_VERIFY(nlf->GetBdrFaceIntegrators().Size() == 0,
-               "bdr face integrators are not supported yet");
-               
    SetupRestrictionOperators();
 
    for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(fes); }
    for (int i = 0; i < fnfi.Size(); ++i)
    {
       fnfi[i]->AssemblePAInteriorFaces(fes);
+   }
+   for (int i = 0; i < bfnfi.Size(); ++i)
+   {
+      bfnfi[i]->AssemblePABoundaryFaces(fes);
    }
 }
 
@@ -140,6 +153,7 @@ void PANonlinearFormExtension::Update()
    height = width = fes.GetVSize();
    elemR = nullptr;
    int_face_restrict_lex = nullptr;
+   bdr_face_restrict_lex = nullptr;
    Grad.Update();
 }
 

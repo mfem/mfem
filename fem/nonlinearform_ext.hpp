@@ -93,9 +93,12 @@ protected:
    const FiniteElementSpace &fes;
    const Array<NonlinearFormIntegrator*> &dnfi;
    const Array<NonlinearFormIntegrator*> &fnfi;
+   const Array<NonlinearFormIntegrator*> &bfnfi;
    const Operator *elemR; // not owned
    const FaceRestriction *int_face_restrict_lex; // not owned
+   const FaceRestriction *bdr_face_restrict_lex; // not owned
    mutable Vector int_face_X, int_face_Y; ///< Interior face E-vectors
+   mutable Vector bdr_face_X, bdr_face_Y; ///< Boundary face E-vectors
    mutable Gradient Grad;
 
    void SetupRestrictionOperators();
