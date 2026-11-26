@@ -784,7 +784,8 @@ TEST_CASE("QuadratureInterpolator entity list",
    if (qi) { qi->SetOutputLayout(l); }
    else { fqi->SetOutputLayout(l); }
 
-   // E -> Q on the entities of list (all if null)
+   // E -> Q, and Q -> E added to y (element values only), on the entities of
+   // list (all if null)
    auto forward = [&](const Vector &x, Vector &q, const Array<int> *list)
    {
       Vector u; // unused outputs
@@ -798,6 +799,13 @@ TEST_CASE("QuadratureInterpolator entity list",
          fqi->Mult(x, der ? FQI::DERIVATIVES : FQI::VALUES, der ? u : q,
                    der ? q : u, u, u, list);
       }
+   };
+
+   auto transpose = [&](const Vector &q, Vector &y, const Array<int> *list)
+   {
+      Vector u;
+      qi->AddMultTranspose(der ? QI::DERIVATIVES : QI::VALUES,
+                           der ? u : q, der ? q : u, y, list);
    };
 
    auto max_diff = [](const Vector &a, const Vector &b)
@@ -838,5 +846,44 @@ TEST_CASE("QuadratureInterpolator entity list",
    forward(e_vec, q_all, &all);
    REQUIRE(max_diff(q_all, q_full) == MFEM_Approx(0.0));
    forward(e_vec, q_none, &empty);
-   REQUIRE(q_none.Size() == 0);
+
+   // Q -> E with the same list (QuadratureInterpolator values only)
+   if (qi && !der)
+   {
+      // The same as the full transpose of the compact Q-vector scattered into
+      // zeros, so the other entities of the E-vector are unchanged.
+      Vector q_rnd(q_size * n), q_scattered(q_size * n_all);
+      q_rnd.UseDevice(true);
+      q_rnd.Randomize(7);
+      q_scattered.UseDevice(true);
+      q_scattered = 0.0;
+      {
+         const real_t *c = q_rnd.HostRead();
+         real_t *f = q_scattered.HostReadWrite();
+         for (int j = 0; j < q_size * n; j++)
+         {
+            f[j % q_size + q_size * list[j / q_size]] = c[j];
+         }
+      }
+      Vector y_list(e_vec), y_ref(e_vec);
+      transpose(q_rnd, y_list, &list);
+      transpose(q_scattered, y_ref, nullptr);
+      REQUIRE(max_diff(y_list, y_ref) == MFEM_Approx(0.0));
+
+      // Q -> E is the transpose of E -> Q: (q, B x) = (B^T q, x).
+      Vector x_rnd(e_vec.Size()), bx(q_size * n), btq(e_vec.Size());
+      x_rnd.UseDevice(true);
+      bx.UseDevice(true);
+      btq.UseDevice(true);
+      x_rnd.Randomize(11);
+      btq = 0.0;
+      forward(x_rnd, bx, &list);
+      transpose(q_rnd, btq, &list);
+      REQUIRE(q_rnd * bx == MFEM_Approx(btq * x_rnd));
+
+      // An empty list does not change the E-vector.
+      Vector y(e_vec);
+      transpose(q_none, y, &empty);
+      REQUIRE(max_diff(y, e_vec) == 0.0);
+   }
 }

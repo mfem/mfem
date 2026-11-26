@@ -166,9 +166,16 @@ public:
        reference coordinates) of the E-vector @a e_vec at quadrature points. */
    void Determinants(const Vector &e_vec, Vector &q_det) const;
 
-   /// Perform the transpose operation of Mult(). (TODO)
-   void MultTranspose(unsigned eval_flags, const Vector &q_val,
-                      const Vector &q_der, Vector &e_vec) const;
+   /** @brief Perform the transpose operation of Mult(), adding the result to
+       @a e_vec.
+
+       Only the VALUES and PHYSICAL_VALUES flags are supported: @a q_val is
+       transposed, with the layout set by SetOutputLayout(), and @a q_der is
+       not used. Only tensor-product evaluations of spaces with a VALUE map
+       type are supported. See Mult() for @a elist. */
+   void AddMultTranspose(unsigned eval_flags, const Vector &q_val,
+                         const Vector &q_der, Vector &e_vec,
+                         const Array<int> *elist = nullptr) const;
 
    /// @brief Returns true if the given finite element space is supported by
    /// QuadratureInterpolator.
@@ -219,6 +226,10 @@ public:
    using TensorEvalHDivKernelType =
       void(*)(const int, const real_t *, const real_t *, const real_t *,
               const real_t *, real_t *, const int, const int);
+   using TensorEvalTransposeKernelType = void(*)(const int, const real_t *,
+                                                 const real_t *,
+                                                 real_t *, const int, const int, const int,
+                                                 const Array<int> *);
 
    // value-type mapping
    MFEM_REGISTER_KERNELS(TensorEvalKernels, TensorEvalKernelType,
@@ -237,6 +248,8 @@ public:
 
    MFEM_REGISTER_KERNELS(TensorEvalHDivKernels, TensorEvalHDivKernelType,
                          (int, QVectorLayout, unsigned, int, int));
+   MFEM_REGISTER_KERNELS(TensorEvalTransposeKernels, TensorEvalTransposeKernelType,
+                         (int, QVectorLayout, int, int, int), (int));
 
    /// Adds specializations for TensorEvalKernels
    template <int DIM, QVectorLayout Q_LAYOUT, int VDIM, int D1D, int Q1D,
