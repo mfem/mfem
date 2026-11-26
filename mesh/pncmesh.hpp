@@ -231,7 +231,12 @@ public:
    void SendRebalanceDofs(int old_ndofs, const Table &old_element_dofs,
                           long old_global_offset, FiniteElementSpace* space);
 
-   /// Receive element DOFs sent by SendRebalanceDofs().
+   /// Use the communication pattern from last Rebalance() to send one value
+   /// per element, indexed by the pre-Rebalance element numbering.
+   void SendRebalanceValues(const Array<int> &values);
+
+   /// Receive element DOFs sent by SendRebalanceDofs(), or element values sent
+   /// by SendRebalanceValues().
    void RecvRebalanceDofs(Array<int> &elements, Array<long> &dofs);
 
    /** Get previous indices (pre-Rebalance) of current elements. Index of -1

@@ -389,13 +389,6 @@ protected:
    /// Return element order: internal version of GetElementOrder without checks.
    int GetElementOrderImpl(int i) const;
 
-   /// Returns true if the space is H1 and has variable-order elements.
-   bool IsVariableOrderH1() const
-   {
-      return variableOrder &&
-             dynamic_cast<const H1_FECollection*>(fec);
-   }
-
    /** In a variable-order space, calculate a bitmask of polynomial orders that
        need to be represented on each edge and face. */
    void CalcEdgeFaceVarOrders(
@@ -584,7 +577,7 @@ protected:
    virtual void UpdateMeshPointer(Mesh *new_mesh);
 
    /// Resize the elem_order array on mesh change.
-   void UpdateElementOrders();
+   virtual void UpdateElementOrders();
 
    /// @brief Copies the prolongation and restriction matrices from @a fes.
    ///
@@ -1332,7 +1325,7 @@ public:
         associated with i'th face in the mesh object.  Faces in this case refer
         to the MESHDIM-1 primitive so in 2D they are segments and in 1D they are
         points.*/
-   const FiniteElement *GetFaceElement(int i) const;
+   const FiniteElement *GetFaceElement(int i, int variant = 0) const;
 
    /// @brief Return a "typical" face element.
    ///
@@ -1542,9 +1535,9 @@ public:
                                  bool want_transfer = true);
 
    /** Return true iff p-refinement is supported in this space. Current support
-       is only for L2 or H1 spaces on purely quadrilateral or hexahedral
-       meshes. */
-   bool PRefinementSupported();
+       is for H1/L2 spaces (1D/2D/3D) and ND/RT volume spaces on purely
+       quadrilateral (2D) or hexahedral (3D) meshes. */
+   virtual bool PRefinementSupported();
 
    /// Get the GridFunction update operator.
    const Operator* GetUpdateOperator() { Update(); return Th.Ptr(); }

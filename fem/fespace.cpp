@@ -18,10 +18,13 @@
 #include "ceed/interface/util.hpp"
 
 #include "derefmat_op.hpp"
+#include "hp_edge_trace.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>
+#include <limits>
+#include <map>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -912,6 +915,141 @@ FiniteElementSpace::H2L_GlobalRestrictionMatrix (FiniteElementSpace *lfes)
    return R;
 }
 
+namespace
+{
+
+using internal::AddInternalEdgeCompatibility;
+using internal::HpConstraintRow;
+
+void ExpandHpDependencies(int dof, const SparseMatrix &deps,
+                          std::vector<HpConstraintRow> &expanded,
+                          Array<char> &state)
+{
+   if (state[dof] == 2) { return; }
+   MFEM_VERIFY(state[dof] == 0, "Cyclic hp dependencies before completion");
+   state[dof] = 1;
+   if (!deps.RowSize(dof)) { expanded[dof][dof] = 1.0; }
+   else
+   {
+      const int *cols = deps.GetRowColumns(dof);
+      const real_t *vals = deps.GetRowEntries(dof);
+      for (int i = 0; i < deps.RowSize(dof); i++)
+      {
+         ExpandHpDependencies(cols[i], deps, expanded, state);
+         for (const auto &entry : expanded[cols[i]])
+         {
+            expanded[dof][entry.first] += vals[i]*entry.second;
+         }
+      }
+   }
+   state[dof] = 2;
+}
+
+// Eliminate only the independent roots reached by extra trace constraints.
+// Rows from disjoint patches remain disjoint; no global dense matrix or LAPACK
+// operation is required. Each pivot depends only on later pivots or free roots,
+// so adding these rows preserves the original dependency DAG.
+void CompleteHpDependencies(SparseMatrix &deps,
+                            const std::vector<HpConstraintRow> &constraints,
+                            Array<bool> &zero_dofs)
+{
+   if (constraints.empty()) { return; }
+   std::vector<HpConstraintRow> expanded(deps.Height()), echelon;
+   std::vector<int> pivots;
+   std::map<int, int> pivot_number;
+   Array<char> state(deps.Height());
+   state = 0;
+   const real_t tol = 128*std::numeric_limits<real_t>::epsilon();
+   for (const auto &constraint : constraints)
+   {
+      HpConstraintRow row;
+      real_t scale = 0.0;
+      for (const auto &term : constraint)
+      {
+         if (term.second == 0.0) { continue; }
+         ExpandHpDependencies(term.first, deps, expanded, state);
+         for (const auto &entry : expanded[term.first])
+         {
+            const real_t value = term.second*entry.second;
+            row[entry.first] += value;
+            scale += std::abs(value);
+         }
+      }
+      // Visit only pivots reached by this sparse row, in elimination order.
+      // Scanning every earlier pivot would make disconnected patches quadratic.
+      std::set<int> active;
+      for (const auto &entry : row)
+      {
+         const auto it = pivot_number.find(entry.first);
+         if (it != pivot_number.end()) { active.insert(it->second); }
+      }
+      while (!active.empty())
+      {
+         const int i = *active.begin();
+         active.erase(active.begin());
+         const auto it = row.find(pivots[i]);
+         if (it == row.end()) { continue; }
+         const real_t factor = it->second;
+         row.erase(it);
+         for (const auto &entry : echelon[i])
+         {
+            const real_t value = factor*entry.second;
+            row[entry.first] -= value;
+            scale += std::abs(value);
+            const auto next = pivot_number.find(entry.first);
+            if (next != pivot_number.end()) { active.insert(next->second); }
+         }
+      }
+      auto pivot = row.end();
+      real_t maximum = 0.0;
+      for (auto it = row.begin(); it != row.end(); ++it)
+      {
+         if (std::abs(it->second) > maximum)
+         {
+            maximum = std::abs(it->second);
+            pivot = it;
+         }
+      }
+      if (maximum <= tol*scale) { continue; }
+      MFEM_VERIFY(pivot != row.end(), "Empty nonzero hp constraint");
+      const int dof = pivot->first;
+      const real_t diagonal = pivot->second;
+      row.erase(pivot);
+      for (auto it = row.begin(); it != row.end(); )
+      {
+         if (std::abs(it->second) <= tol*scale) { it = row.erase(it); }
+         else { it->second /= diagonal; ++it; }
+      }
+      pivot_number[dof] = int(pivots.size());
+      pivots.push_back(dof);
+      echelon.push_back(std::move(row));
+   }
+   if (pivots.empty()) { return; }
+
+   SparseMatrix completed(deps.Height());
+   Array<int> cols;
+   Vector vals;
+   for (int i = 0; i < deps.Height(); i++)
+   {
+      deps.GetRow(i, cols, vals);
+      completed.AddRow(i, cols, vals);
+   }
+   for (int i = 0; i < int(pivots.size()); i++)
+   {
+      const int dof = pivots[i];
+      MFEM_VERIFY(!deps.RowSize(dof), "Hp pivot must be an independent root");
+      if (echelon[i].empty()) { zero_dofs[dof] = true; }
+      for (const auto &entry : echelon[i])
+      {
+         completed.Add(dof, entry.first, -entry.second);
+      }
+   }
+   completed.Finalize();
+   deps.Swap(completed);
+}
+
+} // namespace
+
 void FiniteElementSpace::AddDependencies(
    SparseMatrix& deps, Array<int>& master_dofs, Array<int>& slave_dofs,
    DenseMatrix& I, int skipfirst)
@@ -1176,6 +1314,10 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // as a linear combination of the highest order set of DOFs.
    SparseMatrix inv_deps(ndofs);
 
+   std::vector<HpConstraintRow> compatibility;
+   const bool internal_edges = !relaxed_hp &&
+                               internal::SupportsInternalEdgeConstraints(*this);
+
    VariableOrderMinimumRule(deps);
 
    // Collect local face/edge dependencies, starting with faces
@@ -1231,6 +1373,13 @@ void FiniteElementSpace::BuildConformingInterpolation() const
                const auto *pm = list.point_matrices[master_geom][slave.matrix];
                AddEdgeFaceDependencies(deps, master_dofs, master_fe,
                                        slave_dofs, slave.index, pm);
+               if (internal_edges && master_geom == Geometry::SQUARE &&
+                   slave.Geom() == Geometry::SQUARE)
+               {
+                  AddInternalEdgeCompatibility(*this, master_dofs, *master_fe,
+                                               p, slave.index, *pm,
+                                               compatibility);
+               }
             }
          }
 
@@ -1259,11 +1408,15 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    deps.Finalize();
    inv_deps.Finalize();
 
+   Array<bool> zero_dofs(ndofs);
+   zero_dofs = false;
+   CompleteHpDependencies(deps, compatibility, zero_dofs);
+
    // DOFs that stayed independent are true DOFs
    int n_true_dofs = 0;
    for (int i = 0; i < ndofs; i++)
    {
-      if (!deps.RowSize(i)) { n_true_dofs++; }
+      if (!deps.RowSize(i) && !zero_dofs[i]) { n_true_dofs++; }
    }
 
    // if all dofs are true dofs leave cP and cR NULL
@@ -1316,7 +1469,7 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // Put identity in the prolongation matrix for true DOFs, and set cR_hp
    for (int i = 0, true_dof = 0; i < ndofs; i++)
    {
-      if (!deps.RowSize(i)) // true dof
+      if (!deps.RowSize(i) && !zero_dofs[i]) // true dof
       {
          cP->Add(i, true_dof, 1.0);
          cR_J[true_dof] = i;
@@ -1348,6 +1501,14 @@ void FiniteElementSpace::BuildConformingInterpolation() const
    // cP matrix), in the third iteration slaves of slaves of slaves, etc.
    bool finished;
    int n_finalized = n_true_dofs;
+   for (int i = 0; i < ndofs; i++)
+   {
+      if (zero_dofs[i])
+      {
+         finalized[i] = true;
+         n_finalized++;
+      }
+   }
    do
    {
       finished = true;
@@ -2820,7 +2981,7 @@ void FiniteElementSpace::Construct()
    }
 
    // assign edge DOFs
-   if (mesh->GetNEdges())
+   if (mesh->GetNEdges() || (IsVariableOrder() && mesh->Dimension() >= 2))
    {
       if (IsVariableOrder())
       {
@@ -2842,7 +3003,7 @@ void FiniteElementSpace::Construct()
    }
 
    // assign face DOFs
-   if (mesh->GetNFaces())
+   if (mesh->GetNFaces() || (IsVariableOrder() && mesh->Dimension() >= 3))
    {
       if (IsVariableOrder() || mixed_faces)
       {
@@ -3044,6 +3205,10 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
 
    const bool localVar = elem_order.Size() == mesh->GetNE();
    const int baseOrder = fec->GetOrder();
+   const bool internal_edges = internal::SupportsInternalEdgeConstraints(*this);
+   // In 3D, normal continuity constrains faces, not their boundary edges.
+   const bool normal_faces = mesh->Dimension() == 3 &&
+                             fec->GetContType() == FiniteElementCollection::NORMAL;
 
    ApplyGhostElementOrdersToEdgesAndFaces(edge_orders, face_orders);
 
@@ -3182,6 +3347,15 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
                {
                   continue;  // Skip ghost faces
                }
+               if (normal_faces) { continue; }
+               if (internal_edges && master.Geom() == Geometry::SQUARE &&
+                   slave.Geom() == Geometry::SQUARE)
+               {
+                  // Edge-edge, edge-face, and internal-edge compatibility
+                  // equations enforce trace restrictions without lowering the
+                  // whole master face.
+                  continue;
+               }
 
                mesh->GetFaceEdges(slave.index, E, ori);
                for (int j = 0; j < E.Size(); j++)
@@ -3192,7 +3366,10 @@ void FiniteElementSpace::CalcEdgeFaceVarOrders(
             else
             {
                // degenerate face (i.e., edge-face constraint)
-               slave_orders |= edge_orders[FlipIndexSign(slave.index)];
+               if (!normal_faces)
+               {
+                  slave_orders |= edge_orders[FlipIndexSign(slave.index)];
+               }
             }
          }
 
@@ -3375,9 +3552,12 @@ int FiniteElementSpace::GetEdgeOrder(int edge, int variant) const
 {
    if (!IsVariableOrder()) { return fec->GetOrder(); }
 
-   if (edge >= var_edge_dofs.Size())
+   const int n_edges = var_edge_dofs.Size() - 1;
+   if (n_edges >= 0 && edge >= n_edges)
    {
-      return ghost_edge_orders[edge - var_edge_dofs.Size()];
+      const int ghost_idx = edge - n_edges;
+      if (variant != 0 || ghost_idx >= ghost_edge_orders.Size()) { return -1; }
+      return ghost_edge_orders[ghost_idx];
    }
 
    const int* beg = var_edge_dofs.GetRow(edge);
@@ -3396,9 +3576,16 @@ int FiniteElementSpace::GetFaceOrder(int face, int variant) const
       return fec->FiniteElementForGeometry(geom)->GetOrder();
    }
 
-   if (face >= var_face_dofs.Size())
+   const int dim = mesh->Dimension();
+   if (dim == 2) { return GetEdgeOrder(face, variant); }
+   if (dim < 2) { return (variant == 0) ? fec->GetOrder() : -1; }
+
+   const int n_faces = var_face_dofs.Size() - 1;
+   if (n_faces >= 0 && face >= n_faces)
    {
-      return ghost_face_orders[face - var_face_dofs.Size()];
+      const int ghost_idx = face - n_faces;
+      if (variant != 0 || ghost_idx >= ghost_face_orders.Size()) { return -1; }
+      return ghost_face_orders[ghost_idx];
    }
 
    const int* beg = var_face_dofs.GetRow(face);
@@ -3431,12 +3618,15 @@ void FiniteElementSpace::GetElementDofs(int elem, Array<int> &dofs,
    {
       elem_dof->GetRow(elem, dofs);
 
-      if (DoFTransArray[mesh->GetElementBaseGeometry(elem)])
+      const Geometry::Type geom = mesh->GetElementBaseGeometry(elem);
+      if (DoFTransArray[geom] &&
+          (!IsVariableOrder() ||
+           (mesh->Dimension() > 2 &&
+            fec->HasFaceDofs(geom, GetElementOrderImpl(elem)))))
       {
          Array<int> Fo;
          elem_fos -> GetRow (elem, Fo);
-         doftrans.SetDofTransformation(
-            *DoFTransArray[mesh->GetElementBaseGeometry(elem)]);
+         doftrans.SetDofTransformation(*DoFTransArray[geom]);
          doftrans.SetFaceOrientations(Fo);
          doftrans.SetVDim();
       }
@@ -3647,20 +3837,29 @@ int FiniteElementSpace::GetFaceDofs(int face, Array<int> &dofs,
 {
    MFEM_VERIFY(!orders_changed, msg_orders_changed);
 
+   const int dim = mesh->Dimension();
+
    // If face_dof is already built, use it.
    // If it is not and we have a NURBS space, build the face_dof and use it.
    if ((face_dof && variant == 0) ||
        (NURBSext && (BuildNURBSFaceToDofTable(), true)))
    {
       face_dof->GetRow(face, dofs);
-      return fec->GetOrder();
+      return (!IsVariableOrder() || NURBSext) ? fec->GetOrder()
+             : GetFaceOrder(face, 0);
    }
 
    int order, nf, fbase;
-   int dim = mesh->Dimension();
    auto fgeom = (dim > 2) ? mesh->GetFaceGeometry(face) : Geometry::INVALID;
 
-   if (var_face_dofs.Size() > 0) // variable orders or *mixed* faces
+   if (dim == 2 && IsVariableOrder())
+   {
+      order = GetEdgeOrder(face, variant);
+      if (order < 0) { return -1; }
+      nf = 0;
+      fbase = 0;
+   }
+   else if (dim > 2 && var_face_dofs.Size() > 0) // variable orders or *mixed* faces
    {
       const int* beg = var_face_dofs.GetRow(face);
       const int* end = var_face_dofs.GetRow(face + 1);
@@ -3941,22 +4140,30 @@ const FiniteElement *FiniteElementSpace::GetTypicalBE() const
    return be;
 }
 
-const FiniteElement *FiniteElementSpace::GetFaceElement(int i) const
+const FiniteElement *FiniteElementSpace::GetFaceElement(int i,
+                                                        int variant) const
 {
-   MFEM_VERIFY(!IsVariableOrder(), "not implemented");
+   const int dim = mesh->Dimension();
+   int order = fec->GetOrder();
+   if (IsVariableOrder())
+   {
+      if (dim == 2) { order = GetEdgeOrder(i, variant); }
+      else if (dim == 3) { order = GetFaceOrder(i, variant); }
+      MFEM_VERIFY(order >= 0, "Invalid face variant in GetFaceElement().");
+   }
 
    const FiniteElement *fe;
-   switch (mesh->Dimension())
+   switch (dim)
    {
       case 1:
-         fe = fec->FiniteElementForGeometry(Geometry::POINT);
+         fe = fec->GetFE(Geometry::POINT, order);
          break;
       case 2:
-         fe = fec->FiniteElementForGeometry(Geometry::SEGMENT);
+         fe = fec->GetFE(Geometry::SEGMENT, order);
          break;
       case 3:
       default:
-         fe = fec->FiniteElementForGeometry(mesh->GetFaceGeometry(i));
+         fe = fec->GetFE(mesh->GetFaceGeometry(i), order);
    }
 
    if (NURBSext)
@@ -4151,6 +4358,7 @@ void FiniteElementSpace::GetTrueTransferOperator(
 void FiniteElementSpace::UpdateElementOrders()
 {
    Array<char> new_order(mesh->GetNE());
+   new_order = 0;
    switch (mesh->GetLastOperation())
    {
       case Mesh::REFINE:
@@ -4164,16 +4372,24 @@ void FiniteElementSpace::UpdateElementOrders()
       }
       case Mesh::DEREFINE:
       {
+         // Children of a derefined element are expected to have equal orders.
+         Array<bool> seen(mesh->GetNE());
+         seen = false;
          const CoarseFineTransformations &cf_tr =
             mesh->ncmesh->GetDerefinementTransforms();
-         Table coarse_to_fine;
-         cf_tr.MakeCoarseToFineTable(coarse_to_fine);
-         Array<int> tabrow;
-         for (int i = 0; i < coarse_to_fine.Size(); i++)
+         for (int k = 0; k < cf_tr.embeddings.Size(); k++)
          {
-            coarse_to_fine.GetRow(i, tabrow);
-            // For now we require all children to be of same polynomial order.
-            new_order[i] = elem_order[tabrow[0]];
+            const int p = cf_tr.embeddings[k].parent;
+            if (!seen[p])
+            {
+               new_order[p] = elem_order[k];
+               seen[p] = true;
+            }
+            else
+            {
+               MFEM_VERIFY(new_order[p] == elem_order[k],
+                           "Derefinement of mixed-order sibling elements is not supported.");
+            }
          }
          break;
       }
@@ -4337,15 +4553,22 @@ void FiniteElementSpace::PRefineAndUpdate(const Array<pRefinement> & refs,
 
 bool FiniteElementSpace::PRefinementSupported()
 {
-   // Check whether the space type is L2 or H1
-   if (!dynamic_cast<const L2_FECollection*>(fec) &&
-       !dynamic_cast<const H1_FECollection*>(fec))
+   // Check whether the space type is L2, H1, ND or RT (excluding trace/interface)
+   const bool is_l2 = dynamic_cast<const L2_FECollection*>(fec) != nullptr;
+   const bool is_h1 = dynamic_cast<const H1_FECollection*>(fec) != nullptr;
+   const bool is_nd = dynamic_cast<const ND_FECollection*>(fec) != nullptr &&
+                      !dynamic_cast<const ND_Trace_FECollection*>(fec);
+   const bool is_rt = dynamic_cast<const RT_FECollection*>(fec) != nullptr &&
+                      !dynamic_cast<const RT_Trace_FECollection*>(fec) &&
+                      !dynamic_cast<const DG_Interface_FECollection*>(fec);
+   if (!is_l2 && !is_h1 && !is_nd && !is_rt)
    {
       return false;
    }
 
-   // Check whether the mesh is purely quadrilateral or hexahedral.
+   // Check whether the mesh is purely quadrilateral or hexahedral (ND/RT >= 2D).
    const int dim = mesh->Dimension();
+   if ((is_nd || is_rt) && dim < 2) { return false; }
    Array<Geometry::Type> geoms;
    mesh->GetGeometries(dim, geoms);
    if (geoms.Size() != 1) { return false; }
