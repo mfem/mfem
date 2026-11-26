@@ -78,6 +78,42 @@ void L2_SegmentElement::ProjectDelta(int vertex, Vector &dofs) const
    }
 }
 
+void L2_SegmentElement::Project(Coefficient &coeff,
+                                ElementTransformation &Trans,
+                                Vector &dofs) const
+{
+   if (basis1d.IsIntegratedType())
+   {
+      const IntegrationRule &ir =
+         IntRules.Get(geom_type, order + 1 + Trans.OrderJ());
+      const real_t *gll_pts = poly1d.GetPoints(order + 1,
+                                               BasisType::GaussLobatto);
+
+      dofs = 0.0;
+      for (int ix = 0; ix < order + 1; ++ix)
+      {
+         const real_t hx = gll_pts[ix + 1] - gll_pts[ix];
+         for (int iq = 0; iq < ir.Size(); ++iq)
+         {
+            IntegrationPoint ip = ir[iq];
+            ip.x = gll_pts[ix] + hx * ip.x;
+            Trans.SetIntPoint(&ip);
+            const real_t val = coeff.Eval(Trans, ip);
+            real_t w = ip.weight;
+            if (map_type == INTEGRAL)
+            {
+               w *= hx * Trans.Weight();
+            }
+            dofs[ix] += val * w;
+         }
+      }
+   }
+   else
+   {
+      NodalFiniteElement::Project(coeff, Trans, dofs);
+   }
+}
+
 
 L2_QuadrilateralElement::L2_QuadrilateralElement(const int p, const int btype)
    : NodalTensorFiniteElement(2, p, VerifyOpen(btype), L2_DOF_MAP)
@@ -258,7 +294,8 @@ void L2_QuadrilateralElement::Project(Coefficient &coeff,
 {
    if (basis1d.IsIntegratedType())
    {
-      const IntegrationRule &ir = IntRules.Get(geom_type, order);
+      const IntegrationRule &ir =
+         IntRules.Get(geom_type, order + 1 + 2 * Trans.OrderJ());
       const real_t *gll_pts = poly1d.GetPoints(order+1, BasisType::GaussLobatto);
 
       dofs = 0.0;

@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "lor_ams.hpp"
+#include "lor_var_order.hpp"
 #include "../../general/forall.hpp"
 #include "../../fem/pbilinearform.hpp"
 
@@ -375,6 +376,11 @@ LORSolver<HypreAMS>::LORSolver(
                             lor_ams.StealXCoordinate(),
                             lor_ams.StealYCoordinate(),
                             lor_ams.StealZCoordinate());
+   }
+   else if (ref_type == BasisType::GaussLobatto &&
+            VarOrderLORAssembly::FormIsSupported(a_ho))
+   {
+      solver = VarOrderLORAssembly::BuildAMS(a_ho, ess_tdof_list, A).release();
    }
    else
    {

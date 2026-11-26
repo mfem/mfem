@@ -20,6 +20,92 @@ namespace mfem
 
 using namespace std;
 
+namespace
+{
+
+void SetIntegratedSubEdgeCoords(IntegrationPoint &ip, int dim, int dir,
+                                real_t t, const real_t fixed[3])
+{
+   real_t c[3] = { fixed[0], fixed[1], fixed[2] };
+   c[dir] = t;
+   if (dim == 2) { ip.Set2(c[0], c[1]); }
+   else { ip.Set3(c[0], c[1], c[2]); }
+}
+
+void AccumIntegratedSubEdgeGrad(const FiniteElement &fe, int dim, int dir,
+                                real_t a, real_t b, const real_t fixed[3],
+                                int idx, real_t sgn,
+                                Vector &s0, Vector &s1, DenseMatrix &grad)
+{
+   IntegrationPoint p0, p1;
+   SetIntegratedSubEdgeCoords(p0, dim, dir, a, fixed);
+   SetIntegratedSubEdgeCoords(p1, dim, dir, b, fixed);
+   fe.CalcShape(p0, s0);
+   fe.CalcShape(p1, s1);
+   const int n = fe.GetDof();
+   for (int j = 0; j < n; j++)
+   {
+      const real_t g = sgn * (s1(j) - s0(j));
+      grad(idx, j) = (std::abs(g) < 1e-12) ? 0.0 : g;
+   }
+}
+
+void AccumIntegratedSubEdgeFE(const FiniteElement &fe,
+                              ElementTransformation &Trans,
+                              const IntegrationRule &ir,
+                              int dim, int sdim, int dir,
+                              real_t a, real_t b, const real_t fixed[3],
+                              const real_t *tvec, int idx,
+                              Vector &shape, DenseMatrix &vshape,
+                              DenseMatrix &I)
+{
+   const real_t h = b - a;
+   const int nfe = fe.GetDof();
+   const bool scalar = (fe.GetRangeType() == FiniteElement::SCALAR);
+   const bool integral_map = (fe.GetMapType() == FiniteElement::INTEGRAL);
+   IntegrationPoint ip;
+   real_t vk[Geometry::MaxDim];
+   Vector vec_tmp(nfe);
+
+   for (int q = 0; q < ir.GetNPoints(); q++)
+   {
+      const IntegrationPoint &ip1d = ir.IntPoint(q);
+      const real_t w = h * ip1d.weight;
+      SetIntegratedSubEdgeCoords(ip, dim, dir, a + h * ip1d.x, fixed);
+      Trans.SetIntPoint(&ip);
+      Trans.Jacobian().Mult(tvec, vk);
+
+      if (scalar)
+      {
+         fe.CalcShape(ip, shape);
+         if (integral_map)
+         {
+            const real_t inv_w = 1.0 / Trans.Weight();
+            for (int d = 0; d < sdim; d++) { vk[d] *= inv_w; }
+         }
+         for (int d = 0; d < sdim; d++)
+         {
+            const real_t wd = w * vk[d];
+            for (int j = 0; j < nfe; j++)
+            {
+               I(idx, j + d * nfe) += wd * shape(j);
+            }
+         }
+      }
+      else
+      {
+         fe.CalcVShape(Trans, vshape);
+         vshape.Mult(vk, vec_tmp);
+         for (int j = 0; j < nfe; j++)
+         {
+            I(idx, j) += w * vec_tmp(j);
+         }
+      }
+   }
+}
+
+} // namespace
+
 const real_t ND_HexahedronElement::tk[18] =
 { 1.,0.,0.,  0.,1.,0.,  0.,0.,1., -1.,0.,0.,  0.,-1.,0.,  0.,0.,-1. };
 
@@ -303,6 +389,76 @@ void ND_HexahedronElement::ProjectIntegrated(VectorCoefficient &vc,
                }
 
                dofs(idx) = val*h;
+            }
+   }
+}
+
+void ND_HexahedronElement::ProjectIntegrated(const FiniteElement &fe,
+                                             ElementTransformation &Trans,
+                                             DenseMatrix &I) const
+{
+   MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
+   const int sdim = Trans.GetSpaceDim();
+   const int nfe = fe.GetDof();
+   const bool scalar = (fe.GetRangeType() == SCALAR);
+   I.SetSize(dof, scalar ? sdim * nfe : nfe);
+   I = 0.0;
+
+   const int ir_order = std::max(order, fe.GetOrder()) + Trans.OrderJ() + 1;
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, ir_order);
+   Vector shape(scalar ? nfe : 0);
+   DenseMatrix vshape(scalar ? 0 : nfe, sdim);
+
+   int o = 0;
+   for (int c = 0; c < 3; ++c)
+   {
+      const int im = c == 0 ? order - 1 : order;
+      const int jm = c == 1 ? order - 1 : order;
+      const int km = c == 2 ? order - 1 : order;
+
+      for (int k = 0; k <= km; k++)
+         for (int j = 0; j <= jm; j++)
+            for (int i = 0; i <= im; i++)
+            {
+               int idx = dof_map[o++];
+               if (idx < 0) { idx = -1 - idx; }
+               const int id1 = c == 0 ? i : (c == 1 ? j : k);
+               const real_t fixed[3] = { cp[i], cp[j], cp[k] };
+               AccumIntegratedSubEdgeFE(fe, Trans, ir, 3, sdim, c,
+                                        cp[id1], cp[id1 + 1], fixed,
+                                        tk + dof2tk[idx] * dim, idx,
+                                        shape, vshape, I);
+            }
+   }
+}
+
+void ND_HexahedronElement::ProjectGradIntegrated(const FiniteElement &fe,
+                                                 ElementTransformation &,
+                                                 DenseMatrix &grad) const
+{
+   MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
+   MFEM_ASSERT(fe.GetMapType() == VALUE, "");
+   grad.SetSize(dof, fe.GetDof());
+   Vector s0(fe.GetDof()), s1(fe.GetDof());
+
+   int o = 0;
+   for (int c = 0; c < 3; ++c)
+   {
+      const int im = c == 0 ? order - 1 : order;
+      const int jm = c == 1 ? order - 1 : order;
+      const int km = c == 2 ? order - 1 : order;
+
+      for (int k = 0; k <= km; k++)
+         for (int j = 0; j <= jm; j++)
+            for (int i = 0; i <= im; i++)
+            {
+               const int raw = dof_map[o++];
+               const int idx = (raw < 0) ? (-1 - raw) : raw;
+               const real_t sgn = (raw < 0) ? -1.0 : 1.0;
+               const int id1 = c == 0 ? i : (c == 1 ? j : k);
+               const real_t fixed[3] = { cp[i], cp[j], cp[k] };
+               AccumIntegratedSubEdgeGrad(fe, 3, c, cp[id1], cp[id1 + 1], fixed,
+                                          idx, sgn, s0, s1, grad);
             }
    }
 }
@@ -695,6 +851,70 @@ void ND_QuadrilateralElement::ProjectIntegrated(VectorCoefficient &vc,
 
          dofs(idx) = val*h;
       }
+}
+
+void ND_QuadrilateralElement::ProjectIntegrated(const FiniteElement &fe,
+                                                ElementTransformation &Trans,
+                                                DenseMatrix &I) const
+{
+   MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
+   const int sdim = Trans.GetSpaceDim();
+   const int nfe = fe.GetDof();
+   const bool scalar = (fe.GetRangeType() == SCALAR);
+   I.SetSize(dof, scalar ? sdim * nfe : nfe);
+   I = 0.0;
+
+   const int ir_order = std::max(order, fe.GetOrder()) + Trans.OrderJ() + 1;
+   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, ir_order);
+   Vector shape(scalar ? nfe : 0);
+   DenseMatrix vshape(scalar ? 0 : nfe, sdim);
+
+   int o = 0;
+   for (int c = 0; c < 2; ++c)
+   {
+      const int im = (c == 0) ? order - 1 : order;
+      const int jm = (c == 1) ? order - 1 : order;
+      for (int j = 0; j <= jm; j++)
+         for (int i = 0; i <= im; i++)
+         {
+            int idx = dof_map[o++];
+            if (idx < 0) { idx = -1 - idx; }
+            const int id1 = (c == 0) ? i : j;
+            const real_t fixed[3] = { cp[i], cp[j], 0.0 };
+            AccumIntegratedSubEdgeFE(fe, Trans, ir, 2, sdim, c,
+                                     cp[id1], cp[id1 + 1], fixed,
+                                     tk + dof2tk[idx] * dim, idx,
+                                     shape, vshape, I);
+         }
+   }
+}
+
+void ND_QuadrilateralElement::ProjectGradIntegrated(const FiniteElement &fe,
+                                                    ElementTransformation &,
+                                                    DenseMatrix &grad) const
+{
+   MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
+   MFEM_ASSERT(fe.GetMapType() == VALUE, "");
+   grad.SetSize(dof, fe.GetDof());
+   Vector s0(fe.GetDof()), s1(fe.GetDof());
+
+   int o = 0;
+   for (int c = 0; c < 2; ++c)
+   {
+      const int im = (c == 0) ? order - 1 : order;
+      const int jm = (c == 1) ? order - 1 : order;
+      for (int j = 0; j <= jm; j++)
+         for (int i = 0; i <= im; i++)
+         {
+            const int raw = dof_map[o++];
+            const int idx = (raw < 0) ? (-1 - raw) : raw;
+            const real_t sgn = (raw < 0) ? -1.0 : 1.0;
+            const int id1 = (c == 0) ? i : j;
+            const real_t fixed[3] = { cp[i], cp[j], 0.0 };
+            AccumIntegratedSubEdgeGrad(fe, 2, c, cp[id1], cp[id1 + 1], fixed,
+                                       idx, sgn, s0, s1, grad);
+         }
+   }
 }
 
 void ND_QuadrilateralElement::CalcVShape(const IntegrationPoint &ip,

@@ -13,6 +13,9 @@
 #define MFEM_LOR
 
 #include "../bilinearform.hpp"
+#ifdef MFEM_USE_MPI
+#include "lor_var_order.hpp"
+#endif
 
 namespace mfem
 {
@@ -90,7 +93,8 @@ protected:
    /// Returns the type of finite element space: H1, ND, RT or L2.
    FESpaceType GetFESpaceType() const;
 
-   /// Returns the order of the LOR space. 1 for H1 or ND, 0 for L2 or RT.
+   /// Returns the collection order of the LOR space for Clone(): 1 for H1,
+   /// ND or RT, 0 for L2. RT collection order 1 corresponds to the RT_0 space.
    int GetLOROrder() const;
 
    /// Construct the LOR space (overridden for serial and parallel versions).

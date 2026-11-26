@@ -38,6 +38,10 @@ public:
                             DenseMatrix &R) const override
    { ScalarLocalL2Restriction(Trans, R, *this); }
 
+   using FiniteElement::Project;
+   void Project(Coefficient &coeff,
+                ElementTransformation &Trans, Vector &dofs) const override;
+
 };
 
 
