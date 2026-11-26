@@ -18,6 +18,9 @@ GPU computing
 
 - Fixed RAJA CUDA/HIP element coverage when using a smaller fixed launch grid.
 
+- Fixed the Umpire device memory types, which allocated on the device 0 when
+  the configured device was another one.
+
 Discretization improvements
 ---------------------------
 - Fixed H1 transfer in L2ProjectionGridTransfer on non-conforming meshes in
@@ -99,6 +102,9 @@ Miscellaneous
 
 - Removed the SidreDataCollection class from MFEM in favor of the
   MFEMSidreDataCollection class in the Axom library (https://github.com/llnl/axom).
+
+- Added DenseMatrixStack for storing stacks of dense matrices with
+  layer-specific dimensions, including rectangular local operators.
 
 
 Version 4.10, released on Sep 1, 2026
