@@ -2531,6 +2531,9 @@ int Mesh::AddBdrPoint(int v, int attr)
 
 void Mesh::GenerateBoundaryElements()
 {
+   MFEM_VERIFY(!ncmesh, "GenerateBoundaryElements() is not supported for "
+               "nonconforming meshes.");
+
    for (auto &b : boundary)
    {
       FreeElement(b);
@@ -7146,7 +7149,7 @@ void Mesh::LoadNonconformingPatchTopo(std::istream &input,
       edge_to_ukv[j] = ukv;
    }
 
-   FinalizeTopology();
+   FinalizeTopology(/* generate_bdr: */ false);
    CheckBdrElementOrientation(); // check and fix boundary element orientation
 }
 
