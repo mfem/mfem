@@ -52,7 +52,7 @@ inline void SmemPAConvectionNLApply2D(const int NE,
 
       MFEM_SHARED real_t smem[MQ1][MQ1], sB[MD1][MQ1], sG[MD1][MQ1];
 
-      kernels::internal::vd_regs2d_t<VDIM, DIM, MQ1> g0, g1;
+      kernels::internal::m_regs2d_t<VDIM, DIM, MQ1> g0, g1;
       kernels::internal::v_regs2d_t<VDIM, MQ1> r0, r1;
       kernels::internal::v_regs2d_t<VDIM, MQ1> s0, s1;
 
@@ -72,16 +72,16 @@ inline void SmemPAConvectionNLApply2D(const int NE,
             {
                r1[0][qy][qx], r1[1][qy][qx]
             };
-            const future::tensor<real_t, 2,2> gradU = {{
-                  {g1[0][0][qy][qx], g1[1][0][qy][qx]},
-                  {g1[0][1][qy][qx], g1[1][1][qy][qx]},
-               }
-            };
-            const future::tensor<real_t, 2,2> Q = {{
-                  {A(0,0,qx,qy,e), A(1,0,qx,qy,e)},
-                  {A(0,1,qx,qy,e), A(1,1,qx,qy,e)},
-               }
-            };
+            const auto gradU = future::make_tensor<real_t, 2,2>(
+            {
+               {g1[0][0][qy][qx], g1[1][0][qy][qx]},
+               {g1[0][1][qy][qx], g1[1][1][qy][qx]},
+            });
+            const auto Q = future::make_tensor<real_t, 2,2>(
+            {
+               {A(0,0,qx,qy,e), A(1,0,qx,qy,e)},
+               {A(0,1,qx,qy,e), A(1,1,qx,qy,e)},
+            });
             const future::tensor<real_t, 2> conv = transpose(gradU) * (Q * U);
             s0[0][qy][qx] = conv[0];
             s0[1][qy][qx] = conv[1];
@@ -121,7 +121,7 @@ inline void SmemPAConvectionNLApply3D(const int NE,
 
       MFEM_SHARED real_t smem[MQ1][MQ1], sB[MD1][MQ1], sG[MD1][MQ1];
 
-      kernels::internal::vd_regs3d_t<VDIM, DIM, MQ1> g0, g1;
+      kernels::internal::m_regs3d_t<VDIM, DIM, MQ1> g0, g1;
       kernels::internal::v_regs3d_t<VDIM, MQ1> r0, r1;
       kernels::internal::v_regs3d_t<VDIM, MQ1> s0, s1;
 
@@ -143,18 +143,18 @@ inline void SmemPAConvectionNLApply3D(const int NE,
                {
                   r1[0][qz][qy][qx], r1[1][qz][qy][qx], r1[2][qz][qy][qx]
                };
-               const future::tensor<real_t, 3,3> gradU = {{
-                     {g1[0][0][qz][qy][qx], g1[1][0][qz][qy][qx], g1[2][0][qz][qy][qx]},
-                     {g1[0][1][qz][qy][qx], g1[1][1][qz][qy][qx], g1[2][1][qz][qy][qx]},
-                     {g1[0][2][qz][qy][qx], g1[1][2][qz][qy][qx], g1[2][2][qz][qy][qx]}
-                  }
-               };
-               const future::tensor<real_t, 3,3> Q = {{
-                     {A(0,0,qx,qy,qz,e), A(1,0,qx,qy,qz,e), A(2,0,qx,qy,qz,e)},
-                     {A(0,1,qx,qy,qz,e), A(1,1,qx,qy,qz,e), A(2,1,qx,qy,qz,e)},
-                     {A(0,2,qx,qy,qz,e), A(1,2,qx,qy,qz,e), A(2,2,qx,qy,qz,e)}
-                  }
-               };
+               const auto gradU = future::make_tensor<real_t, 3,3>(
+               {
+                  {g1[0][0][qz][qy][qx], g1[1][0][qz][qy][qx], g1[2][0][qz][qy][qx]},
+                  {g1[0][1][qz][qy][qx], g1[1][1][qz][qy][qx], g1[2][1][qz][qy][qx]},
+                  {g1[0][2][qz][qy][qx], g1[1][2][qz][qy][qx], g1[2][2][qz][qy][qx]}
+               });
+               const auto Q = future::make_tensor<real_t, 3,3>(
+               {
+                  {A(0,0,qx,qy,qz,e), A(1,0,qx,qy,qz,e), A(2,0,qx,qy,qz,e)},
+                  {A(0,1,qx,qy,qz,e), A(1,1,qx,qy,qz,e), A(2,1,qx,qy,qz,e)},
+                  {A(0,2,qx,qy,qz,e), A(1,2,qx,qy,qz,e), A(2,2,qx,qy,qz,e)}
+               });
                const future::tensor<real_t, 3> conv = transpose(gradU) * (Q * U);
                s0[0][qz][qy][qx] = conv[0];
                s0[1][qz][qy][qx] = conv[1];

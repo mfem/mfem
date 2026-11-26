@@ -52,7 +52,7 @@ inline void SmemPAConvectionNLGradApply2D(const int ne,
       MFEM_SHARED real_t smem[MQ1][MQ1];
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
-      kernels::internal::vd_regs2d_t<VDIM, DIM, MQ1> g0, g1, g2;
+      kernels::internal::m_regs2d_t<VDIM, DIM, MQ1> g0, g1, g2;
       kernels::internal::v_regs2d_t<DIM, MQ1> r0, r1, r2;
 
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
@@ -79,18 +79,16 @@ inline void SmemPAConvectionNLGradApply2D(const int ne,
             {
                r2[0][qy][qx], r2[1][qy][qx]
             };
-            const future::tensor<real_t, VDIM, DIM> Q_adj =
+            const auto Q_adj = future::make_tensor<real_t, VDIM, DIM>(
             {
-               {  { A(0, 0, qx, qy, e), A(1, 0, qx, qy, e) },
-                  { A(0, 1, qx, qy, e), A(1, 1, qx, qy, e) }
-               }
-            };
-            const future::tensor<real_t, VDIM, DIM> grad_dU =
+               { A(0, 0, qx, qy, e), A(1, 0, qx, qy, e) },
+               { A(0, 1, qx, qy, e), A(1, 1, qx, qy, e) }
+            });
+            const auto grad_dU = future::make_tensor<real_t, VDIM, DIM>(
             {
-               {  { g1[0][0][qy][qx], g1[1][0][qy][qx] },
-                  { g1[0][1][qy][qx], g1[1][1][qy][qx] }
-               }
-            };
+               { g1[0][0][qy][qx], g1[1][0][qy][qx] },
+               { g1[0][1][qy][qx], g1[1][1][qy][qx] }
+            });
             const auto one = transpose(grad_dU) * (Q_adj * u_val);
 
             // Second part of the Jacobian: δu·∇u
@@ -98,12 +96,11 @@ inline void SmemPAConvectionNLGradApply2D(const int ne,
             {
                r1[0][qy][qx], r1[1][qy][qx]
             };
-            const future::tensor<real_t, VDIM, DIM> grad_U =
+            const auto grad_U = future::make_tensor<real_t, VDIM, DIM>(
             {
-               {  { g2[0][0][qy][qx], g2[1][0][qy][qx] },
-                  { g2[0][1][qy][qx], g2[1][1][qy][qx] }
-               }
-            };
+               { g2[0][0][qy][qx], g2[1][0][qy][qx] },
+               { g2[0][1][qy][qx], g2[1][1][qy][qx] }
+            });
             const auto two = transpose(grad_U) * (Q_adj * du_val);
 
             // u⋅∇δu + δu⋅∇u
@@ -146,7 +143,7 @@ inline void SmemPAConvectionNLGradApply3D(const int ne,
       MFEM_SHARED real_t sB[MD1][MQ1], sG[MD1][MQ1];
 
       kernels::internal::v_regs3d_t<VDIM, MQ1> r0, r1, r2;
-      kernels::internal::vd_regs3d_t<VDIM, DIM, MQ1> g0, g1, g2;
+      kernels::internal::m_regs3d_t<VDIM, DIM, MQ1> g0, g1, g2;
 
       kernels::internal::LoadMatrix(D1D, Q1D, b, sB);
       kernels::internal::LoadMatrix(D1D, Q1D, g, sG);
@@ -176,18 +173,18 @@ inline void SmemPAConvectionNLGradApply3D(const int ne,
                   r2[1][qz][qy][qx],
                   r2[2][qz][qy][qx]
                };
-               const future::tensor<real_t, VDIM, DIM> Q_adj = {{
-                     {A(0,0,qx,qy,qz,e), A(1,0,qx,qy,qz,e), A(2,0,qx,qy,qz,e)},
-                     {A(0,1,qx,qy,qz,e), A(1,1,qx,qy,qz,e), A(2,1,qx,qy,qz,e)},
-                     {A(0,2,qx,qy,qz,e), A(1,2,qx,qy,qz,e), A(2,2,qx,qy,qz,e)}
-                  }
-               };
-               const future::tensor<real_t, DIM, DIM> grad_dU = {{
-                     {g1[0][0][qz][qy][qx], g1[1][0][qz][qy][qx], g1[2][0][qz][qy][qx]},
-                     {g1[0][1][qz][qy][qx], g1[1][1][qz][qy][qx], g1[2][1][qz][qy][qx]},
-                     {g1[0][2][qz][qy][qx], g1[1][2][qz][qy][qx], g1[2][2][qz][qy][qx]}
-                  }
-               };
+               const auto Q_adj = future::make_tensor<real_t, VDIM, DIM>(
+               {
+                  {A(0,0,qx,qy,qz,e), A(1,0,qx,qy,qz,e), A(2,0,qx,qy,qz,e)},
+                  {A(0,1,qx,qy,qz,e), A(1,1,qx,qy,qz,e), A(2,1,qx,qy,qz,e)},
+                  {A(0,2,qx,qy,qz,e), A(1,2,qx,qy,qz,e), A(2,2,qx,qy,qz,e)}
+               });
+               const auto grad_dU = future::make_tensor<real_t, DIM, DIM>(
+               {
+                  {g1[0][0][qz][qy][qx], g1[1][0][qz][qy][qx], g1[2][0][qz][qy][qx]},
+                  {g1[0][1][qz][qy][qx], g1[1][1][qz][qy][qx], g1[2][1][qz][qy][qx]},
+                  {g1[0][2][qz][qy][qx], g1[1][2][qz][qy][qx], g1[2][2][qz][qy][qx]}
+               });
                const auto one = transpose(grad_dU) * (Q_adj * u_val);
 
                // Second part of the Jacobian: δu·∇u
@@ -195,12 +192,12 @@ inline void SmemPAConvectionNLGradApply3D(const int ne,
                {
                   r1[0][qz][qy][qx], r1[1][qz][qy][qx], r1[2][qz][qy][qx]
                };
-               const future::tensor<real_t, VDIM, DIM> grad_U = {{
-                     {g2[0][0][qz][qy][qx], g2[1][0][qz][qy][qx], g2[2][0][qz][qy][qx]},
-                     {g2[0][1][qz][qy][qx], g2[1][1][qz][qy][qx], g2[2][1][qz][qy][qx]},
-                     {g2[0][2][qz][qy][qx], g2[1][2][qz][qy][qx], g2[2][2][qz][qy][qx]}
-                  }
-               };
+               const auto grad_U = future::make_tensor<real_t, VDIM, DIM>(
+               {
+                  {g2[0][0][qz][qy][qx], g2[1][0][qz][qy][qx], g2[2][0][qz][qy][qx]},
+                  {g2[0][1][qz][qy][qx], g2[1][1][qz][qy][qx], g2[2][1][qz][qy][qx]},
+                  {g2[0][2][qz][qy][qx], g2[1][2][qz][qy][qx], g2[2][2][qz][qy][qx]}
+               });
                const auto two = transpose(grad_U) * (Q_adj * du_val);
 
                // u⋅∇δu + δu⋅∇u
