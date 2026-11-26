@@ -41,6 +41,12 @@ void NonlinearFormIntegrator::AssemblePAInteriorFaces(const FiniteElementSpace&)
                "   is not implemented for this class.");
 }
 
+void NonlinearFormIntegrator::AssemblePABoundaryFaces(const FiniteElementSpace&)
+{
+   mfem_error ("NonlinearFormIntegrator::AssemblePABoundaryFaces(...)\n"
+               "   is not implemented for this class.");
+}
+
 void NonlinearFormIntegrator::AssembleGradPA(const Vector &x,
                                              const FiniteElementSpace &fes)
 {
