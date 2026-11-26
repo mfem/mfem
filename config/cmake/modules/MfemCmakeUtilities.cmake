@@ -884,7 +884,7 @@ function(mfem_export_mk_files)
       MFEM_USE_ADIOS2 MFEM_USE_MKL_CPARDISO MFEM_USE_MKL_PARDISO
       MFEM_USE_ADFORWARD MFEM_USE_CODIPACK MFEM_USE_BENCHMARK MFEM_USE_PARELAG
       MFEM_USE_TRIBOL MFEM_USE_MOONOLITH MFEM_USE_ALGOIM MFEM_USE_ENZYME
-      MFEM_USE_HDF5)
+      MFEM_USE_HDF5 MFEM_USE_GLVIS)
   foreach(var ${CONFIG_MK_BOOL_VARS})
     if (${var})
       set(${var} YES)
@@ -1081,6 +1081,10 @@ function(mfem_export_mk_files)
       set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} ${lib}")
     endif()
   endforeach()
+  # libglvis calls back into MFEM, so downstream links repeat -lmfem after it.
+  if (MFEM_USE_GLVIS)
+    set(MFEM_EXT_LIBS "${MFEM_EXT_LIBS} -lmfem")
+  endif()
 
   # Create the build-tree version of 'config.mk'
   configure_file(
