@@ -1,0 +1,14 @@
+/libstokes_core.a
+/libstokes_example_support.a
+/stokes_pspg
+/flow_example
+/channel_flow
+/refine_channel_serial
+/stokes_mms
+/stokes_adjoint_example
+/steady_navier_stokes_setup
+/steady_navier_stokes_workflow
+/steady_navier_stokes_gmg_benchmark
+/steady_navier_stokes
+/stokes_brinkman
+/stokes_brinkman_linear_example
