@@ -1050,6 +1050,45 @@ TEST_CASE("VolumeParNCSubMesh", "[Parallel],[SubMesh]")
    }
 }
 
+TEST_CASE("Boundary SubMesh of 2D ParNCMesh", "[Parallel],[SubMesh]")
+{
+   const auto element_type = GENERATE(Element::QUADRILATERAL,
+                                      Element::TRIANGLE);
+   const int n = std::max(2, Mpi::WorldSize());
+   Mesh serial_parent = Mesh::MakeCartesian2D(n, n, element_type);
+   serial_parent.EnsureNCMesh(true);
+   serial_parent.GeneralRefinement(Array<int> {0});
+   ParMesh parent(MPI_COMM_WORLD, serial_parent);
+
+   Array<int> boundary_attributes {1};
+   ParSubMesh submesh = ParSubMesh::CreateFromBoundary(parent,
+                                                       boundary_attributes);
+
+   REQUIRE(parent.Nonconforming());
+   CHECK(submesh.Dimension() == 1);
+   CHECK_FALSE(submesh.Nonconforming());
+   int global_ne = 0;
+   int local_ne = submesh.GetNE();
+   MPI_Allreduce(&local_ne, &global_ne, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+   REQUIRE(global_ne > 0);
+
+   constexpr int order = 2;
+   H1_FECollection parent_fec(order, parent.Dimension());
+   H1_FECollection submesh_fec(order, submesh.Dimension());
+   ParFiniteElementSpace parent_fes(&parent, &parent_fec);
+   ParFiniteElementSpace submesh_fes(&submesh, &submesh_fec);
+   ParGridFunction parent_gf(&parent_fes), submesh_gf(&submesh_fes),
+                   expected_submesh_gf(&submesh_fes);
+   FunctionCoefficient coeff([](const Vector &x) { return x(0) + 2.0*x(1); });
+   parent_gf.ProjectCoefficient(coeff);
+   expected_submesh_gf.ProjectCoefficient(coeff);
+
+   ParSubMesh::Transfer(parent_gf, submesh_gf);
+   Vector error = submesh_gf;
+   error -= expected_submesh_gf;
+   CHECK_GLOBAL_NORM(error);
+}
+
 TEST_CASE("ExteriorSurfaceParNCSubMesh", "[Parallel],[SubMesh]")
 {
    SECTION("Hex")

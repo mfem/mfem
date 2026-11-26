@@ -87,7 +87,11 @@ ParSubMesh::ParSubMesh(const ParMesh &parent, SubMesh::From from,
    // wrong for the distributed SubMesh.
    FinalizeTopology(false);
 
-   if (parent.Nonconforming())
+   // A boundary submesh of a 2D nonconforming mesh is a conforming chain of
+   // leaf segments. The mesh assembled above already represents that trace,
+   // so it does not need a ParNCMesh refinement hierarchy of its own.
+   if (parent.Nonconforming() &&
+       !(from == SubMesh::From::Boundary && Dimension() == 1))
    {
       pncmesh = new ParNCSubMesh(*this, *parent.pncmesh, from, attributes);
       pncsubmesh_ = dynamic_cast<ParNCSubMesh*>(pncmesh);
