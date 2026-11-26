@@ -98,7 +98,7 @@ using namespace tuple_test;
 
 TEST_CASE("dFEM tuple structured bindings", "[dFEM]")
 {
-   tuple3 t {1.0, 2, vec3{{3.0, 4.0, 5.0}}};
+   tuple3 t {1.0, 2, vec3{3.0, 4.0, 5.0}};
 
    SECTION("binding by reference writes through")
    {
@@ -156,7 +156,7 @@ TEST_CASE("dFEM tuple construction", "[dFEM]")
 
    SECTION("direct initialization and CTAD")
    {
-      tuple c {1, 2.0_r, vec3{{1.0, 2.0, 3.0}}};
+      tuple c {1, 2.0_r, vec3{1.0, 2.0, 3.0}};
       static_assert(std::is_same<decltype(c), tuple<int, real_t, vec3>>::value,
                     "CTAD must decay the arguments");
       REQUIRE(get<1>(c) == 2.0_r);
@@ -171,7 +171,7 @@ TEST_CASE("dFEM tuple construction", "[dFEM]")
 
    SECTION("copy and move construction preserve values")
    {
-      tuple3 t {1.0, 2, vec3{{3.0, 4.0, 5.0}}};
+      tuple3 t {1.0, 2, vec3{3.0, 4.0, 5.0}};
       tuple3 copy(t);
       tuple3 moved(std::move(t));
       REQUIRE(get<1>(copy) == 2);
@@ -188,8 +188,8 @@ TEST_CASE("dFEM tuple construction", "[dFEM]")
 
 TEST_CASE("dFEM tuple arithmetic", "[dFEM]")
 {
-   const tuple2 x {1.0, vec3{{1.0, 2.0, 3.0}}};
-   const tuple2 y {2.0, vec3{{4.0, 5.0, 6.0}}};
+   const tuple2 x {1.0, vec3{1.0, 2.0, 3.0}};
+   const tuple2 y {2.0, vec3{4.0, 5.0, 6.0}};
 
    SECTION("element-wise binary operators")
    {
@@ -248,13 +248,13 @@ TEST_CASE("dFEM tuple on device", "[dFEM][GPU]")
 
    forall(1, [=] MFEM_HOST_DEVICE (int)
    {
-      tuple3 t {1.0, 2, vec3{{3.0, 4.0, 5.0}}};
+      tuple3 t {1.0, 2, vec3{3.0, 4.0, 5.0}};
       auto &[a, b, c] = t;
       a += static_cast<real_t>(b);
       c(0) = a;
 
       tuple2 u {get<0>(t), get<2>(t)};
-      u += tuple2 {1.0, vec3{{1.0, 1.0, 1.0}}};
+      u += tuple2 {1.0, vec3{1.0, 1.0, 1.0}};
 
       d_res[0] = get<0>(u);
       d_res[1] = get<1>(u)(0);

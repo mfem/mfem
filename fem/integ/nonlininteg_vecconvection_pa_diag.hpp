@@ -74,18 +74,16 @@ inline void SmemPAConvectionNLGradDiagonal2D(const int NE,
                {
                   r1[0][qy][qx], r1[1][qy][qx]
                };
-               const future::tensor<real_t, VDIM, DIM> Q_adj =
+               const auto Q_adj = future::make_tensor<real_t, VDIM, DIM>(
                {
-                  {  { A(0, 0, qx, qy, e), A(1, 0, qx, qy, e) },
-                     { A(0, 1, qx, qy, e), A(1, 1, qx, qy, e) }
-                  }
-               };
-               const future::tensor<real_t, VDIM, DIM> grad_U =
+                  { A(0, 0, qx, qy, e), A(1, 0, qx, qy, e) },
+                  { A(0, 1, qx, qy, e), A(1, 1, qx, qy, e) }
+               });
+               const auto grad_U = future::make_tensor<real_t, VDIM, DIM>(
                {
-                  {  { g1[0][0][qy][qx], g1[1][0][qy][qx] },
-                     { g1[0][1][qy][qx], g1[1][1][qy][qx] }
-                  }
-               };
+                  { g1[0][0][qy][qx], g1[1][0][qy][qx] },
+                  { g1[0][1][qy][qx], g1[1][1][qy][qx] }
+               });
                const auto one = Q_adj * u_val;
                const auto two = transpose(grad_U) * (Q_adj * e_v);
                sQ[0][qx][qy] = one[0];
@@ -189,18 +187,18 @@ inline void SmemPAConvectionNLGradDiagonal3D(const int NE,
                      {
                         r1[0][qz][qy][qx], r1[1][qz][qy][qx], r1[2][qz][qy][qx]
                      };
-                     const future::tensor<real_t, VDIM, DIM> Q_adj = {{
-                           {A(0,0,qx,qy,qz,e), A(1,0,qx,qy,qz,e), A(2,0,qx,qy,qz,e)},
-                           {A(0,1,qx,qy,qz,e), A(1,1,qx,qy,qz,e), A(2,1,qx,qy,qz,e)},
-                           {A(0,2,qx,qy,qz,e), A(1,2,qx,qy,qz,e), A(2,2,qx,qy,qz,e)}
-                        }
-                     };
-                     const future::tensor<real_t, VDIM, DIM> grad_U = {{
-                           {g1[0][0][qz][qy][qx], g1[1][0][qz][qy][qx], g1[2][0][qz][qy][qx]},
-                           {g1[0][1][qz][qy][qx], g1[1][1][qz][qy][qx], g1[2][1][qz][qy][qx]},
-                           {g1[0][2][qz][qy][qx], g1[1][2][qz][qy][qx], g1[2][2][qz][qy][qx]}
-                        }
-                     };
+                     const auto Q_adj = future::make_tensor<real_t, VDIM, DIM>(
+                     {
+                        {A(0,0,qx,qy,qz,e), A(1,0,qx,qy,qz,e), A(2,0,qx,qy,qz,e)},
+                        {A(0,1,qx,qy,qz,e), A(1,1,qx,qy,qz,e), A(2,1,qx,qy,qz,e)},
+                        {A(0,2,qx,qy,qz,e), A(1,2,qx,qy,qz,e), A(2,2,qx,qy,qz,e)}
+                     });
+                     const auto grad_U = future::make_tensor<real_t, VDIM, DIM>(
+                     {
+                        {g1[0][0][qz][qy][qx], g1[1][0][qz][qy][qx], g1[2][0][qz][qy][qx]},
+                        {g1[0][1][qz][qy][qx], g1[1][1][qz][qy][qx], g1[2][1][qz][qy][qx]},
+                        {g1[0][2][qz][qy][qx], g1[1][2][qz][qy][qx], g1[2][2][qz][qy][qx]}
+                     });
                      const auto one = Q_adj * u_val;
                      const auto two = transpose(grad_U) * (Q_adj * e_v);
 

@@ -12,6 +12,17 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 
+// Some compilers do not fully support C++17 brace initializations, so we test
+// the tensor class avoiding such initialization for such compilers.
+#if !((defined(__NVCC__)) || \
+      (defined(__ICC)) || \
+      (defined(__clang__) && (__clang_major__ < 12)) || \
+      (!defined(__clang__) && !defined(__ICC) && defined(__GNUC__) && \
+       (__GNUC__ < 12)) \
+     )
+#define CXX17_BRACE_INIT_SUPPORTED
+#endif
+
 using namespace mfem;
 using namespace mfem::future;
 
@@ -63,7 +74,11 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
       static_assert(std::is_trivial_v<tensor<real_t,5>>);
       static_assert(std::is_trivial_v<tensor<real_t,0>>);
       tensor<real_t,3> t1d{1_r, 2_r, 3_r};
-      [[maybe_unused]] tensor<real_t,3> t1d_v2{{1_r, 2_r, 3_r}};
+#ifdef CXX17_BRACE_INIT_SUPPORTED
+      [[maybe_unused]] tensor<real_t,3> t1d_v2 {{1_r, 2_r, 3_r}};
+#else
+      [[maybe_unused]] tensor<real_t,3> t1d_v2 {1_r, 2_r, 3_r};
+#endif
       [[maybe_unused]] constexpr tensor<real_t,3> t1d_v3 = {1_r, 2_r, 3_r};
       // both t1d[i] and t1d(i) can be use for reading and writing:
       t1d[1] = 2*t1d[0];
@@ -88,42 +103,87 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
          static_assert(std::is_same_v<
                        tensor<real_t,2,3>::c_array_type,
                        real_t[2][3]>);
+#ifdef CXX17_BRACE_INIT_SUPPORTED
          // same brace initialization as c-array
          constexpr tensor<real_t,2,2> t2d_0{{1_r, 2_r}, {3_r, 4_r}};
+#else
+         constexpr auto t2d_0 = make_tensor<real_t,2,2>(
+         {{1_r, 2_r}, {3_r, 4_r}});
+#endif
          static_assert(t2d_0(0,0) == 1_r);
          static_assert(t2d_0(0,1) == 2_r);
          static_assert(t2d_0(1,0) == 3_r);
          static_assert(t2d_0(1,1) == 4_r);
+#ifdef CXX17_BRACE_INIT_SUPPORTED
          // same brace structure as aggregate initialization (and as old master)
          constexpr tensor<real_t,2,2> t2d{{{1_r, 2_r}, {3_r, 4_r}}};
+#else
+         constexpr auto t2d = make_tensor<real_t,2,2>({{1_r, 2_r}, {3_r, 4_r}});
+#endif
          static_assert(t2d(0,0) == 1_r);
          static_assert(t2d(0,1) == 2_r);
          static_assert(t2d(1,0) == 3_r);
          static_assert(t2d(1,1) == 4_r);
+#ifdef CXX17_BRACE_INIT_SUPPORTED
          [[maybe_unused]] tensor<real_t,2,2> t2d_2({{1_r, 2_r}, {3_r, 4_r}});
+#else
+         [[maybe_unused]] auto t2d_2 = make_tensor<real_t,2,2>(
+         {{1_r, 2_r}, {3_r, 4_r}});
+#endif
+#ifdef CXX17_BRACE_INIT_SUPPORTED
          [[maybe_unused]] tensor<real_t,2,2> t2d_3 = {{{1_r, 2_r}, {3_r, 4_r}}};
+#else
+         [[maybe_unused]] auto t2d_3 = make_tensor<real_t,2,2>(
+         {{1_r, 2_r}, {3_r, 4_r}});
+#endif
+#ifdef CXX17_BRACE_INIT_SUPPORTED
          [[maybe_unused]] tensor<real_t,2,2> t2d_9 = {{1_r, 2_r}, {3_r, 4_r}};
+#else
+         [[maybe_unused]] auto t2d_9 = make_tensor<real_t,2,2>(
+         {{1_r, 2_r}, {3_r, 4_r}});
+#endif
 
          // this will be interpreted wrong as {{1,2},{0,0}} instead of
          // {{1,0},{2,0}}, so we make it fail; it should fail to compile due to
          // ambiguous ctor call:
          // constexpr tensor<real_t,2,2> t2d_6{{{1_r}, {2_r}}};
 
+#ifdef CXX17_BRACE_INIT_SUPPORTED
          // a single braced element per row is a row with one entry, not a
          // list with a single row:
          constexpr tensor<real_t,2,2> t2d_6{{1_r}, {2_r}};
+#else
+         constexpr auto t2d_6 = make_tensor<real_t,2,2>({{1_r}, {2_r}});
+#endif
          static_assert(t2d_6(0,0) == 1_r && t2d_6(0,1) == 0_r);
          static_assert(t2d_6(1,0) == 2_r && t2d_6(1,1) == 0_r);
-         constexpr tensor<real_t,3,1> t2d_7{{{1_r}, {2_r}, {3_r}}};
+#ifdef CXX17_BRACE_INIT_SUPPORTED
+         constexpr tensor<real_t,3,1> t2d_7 {{{1_r}, {2_r}, {3_r}}};
+#else
+         constexpr auto t2d_7 = make_tensor<real_t,3,1>({{1_r}, {2_r}, {3_r}});
+#endif
          static_assert(t2d_7(0,0) == 1_r && t2d_7(1,0) == 2_r &&
                        t2d_7(2,0) == 3_r);
-         constexpr tensor<real_t,3,1> t2d_7_2{{1_r}, {2_r}, {3_r}};
+#ifdef CXX17_BRACE_INIT_SUPPORTED
+         constexpr tensor<real_t,3,1> t2d_7_2 {{1_r}, {2_r}, {3_r}};
+#else
+         constexpr auto t2d_7_2 = make_tensor<real_t,3,1>(
+         {{1_r}, {2_r}, {3_r}});
+#endif
          static_assert(t2d_7_2(0,0) == 1_r && t2d_7_2(1,0) == 2_r &&
                        t2d_7_2(2,0) == 3_r);
-         constexpr tensor<real_t,2,2> t2d_8{{{1_r, 2_r}}};
+#ifdef CXX17_BRACE_INIT_SUPPORTED
+         constexpr tensor<real_t,2,2> t2d_8 {{{1_r, 2_r}}};
+#else
+         constexpr auto t2d_8 = make_tensor<real_t,2,2>({{1_r, 2_r}});
+#endif
          static_assert(t2d_8(0,0) == 1_r && t2d_8(0,1) == 2_r);
          static_assert(t2d_8(1,0) == 0_r && t2d_8(1,0) == 0_r);
-         constexpr tensor<real_t,2,2> t2d_8_2{{1_r, 2_r}};
+#ifdef CXX17_BRACE_INIT_SUPPORTED
+         constexpr tensor<real_t,2,2> t2d_8_2 {{1_r, 2_r}};
+#else
+         constexpr auto t2d_8_2 = make_tensor<real_t,2,2>({{1_r, 2_r}});
+#endif
          static_assert(t2d_8_2(0,0) == 1_r && t2d_8_2(0,1) == 2_r);
          static_assert(t2d_8_2(1,0) == 0_r && t2d_8_2(1,0) == 0_r);
          [[maybe_unused]] real_t a2d[2][2] = {{1_r,2_r},{3_r,4_r}};
@@ -164,7 +224,12 @@ TEST_CASE("Tensor basic tests", "[Tensor][GPU]")
 
       // 3-D tensors
       {
+#ifdef CXX17_BRACE_INIT_SUPPORTED
          constexpr tensor<real_t,2,2,2> t3d = {{{1,2},{3,4}},{{5,6},{7,8}}};
+#else
+         constexpr auto t3d = make_tensor<real_t,2,2,2>(
+         {{{1,2},{3,4}},{{5,6},{7,8}}});
+#endif
          static_assert(t3d(0,0,0) == 1_r);
          static_assert(t3d(0,0,1) == 2_r);
          static_assert(t3d(1,1,0) == 7_r);
@@ -226,7 +291,11 @@ TEST_CASE("Tensor initialization from a short list", "[Tensor]")
    CHECK(u[1] == 4.0_r);
    CHECK(u[2] == 0.0_r);
 
-   tensor<real_t, 3, 2> A{{1.0, 2.0}, {3.0}};
+#ifdef CXX17_BRACE_INIT_SUPPORTED
+   tensor<real_t, 3, 2> A {{1.0, 2.0}, {3.0}};
+#else
+   auto A = make_tensor<real_t, 3, 2>({{1.0, 2.0}, {3.0}});
+#endif
    CHECK(A(0, 0) == 1.0_r);
    CHECK(A(0, 1) == 2.0_r);
    CHECK(A(1, 0) == 3.0_r);
@@ -234,7 +303,11 @@ TEST_CASE("Tensor initialization from a short list", "[Tensor]")
    CHECK(A(2, 0) == 0.0_r);
    CHECK(A(2, 1) == 0.0_r);
 
-   tensor<real_t,2,2> Z{{1_r},{2_r}};
+#ifdef CXX17_BRACE_INIT_SUPPORTED
+   tensor<real_t,2,2> Z {{1_r},{2_r}};
+#else
+   auto Z = make_tensor<real_t,2,2>({{1_r},{2_r}});
+#endif
    CHECK(Z(0,0) == 1_r);
    CHECK(Z(0,1) == 0_r);
    CHECK(Z(1,0) == 2_r);

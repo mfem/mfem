@@ -110,7 +110,15 @@ struct tensor<T, N0, Ns...>
        tensor<T,3>{1,2,3}, and tensor<T,2,2>{{1,2},{3,4}}.
 
        This constructor allows for tensor initializations to use the exact same
-       format as the initializers for standard c-array variables. */
+       format as the initializers for standard c-array variables.
+
+       @note Some compilers (notably NVCC and GCC < 12) do not work correctly
+       with this constructor, so for better portability one should use the
+       make_tensor() function, e.g.
+       @code
+          auto t = make_tensor<real_t,2,2>({{1,2},{3,4}});
+       @endcode
+   */
    MFEM_HOST_DEVICE constexpr tensor(
       std::initializer_list<c_sub_array_type> ilist)
       : tensor(ilist, std::make_index_sequence<N0> {})
@@ -188,6 +196,15 @@ template <typename T>
 inline constexpr auto tensor<T>::sizes_array()
 {
    return tensor<int,0> {};
+}
+
+
+/// Construct tensors from c arrays
+template <typename T, int N0, int... Ns> MFEM_HOST_DEVICE
+inline constexpr auto make_tensor(
+   const typename tensor<T,N0,Ns...>::c_array_type &a)
+{
+   return tensor<T,N0,Ns...>(a);
 }
 
 
