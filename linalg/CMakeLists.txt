@@ -19,6 +19,7 @@ list(APPEND SRCS
   blockmatrix.cpp
   blockoperator.cpp
   blockvector.cpp
+  checkpoint.cpp
   complex_densemat.cpp
   complex_operator.cpp
   constraints.cpp
@@ -29,6 +30,7 @@ list(APPEND SRCS
   mma.cpp
   multivector.cpp
   ode.cpp
+  ode_checkpoint.cpp
   operator.cpp
   ordering.cpp
   particlevector.cpp
@@ -49,6 +51,7 @@ list(APPEND HDRS
   blockmatrix.hpp
   blockoperator.hpp
   blockvector.hpp
+  checkpoint.hpp
   complex_densemat.hpp
   complex_operator.hpp
   constraints.hpp
@@ -66,6 +69,7 @@ list(APPEND HDRS
   mma.hpp
   multivector.hpp
   ode.hpp
+  ode_checkpoint.hpp
   operator.hpp
   ordering.hpp
   particlevector.hpp
