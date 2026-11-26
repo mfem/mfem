@@ -52,6 +52,12 @@ Meshing improvements
   or Mesh::SaveNURBSHDF5 for writing and the usual Mesh constructors or loaders
   for reading.
 
+- Sped up the loading of curved meshes of simplices, prisms and pyramids, e.g.
+  periodic meshes: GridFunction::GetNodalValues, which gives the vertices from
+  the nodes, and Mesh::CheckElementOrientation now evaluate the shape functions
+  of the nodes once per finite element instead of once per element. Their
+  results are unchanged.
+
 Linear and nonlinear solvers
 ----------------------------
 - Fixed the AmgX resource shared by the AmgXSolver instances, which used the
