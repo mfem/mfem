@@ -68,6 +68,16 @@ public:
    /// FaceQuadratureInterpolator.
    static bool SupportsFESpace(const FiniteElementSpace &fes);
 
+   /// Return the sign to apply to the normals on each face to point from e1 to e2.
+   static void GetSigns(const Mesh &mesh, const FaceType type,
+                        Array<bool> &signs);
+
+   /// Same as GetSigns(const Mesh &, const FaceType, Array<bool> &) for the
+   /// mesh of @a fes.
+   static void GetSigns(const FiniteElementSpace &fes, const FaceType type,
+                        Array<bool> &signs)
+   { GetSigns(*fes.GetMesh(), type, signs); }
+
    /** @brief Disable the use of tensor product evaluations, for tensor-product
        elements, e.g. quads and hexes. */
    /** Currently, tensor product evaluations are not implemented and this method
@@ -107,6 +117,16 @@ public:
    /// See Mult() for @a flist.
    void Values(const Vector &e_vec, Vector &q_val,
                const Array<int> *flist = nullptr) const;
+
+   /// @brief Perform the transpose operation of Mult(), adding the result to
+   /// @a e_vec.
+   /** The @a eval_flags select the Q-vectors to transpose, @a q_val for VALUES
+       and @a q_der for DERIVATIVES, with the layout set by SetOutputLayout().
+       DETERMINANTS and NORMALS are not linear in the E-vector and are not
+       supported. See Mult() for @a flist. */
+   void AddMultTranspose(unsigned eval_flags, const Vector &q_val,
+                         const Vector &q_der, Vector &e_vec,
+                         const Array<int> *flist = nullptr) const;
 
    // Compute kernels follow (cannot be private or protected with nvcc)
 
