@@ -219,5 +219,5 @@ TEST_CASE("Register tensors (kernels)", "[Kernels][GPU]")
    });
 
    errors.HostRead();
-   CHECK(errors[0] == 0);
+   CHECK(AsConst(errors)[0] == 0);
 }
