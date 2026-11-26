@@ -116,9 +116,9 @@ private:
    /// Ghost element order data, set by CommunicateGhostOrder().
    Array<ParNCMesh::VarOrderElemInfo> ghost_orders;
 
-   /** Variable-order spaces (currently H1 only): communication groups, which
-       include the subsets of ranks sharing an edge/face DOF variant, and the
-       group of each local edge/face variant. */
+   /** Variable-order spaces: communication groups, which include the subsets
+       of ranks sharing an edge/face DOF variant, and the group of each local
+       edge/face variant. */
    std::unique_ptr<GroupTopology> var_gtopo;
    Array<int> edge_var_group, face_var_group;
 
@@ -164,13 +164,14 @@ private:
    void GetGroupComm(GroupCommunicator &gcomm, int ldof_type,
                      Array<int> *ldof_sign = NULL);
 
-   /// Variable-order version of GetGroupComm() (currently H1 only).
-   void GetVarOrderGroupComm(GroupCommunicator &gcomm, int ldof_type) const;
+   /// Variable-order version of GetGroupComm().
+   void GetVarOrderGroupComm(GroupCommunicator &gcomm, int ldof_type,
+                             Array<int> *g_ldof_sign = NULL) const;
 
    /// Set var_gtopo, edge_var_group and face_var_group.
    void SetVarOrderGroups();
 
-   /// Construct gcomm and ldof_group for variable orders (currently H1 only).
+   /// Construct gcomm, ldof_sign, and ldof_group for variable-order spaces.
    void ConstructVarOrderGroupComm();
 
    /// Construct dof_offsets and tdof_offsets using global communication.
