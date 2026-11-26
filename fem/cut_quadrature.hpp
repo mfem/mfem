@@ -259,15 +259,15 @@ public:
       Geometry::Type geometry, const CutDomain &domain, int order,
       const IntegrationRule *fixed_points = nullptr) const = 0;
 
-   /// Generate the reference rule and region directly in @a out. This method
+   /// Generate the reference rule and region directly in @a output. This method
    /// validates its inputs independently of CheckSupport. Nonzero-weight nodes
    /// must lie in the domain closure; surface nodes must lie on the interface,
    /// and weights may be signed. A prescribed point layout keeps its
    /// coordinates and order, using zero weights for an empty domain.
-   /// On failure @a out is cleared.
+   /// On failure @a output is cleared.
    virtual CutQuadratureReport Generate(
       Geometry::Type geometry, const CutDomain &domain, int order,
-      CutQuadrature &out,
+      CutQuadrature &output,
       const IntegrationRule *fixed_points = nullptr) const = 0;
 };
 
@@ -317,20 +317,20 @@ struct CutQuadratureMapping
     J and the active conormals must have full column rank; singular cases
     return DegenerateGeometry. Conormals and scaling at zero-weight nodes are
     zero and are not geometric data. Physical positions may still be mapped
-    there. On failure out is cleared, never partly usable.
+    there. On failure @a output is cleared, never partly usable.
     Standard exceptions from mapping evaluation return NumericalFailure. */
 CutQuadratureReport MapCutQuadrature(ElementTransformation &transformation,
                                      const CutQuadrature &reference,
                                      int requested_data,
-                                     CutQuadratureMapping &out);
+                                     CutQuadratureMapping &output);
 
 /** @brief Single-element front end borrowing a backend, not a mesh or source.
 
     The backend must outlive this object. Each call validates inputs, invokes
     the backend, and evaluates reference conormals at active manifold nodes.
     There are no full/empty shortcuts that replace a prescribed node layout.
-    Failures clear out. Every referenced level set must be initialized when
-    applicable and defined on the supplied reference geometry.
+    Failures clear @a output. Every referenced level set must be initialized
+    when applicable and defined on the supplied reference geometry.
 
     Concurrent calls require distinct outputs, transformations, and any
     non-reentrant level-set/finite-element evaluation state. Const methods do
@@ -349,7 +349,7 @@ public:
    /// may report this mode as unsupported.
    CutQuadratureReport Generate(
       Geometry::Type geometry,
-      const CutDomain &domain, int order, CutQuadrature &out,
+      const CutDomain &domain, int order, CutQuadrature &output,
       const IntegrationRule *fixed_points = nullptr) const;
 
 private:

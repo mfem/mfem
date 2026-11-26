@@ -901,12 +901,12 @@ public:
 
    CutQuadratureReport Generate(
       Geometry::Type geometry, const CutDomain &domain, int order,
-      CutQuadrature &out,
+      CutQuadrature &output,
       const IntegrationRule *fixed_points) const override
    {
-      out.Clear();
-      IntegrationRule &rule = out.rule;
-      Region &region = out.region;
+      output.Clear();
+      IntegrationRule &rule = output.rule;
+      Region &region = output.region;
       auto report = CheckSupport(geometry, domain, order, fixed_points);
       if (!report.Succeeded())
       {
@@ -956,7 +956,7 @@ public:
       }
       if (!report.Succeeded())
       {
-         out.Clear();
+         output.Clear();
       }
       else
       {

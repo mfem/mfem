@@ -1599,7 +1599,8 @@ public:
              geometry == Geometry::SEGMENT)
          {
             return MomentFailure(CutQuadratureReport::Status::Unsupported,
-                                 "Unsupported prescribed moment-fitting nodes.");
+                                 "Unsupported prescribed moment-fitting "
+                                 "nodes.");
          }
          const int needed = SurfaceBasisSize(geometry, order + 1);
          if (fixed_points->GetNPoints() < needed)
@@ -1613,15 +1614,16 @@ public:
 
    CutQuadratureReport Generate(
       Geometry::Type geometry, const CutDomain &domain, int order,
-      CutQuadrature &out, const IntegrationRule *fixed_points) const override
+      CutQuadrature &output,
+      const IntegrationRule *fixed_points) const override
    {
-      out.Clear();
+      output.Clear();
       auto report = CheckSupport(geometry, domain, order, fixed_points);
       if (!report.Succeeded()) { return report; }
       if (!domain.NumConstraints())
       {
-         out.rule = IntRules.Get(geometry, order);
-         out.region = CutQuadrature::Region::Full;
+         output.rule = IntRules.Get(geometry, order);
+         output.region = CutQuadrature::Region::Full;
          report.moment_degree = order;
          return report;
       }
@@ -1636,15 +1638,15 @@ public:
                                   fixed_points);
       if (constraint.sign == CutDomain::LevelSetSign::Zero)
       {
-         rules.GetSurfaceIntegrationRule(transformation, out.rule);
+         rules.GetSurfaceIntegrationRule(transformation, output.rule);
       }
       else
       {
-         rules.GetVolumeIntegrationRule(transformation, out.rule);
+         rules.GetVolumeIntegrationRule(transformation, output.rule);
       }
-      out.region = HasNonzeroWeight(out.rule) ?
-                   CutQuadrature::Region::Cut :
-                   CutQuadrature::Region::Empty;
+      output.region = HasNonzeroWeight(output.rule) ?
+                      CutQuadrature::Region::Cut :
+                      CutQuadrature::Region::Empty;
       report.moment_degree = order;
       return report;
    }

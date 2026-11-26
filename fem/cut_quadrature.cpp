@@ -413,9 +413,9 @@ CutQuadratureGenerator::CutQuadratureGenerator(
 
 CutQuadratureReport CutQuadratureGenerator::Generate(
    Geometry::Type geometry, const CutDomain &domain, int order,
-   CutQuadrature &out, const IntegrationRule *fixed_points) const try
+   CutQuadrature &output, const IntegrationRule *fixed_points) const try
 {
-   out.Clear();
+   output.Clear();
    auto report = domain.Validate(geometry);
    if (!report.Succeeded())
    {
@@ -447,48 +447,49 @@ CutQuadratureReport CutQuadratureGenerator::Generate(
    {
       return report;
    }
-   report = backend.Generate(geometry, domain, order, out, fixed_points);
+   report = backend.Generate(geometry, domain, order, output, fixed_points);
    if (!report.Succeeded())
    {
-      out.Clear();
+      output.Clear();
       return report;
    }
    auto fail = [&](CutQuadratureReport::Status status, const char *message)
    {
-      out.Clear();
+      output.Clear();
       return Failure(status, message);
    };
-   if ((out.region != CutQuadrature::Region::Full &&
-        out.region != CutQuadrature::Region::Empty &&
-        out.region != CutQuadrature::Region::Cut) ||
-       (out.region == CutQuadrature::Region::Full && domain.Codimension() > 0))
+   if ((output.region != CutQuadrature::Region::Full &&
+        output.region != CutQuadrature::Region::Empty &&
+        output.region != CutQuadrature::Region::Cut) ||
+       (output.region == CutQuadrature::Region::Full &&
+        domain.Codimension() > 0))
    {
       return fail(CutQuadratureReport::Status::NumericalFailure,
                   "Invalid backend region.");
    }
-   if (fixed_points && out.GetNPoints() != fixed_points->GetNPoints())
+   if (fixed_points && output.GetNPoints() != fixed_points->GetNPoints())
    {
       return fail(CutQuadratureReport::Status::NumericalFailure,
                   "Backend changed prescribed nodes.");
    }
-   out.geometry = geometry;
-   out.codimension = domain.Codimension();
-   out.rule.SetOrder(order);
+   output.geometry = geometry;
+   output.codimension = domain.Codimension();
+   output.rule.SetOrder(order);
    const int dimension = Geometry::Dimension[geometry];
    const int codimension = domain.Codimension();
-   const int count = out.GetNPoints();
-   out.conormals.SetSize(0, 0, 0);
+   const int count = output.GetNPoints();
+   output.conormals.SetSize(0, 0, 0);
    if (codimension)
    {
-      out.conormals.SetSize(dimension, codimension, count);
-      out.conormals = 0.;
+      output.conormals.SetSize(dimension, codimension, count);
+      output.conormals = 0.;
    }
    for (int index = 0; index < count; ++index)
    {
-      auto &point = out.rule.IntPoint(index);
+      auto &point = output.rule.IntPoint(index);
       point.index = index;
       if (!std::isfinite(point.weight) || !ValidPoint(geometry, point) ||
-          (out.region == CutQuadrature::Region::Empty && point.weight != 0))
+          (output.region == CutQuadrature::Region::Empty && point.weight != 0))
       {
          return fail(CutQuadratureReport::Status::NumericalFailure,
                      "Invalid quadrature node.");
@@ -534,21 +535,21 @@ CutQuadratureReport CutQuadratureGenerator::Generate(
          return fail(CutQuadratureReport::Status::DegenerateGeometry,
                      "Dependent conormals.");
       }
-      out.conormals(index) = normals;
+      output.conormals(index) = normals;
    }
    return report;
 }
 catch (const std::exception &error)
 {
-   out.Clear();
+   output.Clear();
    return Failure(CutQuadratureReport::Status::NumericalFailure, error.what());
 }
 
 CutQuadratureReport MapCutQuadrature(
    ElementTransformation &transformation, const CutQuadrature &reference,
-   int requested_data, CutQuadratureMapping &out) try
+   int requested_data, CutQuadratureMapping &output) try
 {
-   out.Clear();
+   output.Clear();
    const int valid_data = CutQuadratureMapping::PHYSICAL_POINTS |
                           CutQuadratureMapping::PHYSICAL_CONORMALS |
                           CutQuadratureMapping::MEASURE_SCALING;
@@ -575,22 +576,22 @@ CutQuadratureReport MapCutQuadrature(
    }
    if (requested_data & CutQuadratureMapping::PHYSICAL_POINTS)
    {
-      out.physical_points.SetSize(space_dimension, count);
+      output.physical_points.SetSize(space_dimension, count);
    }
    if ((requested_data & CutQuadratureMapping::PHYSICAL_CONORMALS) &&
        codimension)
    {
-      out.physical_conormals.SetSize(space_dimension, codimension, count);
-      out.physical_conormals = 0.;
+      output.physical_conormals.SetSize(space_dimension, codimension, count);
+      output.physical_conormals = 0.;
    }
    if (requested_data & CutQuadratureMapping::MEASURE_SCALING)
    {
-      out.measure_scaling.SetSize(count);
-      out.measure_scaling = 0.;
+      output.measure_scaling.SetSize(count);
+      output.measure_scaling = 0.;
    }
    auto fail = [&](CutQuadratureReport::Status status, const char *message)
    {
-      out.Clear();
+      output.Clear();
       return Failure(status, message);
    };
    for (int index = 0; index < count; ++index)
@@ -611,7 +612,7 @@ CutQuadratureReport MapCutQuadrature(
             return fail(CutQuadratureReport::Status::NumericalFailure,
                         "Nonfinite physical point.");
          }
-         out.physical_points.SetCol(index, physical);
+         output.physical_points.SetCol(index, physical);
       }
       if (point.weight == 0)
       {
@@ -681,7 +682,7 @@ CutQuadratureReport MapCutQuadrature(
                normal /= normal.Norml2();
                physical.SetCol(column, normal);
             }
-            out.physical_conormals(index) = physical;
+            output.physical_conormals(index) = physical;
          }
       }
       if (!(scaling > 0) || !std::isfinite(scaling))
@@ -691,14 +692,14 @@ CutQuadratureReport MapCutQuadrature(
       }
       if (requested_data & CutQuadratureMapping::MEASURE_SCALING)
       {
-         out.measure_scaling(index) = scaling;
+         output.measure_scaling(index) = scaling;
       }
    }
    return {};
 }
 catch (const std::exception &error)
 {
-   out.Clear();
+   output.Clear();
    return Failure(CutQuadratureReport::Status::NumericalFailure, error.what());
 }
 
