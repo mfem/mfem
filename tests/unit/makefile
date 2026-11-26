@@ -36,56 +36,19 @@ OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
 LIBTESTS_O = libtests.o
 DATA_DIR = data
 
-SEQ_MAIN_OBJ = unit_test_main.o
-PAR_MAIN_OBJ = punit_test_main.o
-GPU_MAIN_OBJ = gpu_unit_test_main.o
-PGPU_MAIN_OBJ = pgpu_unit_test_main.o
-
-# Sedov numerical seq/par files and tests
-SEDOV_FILES = $(SRC)miniapps/test_sedov.cpp
+MAIN_OBJ = unit_test_main.o
 
 USE_CUDA := $(MFEM_USE_CUDA:NO=)
 USE_HIP := $(MFEM_USE_HIP:NO=)
 USE_GPU := $(or $(USE_CUDA),$(USE_HIP))
-SEQ_SEDOV_TESTS = sedov_tests_cpu sedov_tests_debug
-SEQ_SEDOV_TESTS += $(if $(USE_GPU),sedov_tests_gpu)
-SEQ_SEDOV_TESTS += $(if $(USE_GPU),sedov_tests_gpu_uvm)
-PAR_SEDOV_TESTS = $(SEQ_SEDOV_TESTS:%=p%)
 
-SEQ_SEDOV_CPU_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.cpu.o)
-SEQ_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.debug.o)
-SEQ_SEDOV_GPU_OBJ_FILES = $(if $(USE_GPU),$(SEDOV_FILES:$(SRC)%.cpp=%.gpu.o))
-SEQ_SEDOV_GPU_UVM_OBJ_FILES = $(if $(USE_GPU),$(SEDOV_FILES:$(SRC)%.cpp=%.gpu_uvm.o))
-
-PAR_SEDOV_CPU_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pcpu.o)
-PAR_SEDOV_DEBUG_OBJ_FILES = $(SEDOV_FILES:$(SRC)%.cpp=%.pdebug.o)
-PAR_SEDOV_GPU_OBJ_FILES = $(if $(USE_GPU),$(SEDOV_FILES:$(SRC)%.cpp=%.pgpu.o))
-PAR_SEDOV_GPU_UVM_OBJ_FILES = $(if $(USE_GPU),$(SEDOV_FILES:$(SRC)%.cpp=%.pgpu_uvm.o))
-
-# TMOP numerical seq/par files and tests
-TMOP_FILES = $(SRC)miniapps/test_tmop_pa.cpp
-
-SEQ_TMOP_TESTS = tmop_pa_tests_cpu tmop_pa_tests_debug
-SEQ_TMOP_TESTS += $(if $(USE_GPU),tmop_pa_tests_gpu)
-# SEQ_TMOP_TESTS += $(if $(USE_GPU),tmop_tests_gpu_uvm)
-PAR_TMOP_TESTS = ptmop_pa_tests_cpu
-PAR_TMOP_TESTS += $(if $(USE_GPU),ptmop_pa_tests_gpu)
-
-SEQ_TMOP_CPU_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.cpu.o)
-SEQ_TMOP_DEBUG_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.debug.o)
-SEQ_TMOP_GPU_OBJ_FILES = $(if $(USE_GPU),$(TMOP_FILES:$(SRC)%.cpp=%.gpu.o))
-SEQ_TMOP_GPU_UVM_OBJ_FILES = $(if $(USE_GPU),$(TMOP_FILES:$(SRC)%.cpp=%.gpu_uvm.o))
-
-PAR_TMOP_CPU_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.pcpu.o)
-PAR_TMOP_DEBUG_OBJ_FILES = $(TMOP_FILES:$(SRC)%.cpp=%.pdebug.o)
-PAR_TMOP_GPU_OBJ_FILES = $(if $(USE_GPU),$(TMOP_FILES:$(SRC)%.cpp=%.pgpu.o))
-PAR_TMOP_GPU_UVM_OBJ_FILES = $(if $(USE_GPU),$(TMOP_FILES:$(SRC)%.cpp=%.pgpu_uvm.o))
-
-# seq/par files and tests
-SEQ_UNIT_TESTS = unit_tests $(if $(USE_GPU),gpu_unit_tests)
-SEQ_UNIT_TESTS += $(SEQ_SEDOV_TESTS) $(SEQ_TMOP_TESTS)
-PAR_UNIT_TESTS = punit_tests $(if $(USE_GPU),pgpu_unit_tests)
-PAR_UNIT_TESTS += $(PAR_SEDOV_TESTS) $(PAR_TMOP_TESTS)
+# Each miniapp has serial/MPI executables with run-time device selection.
+SEQ_SEDOV_TESTS = sedov_tests
+PAR_SEDOV_TESTS = psedov_tests
+SEQ_TMOP_TESTS = tmop_pa_tests
+PAR_TMOP_TESTS = ptmop_pa_tests
+SEQ_UNIT_TESTS = unit_tests $(SEQ_SEDOV_TESTS) $(SEQ_TMOP_TESTS)
+PAR_UNIT_TESTS = unit_tests $(PAR_SEDOV_TESTS) $(PAR_TMOP_TESTS)
 
 # Ceed tests
 USE_CEED := $(MFEM_USE_CEED:NO=)
@@ -110,17 +73,8 @@ all: $(UNIT_TESTS)
 .SUFFIXES: .cpp .o
 .PHONY: all clean clean-exec
 
-unit_tests: $(SEQ_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(SEQ_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
-
-punit_tests: $(PAR_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(PAR_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
-
-gpu_unit_tests: $(GPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(GPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
-
-pgpu_unit_tests: $(PGPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
-	$(CCC) $(PGPU_MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+unit_tests: $(MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
+	$(CCC) $(MAIN_OBJ) $(LIBTESTS_O) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
 ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 	$(CCC) $(CEED_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
@@ -133,63 +87,43 @@ $(LIBTESTS_O): $(OBJECT_FILES)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
-$(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(GPU_MAIN_OBJ) \
- $(PGPU_MAIN_OBJ) $(DEBUG_DEVICE_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) \
+$(OBJECT_FILES) $(MAIN_OBJ) \
+ $(DEBUG_DEVICE_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) \
  $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
+
+$(MAIN_OBJ) $(DEBUG_DEVICE_OBJ): $(SRC)run_unit_tests.hpp
 
 $(CEED_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
 
-# Template rule for devices
-# SEDOV Template rule for devices
-# 1: postfix of 'sedov_tests_', 2: prefix of '_OBJECT_FILES',
-# 3: configuration string for the MFEM device, separated with '$(comma)'
-comma=,
-define sedov_tests
-sedov_tests_$(1): SEDOV_TESTS_FLAGS=-DMFEM_SEDOV_DEVICE='"$(3)"'
-sedov_tests_$(1): $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
- $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(SEQ_SEDOV_$(2)_OBJ_FILES) \
-	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
-$$(SEQ_SEDOV_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
+# Compile each miniapp once for each serial/MPI variant.
+define miniapp_tests
+$(1)_tests: miniapps/test_$(1).o $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
+	$$(CCC) $$< $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$@
+p$(1)_tests: miniapps/test_$(1).p.o $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
+	$$(CCC) $$< $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$@
+miniapps/test_$(1).o: $$(SRC)miniapps/test_$(1).cpp $$(HEADER_FILES) $$(SRC)run_unit_tests.hpp $$(CONFIG_MK)
 	@mkdir -p $$(@D)
-	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
-	   $$(SEDOV_TESTS_FLAGS) -o $$(@)
-endef
-$(eval $(call sedov_tests,cpu,CPU,cpu))
-$(eval $(call sedov_tests,debug,DEBUG,debug))
-$(eval $(call sedov_tests,gpu,GPU,gpu))
-$(eval $(call sedov_tests,gpu_uvm,GPU_UVM,gpu:uvm))
-
-define psedov_tests
-psedov_tests_$(1): SEDOV_TESTS_FLAGS =-DMFEM_SEDOV_MPI
-psedov_tests_$(1): SEDOV_TESTS_FLAGS+=-DMFEM_SEDOV_DEVICE='"$(3)"'
-psedov_tests_$(1): $$(PAR_SEDOV_$(2)_OBJ_FILES) \
- $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(PAR_SEDOV_$(2)_OBJ_FILES) \
-	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
-$$(PAR_SEDOV_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
+	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$<) -o $$@
+miniapps/test_$(1).p.o: $$(SRC)miniapps/test_$(1).cpp $$(HEADER_FILES) $$(SRC)run_unit_tests.hpp $$(CONFIG_MK)
 	@mkdir -p $$(@D)
-	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
-	   $$(SEDOV_TESTS_FLAGS) -o $$(@)
+	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -DMFEM_$(2)_MPI -c $$(abspath $$<) -o $$@
 endef
-$(eval $(call psedov_tests,cpu,CPU,cpu))
-$(eval $(call psedov_tests,debug,DEBUG,debug))
-$(eval $(call psedov_tests,gpu,GPU,gpu))
-$(eval $(call psedov_tests,gpu_uvm,GPU_UVM,gpu:uvm))
+$(eval $(call miniapp_tests,sedov,SEDOV))
+$(eval $(call miniapp_tests,tmop_pa,TMOP_PA))
 
 # For out-of-source builds, copy the meshes in ../../miniapps/multidomain from
-# the source location; these are used by 'punit_tests'.
+# the source location; these are used by parallel 'unit_tests' runs.
 # Also, link the directory 'meshes' in ../../miniapps/nurbs from the source
 # location; this is needed by 'unit_tests'.
 ifneq ($(SRC),)
 .PHONY: copy-miniapps-multidomain-data copy-miniapps-nurbs-meshes
 copy-miniapps-multidomain-data:
 	$(MAKE) -C ../../miniapps/multidomain copy-data
-punit_tests: | copy-miniapps-multidomain-data
+unit_tests: | copy-miniapps-multidomain-data
 copy-miniapps-nurbs-meshes:
 	$(MAKE) -C ../../miniapps/nurbs copy-data
 unit_tests: | copy-miniapps-nurbs-meshes
@@ -201,43 +135,7 @@ endif
 copy-miniapps-meshing-data:
 	$(MAKE) -C ../../miniapps/meshing copy-data
 
-# TMOP Template rule for devices
-# 1: postfix of 'tmop_tests_', 2: prefix of '_OBJECT_FILES',
-# 3: configuration string for the MFEM device, separated with '$(comma)'
-define tmop_pa_tests
-tmop_pa_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
-tmop_pa_tests_$(1): TMOP_TESTS_FLAGS=-DMFEM_TMOP_PA_DEVICE='"$(3)"'
-tmop_pa_tests_$(1): $$(SEQ_TMOP_$(2)_OBJ_FILES) \
- $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(SEQ_TMOP_$(2)_OBJ_FILES) \
-	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
-$$(SEQ_TMOP_$(2)_OBJ_FILES): %.$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
-	@mkdir -p $$(@D)
-	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
-	   $$(TMOP_TESTS_FLAGS) -o $$(@)
-endef
-$(eval $(call tmop_pa_tests,cpu,CPU,cpu))
-$(eval $(call tmop_pa_tests,debug,DEBUG,debug))
-$(eval $(call tmop_pa_tests,gpu,GPU,gpu))
-# $(eval $(call tmop_pa_tests,gpu_uvm,GPU_UVM,gpu:uvm))
-
-define ptmop_pa_tests
-ptmop_pa_tests_$(1): | $(if $(SRC),copy-miniapps-meshing-data)
-ptmop_pa_tests_$(1): TMOP_TESTS_FLAGS =-DMFEM_TMOP_PA_MPI
-ptmop_pa_tests_$(1): TMOP_TESTS_FLAGS+=-DMFEM_TMOP_PA_DEVICE='"$(3)"'
-ptmop_pa_tests_$(1): $$(PAR_TMOP_$(2)_OBJ_FILES) \
- $$(MFEM_LIB_FILE) $$(CONFIG_MK) $$(DATA_DIR)
-	$$(CCC) $$(PAR_TMOP_$(2)_OBJ_FILES) \
-	   $$(MFEM_LINK_FLAGS) $$(MFEM_LIBS) -o $$(@)
-$$(PAR_TMOP_$(2)_OBJ_FILES): %.p$(1).o: $$(SRC)%.cpp $$(HEADER_FILES) $$(CONFIG_MK)
-	@mkdir -p $$(@D)
-	$$(CCC) $$(MFEM_FLAGS) $$(INCLUDES) -c $$(abspath $$(<)) \
-	   $$(TMOP_TESTS_FLAGS) -o $$(@)
-endef
-$(eval $(call ptmop_pa_tests,cpu,CPU,cpu))
-#$(eval $(call ptmop_pa_tests,debug,DEBUG,debug))
-$(eval $(call ptmop_pa_tests,gpu,GPU,gpu))
-#$(eval $(call ptmop_pa_tests,gpu_uvm,GPU_UVM,gpu:uvm))
+$(SEQ_TMOP_TESTS) $(PAR_TMOP_TESTS): | $(if $(SRC),copy-miniapps-meshing-data)
 
 $(DATA_DIR):
 	ln -s $(SRC)$(DATA_DIR) .
@@ -255,6 +153,53 @@ endif
 %-test-seq: %
 	@$(call mfem-test,$<,, Unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)
 
+$(SEQ_SEDOV_TESTS:%=%-test-seq) $(SEQ_TMOP_TESTS:%=%-test-seq) $(DEBUG_DEVICE_TEST:%=%-test-seq): MFEM_DATA_FLAG =
+$(PAR_SEDOV_TESTS:%=%-test-par) $(PAR_TMOP_TESTS:%=%-test-par): MFEM_DATA_FLAG =
+
+unit_tests-test-seq: unit_tests
+	@$(call mfem-test,$<,, Unit tests (cpu),--device cpu $(MFEM_DATA_FLAG),SKIP-NO-VIS)
+
+# Run the same executable with each enabled device backend.
+UNIT_TEST_DEVICES = $(if $(USE_GPU),gpu)
+UNIT_TEST_DEVICES += $(if $(and $(USE_GPU),$(filter YES,$(MFEM_USE_RAJA))),raja-gpu)
+UNIT_TEST_DEVICES += $(if $(filter YES,$(MFEM_USE_OPENMP)),omp)
+ifeq ($(MFEM_USE_OPENMP)$(MFEM_USE_RAJA),YESYES)
+# Inspect RAJA's own configuration rather than assuming it matches MFEM's.
+RAJA_USE_OPENMP := $(filter YES,$(shell printf '\043include <RAJA/config.hpp>\n\043ifdef RAJA_ENABLE_OPENMP\nYES\n\043endif\n' | $(CCC) $(MFEM_FLAGS) -E -x c++ - 2>/dev/null))
+UNIT_TEST_DEVICES += $(if $(RAJA_USE_OPENMP),raja-omp)
+endif
+test-par-NO: $(UNIT_TEST_DEVICES:%=unit_tests-test-seq-%)
+test-par-YES: $(UNIT_TEST_DEVICES:%=unit_tests-test-seq-%) \
+              $(UNIT_TEST_DEVICES:%=unit_tests-test-par-%)
+
+unit_tests-test-seq-%: unit_tests
+	@$(call mfem-test,$<,, Unit tests ($*),--device $* $(MFEM_DATA_FLAG),SKIP-NO-VIS,unit_tests-$*)
+
+unit_tests-test-par-%: unit_tests
+	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel unit tests ($*),--parallel --device $* $(MFEM_DATA_FLAG),SKIP-NO-VIS,unit_tests-$*-np1)
+	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel unit tests ($*),--parallel --device $* $(MFEM_DATA_FLAG),SKIP-NO-VIS,unit_tests-$*-np$(MFEM_MPI_NP))
+
+SEDOV_TEST_DEVICES = $(UNIT_TEST_DEVICES) debug $(if $(USE_GPU),gpu_uvm)
+TMOP_TEST_DEVICES = $(UNIT_TEST_DEVICES) debug
+PAR_TMOP_TEST_DEVICES = $(UNIT_TEST_DEVICES)
+test-par-NO: $(SEDOV_TEST_DEVICES:%=sedov_tests-test-seq-%) \
+              $(TMOP_TEST_DEVICES:%=tmop_pa_tests-test-seq-%)
+test-par-YES: $(SEDOV_TEST_DEVICES:%=sedov_tests-test-seq-%) \
+               $(TMOP_TEST_DEVICES:%=tmop_pa_tests-test-seq-%) \
+               $(SEDOV_TEST_DEVICES:%=psedov_tests-test-par-%) \
+               $(PAR_TMOP_TEST_DEVICES:%=ptmop_pa_tests-test-par-%)
+
+sedov_tests-test-seq-%: sedov_tests
+	@$(call mfem-test,$<,, Sedov tests ($*),--device $(subst _,:,$*),SKIP-NO-VIS,sedov_tests-$*)
+tmop_pa_tests-test-seq-%: tmop_pa_tests
+	@$(call mfem-test,$<,, TMOP tests ($*),--device $*,SKIP-NO-VIS,tmop_pa_tests-$*)
+psedov_tests-test-par-%: psedov_tests
+	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel Sedov tests ($*),--device $(subst _,:,$*),SKIP-NO-VIS,psedov_tests-$*-np1)
+	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel Sedov tests ($*),--device $(subst _,:,$*),SKIP-NO-VIS,psedov_tests-$*-np$(MFEM_MPI_NP))
+ptmop_pa_tests-test-par-%: ptmop_pa_tests
+	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel TMOP tests ($*),--device $*,SKIP-NO-VIS,ptmop_pa_tests-$*-np1)
+	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel TMOP tests ($*),--device $*,SKIP-NO-VIS,ptmop_pa_tests-$*-np$(MFEM_MPI_NP))
+
 ceed_tests-test-seq: ceed_tests
 	@$(call mfem-test,$<,, CEED Unit tests (cpu),--device ceed-cpu $(MFEM_DATA_FLAG),SKIP-NO-VIS)
 ifeq ($(MFEM_USE_CUDA),YES)
@@ -264,9 +209,14 @@ ifeq ($(MFEM_USE_CUDA),YES)
 endif
 
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP)
+unit_tests-test-par: MFEM_PARALLEL_FLAG = --parallel
 %-test-par: %
-	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)
-	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel unit tests,$(MFEM_DATA_FLAG),SKIP-NO-VIS)
+	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel unit tests,$(MFEM_PARALLEL_FLAG) $(MFEM_DATA_FLAG),SKIP-NO-VIS,$<-np1)
+	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel unit tests,$(MFEM_PARALLEL_FLAG) $(MFEM_DATA_FLAG),SKIP-NO-VIS,$<-np$(MFEM_MPI_NP))
+
+unit_tests-test-par: unit_tests
+	@$(call mfem-test,$<, $(RUN_MPI) 1, Parallel unit tests (cpu),--parallel --device cpu $(MFEM_DATA_FLAG),SKIP-NO-VIS,unit_tests-cpu-np1)
+	@$(call mfem-test,$<, $(RUN_MPI) $(MFEM_MPI_NP), Parallel unit tests (cpu),--parallel --device cpu $(MFEM_DATA_FLAG),SKIP-NO-VIS,unit_tests-cpu-np$(MFEM_MPI_NP))
 
 # Generate an error message if the MFEM library is not built and exit
 $(MFEM_LIB_FILE):
@@ -276,5 +226,6 @@ clean-exec:
 	@rm -rf output_meshes parallel_in_serial.mesh parallel_in_serial.gf
 
 clean: clean-exec
-	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) *.o */*.o */*~ *~
+	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) \
+	   *.o */*.o */*~ *~
 	rm -rf *.dSYM

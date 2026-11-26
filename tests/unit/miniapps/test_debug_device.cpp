@@ -11,9 +11,6 @@
 
 #define CATCH_CONFIG_RUNNER
 #include "mfem.hpp"
-using namespace mfem;
-
-#define CATCH_CONFIG_RUNNER
 #include "run_unit_tests.hpp"
 
 using namespace mfem;
@@ -169,6 +166,8 @@ TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
 
 int main(int argc, char *argv[])
 {
-   Device device("debug");
-   return RunCatchSession(argc, argv, {"[DebugDevice]"});
+   CatchSessionOptions options;
+   options.fixed_device = "debug";
+   options.enable_all = options.enable_data = false;
+   return RunCatchSession(argc, argv, {"[DebugDevice]"}, options);
 }
