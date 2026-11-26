@@ -2230,4 +2230,180 @@ void HDGCurlCurlIntegrator::AssembleHDGFaceMatrix(
       }
 }
 
+real_t HDGCurlCurlIntegrator::ComputeHDGFaceEnergy(
+   int side, const FiniteElement &trace_el, const FiniteElement &el,
+   FaceElementTransformations &Trans, const Vector &trfun, const Vector &elfun,
+   Vector *d_energy)
+{
+   MFEM_VERIFY(trace_el.GetMapType() == FiniteElement::VALUE, "");
+
+   if (Trans.Elem2No < 0) { side = 0; }
+
+   const int dim = el.GetDim();
+   const int dim_curl = dim == 3 ? 3 : 1;
+   const int tr_ndof = trace_el.GetDof();
+   const int tr_dim = dim == 3 ? 2 : 1;
+   const int el_ndof = el.GetDof();
+
+   MFEM_ASSERT(elfun.Size() == el_ndof * dim_curl, "Invalid element vector");
+   MFEM_ASSERT(trfun.Size() == tr_ndof * tr_dim, "Invalid trace vector");
+
+   Vector vu(dim), nor(dim), ni(dim);
+   Vector v_q(dim_curl), tr_q(tr_dim), d_q(dim_curl);
+   DenseMatrix tangent;
+
+   tr_shape.SetSize(tr_ndof);
+   Vector &el_shape = shape1;
+   el_shape.SetSize(el_ndof);
+
+   // element and trace values are ordered by nodes
+   const DenseMatrix el_vals(elfun.GetData(), el_ndof, dim_curl);
+   const DenseMatrix tr_vals(trfun.GetData(), tr_ndof, tr_dim);
+
+   if (d_energy)
+   {
+      d_energy->SetSize(dim);
+      *d_energy = 0.;
+
+      ni_Ji.SetSize(dim);
+      nor_Jt.SetSize(dim);
+   }
+   real_t energy = 0.;
+
+   const IntegrationRule *ir = IntRule;
+   if (ir == NULL)
+   {
+      // a simple choice for the integration order; is this OK?
+      int order;
+      order = 2*el.GetOrder();
+      ir = &IntRules.Get(Trans.GetGeometryType(), order);
+   }
+
+   // assemble: alpha < {h^{-1} Q} [u x n],[v x n] >
+   for (int p = 0; p < ir->GetNPoints(); p++)
+   {
+      const IntegrationPoint &ip = ir->IntPoint(p);
+
+      // Set the integration point in the face and the neighboring elements
+      Trans.SetAllIntPoints(&ip);
+
+      // Access the neighboring elements' integration points
+      // Note: eip2 will only contain valid data if Elem2 exists
+      const IntegrationPoint &eip1 = Trans.GetElement1IntPoint();
+      const IntegrationPoint &eip2 = Trans.GetElement2IntPoint();
+
+      if (dim == 1)
+      {
+         nor(0) = 2*eip1.x - 1.0;
+      }
+      else
+      {
+         CalcOrtho(Trans.Jacobian(), nor);
+      }
+
+      // construct tangents (independent of the side, as the trace unknowns)
+      if (dim == 3)
+      {
+         const DenseMatrix &J = Trans.Jacobian();
+         tangent.SetSize(3,2);
+         for (int a = 0; a < 2; a++)
+         {
+            Vector tangent_a;
+            tangent.GetColumnReference(a, tangent_a);
+            J.GetColumn(a, tangent_a);
+            const real_t norm_a = tangent_a.Norml2();
+            if (norm_a) { tangent_a /= norm_a; }
+         }
+      }
+
+      if (side != 0) { nor.Neg(); }
+
+      trace_el.CalcShape(ip, tr_shape);
+
+      // evaluate the normal velocity
+      real_t un;
+      if (v)
+      {
+         v->Eval(vu, *Trans.Elem1, eip1);
+         un = vu * nor;
+      }
+      else
+      {
+         un = 0.0;
+      }
+
+      // calculate the stabilization coefficient
+      ElementTransformation *ElTr = (side != 0)?(Trans.Elem2):(Trans.Elem1);
+      const IntegrationPoint &eip = (side != 0)?(eip2):(eip1);
+
+      el.CalcPhysShape(*ElTr, el_shape);
+      real_t wn = ip.weight/ElTr->Weight();
+      if (Q)
+      {
+         wn *= Q->Eval(*ElTr, eip);
+      }
+      ni.Set(wn, nor);
+      // Note: in the jump term, we use 1/h1 = |nor|/det(J1) which is
+      // independent of Loc1 and always gives the size of element 1 in
+      // direction perpendicular to the face. Indeed, for linear transformation
+      //     |nor|=measure(face)/measure(ref. face),
+      //   det(J1)=measure(element)/measure(ref. element),
+      // and the ratios measure(ref. element)/measure(ref. face) are
+      // compatible for all element/face pairs.
+      // For example: meas(ref. tetrahedron)/meas(ref. triangle) = 1/3, and
+      // for any tetrahedron vol(tet)=(1/3)*height*area(base).
+      // For interior faces: q_e/h_e=(q1/h1+q2/h2)/2.
+
+      real_t a, b;
+      if (un != 0.)
+      {
+         un /= fabs(un);
+         a = 0.5 * alpha * un;
+         b = beta * fabs(un);
+      }
+      else
+      {
+         a = 0.0;
+         b = beta;
+      }
+
+      el_vals.MultTranspose(el_shape, v_q);
+      tr_vals.MultTranspose(tr_shape, tr_q);
+
+      // squared tangential jump |(v - t*lambda)_t|^2
+      real_t d_q2;
+      if (dim == 3)
+      {
+         tangent.Mult(tr_q, d_q);
+         d_q -= v_q;
+         // tangential projection: |d_t|^2 = |d|^2 - (d.n)^2 / |n|^2
+         const real_t nn = nor * nor;
+         const real_t dn = d_q * nor;
+         d_q2 = (d_q * d_q) - ((nn != 0.)?(dn*dn / nn):(0.));
+      }
+      else
+      {
+         d_q(0) = v_q(0) - tr_q(0);
+         d_q2 = d_q(0)*d_q(0);
+      }
+
+      const real_t w = d_q2 * fabs(b+a);
+      if (w == 0.) { continue; }
+
+      energy += w * (ni * nor);
+
+      if (d_energy)
+      {
+         ElTr->InverseJacobian().Mult(ni, ni_Ji);
+         ElTr->Jacobian().MultTranspose(nor, nor_Jt);
+         for (int d = 0; d < dim; d++)
+         {
+            (*d_energy)(d) += w * ni_Ji(d) * nor_Jt(d);
+         }
+      }
+   }
+
+   return energy;
+}
+
 } // namespace mfem

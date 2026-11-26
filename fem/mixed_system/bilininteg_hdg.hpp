@@ -266,14 +266,14 @@ public:
                               const FiniteElement &fe,
                               FaceElementTransformations &Tr,
                               const Vector &trfun, const Vector &elfun,
-                              Vector &elvect) override;
+                              Vector &elvect) override;*/
 
    real_t ComputeHDGFaceEnergy(int side,
                                const FiniteElement &trace_face_fe,
                                const FiniteElement &fe,
                                FaceElementTransformations &Tr,
                                const Vector &trfun, const Vector &elfun,
-                               Vector *d_energy = NULL) override;*/
+                               Vector *d_energy = NULL) override;
 };
 
 }
