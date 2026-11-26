@@ -19,7 +19,7 @@
 namespace mfem
 {
 
-Array<int> BatchedLOR_DG::GetFaceInfo() const
+inline Array<int> BatchedLOR_DG::GetFaceInfo() const
 {
    Mesh &mesh = *fes_ho.GetMesh();
    const Array<int> &bdr_face_attrs = mesh.GetBdrFaceAttributes();
@@ -64,7 +64,7 @@ Array<int> BatchedLOR_DG::GetFaceInfo() const
    return face_info;
 }
 
-Vector BatchedLOR_DG::GetBdrPenaltyFactor() const
+inline Vector BatchedLOR_DG::GetBdrPenaltyFactor() const
 {
    Mesh &mesh = *fes_ho.GetMesh();
 
@@ -127,7 +127,7 @@ Vector BatchedLOR_DG::GetBdrPenaltyFactor() const
    return face_Jh;
 }
 
-void BatchedLOR_DG::AssembleFaceTerms()
+inline void BatchedLOR_DG::AssembleFaceTerms()
 {
    Mesh &mesh = *fes_ho.GetMesh();
 

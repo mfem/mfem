@@ -34,6 +34,7 @@
 #include "../../config/config.hpp"
 #include "../../general/array.hpp"
 #include "../../general/forall.hpp"
+#include "../kernel_dispatch.hpp"
 #include "../../linalg/dtensor.hpp"
 #include "../../linalg/vector.hpp"
 #include "../../linalg/tensor.hpp"
@@ -419,5 +420,67 @@ void ElasticityAssembleEA_(const int i_block,
 } // namespace internal
 
 } // namespace mfem
+
+/// \cond DO_NOT_DOCUMENT
+
+// Additional runtime-dispatched kernels. Include this header to register
+// specializations with the corresponding table's Specialization<...>::Add().
+namespace mfem
+{
+namespace internal
+{
+
+using ElasticityComponentAddMultPAKernelsType = decltype(
+                                                   &ElasticityAddMultPA_<2,0,0>);
+MFEM_REGISTER_KERNELS(ElasticityComponentAddMultPAKernels,
+                      ElasticityComponentAddMultPAKernelsType,
+                      (int, int, int));
+
+template <int DIM, int I, int J>
+ElasticityComponentAddMultPAKernelsType
+ElasticityComponentAddMultPAKernels::Kernel()
+{
+   return ElasticityAddMultPA_<DIM,I,J>;
+}
+
+using ElasticityAddMultPAKernelsType = decltype(&ElasticityAddMultPA_<2>);
+MFEM_REGISTER_KERNELS(ElasticityAddMultPAKernels,
+                      ElasticityAddMultPAKernelsType,
+                      (int));
+
+template <int DIM>
+ElasticityAddMultPAKernelsType ElasticityAddMultPAKernels::Kernel()
+{
+   return ElasticityAddMultPA_<DIM>;
+}
+
+using ElasticityAssembleDiagonalPAKernelsType = decltype(
+                                                   &ElasticityAssembleDiagonalPA_<2>);
+MFEM_REGISTER_KERNELS(ElasticityAssembleDiagonalPAKernels,
+                      ElasticityAssembleDiagonalPAKernelsType,
+                      (int));
+
+template <int DIM>
+ElasticityAssembleDiagonalPAKernelsType
+ElasticityAssembleDiagonalPAKernels::Kernel()
+{
+   return ElasticityAssembleDiagonalPA_<DIM>;
+}
+
+using ElasticityAssembleEAKernelsType = decltype(&ElasticityAssembleEA_<2>);
+MFEM_REGISTER_KERNELS(ElasticityAssembleEAKernels,
+                      ElasticityAssembleEAKernelsType,
+                      (int));
+
+template <int DIM>
+ElasticityAssembleEAKernelsType ElasticityAssembleEAKernels::Kernel()
+{
+   return ElasticityAssembleEA_<DIM>;
+}
+
+} // namespace internal
+} // namespace mfem
+
+/// \endcond DO_NOT_DOCUMENT
 
 #endif

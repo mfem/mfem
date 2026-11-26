@@ -23,4 +23,6 @@ TEST_CASE("Diffusion Kernel Specializations", "[Specializations]")
 
    DiffusionIntegrator::AddSpecialization<2, 1, 5>();
    DiffusionIntegrator::AddSimplexSpecialization<2, 2, 3>();
+
+   internal::EADiffusionAssembleKernels::Specialization<2, 1, 3>::Add();
 }

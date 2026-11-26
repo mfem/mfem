@@ -10,6 +10,7 @@
 // CONTRIBUTING.md for details.
 
 #include "bilininteg_elasticity_kernels.hpp"
+#include "../kernel_dispatch.hpp"
 
 namespace mfem
 {
@@ -17,57 +18,109 @@ namespace mfem
 namespace internal
 {
 
+/// \cond DO_NOT_DOCUMENT
+
+ElasticityComponentAddMultPAKernelsType
+ElasticityComponentAddMultPAKernels::Fallback(int, int, int)
+{
+   MFEM_ABORT("Invalid configuration.");
+}
+
+/// Register the existing specializations once, on first use.
+static void RegisterElasticityComponentAddMultPAKernels()
+{
+   struct Kernels
+   {
+      Kernels()
+      {
+         ElasticityComponentAddMultPAKernels::Specialization<2,0,0>::Add();
+         ElasticityComponentAddMultPAKernels::Specialization<2,0,1>::Add();
+         ElasticityComponentAddMultPAKernels::Specialization<2,1,0>::Add();
+         ElasticityComponentAddMultPAKernels::Specialization<2,1,1>::Add();
+         ElasticityComponentAddMultPAKernels::Specialization<3,0,0>::Add();
+         ElasticityComponentAddMultPAKernels::Specialization<3,0,1>::Add();
+         ElasticityComponentAddMultPAKernels::Specialization<3,0,2>::Add();
+         ElasticityComponentAddMultPAKernels::Specialization<3,1,0>::Add();
+         ElasticityComponentAddMultPAKernels::Specialization<3,1,1>::Add();
+         ElasticityComponentAddMultPAKernels::Specialization<3,1,2>::Add();
+         ElasticityComponentAddMultPAKernels::Specialization<3,2,0>::Add();
+         ElasticityComponentAddMultPAKernels::Specialization<3,2,1>::Add();
+         ElasticityComponentAddMultPAKernels::Specialization<3,2,2>::Add();
+      }
+   };
+   static Kernels kernels;
+}
+
+ElasticityAddMultPAKernelsType ElasticityAddMultPAKernels::Fallback(int)
+{
+   MFEM_ABORT("Only dimensions 2 and 3 supported.");
+}
+
+/// Register the existing specializations once, on first use.
+static void RegisterElasticityAddMultPAKernels()
+{
+   struct Kernels
+   {
+      Kernels()
+      {
+         ElasticityAddMultPAKernels::Specialization<2>::Add();
+         ElasticityAddMultPAKernels::Specialization<3>::Add();
+      }
+   };
+   static Kernels kernels;
+}
+
+ElasticityAssembleDiagonalPAKernelsType
+ElasticityAssembleDiagonalPAKernels::Fallback(int)
+{
+   MFEM_ABORT("Only dimensions 2 and 3 supported.");
+}
+
+/// Register the existing specializations once, on first use.
+static void RegisterElasticityAssembleDiagonalPAKernels()
+{
+   struct Kernels
+   {
+      Kernels()
+      {
+         ElasticityAssembleDiagonalPAKernels::Specialization<2>::Add();
+         ElasticityAssembleDiagonalPAKernels::Specialization<3>::Add();
+      }
+   };
+   static Kernels kernels;
+}
+
+ElasticityAssembleEAKernelsType ElasticityAssembleEAKernels::Fallback(int)
+{
+   MFEM_ABORT("Only dimensions 2 and 3 supported.");
+}
+
+/// Register the existing specializations once, on first use.
+static void RegisterElasticityAssembleEAKernels()
+{
+   struct Kernels
+   {
+      Kernels()
+      {
+         ElasticityAssembleEAKernels::Specialization<2>::Add();
+         ElasticityAssembleEAKernels::Specialization<3>::Add();
+      }
+   };
+   static Kernels kernels;
+}
+
+/// \endcond DO_NOT_DOCUMENT
+
 void ElasticityComponentAddMultPA(const int dim, const int nDofs,
                                   const FiniteElementSpace &fespace, const CoefficientVector &lambda,
                                   const CoefficientVector &mu, const GeometricFactors &geom,
                                   const DofToQuad &maps, const Vector &x, QuadratureFunction &QVec, Vector &y,
                                   const int i_block, const int j_block)
 {
-   const int id = (dim << 8)| (i_block << 4) | j_block;
-   switch (id)
-   {
-      case 0x200:
-         ElasticityAddMultPA_<2,0,0>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x211:
-         ElasticityAddMultPA_<2,1,1>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x201:
-         ElasticityAddMultPA_<2,0,1>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x210:
-         ElasticityAddMultPA_<2,1,0>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x300:
-         ElasticityAddMultPA_<3,0,0>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x311:
-         ElasticityAddMultPA_<3,1,1>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x322:
-         ElasticityAddMultPA_<3,2,2>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x301:
-         ElasticityAddMultPA_<3,0,1>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x302:
-         ElasticityAddMultPA_<3,0,2>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x312:
-         ElasticityAddMultPA_<3,1,2>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x310:
-         ElasticityAddMultPA_<3,1,0>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x320:
-         ElasticityAddMultPA_<3,2,0>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 0x321:
-         ElasticityAddMultPA_<3,2,1>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      default:
-         MFEM_ABORT("Invalid configuration.");
-   }
+   RegisterElasticityComponentAddMultPAKernels();
+   ElasticityComponentAddMultPAKernels::Run(
+      dim, i_block, j_block,
+      nDofs,fespace,lambda,mu,geom,maps,x,QVec,y);
 }
 
 void ElasticityAddMultPA(const int dim, const int nDofs,
@@ -75,17 +128,10 @@ void ElasticityAddMultPA(const int dim, const int nDofs,
                          const CoefficientVector &mu, const GeometricFactors &geom,
                          const DofToQuad &maps, const Vector &x, QuadratureFunction &QVec, Vector &y)
 {
-   switch (dim)
-   {
-      case 2:
-         ElasticityAddMultPA_<2>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      case 3:
-         ElasticityAddMultPA_<3>(nDofs, fespace, lambda, mu, geom, maps, x, QVec, y);
-         break;
-      default:
-         MFEM_ABORT("Only dimensions 2 and 3 supported.");
-   }
+   RegisterElasticityAddMultPAKernels();
+   ElasticityAddMultPAKernels::Run(
+      dim,
+      nDofs,fespace,lambda,mu,geom,maps,x,QVec,y);
 }
 
 void ElasticityAssembleDiagonalPA(const int dim, const int nDofs,
@@ -93,17 +139,10 @@ void ElasticityAssembleDiagonalPA(const int dim, const int nDofs,
                                   const CoefficientVector &mu, const GeometricFactors &geom,
                                   const DofToQuad &maps, const IntegrationRule &ir, Vector &diag)
 {
-   switch (dim)
-   {
-      case 2:
-         ElasticityAssembleDiagonalPA_<2>(nDofs, lambda, mu, geom, maps, ir, diag);
-         break;
-      case 3:
-         ElasticityAssembleDiagonalPA_<3>(nDofs, lambda, mu, geom, maps, ir, diag);
-         break;
-      default:
-         MFEM_ABORT("Only dimensions 2 and 3 supported.");
-   }
+   RegisterElasticityAssembleDiagonalPAKernels();
+   ElasticityAssembleDiagonalPAKernels::Run(
+      dim,
+      nDofs,lambda,mu,geom,maps,ir,diag);
 }
 
 void ElasticityAssembleEA(const int dim, const int i_block, const int j_block,
@@ -112,19 +151,10 @@ void ElasticityAssembleEA(const int dim, const int i_block, const int j_block,
                           const CoefficientVector &mu, const GeometricFactors &geom,
                           const DofToQuad &maps, Vector &emat)
 {
-   switch (dim)
-   {
-      case 2:
-         ElasticityAssembleEA_<2>(i_block, j_block, nDofs, ir, lambda, mu, geom, maps,
-                                  emat);
-         break;
-      case 3:
-         ElasticityAssembleEA_<3>(i_block, j_block, nDofs, ir, lambda, mu, geom, maps,
-                                  emat);
-         break;
-      default:
-         MFEM_ABORT("Only dimensions 2 and 3 supported.");
-   }
+   RegisterElasticityAssembleEAKernels();
+   ElasticityAssembleEAKernels::Run(
+      dim,
+      i_block,j_block,nDofs,ir,lambda,mu,geom,maps,emat);
 }
 
 } // namespace internal

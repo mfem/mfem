@@ -1397,14 +1397,8 @@ inline void EAMassAssemble3D(const int NE,
 
 } // namespace internal
 
-namespace
-{
-using ApplyKernelType = MassIntegrator::ApplyKernelType;
-using DiagonalKernelType = MassIntegrator::DiagonalKernelType;
-}
-
 template<int DIM, int D1D, int Q1D>
-ApplyKernelType MassIntegrator::ApplyPAKernels::Kernel()
+MassIntegrator::ApplyKernelType MassIntegrator::ApplyPAKernels::Kernel()
 {
    if constexpr (DIM == 1) { return internal::PAMassApply1D; }
    else if constexpr (DIM == 2) { return internal::SmemPAMassApply2D<D1D, Q1D>; }
@@ -1422,7 +1416,7 @@ ApplyKernelType MassIntegrator::ApplyPAKernels::Kernel()
    return nullptr;
 }
 
-inline ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
+inline MassIntegrator::ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
    int dim, int, int)
 {
    if (dim == 1) { return internal::PAMassApply1D; }
@@ -1433,7 +1427,7 @@ inline ApplyKernelType MassIntegrator::ApplyPAKernels::Fallback(
 }
 
 template<int DIM, int D1D, int Q1D>
-DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel()
+MassIntegrator::DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel()
 {
    if constexpr (DIM == 1) { return internal::PAMassAssembleDiagonal1D; }
    else if constexpr (DIM == 2) { return internal::SmemPAMassAssembleDiagonal2D<D1D, Q1D>; }
@@ -1442,7 +1436,8 @@ DiagonalKernelType MassIntegrator::DiagonalPAKernels::Kernel()
    return nullptr;
 }
 
-inline DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback(
+inline MassIntegrator::DiagonalKernelType
+MassIntegrator::DiagonalPAKernels::Fallback(
    int dim, int, int)
 {
    if (dim == 1) { return internal::PAMassAssembleDiagonal1D; }
@@ -1452,8 +1447,41 @@ inline DiagonalKernelType MassIntegrator::DiagonalPAKernels::Fallback(
    return nullptr;
 }
 
-/// \endcond DO_NOT_DOCUMENT
-
 } // namespace mfem
+
+// Additional runtime-dispatched kernels. Include this header to register
+// specializations with the corresponding table's Specialization<...>::Add().
+namespace mfem
+{
+namespace internal
+{
+
+using EAMassAssembleKernelsType = decltype(&EAMassAssemble1D<0,0>);
+MFEM_REGISTER_KERNELS(EAMassAssembleKernels,
+                      EAMassAssembleKernelsType,
+                      (int, int, int));
+
+template <int DIM, int D1D, int Q1D>
+EAMassAssembleKernelsType EAMassAssembleKernels::Kernel()
+{
+   static_assert(DIM >= 1 && DIM <= 3, "Unsupported dimension.");
+   if constexpr (DIM == 1)
+   {
+      return EAMassAssemble1D<D1D,Q1D>;
+   }
+   else if constexpr (DIM == 2)
+   {
+      return EAMassAssemble2D<D1D,Q1D>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return EAMassAssemble3D<D1D,Q1D>;
+   }
+}
+
+} // namespace internal
+} // namespace mfem
+
+/// \endcond DO_NOT_DOCUMENT
 
 #endif

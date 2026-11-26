@@ -1264,5 +1264,249 @@ ConvectionIntegrator::ApplyPATKernels::Kernel()
    MFEM_ABORT("");
 }
 } // namespace mfem
+
+// Additional runtime-dispatched kernels. Include this header to register
+// specializations with the corresponding table's Specialization<...>::Add().
+namespace mfem
+{
+namespace internal
+{
+
+template<int T_D1D = 0, int T_Q1D = 0>
+void EAConvectionAssemble1D(const int NE,
+                            const Array<real_t> &b,
+                            const Array<real_t> &g,
+                            const Vector &padata,
+                            Vector &eadata,
+                            const bool add,
+                            const int d1d = 0,
+                            const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto D = Reshape(padata.Read(), Q1D, NE);
+   auto A = Reshape(eadata.ReadWrite(), D1D, D1D, NE);
+   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t r_Gi[MQ1];
+      real_t r_Bj[MQ1];
+      for (int q = 0; q < Q1D; q++)
+      {
+         r_Gi[q] = G(q,MFEM_THREAD_ID(x));
+         r_Bj[q] = B(q,MFEM_THREAD_ID(y));
+      }
+      MFEM_FOREACH_THREAD(i1,x,D1D)
+      {
+         MFEM_FOREACH_THREAD(j1,y,D1D)
+         {
+            real_t val = 0.0;
+            for (int k1 = 0; k1 < Q1D; ++k1)
+            {
+               val += r_Bj[k1] * D(k1, e) * r_Gi[k1];
+            }
+            if (add)
+            {
+               A(i1, j1, e) += val;
+            }
+            else
+            {
+               A(i1, j1, e) = val;
+            }
+         }
+      }
+   });
+}
+
+template<int T_D1D = 0, int T_Q1D = 0>
+void EAConvectionAssemble2D(const int NE,
+                            const Array<real_t> &b,
+                            const Array<real_t> &g,
+                            const Vector &padata,
+                            Vector &eadata,
+                            const bool add,
+                            const int d1d = 0,
+                            const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto D = Reshape(padata.Read(), Q1D, Q1D, 2, NE);
+   auto A = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, NE);
+   mfem::forall_2D(NE, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t r_B[MQ1][MD1];
+      real_t r_G[MQ1][MD1];
+      for (int d = 0; d < D1D; d++)
+      {
+         for (int q = 0; q < Q1D; q++)
+         {
+            r_B[q][d] = B(q,d);
+            r_G[q][d] = G(q,d);
+         }
+      }
+      MFEM_SHARED real_t s_D[MQ1][MQ1][2];
+      MFEM_FOREACH_THREAD(k1,x,Q1D)
+      {
+         MFEM_FOREACH_THREAD(k2,y,Q1D)
+         {
+            s_D[k1][k2][0] = D(k1,k2,0,e);
+            s_D[k1][k2][1] = D(k1,k2,1,e);
+         }
+      }
+      MFEM_SYNC_THREAD;
+      MFEM_FOREACH_THREAD(i1,x,D1D)
+      {
+         MFEM_FOREACH_THREAD(i2,y,D1D)
+         {
+            for (int j1 = 0; j1 < D1D; ++j1)
+            {
+               for (int j2 = 0; j2 < D1D; ++j2)
+               {
+                  real_t val = 0.0;
+                  for (int k1 = 0; k1 < Q1D; ++k1)
+                  {
+                     for (int k2 = 0; k2 < Q1D; ++k2)
+                     {
+                        val += (r_G[k1][i1] * r_B[k2][i2] * s_D[k1][k2][0]
+                                + r_B[k1][i1] * r_G[k2][i2] * s_D[k1][k2][1])
+                               * r_B[k1][j1]* r_B[k2][j2];
+                     }
+                  }
+                  if (add)
+                  {
+                     A(i1, i2, j1, j2, e) += val;
+                  }
+                  else
+                  {
+                     A(i1, i2, j1, j2, e) = val;
+                  }
+               }
+            }
+         }
+      }
+   });
+}
+
+template<int T_D1D = 0, int T_Q1D = 0>
+void EAConvectionAssemble3D(const int NE,
+                            const Array<real_t> &b,
+                            const Array<real_t> &g,
+                            const Vector &padata,
+                            Vector &eadata,
+                            const bool add,
+                            const int d1d = 0,
+                            const int q1d = 0)
+{
+   const int D1D = T_D1D ? T_D1D : d1d;
+   const int Q1D = T_Q1D ? T_Q1D : q1d;
+   MFEM_VERIFY(D1D <= DeviceDofQuadLimits::Get().MAX_D1D, "");
+   MFEM_VERIFY(Q1D <= DeviceDofQuadLimits::Get().MAX_Q1D, "");
+   auto B = Reshape(b.Read(), Q1D, D1D);
+   auto G = Reshape(g.Read(), Q1D, D1D);
+   auto D = Reshape(padata.Read(), Q1D, Q1D, Q1D, 3, NE);
+   auto A = Reshape(eadata.ReadWrite(), D1D, D1D, D1D, D1D, D1D, D1D, NE);
+   mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int D1D = T_D1D ? T_D1D : d1d;
+      const int Q1D = T_Q1D ? T_Q1D : q1d;
+      constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
+      constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
+      real_t r_B[MQ1][MD1];
+      real_t r_G[MQ1][MD1];
+      for (int d = 0; d < D1D; d++)
+      {
+         for (int q = 0; q < Q1D; q++)
+         {
+            r_B[q][d] = B(q,d);
+            r_G[q][d] = G(q,d);
+         }
+      }
+      MFEM_FOREACH_THREAD(i1,x,D1D)
+      {
+         MFEM_FOREACH_THREAD(i2,y,D1D)
+         {
+            MFEM_FOREACH_THREAD(i3,z,D1D)
+            {
+               for (int j1 = 0; j1 < D1D; ++j1)
+               {
+                  for (int j2 = 0; j2 < D1D; ++j2)
+                  {
+                     for (int j3 = 0; j3 < D1D; ++j3)
+                     {
+                        real_t val = 0.0;
+                        for (int k1 = 0; k1 < Q1D; ++k1)
+                        {
+                           for (int k2 = 0; k2 < Q1D; ++k2)
+                           {
+                              for (int k3 = 0; k3 < Q1D; ++k3)
+                              {
+                                 real_t D0 = D(k1,k2,k3,0,e);
+                                 real_t D1 = D(k1,k2,k3,1,e);
+                                 real_t D2 = D(k1,k2,k3,2,e);
+                                 val += (r_G[k1][i1] * r_B[k2][i2] * r_B[k3][i3] * D0
+                                         + r_B[k1][i1] * r_G[k2][i2] * r_B[k3][i3] * D1
+                                         + r_B[k1][i1] * r_B[k2][i2] * r_G[k3][i3] * D2)
+                                        * r_B[k1][j1] * r_B[k2][j2] * r_B[k3][j3];
+                              }
+                           }
+                        }
+                        if (add)
+                        {
+                           A(i1, i2, i3, j1, j2, j3, e) += val;
+                        }
+                        else
+                        {
+                           A(i1, i2, i3, j1, j2, j3, e) = val;
+                        }
+                     }
+                  }
+               }
+            }
+         }
+      }
+   });
+}
+
+using EAConvectionAssembleKernelsType = decltype(&EAConvectionAssemble1D<0,0>);
+MFEM_REGISTER_KERNELS(EAConvectionAssembleKernels,
+                      EAConvectionAssembleKernelsType,
+                      (int, int, int));
+
+template <int DIM, int D1D, int Q1D>
+EAConvectionAssembleKernelsType EAConvectionAssembleKernels::Kernel()
+{
+   static_assert(DIM >= 1 && DIM <= 3, "Unsupported dimension.");
+   if constexpr (DIM == 1)
+   {
+      return EAConvectionAssemble1D<D1D,Q1D>;
+   }
+   else if constexpr (DIM == 2)
+   {
+      return EAConvectionAssemble2D<D1D,Q1D>;
+   }
+   else if constexpr (DIM == 3)
+   {
+      return EAConvectionAssemble3D<D1D,Q1D>;
+   }
+}
+
+} // namespace internal
+} // namespace mfem
+
 /// \endcond DO_NOT_DOCUMENT
+
 #endif

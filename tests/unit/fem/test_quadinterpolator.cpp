@@ -737,3 +737,78 @@ TEST_CASE("QuadratureInterpolator", "[QuadratureInterpolator][GPU]")
       }
    }
 }
+
+TEST_CASE("Face quadrature interpolation specializations and fallback",
+          "[QuadratureInterpolator][KernelDispatch][GPU]")
+{
+   const int dim = GENERATE(2, 3);
+   const int order = GENERATE(0, 1, 3, 4, 5);
+   const int q1d = GENERATE(2, 3, 6, 10);
+   const bool vector_field = GENERATE(false, true);
+   const auto layout = GENERATE(QVectorLayout::byNODES, QVectorLayout::byVDIM);
+   const int vdim = vector_field ? dim : 1;
+   CAPTURE(dim, order, q1d, vdim, layout);
+
+   Mesh mesh = dim == 2 ?
+               Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL) :
+               Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
+   L2_FECollection fec(order, dim, BasisType::GaussLobatto);
+   FiniteElementSpace fes(&mesh, &fec, vdim);
+   const auto geom = dim == 2 ? Geometry::SEGMENT : Geometry::SQUARE;
+   const IntegrationRule &ir = IntRules.Get(geom, 2*q1d - 1);
+   REQUIRE(ir.GetNPoints() == (dim == 2 ? q1d : q1d*q1d));
+   FaceQuadratureInterpolator qi(fes, ir, FaceType::Boundary);
+   qi.SetOutputLayout(layout);
+
+   const int nf = fes.GetNFbyType(FaceType::Boundary);
+   const int d1d = order + 1;
+   const int nd = dim == 2 ? d1d : d1d*d1d;
+   const int nq = ir.GetNPoints();
+   const real_t *nodes = poly1d.GetPoints(order, BasisType::GaussLobatto);
+   Vector e_vec(nd*vdim*nf);
+   auto e = Reshape(e_vec.HostWrite(), nd, vdim, nf);
+   for (int f = 0; f < nf; ++f)
+   {
+      for (int c = 0; c < vdim; ++c)
+      {
+         for (int d = 0; d < nd; ++d)
+         {
+            const real_t x = nodes[d % d1d];
+            const real_t y = dim == 3 ? nodes[d / d1d] : 0.0;
+            const real_t p = order == 0 ? 1.0 : 1.0 + x + 2*y + x*y;
+            e(d,c,f) = f + (c + 1)*p;
+         }
+      }
+   }
+
+   Vector values(nq*vdim*nf), derivatives(nq*vdim*(dim - 1)*nf);
+   Vector det, normal;
+   qi.Mult(e_vec, FaceQuadratureInterpolator::VALUES |
+           FaceQuadratureInterpolator::DERIVATIVES,
+           values, derivatives, det, normal);
+   const real_t *val = values.HostRead();
+   const real_t *der = derivatives.HostRead();
+   for (int f = 0; f < nf; ++f)
+   {
+      for (int q = 0; q < nq; ++q)
+      {
+         const real_t x = ir.IntPoint(q).x;
+         const real_t y = dim == 3 ? ir.IntPoint(q).y : 0.0;
+         const real_t p = order == 0 ? 1.0 : 1.0 + x + 2*y + x*y;
+         for (int c = 0; c < vdim; ++c)
+         {
+            const int vi = layout == QVectorLayout::byNODES ?
+                           q + nq*(c + vdim*f) : c + vdim*(q + nq*f);
+            REQUIRE(val[vi] == MFEM_Approx(f + (c + 1)*p));
+            for (int t = 0; t < dim - 1; ++t)
+            {
+               const int di = layout == QVectorLayout::byNODES ?
+                              q + nq*(c + vdim*(t + (dim - 1)*f)) :
+                              c + vdim*(t + (dim - 1)*(q + nq*f));
+               const real_t dp = order == 0 ? 0.0 : t == 0 ? 1 + y : 2 + x;
+               REQUIRE(der[di] == MFEM_Approx((c + 1)*dp));
+            }
+         }
+      }
+   }
+}

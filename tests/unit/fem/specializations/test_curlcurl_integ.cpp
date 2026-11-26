@@ -22,4 +22,8 @@ TEST_CASE("CurlCurl Kernel Specializations", "[Specializations]")
    using namespace mfem;
 
    CurlCurlIntegrator::AddSpecialization<3, 2, 4>();
+
+   internal::SmemPAHcurlMassAssembleDiagonal3DKernels::Specialization<2, 4>::Add();
+   internal::SmemPAHcurlL2Apply3DKernels::Specialization<2, 4>::Add();
+   internal::SmemPAHcurlL2ApplyTranspose3DKernels::Specialization<2, 4>::Add();
 }
