@@ -42,7 +42,7 @@ if (MFEM_USE_CODSPEED)
    # out of MFEM's installation.
    FetchContent_Declare(google_benchmark
       GIT_REPOSITORY https://github.com/CodSpeedHQ/codspeed-cpp
-      GIT_TAG v2.4.0
+      GIT_TAG v3.0.1
       SOURCE_SUBDIR google_benchmark
       EXCLUDE_FROM_ALL)
    FetchContent_MakeAvailable(google_benchmark)
