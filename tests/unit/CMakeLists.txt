@@ -159,6 +159,7 @@ set(UNIT_TESTS_SRCS
   fem/test_pa_vecdiv.cpp
   fem/test_pa_simplices.cpp
   fem/test_particleset.cpp
+  fem/test_pgridfunc_nc_signs.cpp
   fem/test_pgridfunc_save_serial.cpp
   fem/test_poly1d.cpp
   fem/test_dof_communicator.cpp
