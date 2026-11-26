@@ -116,9 +116,9 @@ private:
    /// Ghost element order data, set by CommunicateGhostOrder().
    Array<ParNCMesh::VarOrderElemInfo> ghost_orders;
 
-   /** Variable-order spaces (currently H1 only): communication groups, which
-       include the subsets of ranks sharing an edge/face DOF variant, and the
-       group of each local edge/face variant. */
+   /** Variable-order spaces: communication groups, which include the subsets
+       of ranks sharing an edge/face DOF variant, and the group of each local
+       edge/face variant. */
    std::unique_ptr<GroupTopology> var_gtopo;
    Array<int> edge_var_group, face_var_group;
 
@@ -143,6 +143,9 @@ private:
    /// Set ghost_orders.
    void CommunicateGhostOrder();
 
+   /// Update elem_order after refinement, derefinement or rebalancing.
+   void UpdateElementOrders() override;
+
    /// Sets @a tdof2ldof. See documentation of @a tdof2ldof for details.
    void SetTDOF2LDOFinfo(int ntdofs, int vdim_factor, int dof_stride,
                          int allnedofs);
@@ -150,9 +153,7 @@ private:
    /** Set the rows of the restriction matrix @a R in a variable-order space,
        corresponding to true DOFs on edges and faces. */
    void SetRestrictionMatrixEdgesFaces(int vdim_factor, int dof_stride,
-                                       int tdof_stride,
-                                       const Array<int> &dof_tdof,
-                                       const Array<HYPRE_BigInt> &dof_offs);
+                                       int tdof_stride);
 
    /// Helper function to set var_edge_dofmap or var_face_dofmap
    void SetVarDofMap(const Table & dofs, Array<VarOrderDofInfo> & dmap);
@@ -164,13 +165,14 @@ private:
    void GetGroupComm(GroupCommunicator &gcomm, int ldof_type,
                      Array<int> *ldof_sign = NULL);
 
-   /// Variable-order version of GetGroupComm() (currently H1 only).
-   void GetVarOrderGroupComm(GroupCommunicator &gcomm, int ldof_type) const;
+   /// Variable-order version of GetGroupComm().
+   void GetVarOrderGroupComm(GroupCommunicator &gcomm, int ldof_type,
+                             Array<int> *g_ldof_sign = NULL) const;
 
    /// Set var_gtopo, edge_var_group and face_var_group.
    void SetVarOrderGroups();
 
-   /// Construct gcomm and ldof_group for variable orders (currently H1 only).
+   /// Construct gcomm, ldof_sign, and ldof_group for variable-order spaces.
    void ConstructVarOrderGroupComm();
 
    /// Construct dof_offsets and tdof_offsets using global communication.
@@ -535,6 +537,9 @@ public:
    const SparseMatrix *GetRestrictionMatrix() const override
    { Dof_TrueDof_Matrix(); return R; }
 
+   const SparseMatrix *GetHpRestrictionMatrix() const override
+   { return GetRestrictionMatrix(); }
+
    // Face-neighbor functions
    void ExchangeFaceNbrData();
    int GetFaceNbrVSize() const { return num_face_nbr_dofs; }
@@ -576,6 +581,10 @@ public:
        space and a transfer operator accessible by GetPrefUpdateOperator(). */
    void PRefineAndUpdate(const Array<pRefinement> & refs,
                          bool want_transfer = true) override;
+
+   /** Return true iff p-refinement is supported globally across all MPI ranks.
+       @note Collective MPI call: reduces element geometries across all ranks. */
+   bool PRefinementSupported() override;
 
    /// Free ParGridFunction transformation matrix (if any), to save memory.
    void UpdatesFinished() override

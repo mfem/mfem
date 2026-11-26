@@ -263,7 +263,8 @@ void RT_QuadrilateralElement::ProjectIntegrated(VectorCoefficient &vc,
    real_t vk[Geometry::MaxDim];
    Vector xk(vk, vc.GetVDim());
 
-   const IntegrationRule &ir = IntRules.Get(Geometry::SEGMENT, order);
+   const IntegrationRule &ir =
+      IntRules.Get(Geometry::SEGMENT, order + Trans.OrderJ());
    const int nqpt = ir.GetNPoints();
 
    IntegrationPoint ip2d;
@@ -666,7 +667,8 @@ void RT_HexahedronElement::ProjectIntegrated(VectorCoefficient &vc,
    real_t vq[Geometry::MaxDim];
    Vector xq(vq, vc.GetVDim());
 
-   const IntegrationRule &ir2d = IntRules.Get(Geometry::SQUARE, order);
+   const IntegrationRule &ir2d =
+      IntRules.Get(Geometry::SQUARE, order + 2 * Trans.OrderJ());
    const int nqpt = ir2d.GetNPoints();
 
    IntegrationPoint ip3d;
@@ -704,6 +706,154 @@ void RT_HexahedronElement::ProjectIntegrated(VectorCoefficient &vc,
                   val += ip2d.weight*ipval;
                }
                dofs(idx) = val*h1*h2;
+            }
+   }
+}
+
+void RT_HexahedronElement::ProjectIntegrated(const FiniteElement &fe,
+                                             ElementTransformation &Trans,
+                                             DenseMatrix &I) const
+{
+   MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
+   const int sdim = Trans.GetSpaceDim();
+   const int nfe = fe.GetDof();
+   const bool scalar = (fe.GetRangeType() == SCALAR);
+   I.SetSize(dof, scalar ? sdim * nfe : nfe);
+   I = 0.0;
+
+   const int ir_order = std::max(order, fe.GetOrder()) + 2 * Trans.OrderJ() + 2;
+   const IntegrationRule &ir2d = IntRules.Get(Geometry::SQUARE, ir_order);
+   const int nqpt = ir2d.GetNPoints();
+
+   Vector shape(scalar ? nfe : 0);
+   DenseMatrix vshape(scalar ? 0 : nfe, sdim);
+   real_t vk[Geometry::MaxDim];
+   IntegrationPoint ip3d;
+
+   int o = 0;
+   for (int c = 0; c < 3; c++)
+   {
+      const int im = (c == 0) ? order + 1 : order;
+      const int jm = (c == 1) ? order + 1 : order;
+      const int km = (c == 2) ? order + 1 : order;
+      for (int k = 0; k < km; k++)
+         for (int j = 0; j < jm; j++)
+            for (int i = 0; i < im; i++)
+            {
+               int idx = dof_map[o++];
+               if (idx < 0) { idx = -1 - idx; }
+               int ic1, ic2;
+               if (c == 0) { ic1 = j; ic2 = k; }
+               else if (c == 1) { ic1 = i; ic2 = k; }
+               else { ic1 = i; ic2 = j; }
+               const real_t h1 = cp[ic1+1] - cp[ic1];
+               const real_t h2 = cp[ic2+1] - cp[ic2];
+               const real_t area_ref = h1 * h2;
+
+               for (int q = 0; q < nqpt; q++)
+               {
+                  const IntegrationPoint &ip2d = ir2d.IntPoint(q);
+                  if (c == 0) { ip3d.Set3(cp[i], cp[j] + h1*ip2d.x, cp[k] + h2*ip2d.y); }
+                  else if (c == 1) { ip3d.Set3(cp[i] + h1*ip2d.x, cp[j], cp[k] + h2*ip2d.y); }
+                  else { ip3d.Set3(cp[i] + h1*ip2d.x, cp[j] + h2*ip2d.y, cp[k]); }
+                  Trans.SetIntPoint(&ip3d);
+                  // vk = adj(J)^T nk
+                  Trans.AdjugateJacobian().MultTranspose(nk + dof2nk[idx]*dim, vk);
+                  const real_t w = ip2d.weight * area_ref;
+
+                  if (scalar)
+                  {
+                     fe.CalcShape(ip3d, shape);
+                     const real_t inv_det = (fe.GetMapType() == INTEGRAL)
+                                            ? (1.0 / Trans.Weight()) : 1.0;
+                     for (int d = 0; d < sdim; d++)
+                     {
+                        const real_t wd = w * vk[d] * inv_det;
+                        for (int m = 0; m < nfe; m++)
+                        {
+                           I(idx, d * nfe + m) += wd * shape(m);
+                        }
+                     }
+                  }
+                  else
+                  {
+                     fe.CalcVShape(Trans, vshape);
+                     for (int m = 0; m < nfe; m++)
+                     {
+                        real_t dot = 0.0;
+                        for (int d = 0; d < sdim; d++)
+                        {
+                           dot += vshape(m, d) * vk[d];
+                        }
+                        I(idx, m) += w * dot;
+                     }
+                  }
+               }
+               const int ncols = I.Width();
+               for (int col = 0; col < ncols; col++)
+               {
+                  if (std::fabs(I(idx, col)) < 1e-13) { I(idx, col) = 0.0; }
+               }
+            }
+   }
+}
+
+void RT_HexahedronElement::ProjectCurlIntegrated(const FiniteElement &fe,
+                                                 ElementTransformation &,
+                                                 DenseMatrix &curl) const
+{
+   MFEM_ASSERT(obasis1d.IsIntegratedType(), "Not integrated type");
+   const int nfe = fe.GetDof();
+   curl.SetSize(dof, nfe);
+   curl = 0.0;
+
+   const int ir_order = std::max(order, fe.GetOrder()) + 2;
+   const IntegrationRule &ir2d = IntRules.Get(Geometry::SQUARE, ir_order);
+   const int nqpt = ir2d.GetNPoints();
+
+   DenseMatrix curl_shape(nfe, dim);
+   Vector curl_k(nfe);
+   IntegrationPoint ip3d;
+
+   int o = 0;
+   for (int c = 0; c < 3; c++)
+   {
+      const int im = (c == 0) ? order + 1 : order;
+      const int jm = (c == 1) ? order + 1 : order;
+      const int km = (c == 2) ? order + 1 : order;
+      for (int k = 0; k < km; k++)
+         for (int j = 0; j < jm; j++)
+            for (int i = 0; i < im; i++)
+            {
+               int idx = dof_map[o++];
+               if (idx < 0) { idx = -1 - idx; }
+               int ic1, ic2;
+               if (c == 0) { ic1 = j; ic2 = k; }
+               else if (c == 1) { ic1 = i; ic2 = k; }
+               else { ic1 = i; ic2 = j; }
+               const real_t h1 = cp[ic1+1] - cp[ic1];
+               const real_t h2 = cp[ic2+1] - cp[ic2];
+               const real_t area_ref = h1 * h2;
+               const real_t *nvec = nk + dof2nk[idx]*dim;
+
+               for (int q = 0; q < nqpt; q++)
+               {
+                  const IntegrationPoint &ip2d = ir2d.IntPoint(q);
+                  if (c == 0) { ip3d.Set3(cp[i], cp[j] + h1*ip2d.x, cp[k] + h2*ip2d.y); }
+                  else if (c == 1) { ip3d.Set3(cp[i] + h1*ip2d.x, cp[j], cp[k] + h2*ip2d.y); }
+                  else { ip3d.Set3(cp[i] + h1*ip2d.x, cp[j] + h2*ip2d.y, cp[k]); }
+                  fe.CalcCurlShape(ip3d, curl_shape);
+                  curl_shape.Mult(nvec, curl_k);
+                  const real_t w = ip2d.weight * area_ref;
+                  for (int m = 0; m < nfe; m++)
+                  {
+                     curl(idx, m) += w * curl_k(m);
+                  }
+               }
+               for (int m = 0; m < nfe; m++)
+               {
+                  if (std::fabs(curl(idx, m)) < 1e-12) { curl(idx, m) = 0.0; }
+               }
             }
    }
 }

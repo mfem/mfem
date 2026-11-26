@@ -2343,7 +2343,9 @@ PRefinementTransferOperator::BuildConformingTransferMatrix() const
    MFEM_VERIFY(assembled && P, "Matrix path requires assembled P.");
 
    const SparseMatrix *Pl = lFESpace.GetConformingProlongation();
-   const SparseMatrix *Rh = hFESpace.GetRestrictionMatrix();
+   const SparseMatrix *Rh = hFESpace.IsVariableOrder()
+                            ? hFESpace.GetHpRestrictionMatrix()
+                            : hFESpace.GetRestrictionMatrix();
 
    if (Pl && Rh)
    {
@@ -2370,7 +2372,10 @@ std::unique_ptr<Operator>
 PRefinementTransferOperator::BuildConformingTransferOperator() const
 {
    const Operator *Pl = lFESpace.GetProlongationMatrix();
-   const Operator *Rh = hFESpace.GetRestrictionOperator();
+   const Operator *Rh =
+      hFESpace.IsVariableOrder()
+      ? static_cast<const Operator*>(hFESpace.GetHpRestrictionMatrix())
+      : hFESpace.GetRestrictionOperator();
 
    if (Pl && Rh)
    {

@@ -23,6 +23,48 @@ GPU computing
 
 Discretization improvements
 ---------------------------
+- Added support for variable-order spaces (including IntegratedGLL bases) in
+  HypreAMS and HypreADS, including constructors accepting explicit discrete
+  auxiliary interpolation operators and read-only HypreAMS operator accessors;
+  implemented exact IntegratedGLL ND Project()/ProjectGrad(), RT
+  Project()/ProjectCurl(), L2 segment/quadrilateral projections, and exact
+  normal-flux boundary projection in GridFunction::ProjectBdrCoefficientNormal.
+
+- Added parallel variable-order element-order updates for derefinement and
+  rebalancing (for equal-order derefinement siblings and p=1 tetrahedral ND
+  elements), extended local-DOF compaction and non-boolean restriction to
+  parallel variable-order ND and RT spaces, enabled variable-order 2D/3D
+  face elements and quad/hex ND/RT volume p-refinement with empty-rank-safe
+  PRefinementSupported(), and fixed 2D GetFaceOrder(), cached GetFaceDofs()
+  and GetElementDofs() DoFTransArray handling, and actual-order preflight
+  in ParFiniteElementSpace::RebalanceMatrix.
+
+- Completed parallel 3D quadrilateral-face internal-edge compatibility
+  constraints in variable-order H1 and ND spaces, generalized variable-order
+  parallel cut-space communication groups to ND and RT spaces with signed
+  DOFs, and fixed vector-component indexing in parallel variable-order H1
+  essential true-DOF markers.
+
+- Preserved compatible high-order face modes in serial 3D variable-order H1
+  and ND spaces on nonconforming quadrilateral interfaces by enforcing
+  internal-edge compatibility equations rather than lowering the entire
+  master face order.
+
+- Fixed parallel variable-order communication, derefinement, and face-neighbor
+  element lookup: switched ParFiniteElementSpace::OrderPropagation to
+  non-blocking consensus (Issend + MPI_Ibarrier) to prevent stale messages
+  across calls, unpacked ghost edge/face variant orders in
+  ParFiniteElementSpace::UnpackDofVar during multi-rank row forwarding, fixed
+  multi-segment buffer offsets in ParDerefineMatrixOp, and fixed
+  ParFiniteElementSpace::GetFaceNbrFE for variable-order elements with order
+  lower than the base collection order.
+
+- Fixed conforming ND edge-in-face interpolation and L2 projection, accounted
+  for source order in ND/RT local L2 transfer quadrature rules, aligned RT,
+  RT trace, and DG interface collection cloning with collection orders (with
+  corresponding RT LOR and DPG p-hierarchy updates), and limited 3D
+  normal-continuity order propagation to faces.
+
 - Fixed H1 transfer in L2ProjectionGridTransfer on non-conforming meshes in
   serial and parallel. The fully assembled operator now applies inverse lumped
   mass scaling after true-DOF assembly. Element assembly now handles hanging-node

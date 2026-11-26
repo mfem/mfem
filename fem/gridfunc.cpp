@@ -3330,19 +3330,37 @@ void GridFunction::ProjectBdrCoefficientNormal(
                   << fes->GetMesh()->SpaceDimension() << ")");
    }
 
-   // implementation for the case when the face dofs are scaled point
-   // values of the normal component.
+   // Dispatch through fe->Project() so both nodal and IntegratedGLL RT face
+   // bases (e.g., L2_QuadrilateralElement / L2_SegmentElement with INTEGRAL
+   // map type) project normal fluxes accurately.
+   class NormalVectorBdrCoeff : public Coefficient
+   {
+   private:
+      VectorCoefficient &vc_;
+      mutable Vector v_, nor_;
+   public:
+      NormalVectorBdrCoeff(VectorCoefficient &vc, int sdim)
+         : vc_(vc), v_(sdim), nor_(sdim) {}
+      real_t Eval(ElementTransformation &T, const IntegrationPoint &ip) override
+      {
+         vc_.Eval(v_, T, ip);
+         CalcOrtho(T.Jacobian(), nor_);
+         return (v_ * nor_) / T.Weight();
+      }
+   };
+
    const FiniteElement *fe;
    ElementTransformation *T;
    Array<int> dofs;
-   Vector vc, nor, lvec;
+   Vector lvec;
    DofTransformation doftrans;
+   const int sdim = fes->GetMesh()->SpaceDimension();
+   std::unique_ptr<NormalVectorBdrCoeff> nv_coeff;
    if (vcoeff)
    {
-      const int dim = vcoeff->GetVDim();
-      vc.SetSize(dim);
-      nor.SetSize(dim);
+      nv_coeff.reset(new NormalVectorBdrCoeff(*vcoeff, sdim));
    }
+   Coefficient *proj_coeff = coeff ? coeff : nv_coeff.get();
 
    for (int i = 0; i < fes->GetNBE(); i++)
    {
@@ -3352,23 +3370,14 @@ void GridFunction::ProjectBdrCoefficientNormal(
       }
       fe = fes->GetBE(i);
       T = fes->GetBdrElementTransformation(i);
-      const IntegrationRule &ir = fe->GetNodes();
       lvec.SetSize(fe->GetDof());
-      for (int j = 0; j < ir.GetNPoints(); j++)
+      if (proj_coeff)
       {
-         const IntegrationPoint &ip = ir.IntPoint(j);
-         T->SetIntPoint(&ip);
-         if (coeff)
-         {
-            const real_t c = coeff->Eval(*T, ip);
-            lvec(j) = c * T->Weight();
-         }
-         else if (vcoeff)
-         {
-            vcoeff->Eval(vc, *T, ip);
-            CalcOrtho(T->Jacobian(), nor);
-            lvec(j) = (vc * nor);
-         }
+         fe->Project(*proj_coeff, *T, lvec);
+      }
+      else
+      {
+         lvec = 0.0;
       }
       fes->GetBdrElementDofs(i, dofs, doftrans);
       doftrans.TransformPrimal(lvec);

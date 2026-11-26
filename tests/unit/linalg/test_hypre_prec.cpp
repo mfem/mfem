@@ -352,6 +352,177 @@ TEST_CASE("Hypre preconditioners SetOperator",
 #endif
 }
 
+TEST_CASE("HypreAMS preconditions parallel variable-order ND systems",
+          "[Parallel][HypreAMS][NCMesh]")
+{
+   const int ob_type = GENERATE(BasisType::GaussLegendre,
+                                BasisType::IntegratedGLL);
+   CAPTURE(ob_type);
+
+   Mesh serial = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+   serial.EnsureNCMesh();
+   Array<int> refine;
+   refine.Append(0);
+   serial.GeneralRefinement(refine);
+
+   ParMesh pmesh(MPI_COMM_WORLD, serial);
+   ND_FECollection fec(1, 3, BasisType::GaussLobatto, ob_type);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+   Vector c(3);
+   for (int e = 0; e < pmesh.GetNE(); ++e)
+   {
+      pmesh.GetElementCenter(e, c);
+      pfes.SetElementOrder(e, (c(0) > 0.5) ? 2 : 1);
+   }
+   pfes.Update(false);
+
+   ParBilinearForm a(&pfes);
+   a.AddDomainIntegrator(new CurlCurlIntegrator);
+   a.AddDomainIntegrator(new VectorFEMassIntegrator);
+   a.Assemble();
+
+   VectorFunctionCoefficient exsol(3, sin3d_vec);
+   ParGridFunction x(&pfes);
+   x.ProjectCoefficient(exsol);
+   Vector x_true(pfes.GetTrueVSize());
+   x.ParallelProject(x_true);
+   x.Distribute(x_true);
+   const real_t err0 = x.ComputeL2Error(exsol);
+
+   ParLinearForm b(&pfes);
+   a.Mult(x, b);
+   x = 0.0;
+
+   Array<int> ess_tdof_list;
+   OperatorPtr A;
+   Vector B, X;
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+   HypreAMS ams(*A.As<HypreParMatrix>(), &pfes);
+   ams.SetPrintLevel(0);
+
+   // Verify internal discrete gradient G and interpolation Pi operators.
+   const HypreParMatrix *G_ams = ams.GetDiscreteGradient();
+   const HypreParMatrix *Pix = ams.GetPix();
+   const HypreParMatrix *Piy = ams.GetPiy();
+   const HypreParMatrix *Piz = ams.GetPiz();
+   REQUIRE(G_ams != nullptr);
+   REQUIRE(Pix != nullptr);
+   REQUIRE(Piy != nullptr);
+   REQUIRE(Piz != nullptr);
+
+   H1_FECollection h1_fec(1, 3);
+   ParFiniteElementSpace h1_fes(&pmesh, &h1_fec);
+   for (int e = 0; e < pmesh.GetNE(); ++e)
+   {
+      h1_fes.SetElementOrder(e, pfes.GetElementOrder(e));
+   }
+   h1_fes.Update(false);
+
+   FunctionCoefficient linear_phi([](const Vector &p)
+   {
+      return 1.2 * p(0) - 0.7 * p(1) + 0.5 * p(2) + 0.3;
+   });
+   Vector const_grad({1.2, -0.7, 0.5});
+   VectorConstantCoefficient grad_phi_coeff(const_grad);
+
+   ParGridFunction phi_gf(&h1_fes);
+   phi_gf.ProjectCoefficient(linear_phi);
+   Vector phi_t(h1_fes.GetTrueVSize()), gphi_t(pfes.GetTrueVSize());
+   phi_gf.GetTrueDofs(phi_t);
+   G_ams->Mult(phi_t, gphi_t);
+   ParGridFunction gphi_gf(&pfes);
+   gphi_gf.SetFromTrueDofs(gphi_t);
+   REQUIRE(gphi_gf.ComputeL2Error(grad_phi_coeff) < 1e-11);
+
+   Vector one_t(h1_fes.GetTrueVSize()), pi_t(pfes.GetTrueVSize());
+   one_t = 1.0;
+   const HypreParMatrix *pi_ops[3] = {Pix, Piy, Piz};
+   for (int d = 0; d < 3; ++d)
+   {
+      pi_ops[d]->Mult(one_t, pi_t);
+      ParGridFunction pi_gf(&pfes);
+      pi_gf.SetFromTrueDofs(pi_t);
+      Vector evec(3);
+      evec = 0.0;
+      evec(d) = 1.0;
+      VectorConstantCoefficient ec(evec);
+      REQUIRE(pi_gf.ComputeL2Error(ec) < 1e-11);
+   }
+
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-10);
+   cg.SetMaxIter(200);
+   cg.SetPrintLevel(0);
+   cg.SetPreconditioner(ams);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   REQUIRE(cg.GetConverged());
+   REQUIRE(cg.GetNumIterations() < 40);
+
+   a.RecoverFEMSolution(X, b, x);
+   REQUIRE(std::abs(x.ComputeL2Error(exsol) - err0) < 1e-6 * err0);
+}
+
+TEST_CASE("HypreADS preconditions parallel variable-order RT systems",
+          "[Parallel][HypreADS][NCMesh]")
+{
+   Mesh serial = Mesh::MakeCartesian3D(2, 2, 2, Element::HEXAHEDRON);
+   serial.EnsureNCMesh();
+   Array<int> refine;
+   refine.Append(0);
+   serial.GeneralRefinement(refine);
+
+   ParMesh pmesh(MPI_COMM_WORLD, serial);
+   RT_FECollection fec(0, 3);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+   Vector c(3);
+   for (int e = 0; e < pmesh.GetNE(); ++e)
+   {
+      pmesh.GetElementCenter(e, c);
+      pfes.SetElementOrder(e, (c(0) > 0.5) ? 2 : 1);
+   }
+   pfes.Update(false);
+
+   ParBilinearForm a(&pfes);
+   a.AddDomainIntegrator(new DivDivIntegrator);
+   a.AddDomainIntegrator(new VectorFEMassIntegrator);
+   a.Assemble();
+
+   VectorFunctionCoefficient exsol(3, sin3d_vec);
+   ParGridFunction x(&pfes);
+   x.ProjectCoefficient(exsol);
+   Vector x_true(pfes.GetTrueVSize());
+   x.ParallelProject(x_true);
+   x.Distribute(x_true);
+   const real_t err0 = x.ComputeL2Error(exsol);
+
+   ParLinearForm b(&pfes);
+   a.Mult(x, b);
+   x = 0.0;
+
+   Array<int> ess_tdof_list;
+   OperatorPtr A;
+   Vector B, X;
+   a.FormLinearSystem(ess_tdof_list, x, b, A, X, B);
+
+   HypreADS ads(*A.As<HypreParMatrix>(), &pfes);
+   ads.SetPrintLevel(0);
+
+   CGSolver cg(MPI_COMM_WORLD);
+   cg.SetRelTol(1e-10);
+   cg.SetMaxIter(200);
+   cg.SetPrintLevel(0);
+   cg.SetPreconditioner(ads);
+   cg.SetOperator(*A);
+   cg.Mult(B, X);
+   REQUIRE(cg.GetConverged());
+   REQUIRE(cg.GetNumIterations() < 40);
+
+   a.RecoverFEMSolution(X, b, x);
+   REQUIRE(std::abs(x.ComputeL2Error(exsol) - err0) < 1e-6 * err0);
+}
+
 #endif // MFEM_USE_MPI
 
 } // namespace mfem
