@@ -117,6 +117,26 @@ TEST_CASE("Array::MakeRef", "[DebugDevice]")
    REQUIRE_NOTHROW(y.Read());
 }
 
+TEST_CASE("DenseMatrixStack data access preserves dimensions", "[DebugDevice]")
+{
+   Array<int> ni{2, 1};
+   Array<int> nj{1, 3};
+   DenseMatrixStack matrices(ni, nj, 2);
+
+   // Write() only exposes matrix entries; no device code writes metadata.
+   REQUIRE(matrices.Write() != nullptr);
+   const real_t *data = matrices.HostRead();
+
+   REQUIRE(matrices.SizeK() == 2);
+   REQUIRE(matrices.SizeI(0) == 2);
+   REQUIRE(matrices.SizeJ(0) == 1);
+   REQUIRE(matrices.SizeI(1) == 1);
+   REQUIRE(matrices.SizeJ(1) == 3);
+   REQUIRE(matrices.TotalSize() == 5);
+   const DenseMatrixStack &const_matrices = matrices;
+   REQUIRE(const_matrices.GetData(1) == data + 2);
+}
+
 TEST_CASE("MemoryManager/DebugDevice", "[DebugDevice]")
 {
    // If MFEM_MEMORY is set, we can start with some non-empty maps,

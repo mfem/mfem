@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <algorithm> // std::max
 #include <cstdint>
+#include <memory> // std::unique_ptr
 
 // Uncomment to try _WIN32 platform
 //#define _WIN32
@@ -593,7 +594,7 @@ protected:
 public:
    // TODO: this only releases unused memory
    virtual ~UmpireMemorySpace() { if (owns_allocator) { allocator.release(); } }
-   UmpireMemorySpace(const char * name, const char * space)
+   UmpireMemorySpace(const char * name, const std::string &space)
       : rm(umpire::ResourceManager::getInstance())
    {
       if (!rm.isAllocator(name))
@@ -632,10 +633,25 @@ public:
 class UmpireDeviceMemorySpace : public DeviceMemorySpace,
    public UmpireMemorySpace
 {
+   // The Umpire resource of the device id
+   static std::string DeviceResource(int id)
+   {
+      // "DEVICE" is the device 0 for all the versions of Umpire
+      if (id == 0) { return "DEVICE"; }
+#if UMPIRE_VERSION_MAJOR > 4 || \
+    (UMPIRE_VERSION_MAJOR == 4 && UMPIRE_VERSION_MINOR >= 1)
+      return "DEVICE::" + std::to_string(id);
+#elif defined(MFEM_USE_CUDA)
+      return "DEVICE_" + std::to_string(id);
+#else
+      // With HIP, Umpire < 5.0 allocates on the current device
+      return "DEVICE";
+#endif
+   }
 public:
    UmpireDeviceMemorySpace(const char * name)
       : DeviceMemorySpace(),
-        UmpireMemorySpace(name, "DEVICE") {}
+        UmpireMemorySpace(name, DeviceResource(Device::GetId())) {}
    void Alloc(Memory &base) override
    { base.d_ptr = allocator.allocate(base.bytes); }
    void Dealloc(Memory &base) override { allocator.deallocate(base.d_ptr); }
@@ -1739,16 +1755,15 @@ int MemoryManager::CompareHostAndDevice_(void *h_ptr, size_t size,
    void *d_ptr = (flags & Mem::ALIAS) ?
                  mm.GetAliasDevicePtr(h_ptr, size, false) :
                  mm.GetDevicePtr(h_ptr, size, false);
-   char *h_buf = new char[size];
+   std::unique_ptr<char[]> h_buf(new char[size]);
 #if defined(MFEM_USE_CUDA)
-   CuMemcpyDtoH(h_buf, d_ptr, size);
+   CuMemcpyDtoH(h_buf.get(), d_ptr, size);
 #elif defined(MFEM_USE_HIP)
-   HipMemcpyDtoH(h_buf, d_ptr, size);
+   HipMemcpyDtoH(h_buf.get(), d_ptr, size);
 #else
-   std::memcpy(h_buf, d_ptr, size);
+   std::memcpy(h_buf.get(), d_ptr, size);
 #endif
-   int res = std::memcmp(h_ptr, h_buf, size);
-   delete [] h_buf;
+   int res = std::memcmp(h_ptr, h_buf.get(), size);
    return res;
 }
 

@@ -2531,6 +2531,9 @@ int Mesh::AddBdrPoint(int v, int attr)
 
 void Mesh::GenerateBoundaryElements()
 {
+   MFEM_VERIFY(!ncmesh, "GenerateBoundaryElements() is not supported for "
+               "nonconforming meshes.");
+
    for (auto &b : boundary)
    {
       FreeElement(b);
@@ -4755,10 +4758,24 @@ Mesh& Mesh::operator=(Mesh &&mesh)
    return *this;
 }
 
+#ifdef MFEM_USE_HDF5
+bool IsNativeNURBSHDF5(const std::string &filename);
+std::string ReadNativeNURBSHDF5(const std::string &filename);
+#endif
+
 Mesh Mesh::LoadFromFile(const std::string &filename, int generate_edges,
                         int refine, bool fix_orientation)
 {
    Mesh mesh;
+#ifdef MFEM_USE_HDF5
+   if (IsNativeNURBSHDF5(filename))
+   {
+      const std::string contents = ReadNativeNURBSHDF5(filename);
+      std::istringstream input(contents);
+      mesh.Load(input, generate_edges, refine, fix_orientation);
+      return mesh;
+   }
+#endif
    named_ifgzstream imesh(filename);
    if (!imesh) { MFEM_ABORT("Mesh file not found: " << filename << '\n'); }
    else { mesh.Load(imesh, generate_edges, refine, fix_orientation); }
@@ -4843,6 +4860,15 @@ Mesh::Mesh(const std::string &filename, int generate_edges, int refine,
 {
    // Initialization as in the default constructor
    SetEmpty();
+
+#ifdef MFEM_USE_HDF5
+   if (IsNativeNURBSHDF5(filename))
+   {
+      std::istringstream input(ReadNativeNURBSHDF5(filename));
+      Load(input, generate_edges, refine, fix_orientation);
+      return;
+   }
+#endif
 
    named_ifgzstream imesh(filename);
    if (!imesh)
@@ -5057,10 +5083,13 @@ void Mesh::SetMeshGen()
       {
          case Element::TETRAHEDRON:
             mesh_geoms |= (1 << Geometry::TETRAHEDRON);
+            [[fallthrough]];
          case Element::TRIANGLE:
             mesh_geoms |= (1 << Geometry::TRIANGLE);
+            [[fallthrough]];
          case Element::SEGMENT:
             mesh_geoms |= (1 << Geometry::SEGMENT);
+            [[fallthrough]];
          case Element::POINT:
             mesh_geoms |= (1 << Geometry::POINT);
             meshgen |= 1;
@@ -5068,6 +5097,7 @@ void Mesh::SetMeshGen()
 
          case Element::HEXAHEDRON:
             mesh_geoms |= (1 << Geometry::CUBE);
+            [[fallthrough]];
          case Element::QUADRILATERAL:
             mesh_geoms |= (1 << Geometry::SQUARE);
             mesh_geoms |= (1 << Geometry::SEGMENT);
@@ -5293,7 +5323,12 @@ void Mesh::Loader(std::istream &input, int generate_edges,
       Nodes = new GridFunction(this, input);
 
       own_nodes = 1;
-      spaceDim = Nodes->VectorDim();
+      // Query the collection because a parallel partition may have no
+      // elements here (meshgen is reduced later in ParMesh::Load()). Mesh
+      // assumes a scalar nodal space, see NewNodes().
+      MFEM_VERIFY(Nodes->FESpace()->FEColl()->GetRangeType(Dim) ==
+                  FiniteElement::SCALAR, "the nodal space must be scalar");
+      spaceDim = Nodes->FESpace()->GetVDim();
       if (ncmesh) { ncmesh->spaceDim = spaceDim; }
 
       // Set vertex coordinates from the 'Nodes'
@@ -7114,7 +7149,7 @@ void Mesh::LoadNonconformingPatchTopo(std::istream &input,
       edge_to_ukv[j] = ukv;
    }
 
-   FinalizeTopology();
+   FinalizeTopology(/* generate_bdr: */ false);
    CheckBdrElementOrientation(); // check and fix boundary element orientation
 }
 

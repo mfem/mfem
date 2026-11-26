@@ -26,6 +26,7 @@ void TMOP_AddMultPA_C0_2D(const real_t lim_normal,
                           const int NE,
                           const DeviceTensor<5, const real_t> &J,
                           const ConstDeviceMatrix &W,
+                          const bool integ_over_target,
                           const real_t *b,
                           const real_t *bld,
                           const DeviceTensor<4, const real_t> &X0,
@@ -64,7 +65,8 @@ void TMOP_AddMultPA_C0_2D(const real_t lim_normal,
          MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
             const real_t *Jtr = &J(0, 0, qx, qy, e);
-            const real_t detJtr = kernels::Det<2>(Jtr);
+            const real_t detJtr =
+               integ_over_target ? kernels::Det<2>(Jtr) : 1.0;
             const real_t weight = W(qx, qy) * detJtr;
 
             const real_t ld = rm1(qy, qx);
@@ -116,6 +118,7 @@ void TMOP_AddMultPA_AdaptLim_2D(const real_t lim_normal,
                                 const int NE,
                                 const DeviceTensor<5, const real_t> &J,
                                 const ConstDeviceMatrix &W,
+                                const bool integ_over_target,
                                 const real_t *b,
                                 const DeviceTensor<4, const real_t> &ALF_grad,
                                 const ConstDeviceCube &ALFmF0,
@@ -148,7 +151,8 @@ void TMOP_AddMultPA_AdaptLim_2D(const real_t lim_normal,
          MFEM_FOREACH_THREAD_DIRECT(qx, x, Q1D)
          {
             const real_t *Jtr = &J(0, 0, qx, qy, e);
-            const real_t detJtr = kernels::Det<2>(Jtr);
+            const real_t detJtr =
+               integ_over_target ? kernels::Det<2>(Jtr) : 1.0;
             const real_t weight = W(qx, qy) * detJtr;
 
             const real_t coeff = const_coeff ? ALC(0, 0, 0) : ALC(qx, qy, e);
@@ -194,8 +198,8 @@ void TMOP_Integrator::AddMultPA_C0_2D(const Vector &x, Vector &y) const
    auto el = dynamic_cast<TMOP_ExponentialLimiter *>(lim_func);
    const bool exp_lim = (el) ? true : false;
 
-   TMOPMultCoefKernels::Run(d, q, ln, LD, const_c0, C0, NE, J, W, b, bld, XL, X,
-                            Y, exp_lim, d, q);
+   TMOPMultCoefKernels::Run(d, q, ln, LD, const_c0, C0, NE, J, W,
+                            integ_over_target, b, bld, XL, X, Y, exp_lim, d, q);
 }
 
 MFEM_TMOP_MDQ_REGISTER(TMOPMultAdaptLim, TMOP_AddMultPA_AdaptLim_2D);
@@ -237,8 +241,9 @@ void TMOP_Integrator::AddMultPA_AdaptLim_2D([[maybe_unused]] const Vector &x,
                        : Reshape(ALC_all + c * ALC_stride, q, q, NE);
       const auto ALFmF0 = Reshape(ALFmF0_all + c * ALF_stride, d, d, NE);
       const auto ALF_grad = Reshape(ALFG_all + c * ALFG_stride, 2, q, q, NE);
-      TMOPMultAdaptLim::Run(d, q, ln, delta_max, const_coeff, ALC, NE, J, W,
-                            B, ALF_grad, ALFmF0, Y, d, q);
+      TMOPMultAdaptLim::Run(d, q, ln, delta_max, const_coeff, ALC, NE,
+                            J, W, integ_over_target, B, ALF_grad, ALFmF0, Y,
+                            d, q);
    }
 }
 
