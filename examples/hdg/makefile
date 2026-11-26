@@ -20,7 +20,7 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
-SEQ_EXAMPLES = ex5 ex5-max ex6 ex14 ex17 ex21 ex41
+SEQ_EXAMPLES = ex5 ex5-max ex6 ex6-max ex14 ex17 ex21 ex41
 PAR_EXAMPLES = ex5p ex5p-max ex6p ex14p ex17p ex21p ex41p
 ifeq ($(MFEM_USE_MPI),NO)
    EXAMPLES = $(SEQ_EXAMPLES)
