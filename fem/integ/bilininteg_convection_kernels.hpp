@@ -41,10 +41,8 @@ void PAConvectionApply2D(const int ne, const Array<real_t> &b,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
@@ -133,7 +131,7 @@ void PAConvectionApply2D(const int ne, const Array<real_t> &b,
             y(dx,dy,e) += BBDGu;
          }
       }
-   });
+   }));
 }
 
 // Optimized PA Convection Apply 2D kernel
@@ -156,11 +154,9 @@ void SmemPAConvectionApply2D(const int ne, const Array<real_t> &b,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
@@ -256,7 +252,7 @@ void SmemPAConvectionApply2D(const int ne, const Array<real_t> &b,
             y(dx,dy,e) += BBDGu;
          }
       }
-   });
+   }));
 }
 
 // PA Convection Apply 3D kernel
@@ -278,10 +274,8 @@ void PAConvectionApply3D(const int ne, const Array<real_t> &b,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
@@ -432,7 +426,7 @@ void PAConvectionApply3D(const int ne, const Array<real_t> &b,
             }
          }
       }
-   });
+   }));
 }
 
 // Optimized PA Convection Apply 3D kernel
@@ -454,10 +448,8 @@ void SmemPAConvectionApply3D(const int ne, const Array<real_t> &b,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
@@ -631,7 +623,7 @@ void SmemPAConvectionApply3D(const int ne, const Array<real_t> &b,
             }
          }
       }
-   });
+   }));
 }
 
 // PA Convection Apply 2D kernel
@@ -653,10 +645,8 @@ void PAConvectionApplyT2D(const int ne, const Array<real_t> &b,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
@@ -741,7 +731,7 @@ void PAConvectionApplyT2D(const int ne, const Array<real_t> &b,
             y(dx,dy,e) += res;
          }
       }
-   });
+   }));
 }
 
 // Optimized PA Convection Apply 2D kernel
@@ -764,11 +754,9 @@ void SmemPAConvectionApplyT2D(const int ne, const Array<real_t> &b,
    auto op = Reshape(op_.Read(), Q1D, Q1D, 2, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, NE);
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE (int e)
    {
       const int tidz = MFEM_THREAD_ID(z);
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
       constexpr int NBZ = T_NBZ ? T_NBZ : 1;
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
@@ -859,7 +847,7 @@ void SmemPAConvectionApplyT2D(const int ne, const Array<real_t> &b,
             y(dx,dy,e) += res;
          }
       }
-   });
+   }));
 }
 
 // PA Convection Apply 3D kernel
@@ -881,10 +869,8 @@ void PAConvectionApplyT3D(const int ne, const Array<real_t> &b,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
@@ -1030,7 +1016,7 @@ void PAConvectionApplyT3D(const int ne, const Array<real_t> &b,
             }
          }
       }
-   });
+   }));
 }
 
 // Optimized PA Convection Apply 3D kernel
@@ -1052,10 +1038,8 @@ void SmemPAConvectionApplyT3D(const int ne, const Array<real_t> &b,
    auto op = Reshape(op_.Read(), Q1D, Q1D, Q1D, 3, NE);
    auto x = Reshape(x_.Read(), D1D, D1D, D1D, NE);
    auto y = Reshape(y_.ReadWrite(), D1D, D1D, D1D, NE);
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
       // the following variables are evaluated at compile time
       constexpr int max_D1D = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
       constexpr int max_Q1D = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
@@ -1219,7 +1203,7 @@ void SmemPAConvectionApplyT3D(const int ne, const Array<real_t> &b,
             }
          }
       }
-   });
+   }));
 }
 
 namespace convection

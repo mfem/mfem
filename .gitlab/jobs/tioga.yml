@@ -64,6 +64,13 @@ opt_mpi_rocm_hypre_rocm:
   variables:
     SPEC: "%rocmcc@=6.3.1 +rocm amdgpu_target=gfx90a ^hypre+rocm"
 
+# Build RAJA with Proteus, install it, then build MFEM against that install.
+opt_rocm_raja_proteus_amdclang:
+  extends: .mfem_job_on_tioga
+  variables:
+    JOB_CMD: "bash tests/gitlab/build_raja_proteus"
+    RAJA_REF: "develop"
+
 # cce_16_0_1:
 #   extends: .mfem_job_on_tioga
 #   variables:

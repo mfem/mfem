@@ -85,6 +85,39 @@ function(add_benchmark name)
     endif(MFEM_USE_HIP)
 endfunction(add_benchmark)
 
+# Custom benchmarks are built as separate executables so changes to their
+# workloads do not replace MFEM's standard CEED and TMOP benchmarks.
+function(add_custom_benchmark name)
+    set(CUSTOM_BENCH_SRCS bench_${name}.cpp)
+
+    if (MFEM_USE_CUDA)
+       set_property(SOURCE ${CUSTOM_BENCH_SRCS} PROPERTY LANGUAGE CUDA)
+    endif(MFEM_USE_CUDA)
+    if (MFEM_USE_HIP)
+       set_property(SOURCE ${CUSTOM_BENCH_SRCS}
+                    PROPERTY HIP_SOURCE_PROPERTY_FORMAT TRUE)
+    endif(MFEM_USE_HIP)
+
+    add_executable(bench_${name} ${CUSTOM_BENCH_SRCS})
+    target_link_libraries(bench_${name} PRIVATE mfem pthread
+                          ${MFEM_BENCHMARK_EXTRA_LIBS})
+    if (MFEM_USE_PROTEUS)
+       add_proteus(bench_${name})
+    endif()
+    add_dependencies(${MFEM_ALL_BENCHMARKS_TARGET_NAME} bench_${name})
+
+    add_test(NAME bench_${name}_cpu
+             COMMAND bench_${name} --benchmark_context=device=cpu)
+    if (MFEM_USE_CUDA)
+       add_test(NAME bench_${name}_cuda
+                COMMAND bench_${name} --benchmark_context=device=cuda)
+    endif(MFEM_USE_CUDA)
+    if (MFEM_USE_HIP)
+       add_test(NAME bench_${name}_hip
+                COMMAND bench_${name} --benchmark_context=device=hip)
+    endif(MFEM_USE_HIP)
+endfunction(add_custom_benchmark)
+
 #-------------------------------------------------------------------------------
 add_benchmark(assembly_levels)
 add_benchmark(ceed)
@@ -94,3 +127,8 @@ add_benchmark(tmop)
 add_benchmark(vector)
 add_benchmark(virtuals)
 add_benchmark(nlvc)
+
+# Keep local application workloads alongside, not in place of, MFEM's
+# standard benchmark programs.
+add_custom_benchmark(ceed_jit)
+add_custom_benchmark(tmop_jit)

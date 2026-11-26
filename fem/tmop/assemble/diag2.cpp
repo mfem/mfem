@@ -60,8 +60,7 @@ void TMOP_AssembleDiagPA_2D(const int NE,
 {
    const int D1D = T_D1D ? T_D1D : d1d;
    const int Q1D = T_Q1D ? T_Q1D : q1d;
-
-   mfem::forall_2D(NE, Q1D, Q1D, [=] MFEM_HOST_DEVICE(int e)
+   mfem::forall_2D(NE, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D) MFEM_HOST_DEVICE(int e)
    {
       // Takes into account Jtr by replacing H with Href at all quad points.
       MFEM_SHARED real_t Href_data[2 * 2 * 2 * MQ1 * MQ1];
@@ -156,7 +155,7 @@ void TMOP_AssembleDiagPA_2D(const int NE,
          }
          MFEM_SYNC_THREAD;
       }
-   });
+   }));
 }
 
 MFEM_TMOP_MDQ_REGISTER(TMOPAssembleDiag2D, TMOP_AssembleDiagPA_2D);

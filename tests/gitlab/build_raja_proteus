@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+
+# Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+# at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+# LICENSE and NOTICE for details. LLNL-CODE-806117.
+#
+# This file is part of the MFEM library. For more information and source code
+# availability visit https://mfem.org.
+#
+# MFEM is free software; you can redistribute it and/or modify it under the
+# terms of the BSD-3 license. We welcome feedback and contributions, see file
+# CONTRIBUTING.md for details.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+# The RAJA TOSS4 build script uses Lmod modules for its CMake version.
+if [[ -e /usr/share/lmod/lmod/init/bash ]]; then
+   . /usr/share/lmod/lmod/init/bash
+fi
+if ! type module >/dev/null 2>&1; then
+   echo "The Tioga job requires the Lmod module command." >&2
+   exit 1
+fi
+
+project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+job_id="${CI_JOB_ID:-local}"
+build_root="${project_dir}/build-raja-proteus-${job_id}"
+raja_source="${build_root}/RAJA"
+
+raja_ref="${RAJA_REF:-develop}"
+rocm_version=6.4.3
+hip_arch=gfx942
+raja_suffix="lc_toss4-amdclang-proteus-${rocm_version}-${hip_arch}"
+raja_build="${raja_source}/build_${raja_suffix}"
+raja_install="${raja_source}/install_${raja_suffix}"
+mfem_build="${build_root}/mfem"
+threads="${THREADS:-1}"
+
+mkdir -p "${build_root}"
+git clone --depth 1 --branch "${raja_ref}" --recurse-submodules \
+   --shallow-submodules https://github.com/LLNL/RAJA.git "${raja_source}"
+
+# This in-source LC script configures RAJA and fetches the pinned Proteus
+# source. Build and install RAJA after its generated configuration is ready.
+set +e
+. "${raja_source}/scripts/lc-builds/toss4_amdclang_proteus.sh" \
+   "${rocm_version}" "${hip_arch}" 3.24.2 \
+   -DENABLE_TESTS=OFF \
+   -DENABLE_BENCHMARKS=OFF \
+   -DCAMP_USE_PLATFORM_DEFAULT_STREAM=ON
+configure_status=$?
+set -e
+if [[ ${configure_status} -ne 0 ]]; then
+   exit "${configure_status}"
+fi
+if [[ ! -f "${raja_build}/CMakeCache.txt" ]]; then
+   echo "RAJA configuration did not produce ${raja_build}/CMakeCache.txt" >&2
+   exit 1
+fi
+
+# The combo script loads CMake and unloads ROCm for the build. Since it is
+# sourced above, this shell keeps those module changes for the build/install.
+cmake --build "${raja_build}" --parallel "${threads}" --target install
+
+raja_dir="${raja_install}/lib/cmake/raja"
+if [[ ! -f "${raja_dir}/raja-config.cmake" && \
+      ! -f "${raja_dir}/RAJA-config.cmake" && \
+      ! -f "${raja_dir}/RAJAConfig.cmake" ]]; then
+   echo "Could not find the installed RAJA CMake package under ${raja_dir}" >&2
+   exit 1
+fi
+
+cmake -S "${project_dir}" -B "${mfem_build}" \
+   -DCMAKE_BUILD_TYPE=Release \
+   -DMFEM_USE_HIP=YES \
+   -DCMAKE_CXX_STANDARD=20 \
+   -DMFEM_USE_RAJA=YES \
+   -DHIP_ARCH="${hip_arch}" \
+   -DCMAKE_HIP_ARCHITECTURES="${hip_arch}" \
+   -DROCM_PATH="/opt/rocm-${rocm_version}" \
+   -DCMAKE_CXX_COMPILER="/opt/rocm-${rocm_version}/bin/amdclang++" \
+   -DCMAKE_HIP_COMPILER="/opt/rocm-${rocm_version}/bin/amdclang++" \
+   -DRAJA_DIR="${raja_dir}" \
+   -DMFEM_USE_PROTEUS=ON \
+   -DMFEM_ENABLE_TESTING=ON
+
+cmake --build "${mfem_build}" --parallel "${threads}" --target tests

@@ -44,7 +44,7 @@ void Derivatives1D(const int NE, const real_t *b_, const real_t *g_,
             Reshape(y_, q1d, vdim, SDIM, NE):
             Reshape(y_, vdim, SDIM, q1d, NE);
 
-   mfem::forall(NE, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall(NE, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(vdim, q1d, SDIM, d1d) MFEM_HOST_DEVICE (int e)
    {
       for (int c = 0; c < vdim; c++)
       {
@@ -88,7 +88,7 @@ void Derivatives1D(const int NE, const real_t *b_, const real_t *g_,
             }
          }
       }
-   });
+   }));
 }
 
 // Template compute kernel for derivatives in 2D: tensor product version.
@@ -113,11 +113,8 @@ void Derivatives2D(const int NE, const real_t *b_, const real_t *g_,
             Reshape(y_, Q1D, Q1D, VDIM, SDIM, NE):
             Reshape(y_, VDIM, SDIM, Q1D, Q1D, NE);
 
-   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D_batch(NE, Q1D, Q1D, NBZ, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D, VDIM, SDIM) MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_Q1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
@@ -212,7 +209,7 @@ void Derivatives2D(const int NE, const real_t *b_, const real_t *g_,
          }
          MFEM_SYNC_THREAD;
       }
-   });
+   }));
 }
 
 // Template compute kernel for derivatives in 3D: tensor product version.
@@ -235,11 +232,8 @@ void Derivatives3D(const int NE, const real_t *b_, const real_t *g_,
             Reshape(y_, Q1D, Q1D, Q1D, VDIM, 3, NE):
             Reshape(y_, VDIM, 3, Q1D, Q1D, Q1D, NE);
 
-   mfem::forall_3D(NE, Q1D, Q1D, Q1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, Q1D, Q1D, Q1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, Q1D, VDIM) MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int Q1D = T_Q1D ? T_Q1D : q1d;
-      const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int MQ1 = T_Q1D ? T_Q1D : DofQuadLimits::MAX_INTERP_1D;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_INTERP_1D;
 
@@ -351,7 +345,7 @@ void Derivatives3D(const int NE, const real_t *b_, const real_t *g_,
          }
          MFEM_SYNC_THREAD;
       }
-   });
+   }));
 }
 
 template <QVectorLayout Q_LAYOUT, bool GRAD_PHYS>
@@ -382,10 +376,8 @@ void CollocatedDerivatives2D(const int NE, const real_t *g_, const real_t *j_,
             Reshape(y_, D1D, D1D, VDIM, SDIM, NE):
             Reshape(y_, VDIM, SDIM, D1D, D1D, NE);
 
-   mfem::forall_2D_batch(NE, D1D, D1D, NBZ, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_2D_batch(NE, D1D, D1D, NBZ, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, VDIM, SDIM) MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_D1D;
 
       const int tidz = MFEM_THREAD_ID(z);
@@ -459,7 +451,7 @@ void CollocatedDerivatives2D(const int NE, const real_t *g_, const real_t *j_,
          }
          MFEM_SYNC_THREAD;
       }
-   });
+   }));
 }
 
 // Template compute kernel for derivatives in 3D: tensor product version.
@@ -480,10 +472,8 @@ void CollocatedDerivatives3D(const int NE, const real_t *g_, const real_t *j_,
             Reshape(y_, D1D, D1D, D1D, VDIM, 3, NE):
             Reshape(y_, VDIM, 3, D1D, D1D, D1D, NE);
 
-   mfem::forall_3D(NE, D1D, D1D, D1D, [=] MFEM_HOST_DEVICE (int e)
+   mfem::forall_3D(NE, D1D, D1D, D1D, MFEM_JIT_REGISTER_LAMBDA(MFEM_JIT_CAPTURE_LIST(D1D, VDIM) MFEM_HOST_DEVICE (int e)
    {
-      const int D1D = T_D1D ? T_D1D : d1d;
-      const int VDIM = T_VDIM ? T_VDIM : vdim;
       constexpr int MD1 = T_D1D ? T_D1D : DofQuadLimits::MAX_INTERP_1D;
 
       MFEM_SHARED real_t uvw[MD1*MD1*MD1];
@@ -542,7 +532,7 @@ void CollocatedDerivatives3D(const int NE, const real_t *g_, const real_t *j_,
          }
          MFEM_SYNC_THREAD;
       }
-   });
+   }));
 }
 
 } // namespace quadrature_interpolator
