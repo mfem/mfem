@@ -53,7 +53,8 @@ struct DerefineMatrixOp : public Operator
       Kernels();
    };
 
-   void Mult(const Vector &x, Vector &y) const;
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
 
    DerefineMatrixOp(FiniteElementSpace &fespace_, int old_ndofs,
                     const Table *old_elem_dof, const Table *old_elem_fos);

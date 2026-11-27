@@ -23,6 +23,12 @@ GPU computing
 
 Discretization improvements
 ---------------------------
+- Added transpose application to the default matrix-free derefinement update
+  for fixed-order H1, H(curl), H(div) and DG spaces with `vdim = 1` on
+  CPU and GPU, including across MPI ranks.
+  Tested on segments, triangles, quadrilaterals, tetrahedra, hexahedra and
+  wedges; existing restrictions on the forward merge still apply.
+
 - Fixed H1 transfer in L2ProjectionGridTransfer on non-conforming meshes in
   serial and parallel. The fully assembled operator now applies inverse lumped
   mass scaling after true-DOF assembly. Element assembly now handles hanging-node

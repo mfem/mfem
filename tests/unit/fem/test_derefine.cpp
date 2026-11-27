@@ -30,6 +30,139 @@ double coeff(const Vector& x)
    }
 }
 
+static Mesh SplitMiddleSegment()
+{
+   Mesh mesh = Mesh::MakeCartesian1D(3);
+   mesh.EnsureNCMesh(true);
+   Array<int> marked(1);
+   marked[0] = 1;
+   mesh.GeneralRefinement(marked);
+   return mesh;
+}
+
+template <typename Space, typename MeshType, typename Sum>
+static void CheckMergeTranspose(MeshType &mesh, FiniteElementCollection &basis,
+                                int rank, int ranks, Sum sum)
+{
+   Space space(&mesh, &basis);
+   Vector errors(mesh.GetNE());
+   errors = 0.0;
+   for (int cell = 0; cell < mesh.GetNE(); ++cell)
+   {
+      if (mesh.GetElementType(cell) != Element::QUADRILATERAL) { continue; }
+      Vector center;
+      mesh.GetElementCenter(cell, center);
+      if (center[0] > 0.75) { errors[cell] = 1.0; }
+   }
+   REQUIRE(mesh.DerefineByError(errors, 0.025));
+   const Operator &original = *space.GetUpdateOperator();
+   Vector fine(original.Width()), truth(original.Height());
+   Vector dual(truth.Size()), matrix_free(fine.Size());
+   for (int index = 0; index < dual.Size(); ++index)
+   {
+      dual(index) = std::cos(2*index + rank);
+   }
+   matrix_free = 17.0;
+   original.MultTranspose(dual, matrix_free);
+   for (int index = 0; index < fine.Size(); ++index)
+   {
+      fine(index) = std::sin(1 + index + rank);
+   }
+   original.Mult(fine, truth);
+   const real_t lhs = sum(truth * dual);
+   const real_t rhs = sum(fine * matrix_free);
+   CHECK(lhs == MFEM_Approx(rhs));
+   const real_t *actual = matrix_free.HostRead();
+   for (int owner = 0; owner < ranks; ++owner)
+   {
+      const int columns = int(sum(owner == rank ? fine.Size() : 0));
+      for (int column = 0; column < columns; ++column)
+      {
+         fine = 0.0;
+         if (owner == rank) { fine.HostReadWrite()[column] = 1.0; }
+         original.Mult(fine, truth);
+         const real_t expected = sum(truth * dual);
+         if (owner == rank) { CHECK(actual[column] == MFEM_Approx(expected)); }
+      }
+   }
+   if (ranks > 1 && basis.GetContType() == FiniteElementCollection::DISCONTINUOUS)
+   {
+      fine = real_t(rank);
+      original.Mult(fine, truth);
+      CHECK(sum(rank == 0 ? truth.Normlinf() : 0.0) > 0.0);
+      dual = real_t(rank == 0);
+      original.MultTranspose(dual, matrix_free);
+      CHECK(sum(rank != 0 ? matrix_free.Normlinf() : 0.0) > 0.0);
+   }
+}
+
+TEST_CASE("1D DG and H1 merge transpose", "[AMR][Coarsen][GPU]")
+{
+   for (int degree : {1, 2})
+   {
+      CAPTURE(degree);
+      Mesh mesh = SplitMiddleSegment();
+      L2_FECollection dg(degree, 1);
+      CheckMergeTranspose<FiniteElementSpace>(mesh, dg, 0, 1,
+                                              [](real_t value) { return value; });
+      Mesh h1_mesh = SplitMiddleSegment();
+      H1_FECollection h1(degree, 1);
+      CheckMergeTranspose<FiniteElementSpace>(
+         h1_mesh, h1, 0, 1, [](real_t value) { return value; });
+   }
+}
+
+static Mesh SplitCell(Element::Type type)
+{
+   Mesh mesh = (type == Element::TRIANGLE || type == Element::QUADRILATERAL) ?
+               Mesh::MakeCartesian2D(4, 1, type) :
+               Mesh::MakeCartesian3D(4, 1, 1, type);
+   mesh.EnsureNCMesh(true);
+   Array<int> marked(1);
+   marked[0] = 0;
+   if (type == Element::QUADRILATERAL) { marked.Append(mesh.GetNE() - 1); }
+   mesh.GeneralRefinement(marked);
+   return mesh;
+}
+
+template <typename Run>
+static void CheckMergeFamilies(Element::Type type, int degree, Run run)
+{
+   auto check = [&](FiniteElementCollection &collection)
+   {
+      CAPTURE(collection.Name());
+      Mesh mesh = SplitCell(type);
+      run(mesh, collection);
+   };
+   const int dim = (type == Element::TRIANGLE ||
+                    type == Element::QUADRILATERAL) ? 2 : 3;
+   L2_FECollection dg(degree, dim);
+   H1_FECollection h1(degree, dim);
+   ND_FECollection nd(degree, dim);
+   RT_FECollection rt(degree - 1, dim);
+   check(dg);
+   check(h1);
+   check(nd);
+   check(rt);
+}
+
+TEST_CASE("Multidimensional merge transpose", "[AMR][Coarsen][GPU]")
+{
+   for (auto type : {Element::TRIANGLE, Element::QUADRILATERAL,
+                     Element::TETRAHEDRON, Element::HEXAHEDRON, Element::WEDGE})
+   {
+      for (int degree : {1, 2})
+      {
+         CAPTURE(type, degree);
+         CheckMergeFamilies(type, degree, [](Mesh &mesh, FiniteElementCollection &basis)
+         {
+            CheckMergeTranspose<FiniteElementSpace>(mesh, basis, 0, 1,
+                                                    [](real_t value) { return value; });
+         });
+      }
+   }
+}
+
 TEST_CASE("Derefine")
 {
    for (dimension = 2; dimension <= 3; ++dimension)
@@ -418,6 +551,91 @@ void stress_parallel_coarsen(int order, Element::Type el_type, int basis_type)
       REQUIRE( err < 1.e-12 );
    }
 #endif
+}
+
+TEST_CASE("Split-rank 1D DG and H1 merge transpose", "[AMR][Coarsen][Parallel][GPU]")
+{
+   const int ranks = Mpi::WorldSize();
+   if (ranks < 2 || ranks > 4) { return; }
+   for (int degree : {1, 2})
+   {
+      CAPTURE(degree);
+      Mesh mesh = SplitMiddleSegment();
+      const int parents = ranks * (ranks - 1);
+      if (ranks > 2)
+      {
+         mesh = Mesh::MakeCartesian1D(parents);
+         mesh.EnsureNCMesh(true);
+         mesh.UniformRefinement();
+      }
+      Array<int> partition(mesh.GetNE());
+      for (int cell = 0; cell < mesh.GetNE(); ++cell)
+      {
+         Vector center;
+         mesh.GetElementCenter(cell, center);
+         if (ranks == 2) { partition[cell] = center(0) < 0.5 ? 0 : 1; }
+         else
+         {
+            const int child = int(center(0) * (2*parents));
+            const int parent = child / 2;
+            const int left = parent / (ranks - 1);
+            const int other = parent % (ranks - 1);
+            partition[cell] = child % 2 ? other + (other >= left) : left;
+         }
+      }
+      ParMesh parallel(MPI_COMM_WORLD, mesh, partition);
+      auto global_sum = [](real_t local)
+      {
+         real_t result;
+         MPI_Allreduce(&local, &result, 1, MPITypeMap<real_t>::mpi_type,
+                       MPI_SUM, MPI_COMM_WORLD);
+         return result;
+      };
+      L2_FECollection dg(degree, 1);
+      CheckMergeTranspose<ParFiniteElementSpace>(parallel, dg, Mpi::WorldRank(),
+                                                 ranks, global_sum);
+      ParMesh h1_mesh(MPI_COMM_WORLD, mesh, partition);
+      H1_FECollection h1(degree, 1);
+      CheckMergeTranspose<ParFiniteElementSpace>(h1_mesh, h1, Mpi::WorldRank(),
+                                                 ranks, global_sum);
+   }
+}
+
+TEST_CASE("Multidimensional split-rank merge transpose",
+          "[AMR][Coarsen][Parallel][GPU]")
+{
+   const int ranks = Mpi::WorldSize();
+   if (ranks < 2 || ranks > 4) { return; }
+   for (auto type : {Element::TRIANGLE, Element::QUADRILATERAL,
+                     Element::TETRAHEDRON, Element::HEXAHEDRON, Element::WEDGE})
+   {
+      for (int degree : {1, 2})
+      {
+         CAPTURE(type, degree);
+         CheckMergeFamilies(type, degree, [&](Mesh &mesh, FiniteElementCollection &basis)
+         {
+            const auto &embeddings = mesh.GetRefinementTransforms().embeddings;
+            Array<int> partition(mesh.GetNE());
+            int children = 0;
+            for (int cell = 0; cell < mesh.GetNE(); ++cell)
+            {
+               const int parent = embeddings[cell].parent;
+               partition[cell] = (parent == 0 ? children++ : parent) % ranks;
+            }
+            REQUIRE(children >= ranks);
+            ParMesh parallel(MPI_COMM_WORLD, mesh, partition);
+            auto global_sum = [](real_t local)
+            {
+               real_t result;
+               MPI_Allreduce(&local, &result, 1, MPITypeMap<real_t>::mpi_type,
+                             MPI_SUM, MPI_COMM_WORLD);
+               return result;
+            };
+            CheckMergeTranspose<ParFiniteElementSpace>(parallel, basis, Mpi::WorldRank(),
+                                                       ranks, global_sum);
+         });
+      }
+   }
 }
 
 TEST_CASE("Parallel AMR Coarsen Stress Test", "[AMR][Coarsen][Parallel][CUDA]")
