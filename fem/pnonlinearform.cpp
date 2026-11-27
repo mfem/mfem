@@ -49,9 +49,8 @@ void ParNonlinearForm::Mult(const Vector &x, Vector &y) const
 {
    NonlinearForm::Mult(x, y); // x --(P)--> aux1 --(A_local)--> aux2
 
-   if (fnfi.Size())
+   if (fnfi.Size() && !NonlinearForm::ext)
    {
-      MFEM_VERIFY(!NonlinearForm::ext, "Not implemented (extensions + faces");
       // Terms over shared interior faces in parallel.
       ParFiniteElementSpace *pfes = ParFESpace();
       ParMesh *pmesh = pfes->GetParMesh();
