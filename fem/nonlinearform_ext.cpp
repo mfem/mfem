@@ -56,8 +56,8 @@ void PANonlinearFormExtension::SetupRestrictionOperators()
    if (int_face_restrict_lex == nullptr && fnfi.Size() > 0)
    {
       int_face_restrict_lex = fes.GetFaceRestriction(
-                                          ElementDofOrdering::LEXICOGRAPHIC,
-                                          FaceType::Interior);
+                                 ElementDofOrdering::LEXICOGRAPHIC,
+                                 FaceType::Interior);
       int_face_X.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       int_face_Y.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
       int_face_Y.UseDevice(true); // ensure 'int_face_Y = 0.0' is done on device
@@ -66,8 +66,8 @@ void PANonlinearFormExtension::SetupRestrictionOperators()
    if (bdr_face_restrict_lex == nullptr && bfnfi.Size() > 0)
    {
       bdr_face_restrict_lex = fes.GetFaceRestriction(
-                                          ElementDofOrdering::LEXICOGRAPHIC,
-                                          FaceType::Boundary);
+                                 ElementDofOrdering::LEXICOGRAPHIC,
+                                 FaceType::Boundary);
       bdr_face_X.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       bdr_face_Y.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       bdr_face_Y.UseDevice(true); // ensure 'bdr_face_Y = 0.0' is done on device
@@ -154,7 +154,7 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 #ifdef MFEM_USE_MPI
       ParGridFunction x_pgf;
       if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(
-                        const_cast<FiniteElementSpace*>(&fes)))
+                          const_cast<FiniteElementSpace*>(&fes)))
       {
          x_pgf.MakeRef(pfes, const_cast<Vector&>(x), 0);
          x_dg = &x_pgf;
@@ -188,7 +188,8 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
                bfnfi[i]->AddMultPA(bdr_face_X, tmp_evec);
                const int ne = bdr_face_attributes->Size();
                const int nd = bdr_face_X.Size() / ne;
-               AddWithMarkers_(ne, nd, tmp_evec, *bfnfi_marker[i], *bdr_face_attributes, bdr_face_Y);
+               AddWithMarkers_(ne, nd, tmp_evec, *bfnfi_marker[i], *bdr_face_attributes,
+                               bdr_face_Y);
             }
             else
             {
