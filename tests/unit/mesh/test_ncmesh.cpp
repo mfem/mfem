@@ -770,6 +770,120 @@ TEST_CASE("TetEdgeFaceCommunication", "[Parallel], [NCMesh]")
    CHECK(pfes.GlobalTrueVSize() == fes.GetTrueVSize());
 }
 
+// Checks that the faces and face orientations of all the face neighbor
+// elements of a 3D parallel mesh are set.
+static void CheckFaceNbrElementFaces(ParMesh &pmesh)
+{
+   Array<int> nbr_faces, nbr_ori;
+   for (int i = 0; i < pmesh.GetNFaceNeighborElements(); i++)
+   {
+      pmesh.GetFaceNbrElementFaces(pmesh.GetNE() + i, nbr_faces, nbr_ori);
+      const int nf = pmesh.face_nbr_elements[i]->GetNFaces();
+      REQUIRE(nbr_faces.Size() == nf);
+      REQUIRE(nbr_ori.Size() == nf);
+      for (int j = 0; j < nf; j++)
+      {
+         CHECK(nbr_faces[j] >= 0);
+         CHECK(nbr_ori[j] >= 0);
+      }
+   }
+}
+
+TEST_CASE("FaceNbrOrientationsMixedTriFaces", "[Parallel], [NCMesh]")
+{
+   // A row of two hexahedra and a cube split into two prisms, one cell per
+   // rank: only rank 1 has a face neighbor with triangular faces, and rank 0
+   // has no triangular faces at all. The orientations are exchanged with every
+   // face neighbor, so all ranks must take part, or the face neighbor exchanges
+   // that follow receive the wrong messages.
+   if (Mpi::WorldSize() < 3) { return; }
+
+   Mesh smesh(3, 16, 4);
+   for (int k = 0; k < 2; k++)
+   {
+      for (int j = 0; j < 2; j++)
+      {
+         for (int i = 0; i < 4; i++)
+         {
+            smesh.AddVertex(i, j, k);
+         }
+      }
+   }
+   auto v = [](int i, int j, int k) { return i + 4 * (j + 2 * k); };
+   for (int i = 0; i < 2; i++)
+   {
+      smesh.AddHex(v(i, 0, 0), v(i + 1, 0, 0), v(i + 1, 1, 0), v(i, 1, 0),
+                   v(i, 0, 1), v(i + 1, 0, 1), v(i + 1, 1, 1), v(i, 1, 1));
+   }
+   // Prisms extruded along y, the first one sharing the face x = 2 with the
+   // second hexahedron.
+   smesh.AddWedge(v(2, 0, 0), v(2, 0, 1), v(3, 0, 1),
+                  v(2, 1, 0), v(2, 1, 1), v(3, 1, 1));
+   smesh.AddWedge(v(2, 0, 0), v(3, 0, 1), v(3, 0, 0),
+                  v(2, 1, 0), v(3, 1, 1), v(3, 1, 0));
+   smesh.FinalizeTopology();
+   smesh.Finalize(true, true);
+   for (int e = 0; e < smesh.GetNE(); e++)
+   {
+      REQUIRE(smesh.GetElementVolume(e) > 0.0);
+   }
+   smesh.EnsureNCMesh(true);
+
+   int partition[4] = {0, 1, 2, 2};
+   ParMesh pmesh(MPI_COMM_WORLD, smesh, partition);
+   pmesh.ExchangeFaceNbrData();
+
+   // The face orientations of the face neighbor elements are available on all
+   // ranks, including rank 0, whose face neighbors are all hexahedra.
+   CheckFaceNbrElementFaces(pmesh);
+
+   // The face neighbor data of a grid function are its values on the face
+   // neighbor elements.
+   FunctionCoefficient coeff([](const Vector &x)
+   { return x(0) * x(0) + 2.0 * x(1) - x(0) * x(2); });
+   H1_FECollection fec(2, 3);
+   ParFiniteElementSpace pfes(&pmesh, &fec);
+   ParGridFunction gf(&pfes);
+   gf.ProjectCoefficient(coeff);
+   gf.ExchangeFaceNbrData();
+
+   Array<int> vdofs;
+   Vector expected, actual;
+   for (int i = 0; i < pmesh.GetNFaceNeighborElements(); i++)
+   {
+      pfes.GetFaceNbrElementVDofs(i, vdofs);
+      expected.SetSize(vdofs.Size());
+      pfes.GetFaceNbrFE(i)->Project(
+         coeff, *pmesh.GetFaceNbrElementTransformation(i), expected);
+      gf.FaceNbrData().GetSubVector(vdofs, actual);
+      expected -= actual;
+      CHECK(expected.Normlinf() < 1e-12);
+   }
+   int num_nbr_elems = pmesh.GetNFaceNeighborElements();
+   MPI_Allreduce(MPI_IN_PLACE, &num_nbr_elems, 1, MPI_INT, MPI_SUM,
+                 MPI_COMM_WORLD);
+   CHECK(num_nbr_elems > 0);
+}
+
+TEST_CASE("FaceNbrOrientationsHex", "[Parallel], [NCMesh]")
+{
+   // The face orientations of the face neighbor elements are also available
+   // when no element has triangular faces, as for conforming meshes, also
+   // after a refinement.
+   Mesh smesh = Mesh::MakeCartesian3D(Mpi::WorldSize(), 2, 1,
+                                      Element::HEXAHEDRON);
+   smesh.EnsureNCMesh(true);
+   ParMesh pmesh(MPI_COMM_WORLD, smesh);
+   pmesh.ExchangeFaceNbrData();
+   CheckFaceNbrElementFaces(pmesh);
+
+   Array<Refinement> refs;
+   if (pmesh.GetNE() > 0) { refs.Append(Refinement(0)); }
+   pmesh.GeneralRefinement(refs);
+   pmesh.ExchangeFaceNbrData();
+   CheckFaceNbrElementFaces(pmesh);
+}
+
 TEST_CASE("HangingVertexOwnership", "[Parallel], [NCMesh]")
 {
    if (Mpi::WorldSize() < 3) { return; }

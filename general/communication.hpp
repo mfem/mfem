@@ -738,9 +738,10 @@ protected:
 /// General MPI message tags used by MFEM
 enum MessageTag
 {
-   DEREFINEMENT_MATRIX_CONSTRUCTION_DATA =
-      291, /// ParFiniteElementSpace ParallelDerefinementMatrix and
-   /// ParDerefineMatrixOp
+   /// ParFiniteElementSpace ParallelDerefinementMatrix and ParDerefineMatrixOp
+   DEREFINEMENT_MATRIX_CONSTRUCTION_DATA = 291,
+   /// ParNCMesh::GetFaceNeighbors face neighbor orientations exchange
+   NC_FACE_NBR_ORIENTATIONS = 294,
 };
 
 enum VarMessageTag
