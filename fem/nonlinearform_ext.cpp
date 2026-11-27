@@ -13,6 +13,7 @@
 // PABilinearFormExtension and MFBilinearFormExtension.
 
 #include "nonlinearform.hpp"
+#include "../general/forall.hpp"
 #include "ceed/interface/util.hpp"
 
 namespace mfem
@@ -27,6 +28,7 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
    dnfi(*nlf->GetDNFI()),
    fnfi(nlf->GetInteriorFaceIntegrators()),
    bfnfi(nlf->GetBdrFaceIntegrators()),
+   bfnfi_marker(nlf->GetBdrFaceIntegratorMarkers()),
    elemR(nullptr),
    int_face_restrict_lex(nullptr),
    bdr_face_restrict_lex(nullptr),
@@ -100,6 +102,31 @@ void PANonlinearFormExtension::Assemble()
    }
 }
 
+// Copied directly from PABilinearFormExtension implementation.
+// See bilinearform_ext.cpp.
+static void AddWithMarkers_(
+   const int ne,
+   const int nd,
+   const Vector &x,
+   const Array<int> &markers,
+   const Array<int> &attributes,
+   Vector &y)
+{
+   const auto d_x = Reshape(x.Read(), nd, ne);
+   const auto d_m = Reshape(markers.Read(), markers.Size());
+   const auto d_attr = Reshape(attributes.Read(), ne);
+   auto d_y = Reshape(y.ReadWrite(), nd, ne);
+   mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int attr = d_attr[e];
+      if (attr <= 0 || d_m[attr - 1] == 0) { return; }
+      for (int i = 0; i < nd; ++i)
+      {
+         d_y(i, e) += d_x(i, e);
+      }
+   });
+}
+
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
 {
    if (!DeviceCanUseCeed())
@@ -141,6 +168,32 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
             fnfi[i]->AddMultPA(int_face_X, int_face_Y);
          }
          int_face_restrict_lex->AddMultTransposeInPlace(int_face_Y, y);
+      }
+   }
+
+   if (bdr_face_restrict_lex && bfnfi.Size() > 0)
+   {
+      bdr_face_restrict_lex->Mult(x, bdr_face_X);
+      if (bdr_face_X.Size() > 0)
+      {
+         bdr_face_Y = 0.0;
+         for (int i = 0; i < bfnfi.Size(); ++i)
+         {
+            if (bfnfi_marker[i])
+            {
+               tmp_evec.SetSize(bdr_face_Y.Size());
+               tmp_evec = 0.0;
+               bfnfi[i]->AddMultPA(bdr_face_X, tmp_evec);
+               const int ne = bdr_face_attributes->Size();
+               const int nd = bdr_face_X.Size() / ne;
+               AddWithMarkers_(ne, nd, tmp_evec, *bfnfi_marker[i], *bdr_face_attributes, bdr_face_Y);
+            }
+            else
+            {
+               bfnfi[i]->AddMultPA(bdr_face_X, bdr_face_Y);
+            }
+         }
+         bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
       }
    }
 }
