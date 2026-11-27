@@ -2394,6 +2394,12 @@ void FiniteElementSpace::GetLocalDerefinementMatrices(Geometry::Type geom,
    localR.SetSize(ldof, ldof, nmat);
    for (int i = 0; i < nmat; i++)
    {
+      if (i == 0)
+      {
+         // GetDerefinementTransforms reserves matrix 0 for unchanged elements.
+         localR(i).Diag(1.0, ldof);
+         continue;
+      }
       isotr.SetPointMat(pmats(i));
       fe->GetLocalRestriction(isotr, localR(i));
    }

@@ -235,6 +235,94 @@ void test_derefine_L2_element(int order, Element::Type el_type, int basis_type)
    }
 }
 
+static void CheckUnchangedElement(Mesh mesh, const FiniteElementCollection &fec)
+{
+   CAPTURE(fec.Name());
+   const int coarse_count = mesh.GetNE();
+   mesh.GetElement(coarse_count - 1)->SetAttribute(2);
+   mesh.EnsureNCMesh(true);
+   mesh.GeneralRefinement(Array<int>({0}));
+
+   FiniteElementSpace fes(&mesh, &fec);
+   auto unchanged_dofs = [&](Array<int> &dofs)
+   {
+      for (int elem = 0; elem < mesh.GetNE(); elem++)
+      {
+         if (mesh.GetAttribute(elem) == 2)
+         {
+            fes.GetElementDofs(elem, dofs);
+            return;
+         }
+      }
+      FAIL("Missing unchanged element");
+   };
+   Array<int> fine_dofs, coarse_dofs;
+   unchanged_dofs(fine_dofs);
+   Vector error(mesh.GetNE());
+   error = 0.0;
+   REQUIRE(mesh.DerefineByError(error, 1.0));
+   REQUIRE(mesh.GetNE() == coarse_count);
+   const Operator *restriction = fes.GetUpdateOperator();
+   REQUIRE(restriction != nullptr);
+   unchanged_dofs(coarse_dofs);
+   REQUIRE(coarse_dofs.Size() == fine_dofs.Size());
+
+   Vector fine(restriction->Width()), coarse(restriction->Height());
+   fine.UseDevice(true);
+   coarse.UseDevice(true);
+   Vector basis(fine_dofs.Size()), actual(coarse_dofs.Size());
+   for (int column = 0; column < basis.Size(); column++)
+   {
+      CAPTURE(column);
+      basis = 0.0;
+      basis[column] = 1.0;
+      fine = 2.0;
+      fine.SetSubVector(fine_dofs, basis.HostReadWrite());
+      restriction->Mult(fine, coarse);
+      coarse.GetSubVector(coarse_dofs, actual.HostWrite());
+      for (int row = 0; row < basis.Size(); row++)
+      {
+         CHECK(actual[row] == basis[row]);
+      }
+      if (mesh.Dimension() == 1)
+      {
+         Array<int> merged_dofs;
+         fes.GetElementDofs(mesh.GetAttribute(0) == 2 ? 1 : 0, merged_dofs);
+         coarse.GetSubVector(merged_dofs, actual.HostWrite());
+         for (int row = 0; row < merged_dofs.Size(); row++)
+         {
+            CHECK(actual[row] == Approx(2.0));
+         }
+      }
+   }
+}
+
+TEST_CASE("Derefinement is exact on unchanged elements", "[AMR][Coarsen][GPU]")
+{
+   const auto type = GENERATE(Element::SEGMENT, Element::TRIANGLE,
+                              Element::QUADRILATERAL, Element::TETRAHEDRON,
+                              Element::HEXAHEDRON);
+   CAPTURE(type);
+   if (type == Element::SEGMENT)
+   {
+      L2_FECollection fec(3, 1, BasisType::GaussLobatto);
+      CheckUnchangedElement(Mesh::MakeCartesian1D(2), fec);
+      return;
+   }
+   const int dim = (type == Element::TRIANGLE ||
+                    type == Element::QUADRILATERAL) ? 2 : 3;
+   H1_FECollection h1(2, dim);
+   ND_FECollection nd(1, dim);
+   RT_FECollection rt(1, dim);
+   L2_FECollection l2(2, dim);
+   const FiniteElementCollection *collections[] = { &h1, &nd, &rt, &l2 };
+   for (const auto *fec : collections)
+   {
+      CheckUnchangedElement(dim == 2 ? Mesh::MakeCartesian2D(3, 1, type, true) :
+                            Mesh::MakeCartesian3D(3, 1, 1, type), *fec);
+   }
+}
+
 TEST_CASE("AMR Coarsen L2 Element","[AMR][Coarsen][CUDA]")
 {
    std::vector<int> orders_1d{0,1,2,3};
