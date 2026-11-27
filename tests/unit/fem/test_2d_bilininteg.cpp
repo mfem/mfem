@@ -1105,6 +1105,30 @@ TEST_CASE("2D Bilinear Vector Mass Integrators",
    }
 }
 
+TEST_CASE("Mixed diffusion with a diagonal coefficient",
+          "[DiffusionIntegrator][BilinearFormIntegrator]")
+{
+   Mesh mesh = Mesh::MakeCartesian2D(1, 1, Element::QUADRILATERAL);
+   L2_FECollection lobatto(1, 2, BasisType::GaussLobatto);
+   L2_FECollection legendre(1, 2, BasisType::GaussLegendre);
+   FiniteElementSpace trial(&mesh, &lobatto), test(&mesh, &legendre);
+
+   FunctionCoefficient affine([](const Vector &x) { return x[0] + 2*x[1]; });
+   GridFunction u(&trial), v(&test);
+   u.ProjectCoefficient(affine);
+   v.ProjectCoefficient(affine);
+
+   Vector entries({2.0, 3.0});
+   VectorConstantCoefficient diagonal(entries);
+   MixedBilinearForm form(&trial, &test);
+   form.AddDomainIntegrator(new DiffusionIntegrator(diagonal));
+   form.Assemble();
+   form.Finalize();
+
+   // On the unit square, grad(v)^T diag(2,3) grad(u) integrates to 2 + 3*4.
+   CHECK(form.SpMat().InnerProduct(u, v) == Approx(14.0));
+}
+
 TEST_CASE("2D Bilinear Gradient Integrator",
           "[MixedVectorGradientIntegrator]"
           "[MixedCurlIntegrator]"
