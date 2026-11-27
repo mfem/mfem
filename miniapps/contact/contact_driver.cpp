@@ -384,7 +384,7 @@ int mfem::RunContactDriver(int argc, char *argv[],
       {
          cout << scenario.Name() << " initial contact: surface clearance = "
               << initial_clearance
-              << ", gap rows = " << contact.GetGlobalNumConstraints()
+              << ", gap rows = " << contact.GetGlobalNumGapRows()
               << ", minimum mortar gap = " << minimum_gap << endl;
       }
    }
@@ -534,7 +534,7 @@ int mfem::RunContactDriver(int argc, char *argv[],
          {
             cout << "Contact geometry update " << update + 1
                  << ": |du|_inf = " << update_norm
-                 << ", gap rows = " << contact.GetGlobalNumConstraints() << endl;
+                 << ", gap rows = " << contact.GetGlobalNumGapRows() << endl;
          }
          if (update_norm <= contact_update_tol)
          {
@@ -606,7 +606,9 @@ int mfem::RunContactDriver(int argc, char *argv[],
                       : contact.GetEnergy(xf, eval_err);
       if (update_geometry)
       {
-         Vector gap(contact.GetConstraintJacobian()->Height());
+         // Size by the mortar gap rows only: once bounds are active the
+         // constraint Jacobian also stacks 2*ndofs bound rows.
+         Vector gap(contact.GetNumGapRows());
          gap.UseDevice(true);
          contact.EvaluateGap(xf, gap);
          const real_t local_min_gap = gap.Size() ? gap.Min() : infinity();
@@ -616,7 +618,7 @@ int mfem::RunContactDriver(int argc, char *argv[],
          if (myid == 0 && print_level >= 2)
          {
             cout << scenario.Name() << ": gap rows = " <<
-                 contact.GetGlobalNumConstraints()
+                 contact.GetGlobalNumGapRows()
                  << ", minimum mortar gap = ";
             if (IsFinite(min_gap)) { cout << min_gap; }
             else { cout << "n/a (no candidate pairs)"; }

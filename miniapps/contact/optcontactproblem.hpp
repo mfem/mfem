@@ -224,6 +224,9 @@ public:
 
    /// Return global number of constraints.
    HYPRE_BigInt GetGlobalNumConstraints() {return num_constraints;}
+   /// Mortar gap rows only (excludes displacement-bound rows): local and global.
+   int GetNumGapRows() const { return J ? J->Height() : 0; }
+   HYPRE_BigInt GetGlobalNumGapRows() const { return J ? J->GetGlobalNumRows() : 0; }
 
    /// Get distributed DOF partition offsets.
    HYPRE_BigInt * GetDofStarts() {return dof_starts.GetData();}
