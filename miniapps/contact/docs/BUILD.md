@@ -100,25 +100,38 @@ Use `--driver contact_examples` with the launcher for problems 3–8.
 
 ### Launching and runtime settings
 
-`run-contact-bound.sh` selects the launcher and runtime paths from the hostname.
-On `trike`, it uses OpenMPI (`mpirun`) for CPU and CUDA runs, with one rank and
-one CPU core per rank by default. Its saved case uses `-fa -d cuda` with MUMPS.
-CUDA ranks share the first visible GPU; `CUDA_VISIBLE_DEVICES` defaults to `0`
-and can be set before launching. On LC, the existing CPU/Flux and HIP/srun
-launch commands and affinity are retained, including the default four-rank
-HIP case with STRUMPACK. Explicit miniapp options are passed through unchanged;
-use `-d cuda` on Trike and `-d hip` on LC for GPU runs.
+`run-contact.sh` defaults to the laptop CPU launcher. Select a site with
+`--site laptop`, `--site trike`, or `--site lc`; `CONTACT_SITE` sets the default.
+
+| Site | Launcher/backend | Default ranks |
+|---|---|---|
+| `laptop` | OpenMPI/CPU; portable Bash timing and default MPI process mapping | 1 |
+| `trike` | OpenMPI/CPU or CUDA, with core binding | 1 |
+| `lc` | Flux/CPU or srun/HIP, within an allocated node | 4 |
+
+All profiles set OpenMP and BLAS to one thread per rank. The laptop profile
+uses no `numactl`, `taskset`, Flux, or GNU time dependency. `--cores` controls
+cluster core allocation/binding; it does not change the laptop's MPI mapping.
+CUDA ranks on Trike share the first visible GPU; `CUDA_VISIBLE_DEVICES`
+defaults to `0`. LC HIP uses one GPU per rank, up to four on one node.
+
+For example, on the laptop:
+
+```bash
+./run-contact.sh --driver contact -- \
+  -prob 0 -load-steps 4
+```
 
 For example, on Trike with the existing CUDA build:
 
 ```bash
-./run-contact-bound.sh --ranks 1 -- \
-  -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4 \
+./run-contact.sh --site trike --ranks 1 -- \
+  -prob 0 -sr 0 -pr 0 -tr 2 -load-steps 4 \
   -amgf -amgf-fsolver mumps -fa -d cuda -no-vis -no-paraview -pl 2
 ```
 
-Use `-d cpu` for a host run. OpenMP and BLAS use one thread per rank on both
-hosts, and the launcher reports per-rank affinity and `TOTAL_WALL_SECONDS`.
+Use `-d cpu` for a host run. The launcher reports `TOTAL_WALL_SECONDS` for
+all sites; cluster profiles also report per-rank affinity.
 
 BoomerAMG uses Chebyshev smoothing by default (`-amg-relax-type 16`) for both
 AMG and AMGF. Select the previous l1-Jacobi smoother with
@@ -128,7 +141,7 @@ remain the defaults.
 `-hypre-gpu-aware-mpi` enables HYPRE's runtime GPU-aware communication flag
 after device initialization. Its default is disabled; use
 `-no-hypre-gpu-aware-mpi` to disable it explicitly. The MPI installation must
-accept device buffers. On Tuolumne, `run-contact-bound.sh` automatically sets
+accept device buffers. On Tuolumne, `run-contact.sh` automatically sets
 `MPICH_GPU_SUPPORT_ENABLED=1` when this option is enabled; for other launchers,
 export it explicitly. The existing build links Cray MPICH's HSA GPU transport. MFEM's separate
 GPU-aware MPI setting is controlled by `MFEM_GPU_AWARE_MPI`: leave that
@@ -139,8 +152,8 @@ For HIP execution on an allocated Tuolumne GPU node:
 ```bash
 export MPICH_GPU_SUPPORT_ENABLED=1 HSA_XNACK=0
 unset MFEM_DEVICE MFEM_MEMORY MFEM_GPU_AWARE_MPI
-./run-contact-bound.sh --ranks 4 --cores 24 -- \
-  -prob 0 -sr 0 -pr 1 -nsteps 4 -amgf -amgf-fsolver mumps \
+./run-contact.sh --site lc --ranks 4 --cores 24 -- \
+  -prob 0 -sr 0 -pr 1 -load-steps 4 -amgf -amgf-fsolver mumps \
   -fa -d hip -hypre-gpu-aware-mpi -no-vis -paraview -pl 2
 ```
 
@@ -157,7 +170,7 @@ support used around Tribol. HYPRE 3.0 supports this CUDA configuration.
 For example, from `miniapps/contact`, on one GPU:
 
 ```bash
-mpirun -np 1 ./contact -prob 2 -sr 0 -pr 0 -tr 2 -nsteps 2 \
+./run-contact.sh --site trike --ranks 1 -- -prob 2 -sr 0 -pr 0 -tr 2 -load-steps 2 \
   -lin -fa -d cuda -amgf -amgf-fsolver mumps -no-vis
 ```
 
@@ -182,7 +195,7 @@ The communication layer must support device buffers. For example:
 
 ```bash
 export CUDSS_COMM_LIB=<cudss-prefix>/lib/libcudss_commlayer_openmpi.so
-mpirun -np 1 ./contact -prob 2 -sr 0 -tr 2 -nsteps 2 \
+./run-contact.sh --site trike --ranks 1 -- -prob 2 -sr 0 -tr 2 -load-steps 2 \
   -fa -d cuda -amgf -amgf-fsolver cudss -no-vis
 ```
 

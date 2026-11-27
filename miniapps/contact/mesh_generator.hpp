@@ -27,18 +27,18 @@ Mesh *MakeContactProblemMesh(int id, bool hexahedra,
                              int sphere_angular_cells = -1,
                              int sphere_radial_cells = -1);
 
-enum ContactExampleId { onion = 3, foldedstrip, ring, snapfit, twistedcylinder, twistedstrips };
+enum ContactExampleId { onion = 3, foldedstrip, ring, snapfit, twistedstrips, ropecylinder };
 Mesh *MakeOnionMesh();
 Mesh *MakeFoldedStripMesh();
 Mesh *MakeRingMesh();
 Mesh *MakeSnapFitMesh(bool hexahedra);
-Mesh *MakeTwistedCylinderMesh(real_t length, real_t radius, real_t bow,
-                              int cross_section_cells, int length_cells,
-                              Element::Type type);
 Mesh *MakeTwistingStripsMesh(real_t length, real_t width, real_t thickness,
                              real_t separation, real_t initial_angle,
-                             bool wrap_core, real_t radius, real_t gap,
                              Element::Type type, int axial_cells);
+Mesh *MakeRopeCylinderMesh(real_t cylinder_length, real_t cylinder_radius,
+                           real_t rope_radius, real_t wrap_angle, real_t gap,
+                           int rope_cells, int cylinder_axial_cells,
+                           int cylinder_cross_cells, Element::Type type);
 namespace folded_strip
 {
 constexpr real_t length = 6.0;
@@ -67,22 +67,24 @@ namespace twisted_strips
 {
 constexpr int length_cells = 48;
 constexpr int thickness_cells = 2;
-constexpr int width_cells = 6;
 constexpr int stacked_width_cells = 4;
 constexpr int first_surface = 3;
 constexpr int second_surface = 4;
-constexpr int core_ends = 5;
 constexpr int free_surface = 6;
 }
 
-namespace cylinder_twist
+namespace rope_cylinder
 {
-constexpr int bands = 6;
-constexpr int cells_per_band = 6;
-constexpr int length_cells = bands * cells_per_band;
-constexpr int cross_section_cells = 6;
-constexpr int free_surface = 3;
-constexpr int first_contact_band = 4;
+constexpr real_t axial_fraction = 0.8;
+constexpr int rope_cross_cells = 4;
+constexpr int rope_body = 1;
+constexpr int cylinder_body = 2;
+constexpr int left_grip = 1;
+constexpr int right_grip = 2;
+constexpr int rope_contact = 3;
+constexpr int cylinder_contact = 4;
+constexpr int cylinder_support = 5;
+constexpr int rope_free = 6;
 }
 
 namespace snap_fit
@@ -102,8 +104,6 @@ constexpr int clip_contact = 2;
 constexpr int free_surface = 3;
 constexpr int pin_ends = 4;
 constexpr int pin_contact = 5;
-constexpr int clip_lower_load = 8;
-constexpr int clip_upper_load = 9;
 constexpr int pin_support = 10;
 
 inline real_t Angle(real_t index)

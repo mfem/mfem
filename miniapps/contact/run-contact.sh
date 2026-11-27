@@ -1,18 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Trike uses OpenMPI with CPU/CUDA. LC retains its CPU/Flux and HIP/srun paths;
-# HIP ranks bind GPU 0..3 to their local NUMA domains 0..3.
+# Laptop is the default CPU/OpenMPI launcher. Trike uses CPU/CUDA;
+# LC uses CPU/Flux or HIP/srun with GPU/NUMA affinity.
 contact_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 root=$(cd -- "$contact_dir/../../.." && pwd)
-host=$(hostname -s)
-trike=0
-default_ranks=4
-case $host in
-  trike|trike.*) trike=1; default_ranks=1 ;;
-esac
+site=${CONTACT_SITE:-laptop}
 cores=${CORES_PER_RANK:-}
-ranks=${CONTACT_RANKS:-$default_ranks}
+ranks=${CONTACT_RANKS:-}
 driver=${CONTACT_DRIVER:-contact}
 worker=0
 if [[ ${1:-} == --rank ]]; then
@@ -21,6 +16,14 @@ if [[ ${1:-} == --rank ]]; then
 else
   while (( $# > 0 )); do
     case $1 in
+      --site)
+        if (( $# < 2 )); then
+          echo "--site requires laptop, trike, or lc" >&2
+          exit 2
+        fi
+        site=$2
+        shift 2
+        ;;
       --ranks|-n)
         if (( $# < 2 )); then
           echo "$1 requires a count" >&2
@@ -47,28 +50,64 @@ else
         ;;
       --help)
         cat <<'EOF'
-Usage: ./run-contact-bound.sh [--driver contact|contact_examples] [--ranks N] [--cores N] [--] [CONTACT_OPTIONS...]
+Usage: ./run-contact.sh [--site laptop|trike|lc] [--driver contact|contact_examples] [--ranks N] [--cores N] [--] [CONTACT_OPTIONS...]
 
-On trike: OpenMPI with CPU/CUDA, default 1 rank and 1 core per rank.
+Default site: laptop (or CONTACT_SITE environment variable).
+Laptop: CPU/OpenMPI, default 1 rank; no Linux affinity tools required.
+Trike: OpenMPI with CPU/CUDA, default 1 rank and 1 core per rank.
 CUDA ranks share device 0 in CUDA_VISIBLE_DEVICES (default physical GPU 0).
-On LC: one allocated node, default 4 ranks; CPU uses Flux and HIP uses srun.
+LC: one allocated node, default 4 ranks; CPU uses Flux and HIP uses srun.
 LC HIP runs use 1 to 4 ranks, one GPU per rank, default 4 cores per rank.
---cores sets CPU cores per rank (default 1 for CPU).
+--cores sets cores per rank for Trike/LC; laptop uses MPI's default mapping.
+--ranks N selects the number of MPI processes for every site.
+Driver defaults: zero refinements, CG+AMGF, automatic filtered backend, CPU,
+GLVis and ParaView enabled, print level 2.
+Nonlinear geometry/material updates are enabled automatically, default limit 1.
+-load-steps sets the loading ramp length. contact also accepts -extra-load-steps
+for sliding (0/1) or continued pressure loading (2). The examples are loading-only.
 All contact options are passed through verbatim.
 contact accepts problems 0..2; contact_examples accepts 3..8.
-With no CONTACT_OPTIONS, the saved default case is used.
+With no CONTACT_OPTIONS, the saved default case for the selected site is used.
 On LC, the HYPRE GPU-aware MPI option automatically enables MPICH GPU support.
 
-Examples:
-  ./run-contact-bound.sh
-  # Trike (CUDA):
-  ./run-contact-bound.sh --ranks 1 -- -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4 -amgf -amgf-fsolver mumps -fa -d cuda -no-vis -no-paraview
-  ./run-contact-bound.sh --driver contact_examples --ranks 1 -- -prob 6 -sr 0 -nsteps 32 -msteps 32 -amgf -amgf-fsolver mumps -d cuda -no-vis -paraview
-  # LC (HIP):
-  ./run-contact-bound.sh --ranks 4 -- -prob 2 -sr 1 -pr 0 -tr 2 -nsteps 4 -msteps 0 -amgf -amgf-fsolver strumpack -fa -d hip
-  ./run-contact-bound.sh --ranks 2 --cores 8 -- -prob 2 -sr 1 -d hip
-  ./run-contact-bound.sh --ranks 16 -- -prob 0 -sr 0 -pr 3 -amgf -amgf-fsolver mumps -d cpu
-  ./run-contact-bound.sh -- -h
+Sample runs (laptop defaults; change --ranks to set MPI processes):
+  # 0 - Two blocks: compression
+  ./run-contact.sh --ranks 1 --driver contact -- -prob 0 -load-steps 4 -extra-load-steps 0
+
+  # 1 - Ironing
+  ./run-contact.sh --ranks 1 --driver contact -- -prob 1 -load-steps 4 -extra-load-steps 6
+
+  # 2 - Beam/sphere: nonlinear elasticity
+  ./run-contact.sh --ranks 1 --driver contact -- -prob 2 -nonlin -load-steps 20 -contact-max-updates 1
+
+  # 3 - Nested spherical shells
+  ./run-contact.sh --ranks 1 --driver contact_examples -- -prob 3 -load-steps 4
+
+  # 4 - Folded strip: pressure loading
+  ./run-contact.sh --ranks 1 --driver contact_examples -- -prob 4 -load-steps 20 -contact-max-updates 5
+
+  # 5 - Compressed ring: pressure loading
+  ./run-contact.sh --ranks 1 --driver contact_examples -- -prob 5 -load-steps 20 -contact-max-updates 5
+
+  # 6 - C-clip/elastic pin: insertion and elastic opening
+  ./run-contact.sh --ranks 1 --driver contact_examples -- -prob 6 -load-steps 32 -contact-max-updates 5
+
+  # 7 - Two initially touching elastic strips
+  ./run-contact.sh --ranks 1 --driver contact_examples -- -prob 7 -hex -strip-nx 24 -twist-angle 360 -load-steps 72 -contact-max-updates 5
+
+  # 8 - Rope tightening and squeezing an elastic cylinder
+  ./run-contact.sh --ranks 1 --driver contact_examples -- -prob 8 -tet -load-steps 48 -contact-max-updates 5
+
+Other sites:
+  # Trike (CUDA)
+  ./run-contact.sh --site trike --ranks 1 -- -prob 0 -load-steps 4 -fa -d cuda
+  # LC (HIP)
+  ./run-contact.sh --site lc --ranks 4 -- -prob 2 -load-steps 4 -amgf-fsolver strumpack -fa -d hip
+  # LC (CPU)
+  ./run-contact.sh --site lc --ranks 16 -- -prob 0 -pr 3 -d cpu
+
+Solver option help:
+  ./run-contact.sh -- -h
 EOF
         exit 0
         ;;
@@ -82,27 +121,38 @@ EOF
     esac
   done
 fi
+trike=0
+laptop=0
+case $site in
+  laptop) laptop=1; default_ranks=1 ;;
+  trike) trike=1; default_ranks=1 ;;
+  lc) default_ranks=4 ;;
+  *) echo "--site must be laptop, trike, or lc" >&2; exit 2 ;;
+esac
+ranks=${ranks:-$default_ranks}
 case $driver in
   contact|contact_examples) ;;
   *) echo "--driver must be contact or contact_examples" >&2; exit 2 ;;
 esac
 if (( $# == 0 )); then
+  # Common solver/output defaults are defined in the drivers.
   if [[ $driver == contact_examples ]]; then
-    set -- -prob 8 -sr 0 -pr 0 -strip-nx 4 -twist-angle 360 \
-      -nsteps 36 -msteps 0 -amgf -amgf-fsolver auto -d cpu -no-vis -paraview
+    set -- -prob 7 -strip-nx 4 -twist-angle 360 -load-steps 36 -contact-max-updates 5
+  elif (( laptop )); then
+    set -- -prob 0 -load-steps 4 -extra-load-steps 0
   elif (( trike )); then
-    set -- -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4 -msteps 0 \
-      -amgf -amgf-fsolver mumps -fa -d cuda
+    set -- -prob 0 -tr 2 -load-steps 4 -extra-load-steps 0 \
+      -amgf-fsolver mumps -fa -d cuda
   else
-    set -- -prob 0 -sr 0 -pr 0 -tr 2 -nsteps 4 -msteps 0 \
-      -amgf -amgf-fsolver strumpack -fa -d hip
+    set -- -prob 0 -tr 2 -load-steps 4 -extra-load-steps 0 \
+      -amgf-fsolver strumpack -fa -d hip
   fi
 fi
 
 if (( trike )); then
   export PATH="/usr/local/cuda-13.4/bin:/usr/lib64/openmpi/bin:/opt/rh/gcc-toolset-15/root/usr/bin:$PATH"
   export LD_LIBRARY_PATH="$root/local/slate/lib:$root/local/cudss/lib:/usr/local/cuda-13.4/lib64:/usr/lib64/openmpi/lib:/opt/rh/gcc-toolset-15/root/usr/lib64:/opt/rh/gcc-toolset-15/root/usr/lib:${LD_LIBRARY_PATH:-}"
-else
+elif (( ! laptop )); then
   export LD_LIBRARY_PATH="$root/local/slate-hip/lib:/opt/rocm-7.2.1/lib:/opt/rocm-7.2.1/llvm/lib:/opt/cray/pe/mpich/9.1.0/ofi/amd/7.0/lib:${LD_LIBRARY_PATH:-}"
 fi
 # Determine the actual backend before choosing resources and affinity.
@@ -134,6 +184,14 @@ if (( trike )); then
     *cuda*|*gpu*) backend=cuda ;;
     *) backend=cpu ;;
   esac
+elif (( laptop )); then
+  case $device in
+    *cuda*|*hip*|*gpu*)
+      echo "The laptop launcher uses CPU; use -d cpu" >&2
+      exit 2
+      ;;
+    *) backend=cpu ;;
+  esac
 else
   case $device in
     *cuda*)
@@ -159,12 +217,13 @@ if [[ $backend == cpu ]] && (( hypre_gpu_mpi )); then
   echo "HYPRE GPU-aware MPI requires a GPU backend; omit that option for -d cpu" >&2
   exit 2
 fi
+export CONTACT_SITE=$site
 export CORES_PER_RANK=$cores
 export CONTACT_RANKS=$ranks
 export CONTACT_DRIVER=$driver
 
 # Enabling HYPRE device-buffer communication also requires MPI GPU support.
-if (( ! trike )); then
+if (( ! trike && ! laptop )); then
   if [[ $backend == cpu ]]; then
     export MPICH_GPU_SUPPORT_ENABLED=0
   elif (( hypre_gpu_mpi )); then
@@ -177,6 +236,16 @@ fi
 export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1
 
 cd "$contact_dir"
+
+if (( laptop )); then
+  if (( worker )); then
+    exec "./$driver" "$@"
+  fi
+  # Bash timing works on macOS and Linux without GNU /usr/bin/time flags.
+  TIMEFORMAT='TOTAL_WALL_SECONDS=%3R'
+  time mpirun -np "$ranks" "$contact_dir/run-contact.sh" --rank "$@"
+  exit 0
+fi
 
 if (( worker )); then
   if (( trike )); then
@@ -231,7 +300,7 @@ fi
 if (( trike )); then
   exec /usr/bin/time -f 'TOTAL_WALL_SECONDS=%e exit_status=%x' \
     mpirun -np "$ranks" --map-by "slot:PE=$cores" --bind-to core \
-    "$contact_dir/run-contact-bound.sh" --rank "$@"
+    "$contact_dir/run-contact.sh" --rank "$@"
 fi
 
 if [[ $backend == cpu ]]; then
@@ -240,7 +309,7 @@ if [[ $backend == cpu ]]; then
   exec /usr/bin/time -f 'TOTAL_WALL_SECONDS=%e exit_status=%x' \
     flux run -N 1 -n "$ranks" -c "$cores" \
     -o cpu-affinity=per-task -o gpu-affinity=off -o mpibind=off \
-    "$contact_dir/run-contact-bound.sh" --rank "$@"
+    "$contact_dir/run-contact.sh" --rank "$@"
 fi
 
 # The site's srun is a Flux wrapper. Turn off its affinity plugins so numactl
@@ -248,4 +317,4 @@ fi
 exec /usr/bin/time -f 'TOTAL_WALL_SECONDS=%e exit_status=%x' \
   srun -N 1 -n "$ranks" -c "$cores" --gpus-per-task=1 \
   --gpu-bind=none --cpu-bind=none --mpibind=off \
-  "$contact_dir/run-contact-bound.sh" --rank "$@"
+  "$contact_dir/run-contact.sh" --rank "$@"

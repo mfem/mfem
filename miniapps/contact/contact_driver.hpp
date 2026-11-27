@@ -20,14 +20,14 @@ namespace mfem
 /// Solver, discretization, and output options shared by both contact drivers.
 struct ContactDriverOptions
 {
-   int sref = -1, pref = 0;
-   int nsteps = -1, msteps = -1;
+   int sref = 0, pref = 0;
+   int load_steps = -1, extra_load_steps = 0;
    int opt_maxit = 100, print_level = 2;
-   int contact_max_updates = 10;
+   int contact_max_updates = 1;
    real_t contact_update_tol = 1e-6, tribol_ratio = -1.0;
    bool nonlinear = false, elasticity_fa = false;
    bool allow_inexact_contact_updates = true;
-   bool visualization = true, paraview = false, amgf = false;
+   bool visualization = true, paraview = true, amgf = true;
    const char *amgf_fsolver = "auto", *linear_solver = "cg";
    int amg_coarsen_type = 8, amg_agg_levels = 0;
    int amg_interp_type = 6, amg_relax_type = 16;
@@ -53,7 +53,7 @@ public:
    virtual std::string Name() const = 0;
    /// Short geometry/cell-type name; driver adds a unique UTC timestamp.
    virtual std::string OutputName() const = 0;
-   virtual bool UpdatesGeometry() const { return false; }
+   virtual bool UsesDisplacementBounds() const { return false; }
    virtual real_t MaxCorrection() const { return 0.1; }
    virtual real_t MaxDamping() const { return 1.0; }
    virtual void Initialize(ElasticityOperator &problem) { }

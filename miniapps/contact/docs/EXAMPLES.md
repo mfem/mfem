@@ -2,18 +2,22 @@
 
 Build `contact_examples` and run it from `miniapps/contact`. These examples use
 the same solver and visualization options as the original `contact` driver;
-see [README.md](README.md). The IDs remain 3–8, and the default is problem 8.
+see [README.md](README.md). The launcher defaults to laptop CPU execution;
+select `--site trike` or `--site lc` for those environments. The IDs are
+3–8, and the default is problem 7.
 
 | ID | Example | Element order | Material/load behavior |
 |---|---|---|---|
 | 3 | Nine nested spherical shells | 1 | Linear elasticity; pressure on inner and outer surfaces |
-| 4 | Folded U-strip | 1 | Neo-Hookean; pressure loading/unloading and self-contact |
-| 5 | Compressed ring | 1 | Neo-Hookean; pressure loading/unloading and self-contact |
-| 6 | C-clip over an elastic pin | 1 | Insertion/removal; closing pressure starts halfway through insertion |
-| 7 | Short twisting cylinder | 1 | Opposed end rotations and optional axial shortening |
-| 8 | Twisting elastic strips, or strip around fixed core | 1 | Opposed end rotations, frictionless sliding |
+| 4 | Folded U-strip | 1 | Neo-Hookean; pressure loading and self-contact |
+| 5 | Compressed ring | 1 | Neo-Hookean; pressure loading and self-contact |
+| 6 | C-clip over an elastic pin | 1 | Insertion with elastic opening around the pin |
+| 7 | Two twisting elastic strips | 1 | Opposed end rotations, frictionless sliding |
+| 8 | Rope tightening around an elastic cylinder | 1 | Opposed winding and outward pulling; supported cylinder ends |
 
-All examples use first-order displacement and geometry.
+The examples apply increasing loads.
+All examples use first-order displacement and geometry, with no uniform
+refinement by default. Common solver/output options are listed in [README.md](README.md).
 
 All examples use simulation units. Problems 4–8 always use nonlinear elasticity.
 The model has no tearing/fracture law. Large rotation can still cause mesh
@@ -27,18 +31,17 @@ For a small CPU reference, `-linear-solver mumps` directly solves the full reduc
 Newton system and can be much faster than CG for thin sheets.
 
 ```bash
-OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 mpirun -np 1 ./contact_examples \
-  -prob 8 -two-strips -tet -sr 0 -pr 0 -strip-nx 4 \
-  -twist-angle 360 -nsteps 36 -msteps 0 \
-  -amgf -amgf-fsolver mumps -d cpu -no-vis -paraview -pl 2
+./run-contact.sh --driver contact_examples -- \
+  -prob 7 -tet -strip-nx 4 \
+  -twist-angle 360 -load-steps 36 -contact-max-updates 5
 ```
 
-For the full direct reference, replace `-amgf -amgf-fsolver mumps` with
-`-linear-solver mumps`. To twist twice, use `-twist-angle 720 -nsteps 72`.
+For the full direct reference, add
+`-linear-solver mumps`. To twist twice, use `-twist-angle 720 -load-steps 72`.
 Use `-strip-nx 24` for a finer first-order mesh; omitted axial resolution defaults
 to 48 cells. Strips default to zero serial refinement.
 
-## Twisting elastic strips (8)
+## Twisting elastic strips (7)
 
 Two initially touching elastic strips of length 3, width 0.6, and thickness
 0.02 start flat, stacked face-to-face at z=0. The lower occupies `-0.02 <= z <= 0`, the upper
@@ -48,16 +51,14 @@ Interior nodes deform freely. Contact remains frictionless.
 
 | Option | Default and meaning |
 |---|---|
-| `-two-strips` | Two separate strips (default mode) |
 | `-strip-width`, `-strip-thickness` | 0.6 and 0.02 |
 | `-strip-young-modulus`, `-strip-poisson-ratio` | E=6000, nu=0.3 |
-| `-strip-nx` | Coarse axial cells; defaults to 48, in either mode |
+| `-strip-nx` | Coarse axial cells; defaults to 48 |
 | `-strip-separation` | Centerline distance; defaults to supplied thickness (touching) |
 | `-wrap-angle` | Initial stress-free twist; defaults to 0 for two strips |
 | `-twist-angle` | Added relative end twist; defaults to 360 degrees |
 | `-twist-shortening` | Total symmetric inward grip motion; defaults to 0 |
 | `-twist-length` | Reference length, default 3 |
-| `-msteps` | Additional steps untwisting to the reference shape; default 0 |
 
 Separation below thickness is rejected. A larger separation adds clearance.
 There are two thickness cells and four width cells per strip. `-hex` switches
@@ -82,23 +83,69 @@ self-contact or contact between every possible newly folded edge/back.
 
 A small integrated mortar gap alone does not certify pointwise nonpenetration.
 
-## Elastic strip around a stationary core (8)
+## Rope tightening around an elastic cylinder (8)
 
-`-wrap-core` selects a ribbon wrapped around a fixed radius-0.5 cylinder.
-The reference wrap defaults to 360 degrees, radial clearance to 0.02, and
-added twist to 180 degrees. All core DOFs are fixed. The strip uses the same
-thin material profile, with six width cells; it uses first-order cells.
-`-twist-radius`, `-core-gap`, `-wrap-angle`, and `-strip-nx` control the geometry.
+A round rope starts in a stress-free two-turn helix around a solid cylinder.
+The cylinder has radius 0.5 and length 3; the rope has radius 0.08 and spans
+its middle 80%, with an initial radial clearance of 0.01. Only the cylinder
+end caps are clamped. The rest of the cylinder can indent and compress.
+
+The rope grips rotate in opposite directions to add 90 degrees of winding
+and move axially outward by 0.1 each. Both motions ramp together over 48 load
+steps. Winding and pulling stretch the rope, creating tension and inward
+contact forces on the cylinder. Cylinder deformation comes from the contact
+solve; no prescribed cylinder contraction or external squeezing pressure is
+applied. Contact is frictionless.
+
+Both bodies use Neo-Hookean elasticity. The rope defaults to E=3000 and the
+cylinder to E=1000, both with nu=0.3. This is a solid elastic approximation of
+a rope, without a fiber or braided constitutive model. These defaults aim for
+a modest visible indentation; its magnitude depends on the mesh and solve.
 
 ```bash
-mpirun -np 1 ./contact_examples -prob 8 -wrap-core -tet \
-  -sr 0 -pr 0 -strip-nx 24 -wrap-angle 360 -core-gap 0.02 \
-  -twist-angle 360 -twist-shortening 0.2 -nsteps 72 -msteps 0 \
-  -amgf -amgf-fsolver mumps -d cpu -no-vis -paraview -pl 2
+./run-contact.sh --driver contact_examples -- -prob 8 -tet \
+  -load-steps 48 -contact-max-updates 5
 ```
 
-In core mode boundary 3 is the strip lateral contact surface, 4 the core
-surface, and 5 the fixed core ends. The grip attributes remain 1 and 2.
+| Option | Default and meaning |
+|---|---|
+| `-rope-radius` | Round cross-section radius, 0.08 |
+| `-rope-wrap-angle` | Initial stress-free winding, 720 degrees |
+| `-rope-tighten-angle` | Additional total winding, 90 degrees; each grip rotates by half |
+| `-rope-pull` | Total outward axial grip separation, 0.2 |
+| `-rope-gap` | Initial radial clearance, 0.01 |
+| `-rope-nx` | Cells along the rope centerline, 48 |
+| `-rope-young-modulus`, `-rope-poisson-ratio` | E=3000, nu=0.3 |
+| `-cylinder-radius`, `-cylinder-length` | 0.5 and 3 |
+| `-cylinder-nx`, `-cylinder-nc` | 12 axial cells and 6 cells per cross-section direction |
+| `-cylinder-young-modulus`, `-cylinder-poisson-ratio` | E=1000, nu=0.3 |
+
+Decrease `-cylinder-young-modulus` to 500 for a softer cylinder. Increase
+`-rope-tighten-angle` or `-rope-pull` for stronger tightening. The driver
+reports the maximum inward displacement of cylinder surface nodes and its
+percentage of the reference radius after each accepted step. This measures
+local indentation; it is not a volume-average compression measure.
+
+The rope has 48 cells along its centerline and a 4-by-4 filled cross-section.
+The cylinder has 12 axial and 6-by-6 cross-section cells. Together these give
+1,200 hexes or 7,200 tetrahedra. `-rope-nx`, `-cylinder-nx`, and `-cylinder-nc`
+control the resolutions independently. `-hex` selects hexahedra; tetrahedra are the
+default and share the same first-order geometry. Only the inward-facing half
+of the rope participates in rope/cylinder contact. There is no rope-to-rope
+self-contact; choose the radius and wrap so neighboring turns stay apart.
+
+| Boundary attribute | Meaning |
+|---|---|
+| 1, 2 | Left/right rope grips |
+| 3 | Inward-facing rope surface, mortar |
+| 4 | Cylinder lateral surface, non-mortar |
+| 5 | Supported cylinder end caps |
+| 6 | Free outward-facing rope surface |
+
+Volume attributes 1 and 2 identify the rope and cylinder. ParaView output is
+named `rope_hex_<timestamp>` or `rope_tet_<timestamp>`. Color by volume
+attribute to distinguish the two bodies, and use deformation scale 1 when
+assessing contact and squeezing.
 
 ## Folded U-strip (4)
 
@@ -109,9 +156,8 @@ separate facing arm patches into self-contact. The bend is excluded from the
 contact pair. E=1000, nu=0.3.
 
 ```bash
-mpirun -np 1 ./contact_examples -prob 4 -sr 0 -pr 0 \
-  -u-pressure 0.06 -nsteps 20 -msteps 20 \
-  -amgf -amgf-fsolver mumps -d cpu -no-vis -paraview -pl 2
+./run-contact.sh --driver contact_examples -- -prob 4 \
+  -u-pressure 0.06 -load-steps 20 -contact-max-updates 5
 ```
 
 `-u-pressure` controls maximum pressure. Boundary 1 supports the bend, 2 carries
@@ -127,13 +173,12 @@ brings opposite inner arcs into contact. E=1000, nu=0.3. The coarse mesh has
 analytic circular geometry, including at the periodic seam.
 
 ```bash
-mpirun -np 1 ./contact_examples -prob 5 -sr 0 -pr 0 \
-  -ring-pressure 2.5 -nsteps 20 -msteps 20 \
-  -amgf -amgf-fsolver mumps -d cpu -no-vis -paraview -pl 2
+./run-contact.sh --driver contact_examples -- -prob 5 \
+  -ring-pressure 2.5 -load-steps 20 -contact-max-updates 5
 ```
 
 Boundary 1 is support, 3/4 are contact arcs, 6 carries pressure, and 2 is free.
-`-ring-pressure` controls peak pressure. Positive `-msteps` unloads the ring.
+`-ring-pressure` controls peak pressure.
 
 ## C-clip and elastic pin (6)
 
@@ -143,41 +188,20 @@ The clip has E=1000; the pin defaults to E=500; both use nu=0.3.
 Motion is plane strain across the extrusion. Small central pin end patches
 anchor its axis while the outer cylinder can compress.
 
-At half the default insertion travel, pressure begins closing the clip
-from top to bottom. It ramps to `-clip-pressure` at full default insertion;
-removal reverses the ramp. The default total travel is 1.9 and pressure 40.
+The grip translates the clip over the pin. Contact opens the lips during
+entry, and the clip recovers toward its seated shape as insertion finishes.
+The default total travel is 1.9. No closing pressure is applied.
 
 ```bash
-mpirun -np 1 ./contact_examples -prob 6 -tet -sr 0 -pr 0 \
-  -clip-travel 1.9 -clip-pressure 40 -pin-young-modulus 500 \
-  -nsteps 32 -msteps 32 -amgf -amgf-fsolver mumps \
-  -d cpu -no-vis -paraview -pl 2
+./run-contact.sh --driver contact_examples -- -prob 6 -tet \
+  -clip-travel 1.9 -pin-young-modulus 500 \
+  -load-steps 32 -contact-max-updates 5
 ```
 
 `-hex` selects hex elements; `-tet` is the default. Analytic geometry maps act
 on the chosen first-order nodes. The clip/pin have volume attributes 1/2.
-Boundary 1 is the grip, 2 clip contact, 5 pin contact, 8/9 closing loads,
-and 10 central pin support. Other extrusion/free patches enforce plane strain.
-
-## Twisting cylinder (7)
-
-A filled hex cylinder defaults to length 3 and radius 0.5, with a small
-stress-free bow to select a buckling direction. E=1000, nu=0.3. Left and right
-grips rotate in opposite directions. `-twist-shortening` moves them inward by
-half the supplied total distance each (default total 0.2).
-
-```bash
-mpirun -np 1 ./contact_examples -prob 7 -sr 0 -pr 0 \
-  -twist-length 3 -twist-radius 0.5 -twist-angle 720 \
-  -twist-shortening 0.2 -nsteps 144 -msteps 0 \
-  -amgf -amgf-fsolver mumps -d cpu -no-vis -paraview -pl 2
-```
-
-The coarse mesh has 36 axial and 6-by-6 cross-section cells. Contact pairs are
-selected between separated longitudinal bands, with neighbor bands and patch
-edges excluded. This is a controlled self-contact demonstration, not an
-all-face self-contact detector. Rotation above 360 degrees does not by itself
-guarantee contact; geometry and shortening also matter.
+Boundary 1 is the grip, 2 clip contact, 5 pin contact, and 10 central pin
+support. Other extrusion/free patches enforce plane strain.
 
 ## Onion shells (3)
 
@@ -188,9 +212,8 @@ consecutive shells. Symmetry planes x/y/z=0 fix their normal displacement.
 Equal pressure loads the innermost and outermost surfaces.
 
 ```bash
-mpirun -np 1 ./contact_examples -prob 3 -sr 0 -pr 0 \
-  -nsteps 4 -msteps 0 -amgf -amgf-fsolver mumps \
-  -d cpu -no-vis -paraview -pl 2
+./run-contact.sh --driver contact_examples -- -prob 3 \
+  -load-steps 4
 ```
 
 The shell generator sets first-order nodes on the intended spherical/radial
@@ -204,8 +227,9 @@ Open the `.pvd` in a timestamped directory such as
 recipe](README.md#paraview); threshold bodies before cleaning duplicated points.
 Do not apply another displacement warp.
 
-The geometry-update limit defaults to **10**. A converged IP result at that
-limit is accepted and reported as **inexact**. Use
+Nonlinear problems enable geometry/material updates automatically. The driver
+limit defaults to **1**; the sample commands use **5**. A converged IP result
+at the update limit is accepted and reported as **inexact**. Use
 `-require-converged-contact-updates` to fail at that limit, or change
 `-contact-max-updates` and `-contact-update-tol`. An IP failure still stops the
 run. Integrated mortar feasibility can coexist with local surface overlap;

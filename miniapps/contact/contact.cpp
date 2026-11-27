@@ -10,7 +10,7 @@
 // CONTRIBUTING.md for details.
 
 // Contact problems: 0 two-block, 1 ironing, 2 beam-sphere.
-// Build: make contact. Run: mpirun -np 1 ./contact -prob 0 -sr 0 -no-vis.
+// Build: make contact. Run: ./run-contact.sh -- -prob 0 -sr 0 -no-vis.
 // See docs/README.md for solver options, first-order geometry, and visualization.
 #include "contact_driver.hpp"
 #include "mesh_generator.hpp"
@@ -32,6 +32,10 @@ public:
    {
       args.AddOption(&id, "-prob", "--problem-number",
                      "Contact problem: 0 two-block, 1 ironing, 2 beam-sphere.");
+      args.AddOption(&opts.extra_load_steps, "-extra-load-steps",
+                     "--extra-load-steps",
+                     "Extra load increments: lateral sliding for problems 0/1, "
+                     "continued pressure loading beyond the initial ramp for problem 2 (default 0).");
       args.AddOption(&hex_mesh, "-hex", "--hexahedra", "-tet", "--tetrahedra",
                      "Generated problem elements: default hexes for 0/1, tets for 2.");
       args.AddOption(&beam_cross_cells, "-beam-nc", "--beam-cross-cells",
@@ -53,9 +57,7 @@ public:
       if (!ContactOptionSupplied(argc, argv,
    {"-hex", "--hexahedra", "-tet", "--tetrahedra"}))
       { hex_mesh = id != beamsphere; }
-      if (opts.sref == -1) { opts.sref = 1; }
-      if (opts.nsteps == -1) { opts.nsteps = 1; }
-      if (opts.msteps == -1) { opts.msteps = 0; }
+      if (opts.load_steps == -1) { opts.load_steps = 1; }
       if (opts.tribol_ratio == -1) { opts.tribol_ratio = 8; }
       for (int cells :
            {
@@ -78,6 +80,7 @@ public:
                                       id, hex_mesh, beam_cross_cells, beam_axial_cells,
                                       sphere_angular_cells, sphere_radial_cells));
    }
+   bool UsesDisplacementBounds() const override { return id == beamsphere; }
    std::string Name() const override
    { return id == twoblock ? "Two-block" : id == ironing ? "Ironing" : "Beam-sphere"; }
    std::string OutputName() const override
@@ -121,7 +124,10 @@ public:
             contact_interfaces.push_back({{3}, {4}});
             break;
          case beamsphere:
-            contact_interfaces.push_back({{6, 9}, {7, 8}});
+            // Keep the beam/outer-shell and insert/inner-shell interfaces
+            // independent so Tribol cannot pair faces across shell thickness.
+            contact_interfaces.push_back({{6}, {7}});
+            contact_interfaces.push_back({{9}, {8}});
             break;
          default:
             MFEM_ABORT("Should be unreachable");
@@ -145,13 +151,13 @@ public:
             {
                ess_bdr = 0; ess_bdr[5] = 1;
             }
-            if (i < opts.nsteps)
+            if (i < opts.load_steps)
             {
-               ess_values[2] = -1.0/1.4*(i+1)/opts.nsteps;
+               ess_values[2] = -1.0/1.4*(i+1)/opts.load_steps;
             }
             else
             {
-               ess_values[0] = 3.0/1.4*(i+1-opts.nsteps)/opts.msteps;
+               ess_values[0] = 3.0/1.4*(i+1-opts.load_steps)/opts.extra_load_steps;
                ess_values[2] = -1.0/1.4;
             }
             prob.SetDisplacementDirichletData(ess_values, ess_bdr);
@@ -161,7 +167,7 @@ public:
             {
                ess_bdr = 0; ess_bdr[2] = 1;
             }
-            f.constant = -p*(i+1)/opts.nsteps;
+            f.constant = -p*(i+1)/opts.load_steps;
             prob.SetNeumannPressureData(f,ess_bdr);
             break;
          default:

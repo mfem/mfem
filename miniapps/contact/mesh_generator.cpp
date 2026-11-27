@@ -195,13 +195,15 @@ Mesh *MakeContactProblemMesh(int prob_name, bool hexahedra,
             case 2: attr = 2; break; // y=0 symmetry
             case 4: attr = 5; break; // fixed beam end, y=2.5
             case 5: attr = 1; break; // x=0 symmetry
-            default:
+            case 6: // lower outer arc of the quarter-ellipse cross-section
             {
                real_t y = 0;
                for (int v = 0; v < boundary.GetNVertices(); v++)
                { y += beam->GetVertex(boundary.GetVertices()[v])[1]; }
                attr = y/boundary.GetNVertices() < 1.25 ? 6 : 11;
+               break;
             }
+            default: attr = 11; break; // upper outer arc remains a free surface
          }
          beam->SetBdrAttribute(b,attr);
       }
@@ -350,41 +352,18 @@ Mesh *MakeContactProblemMesh(int prob_name, bool hexahedra,
 
 Mesh * MakeTwistingStripsMesh(real_t length, real_t width, real_t thickness,
                               real_t separation, real_t initial_angle,
-                              bool wrap_core, real_t core_radius, real_t core_gap,
                               Element::Type element_type, int strip_length_cells)
 {
    std::array<std::unique_ptr<Mesh>, 2> bodies;
    const real_t reference_angle = initial_angle * (M_PI/180.0);
-   const int length_cells = strip_length_cells;
-   const int width_cells = wrap_core ? twisted_strips::width_cells :
-                           twisted_strips::stacked_width_cells;
    for (int body = 0; body < 2; body++)
    {
-      if (wrap_core && body == 1)
-      {
-         bodies[body].reset(MakeTwistedCylinderMesh(length, core_radius, 0.0,
-                                                    12, strip_length_cells,
-                                                    element_type));
-         Mesh &core = *bodies[body];
-         for (int i = 0; i < core.GetNE(); i++)
-         {
-            core.GetElement(i)->SetAttribute(2);
-         }
-         for (int i = 0; i < core.GetNBE(); i++)
-         {
-            const int attr = core.GetBdrElement(i)->GetAttribute();
-            core.SetBdrAttribute(i, attr == twist::left_end || attr == twist::right_end ?
-                                 twisted_strips::core_ends : twisted_strips::second_surface);
-         }
-         core.SetAttributes();
-         continue;
-      }
       bodies[body] = std::make_unique<Mesh>(Mesh::MakeCartesian3D(
-                                               length_cells,
+                                               strip_length_cells,
                                                twisted_strips::thickness_cells,
-                                               width_cells,
+                                               twisted_strips::stacked_width_cells,
                                                element_type,
-                                               real_t(length_cells),
+                                               real_t(strip_length_cells),
                                                thickness, width));
       Mesh &mesh = *bodies[body];
       for (int i = 0; i < mesh.GetNE(); i++)
@@ -395,30 +374,25 @@ Mesh * MakeTwistingStripsMesh(real_t length, real_t width, real_t thickness,
       {
          const int original_attr = mesh.GetBdrElement(i)->GetAttribute();
          // Only the facing broad surfaces form the strip-to-strip interface.
-         // Including the opposite backs creates false negative mortar gaps
-         // through the solid thickness, even for flat touching strips.
+         // Opposite backs would produce false gaps through the thickness.
          const bool facing = body == 0 ? original_attr == 4 : original_attr == 2;
          const int attr = original_attr == 5 ? twist::left_end :
                           original_attr == 3 ? twist::right_end :
-                          wrap_core || facing ? twisted_strips::first_surface + body :
+                          facing ? twisted_strips::first_surface + body :
                           twisted_strips::free_surface;
          mesh.SetBdrAttribute(i, attr);
       }
       mesh.SetAttributes();
-      const real_t offset = wrap_core ? -(core_radius + thickness/2 + core_gap) :
-                            (body == 0 ? -0.5 : 0.5) * separation;
+      const real_t offset = (body == 0 ? -0.5 : 0.5) * separation;
       auto ribbon_map = [=](const Vector &logical, Vector &physical)
       {
-         const real_t fraction = logical[0] / length_cells;
+         const real_t fraction = logical[0] / strip_length_cells;
          const real_t angle = reference_angle * (fraction - 0.5);
          const real_t cosine = std::cos(angle), sine = std::sin(angle);
-         // In two-strip mode width lies along y and thickness along z:
-         // body 1 is below body 2, with independent coincident faces at z=0.
-         // The sign on width preserves the Cartesian mesh orientation.
-         const real_t y = wrap_core ? offset + logical[1] - thickness/2 :
-                          width/2 - logical[2];
-         const real_t z = wrap_core ? logical[2] - width/2 :
-                          offset + logical[1] - thickness/2;
+         // Width lies along y and thickness along z. The sign on width
+         // preserves the Cartesian orientation; the facing surfaces meet at z=0.
+         const real_t y = width/2 - logical[2];
+         const real_t z = offset + logical[1] - thickness/2;
          physical.SetSize(3);
          physical[0] = length * fraction;
          physical[1] = cosine*y - sine*z;
@@ -430,58 +404,92 @@ Mesh * MakeTwistingStripsMesh(real_t length, real_t width, real_t thickness,
    return new Mesh(parts, 2);
 }
 
-// A solid cylinder with disjoint contact bands and a small stress-free bow to
-// select a buckling direction when the ends move toward each other.
-Mesh * MakeTwistedCylinderMesh(real_t length, real_t radius, real_t initial_bow,
-                               int cross_section_cells, int length_cells,
-                               Element::Type element_type)
+Mesh *MakeRopeCylinderMesh(real_t cylinder_length, real_t cylinder_radius,
+                           real_t rope_radius, real_t wrap_angle, real_t gap,
+                           int rope_cells, int cylinder_axial_cells,
+                           int cylinder_cross_cells, Element::Type element_type)
 {
-   auto mesh = std::make_unique<Mesh>(Mesh::MakeCartesian3D(
-                                         length_cells, cross_section_cells,
-                                         cross_section_cells,
-                                         element_type,
-                                         real_t(length_cells),
-                                         2.0, 2.0));
-   for (int i = 0; i < mesh->GetNBE(); i++)
+   const real_t span = rope_cylinder::axial_fraction * cylinder_length;
+   const real_t margin = (cylinder_length - span)/2;
+   const real_t winding = wrap_angle * (M_PI/180.0);
+   const real_t center_radius = cylinder_radius + rope_radius + gap;
+   const real_t speed = std::hypot(span, center_radius*winding);
+   // Start with hexes, then split if requested. Both choices have the same
+   // first-order geometry and boundary patches.
+   auto rope = std::make_unique<Mesh>(Mesh::MakeCartesian3D(
+                                         rope_cells, rope_cylinder::rope_cross_cells,
+                                         rope_cylinder::rope_cross_cells,
+                                         Element::HEXAHEDRON, 1.0, 2.0, 2.0));
+   for (int i = 0; i < rope->GetNE(); i++)
    {
-      const Element &face = *mesh->GetBdrElement(i);
-      int attr = cylinder_twist::free_surface;
-      if (face.GetAttribute() == 5) { attr = twist::left_end; }
-      else if (face.GetAttribute() == 3) { attr = twist::right_end; }
+      rope->GetElement(i)->SetAttribute(rope_cylinder::rope_body);
+   }
+   for (int i = 0; i < rope->GetNBE(); i++)
+   {
+      const Element &face = *rope->GetBdrElement(i);
+      int attr = rope_cylinder::rope_free;
+      if (face.GetAttribute() == 5) { attr = rope_cylinder::left_grip; }
+      else if (face.GetAttribute() == 3) { attr = rope_cylinder::right_grip; }
       else
       {
-         real_t path = 0.0;
+         real_t radial_coordinate = 0;
          for (int j = 0; j < face.GetNVertices(); j++)
          {
-            path += mesh->GetVertex(face.GetVertices()[j])[0];
+            radial_coordinate += rope->GetVertex(face.GetVertices()[j])[1] - 1;
          }
-         const int cell = static_cast<int>(path / face.GetNVertices());
-         const int band_cell = cell % cylinder_twist::cells_per_band;
-         // Leave a cell at both ends of each band outside contact. Refined
-         // children inherit these markers, preserving the separation.
-         if (band_cell > 0 && band_cell < cylinder_twist::cells_per_band - 1)
-         {
-            attr = cylinder_twist::first_contact_band +
-                   cell / cylinder_twist::cells_per_band;
-         }
+         // Only the inward-facing half of the rope is registered. Its back
+         // must not form gaps through the solid rope cross-section.
+         if (radial_coordinate < 0) { attr = rope_cylinder::rope_contact; }
       }
-      mesh->SetBdrAttribute(i, attr);
+      rope->SetBdrAttribute(i, attr);
    }
-   mesh->SetAttributes();
+   rope->SetAttributes();
+   auto rope_map = [=](const Vector &logical, Vector &physical)
+   {
+      const real_t s = logical[0], theta = winding*(s - 0.5);
+      const real_t cosine = std::cos(theta), sine = std::sin(theta);
+      const real_t u = logical[1] - 1, v = logical[2] - 1;
+      const real_t radial = rope_radius*u*std::sqrt(1 - v*v/2);
+      const real_t binormal = rope_radius*v*std::sqrt(1 - u*u/2);
+      // The radial normal and tangent-cross-normal give an orthonormal
+      // circular cross-section perpendicular to the helical centerline.
+      physical.SetSize(3);
+      physical[0] = margin + span*s - binormal*center_radius*winding/speed;
+      physical[1] = (center_radius + radial)*cosine - binormal*span*sine/speed;
+      physical[2] = (center_radius + radial)*sine + binormal*span*cosine/speed;
+   };
+   TransformContactMesh(*rope, rope_map);
+
+   auto cylinder = std::make_unique<Mesh>(Mesh::MakeCartesian3D(
+                                             cylinder_axial_cells,
+                                             cylinder_cross_cells,
+                                             cylinder_cross_cells,
+                                             Element::HEXAHEDRON,
+                                             cylinder_length, 2.0, 2.0));
+   for (int i = 0; i < cylinder->GetNE(); i++)
+   {
+      cylinder->GetElement(i)->SetAttribute(rope_cylinder::cylinder_body);
+   }
+   for (int i = 0; i < cylinder->GetNBE(); i++)
+   {
+      const int attr = cylinder->GetBdrElement(i)->GetAttribute();
+      cylinder->SetBdrAttribute(i, attr == 5 || attr == 3 ?
+                                rope_cylinder::cylinder_support : rope_cylinder::cylinder_contact);
+   }
+   cylinder->SetAttributes();
    auto cylinder_map = [=](const Vector &logical, Vector &physical)
    {
-      const real_t fraction = logical[0] / length_cells;
-      const real_t bow = std::sin(M_PI * fraction);
-      const real_t y = logical[1] - 1.0, z = logical[2] - 1.0;
+      const real_t y = logical[1] - 1, z = logical[2] - 1;
       physical.SetSize(3);
-      physical[0] = length * fraction;
-      // Map the square cross-section into a disk with a filled hex core.
-      physical[1] = radius * y * std::sqrt(1.0 - z*z/2);
-      physical[2] = radius * z * std::sqrt(1.0 - y*y/2) +
-                    initial_bow * bow * bow;
+      physical[0] = logical[0];
+      physical[1] = cylinder_radius*y*std::sqrt(1 - z*z/2);
+      physical[2] = cylinder_radius*z*std::sqrt(1 - y*y/2);
    };
-   TransformContactMesh(*mesh, cylinder_map);
-   return mesh.release();
+   TransformContactMesh(*cylinder, cylinder_map);
+   Mesh *parts[] = {rope.get(), cylinder.get()};
+   auto combined = std::make_unique<Mesh>(parts, 2);
+   if (element_type == Element::HEXAHEDRON) { return combined.release(); }
+   return new Mesh(Mesh::MakeSimplicial(*combined));
 }
 
 void twist::PredictMotion(const ParGridFunction &reference,
@@ -692,14 +700,6 @@ Mesh * MakeSnapFitMesh(bool hexahedra)
          if (std::abs(path - angular_cells/2) < 2.0)
          {
             attr = snap_fit::grip;
-         }
-         if (std::abs(theta - M_PI/2) < M_PI/9)
-         {
-            attr = snap_fit::clip_lower_load;
-         }
-         if (std::abs(theta - 3*M_PI/2) < M_PI/9)
-         {
-            attr = snap_fit::clip_upper_load;
          }
       }
       clip->SetBdrAttribute(i, attr);

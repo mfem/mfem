@@ -7,7 +7,7 @@ and contact elements.
 | Executable | Problems |
 |---|---|
 | `contact` | 0 two-block, 1 ironing, 2 beam/sphere |
-| `contact_examples` | 3 onion shells, 4 folded strip, 5 ring, 6 C-clip/pin, 7 twisting cylinder, 8 twisting elastic strips |
+| `contact_examples` | 3 onion shells, 4 folded strip, 5 ring, 6 C-clip/pin, 7 twisting elastic strips, 8 rope/cylinder tightening |
 
 Problem geometry, materials, and loading for cases 3–8 are described in
 [EXAMPLES.md](EXAMPLES.md).
@@ -19,12 +19,15 @@ An MFEM build with MPI and Tribol is required. Run from `miniapps/contact`:
 ```bash
 make -j12 contact contact_examples
 
-OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 mpirun -np 1 ./contact \
-  -prob 0 -hex -sr 0 -pr 0 -nsteps 4 -msteps 0 \
-  -amgf -amgf-fsolver auto -d cpu -no-vis -paraview -pl 2
+./run-contact.sh --driver contact -- \
+  -prob 0 -load-steps 4 -extra-load-steps 0
 ```
 
-Use `./contact -h` or `./contact_examples -h` for all options.
+The launcher defaults to laptop CPU execution with one MPI rank. Use
+`--ranks N` to choose the number of MPI processes. Select `--site trike` or
+`--site lc` for those environments. Use `./run-contact.sh --help` for
+launcher options and sample runs, and `./contact -h` or `./contact_examples -h`
+for solver options.
 See [BUILD.md](BUILD.md) for dependencies, CUDA/HIP setup, and launch
 instructions.
 
@@ -33,27 +36,40 @@ instructions.
 Problems 0–2 generate their meshes. `-hex` and `-tet` select the cell type;
 problems 0/1 default to hexes and problem 2 to tets.
 Generated beam/sphere resolution is controlled by `-beam-nc`, `-beam-ny`,
-`-sphere-n`, and `-sphere-nr`.
+`-sphere-n`, and `-sphere-nr`. Beam/sphere contact uses two independent
+interfaces: the beam against the outer shell, and the insert against the
+shell's inner surface. Only the beam's lower outer arc is a contact boundary.
 
-`-nsteps` controls loading. `-msteps` adds lateral sliding for problems 0/1,
-continues the pressure ramp for problem 2, and controls unloading for problems
-4–8. Problems 0/1 use linear elasticity; problem 2 supports `-nonlin`.
+`-load-steps` controls the loading ramp. The `contact` driver also accepts
+`-extra-load-steps`: lateral sliding for problems 0/1 or continued pressure
+loading beyond the initial ramp for problem 2. Problems 3–8 are loading-only.
+Problems 0/1 use linear elasticity; problem 2 supports `-nonlin`.
 The additional examples use the material models listed in EXAMPLES.md.
 
 ## Common options
 
+Defaults are zero refinements, CG with AMGF, automatic filtered-backend selection,
+CPU execution, GLVis and ParaView output, and print level 2. The automatic backend
+uses MUMPS when available on CPU. Use `-no-vis` for runs without GLVis.
+
 | Option | Meaning |
 |---|---|
-| `-sr N`, `-pr N` | Serial and parallel uniform refinements |
-| `-amgf`, `-no-amgf` | CG with contact-subspace filtering or ordinary AMG (default) |
+| `-load-steps N` | Load increments in the initial ramp |
+| `-extra-load-steps N` | Additional sliding (0/1) or pressure-loading (2) increments; `contact` only, default 0 |
+| `-sr N`, `-pr N` | Serial and parallel uniform refinements; both default to 0 |
+| `-amgf`, `-no-amgf` | CG with contact-subspace filtering (default) or ordinary AMG |
 | `-amgf-fsolver auto` | Select an available direct solver for the filtered subspace |
 | `-linear-solver cg` | Reduced-system solver; a direct backend such as `mumps` can also be selected |
 | `-opt-maxit N` | IP iteration limit per solve |
-| `-contact-max-updates N` | Geometry/material update limit, default 10 |
+| `-contact-max-updates N` | Geometry/material update limit for nonlinear problems, default 1 |
 | `-d cpu`, `-d cuda`, `-d hip` | MFEM device backend |
-| `-vis`, `-no-vis` | Enable or disable GLVis |
-| `-paraview`, `-no-paraview` | Enable or disable saved visualization |
+| `-vis`, `-no-vis` | Enable or disable GLVis; enabled by default |
+| `-paraview`, `-no-paraview` | Enable or disable saved visualization; enabled by default |
 | `-pl 0/1/2/3` | Silent / summary / solver tables / debug output |
+
+Every nonlinear problem enables geometry/material updates, including problem 2
+with `-nonlin`. The default limit is 1; launcher samples use 5 for problems 4–8
+and 1 for nonlinear problem 2. Linear problems use one contact solve per load step.
 
 AMGF falls back to ordinary AMG when the global contact subspace is empty.
 A converged IP solution at the geometry-update limit is accepted and reported

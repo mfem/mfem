@@ -53,8 +53,8 @@ int mfem::RunContactDriver(int argc, char *argv[],
    const int myid = Mpi::WorldRank(), num_procs = Mpi::WorldSize();
    auto &sref = options.sref;
    auto &pref = options.pref;
-   auto &nsteps = options.nsteps;
-   auto &msteps = options.msteps;
+   auto &load_steps = options.load_steps;
+   auto &extra_load_steps = options.extra_load_steps;
    auto &opt_maxit = options.opt_maxit;
    auto &print_level = options.print_level;
    auto &contact_max_updates = options.contact_max_updates;
@@ -81,19 +81,17 @@ int mfem::RunContactDriver(int argc, char *argv[],
                   "--linear",
                   "Elasticity model (nonlinear for beam-sphere; fixed by the other problems).");
    args.AddOption(&sref, "-sr", "--serial-refinements",
-                  "Serial uniform refinements (default 0 for strips, 1 otherwise).");
+                  "Serial uniform refinements (default 0).");
    args.AddOption(&opt_maxit, "-opt-maxit", "--optimizer-max-iterations",
                   "Maximum number of iterations for the optimizer.");
    args.AddOption(&print_level, "-pl", "--print-level",
                   "Output level: 0 = silent, 1 = final IP summary only, "
                   "2 = solver tables/results (default), 3 = debug diagnostics.");
-   args.AddOption(&nsteps, "-nsteps", "--nsteps",
-                  "Number of steps.");
-   args.AddOption(&msteps, "-msteps", "--msteps",
-                  "Number of additional load steps (sliding or unloading, problem-dependent).");
+   args.AddOption(&load_steps, "-load-steps", "--load-steps",
+                  "Number of load increments.");
    args.AddOption(&contact_max_updates, "-contact-max-updates",
                   "--contact-max-updates",
-                  "Maximum geometry/material updates per nonlinear contact load step (default 10).");
+                  "Maximum geometry/material updates per nonlinear contact load step (default 1).");
    args.AddOption(&contact_update_tol, "-contact-update-tol",
                   "--contact-update-tolerance",
                   "Absolute displacement tolerance for nonlinear contact updates.");
@@ -154,7 +152,7 @@ int mfem::RunContactDriver(int argc, char *argv[],
       return args.Help() ? 0 : 1;
    }
    if (!scenario.ResolveOptions(argc, argv)) { return 1; }
-   if (sref < 0 || pref < 0 || nsteps < 1 || msteps < 0 ||
+   if (sref < 0 || pref < 0 || load_steps < 1 || extra_load_steps < 0 ||
        opt_maxit < 1 || print_level < 0 || print_level > 3 ||
        contact_max_updates < 1 || !IsFinite(contact_update_tol) ||
        contact_update_tol <= 0.0 || !IsFinite(tribol_ratio) || tribol_ratio <= 0.0)
@@ -177,7 +175,7 @@ int mfem::RunContactDriver(int argc, char *argv[],
       if (myid == 0) { mfem::err << "Unknown linear solver: " << linear_solver_name << '\n'; }
       return 1;
    }
-   const bool update_geometry = scenario.UpdatesGeometry();
+   const bool update_geometry = nonlinear;
    if (print_level < 2)
    {
       mfem::out.Disable();
@@ -214,11 +212,9 @@ int mfem::RunContactDriver(int argc, char *argv[],
            << endl;
    }
 
-   // Bound constraints are used only for the non-linear case
-   // (activated later after a few load steps).
-   // Self-contact uses repeated geometry updates rather than the beam-sphere's
-   // displacement bounds, which would impede unloading/contact release.
-   bool bound_constraints = nonlinear && !update_geometry;
+   // Displacement bounds are problem-specific and independent of the
+   // geometry/material refresh loop used by every nonlinear problem.
+   const bool bound_constraints = nonlinear && scenario.UsesDisplacementBounds();
 
 
    // 2. Get the problem mesh.
@@ -394,7 +390,7 @@ int mfem::RunContactDriver(int argc, char *argv[],
    }
 
    // 9. Time/load stepping loop.
-   int total_steps = nsteps + msteps;
+   int total_steps = load_steps + extra_load_steps;
    std::vector<IPSolveSummary> solve_results;
    for (int i = 0; i<total_steps; i++)
    {
@@ -414,6 +410,7 @@ int mfem::RunContactDriver(int argc, char *argv[],
       Vector xref;
       xref.UseDevice(true);
       x_gf.GetTrueDofs(xref);
+      Vector load_start(xref); load_start.UseDevice(true);
       const real_t nonlinear_initial_energy = update_geometry ?
                                               prob.GetEnergy(xref) : 0.0;
 
@@ -593,8 +590,9 @@ int mfem::RunContactDriver(int argc, char *argv[],
          return 2;
       }
 
-      // Update internal state for next step (for bound constraints).
-      Vector dx(xf); dx.UseDevice(true); dx -= x0;
+      // Update bounds using the total load-step displacement, including all
+      // geometry corrections rather than only the last quadratic subproblem.
+      Vector dx(xf); dx.UseDevice(true); dx -= load_start;
       if (bound_constraints)
       {
          contact.SetDisplacement(dx, (i>=activation_step));
