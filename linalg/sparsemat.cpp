@@ -47,14 +47,14 @@
 #endif // defined(MFEM_USE_CUDA)
 
 #ifdef MFEM_USE_CUDA_OR_HIP
-#define MFEM_CHECK_SPARSE(call)                                          \
+#define MFEM_CHECK_SPARSE(call)                                             \
    do {                                                                     \
-      auto sparse_status = (call);                                         \
-      if (sparse_status != MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS))          \
-      {                                                                    \
+      auto sparse_status = (call);                                          \
+      if (sparse_status != MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS))           \
+      {                                                                     \
          MFEM_VERIFY(sparse_status == MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS),\
                      MFEM_cu_or_hip(sparseGetErrorString)(sparse_status));  \
-      }                                                                    \
+      }                                                                     \
    } while (0)
 #endif // MFEM_USE_CUDA_OR_HIP
 
