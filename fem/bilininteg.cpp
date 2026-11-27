@@ -1074,7 +1074,7 @@ void DiffusionIntegrator::AssembleElementMatrix2(
       {
          VQ->Eval(D, Trans, ip);
          D *= w;
-         AddMultADAt(dshapedxt, D, elmat);
+         AddMultADBt(te_dshapedxt, D, dshapedxt, elmat);
       }
       else
       {
