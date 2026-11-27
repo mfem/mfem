@@ -43,7 +43,7 @@ void PANonlinearFormExtension::SetupRestrictionOperators()
 {
    if (DeviceCanUseCeed()) { return; }
    ElementDofOrdering ordering = GetEVectorOrdering(fes);
-   elemR = const_cast<FiniteElementSpace&>(fes).GetElementRestriction(ordering);
+   elemR = fes.GetElementRestriction(ordering);
    if (elemR)
    {
       xe.SetSize(elemR->Height(), Device::GetMemoryType());
