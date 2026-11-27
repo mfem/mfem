@@ -29,6 +29,41 @@ if(MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 
 endif (MFEM_USE_MPI AND MFEM_USE_DOUBLE)
 
+if (MFEM_USE_MPI AND MFEM_USE_DOUBLE AND MFEM_USE_LAPACK AND MFEM_USE_ALGOIM)
+  add_mfem_miniapp(cut_diffusion_parallel
+    MAIN cut_diffusion_parallel.cpp
+    EXTRA_SOURCES
+    EXTRA_HEADERS
+    LIBRARIES mfem)
+  if (MFEM_ENABLE_TESTING)
+    add_test(NAME cut_diffusion_classical_kernel
+      COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 1 ${MPIEXEC_PREFLAGS}
+      $<TARGET_FILE:cut_diffusion_parallel> --self-test ${MPIEXEC_POSTFLAGS})
+    set_tests_properties(cut_diffusion_classical_kernel PROPERTIES
+      LABELS "cut-diffusion;ghost-penalty" TIMEOUT 120 PROCESSORS 1)
+    foreach(dimension 2 3)
+      add_test(NAME cut_diffusion_cg_${dimension}d
+        COMMAND ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 2 ${MPIEXEC_PREFLAGS}
+        $<TARGET_FILE:cut_diffusion_parallel> --dimension ${dimension}
+        --elements 4 --problem patch --solver cg ${MPIEXEC_POSTFLAGS})
+      set_tests_properties(cut_diffusion_cg_${dimension}d PROPERTIES
+        LABELS "cut-diffusion;ghost-penalty" TIMEOUT 180 PROCESSORS 2)
+    endforeach()
+    find_program(CUT_DIFFUSION_PYTHON NAMES python3)
+    if (CUT_DIFFUSION_PYTHON AND MFEM_USE_MUMPS)
+      add_test(NAME cut_diffusion_regression
+        COMMAND ${CUT_DIFFUSION_PYTHON}
+        ${CMAKE_CURRENT_SOURCE_DIR}/cut_diffusion_tests.py
+        --executable $<TARGET_FILE:cut_diffusion_parallel>
+        --mpiexec=${MPIEXEC} --numproc-flag=${MPIEXEC_NUMPROC_FLAG}
+        "--preflags=${MPIEXEC_PREFLAGS}" "--postflags=${MPIEXEC_POSTFLAGS}"
+        --output-dir ${CMAKE_CURRENT_BINARY_DIR}/cut-diffusion-tests)
+      set_tests_properties(cut_diffusion_regression PROPERTIES
+        LABELS "cut-diffusion;ghost-penalty" TIMEOUT 900 PROCESSORS 4)
+    endif()
+  endif()
+endif()
+
 if (MFEM_USE_LAPACK)
   add_mfem_miniapp(projection_ghost_penalty_serial
     MAIN projection_ghost_penalty_serial.cpp
