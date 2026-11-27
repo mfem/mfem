@@ -1,0 +1,474 @@
+// Copyright (c) 2010-2026, Lawrence Livermore National Security, LLC. Produced
+// at the Lawrence Livermore National Laboratory. All Rights reserved. See files
+// LICENSE and NOTICE for details. LLNL-CODE-806117.
+//
+// This file is part of the MFEM library. For more information and source code
+// availability visit https://mfem.org.
+//
+// MFEM is free software; you can redistribute it and/or modify it under the
+// terms of the BSD-3 license. We welcome feedback and contributions, see file
+// CONTRIBUTING.md for details.
+#pragma once
+
+#include "../../integrator_ctx.hpp"
+
+#include "kernels.hpp"
+#include "util.hpp"
+
+#include <array>
+
+namespace mfem::future::LocalQFImpl
+{
+
+// Cached Jacobian apply: J·v from qp_cache filled by DerivativeSetup
+
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t,
+         typename entity_t>
+class DerivativeApply
+{
+   static constexpr auto inout_tuple =
+   merge_mfem_tuples_as_empty_std_tuple(inputs_t {}, outputs_t{});
+   static constexpr auto filtered_inout_tuple = filter_fields(inout_tuple);
+   static constexpr size_t nfields =
+      count_unique_field_ids(filtered_inout_tuple);
+
+   using qf_signature = typename get_function_signature<qfunc_t>::type;
+   using qf_param_ts = typename qf_signature::parameter_ts;
+   using args_tuple_t = decay_tuple<qf_param_ts>;
+
+   static constexpr std::size_t n_inputs = tuple_size<inputs_t>::value;
+   static constexpr std::size_t n_outputs = tuple_size<outputs_t>::value;
+   static_assert(n_inputs + n_outputs == tuple_size<qf_param_ts>::value,
+                 "LocalQF: q-function arity must match inputs + outputs");
+
+   using Layout = QpCacheLayout<derivative_id, qfunc_t, inputs_t, outputs_t>;
+
+   const inputs_t inputs;
+   const outputs_t outputs;
+   const IntegratorContext<entity_t> ctx;
+   const Vector &qp_cache;
+   // inputs/outputs: dtq, idx, B, G, d1d, q1d, vdim
+   const FieldMetadata<n_inputs> in_data;
+   const FieldMetadata<n_outputs> out_data;
+   // Jacobian cache metadata
+   const std::array<bool, n_inputs> input_is_dependent;
+   const std::array<int, n_inputs> input_size_on_qp;
+   const int output_size_on_qp;
+   const int trial_vdim;
+   const int total_trial_op_dim;
+   const int residual_size_on_qp;
+   // other constants
+   const int dim, ne, nq, q1d;
+   FieldDescriptor direction_fd;
+   mutable Vector direction_e;
+   mutable RestrictionCache direction_rcache
+   {
+      EntityTraits<entity_t>::restriction
+   };
+
+public:
+   DerivativeApply() = delete;
+
+   DerivativeApply(IntegratorContext<entity_t> ctx,
+                   qfunc_t /*qfunc*/,
+                   inputs_t inputs,
+                   outputs_t outputs,
+                   const Vector &qp_cache_in):
+      inputs(inputs), outputs(outputs), ctx(ctx), qp_cache(qp_cache_in),
+      in_data(MakeFieldMetadata(ctx, inputs, ctx.infds)),
+      out_data(MakeFieldMetadata(ctx, outputs, ctx.outfds)),
+      input_is_dependent(compute_input_is_dependent(inputs, derivative_id)),
+      input_size_on_qp(
+         get_input_size_on_qp(inputs, std::make_index_sequence<n_inputs> {})),
+                           output_size_on_qp(
+                              [&]
+   {
+      int s = 0;
+      for_constexpr_host<n_outputs>([&](auto o)
+      { s += get<o>(outputs).size_on_qp; });
+      return s;
+   }()),
+   trial_vdim(compute_trial_vdim(inputs, derivative_id)),
+   total_trial_op_dim(compute_total_trial_op_dim(
+                         inputs, input_is_dependent, input_size_on_qp)),
+   residual_size_on_qp(output_size_on_qp * trial_vdim * total_trial_op_dim),
+   dim(GetEntityDimension<entity_t>(ctx.mesh)), ne(ctx.nentities),
+   nq(ctx.ir.GetNPoints()),
+   q1d(tensor_1d_size(nq, dim))
+   {
+      MFEM_ASSERT(nfields <= ctx.unionfds.size(),
+                  "LocalQFBackend: the q-function uses more fields than the "
+                  "operator has");
+
+      int direction_field_idx = -1;
+      for (size_t uf = 0; uf < nfields; uf++)
+      {
+         if (static_cast<int>(ctx.unionfds[uf].id) == derivative_id)
+         {
+            direction_field_idx = static_cast<int>(uf);
+            break;
+         }
+      }
+      MFEM_ASSERT(direction_field_idx != -1,
+                  "DerivativeApply: derivative direction field not found");
+
+      direction_fd = ctx.unionfds[static_cast<size_t>(direction_field_idx)];
+   }
+
+   /// Tile size the kernel must be built at: the shared B/G arrays are square
+   /// [MQ1][MQ1] but hold a q1d x d1d matrix, so MQ1 must cover both extents.
+   int tile_size() const
+   { return kernel_tile_size(q1d, in_data.d1ds(), out_data.d1ds()); }
+
+   template<typename Backend>
+   void run_kernels(std::vector<Vector *> &ye) const
+   {
+      Backend::Run(dim,
+                   tile_size(),
+                   ctx,
+                   qp_cache,
+                   // inputs
+                   in_data,
+                   input_size_on_qp,
+                   input_is_dependent,
+                   // outputs
+                   out_data,
+                   trial_vdim,
+                   total_trial_op_dim,
+                   residual_size_on_qp,
+                   direction_e,
+                   ye,
+                   // fallback arguments
+                   q1d);
+   }
+
+   //////////////////////////////////////////////////////////////////
+   void operator()(const std::vector<Vector *> &,
+                   const Vector *direction_l,
+                   std::vector<Vector *> &ye) const
+   {
+      if (ctx.marked_entities.Size() == 0) { return; }
+
+      MFEM_ASSERT(direction_l != nullptr,
+                  "LocalQF DerivativeApply: direction vector is null");
+
+      restriction(direction_fd,
+                  direction_rcache,
+                  *direction_l,
+                  direction_e,
+                  ElementDofOrdering::LEXICOGRAPHIC);
+      if (tile_size() <= LocalQFLOBackendMQ1())
+      {
+         run_kernels<DerivativeApplyLO>(ye);
+      }
+      else if (tile_size() <= LocalQFHOBackendMQ1())
+      {
+         run_kernels<DerivativeApplyHO>(ye);
+      }
+      else
+      {
+         MFEM_ABORT("Unsupported quadrature order for LocalQF backend");
+      }
+   }
+
+   //////////////////////////////////////////////////////////////////
+   template<typename backend_t = LocalQFLOBackend<3>, int T_Q1D = 0>
+   static void
+   derivative_apply_callback(const IntegratorContext<entity_t> &ctx,
+                             const Vector &qp_cache,
+                             const FieldMetadata<n_inputs> &in,
+                             const std::array<int, n_inputs> &in_size_on_qp,
+                             const std::array<bool, n_inputs> &input_dep,
+                             const FieldMetadata<n_outputs> &out,
+                             const int trial_vdim,
+                             const int total_trial_op_dim,
+                             const int residual_size_on_qp,
+                             const Vector &direction_e,
+                             std::vector<Vector *> &ye,
+                             // fallback arguments
+                             const int q1d)
+   {
+      MFEM_CONTRACT_VAR(input_dep);
+      MFEM_CONTRACT_VAR(in_size_on_qp);
+      MFEM_CONTRACT_VAR(trial_vdim);
+      MFEM_CONTRACT_VAR(total_trial_op_dim);
+      MFEM_VERIFY(backend_t::DIM == GetEntityDimension<entity_t>(ctx.mesh),
+                  "Dimension mismatch");
+
+      // Check that the q-function parameter size matches the field size for each input
+      for_constexpr_host<n_inputs>([&](auto sc)
+      {
+         constexpr size_t s = sc.value;
+         if constexpr (Layout::template StaticInputDep<s>())
+         {
+            MFEM_ASSERT(Layout::template StaticInputComponents<s>() ==
+                        in_size_on_qp[s],
+                        "DerivativeApply: q-function parameter size does not "
+                        "match the field for input " << s);
+         }
+      });
+
+      MFEM_VERIFY(Layout::StaticCacheColumns() ==
+                  trial_vdim * total_trial_op_dim,
+                  "DerivativeApply: derivative cache row width mismatch");
+
+      if (ctx.marked_entities.Size() == 0) { return; }
+
+      static constexpr int DIM = backend_t::DIM;
+      static constexpr auto MQ1 = T_Q1D ? T_Q1D : backend_t::MQ1;
+      static constexpr auto MTPB = backend_t::MAX_THREADS_PER_BLOCK();
+
+      const int ne = ctx.nentities;
+      const int nq = ctx.ir.GetNPoints();
+
+      // --------------------------------------------------
+      // DIRECTION (trial): XE_dir for the dependent inputs
+      // OUTPUTS: YE, 3(max DIM) + 1(VDIM) + 1(number of elements)
+      // --------------------------------------------------
+      const auto in_XE_dir = TangentViews<DIM, inputs_t>(ctx, direction_e, in,
+                                                         input_dep);
+      const auto out_YE = OutputViews<DIM, outputs_t>(ctx, ye, out);
+
+      auto cache_tensor = DeviceTensor<3, const real_t>(
+                             qp_cache.Read(), nq, residual_size_on_qp, ne);
+
+      const int *d_entities = ctx.marked_entities.Read();
+
+      dfem::forall<MTPB>(
+         [=] MFEM_HOST_DEVICE(const int ek, void *) MFEM_FORCE_INLINE
+      {
+         const int e = d_entities[ek];
+
+         MFEM_CONTRACT_VAR(cache_tensor);
+
+         // -----------------------------------------------
+         // Output integration registers, trial direction (shadow) registers
+         // and shared memory. `rargs` only ever holds test-function data, so
+         // it is an output-only bank: slot `o` is q-function parameter
+         // `n_inputs + o`.
+         // -----------------------------------------------
+         output_args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> rargs;
+         input_args_reg_t<backend_t, qfunc_t, inputs_t, outputs_t, MQ1> sargs;
+         MFEM_SHARED typename backend_t::Shared smem;
+
+         // -----------------------------------------------
+         // Load trial direction (sargs) for the dependent inputs
+         // -----------------------------------------------
+         for_constexpr<n_inputs>([&](auto ic)
+         {
+            constexpr size_t i = ic.value;
+            if constexpr (!Layout::template StaticInputDep<i>()) { return; }
+            using FOP = tuple_element_t<i, inputs_t>;
+            LoadField<backend_t, qfunc_t, i, FOP>(
+               smem, e, q1d, in.dtq[i], in_XE_dir[i], get<i>(sargs));
+         });
+         MFEM_SYNC_THREAD;
+
+         // -----------------------------------------------
+         // Contract the cached Jacobian with the trial direction at each
+         // quadrature point and push the result into the test registers.
+         // -----------------------------------------------
+         MFEM_FOREACH_THREAD_BATCHED(qz, z, nz<DIM>(q1d), backend_t::BATCH)
+         {
+            MFEM_FOREACH_THREAD_DIRECT(qy, y, ny<DIM>(q1d))
+            {
+               MFEM_FOREACH_THREAD_DIRECT(qx, x, q1d)
+               {
+                  const int q = qx + q1d * (qy + q1d * qz);
+
+                  // The trial direction at this quadrature point is the same
+                  // for every test row (i, k), so pull each dependent input
+                  // slot out of the register bank once, here, instead of once
+                  // per row inside the contraction below.
+                  args_tuple_t dvecs {};
+                  for_constexpr<n_inputs>([&](auto sc)
+                  {
+                     constexpr size_t s = sc.value;
+                     if constexpr (Layout::template StaticInputDep<s>())
+                     {
+                        using SARG =
+                           typename qf_param_slot<qfunc_t, s>::qf_reg_param_t;
+                        get<s>(dvecs) = backend_t::template qp_pull<SARG>(
+                           get<s>(sargs), qx, qy, qz);
+                     }
+                  });
+
+                  for_constexpr<n_outputs>([&](auto oc)
+                  {
+                     constexpr size_t o = oc.value, ao = n_inputs + o;
+                     using FOP = tuple_element_t<o, outputs_t>;
+                     using ARG =
+                        typename qf_param_slot<qfunc_t, ao>::qf_reg_param_t;
+                     constexpr int tv = Layout::template StaticOutputVDim<o>();
+                     constexpr int to = Layout::template StaticOutputOpDim<o>();
+                     constexpr int offset_o =
+                        Layout::template StaticOutputOffset<o>();
+
+                     ARG fhat{};
+                     MFEM_UNROLL(tv)
+                     for (int i = 0; i < tv; i++)
+                     {
+                        MFEM_UNROLL(to)
+                        for (int k = 0; k < to; k++)
+                        {
+                           const int row = offset_o + i * to + k;
+                           const int cache_row =
+                              row * Layout::StaticCacheColumns();
+                           real_t sum = 0.0;
+                           for_constexpr<n_inputs>([&](auto sc)
+                           {
+                              constexpr size_t s = sc.value;
+                              constexpr bool dep_s =
+                                 Layout::template StaticInputDep<s>();
+                              if constexpr (dep_s)
+                              {
+                                 constexpr int ncomp_s =
+                                    Layout::template StaticInputComponents<s>();
+                                 constexpr int c_offset_s =
+                                    Layout::template StaticInputCacheOffset<s>();
+                                 const auto &dvec = get<s>(dvecs);
+                                 MFEM_UNROLL(ncomp_s)
+                                 for (int c = 0; c < ncomp_s; c++)
+                                 {
+                                    const int cache_idx =
+                                       cache_row + c_offset_s + c;
+                                    sum += cache_tensor(q, cache_idx, e) *
+                                           qf_flat_value(dvec, c);
+                                 }
+                              }
+                           });
+                           qf_set_value_at(fhat, i, k, sum);
+                        }
+                     }
+
+                     auto &YE = out_YE[o];
+                     if constexpr (is_identity_fop_v<FOP>)
+                     {
+                        MFEM_UNROLL(tv)
+                        for (int i = 0; i < tv; i++)
+                        {
+                           MFEM_UNROLL(to)
+                           for (int k = 0; k < to; k++)
+                           {
+                              YE(i + tv * k, qx, qy, qz, e) =
+                                 qf_value_at(fhat, i, k);
+                           }
+                        }
+                     }
+                     else
+                     {
+                        backend_t::template qp_push<ARG>(
+                           get<o>(rargs), qx, qy, qz, fhat);
+                     }
+                  });
+               }
+            }
+         }
+         MFEM_SYNC_THREAD;
+
+         // -----------------------------------------------
+         // Integrate value / gradient outputs to the test dofs
+         // -----------------------------------------------
+         for_constexpr<n_outputs>([&](auto ic)
+         {
+            constexpr size_t i = ic.value, o = n_inputs + i;
+            using FOP = tuple_element_t<i, outputs_t>;
+            WriteField<backend_t, qfunc_t, o, FOP>(
+               smem, e, q1d, out.dtq[i], out_YE[i], get<i>(rargs));
+         });
+      },
+      ctx.marked_entities.Size(),
+      backend_t::thread_blocks(compute_kernel_thread_1d<inputs_t, outputs_t>(
+                                  q1d, in.d1ds(), out.d1ds()),
+                               backend_t::BATCH),
+      0,
+      nullptr);
+   }
+
+   using ApplyKernelType =
+      decltype(&DerivativeApply::derivative_apply_callback<>);
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(DerivativeApplyLO,
+                                     ApplyKernelType,
+                                     (int, int) );
+   MFEM_REGISTER_KERNELS_HEADER_ONLY(DerivativeApplyHO,
+                                     ApplyKernelType,
+                                     (int, int) );
+};
+
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t,
+         typename entity_t>
+template<int DIM, int Q1D>
+inline typename
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
+ApplyKernelType
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
+DerivativeApplyLO::Kernel()
+{
+   static_assert(DIM >= 1 && DIM <= 3 && Q1D <= 8);
+   using apply_t =
+      DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
+   return apply_t::template derivative_apply_callback<
+             LocalQFLOBackend<DIM, Q1D>>;
+}
+
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t,
+         typename entity_t>
+inline typename
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
+ApplyKernelType
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
+DerivativeApplyLO::Fallback(int dim, int q1d)
+{
+   using apply_t =
+      DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
+   using DerivativeApplyLO = typename apply_t::DerivativeApplyLO;
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   return DispatchLOKernelByDim<DerivativeApplyLO, QFDIM>(dim, q1d);
+}
+
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t,
+         typename entity_t>
+template<int DIM, int Q1D>
+inline typename
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
+ApplyKernelType
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
+DerivativeApplyHO::Kernel()
+{
+   using apply_t =
+      DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
+   return apply_t::template derivative_apply_callback<LocalQFHOBackend<DIM, Q1D>,
+                                                      Q1D>;
+}
+
+template<int derivative_id,
+         typename qfunc_t,
+         typename inputs_t,
+         typename outputs_t,
+         typename entity_t>
+inline typename
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
+ApplyKernelType
+DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>::
+DerivativeApplyHO::Fallback(int dim, int q1d)
+{
+   using apply_t =
+      DerivativeApply<derivative_id, qfunc_t, inputs_t, outputs_t, entity_t>;
+   using DerivativeApplyHO = typename apply_t::DerivativeApplyHO;
+   constexpr int QFDIM = deduce_qf_dim<qfunc_t, inputs_t, outputs_t>();
+   return DispatchHOKernelByDim<DerivativeApplyHO, QFDIM>(dim, q1d);
+}
+
+} // namespace mfem::future::LocalQFImpl

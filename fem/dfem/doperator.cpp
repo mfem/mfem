@@ -11,44 +11,255 @@
 
 #include "doperator.hpp"
 
+#include <algorithm>
+
 #ifdef MFEM_USE_MPI
 
 using namespace mfem;
 using namespace mfem::future;
 
-void DifferentiableOperator::SetParameters(std::vector<Vector *> p) const
+namespace
 {
-   MFEM_ASSERT(parameters.size() == p.size(),
-               "number of parameters doesn't match descriptors");
-   for (size_t i = 0; i < parameters.size(); i++)
+int GetTotalVSize(const std::vector<FieldDescriptor> &fds, bool lvector_mode)
+{
+   int size = 0;
+   for (const auto &fd : fds)
    {
-      p[i]->Read();
-      parameters_l[i] = *p[i];
+      size += lvector_mode ? mfem::future::GetVSize(fd)
+              : mfem::future::GetTrueVSize(fd);
    }
+   return size;
+}
+
+template <typename map_t>
+const typename map_t::mapped_type &FindOrDefault(
+   const map_t &map, const typename map_t::key_type &id,
+   const typename map_t::mapped_type &fallback)
+{
+   const auto it = map.find(id);
+   return it == map.end() ? fallback : it->second;
+}
+
+/// The integrators of every entity type and the output fields of the
+/// derivatives keyed by @a key_t, see detail::OperatorCallbacks.
+template <typename key_t>
+struct DerivativeCallbackSet
+{
+   const detail::OperatorIntegrators &domain_integrators;
+   const detail::OperatorIntegrators &boundary_integrators;
+   const DerivativeMap<key_t, FieldDescriptor> &outfds;
+};
+
+/// The id of the field a derivative is applied to.
+size_t DirectionId(size_t derivative_id) { return derivative_id; }
+
+size_t DirectionId(const second_derivative_key_t &key) { return key.second; }
+
+/// Build the DerivativeOperator of the derivative @a key in the direction
+/// of the field DirectionId(@a key), at the state @a x.
+template <typename key_t, typename vector_t>
+std::shared_ptr<DerivativeOperator> MakeStatefulDerivativeOperator(
+   const key_t &key,
+   const vector_t &x,
+   const std::vector<FieldDescriptor> &infds,
+   const std::vector<FieldDescriptor> &default_outfds,
+   const DerivativeCallbackSet<key_t> &callbacks,
+   bool use_cached_setup,
+   bool lvector_mode,
+   bool functional_gradient = false)
+{
+   const size_t dfidx = FindIdx(DirectionId(key), infds);
+   MFEM_VERIFY(dfidx != SIZE_MAX,
+               "can't differentiate in the direction of field id "
+               << DirectionId(key) << ", it is not an input field");
+   const auto &doutfds = FindOrDefault(callbacks.outfds, key, default_outfds);
+   return std::make_shared<DerivativeOperator>(
+             GetTotalVSize(doutfds, lvector_mode),
+             GetTotalVSize({infds[dfidx]}, lvector_mode),
+             callbacks.domain_integrators,
+             callbacks.boundary_integrators,
+             key,
+             doutfds == default_outfds,
+             infds[dfidx],
+             x,
+             infds,
+             doutfds,
+             lvector_mode,
+             functional_gradient,
+             use_cached_setup);
+}
 }
 
 DifferentiableOperator::DifferentiableOperator(
-   const std::vector<FieldDescriptor> &solutions,
-   const std::vector<FieldDescriptor> &parameters,
+   const std::vector<FieldDescriptor> &infds,
+   const std::vector<FieldDescriptor> &outfds,
    const ParMesh &mesh) :
+   Operator(),
    mesh(mesh),
-   solutions(solutions),
-   parameters(parameters)
+   infds(infds),
+   outfds(outfds),
+   domain_integrators(
+      detail::MakeEntityIntegrators<Entity::Element, detail::OperatorCallbacks>(
+         infds.size(), outfds.size())),
+   boundary_integrators(
+      detail::MakeEntityIntegrators<Entity::BoundaryElement,
+      detail::OperatorCallbacks>(infds.size(), outfds.size()))
 {
-   fields.resize(solutions.size() + parameters.size());
-   fields_e.resize(fields.size());
-   solutions_l.resize(solutions.size());
-   parameters_l.resize(parameters.size());
+   unionfds.clear();
+   unionfds.insert(unionfds.end(), infds.begin(), infds.end());
+   unionfds.insert(unionfds.end(), outfds.begin(), outfds.end());
+   std::sort(unionfds.begin(), unionfds.end());
+   auto last = std::unique(unionfds.begin(), unionfds.end());
+   unionfds.erase(last, unionfds.end());
 
-   for (size_t i = 0; i < solutions.size(); i++)
+   infields_l.resize(infds.size());
+   for (size_t i = 0; i < infds.size(); i++)
    {
-      fields[i] = solutions[i];
+      infields_l[i] = new Vector(GetVSize(infds[i]));
+      infields_l[i]->UseDevice(true);
    }
+}
 
-   for (size_t i = 0; i < parameters.size(); i++)
+void DifferentiableOperator::SetMultLevel(MultLevel level)
+{
+   mult_level = level;
+}
+
+void DifferentiableOperator::Mult(const Vector &x, Vector &y) const
+{
+   MFEM_ASSERT(HasCallbacks(&detail::OperatorCallbacks::actions),
+               "no integrators have been set");
+
+   MFEM_ASSERT(dynamic_cast<const BlockVector*>(&x),
+               "x needs to be a BlockVector");
+
+   MFEM_ASSERT(dynamic_cast<const BlockVector*>(&y),
+               "y needs to be a BlockVector");
+
+   const auto &bx = static_cast<const BlockVector &>(x);
+   auto &by = static_cast<BlockVector &>(y);
+
+   Mult(bx, by);
+}
+
+void DifferentiableOperator::DisableTensorProductStructure(bool disable)
+{
+   use_tensor_product_structure = !disable;
+}
+
+std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
+   size_t derivative_id, const Vector &x)
+{
+   return MakeStatefulDerivativeOperator(
+             derivative_id, x, infds, outfds,
+             DerivativeCallbackSet<size_t>
    {
-      fields[i + solutions.size()] = parameters[i];
+      domain_integrators, boundary_integrators, derivative_outfds
+   },
+   false,
+   mult_level == MultLevel::LVECTOR,
+   IsFunctionalDerivative(derivative_id));
+}
+
+std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
+   size_t derivative_id, const MultiVector &x, const bool use_cached_setup)
+{
+   return MakeStatefulDerivativeOperator(
+             derivative_id, x, infds, outfds,
+             DerivativeCallbackSet<size_t>
+   {
+      domain_integrators, boundary_integrators, derivative_outfds
+   },
+   use_cached_setup,
+   mult_level == MultLevel::LVECTOR,
+   IsFunctionalDerivative(derivative_id));
+}
+
+std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetDerivative(
+   size_t derivative_id)
+{
+   MFEM_ASSERT(HasFunctionalIntegrator(),
+               "stateless GetDerivative is available only for functionals");
+
+   const size_t dfidx = FindIdx(derivative_id, infds);
+   MFEM_VERIFY(dfidx != SIZE_MAX,
+               "can't differentiate with respect to field id "
+               << derivative_id << ", it is not an input field");
+   const auto &doutfds =
+      FindOrDefault(derivative_outfds, derivative_id, outfds);
+
+   return std::make_shared<DerivativeOperator>(
+             GetTotalVSize(doutfds, mult_level == MultLevel::LVECTOR),
+             GetTotalVSize({infds[dfidx]}, mult_level == MultLevel::LVECTOR),
+             domain_integrators,
+             boundary_integrators,
+             derivative_id,
+             doutfds == outfds,
+             infds,
+             doutfds,
+             mult_level == MultLevel::LVECTOR);
+}
+
+std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
+   size_t derivative_id, const Vector &x)
+{
+   return GetSecondDerivative(derivative_id, derivative_id, x);
+}
+
+std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
+   size_t gradient_id, size_t direction_id, const Vector &x)
+{
+   MFEM_ASSERT(HasFunctionalIntegrator(),
+               "second derivatives are available only for functionals");
+
+   return MakeStatefulDerivativeOperator(
+             second_derivative_key_t{gradient_id, direction_id}, x,
+             infds, outfds,
+             DerivativeCallbackSet<second_derivative_key_t>
+   {
+      domain_integrators, boundary_integrators, second_derivative_outfds
+   },
+   false,
+   mult_level == MultLevel::LVECTOR);
+}
+
+std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
+   size_t derivative_id, const MultiVector &x, const bool use_cached_setup)
+{
+   return GetSecondDerivative(derivative_id, derivative_id, x, use_cached_setup);
+}
+
+std::shared_ptr<DerivativeOperator> DifferentiableOperator::GetSecondDerivative(
+   size_t gradient_id, size_t direction_id, const MultiVector &x,
+   const bool use_cached_setup)
+{
+   MFEM_ASSERT(HasFunctionalIntegrator(),
+               "second derivatives are available only for functionals");
+
+   return MakeStatefulDerivativeOperator(
+             second_derivative_key_t{gradient_id, direction_id}, x,
+             infds, outfds,
+             DerivativeCallbackSet<second_derivative_key_t>
+   {
+      domain_integrators, boundary_integrators, second_derivative_outfds
+   },
+   use_cached_setup,
+   mult_level == MultLevel::LVECTOR);
+}
+
+bool DifferentiableOperator::HasSecondDerivative(size_t gradient_id,
+                                                 size_t direction_id) const
+{
+   const second_derivative_key_t derivative_key{gradient_id, direction_id};
+   for (const auto *k : AllIntegrators())
+   {
+      if (detail::FindNonEmpty(k->callbacks.second_derivative_kernels,
+                               derivative_key))
+      {
+         return true;
+      }
    }
+   return false;
 }
 
 

@@ -12,8 +12,10 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <unordered_map>
 #include <utility>
 #include <variant>
@@ -21,16 +23,22 @@
 #include <type_traits>
 #include <numeric>
 #include <iomanip>
+#include <typeindex>
 
 #include "../../general/communication.hpp"
-#include "../../general/forall.hpp"
+
 #ifdef MFEM_USE_MPI
 #include "../fe/fe_base.hpp"
 #include "../fespace.hpp"
 #include "../pfespace.hpp"
-#include "../../mesh/mesh.hpp"
-#include "../../linalg/dtensor.hpp"
+#include "../quadinterpolator.hpp"
 
+#include "../../general/forall.hpp"
+#include "../../general/scan.hpp"
+#include "../../linalg/dtensor.hpp"
+#include "../../mesh/mesh.hpp"
+
+#include "fielddescriptor.hpp"
 #include "fieldoperator.hpp"
 #include "parameterspace.hpp"
 #include "tuple.hpp"
@@ -38,61 +46,136 @@
 namespace mfem::future
 {
 
+/// Number of points along one axis of a tensor-product set: given `total`
+/// points (e.g. quadrature points or dofs) spread over `dim` dimensions,
+/// returns the rounded `dim`-th root, round(total^(1/dim)). Recovers q1d from
+/// the number of quadrature points, or d1d from the number of dofs.
+MFEM_HOST_DEVICE inline int tensor_1d_size(int total, int dim)
+{
+   if (dim <= 0) { return 0; }
+   return static_cast<int>(std::floor(
+                              std::pow(static_cast<real_t>(total),
+                                       1.0 / static_cast<real_t>(dim)) + 0.5));
+}
+
 template<typename... Ts>
 constexpr auto to_array(const std::tuple<Ts...>& tuple)
 {
-   constexpr auto get_array = [](const Ts&... x) { return std::array<typename std::common_type<Ts...>::type, sizeof...(Ts)> { x... }; };
+   constexpr auto get_array = [](const Ts&... x)
+   {
+      return std::array<std::common_type_t<Ts...>, sizeof...(Ts)> { x... };
+   };
    return std::apply(get_array, tuple);
 }
 
 namespace detail
 {
 
+inline void SyncLVectorAliasMemory(
+   const MultiVector &x,
+   const std::vector<Vector *> &x_l)
+{
+   MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
+               "error " << x.NumBlocks() << " vs " << x_l.size());
+   for (int i = 0; i < x.NumBlocks(); i++)
+   {
+      if (x_l[i] != nullptr && x_l[i]->Size() == x[i].Size())
+      {
+         x[i].SyncMemory(*x_l[i]);
+      }
+   }
+}
+
+inline void SyncLVectorAliasMemory(
+   const BlockVector &x,
+   const std::vector<Vector *> &x_l)
+{
+   MFEM_ASSERT(x.NumBlocks() == static_cast<int>(x_l.size()),
+               "error " << x.NumBlocks() << " vs " << x_l.size());
+   for (int i = 0; i < x.NumBlocks(); i++)
+   {
+      if (x_l[i] != nullptr && x_l[i]->Size() == x.GetBlock(i).Size())
+      {
+         x.GetBlock(i).SyncMemory(*x_l[i]);
+      }
+   }
+}
+
+// Delete each owned Vector pointer at most once, then clear the slots.
+inline void DeleteOwnedVectorPointersImpl(std::vector<Vector *> &deleted,
+                                          std::vector<Vector *> &vectors)
+{
+   for (auto *&v : vectors)
+   {
+      if (v != nullptr &&
+          std::find(deleted.begin(), deleted.end(), v) == deleted.end())
+      {
+         deleted.push_back(v);
+         delete v;
+      }
+      v = nullptr;
+   }
+}
+
+// Clean up Vector pointer groups that may contain aliases across groups.
+template <typename... vector_groups_t>
+inline void DeleteOwnedVectorPointers(vector_groups_t &... vector_groups)
+{
+   std::vector<Vector *> deleted;
+   (DeleteOwnedVectorPointersImpl(deleted, vector_groups), ...);
+}
+
 template <typename lambda, std::size_t... i>
-constexpr void for_constexpr(lambda&& f,
-                             std::integral_constant<std::size_t, i>... Is)
+MFEM_FORCE_INLINE MFEM_HOST_DEVICE constexpr void
+for_constexpr(lambda&& f,
+              std::integral_constant<std::size_t, i>... Is)
 {
    f(Is...);
 }
 
 
 template <std::size_t... n, typename lambda, typename... arg_types>
-constexpr void for_constexpr(lambda&& f,
-                             std::integer_sequence<std::size_t, n...>,
-                             arg_types... args)
+MFEM_FORCE_INLINE MFEM_HOST_DEVICE constexpr void
+for_constexpr(lambda&& f,
+              std::integer_sequence<std::size_t, n...>,
+              arg_types... args)
 {
-   (detail::for_constexpr(f, args..., std::integral_constant<std::size_t,n> {}),
-    ...);
+   (detail::for_constexpr(f, args...,
+                          std::integral_constant<std::size_t,n> {}), ...);
 }
 
 }  // namespace detail
 
 template <typename lambda, std::size_t... i>
-constexpr void for_constexpr(lambda&& f,
-                             std::integer_sequence<std::size_t, i ... >)
+MFEM_FORCE_INLINE MFEM_HOST_DEVICE constexpr void
+for_constexpr(lambda&& f,
+              std::integer_sequence<std::size_t, i ... >)
 {
    (f(std::integral_constant<std::size_t, i> {}), ...);
 }
 
 template <typename lambda>
-constexpr void for_constexpr(lambda&& f, std::integer_sequence<std::size_t>) {}
+MFEM_FORCE_INLINE MFEM_HOST_DEVICE constexpr void
+for_constexpr(lambda&&, std::integer_sequence<std::size_t>) {}
 
 template <int... n, typename lambda>
-constexpr void for_constexpr(lambda&& f)
+MFEM_FORCE_INLINE MFEM_HOST_DEVICE constexpr void for_constexpr(
+   lambda&& f)
 {
    detail::for_constexpr(f, std::make_integer_sequence<std::size_t, n> {}...);
 }
 
 template <typename lambda, typename arg_t>
-constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
-                                      std::integer_sequence<std::size_t>)
+MFEM_FORCE_INLINE MFEM_HOST_DEVICE constexpr void
+for_constexpr_with_arg(lambda&&, arg_t&&, std::integer_sequence<std::size_t>)
 {
    // Base case - do nothing for empty sequence
 }
 
 template <typename lambda, typename arg_t, std::size_t i, std::size_t... Is>
-constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
-                                      std::integer_sequence<std::size_t, i, Is...>)
+MFEM_FORCE_INLINE MFEM_HOST_DEVICE constexpr void
+for_constexpr_with_arg(lambda&& f, arg_t&& arg,
+                       std::integer_sequence<std::size_t, i, Is...>)
 {
    f(std::integral_constant<std::size_t, i> {}, get<i>(arg));
    for_constexpr_with_arg(f, std::forward<arg_t>(arg),
@@ -100,12 +183,45 @@ constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg,
 }
 
 template <typename lambda, typename arg_t>
-constexpr void for_constexpr_with_arg(lambda&& f, arg_t&& arg)
+MFEM_FORCE_INLINE MFEM_HOST_DEVICE constexpr void
+for_constexpr_with_arg(lambda&& f, arg_t&& arg)
 {
    using indices =
       std::make_index_sequence<tuple_size<std::remove_reference_t<arg_t>>::value>;
    for_constexpr_with_arg(std::forward<lambda>(f), std::forward<arg_t>(arg),
                           indices{});
+}
+
+/// Host-only versions of for_constexpr, for host lambdas outside of kernels
+template <typename lambda, std::size_t... i>
+constexpr void for_constexpr_host(lambda&& f,
+                                  std::integer_sequence<std::size_t, i...>)
+{
+   (f(std::integral_constant<std::size_t, i> {}), ...);
+}
+
+template <int n, typename lambda>
+constexpr void for_constexpr_host(lambda&& f)
+{
+   for_constexpr_host(f, std::make_integer_sequence<std::size_t, n> {});
+}
+
+template <typename lambda, typename arg_t>
+constexpr void for_constexpr_with_arg_host(lambda&& f, arg_t&& arg)
+{
+   using indices =
+      std::make_index_sequence<tuple_size<std::remove_reference_t<arg_t>>::value>;
+   for_constexpr_host([&](auto i) { f(i, get<i>(arg)); }, indices{});
+}
+
+template <auto start, auto end, auto inc = 1, typename F>
+constexpr void constexpr_for(F&& f)
+{
+   if constexpr (start < end)
+   {
+      f(std::integral_constant<decltype(start), start>());
+      constexpr_for<start + inc, end, inc>(f);
+   }
 }
 
 template <std::size_t I, typename Tuple, std::size_t... Is>
@@ -138,6 +254,20 @@ auto make_dependency_map_impl(tuple<input_ts...> inputs,
    return map;
 }
 
+// Activity tags
+struct Active {}; // Argument is differentiated (needs tangent)
+struct Const {};  // Argument is not differentiated (no tangent)
+
+inline std::ostream& operator<<(std::ostream& out, Active)
+{
+   return out << "Active";
+}
+
+inline std::ostream& operator<<(std::ostream& out, Const)
+{
+   return out << "Const";
+}
+
 // @brief Create a dependency map from a tuple of inputs.
 //
 // @param inputs a tuple of objects derived from FieldOperator.
@@ -148,6 +278,156 @@ auto make_dependency_map(tuple<input_ts...> inputs)
 {
    return make_dependency_map_impl(inputs, std::index_sequence_for<input_ts...> {});
 }
+
+// @brief True if any input in InputsTuple is attached to field ID FieldId.
+template <int FieldId, typename InputsTuple, size_t... Js>
+constexpr bool any_input_has_field_id_impl(std::index_sequence<Js...>)
+{
+   return ((std::decay_t<std::tuple_element_t<Js, InputsTuple>>::GetFieldId() ==
+            FieldId) || ...);
+}
+
+template <int FieldId, typename InputsTuple>
+constexpr bool any_input_has_field_id()
+{
+   return any_input_has_field_id_impl<FieldId, InputsTuple>(
+             std::make_index_sequence<std::tuple_size_v<std::decay_t<InputsTuple>>> {});
+}
+
+// @brief Compile-time dependency tuple for the derivative w.r.t. field ID
+// DerFieldId.
+//
+// Returns tuple<..., N> where entry j is Active iff input j is attached to
+// field ID DerFieldId, otherwise Const.
+//
+// @note DerFieldId is a field ID, not a position in InputsTuple. The same
+// field can appear in several inputs (e.g. Value<U> and Gradient<U>), and its
+// ID is unrelated to where those inputs sit in the tuple.
+template <size_t DerFieldId, typename InputsTuple, size_t... Js>
+constexpr auto make_dependency_tuple_ct_impl(std::index_sequence<Js...>)
+{
+   constexpr int field_id = static_cast<int>(DerFieldId);
+
+   return tuple<
+          std::conditional_t<
+          std::decay_t<std::tuple_element_t<Js, InputsTuple>>::GetFieldId() == field_id,
+          Active,
+          Const
+          >...
+          > {};
+}
+
+template <size_t DerFieldId, typename InputsTuple>
+constexpr auto make_dependency_tuple_ct()
+{
+   static_assert(
+      any_input_has_field_id<static_cast<int>(DerFieldId), InputsTuple>(),
+      "no quadrature function input is attached to the requested derivative "
+      "field ID; the derivative would be identically zero");
+
+   return make_dependency_tuple_ct_impl<DerFieldId, InputsTuple>(
+             std::make_index_sequence<std::tuple_size_v<std::decay_t<InputsTuple>>> {});
+}
+
+// NOTE: `qf_param_uses_dual` and the activity/dual query built on it
+// (`active_qparams_use_dual`) live in backends/local_qf/util.hpp, next to the
+// other q-function parameter traits: they need tensor.hpp / dual.hpp, which
+// this header does not pull in.
+
+template <size_t>
+using active_for_index_t = Active;
+
+template <size_t... Is>
+constexpr auto make_active_tuple_impl(std::index_sequence<Is...>)
+{
+   return tuple<active_for_index_t<Is>...> {};
+}
+
+template <size_t N>
+using make_active_tuple_t = decltype(make_active_tuple_impl(
+                                        std::make_index_sequence<N> {}));
+
+template <typename activity_tuple_t, size_t I>
+inline constexpr bool qf_param_is_active_v =
+   std::is_same_v<tuple_element_t<I, activity_tuple_t>, Active>;
+
+template <typename activity_tuple_t, size_t Lo, size_t Hi, size_t... Is>
+constexpr size_t find_single_active_qparam_impl(std::index_sequence<Is...>)
+{
+   size_t idx = tuple_size<activity_tuple_t>::value, count = 0;
+   (((Is >= Lo && Is < Hi && qf_param_is_active_v<activity_tuple_t, Is>) ?
+     void((idx = Is, ++count)) : void()), ...);
+   return count == 1 ? idx : tuple_size<activity_tuple_t>::value;
+}
+
+template <typename activity_tuple_t, size_t Lo, size_t Hi>
+constexpr size_t find_single_active_qparam()
+{
+   return find_single_active_qparam_impl<activity_tuple_t, Lo, Hi>(
+             std::make_index_sequence<tuple_size<activity_tuple_t>::value> {});
+}
+
+template <typename... Tuples>
+struct tuple_cat_type;
+
+template <>
+struct tuple_cat_type<>
+{
+   using type = tuple<>;
+};
+
+template <typename... Ts>
+struct tuple_cat_type<tuple<Ts...>>
+{
+   using type = tuple<Ts...>;
+};
+
+template <typename... Ts, typename... Us, typename... Rest>
+struct tuple_cat_type<tuple<Ts...>, tuple<Us...>, Rest...>
+{
+   using type = typename tuple_cat_type<tuple<Ts..., Us...>, Rest...>::type;
+};
+
+template <typename... Tuples>
+using tuple_cat_type_t = typename tuple_cat_type<Tuples...>::type;
+
+// @brief Outputs of the first derivative of a functional w.r.t. field ID
+// DerFieldId.
+//
+// Every input attached to DerFieldId contributes one output, which is
+// integrated against the basis functions of that FieldOperator. For example,
+// differentiating w.r.t. a field entering as both Value<U> and Gradient<U>
+// yields tuple<Value<U>, Gradient<U>>.
+//
+// @note DerFieldId is a field ID, not a position in InputsTuple.
+template <size_t DerFieldId, typename InputsTuple, size_t... Js>
+constexpr auto make_first_derivative_outputs_impl(std::index_sequence<Js...>)
+{
+   constexpr int field_id = static_cast<int>(DerFieldId);
+
+   using outputs_t = tuple_cat_type_t<
+                     std::conditional_t<
+                     std::decay_t<std::tuple_element_t<Js, InputsTuple>>::GetFieldId() == field_id,
+                     tuple<std::decay_t<std::tuple_element_t<Js, InputsTuple>>>,
+                     tuple<>
+                     >...
+                     >;
+
+   return outputs_t {};
+}
+
+template <size_t DerFieldId, typename InputsTuple>
+constexpr auto make_first_derivative_outputs()
+{
+   static_assert(
+      any_input_has_field_id<static_cast<int>(DerFieldId), InputsTuple>(),
+      "no quadrature function input is attached to the requested derivative "
+      "field ID; the derivative would be identically zero");
+
+   return make_first_derivative_outputs_impl<DerFieldId, InputsTuple>(
+             std::make_index_sequence<std::tuple_size_v<std::decay_t<InputsTuple>>> {});
+}
+
 
 // @brief Get the type name of a template parameter T.
 //
@@ -182,6 +462,8 @@ constexpr auto get_type_name() -> std::string_view
 
    return function.substr(start, size);
 }
+
+template <typename...> struct static_type;
 
 template <typename Tuple, std::size_t... Is>
 void print_tuple_impl(const Tuple& t, std::index_sequence<Is...>)
@@ -444,6 +726,203 @@ struct create_function_signature<output_t (*)(input_ts...)>
    using type = FunctionSignature<output_t(input_ts...)>;
 };
 
+template <typename...>
+using void_t = void;
+
+template <typename T, typename = void>
+struct get_function_signature
+{
+   using type = typename create_function_signature<T>::type;
+};
+
+template <typename T>
+struct get_function_signature<T, void_t<decltype(&T::operator())>>
+{
+   using type = typename create_function_signature<decltype(&T::operator())>::type;
+};
+
+// Helper to create tuples for e.g. FieldOperators
+template <typename... Ops>
+using Inputs = tuple<Ops...>;
+
+template <typename... Ops>
+using Outputs = tuple<Ops...>;
+
+/// Whether one of the field operators in @a fops_t satisfies @a trait.
+template <template <typename> class trait, typename fops_t>
+struct tuple_has_fop;
+
+template <template <typename> class trait, typename... fops>
+struct tuple_has_fop<trait, tuple<fops...>>
+                                         : std::bool_constant<(trait<std::decay_t<fops>>::value || ...)> {};
+
+// Convenience wrapper to encode Derivatives as integer sequence
+template <size_t... FieldIds>
+using Derivatives = std::integer_sequence<size_t, FieldIds...>;
+
+
+// Bit-mask selecting which derivative kernels are instantiated for an integrator.
+// Predefined families (MF, PA, AllAssembly, and All), individual kernels,
+// and bitwise combinations are supported.
+//
+// Usage:
+//
+// constexpr auto kernels = DerivativeKernels::PA; // Predefined family (MF, PA, AllAssembly, All)
+// constexpr auto kernels = DerivativeKernels::Action | DerivativeKernels::AssembleDiagonal; (combination of individual kernels)
+//
+// dop.AddDomainIntegrator<LocalQFBackend, kernels>(qfunc, inputs, outputs, ir, attributes, derivatives);
+//
+// By default, All kernels are requested. Selecting a smaller set reduces
+// compile time and binary size when the other operations are not needed.
+//
+// Setup is not explicitly requested but triggered by kernels that need that (see NeedsQpCache()).
+enum class DerivativeKernels : unsigned
+{
+   None             = 0,
+   Apply            = 1u << 0,  // DerivativeOperator::Mult
+   ApplyTranspose   = 1u << 1,  // DerivativeOperator::MultTranspose
+   AssembleMatrix   = 1u << 2,  // DerivativeOperator::Assemble
+   AssembleDiagonal = 1u << 3,  // DerivativeOperator::AssembleDiagonal
+   Action           = 1u << 4,  // matrix-free derivative action
+
+
+   // Convenience families of kernels
+   MF = Action,                 // Matrix free action (just an alias for Action)
+   PA = Apply | ApplyTranspose, // Partially-assembled action (setup+apply)
+   AllAssembly  = AssembleMatrix | AssembleDiagonal, // Enable all assembly callbacks
+   All = PA | AllAssembly | Action
+};
+
+constexpr DerivativeKernels operator|(DerivativeKernels a, DerivativeKernels b)
+{
+   return static_cast<DerivativeKernels>(static_cast<unsigned>(a) |
+                                         static_cast<unsigned>(b));
+}
+
+// True if @a set and @a requested have at least one kernel in common.
+// ( HasAnyKernel(A,B) --> A \cap B != emptyset )
+constexpr bool HasAnyKernel(DerivativeKernels set,
+                            DerivativeKernels requested)
+{
+   return (static_cast<unsigned>(set) &
+           static_cast<unsigned>(requested)) != 0;
+}
+
+// True if @a set contains every kernel in @a requested.
+// ( HasAllKernels(A,B) --> B \subseteq A )
+constexpr bool HasAllKernels(DerivativeKernels set,
+                             DerivativeKernels requested)
+{
+   return (static_cast<unsigned>(set) & static_cast<unsigned>(requested)) ==
+          static_cast<unsigned>(requested);
+}
+
+// The families below read the quadrature point cache filled by DerivativeSetup.
+constexpr bool NeedsQpCache(DerivativeKernels set)
+{
+   constexpr auto qp_cache_kernels =
+      DerivativeKernels::Apply |
+      DerivativeKernels::ApplyTranspose |
+      DerivativeKernels::AssembleMatrix |
+      DerivativeKernels::AssembleDiagonal;
+   return HasAnyKernel(set, qp_cache_kernels);
+}
+
+// The name of the single kernel @a kernel, for error messages.
+constexpr const char *KernelName(DerivativeKernels kernel)
+{
+   switch (kernel)
+   {
+      case DerivativeKernels::Apply: return "Apply";
+      case DerivativeKernels::ApplyTranspose: return "ApplyTranspose";
+      case DerivativeKernels::AssembleMatrix: return "AssembleMatrix";
+      case DerivativeKernels::AssembleDiagonal: return "AssembleDiagonal";
+      case DerivativeKernels::Action: return "Action";
+      default: return "(a combination of kernels)";
+   }
+}
+
+// A single second derivative (Hessian) block of a functional f, obtained by
+// differentiating the gradient grad_G f in the direction of the field D, i.e.
+// DerivativePair<G, D> denotes d/dD (grad_G f). The two ids play different
+// roles: G has to be one of the requested first derivatives, while D only has
+// to be an input field of the quadrature function.
+template <size_t GradientFieldId, size_t DirectionFieldId>
+struct DerivativePair
+{
+   static constexpr size_t gradient_id = GradientFieldId;
+   static constexpr size_t direction_id = DirectionFieldId;
+};
+
+// The second derivative blocks to be made available for a functional f, given
+// to AddDomainIntegrator() or AddBoundaryIntegrator() right after the first
+// derivatives:
+//
+//    dop->AddDomainIntegrator<LocalQFBackend>(
+//       functional, inputs, outputs, ir, all_domain_attr,
+//       Derivatives<X, Y> {}, second_derivatives);
+//
+// With the first derivatives grad_X f and grad_Y f requested as above,
+// second_derivatives is one of:
+//
+// - SecondDerivatives<Pairs::None> {}
+//      No second derivatives at all, i.e. the default.
+//
+// - SecondDerivatives<Pairs::All> {}
+//      All four blocks d/dX (grad_X f), d/dY (grad_X f), d/dX (grad_Y f) and
+//      d/dY (grad_Y f).
+//
+// - SecondDerivatives<Pairs::Diagonal> {}
+//      Only d/dX (grad_X f) and d/dY (grad_Y f), i.e. no mixed derivatives.
+//
+// - SecondDerivatives<DerivativePair<X, X>, DerivativePair<X, Y>> {}
+//      Only the two listed blocks d/dX (grad_X f) and d/dY (grad_X f). This one
+//      never differentiates grad_Y f, so Derivatives<X> {} would do as well.
+//
+// Blocks that are not requested here are not available from
+// DifferentiableOperator::GetSecondDerivative(). Requesting anything but
+// Pairs::None from an integrator that is not a functional is a compile time
+// error, and so is a DerivativePair whose gradient id is missing from the first
+// derivatives, since such a block could never be registered.
+template <typename... Pairs>
+using SecondDerivatives = tuple<Pairs...>;
+
+// Markers selecting a set of blocks from the requested first derivatives
+// instead of listing them one by one. They never reach a field that is not
+// itself a requested first derivative, e.g. with Derivatives<X, Y> {} none of
+// them expresses d/dZ (grad_X f), which needs a DerivativePair<X, Z>.
+struct Pairs
+{
+   // No second derivatives at all, i.e. the default.
+   struct None {};
+
+   // Every block that can be formed from the requested first derivatives.
+   struct All {};
+
+   // Only the diagonal blocks d/dX (grad_X f), i.e. no mixed derivatives.
+   struct Diagonal {};
+};
+
+template <size_t... FieldIds>
+constexpr bool contains_field_id(size_t field_id,
+                                 std::integer_sequence<size_t, FieldIds...>)
+{
+   return ((field_id == FieldIds) || ...);
+}
+
+// True if the gradient id of every requested block is also a requested first
+// derivative. The direction ids are unconstrained, they only have to be input
+// fields of the quadrature function.
+template <typename... Pairs, size_t... FieldIds>
+constexpr bool second_derivative_gradients_available(
+   SecondDerivatives<Pairs...>,
+   std::integer_sequence<size_t, FieldIds...> derivative_ids)
+{
+   return (contains_field_id(Pairs::gradient_id, derivative_ids) && ...);
+}
+
+
+
 template <typename T>
 constexpr int GetFieldId()
 {
@@ -538,53 +1017,62 @@ auto get_marked_entries(
 /// @param t the tuple to filter fields from.
 /// @returns a tuple containing only the fields with field IDs not equal to -1.
 template <typename... Ts>
-constexpr auto filter_fields(const std::tuple<Ts...>& t)
+constexpr auto filter_fields([[maybe_unused]] const std::tuple<Ts...> &t)
 {
    return std::tuple_cat(
              std::conditional_t<Ts::GetFieldId() != -1, std::tuple<Ts>, std::tuple<>> {}...);
 }
 
-/// @brief FieldDescriptor struct
-///
-/// This struct is used to store information about a field.
-struct FieldDescriptor
+template <typename... Ts>
+constexpr bool check_if_functional(const tuple<Ts...>&)
 {
-   using data_variant_t =
-      std::variant<const FiniteElementSpace *,
-      const ParFiniteElementSpace *,
-      const ParameterSpace *>;
+   return (is_functionalvalue_fop<std::decay_t<Ts>>() && ...);
+}
 
-   /// Field ID
-   std::size_t id;
+template <typename T>
+constexpr bool check_if_functional_v = false;
 
-   /// Field variant
-   data_variant_t data;
+template <typename... Ts>
+constexpr bool check_if_functional_v<tuple<Ts...>> =
+                                                   (is_functionalvalue_fop<std::decay_t<Ts>>() && ...);
 
-   /// Default constructor
-   FieldDescriptor() :
-      id(SIZE_MAX), data(data_variant_t{}) {}
+template <typename T>
+constexpr bool any_functional_output_v = false;
 
-   /// Constructor
-   template <typename T>
-   FieldDescriptor(std::size_t field_id, const T* v) :
-      id(field_id), data(v) {}
-};
+template <typename... Ts>
+constexpr bool any_functional_output_v<tuple<Ts...>> =
+                                                     (is_functionalvalue_fop<std::decay_t<Ts>>() || ...);
+
+template <typename... Ts>
+constexpr bool distinct_field_ids()
+{
+   constexpr int ids[] = {-1, Ts::GetFieldId()...};
+   for (size_t i = 1; i <= sizeof...(Ts); i++)
+   {
+      for (size_t j = i + 1; j <= sizeof...(Ts); j++)
+      {
+         if (ids[i] == ids[j]) { return false; }
+      }
+   }
+   return true;
+}
+
+template <typename T>
+constexpr bool distinct_field_ids_v = true;
+
+template <typename... Ts>
+constexpr bool distinct_field_ids_v<tuple<Ts...>> =
+                                                  distinct_field_ids<std::decay_t<Ts>...>();
+
 
 namespace dfem
 {
 template <class... T> constexpr bool always_false = false;
 }
 
-/// @brief Entity struct
-///
-/// This struct is used to store information about an entity type.
-namespace Entity
-{
-struct Element;
-struct BoundaryElement;
-struct Face;
-struct BoundaryFace;
-}
+/// @brief Properties of the entity type @a entity_t, see entity_utils.hpp.
+template <typename entity_t>
+struct EntityTraits;
 
 /// @brief ThreadBlocks struct
 ///
@@ -595,47 +1083,196 @@ struct ThreadBlocks
    int x = 1;
    int y = 1;
    int z = 1;
+   /// Items per block, launched on ceil(N / batch) blocks. With batch > 1 the
+   /// z threads of a block index its items, see thread_item().
+   int batch = 1;
 };
 
-#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
-template <typename func_t>
-__global__ void forall_kernel_shmem(func_t f, int n)
+// When B items share the k threads of a block: the number of k threads of
+// each item, ceil(blockDim.k / B), and the calling thread's index among the
+// threads of its item.
+#define MFEM_BATCH_THREAD_SIZE(k,B) ((MFEM_THREAD_SIZE(k) + (B) - 1) / (B))
+#define MFEM_BATCH_THREAD_ID(k,B) \
+   (MFEM_THREAD_ID(k) % MFEM_BATCH_THREAD_SIZE(k,B))
+
+// MFEM_FOREACH_THREAD(i,k,N) when the k threads of a block are shared by a
+// batch of B items: the threads of each item split i = 0..N-1. With B = 1 it
+// is MFEM_FOREACH_THREAD.
+//
+// Example: MFEM_FOREACH_THREAD_BATCHED(qz, z, N, B) in a block of 4 z threads
+//   B = 1, N = 4: 4 threads per element, z thread t runs qz = t
+//   B = 2, N = 4: 2 threads per element, z thread t runs qz = t % 2, t % 2 + 2
+//   B = 4, N = 1: 1 thread per element, every z thread runs qz = 0
+//
+// Note: it only uses MFEM_THREAD_ID and MFEM_THREAD_SIZE, so it could move to
+// general/backends.hpp next to MFEM_FOREACH_THREAD.
+#define MFEM_FOREACH_THREAD_BATCHED(i,k,N,B)                   \
+   for (int i = MFEM_BATCH_THREAD_ID(k,B); i < (N);            \
+        i += MFEM_BATCH_THREAD_SIZE(k,B))
+
+#if defined(MFEM_USE_CUDA_OR_HIP)
+// Clang 19 does not know __grid_constant__ and warns at each use
+#if defined(MFEM_USE_CUDA) && defined(__CUDACC__) && \
+    (defined(__NVCC__) || __has_attribute(grid_constant))
+#define MFEM_DFEM_GRID_CONSTANT __grid_constant__
+#else
+#define MFEM_DFEM_GRID_CONSTANT
+#endif
+
+/// Item of the calling thread in a launch with @a batch items per block
+__device__ inline int thread_item(const int batch)
 {
-   int i = blockIdx.x;
+   return (batch > 1) ? blockIdx.x * batch + threadIdx.z : blockIdx.x;
+}
+
+template <typename func_t>
+__global__ void forall_kernel_shmem(MFEM_DFEM_GRID_CONSTANT const func_t f,
+                                    int n, int batch)
+{
+   const int i = thread_item(batch);
    extern __shared__ real_t shmem[];
    if (i < n)
    {
       f(i, shmem);
    }
 }
-#endif
 
 template <typename func_t>
+__global__ void forall_kernel_static_smem(
+   MFEM_DFEM_GRID_CONSTANT const func_t f, int n, int batch)
+{
+   const int i = thread_item(batch);
+   if (i >= n) { return; }
+   f(i, nullptr);
+}
+
+template <int MAX_THREADS_PER_BLOCK, typename func_t>
+__global__
+MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
+static void forall_kernel_static_smem_launch_bounds(
+   MFEM_DFEM_GRID_CONSTANT const func_t f, int n, int batch)
+{
+   // Every launch site uses one block per item or batch of items, so this is
+   // deliberately not a grid-stride loop.
+   const int i = thread_item(batch);
+   if (i >= n) { return; }
+   f(i, nullptr);
+}
+
+/// @brief Per-block dynamic shared-memory limits in bytes for the active GPU.
+struct DynamicShmemLimits
+{
+   int default_max; ///< Hard limit without opting in (on CUDA, typically 48 KB).
+   int optin_max;   ///< Maximum that can be obtained via cudaFuncSetAttribute
+   ///< (on HIP, equals @ref default_max).
+};
+
+/// @brief Returns the device's dynamic shared-memory limits, queried once and
+/// cached. On CUDA, default_max comes from cudaDevAttrMaxSharedMemoryPerBlock
+/// and optin_max from cudaDevAttrMaxSharedMemoryPerBlockOptin. On HIP the
+/// distinction does not apply and both fields are set to
+/// hipDeviceAttributeMaxSharedMemoryPerBlock.
+inline const DynamicShmemLimits &dfem_dynamic_shmem_limits()
+{
+   static DynamicShmemLimits cached = { -1, -1 };
+   if (cached.optin_max < 0)
+   {
+      int dev = 0;
+#if defined(MFEM_USE_CUDA)
+      MFEM_GPU_CHECK(cudaGetDevice(&dev));
+      MFEM_GPU_CHECK(cudaDeviceGetAttribute(
+                        &cached.default_max,
+                        cudaDevAttrMaxSharedMemoryPerBlock, dev));
+      MFEM_GPU_CHECK(cudaDeviceGetAttribute(
+                        &cached.optin_max,
+                        cudaDevAttrMaxSharedMemoryPerBlockOptin, dev));
+#elif defined(MFEM_USE_HIP)
+      MFEM_GPU_CHECK(hipGetDevice(&dev));
+      MFEM_GPU_CHECK(hipDeviceGetAttribute(
+                        &cached.default_max,
+                        hipDeviceAttributeMaxSharedMemoryPerBlock, dev));
+      cached.optin_max = cached.default_max;
+#endif
+   }
+   return cached;
+}
+
+/// @brief Per-block dynamic shared-memory budget in bytes for the active GPU
+/// (the opt-in maximum on CUDA, the regular per-block limit on HIP).
+inline int dfem_max_dynamic_shmem_per_block()
+{
+   return dfem_dynamic_shmem_limits().optin_max;
+}
+
+/// @brief Verify that @a num_bytes of dynamic shared memory can be requested
+/// for @a kernel and, on CUDA, opt the kernel in to that size when it
+/// exceeds the default per-block limit (typically 48 KB). The attribute is
+/// set to @a num_bytes (not the device max) to preserve occupancy. Without
+/// this opt-in, the runtime refuses any launch with @a num_bytes greater
+/// than the default limit; with it, requests up to the device's opt-in
+/// maximum succeed. Requests beyond that maximum trigger a clear
+/// MFEM_VERIFY abort rather than a cryptic launch failure later in
+/// cudaGetLastError / MFEM_DEVICE_SYNC.
+template <typename kernel_t>
+inline void dfem_prepare_dynamic_shmem(kernel_t *kernel, int num_bytes)
+{
+   const DynamicShmemLimits &lim = dfem_dynamic_shmem_limits();
+   MFEM_VERIFY(num_bytes <= lim.optin_max,
+               "Dynamic shared-memory request of " << num_bytes
+               << " bytes exceeds the device's per-block limit of "
+               << lim.optin_max << " bytes. Reduce the kernel's shmem "
+               "footprint (e.g. coarser tiling, smaller order, or split "
+               "the work).");
+#if defined(MFEM_USE_CUDA)
+   // Only opt in when the launch is actually about to exceed the default
+   // (non-opt-in) per-block limit; below that, no attribute change is
+   // needed and we keep the runtime's default occupancy heuristics.
+   if (num_bytes > lim.default_max)
+   {
+      MFEM_GPU_CHECK(cudaFuncSetAttribute(
+                        reinterpret_cast<const void*>(kernel),
+                        cudaFuncAttributeMaxDynamicSharedMemorySize,
+                        num_bytes));
+   }
+#else
+   (void)kernel;
+#endif
+}
+#endif
+
+template </*typename kernel_tag,*/ typename func_t>
 void forall(func_t f,
             const int &N,
-            const ThreadBlocks &blocks,
-            int num_shmem = 0,
+            [[maybe_unused]] const ThreadBlocks &blocks,
+            [[maybe_unused]] int num_shmem = 0,
             real_t *shmem = nullptr)
 {
-   internal::RequireKernelCompilation();
-
-#if defined(MFEM_USE_CUDA_OR_HIP_LANG)
-   if (Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK))
+   if (Device::Allows(Backend::CUDA_MASK) ||
+       Device::Allows(Backend::HIP_MASK))
    {
+#if defined(MFEM_USE_CUDA_OR_HIP)
       // int gridsize = (N + Z - 1) / Z;
       int num_bytes = num_shmem * sizeof(decltype(shmem));
       dim3 block_size(blocks.x, blocks.y, blocks.z);
-      forall_kernel_shmem<<<N, block_size, num_bytes>>>(f, N);
+      const int NB = (N + blocks.batch - 1) / blocks.batch;
+      if (num_bytes > 0)
+      {
+         dfem_prepare_dynamic_shmem(&forall_kernel_shmem<func_t>, num_bytes);
+         forall_kernel_shmem<<<NB, block_size, num_bytes>>>(f, N, blocks.batch);
+      }
+      else
+      {
+         forall_kernel_static_smem<<<NB, block_size>>>(f, N, blocks.batch);
+      }
 #if defined(MFEM_USE_CUDA)
       MFEM_GPU_CHECK(cudaGetLastError());
 #elif defined(MFEM_USE_HIP)
       MFEM_GPU_CHECK(hipGetLastError());
 #endif
       MFEM_DEVICE_SYNC;
-      return;
-   }
 #endif
-   if (Device::Allows(Backend::CPU_MASK))
+   }
+   else if (Device::Allows(Backend::CPU_MASK))
    {
       MFEM_ASSERT(!((bool)num_shmem != (bool)shmem),
                   "Backend::CPU needs a pre-allocated shared memory block");
@@ -649,6 +1286,142 @@ void forall(func_t f,
       MFEM_ABORT("no compute backend available");
    }
 }
+
+namespace dfem
+{
+
+template <int MAX_THREADS_PER_BLOCK = 0, typename func_t>
+void forall(func_t f,
+            const int &N,
+            [[maybe_unused]] const ThreadBlocks &blocks,
+            [[maybe_unused]] int num_shmem = 0,
+            real_t *shmem = nullptr)
+{
+   if (Device::Allows(Backend::CUDA_MASK) ||
+       Device::Allows(Backend::HIP_MASK))
+   {
+#if defined(MFEM_USE_CUDA_OR_HIP)
+      int num_bytes = num_shmem * sizeof(decltype(shmem));
+      dim3 block_size(blocks.x, blocks.y, blocks.z);
+      // A zero grid dim is a valid no-op, but CUDA reports it as
+      // cudaErrorInvalidConfiguration, so screen it out here.
+      if (N <= 0) { return; }
+      // One block per batch of items, N blocks by default (batch = 1)
+      const int NB = (N + blocks.batch - 1) / blocks.batch;
+      if constexpr (MAX_THREADS_PER_BLOCK > 0)
+      {
+         assert(num_bytes == 0);
+         forall_kernel_static_smem_launch_bounds
+         <MAX_THREADS_PER_BLOCK><<<NB, block_size>>> (f, N, blocks.batch);
+      }
+      else
+      {
+         static_assert(MAX_THREADS_PER_BLOCK == 0);
+         if (num_bytes == 0)
+         {
+            forall_kernel_static_smem<<<NB, block_size>>>(f, N, blocks.batch);
+         }
+         else
+         {
+            dfem_prepare_dynamic_shmem(&forall_kernel_shmem<func_t>, num_bytes);
+            forall_kernel_shmem<<<NB, block_size, num_bytes>>>(f, N, blocks.batch);
+         }
+      }
+#if defined(MFEM_USE_CUDA)
+      MFEM_GPU_CHECK(cudaGetLastError());
+#elif defined(MFEM_USE_HIP)
+      MFEM_GPU_CHECK(hipGetLastError());
+#endif
+#endif
+   }
+   else if (Device::Allows(Backend::CPU_MASK))
+   {
+      MFEM_ASSERT(!((bool)num_shmem != (bool)shmem),
+                  "Backend::CPU needs a pre-allocated shared memory block");
+      for (int i = 0; i < N; i++)
+      {
+         f(i, shmem);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("no compute backend available");
+   }
+}
+
+/// @cond Suppress_Doxygen_warnings
+
+#if defined(MFEM_USE_CUDA_OR_HIP)
+template <typename data_t, typename body_t>
+__global__ void forall_data_kernel(MFEM_DFEM_GRID_CONSTANT const data_t data,
+                                   int n, int batch)
+{
+   const int i = thread_item(batch);
+   if (i >= n) { return; }
+   body_t::run(data, i);
+}
+
+template <int MAX_THREADS_PER_BLOCK, typename data_t, typename body_t>
+__global__
+MFEM_LAUNCH_BOUNDS(MAX_THREADS_PER_BLOCK)
+static void forall_data_kernel_launch_bounds(
+   MFEM_DFEM_GRID_CONSTANT const data_t data, int n, int batch)
+{
+   const int i = thread_item(batch);
+   if (i >= n) { return; }
+   body_t::run(data, i);
+}
+
+#undef MFEM_DFEM_GRID_CONSTANT
+#endif
+
+/// @endcond
+
+template <int MAX_THREADS_PER_BLOCK = 0, typename body_t, typename data_t>
+void forall_data(data_t data,
+                 const int &N,
+                 [[maybe_unused]] const ThreadBlocks &blocks)
+{
+   if (Device::Allows(Backend::CUDA_MASK) ||
+       Device::Allows(Backend::HIP_MASK))
+   {
+#if defined(MFEM_USE_CUDA_OR_HIP)
+      dim3 block_size(blocks.x, blocks.y, blocks.z);
+      if (N <= 0) { return; }
+      // One block per batch of items, N blocks by default (batch = 1)
+      const int NB = (N + blocks.batch - 1) / blocks.batch;
+      if constexpr (MAX_THREADS_PER_BLOCK > 0)
+      {
+         forall_data_kernel_launch_bounds
+         <MAX_THREADS_PER_BLOCK, data_t, body_t><<<NB, block_size>>>(
+            data, N, blocks.batch);
+      }
+      else
+      {
+         forall_data_kernel<data_t, body_t><<<NB, block_size>>>(
+            data, N, blocks.batch);
+      }
+#if defined(MFEM_USE_CUDA)
+      MFEM_GPU_CHECK(cudaGetLastError());
+#elif defined(MFEM_USE_HIP)
+      MFEM_GPU_CHECK(hipGetLastError());
+#endif
+#endif
+   }
+   else if (Device::Allows(Backend::CPU_MASK))
+   {
+      for (int i = 0; i < N; i++)
+      {
+         body_t::run(data, i);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("no compute backend available");
+   }
+}
+
+} // namespace dfem
 
 /// @todo To be removed.
 class FDJacobian : public Operator
@@ -729,6 +1502,10 @@ int GetVSize(const FieldDescriptor &f)
       {
          return arg->GetVSize();
       }
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
+      {
+         return arg->GetVSize();
+      }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetVSize();
@@ -767,6 +1544,10 @@ void GetElementVDofs(const FieldDescriptor &f, int el, Array<int> &vdofs)
       {
          arg->GetElementVDofs(el, vdofs);
       }
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
+      {
+         MFEM_ABORT("internal error");
+      }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          MFEM_ABORT("internal error");
@@ -801,6 +1582,10 @@ int GetTrueVSize(const FieldDescriptor &f)
       {
          return arg->GetTrueVSize();
       }
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
+      {
+         return arg->GetVSize();
+      }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetTrueVSize();
@@ -831,6 +1616,10 @@ int GetVDim(const FieldDescriptor &f)
       {
          return arg->GetVDim();
       }
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
+      {
+         return arg->GetVDim();
+      }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
          return arg->GetVDim();
@@ -857,14 +1646,11 @@ int GetDimension(const FieldDescriptor &f)
       if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
                     std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         if constexpr (std::is_same_v<entity_t, Entity::Element>)
-         {
-            return arg->GetMesh()->Dimension();
-         }
-         else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-         {
-            return arg->GetMesh()->Dimension() - 1;
-         }
+         return EntityTraits<entity_t>::Dimension(*arg->GetMesh());
+      }
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
+      {
+         return EntityTraits<entity_t>::Dimension(*arg->GetSpace()->GetMesh());
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
@@ -878,379 +1664,35 @@ int GetDimension(const FieldDescriptor &f)
    }, f.data);
 }
 
-
-/// @brief Get the prolongation operator for a field descriptor.
-///
-/// @param f the field descriptor.
-/// @returns the prolongation operator for the field descriptor.
 inline
-const Operator *get_prolongation(const FieldDescriptor &f)
+std::variant<const QuadratureInterpolator *, const Operator *>get_qinterp(
+   const FieldDescriptor &f,
+   const IntegrationRule &ir)
 {
-   return std::visit([](auto&& arg) -> const Operator*
+   return std::visit([&ir](auto && arg) -> const QuadratureInterpolator*
    {
       using T = std::decay_t<decltype(arg)>;
       if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
                     std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         return arg->GetProlongationMatrix();
+         return arg->GetQuadratureInterpolator(ir);
+      }
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
+      {
+         // VectorQuadratureSpace doesn't need a QuadratureInterpolator
+         return nullptr;
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
-         return arg->GetProlongationMatrix();
+         return nullptr;
       }
       else
       {
-         static_assert(dfem::always_false<T>, "can't use GetProlongation on type");
+         static_assert(dfem::always_false<T>, "internal error");
       }
+
       return nullptr; // Unreachable, but avoids compiler warning
    }, f.data);
-}
-
-/// @brief Get the element restriction operator for a field descriptor.
-///
-/// @param f the field descriptor.
-/// @param o the element dof ordering.
-/// @returns the element restriction operator for the field descriptor in
-/// specified ordering.
-inline
-const Operator *get_element_restriction(const FieldDescriptor &f,
-                                        ElementDofOrdering o)
-{
-   return std::visit([&o](auto&& arg) -> const Operator*
-   {
-      using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *>
-                    || std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         return arg->GetElementRestriction(o);
-      }
-      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
-      {
-         return arg->GetElementRestriction(o);
-      }
-      else
-      {
-         static_assert(dfem::always_false<T>,
-                       "can't use get_element_restriction on type");
-      }
-      return nullptr; // Unreachable, but avoids compiler warning
-   }, f.data);
-}
-
-/// @brief Get the face restriction operator for a field descriptor.
-///
-/// @param f the field descriptor.
-/// @param o the face dof ordering.
-/// @param ft the face type
-/// @param m indicator if single or double valued
-/// @returns the face restriction operator for the field descriptor in
-/// specified ordering.
-inline
-const Operator *get_face_restriction(const FieldDescriptor &f,
-                                     ElementDofOrdering o,
-                                     FaceType ft,
-                                     L2FaceValues m)
-{
-   return std::visit([&o, &ft, &m](auto&& arg) -> const Operator*
-   {
-      using T = std::decay_t<decltype(arg)>;
-      if constexpr (std::is_same_v<T, const FiniteElementSpace *> ||
-                    std::is_same_v<T, const ParFiniteElementSpace *>)
-      {
-         return arg->GetFaceRestriction(o, ft, m);
-      }
-      else if constexpr (std::is_same_v<T, const ParameterSpace *>)
-      {
-         // ParameterSpace does not support face restrictions
-         MFEM_ABORT("internal error");
-      }
-      else
-      {
-         static_assert(dfem::always_false<T>,
-                       "can't use get_face_restriction on type");
-      }
-      return nullptr; // Unreachable, but avoids compiler warning
-   }, f.data);
-}
-
-/// @brief Get the restriction operator for a field descriptor.
-///
-/// @param f the field descriptor.
-/// @param o the element dof ordering.
-/// @returns the restriction operator for the field descriptor in
-/// specified ordering.
-template <typename entity_t>
-inline
-const Operator *get_restriction(const FieldDescriptor &f,
-                                const ElementDofOrdering &o)
-{
-   if constexpr (std::is_same_v<entity_t, Entity::Element>)
-   {
-      return get_element_restriction(f, o);
-   }
-   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-   {
-      return get_face_restriction(f, o, FaceType::Boundary,
-                                  L2FaceValues::SingleValued);
-   }
-   MFEM_ABORT("restriction not implemented for Entity");
-   return nullptr;
-}
-
-/// @brief Get a transpose restriction callback for a field descriptor.
-///
-/// @param f the field descriptor.
-/// @param o the element dof ordering.
-/// @param fop the field operator.
-/// @returns a tuple containing a std::function with the transpose
-/// restriction callback and it's height.
-template <typename entity_t, typename fop_t>
-inline std::tuple<std::function<void(const Vector&, Vector&)>, int>
-get_restriction_transpose(
-   const FieldDescriptor &f,
-   const ElementDofOrdering &o,
-   const fop_t &fop)
-{
-   if constexpr (is_sum_fop<fop_t>::value)
-   {
-      auto RT = [=](const Vector &v_e, Vector &v_l)
-      {
-         v_l += v_e;
-      };
-      return std::make_tuple(RT, 1);
-   }
-   else
-   {
-      const Operator *R = get_restriction<entity_t>(f, o);
-      std::function<void(const Vector&, Vector&)> RT = [=](const Vector &x, Vector &y)
-      {
-         R->AddMultTranspose(x, y);
-      };
-      return std::make_tuple(RT, R->Height());
-   }
-   return std::make_tuple(
-             std::function<void(const Vector&, Vector&)>([](const Vector&, Vector&)
-   {
-      /* no-op */
-   }), 0); // Never reached, but avoids compiler warning.
-}
-
-/// @brief Apply the prolongation operator to a field.
-///
-/// @param field the field descriptor.
-/// @param x the input vector in tdofs.
-/// @param field_l the output vector in vdofs.
-inline
-void prolongation(const FieldDescriptor field, const Vector &x, Vector &field_l)
-{
-   const auto P = get_prolongation(field);
-   field_l.SetSize(P->Height());
-   P->Mult(x, field_l);
-}
-
-/// @brief Apply the prolongation operator to a vector of fields.
-///
-/// x is a long vector containing the data for all fields on tdofs and
-/// fields contains the information about each individual field to retrieve
-/// it's corresponding prolongation.
-///
-/// @param fields the array of field descriptors.
-/// @param x the input vector in tdofs.
-/// @param fields_l the array of output vectors in vdofs.
-/// @tparam N the number of fields.
-/// @tparam M the number of output fields.
-template <std::size_t N, std::size_t M>
-void prolongation(const std::array<FieldDescriptor, N> fields,
-                  const Vector &x,
-                  std::array<Vector, M> &fields_l)
-{
-   int data_offset = 0;
-   for (int i = 0; i < N; i++)
-   {
-      const auto P = get_prolongation(fields[i]);
-      const int width = P->Width();
-      // const Vector x_i(x.GetData() + data_offset, width);
-      const Vector x_i(const_cast<Vector&>(x), data_offset, width);
-      fields_l[i].SetSize(P->Height());
-
-      P->Mult(x_i, fields_l[i]);
-      data_offset += width;
-   }
-}
-
-/// @brief Apply the prolongation operator to a vector of fields.
-///
-/// x is a long vector containing the data for all fields on tdofs and
-/// fields contains the information about each individual field to retrieve
-/// it's corresponding prolongation.
-///
-/// @param fields the array of field descriptors.
-/// @param x the input vector in tdofs.
-/// @param fields_l the array of output vectors in vdofs.
-inline
-void prolongation(const std::vector<FieldDescriptor> fields,
-                  const Vector &x,
-                  std::vector<Vector> &fields_l)
-{
-   int data_offset = 0;
-   for (std::size_t i = 0; i < fields.size(); i++)
-   {
-      const auto P = get_prolongation(fields[i]);
-      const int width = P->Width();
-      const Vector x_i(const_cast<Vector&>(x), data_offset, width);
-      fields_l[i].SetSize(P->Height());
-      P->Mult(x_i, fields_l[i]);
-      data_offset += width;
-   }
-}
-
-inline
-void get_lvectors(const std::vector<FieldDescriptor> fields,
-                  const Vector &x,
-                  std::vector<Vector> &fields_l)
-{
-   int data_offset = 0;
-   for (std::size_t i = 0; i < fields.size(); i++)
-   {
-      const int sz = GetVSize(fields[i]);
-      fields_l[i].SetSize(sz);
-
-      const Vector x_i(const_cast<Vector&>(x), data_offset, sz);
-      fields_l[i] = x_i;
-
-      data_offset += sz;
-   }
-}
-
-/// @brief Get a transpose prolongation callback for a field descriptor.
-///
-/// In the special case of a one field operator, the transpose prolongation
-/// is a simple sum of the local vector that is reduced to the global vector.
-///
-/// @param f the field descriptor.
-/// @param fop the field operator.
-/// @param mpi_comm the MPI communicator.
-/// @tparam fop_t the field operator type.
-template <typename fop_t>
-inline
-std::function<void(const Vector&, Vector&)> get_prolongation_transpose(
-   const FieldDescriptor &f,
-   const fop_t &fop,
-   MPI_Comm mpi_comm)
-{
-   if constexpr (is_sum_fop<fop_t>::value)
-   {
-      auto PT = [=](const Vector &r_local, Vector &y)
-      {
-         MFEM_ASSERT(y.Size() == 1, "output size doesn't match kernel description");
-         real_t local_sum = r_local.Sum();
-         MPI_Allreduce(&local_sum, y.GetData(), 1, MPI_DOUBLE, MPI_SUM, mpi_comm);
-      };
-      return PT;
-   }
-   else if constexpr (is_identity_fop<fop_t>::value)
-   {
-      auto PT = [=](const Vector &r_local, Vector &y)
-      {
-         y = r_local;
-      };
-      return PT;
-   }
-   const Operator *P = get_prolongation(f);
-   auto PT = [=](const Vector &r_local, Vector &y)
-   {
-      P->MultTranspose(r_local, y);
-   };
-   return PT;
-}
-
-/// @brief Apply the restriction operator to a field.
-///
-/// @param u the field descriptor.
-/// @param u_l the input vector in vdofs.
-/// @param field_e the output vector in edofs.
-/// @param ordering the element dof ordering.
-/// @tparam entity_t the entity type (see Entity).
-template <typename entity_t>
-void restriction(const FieldDescriptor u,
-                 const Vector &u_l,
-                 Vector &field_e,
-                 ElementDofOrdering ordering)
-{
-   const auto R = get_restriction<entity_t>(u, ordering);
-   MFEM_ASSERT(R->Width() == u_l.Size(),
-               "restriction not applicable to given data size");
-   const int height = R->Height();
-   field_e.SetSize(height);
-   R->Mult(u_l, field_e);
-}
-
-/// @brief Apply the restriction operator to a vector of fields.
-///
-/// @param u the vector of field descriptors.
-/// @param u_l the vector of input vectors in vdofs.
-/// @param fields_e the vector of output vectors in edofs.
-/// @param ordering the element dof ordering.
-/// @param offset the array index offset to start writing in fields_e.
-/// @tparam entity_t the entity type (see Entity).
-template <typename entity_t>
-void restriction(const std::vector<FieldDescriptor> u,
-                 const std::vector<Vector> &u_l,
-                 std::vector<Vector> &fields_e,
-                 ElementDofOrdering ordering,
-                 const int offset = 0)
-{
-   for (std::size_t i = 0; i < u.size(); i++)
-   {
-      const auto R = get_restriction<entity_t>(u[i], ordering);
-      MFEM_ASSERT(R->Width() == u_l[i].Size(),
-                  "restriction not applicable to given data size");
-      const int height = R->Height();
-      fields_e[i + offset].SetSize(height);
-      R->Mult(u_l[i], fields_e[i + offset]);
-   }
-}
-
-// TODO: keep this temporarily
-template <std::size_t N, std::size_t M>
-void element_restriction(const std::array<FieldDescriptor, N> u,
-                         const std::array<Vector, N> &u_l,
-                         std::array<Vector, M> &fields_e,
-                         ElementDofOrdering ordering,
-                         const int offset = 0)
-{
-   for (int i = 0; i < N; i++)
-   {
-      const auto R = get_element_restriction(u[i], ordering);
-      MFEM_ASSERT(R->Width() == u_l[i].Size(),
-                  "element restriction not applicable to given data size");
-      const int height = R->Height();
-      fields_e[i + offset].SetSize(height);
-      R->Mult(u_l[i], fields_e[i + offset]);
-   }
-}
-
-/// @brief Get the number of entities of a given type.
-///
-/// @param mesh the mesh.
-/// @tparam entity_t the entity type (see Entity).
-/// @returns the number of entities of the given type.
-template <typename entity_t>
-int GetNumEntities(const mfem::Mesh &mesh)
-{
-   if constexpr (std::is_same_v<entity_t, Entity::Element>)
-   {
-      return mesh.GetNE();
-   }
-   else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-   {
-      return mesh.GetNBE();
-   }
-   else
-   {
-      static_assert(dfem::always_false<entity_t>, "can't use GetNumEntites on type");
-   }
-   return 0; // Unreachable, but avoids compiler warning
 }
 
 /// @brief Get the GetDofToQuad object for a given entity type.
@@ -1274,14 +1716,11 @@ const DofToQuad *GetDofToQuad(const FieldDescriptor &f,
       if constexpr (std::is_same_v<T, const FiniteElementSpace *>
                     || std::is_same_v<T, const ParFiniteElementSpace *>)
       {
-         if constexpr (std::is_same_v<entity_t, Entity::Element>)
-         {
-            return &arg->GetTypicalFE()->GetDofToQuad(ir, mode);
-         }
-         else if constexpr (std::is_same_v<entity_t, Entity::BoundaryElement>)
-         {
-            return &arg->GetTypicalTraceElement()->GetDofToQuad(ir, mode);
-         }
+         return &EntityTraits<entity_t>::TypicalFE(*arg)->GetDofToQuad(ir, mode);
+      }
+      else if constexpr (std::is_same_v<T, const VectorQuadratureSpace *>)
+      {
+         return nullptr;
       }
       else if constexpr (std::is_same_v<T, const ParameterSpace *>)
       {
@@ -1372,6 +1811,10 @@ int GetSizeOnQP(const field_operator_t &, const FieldDescriptor &f)
    {
       return GetVDim(f);
    }
+   else if constexpr (is_functionalvalue_fop<field_operator_t>::value)
+   {
+      return GetVDim(f);
+   }
    else if constexpr (is_sum_fop<field_operator_t>::value)
    {
       return 1;
@@ -1414,7 +1857,8 @@ create_descriptors_to_fields_map(
 
    auto f = [&](auto &fop, auto &map)
    {
-      if constexpr (std::is_same_v<std::decay_t<decltype(fop)>, Weight>)
+      if constexpr (is_weight_fop<std::decay_t<decltype(fop)>>::value ||
+                    is_orientation_fop<std::decay_t<decltype(fop)>>::value)
       {
          // TODO-bug: stealing dimension from the first field
          fop.dim = GetDimension<entity_t>(fields[0]);
@@ -1439,7 +1883,7 @@ create_descriptors_to_fields_map(
       }
    };
 
-   for_constexpr<tuple_size<field_operator_ts>::value>([&](auto idx)
+   for_constexpr_host<tuple_size<field_operator_ts>::value>([&](auto idx)
    {
       f(get<idx>(fops), map[idx]);
    });
@@ -1498,705 +1942,15 @@ struct DofToQuadMap
 /// @brief Get the size on quadrature point for a given set of inputs.
 ///
 /// @param inputs the inputs tuple.
-/// @returns a vector containing the size on quadrature point for each input.
+/// @returns an array containing the size on quadrature point for each input.
 template <typename input_t, std::size_t... i>
-std::vector<int> get_input_size_on_qp(
+std::array<int, sizeof...(i)> get_input_size_on_qp(
    const input_t &inputs,
    std::index_sequence<i...>)
 {
    return {get<i>(inputs).size_on_qp...};
 }
 
-struct SharedMemory
-{
-   enum Index
-   {
-      INPUT_DTQ,
-      OUTPUT_DTQ,
-      FIELD,
-      DIRECTION,
-      INPUT,
-      SHADOW,
-      OUTPUT,
-      TEMP
-   };
-};
-
-template <std::size_t num_fields, std::size_t num_inputs, std::size_t num_outputs>
-struct SharedMemoryInfo
-{
-   int total_size;
-   std::array<int, 8> offsets;
-   std::array<std::array<int, 2>, num_inputs> input_dtq_sizes;
-   std::array<std::array<int, 2>, num_outputs> output_dtq_sizes;
-   std::array<int, num_fields> field_sizes;
-   int direction_size;
-   std::array<int, num_inputs> input_sizes;
-   std::array<int, num_inputs> shadow_sizes;
-   int residual_size;
-   std::array<int, 6> temp_sizes;
-};
-
-template <typename entity_t, std::size_t num_fields, std::size_t num_inputs, std::size_t num_outputs, typename input_t>
-SharedMemoryInfo<num_fields, num_inputs, num_outputs>
-get_shmem_info(
-   const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
-   const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
-   const std::vector<FieldDescriptor> &fields,
-   const int &num_entities,
-   const input_t &inputs,
-   const int &num_qp,
-   const std::vector<int> &input_size_on_qp,
-   const int &residual_size_on_qp,
-   const ElementDofOrdering &dof_ordering,
-   const int &derivative_action_field_idx = -1)
-{
-   std::array<int, 8> offsets = {0};
-   int total_size = 0;
-
-   offsets[SharedMemory::Index::INPUT_DTQ] = total_size;
-   std::array<std::array<int, 2>, num_inputs> input_dtq_sizes;
-   int max_dtq_qps = 0;
-   int max_dtq_dofs = 0;
-   for (std::size_t i = 0; i < num_inputs; i++)
-   {
-      auto a = input_dtq_maps[i].B.GetShape();
-      input_dtq_sizes[i][0] = a[0] * a[1] * a[2];
-      auto b = input_dtq_maps[i].G.GetShape();
-      input_dtq_sizes[i][1] = b[0] * b[1] * b[2];
-
-      max_dtq_qps = std::max(max_dtq_qps, a[DofToQuadMap::Index::QP]);
-      max_dtq_dofs = std::max(max_dtq_dofs, a[DofToQuadMap::Index::DOF]);
-
-      total_size += std::accumulate(std::begin(input_dtq_sizes[i]),
-                                    std::end(input_dtq_sizes[i]),
-                                    0);
-   }
-
-   offsets[SharedMemory::Index::OUTPUT_DTQ] = total_size;
-   std::array<std::array<int, 2>, num_outputs> output_dtq_sizes;
-   for (std::size_t i = 0; i < num_outputs; i++)
-   {
-      auto a = output_dtq_maps[i].B.GetShape();
-      output_dtq_sizes[i][0] = a[0] * a[1] * a[2];
-      auto b = output_dtq_maps[i].G.GetShape();
-      output_dtq_sizes[i][1] = b[0] * b[1] * b[2];
-
-      max_dtq_qps = std::max(max_dtq_qps, a[DofToQuadMap::Index::QP]);
-      max_dtq_dofs = std::max(max_dtq_dofs, a[DofToQuadMap::Index::DOF]);
-
-      total_size += std::accumulate(std::begin(output_dtq_sizes[i]),
-                                    std::end(output_dtq_sizes[i]),
-                                    0);
-   }
-
-   offsets[SharedMemory::Index::FIELD] = total_size;
-   std::array<int, num_fields> field_sizes;
-   for (std::size_t i = 0; i < num_fields; i++)
-   {
-      field_sizes[i] =
-         num_entities
-         ? (get_restriction<entity_t>(fields[i], dof_ordering)->Height()
-            / num_entities)
-         : 0;
-   }
-   total_size += std::accumulate(
-                    std::begin(field_sizes), std::end(field_sizes), 0);
-
-   offsets[SharedMemory::Index::DIRECTION] = total_size;
-   int direction_size = 0;
-   if (derivative_action_field_idx != -1)
-   {
-      direction_size =
-         num_entities ? (get_restriction<entity_t>(
-                            fields[derivative_action_field_idx], dof_ordering)
-                         ->Height()
-                         / num_entities)
-         : 0;
-      total_size += direction_size;
-   }
-
-   offsets[SharedMemory::Index::INPUT] = total_size;
-   std::array<int, num_inputs> input_sizes;
-   for (std::size_t i = 0; i < num_inputs; i++)
-   {
-      input_sizes[i] = input_size_on_qp[i] * num_qp;
-   }
-   total_size += std::accumulate(
-                    std::begin(input_sizes), std::end(input_sizes), 0);
-
-   offsets[SharedMemory::Index::SHADOW] = total_size;
-   std::array<int, num_inputs> shadow_sizes{0};
-   if (derivative_action_field_idx != -1)
-   {
-      for (std::size_t i = 0; i < num_inputs; i++)
-      {
-         shadow_sizes[i] = input_size_on_qp[i] * num_qp;
-      }
-      total_size += std::accumulate(
-                       std::begin(shadow_sizes), std::end(shadow_sizes), 0);
-   }
-
-   offsets[SharedMemory::Index::OUTPUT] = total_size;
-   const int residual_size = residual_size_on_qp;
-   total_size += residual_size * num_qp;
-
-   offsets[SharedMemory::Index::TEMP] = total_size;
-   constexpr int num_temp = 6;
-   std::array<int, num_temp> temp_sizes = {0};
-   // TODO-bug: this assumes q1d >= d1d
-   const int q1d = max_dtq_qps;
-   [[maybe_unused]] const int d1d = max_dtq_dofs;
-
-   // TODO-bug: this depends on the dimension
-   constexpr int hardcoded_temp_num = 6;
-   for (std::size_t i = 0; i < hardcoded_temp_num; i++)
-   {
-      // TODO-bug: over-allocates if q1d <= d1d
-      temp_sizes[i] = q1d * q1d * q1d;
-   }
-   total_size += std::accumulate(
-                    std::begin(temp_sizes), std::end(temp_sizes), 0);
-
-   return SharedMemoryInfo<num_fields, num_inputs, num_outputs>
-   {
-      total_size,
-      offsets,
-      input_dtq_sizes,
-      output_dtq_sizes,
-      field_sizes,
-      direction_size,
-      input_sizes,
-      shadow_sizes,
-      residual_size,
-      temp_sizes
-   };
-}
-
-template <typename shmem_info_t>
-void print_shared_memory_info(shmem_info_t &shmem_info)
-{
-   out << "Shared Memory Info\n"
-       << "total size: " << shmem_info.total_size
-       << " " << "(" << shmem_info.total_size * real_t(sizeof(real_t))/1024.0 << "kb)";
-   out << "\ninput dtq sizes (B G): ";
-   for (auto &i : shmem_info.input_dtq_sizes)
-   {
-      out << "(";
-      for (int j = 0; j < 2; j++)
-      {
-         out << i[j];
-         if (j < 1)
-         {
-            out << " ";
-         }
-      }
-      out << ") ";
-   }
-   out << "\noutput dtq sizes (B G): ";
-   for (auto &i : shmem_info.output_dtq_sizes)
-   {
-      out << "(";
-      for (int j = 0; j < 2; j++)
-      {
-         out << i[j];
-         if (j < 1)
-         {
-            out << " ";
-         }
-      }
-      out << ") ";
-   }
-   out << "\nfield sizes: ";
-   for (auto &i : shmem_info.field_sizes)
-   {
-      out << i << " ";
-   }
-   out << "\ndirection size: ";
-   out << shmem_info.direction_size << " ";
-   out << "\ninput sizes: ";
-   for (auto &i : shmem_info.input_sizes)
-   {
-      out << i << " ";
-   }
-   out << "\nshadow sizes: ";
-   for (auto &i : shmem_info.shadow_sizes)
-   {
-      out << i << " ";
-   }
-   out << "\ntemp sizes: ";
-   for (auto &i : shmem_info.temp_sizes)
-   {
-      out << i << " ";
-   }
-   out << "\noffsets: ";
-   for (auto &i : shmem_info.offsets)
-   {
-      out << i << " ";
-   }
-   out << "\n\n";
-}
-
-template <std::size_t N>
-MFEM_HOST_DEVICE inline
-std::array<DofToQuadMap, N> load_dtq_mem(
-   void *mem,
-   int offset,
-   const std::array<std::array<int, 2>, N> &sizes,
-   const std::array<DofToQuadMap, N> &dtq)
-{
-   std::array<DofToQuadMap, N> f;
-   for (std::size_t i = 0; i < N; i++)
-   {
-      if (dtq[i].which_input != -1)
-      {
-         const auto [nqp_b, dim_b, ndof_b] = dtq[i].B.GetShape();
-         const auto B = Reshape(&dtq[i].B[0], nqp_b, dim_b, ndof_b);
-         auto mem_Bi = Reshape(reinterpret_cast<real_t *>(mem) + offset, nqp_b, dim_b,
-                               ndof_b);
-
-         MFEM_FOREACH_THREAD(q, x, nqp_b)
-         {
-            MFEM_FOREACH_THREAD(d, y, ndof_b)
-            {
-               for (int b = 0; b < dim_b; b++)
-               {
-                  auto v = B(q, b, d);
-                  mem_Bi(q, b, d) = v;
-               }
-            }
-         }
-
-         offset += sizes[i][0];
-
-         const auto [nqp_g, dim_g, ndof_g] = dtq[i].G.GetShape();
-         const auto G = Reshape(&dtq[i].G[0], nqp_g, dim_g, ndof_g);
-         auto mem_Gi = Reshape(reinterpret_cast<real_t *>(mem) + offset, nqp_g, dim_g,
-                               ndof_g);
-
-         MFEM_FOREACH_THREAD(q, x, nqp_g)
-         {
-            MFEM_FOREACH_THREAD(d, y, ndof_g)
-            {
-               for (int b = 0; b < dim_g; b++)
-               {
-                  mem_Gi(q, b, d) = G(q, b, d);
-               }
-            }
-         }
-
-         offset += sizes[i][1];
-
-         f[i] = DofToQuadMap{DeviceTensor<3, const real_t>(&mem_Bi[0], nqp_b, dim_b, ndof_b),
-                             DeviceTensor<3, const real_t>(&mem_Gi[0], nqp_g, dim_g, ndof_g),
-                             dtq[i].which_input};
-      }
-      else
-      {
-         // When which_input is -1, just copy the original DofToQuadMap with empty data.
-         f[i] = dtq[i];
-      }
-   }
-   return f;
-}
-
-template <std::size_t num_fields>
-MFEM_HOST_DEVICE inline
-std::array<DeviceTensor<1>, num_fields>
-load_field_mem(
-   void *mem,
-   int offset,
-   const std::array<int, num_fields> &sizes,
-   const std::array<DeviceTensor<2>, num_fields> &fields_e,
-   const int &entity_idx)
-{
-   std::array<DeviceTensor<1>, num_fields> f;
-
-   for_constexpr<num_fields>([&](auto field_idx)
-   {
-      int block_size = MFEM_THREAD_SIZE(x) *
-                       MFEM_THREAD_SIZE(y) *
-                       MFEM_THREAD_SIZE(z);
-      int tid = MFEM_THREAD_ID(x) +
-                MFEM_THREAD_SIZE(x) *
-                (MFEM_THREAD_ID(y) + MFEM_THREAD_SIZE(y) * MFEM_THREAD_ID(z));
-      for (int k = tid; k < sizes[field_idx]; k += block_size)
-      {
-         reinterpret_cast<real_t *>(mem)[offset + k] =
-            fields_e[field_idx](k, entity_idx);
-      }
-
-      f[field_idx] =
-         DeviceTensor<1>(&reinterpret_cast<real_t *> (mem)[offset], sizes[field_idx]);
-
-      offset += sizes[field_idx];
-   });
-
-   return f;
-}
-
-MFEM_HOST_DEVICE inline
-DeviceTensor<1> load_direction_mem(
-   void *mem,
-   int offset,
-   const int &size,
-   const DeviceTensor<2> &direction,
-   const int &entity_idx)
-{
-   int block_size = MFEM_THREAD_SIZE(x) *
-                    MFEM_THREAD_SIZE(y) *
-                    MFEM_THREAD_SIZE(z);
-   int tid = MFEM_THREAD_ID(x) +
-             MFEM_THREAD_SIZE(x) *
-             (MFEM_THREAD_ID(y) + MFEM_THREAD_SIZE(y) * MFEM_THREAD_ID(z));
-   for (int k = tid; k < size; k += block_size)
-   {
-      reinterpret_cast<real_t *>(mem)[offset + k] = direction(k, entity_idx);
-   }
-   MFEM_SYNC_THREAD;
-
-   return DeviceTensor<1>(
-             &reinterpret_cast<real_t *>(mem)[offset], size);
-}
-
-template <std::size_t N>
-MFEM_HOST_DEVICE inline
-std::array<DeviceTensor<2>, N> load_input_mem(
-   void *mem,
-   int offset,
-   const std::array<int, N> &sizes,
-   const int &num_qp)
-{
-   std::array<DeviceTensor<2>, N> f;
-   for (std::size_t i = 0; i < N; i++)
-   {
-      f[i] = DeviceTensor<2>(&reinterpret_cast<real_t *>(mem)[offset],
-                             sizes[i] / num_qp,
-                             num_qp);
-      offset += sizes[i];
-   }
-   return f;
-}
-
-MFEM_HOST_DEVICE inline
-DeviceTensor<2> load_residual_mem(
-   void *mem,
-   int offset,
-   const int &residual_size,
-   const int &num_qp)
-{
-   return DeviceTensor<2>(reinterpret_cast<real_t *>(mem) + offset, residual_size,
-                          num_qp);
-}
-
-template <std::size_t N>
-MFEM_HOST_DEVICE inline
-std::array<DeviceTensor<1>, 6> load_scratch_mem(
-   void *mem,
-   int offset,
-   const std::array<int, N> &sizes)
-{
-   std::array<DeviceTensor<1>, N> f;
-   for (std::size_t i = 0; i < N; i++)
-   {
-      f[i] = DeviceTensor<1>(&reinterpret_cast<real_t *>(mem)[offset], sizes[i]);
-      offset += sizes[i];
-   }
-   return f;
-}
-
-template <typename shared_mem_info_t, std::size_t num_inputs, std::size_t num_outputs, std::size_t num_fields>
-MFEM_HOST_DEVICE inline
-auto unpack_shmem(
-   void *shmem,
-   const shared_mem_info_t &shmem_info,
-   const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
-   const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
-   const std::array<DeviceTensor<2>, num_fields> &wrapped_fields_e,
-   const int &num_qp,
-   const int &e)
-{
-   auto input_dtq_shmem =
-      load_dtq_mem(
-         shmem,
-         shmem_info.offsets[SharedMemory::Index::INPUT_DTQ],
-         shmem_info.input_dtq_sizes,
-         input_dtq_maps);
-
-   auto output_dtq_shmem =
-      load_dtq_mem(
-         shmem,
-         shmem_info.offsets[SharedMemory::Index::OUTPUT_DTQ],
-         shmem_info.output_dtq_sizes,
-         output_dtq_maps);
-
-   auto fields_shmem =
-      load_field_mem(
-         shmem,
-         shmem_info.offsets[SharedMemory::Index::FIELD],
-         shmem_info.field_sizes,
-         wrapped_fields_e,
-         e);
-
-   // These functions don't copy, they simply create a `DeviceTensor` object
-   // that points to correct chunks of the shared memory pool.
-   auto input_shmem =
-      load_input_mem(
-         shmem,
-         shmem_info.offsets[SharedMemory::Index::INPUT],
-         shmem_info.input_sizes,
-         num_qp);
-
-   auto residual_shmem =
-      load_residual_mem(
-         shmem,
-         shmem_info.offsets[SharedMemory::Index::OUTPUT],
-         shmem_info.residual_size,
-         num_qp);
-
-   auto scratch_mem =
-      load_scratch_mem(
-         shmem,
-         shmem_info.offsets[SharedMemory::Index::TEMP],
-         shmem_info.temp_sizes);
-
-   MFEM_SYNC_THREAD;
-
-   // nvcc needs make_tuple to be fully qualified
-   return mfem::future::make_tuple(
-             input_dtq_shmem, output_dtq_shmem, fields_shmem,
-             input_shmem, residual_shmem, scratch_mem);
-}
-
-template <typename shared_mem_info_t, std::size_t num_inputs, std::size_t num_outputs, std::size_t num_fields>
-MFEM_HOST_DEVICE inline
-auto unpack_shmem(
-   void *shmem,
-   const shared_mem_info_t &shmem_info,
-   const std::array<DofToQuadMap, num_inputs> &input_dtq_maps,
-   const std::array<DofToQuadMap, num_outputs> &output_dtq_maps,
-   const std::array<DeviceTensor<2>, num_fields> &wrapped_fields_e,
-   const DeviceTensor<2> &wrapped_direction_e,
-   const int &num_qp,
-   const int &e)
-{
-   auto input_dtq_shmem =
-      load_dtq_mem(
-         shmem,
-         shmem_info.offsets[SharedMemory::Index::INPUT_DTQ],
-         shmem_info.input_dtq_sizes,
-         input_dtq_maps);
-
-   auto output_dtq_shmem =
-      load_dtq_mem(
-         shmem,
-         shmem_info.offsets[SharedMemory::Index::OUTPUT_DTQ],
-         shmem_info.output_dtq_sizes,
-         output_dtq_maps);
-
-   auto fields_shmem =
-      load_field_mem(
-         shmem,
-         shmem_info.offsets[SharedMemory::Index::FIELD],
-         shmem_info.field_sizes,
-         wrapped_fields_e,
-         e);
-
-   auto direction_shmem =
-      load_direction_mem(
-         shmem,
-         shmem_info.offsets[SharedMemory::Index::DIRECTION],
-         shmem_info.direction_size,
-         wrapped_direction_e,
-         e);
-
-   // These methods don't copy, they simply create a `DeviceTensor` object
-   // that points to correct chunks of the shared memory pool.
-   auto input_shmem =
-      load_input_mem(
-         shmem,
-         shmem_info.offsets[SharedMemory::Index::INPUT],
-         shmem_info.input_sizes,
-         num_qp);
-
-   auto shadow_shmem =
-      load_input_mem(
-         shmem,
-         shmem_info.offsets[SharedMemory::Index::SHADOW],
-         shmem_info.input_sizes,
-         num_qp);
-
-   auto residual_shmem =
-      load_residual_mem(
-         shmem,
-         shmem_info.offsets[SharedMemory::Index::OUTPUT],
-         shmem_info.residual_size,
-         num_qp);
-
-   auto scratch_mem =
-      load_scratch_mem(
-         shmem,
-         shmem_info.offsets[SharedMemory::Index::TEMP],
-         shmem_info.temp_sizes);
-
-   MFEM_SYNC_THREAD;
-
-   // nvcc needs make_tuple to be fully qualified
-   return mfem::future::make_tuple(
-             input_dtq_shmem, output_dtq_shmem, fields_shmem,
-             direction_shmem, input_shmem, shadow_shmem,
-             residual_shmem, scratch_mem);
-}
-
-template <std::size_t... i>
-MFEM_HOST_DEVICE inline
-std::array<DeviceTensor<2>, sizeof...(i)> get_local_input_qp(
-   const std::array<DeviceTensor<3>, sizeof...(i)> &input_qp_global, int e,
-   std::index_sequence<i...>)
-{
-   return
-   {
-      DeviceTensor<2>(
-         &input_qp_global[i](0, 0, e),
-         input_qp_global[i].GetShape()[0],
-         input_qp_global[i].GetShape()[1]) ...
-   };
-}
-
-template <std::size_t N>
-MFEM_HOST_DEVICE inline
-void set_zero(std::array<DeviceTensor<2>, N> &v)
-{
-   for (std::size_t i = 0; i < N; i++)
-   {
-      int size = v[i].GetShape()[0] * v[i].GetShape()[1];
-      auto vi = Reshape(&v[i][0], size);
-      for (int j = 0; j < size; j++)
-      {
-         vi[j] = 0.0;
-      }
-   }
-}
-
-template <std::size_t n>
-MFEM_HOST_DEVICE inline
-void set_zero(DeviceTensor<n> &u)
-{
-   int s = 1;
-   for (int i = 0; i < n; i++)
-   {
-      s *= u.GetShape()[i];
-   }
-   auto ui = Reshape(&u[0], s);
-   for (int j = 0; j < s; j++)
-   {
-      ui[j] = 0.0;
-   }
-}
-
-/// @brief Copy data from DeviceTensor u to DeviceTensor v
-///
-/// @param u source DeviceTensor
-/// @param v destination DeviceTensor
-/// @tparam n DeviceTensor rank
-template <int n>
-MFEM_HOST_DEVICE inline
-void copy(DeviceTensor<n> &u, DeviceTensor<n> &v)
-{
-   int s = 1;
-   for (int i = 0; i < n; i++)
-   {
-      s *= u.GetShape()[i];
-   }
-   auto ui = Reshape(&u[0], s);
-   auto vi = Reshape(&v[0], s);
-   for (int j = 0; j < s; j++)
-   {
-      vi[j] = ui[j];
-   }
-}
-
-/// @brief Copy data from array of DeviceTensor u to array of DeviceTensor v
-///
-/// @param u source DeviceTensor array
-/// @param v destination DeviceTensor array
-/// @tparam n DeviceTensor rank
-/// @tparam m number of DeviceTensors
-template <int n, std::size_t m>
-MFEM_HOST_DEVICE inline
-void copy(std::array<DeviceTensor<n>, m> &u,
-          std::array<DeviceTensor<n>, m> &v)
-{
-   for (int i = 0; i < m; i++)
-   {
-      copy(u[i], v[i]);
-   }
-}
-
-/// @brief Wraps plain data in DeviceTensors for fields
-///
-/// @param fields array of field data
-/// @param field_sizes for each field, number of values stored for each entity
-/// @param num_entities number of entities (elements, faces, etc) in mesh
-/// @tparam num_fields number of fields
-/// @return array of field data wrapped in DeviceTensors
-template <std::size_t num_fields>
-std::array<DeviceTensor<2>, num_fields> wrap_fields(
-   std::vector<Vector> &fields,
-   std::array<int, num_fields> &field_sizes,
-   const int &num_entities)
-{
-   std::array<DeviceTensor<2>, num_fields> f;
-
-   for_constexpr<num_fields>([&](auto i)
-   {
-      f[i] = DeviceTensor<2>(fields[i].ReadWrite(), field_sizes[i], num_entities);
-   });
-
-   return f;
-}
-
-/// @brief Accumulates the sizes of field operators on quadrature points for
-/// dependent inputs
-///
-/// @tparam input_t Type of input field operators tuple
-/// @tparam num_fields Number of fields
-/// @tparam i Parameter pack indices for field operators
-///
-/// @param inputs Tuple of input field operators
-/// @param kinput_is_dependent Array indicating which inputs are dependent
-/// @param input_to_field Array mapping input indices to field indices
-/// @param fields Array of field descriptors
-/// @param seq Index sequence for inputs
-///
-/// @return Sum of sizes on quadrature points for all dependent inputs
-///
-/// @details
-/// This function accumulates the sizes needed on quadrature points for all
-/// dependent input field operators. For each dependent input, it calculates the
-/// size required on quadrature points using GetSizeOnQP() and adds it to the
-/// total. Non-dependent inputs contribute zero to the total size.
-template <typename input_t, std::size_t num_fields, std::size_t... i>
-int accumulate_sizes_on_qp(
-   const input_t &inputs,
-   std::array<bool, sizeof...(i)> &kinput_is_dependent,
-   const std::array<int, sizeof...(i)> &input_to_field,
-   const std::array<FieldDescriptor, num_fields> &fields,
-   std::index_sequence<i...> seq)
-{
-   MFEM_CONTRACT_VAR(seq); // 'seq' is needed for doxygen
-   return (... + [](auto &input, auto is_dependent, auto field)
-   {
-      if (!is_dependent)
-      {
-         return 0;
-      }
-      return GetSizeOnQP(input, field);
-   }
-   (get<i>(inputs),
-    get<i>(kinput_is_dependent),
-    fields[input_to_field[i]]));
-}
 
 template <
    typename entity_t,
@@ -2205,33 +1959,62 @@ template <
    std::size_t... Is>
 std::array<DofToQuadMap, N> create_dtq_maps_impl(
    field_operator_ts &fops,
-   std::vector<const DofToQuad*> &dtqs,
+   const std::vector<const DofToQuad*> &dtqs,
    const std::array<size_t, N> &field_map,
+   const std::vector<FieldDescriptor> &fds,
+   const IntegrationRule &ir,
    std::index_sequence<Is...>)
 {
    auto f = [&](auto fop, std::size_t idx)
    {
-      [[maybe_unused]] auto g = [&](int idx)
+      // Get the DofToQuad for a given field operator and return the dimensions
+      const auto get_dtq_dims = [&](int idx)
       {
-         auto dtq = dtqs[field_map[idx]];
+         const auto *dtq = dtqs[field_map[idx]];
 
          int value_dim = 1;
          int grad_dim = 1;
 
-         if ((dtq->mode != DofToQuad::Mode::TENSOR) &&
-             (!is_identity_fop<decltype(fop)>::value))
+         // if (dtq == nullptr)
+         // {
+         //    // For VectorQuadratureSpace with Identity, use the vector dimension
+         //    // Data is point-wise at qpts: [nqpt][vdim]
+         //    const auto &fd = fds[field_map[idx]];
+         //    if (std::holds_alternative<const VectorQuadratureSpace *>(fd.data))
+         //    {
+         //       const auto *vqs = std::get<const VectorQuadratureSpace *>(fd.data);
+         //       value_dim = vqs->GetVDim();
+         //    }
+         //    return std::tuple{dtq, value_dim, grad_dim};
+         // }
+
+         if ((!is_identity_fop<decltype(fop)>::value) &&
+             (!is_functionalvalue_fop<decltype(fop)>::value) &&
+             (dtq->mode != DofToQuad::Mode::TENSOR) &&
+             (dtq->FE != nullptr))
          {
             value_dim = dtq->FE->GetRangeDim() ? dtq->FE->GetRangeDim() : 1;
             grad_dim = dtq->FE->GetDim();
          }
-
          return std::tuple{dtq, value_dim, grad_dim};
       };
 
       if constexpr (is_value_fop<decltype(fop)>::value ||
                     is_gradient_fop<decltype(fop)>::value)
       {
-         auto [dtq, value_dim, grad_dim] = g(idx);
+         auto [dtq, value_dim, grad_dim] = get_dtq_dims(idx);
+         // ParameterSpace: dtq is non-null but has no B/G data (nqpt/ndof
+         // uninitialized, B.Size()==0). Treat as a pass-through
+         // (which_input=-1); only dependent inputs need B/G tensors.
+         if (dtq == nullptr || dtq->B.Size() == 0)
+         {
+            return DofToQuadMap
+            {
+               DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+               DeviceTensor<3, const real_t>(nullptr, 0, 0, 0),
+               -1
+            };
+         }
          return DofToQuadMap
          {
             DeviceTensor<3, const real_t>(dtq->B.Read(), dtq->nqpt, value_dim, dtq->ndof),
@@ -2239,7 +2022,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
             static_cast<int>(idx)
          };
       }
-      else if constexpr (std::is_same_v<decltype(fop), Weight>)
+      else if constexpr (std::is_same_v<decltype(fop), Weight> ||
+                         std::is_same_v<decltype(fop), Orientation>)
       {
          return DofToQuadMap
          {
@@ -2249,13 +2033,46 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
          };
       }
       else if constexpr (is_identity_fop<decltype(fop)>::value ||
-                         is_sum_fop<decltype(fop)>::value)
+                         is_sum_fop<decltype(fop)>::value ||
+                         is_functionalvalue_fop<decltype(fop)>::value)
       {
-         auto [dtq, value_dim, grad_dim] = g(idx);
+         auto [dtq, value_dim, grad_dim] = get_dtq_dims(idx);
+
+         const auto &fd = fds[field_map[idx]];
+         int mesh_dimension = -1;
+         if (std::holds_alternative<const VectorQuadratureSpace *>(fd.data))
+         {
+            const auto *vqs = std::get<const VectorQuadratureSpace *>(fd.data);
+            mesh_dimension =
+               EntityTraits<entity_t>::Dimension(*vqs->GetSpace()->GetMesh());
+         }
+         else
+         {
+            MFEM_ABORT("identity/sum only implemented for VectorQuadratureSpace");
+         }
+
+         // bool use_tensor_dtq = false;
+         // for (const auto *candidate_dtq : dtqs)
+         // {
+         //    if (candidate_dtq != nullptr)
+         //    {
+         //       use_tensor_dtq = (candidate_dtq->mode == DofToQuad::Mode::TENSOR);
+         //       break;
+         //    }
+         // }
+
+         // TODO: force tensor dtq rn, figure out a better way to handle this
+
+         int nqpt = ir.GetNPoints();
+         int ndof = nqpt;
+         const int q1d = tensor_1d_size(ir.GetNPoints(), mesh_dimension);
+         nqpt = q1d;
+         ndof = q1d;
+
          return DofToQuadMap
          {
-            DeviceTensor<3, const real_t>(nullptr, dtq->nqpt, value_dim, dtq->ndof),
-            DeviceTensor<3, const real_t>(nullptr, dtq->nqpt, grad_dim, dtq->ndof),
+            DeviceTensor<3, const real_t>(nullptr, nqpt, value_dim, ndof),
+            DeviceTensor<3, const real_t>(nullptr, nqpt, grad_dim, ndof),
             -1
          };
       }
@@ -2282,6 +2099,8 @@ std::array<DofToQuadMap, N> create_dtq_maps_impl(
 /// @param fops field operators
 /// @param dtqmaps DofToQuad maps
 /// @param to_field_map mapping from input indices to field indices
+/// @param fds field descriptors
+/// @param ir integration rule
 /// @tparam entity_t type of the entity
 /// @return array of DofToQuad maps
 template <
@@ -2290,14 +2109,125 @@ template <
    std::size_t num_fields>
 std::array<DofToQuadMap, num_fields> create_dtq_maps(
    field_operator_ts &fops,
-   std::vector<const DofToQuad*> &dtqmaps,
-   const std::array<size_t, num_fields> &to_field_map)
+   const std::vector<const DofToQuad*> &dtqmaps,
+   const std::array<size_t, num_fields> &to_field_map,
+   const std::vector<FieldDescriptor> &fds,
+   const IntegrationRule &ir)
 {
    return create_dtq_maps_impl<entity_t>(
              fops, dtqmaps,
              to_field_map,
+             fds, ir,
              std::make_index_sequence<num_fields> {});
 }
 
+struct QLayoutEntry
+{
+   std::type_index type;
+   std::vector<int> layout;
+
+   template <class Fop>
+   QLayoutEntry(Fop, std::initializer_list<int> idx) :
+      type(typeid(Fop)), layout(idx) {}
+};
+
+inline static void ExtractQLayouts(
+   const std::initializer_list<QLayoutEntry> entries,
+   std::unordered_map<std::type_index, std::vector<int>>& out)
+{
+   for (const auto& e : entries)
+   {
+      out[e.type] = e.layout;
+   }
+}
+
+namespace detail
+{
+
+/// @brief Device implementation of A + B for two finalized SparseMatrix objects
+inline SparseMatrix *AddSparseMatrices(const SparseMatrix &A,
+                                       const SparseMatrix &B)
+{
+   MFEM_VERIFY(A.Height() == B.Height() && A.Width() == B.Width(),
+               "the matrices differ in size");
+   const int n = A.Height();
+   const int *Ai = A.ReadI(), *Aj = A.ReadJ(), *Bi = B.ReadI(), *Bj = B.ReadJ();
+   const real_t *Ad = A.ReadData(), *Bd = B.ReadData();
+
+   auto *C = new SparseMatrix;
+   C->OverrideSize(n, A.Width());
+   C->GetMemoryI().New(n + 1, C->GetMemoryI().GetMemoryType());
+   int *Ci = C->WriteI();
+
+   // 1. Entries per row: A's, plus B's on columns A lacks. Ci[n] = 0.
+   mfem::forall(n + 1, [=] MFEM_HOST_DEVICE (int r)
+   {
+      int count = 0;
+      if (r < n)
+      {
+         count = Ai[r + 1] - Ai[r];
+         for (int kb = Bi[r]; kb < Bi[r + 1]; kb++)
+         {
+            bool in_A = false;
+            for (int ka = Ai[r]; ka < Ai[r + 1] && !in_A; ka++)
+            {
+               in_A = (Aj[ka] == Bj[kb]);
+            }
+            count += in_A ? 0 : 1;
+         }
+      }
+      Ci[r] = count;
+   });
+
+   // 2. Row offsets; Ci[n] becomes the number of entries.
+   ExclusiveScan(true, Ci, Ci, n + 1, 0);
+
+   // 3. Allocate J and data, copying only Ci[n] to the host.
+   int nnz;
+   Memory<int> last(C->GetMemoryI(), n, 1);
+   last.CopyToHost(&nnz, 1);
+   last.Delete();
+   C->GetMemoryJ().New(nnz, C->GetMemoryJ().GetMemoryType());
+   C->GetMemoryData().New(nnz, C->GetMemoryData().GetMemoryType());
+   int *Cj = C->WriteJ();
+   real_t *Cd = C->WriteData();
+
+   // 4. Write each row: A's entries plus B's on the same columns, then B's on
+   //    columns A lacks.
+   mfem::forall(n, [=] MFEM_HOST_DEVICE (int r)
+   {
+      int k = Ci[r];
+      for (int ka = Ai[r]; ka < Ai[r + 1]; ka++)
+      {
+         real_t v = Ad[ka];
+         for (int kb = Bi[r]; kb < Bi[r + 1]; kb++)
+         {
+            if (Bj[kb] == Aj[ka]) { v += Bd[kb]; }
+         }
+         Cj[k] = Aj[ka];
+         Cd[k] = v;
+         k++;
+      }
+      for (int kb = Bi[r]; kb < Bi[r + 1]; kb++)
+      {
+         bool in_A = false;
+         for (int ka = Ai[r]; ka < Ai[r + 1] && !in_A; ka++)
+         {
+            in_A = (Aj[ka] == Bj[kb]);
+         }
+         if (!in_A)
+         {
+            Cj[k] = Bj[kb];
+            Cd[k] = Bd[kb];
+            k++;
+         }
+      }
+   });
+   return C;
+}
+
+} // namespace detail
+
 } // namespace mfem::future
-#endif
+
+#endif // MFEM_USE_MPI

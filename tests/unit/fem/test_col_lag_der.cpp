@@ -159,7 +159,7 @@ TEST_CASE("Collocated Derivative Kernels", "[QuadratureInterpolator]")
       Vector qp_der(nelem*vdim*nqp*(P ? sdim : dim));
       GK::Run(dim, L, P, vdim, nd, nq, nelem, maps.B.Read(), maps.G.Read(),
               geom->J.Read(), evec_values.Read(), qp_der.Write(), sdim, vdim,
-              nd, nq);
+              nd, nq, nullptr);
 
       Vector col_der(nelem*vdim*nqp*(P ? sdim : dim));
       CGK::Run(dim, L, P, vdim, nd, nelem, maps.G.Read(), geom->J.Read(),

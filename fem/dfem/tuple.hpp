@@ -200,7 +200,9 @@ struct tuple<>
  * @tparam T the variadic template parameter for tuple types
  */
 template <typename... T>
+#if !defined(__clang__) || defined(__NVCC__) || __clang_major__ < 22
 MFEM_HOST_DEVICE
+#endif
 tuple(T...) -> tuple<T...>;
 
 /**
@@ -249,6 +251,10 @@ struct tuple_element<0, tuple<Head, Tail...>>
 {
    using type = Head;  ///< the type at the specified index
 };
+
+/// @brief Type alias mirroring std::tuple_element_t for mfem::future::tuple
+template <size_t I, class T>
+using tuple_element_t = typename tuple_element<I, T>::type;
 
 namespace detail
 {
@@ -856,4 +862,11 @@ struct tuple_element<I, mfem::future::tuple<T...>>
    using type = typename
                 mfem::future::tuple_element<I, mfem::future::tuple<T...>>::type;
 };
-} // namespace std
+
+// Less specialized than mfem::future::get, so that structured bindings are not
+// ambiguous with nvcc, which also considers std::get for them.
+template <size_t I, typename T, typename = enable_if_t<
+             mfem::future::is_tuple<remove_cv_t<remove_reference_t<T>>>::value>>
+             constexpr decltype(auto) get(T&& t) noexcept
+{ return mfem::future::get<I>(std::forward<T>(t)); }
+}

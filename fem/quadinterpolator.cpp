@@ -11,6 +11,7 @@
 
 #include "quadinterpolator.hpp"
 #include "qinterp/grad.hpp"
+#include "qinterp/grad_transpose.hpp"
 #include "qinterp/eval.hpp"
 #include "qspace.hpp"
 #include "../general/forall.hpp"
@@ -30,7 +31,10 @@ void InitEvalKernels();
 void InitDetKernels();
 template <bool P> void InitGradByNodesKernels();
 template <bool P> void InitGradByVDimKernels();
+template <bool P> void InitGradTransposeByNodesKernels();
+template <bool P> void InitGradTransposeByVDimKernels();
 void InitTensorEvalHDivKernels();
+void InitEvalTransposeByVDimKernels();
 struct Kernels
 {
    Kernels()
@@ -45,12 +49,19 @@ struct Kernels
       // Phys grad kernels
       InitGradByNodesKernels<true>();
       InitGradByVDimKernels<true>();
+      // Non-phys grad transpose kernels
+      InitGradTransposeByNodesKernels<false>();
+      InitGradTransposeByVDimKernels<false>();
+      // Phys grad transpose kernels
+      InitGradTransposeByNodesKernels<true>();
+      InitGradTransposeByVDimKernels<true>();
       // Determinants
       InitDetKernels();
       // Non-tensor
       InitEvalKernels();
       // Tensor (quad,hex) H(div)
       InitTensorEvalHDivKernels();
+      InitEvalTransposeByVDimKernels();
    }
 };
 }
@@ -227,16 +238,19 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
                                   unsigned eval_flags,
                                   Vector &q_val,
                                   Vector &q_der,
-                                  Vector &q_det) const
+                                  Vector &q_det,
+                                  const Array<int> *elist) const
 {
    using namespace internal::quadrature_interpolator;
 
    const int ne = fespace->GetNE();
-   if (ne == 0) { return; }
+   const int ne_marked = elist ? elist->Size() : ne;
+   if (ne_marked == 0) { return; }
    const FiniteElement *fe = fespace->GetFE(0);
 
    if (fe->GetMapType() == FiniteElement::MapType::H_DIV)
    {
+      MFEM_VERIFY(!elist, "element lists are not supported for H(div) spaces yet");
       // q_der == q_div
       return MultHDiv(e_vec, eval_flags, q_val, q_der);
    }
@@ -286,13 +300,14 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
          {
             IntTensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, ne,
                                       maps.B.Read(), geom->detJ.Read(),
-                                      e_vec.Read(), q_val.Write(), vdim, nd, nq);
+                                      e_vec.Read(), q_val.Write(), vdim, nd, nq,
+                                      elist);
          }
          else
          {
             TensorEvalKernels::Run(dim, q_layout, vdim, nd, nq, ne,
                                    maps.B.Read(), e_vec.Read(), q_val.Write(),
-                                   vdim, nd, nq);
+                                   vdim, nd, nq, elist);
          }
       }
       if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
@@ -308,11 +323,13 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
          {
             GradKernels::Run(dim, q_layout, phys, vdim, nd, nq, ne,
                              maps.B.Read(), maps.G.Read(), J, e_vec.Read(),
-                             q_der.Write(), s_dim, vdim, nd, nq);
+                             q_der.Write(), s_dim, vdim, nd, nq, elist);
          }
       }
       if (eval_flags & DETERMINANTS)
       {
+         MFEM_VERIFY(!elist, "element lists are not supported for "
+                     "determinants yet");
          if (fe->GetMapType() == FiniteElement::MapType::INTEGRAL)
          {
             MFEM_ABORT("");
@@ -326,6 +343,7 @@ void QuadratureInterpolator::Mult(const Vector &e_vec,
    }
    else // use_tensor_eval == false
    {
+      MFEM_VERIFY(!elist, "element lists need tensor-product evaluations yet");
       if (fe->GetMapType() == FiniteElement::MapType::INTEGRAL)
       {
          IntEvalKernels::Run(dim, vdim, maps.ndof, maps.nqpt, ne, vdim,
@@ -408,23 +426,70 @@ void QuadratureInterpolator::MultHDiv(const Vector &e_vec,
    MFEM_CONTRACT_VAR(q_div);
 }
 
-void QuadratureInterpolator::MultTranspose(unsigned eval_flags,
-                                           const Vector &q_val,
-                                           const Vector &q_der,
-                                           Vector &e_vec) const
+void QuadratureInterpolator::AddMultTranspose(unsigned eval_flags,
+                                              const Vector &q_val,
+                                              const Vector &q_der,
+                                              Vector &e_vec,
+                                              const Array<int> *elist) const
 {
-   MFEM_CONTRACT_VAR(eval_flags);
-   MFEM_CONTRACT_VAR(q_val);
-   MFEM_CONTRACT_VAR(q_der);
-   MFEM_CONTRACT_VAR(e_vec);
-   MFEM_ABORT("this method is not implemented yet");
+   const int ne = fespace->GetNE();
+   const int ne_marked = elist ? elist->Size() : ne;
+   if (ne_marked == 0) { return; }
+   const FiniteElement *fe = fespace->GetFE(0);
+   const int vdim = fespace->GetVDim();
+   const int sdim = fespace->GetMesh()->SpaceDimension();
+
+   const bool use_tensor_eval =
+      use_tensor_products &&
+      dynamic_cast<const TensorBasisElement*>(fe) != nullptr;
+   const IntegrationRule *ir =
+      IntRule ? IntRule : &qspace->GetElementIntRule(0);
+   const DofToQuad::Mode mode =
+      use_tensor_eval ? DofToQuad::TENSOR : DofToQuad::FULL;
+   const DofToQuad &maps = fe->GetDofToQuad(*ir, mode);
+   const int dim = maps.FE->GetDim();
+   const int nd = maps.ndof;
+   const int nq = maps.nqpt;
+
+   const GeometricFactors *geom = nullptr;
+   if (eval_flags & PHYSICAL_DERIVATIVES)
+   {
+      const int jacobians = GeometricFactors::JACOBIANS;
+      geom = fespace->GetMesh()->GetGeometricFactors(*ir, jacobians);
+   }
+
+   if (use_tensor_eval)
+   {
+      if (eval_flags & (VALUES | PHYSICAL_VALUES))
+      {
+         TensorEvalTransposeKernels::Run(dim, q_layout, vdim, nd, nq, ne,
+                                         maps.B.Read(), q_val.Read(),
+                                         e_vec.ReadWrite(), vdim, nd, nq,
+                                         elist);
+      }
+      if (eval_flags & (DERIVATIVES | PHYSICAL_DERIVATIVES))
+      {
+         const bool phys = (eval_flags & PHYSICAL_DERIVATIVES);
+         const real_t *J = phys ? geom->J.Read() : nullptr;
+         const int s_dim = phys ? sdim : dim;
+         GradTransposeKernels::Run(dim, q_layout, phys, vdim, nd, nq, ne,
+                                   maps.B.Read(), maps.G.Read(), J,
+                                   q_der.Read(), e_vec.ReadWrite(),
+                                   s_dim, vdim, nd, nq, elist);
+      }
+   }
+   else
+   {
+      MFEM_ABORT("Non-tensor MultTranspose not yet implemented");
+   }
 }
 
 void QuadratureInterpolator::Values(const Vector &e_vec,
-                                    Vector &q_val) const
+                                    Vector &q_val,
+                                    const Array<int> *elist) const
 {
    Vector empty;
-   Mult(e_vec, VALUES, q_val, empty, empty);
+   Mult(e_vec, VALUES, q_val, empty, empty, elist);
 }
 
 void QuadratureInterpolator::PhysValues(const Vector &e_vec,
@@ -435,10 +500,11 @@ void QuadratureInterpolator::PhysValues(const Vector &e_vec,
 }
 
 void QuadratureInterpolator::Derivatives(const Vector &e_vec,
-                                         Vector &q_der) const
+                                         Vector &q_der,
+                                         const Array<int> *elist) const
 {
    Vector empty;
-   Mult(e_vec, DERIVATIVES, empty, q_der, empty);
+   Mult(e_vec, DERIVATIVES, empty, q_der, empty, elist);
 }
 
 void QuadratureInterpolator::PhysDerivatives(const Vector &e_vec,
