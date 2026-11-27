@@ -3221,7 +3221,9 @@ ElasticityComponentIntegrator::ElasticityComponentIntegrator(
    : parent(parent_),
      i_block(i_),
      j_block(j_)
-{ }
+{
+   static Kernels kernels;
+}
 
 void ElasticityIntegrator::AssembleElementMatrix(
    const FiniteElement &el, ElementTransformation &Trans, DenseMatrix &elmat)
