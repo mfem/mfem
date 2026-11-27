@@ -778,10 +778,10 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
 
     With the CUDA (CUDA 11 or newer) or HIP backend and GPU vendor sparse
     operations enabled, device-valid CSR arrays in both inputs select the
-    cuSPARSE/hipSPARSE implementation when @a OAB is NULL. A nonempty device
-    result has device-only valid CSR arrays; use HostReadI(), HostReadJ(), and
-    HostReadData() before accessing it on the host. A non-NULL @a OAB, empty
-    results, and other inputs use the host implementation. */
+    cuSPARSE/hipSPARSE implementation when @a OAB is NULL and both inputs have
+    entries. The device result, also when empty, has device-only valid CSR
+    arrays; use HostReadI(), HostReadJ(), and HostReadData() before accessing
+    it on the host. Other inputs use the host implementation. */
 SparseMatrix *Mult(const SparseMatrix &A, const SparseMatrix &B,
                    SparseMatrix *OAB = NULL);
 

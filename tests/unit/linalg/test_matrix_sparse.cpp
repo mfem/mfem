@@ -438,7 +438,7 @@ TEST_CASE("SparseMatrix device Mult and Transpose", "[SparseMatrix][GPU]")
    std::unique_ptr<SparseMatrix> Cd(Mult(A, B)), Atd(Transpose(A));
 
 #if defined(MFEM_USE_HIP) || (defined(MFEM_USE_CUDA) && CUDA_VERSION >= 11000)
-   if (test == 0 && Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK) &&
+   if (test != 1 && Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK) &&
        SparseMatrix::use_gpu_vendor_sparse_if_available)
    {
       for (const SparseMatrix *X : {Cd.get(), Atd.get()})

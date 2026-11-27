@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <limits>
 #include <cstring>
+#include <memory>
 
 #if defined(MFEM_USE_CUDA)
 #define MFEM_cu_or_hip(stub) cu##stub
@@ -3709,6 +3710,29 @@ static SparseMatrix *NewDeviceCSR(int m, int n, int nnz)
    return C;
 }
 
+/// Owner of the vendor sparse descriptors and device buffers of one device
+/// call, released when it goes out of scope, also when a vendor call throws.
+struct DeviceSparseDescriptors
+{
+   MFEM_cu_or_hip(sparseSpMatDescr_t) mat[3] = {};
+   MFEM_cu_or_hip(sparseSpGEMMDescr_t) gemm = nullptr;
+   void *buf[2] = {};
+
+   /// Allocate @a bytes of device workspace in slot @a i, if nonzero.
+   void *Alloc(int i, size_t bytes)
+   {
+      if (bytes > 0) { MFEM_Cu_or_Hip(MemAlloc)(&buf[i], bytes); }
+      return buf[i];
+   }
+
+   ~DeviceSparseDescriptors()
+   {
+      if (gemm) { MFEM_cu_or_hip(sparseSpGEMM_destroyDescr)(gemm); }
+      for (auto m : mat) { if (m) { MFEM_cu_or_hip(sparseDestroySpMat)(m); } }
+      for (void *b : buf) { if (b) { MFEM_Cu_or_Hip(MemFree)(b); } }
+   }
+};
+
 /// C = A^T, computed with cuSPARSE/hipSPARSE csr2csc on the device.
 static SparseMatrix *DeviceTranspose(const SparseMatrix &A,
                                      MFEM_cu_or_hip(sparseHandle_t) handle)
@@ -3719,7 +3743,7 @@ static SparseMatrix *DeviceTranspose(const SparseMatrix &A,
    const int *d_J = A.ReadJ();
    const real_t *d_A = A.ReadData();
 
-   SparseMatrix *At = NewDeviceCSR(n, m, nnz);
+   std::unique_ptr<SparseMatrix> At(NewDeviceCSR(n, m, nnz));
    int *d_AtI = At->WriteI();
    int *d_AtJ = At->WriteJ();
    real_t *d_AtA = At->WriteData();
@@ -3731,8 +3755,8 @@ static SparseMatrix *DeviceTranspose(const SparseMatrix &A,
                         MFEM_CU_or_HIP(SPARSE_ACTION_NUMERIC),
                         MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
                         MFEM_CU_or_HIP(SPARSE_CSR2CSC_ALG1), &buf));
-   void *dBuf = nullptr;
-   if (buf > 0) { dBuf = MFEM_Cu_or_Hip(MemAlloc)(&dBuf, buf); }
+   DeviceSparseDescriptors descrs;
+   void *dBuf = descrs.Alloc(0, buf);
    MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCsr2cscEx2)(
                         handle, m, n, nnz, d_A, d_I, d_J, d_AtA, d_AtI, d_AtJ,
                         MFEM_CUDA_or_HIP_REAL_T,
@@ -3740,9 +3764,8 @@ static SparseMatrix *DeviceTranspose(const SparseMatrix &A,
                         MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
                         MFEM_CU_or_HIP(SPARSE_CSR2CSC_ALG1), dBuf));
    MFEM_STREAM_SYNC;
-   if (dBuf) { MFEM_Cu_or_Hip(MemFree)(dBuf); }
    At->SortColumnIndices();
-   return At;
+   return At.release();
 }
 
 /// C = A B, computed with cuSPARSE/hipSPARSE SpGEMM on the device.
@@ -3758,7 +3781,8 @@ static SparseMatrix *DeviceMult(const SparseMatrix &A, const SparseMatrix &B,
    const auto typ = MFEM_CUDA_or_HIP_REAL_T;
    const auto alg = MFEM_CU_or_HIP(SPARSE_SPGEMM_DEFAULT);
 
-   MFEM_cu_or_hip(sparseSpMatDescr_t) matA, matB, matC;
+   DeviceSparseDescriptors descrs;
+   auto &matA = descrs.mat[0], &matB = descrs.mat[1], &matC = descrs.mat[2];
    MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreateCsr)(
                         &matA, m, k, nnzA,
                         const_cast<int*>(A.ReadI()),
@@ -3775,7 +3799,7 @@ static SparseMatrix *DeviceMult(const SparseMatrix &A, const SparseMatrix &B,
                         &matC, m, n, 0, nullptr, nullptr, nullptr,
                         idx, idx, base, typ));
 
-   MFEM_cu_or_hip(sparseSpGEMMDescr_t) desc;
+   auto &desc = descrs.gemm;
    MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_createDescr)(&desc));
 
    const real_t alpha = 1.0, beta = 0.0;
@@ -3783,8 +3807,7 @@ static SparseMatrix *DeviceMult(const SparseMatrix &A, const SparseMatrix &B,
    MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_workEstimation)(
                         handle, op, op, &alpha, matA, matB, &beta, matC,
                         typ, alg, desc, &buf1, nullptr));
-   void *dBuf1 = nullptr;
-   if (buf1 > 0) { dBuf1 = MFEM_Cu_or_Hip(MemAlloc)(&dBuf1, buf1); }
+   void *dBuf1 = descrs.Alloc(0, buf1);
    MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_workEstimation)(
                         handle, op, op, &alpha, matA, matB, &beta, matC,
                         typ, alg, desc, &buf1, dBuf1));
@@ -3793,8 +3816,7 @@ static SparseMatrix *DeviceMult(const SparseMatrix &A, const SparseMatrix &B,
    MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_compute)(
                         handle, op, op, &alpha, matA, matB, &beta, matC,
                         typ, alg, desc, &buf2, nullptr));
-   void *dBuf2 = nullptr;
-   if (buf2 > 0) { dBuf2 = MFEM_Cu_or_Hip(MemAlloc)(&dBuf2, buf2); }
+   void *dBuf2 = descrs.Alloc(1, buf2);
    MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_compute)(
                         handle, op, op, &alpha, matA, matB, &beta, matC,
                         typ, alg, desc, &buf2, dBuf2));
@@ -3804,27 +3826,24 @@ static SparseMatrix *DeviceMult(const SparseMatrix &A, const SparseMatrix &B,
    MFEM_VERIFY(cnnz <= (int64_t) std::numeric_limits<int>::max(),
                "SparseMatrix::Mult overflow: SpGEMM nnz exceeds 32-bit I");
 
-   SparseMatrix *C = nullptr;
+   std::unique_ptr<SparseMatrix> C(NewDeviceCSR(m, n, (int) cnnz));
    if (cnnz > 0)
    {
-      C = NewDeviceCSR(m, n, static_cast<int>(cnnz));
       MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCsrSetPointers)(
                            matC, C->WriteI(), C->WriteJ(), C->WriteData()));
       MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_copy)(
                            handle, op, op, &alpha, matA, matB, &beta, matC,
                            typ, alg, desc));
    }
+   else
+   {
+      int *d_CI = C->WriteI();
+      mfem::forall(m + 1, [=] MFEM_HOST_DEVICE (int i) { d_CI[i] = 0; });
+   }
    MFEM_STREAM_SYNC;
 
-   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_destroyDescr)(desc));
-   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroySpMat)(matA));
-   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroySpMat)(matB));
-   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseDestroySpMat)(matC));
-   if (dBuf1) { MFEM_Cu_or_Hip(MemFree)(dBuf1); }
-   if (dBuf2) { MFEM_Cu_or_Hip(MemFree)(dBuf2); }
-
-   if (C) { C->SortColumnIndices(); }
-   return C;
+   if (cnnz > 0) { C->SortColumnIndices(); }
+   return C.release();
 }
 #endif // !defined(MFEM_USE_CUDA) || (CUDA_VERSION >= 11000)
 #endif // MFEM_USE_CUDA_OR_HIP
@@ -3986,7 +4005,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
 #endif
    int nrowsA, ncolsA, nrowsB, ncolsB;
    const int *A_i, *A_j, *B_i, *B_j;
-   int *C_i, *C_j, *B_marker;
+   int *C_i, *C_j;
    const real_t *A_data, *B_data;
    real_t *C_data;
    int ia, ib, ic, ja, jb, num_nonzeros;
@@ -4010,7 +4029,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
    B_j    = B.HostReadJ();
    B_data = B.HostReadData();
 
-   B_marker = new int[ncolsB];
+   Array<int> B_marker(ncolsB);
 
    for (ib = 0; ib < ncolsB; ib++)
    {
@@ -4085,7 +4104,6 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
             }
          }
       }
-      delete [] B_marker;
       return C;
    }
 
@@ -4116,8 +4134,6 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
          }
       }
    }
-
-   delete [] B_marker;
 
    return C;
 }
@@ -4291,6 +4307,7 @@ SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
    int i, At_nnz;
    const int *At_j;
    real_t *At_data;
+   const real_t *D_data = D.HostRead();
 
    SparseMatrix *At = Transpose (A);
    At_nnz  = At -> NumNonZeroElems();
@@ -4298,7 +4315,7 @@ SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
    At_data = At -> HostReadWriteData();
    for (i = 0; i < At_nnz; i++)
    {
-      At_data[i] *= D(At_j[i]);
+      At_data[i] *= D_data[At_j[i]];
    }
    SparseMatrix *AtDA = Mult (*At, A, OAtDA);
    delete At;
