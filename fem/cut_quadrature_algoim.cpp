@@ -90,16 +90,24 @@ void BernsteinCoefficients(const PolynomialLevelSet &level_set,
       return;
    }
 
-   DenseMatrix interpolation(source.GetDof(), target.GetDof());
-   Vector shape(target.GetDof());
-   for (int index = 0; index < source.GetDof(); ++index)
+   L2_FECollection nodal(source.GetOrder(), source.GetDim(),
+                         BasisType::GaussLegendre);
+   const auto &nodes =
+      nodal.FiniteElementForGeometry(source.GetGeomType())->GetNodes();
+   DenseMatrix interpolation(nodes.GetNPoints(), target.GetDof());
+   Vector samples(nodes.GetNPoints()), source_shape(source.GetDof()),
+          target_shape(target.GetDof());
+   for (int index = 0; index < nodes.GetNPoints(); ++index)
    {
-      target.CalcShape(source.GetNodes().IntPoint(index), shape);
-      interpolation.SetRow(index, shape);
+      const auto &point = nodes.IntPoint(index);
+      source.CalcShape(point, source_shape);
+      samples(index) = source_shape * source_values;
+      target.CalcShape(point, target_shape);
+      interpolation.SetRow(index, target_shape);
    }
    DenseMatrixInverse inverse(interpolation);
    coefficients.SetSize(target.GetDof());
-   inverse.Mult(source_values, coefficients);
+   inverse.Mult(samples, coefficients);
    for (int index = 0; index < coefficients.Size(); ++index)
    {
       MFEM_VERIFY(std::isfinite(coefficients(index)),
