@@ -615,16 +615,6 @@ public:
                   "no cached apply; drop use_cached_setup");
       daction_l.resize(outfds.size());
 
-      // Pre-allocate transpose workspace.
-      int total_out_l_size = 0;
-      for (size_t i = 0; i < outfds.size(); i++)
-      {
-         total_out_l_size += GetVSize(outfds[i]);
-      }
-      transpose_direction_l.SetSize(total_out_l_size);
-      transpose_direction_l.UseDevice(true);
-      transpose_direction_l.Write();
-
       // Null-initialised: restriction_transpose / prepare_residual allocate on
       // first use and resize on subsequent calls.
       transpose_result_l.resize(infds.size(), nullptr);
@@ -877,6 +867,19 @@ public:
    {
       VerifyKernel(DerivativeKernels::ApplyTranspose);
       if (cached_transpose) { EnsureQpCache(); }
+
+      // Allocate the transpose workspace on the first call.
+      if (transpose_direction_l.Size() == 0)
+      {
+         int total_out_l_size = 0;
+         for (size_t i = 0; i < outfds.size(); i++)
+         {
+            total_out_l_size += GetVSize(outfds[i]);
+         }
+         transpose_direction_l.SetSize(total_out_l_size);
+         transpose_direction_l.UseDevice(true);
+         transpose_direction_l.Write();
+      }
 
       // Prolong each output field from T-space to L-space into the
       // pre-allocated concat buffer.
@@ -1216,7 +1219,7 @@ private:
 
    mutable Vector direction_l;
 
-   // Pre-allocated workspace for MultTranspose (avoids per-call heap traffic).
+   // Workspace for MultTranspose, allocated on its first call and reused.
    mutable Vector transpose_direction_l;
    mutable std::vector<Vector *> transpose_result_l;
 
