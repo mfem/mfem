@@ -303,9 +303,7 @@ protected:
 
    mutable BlockVector aux1, aux2;
 
-   /** Auxiliary L-vectors, one per space, used by the Array-based Mult() for
-       the blocks that need prolongation. */
-   mutable std::vector<Vector> aux_x, aux_y;
+   mutable MultiVector mv_aux1, mv_aux2;
 
    const BlockVector &Prolongate(const BlockVector &bx) const;
 
@@ -316,11 +314,11 @@ protected:
    /// Block L-Vector to Block L-Vector
    void MultBlocked(const BlockVector &bx, BlockVector &by) const;
 
-   /// Specialized version of Mult() for arrays of L-Vector%s, one per space
-   /** Entries of @a lx and @a ly may be NULL, in which case that block is
-       skipped and NULL is passed to the integrators in its place. */
-   void MultBlocked(const Array<const Vector *> &lx,
-                    const Array<Vector *> &ly) const;
+   /** @brief Specialized version of Mult() for MultiVector%s.
+    * @details Block L-Vector to Block L-Vector, with support for zero-sized
+    * blocks.
+    */
+   void MultBlocked(const MultiVector &lx, MultiVector &ly) const;
 
    /// Specialized version of GetGradient() for BlockVector
    void ComputeGradientBlocked(const BlockVector &bx, bool finalize = true) const;
@@ -418,19 +416,12 @@ public:
    /// directly.
    void Mult(const Vector &x, Vector &y) const override;
 
-   /** @brief Block T-Vector to Block T-Vector, with the blocks given as arrays
-       of pointers, one per space.
-
-       Entries of @a x and @a y may be NULL, in which case no memory is used for
-       that block and NULL is passed to the integrators in the corresponding
-       entry of their input (elfun) or output (elvec) array. The integrators
-       must therefore only access the blocks that are given.
-
-       Each non-NULL x[s] and y[s] must have size FESpace(s)->GetTrueVSize().
-       As in Mult(const Vector &, Vector &), the essential true dofs of each
-       given output are set to zero. */
-   virtual void Mult(const Array<const Vector *> &x,
-                     const Array<Vector *> &y) const;
+   /** @brief Block T-Vector to Block T-Vector, with the blocks given as
+     * MultiVector%s, one block per space.
+     *
+     * @details Blocks of \p x and/or \p y may be of zero size if not needed.
+     */
+   void MultMV(const MultiVector &x, MultiVector &y) const override;
 
    /// Method is only called in serial, the parallel version calls
    /// GetGradientBlocked directly.
