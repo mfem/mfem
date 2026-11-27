@@ -443,6 +443,7 @@ miniapps/diag-smoothers/abs-l1-jacobi
 miniapps/diag-smoothers/mg-abs-l1-jacobi
 
 miniapps/contact/contact
+miniapps/contact/contact_examples
 miniapps/contact/ParaView
 
 miniapps/plasma/pic/electrostatic-*

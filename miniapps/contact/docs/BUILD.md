@@ -1,0 +1,243 @@
+# Building the contact drivers
+
+[Main guide](README.md) · [Examples](EXAMPLES.md)
+
+Both drivers require MPI and a compatible Tribol/Axom installation.
+MFEM must enable `MFEM_USE_MPI=YES` and `MFEM_USE_TRIBOL=YES`.
+CG with standard AMG needs no direct solver; AMGF needs one when its contact subspace is nonempty.
+
+
+## Installation
+
+Tribol depends on [Axom](https://github.com/LLNL/axom) and MFEM.
+Although Tribol can be built automatically via **uberenv** and **Spack**,
+for this miniapp it is simpler to build **Axom** and **MFEM** manually and
+point Tribol to them. The steps are as follows:
+
+### Using pre-built Tribol/Axom installs
+
+If you already have compatible installs of Tribol and Axom, point MFEM to the install prefixes.
+
+- Hypre install prefix: `<path/to/hypre>`
+- METIS install prefix: `<path/to/metis>`
+- Axom install prefix: `<path/to/axom>`
+- Tribol install prefix: `<path/to/tribol>`
+
+**MFEM make build (configure):**
+```bash
+make config MFEM_USE_MPI=YES MFEM_USE_METIS=YES MFEM_USE_METIS_5=YES MFEM_USE_TRIBOL=YES \
+  CXXFLAGS="-std=c++20" \
+  HYPRE_DIR=<path/to/hypre> METIS_DIR=<path/to/metis> \
+  AXOM_DIR=<path/to/axom> TRIBOL_DIR=<path/to/tribol> ADIAK_DIR=<path/to/adiak> CAMP_DIR=<path/to/camp> \
+  RAJA_DIR=<path/to/raja> UMPIRE_DIR=<path/to/umpire> FMT_DIR=<path/to/fmt> CALIPER_DIR=<path/to/caliper>
+```
+
+**MFEM CMake build (configure):**
+```bash
+cmake -S . -B <mfem-build-dir> -DCMAKE_CXX_STANDARD=20 \
+  -DMFEM_USE_MPI=YES -DMFEM_USE_METIS=YES -DMFEM_USE_TRIBOL=YES \
+  -DHYPRE_DIR=<path/to/hypre> -DMETIS_DIR=<path/to/metis> \
+  -DAXOM_DIR=<path/to/axom> -DTRIBOL_DIR=<path/to/tribol> -DADIAK_DIR=<path/to/adiak> -DCAMP_DIR=<path/to/camp> \
+  -DRAJA_DIR=<path/to/raja> -DUMPIRE_DIR=<path/to/umpire> -DCALIPER_DIR=<path/to/caliper>
+```
+
+Note: RAJA/UMPIRE/CALIPER are optional for MFEM itself, but many Tribol builds
+enable them. If your Tribol install does not depend on them, you can omit the
+corresponding `*_DIR` entries above.
+
+Note: `FMT_DIR` only needs to be added for the make-based build (and only when
+the Umpire install uses `fmt`). If `FMT_DIR` is not set and a sibling `fmt-*`
+directory exists next to your `UMPIRE_DIR`, MFEM's make configuration will try
+to pick it up automatically.
+
+Note: when using pre-built Tribol/Axom, you typically need to use a compatible
+compiler/MPI wrapper (same C++ standard library ABI).
+
+### Manual Build Steps
+
+1. Pull axom and tribol (starting from the mfem folder):
+   ```bash
+   cd ..
+   git clone --recursive https://github.com/LLNL/axom.git axom-repo
+   git clone --recursive https://github.com/LLNL/Tribol.git tribol-repo
+   ```
+2. **MFEM:** Build with `MFEM_USE_MPI`, `MFEM_USE_METIS`, `MFEM_USE_METIS_5`,
+   and `MFEM_USE_TRIBOL` enabled, plus MUMPS or CPardiso if AMGF is desired.
+   Note: it's important to do `make install`.
+   ```
+   MFEM_USE_TRIBOL = YES
+   AXOM_DIR = @MFEM_DIR@/../axom-repo/axom
+   TRIBOL_DIR = @MFEM_DIR@/../tribol-repo/tribol
+   TRIBOL_OPT = -I$(TRIBOL_DIR)/include -I$(AXOM_DIR)/include
+   TRIBOL_LIB = -L$(TRIBOL_DIR)/lib -ltribol -ltribol_shared -lredecomp -L$(AXOM_DIR)/lib \
+   -laxom_quest -laxom_mint -laxom_slam -laxom_slic -laxom_lumberjack -laxom_core
+   ```
+3. [**Axom:**](https://github.com/LLNL/axom.git) Starting from the MFEM root
+   directory (we assume this directory is named mfem):
+   ```bash
+   cd ../axom-repo
+   python3 ./config-build.py -hc ../mfem/miniapps/contact/axom.cmake -bt Release -DCMAKE_INSTALL_PREFIX=../axom
+   cd build-axom-release && make -j install
+   ```
+4. [**Tribol:**](https://github.com/LLNL/Tribol.git) Starting from the MFEM root
+   directory:
+   ```bash
+   cd ../tribol-repo
+   python3 ./config-build.py -hc ../mfem/miniapps/contact/tribol.cmake -bt Release -DCMAKE_INSTALL_PREFIX=../tribol
+   cd build-tribol-release && make -j install
+   ```
+   > **tribol.cmake file**: Modify as needed to match `axom` and `mfem` paths.
+
+5. **MFEM Contact Miniapp**: Build from inside the directory `mfem/miniapps/contact`:
+     ```bash
+      make contact contact_examples
+      ```
+
+## GPU setup and execution
+
+Run all commands from `miniapps/contact`. Both executables use the same solver and device paths.
+Use `--driver contact_examples` with the launcher for problems 3–8.
+
+### Launching and runtime settings
+
+`run-contact.sh` defaults to the laptop CPU launcher. Select a site with
+`--site laptop`, `--site trike`, or `--site lc`; `CONTACT_SITE` sets the default.
+
+| Site | Launcher/backend | Default ranks |
+|---|---|---|
+| `laptop` | OpenMPI/CPU; portable Bash timing and default MPI process mapping | 1 |
+| `trike` | OpenMPI/CPU or CUDA, with core binding | 1 |
+| `lc` | Flux/CPU or srun/HIP, within an allocated node | 4 |
+
+All profiles set OpenMP and BLAS to one thread per rank. The laptop profile
+uses no `numactl`, `taskset`, Flux, or GNU time dependency. `--cores` controls
+cluster core allocation/binding; it does not change the laptop's MPI mapping.
+CUDA ranks on Trike share the first visible GPU; `CUDA_VISIBLE_DEVICES`
+defaults to `0`. LC HIP uses one GPU per rank, up to four on one node.
+
+For example, on the laptop:
+
+```bash
+./run-contact.sh --driver contact -- \
+  -prob 0 -load-steps 4
+```
+
+For example, on Trike with the existing CUDA build:
+
+```bash
+./run-contact.sh --site trike --ranks 1 -- \
+  -prob 0 -sr 0 -pr 0 -tr 2 -load-steps 4 \
+  -amgf -amgf-fsolver mumps -fa -d cuda -no-vis -no-paraview -pl 2
+```
+
+Use `-d cpu` for a host run. The launcher reports `TOTAL_WALL_SECONDS` for
+all sites; cluster profiles also report per-rank affinity.
+
+BoomerAMG uses Chebyshev smoothing by default (`-amg-relax-type 16`) for both
+AMG and AMGF. Select the previous l1-Jacobi smoother with
+`-amg-relax-type 18`. Coarsening 8, interpolation 6, and zero aggressive levels
+remain the defaults.
+
+`-hypre-gpu-aware-mpi` enables HYPRE's runtime GPU-aware communication flag
+after device initialization. Its default is disabled; use
+`-no-hypre-gpu-aware-mpi` to disable it explicitly. The MPI installation must
+accept device buffers. On Tuolumne, `run-contact.sh` automatically sets
+`MPICH_GPU_SUPPORT_ENABLED=1` when this option is enabled; for other launchers,
+export it explicitly. The existing build links Cray MPICH's HSA GPU transport. MFEM's separate
+GPU-aware MPI setting is controlled by `MFEM_GPU_AWARE_MPI`: leave that
+environment variable unset when configuring only HYPRE GPU-aware MPI.
+
+For HIP execution on an allocated Tuolumne GPU node:
+
+```bash
+export MPICH_GPU_SUPPORT_ENABLED=1 HSA_XNACK=0
+unset MFEM_DEVICE MFEM_MEMORY MFEM_GPU_AWARE_MPI
+./run-contact.sh --site lc --ranks 4 --cores 24 -- \
+  -prob 0 -sr 0 -pr 1 -load-steps 4 -amgf -amgf-fsolver mumps \
+  -fa -d hip -hypre-gpu-aware-mpi -no-vis -paraview -pl 2
+```
+
+HIP uses one GPU per rank, with at most four ranks on one Tuolumne node.
+For CPU execution on LC, use `-d cpu` and omit `-hypre-gpu-aware-mpi`.
+The launcher uses Flux CPU affinity; rank count times `--cores` must fit the
+node allocation. OpenMP and BLAS use one thread per rank.
+
+Use a CUDA-enabled MFEM and a CUDA-enabled HYPRE build for `-d cuda`. The HIP
+equivalent is `-d hip`, with HIP enabled in both libraries. GPU HYPRE builds
+require version 2.31 or newer for MFEM's runtime host/device memory policy
+support used around Tribol. HYPRE 3.0 supports this CUDA configuration.
+
+For example, from `miniapps/contact`, on one GPU:
+
+```bash
+./run-contact.sh --site trike --ranks 1 -- -prob 2 -sr 0 -pr 0 -tr 2 -load-steps 2 \
+  -lin -fa -d cuda -amgf -amgf-fsolver mumps -no-vis
+```
+
+`-fa` assembles the linear elasticity stiffness matrix on the device. Without
+it, stiffness assembly uses the legacy host path, while the IP vector kernels,
+contact filtering, and GPU HYPRE operations still use the device. Nonlinear
+beam-sphere runs use the same portable Neo-Hookean implementation to evaluate
+reference energy, gradient, and Hessian on CPU and device backends. `-fa` controls
+only the linear elasticity model.
+
+Pressure RHS assembly, lumped masses, bound Jacobian assembly, and contact
+CSR filtering also have device paths. Tribol's implicit single-mortar residual
+and Jacobian remain host operations: the miniapp synchronizes coordinates and
+temporarily selects HYPRE's host policy around those calls. A device-enabled
+Tribol build does not change that implicit-mortar limitation.
+
+MUMPS and CPardiso perform filtered solves on the host. To keep the filtered
+solve on CUDA, enable `MFEM_USE_CUDSS=YES` and use `-amgf-fsolver cudss` (or
+`auto`). Set `CUDSS_COMM_LIB` to the cuDSS OpenMPI communication layer matching
+your CUDA-aware MPI installation, unless MFEM already records that path.
+The communication layer must support device buffers. For example:
+
+```bash
+export CUDSS_COMM_LIB=<cudss-prefix>/lib/libcudss_commlayer_openmpi.so
+./run-contact.sh --site trike --ranks 1 -- -prob 2 -sr 0 -tr 2 -load-steps 2 \
+  -fa -d cuda -amgf -amgf-fsolver cudss -no-vis
+```
+
+For multiple GPUs, use the MPI launcher's device binding to assign ranks to
+GPUs. Multiple ranks sharing one GPU can have substantially different timing.
+
+The contact and Tribol miniapp targets select C++20 for GPU builds because
+their device-enabled Tribol dependencies require it; MFEM itself can remain
+C++17. With NVCC 13.4, the header-only fmt 12 configuration exported by some
+Umpire builds can fail in `fmt/format-inl.h`. Use compatible dependency headers
+or a Umpire build using compiled fmt. An example CUDA CMake configuration is:
+
+```bash
+cmake -S . -B <mfem-build-dir> \
+  -DMFEM_USE_MPI=YES -DMFEM_USE_CUDA=YES -DMFEM_USE_TRIBOL=YES \
+  -DCMAKE_CUDA_ARCHITECTURES=<gpu-architecture-number> \
+  -DHYPRE_DIR=<path/to/cuda-hypre> -DMETIS_DIR=<path/to/metis> \
+  -DAXOM_DIR=<path/to/axom> -DTRIBOL_DIR=<path/to/tribol> \
+  -DRAJA_DIR=<path/to/raja> -DUMPIRE_DIR=<path/to/umpire> \
+  -DCAMP_DIR=<path/to/camp>
+cmake --build <mfem-build-dir> --target contact -j
+```
+
+Add `-DMFEM_USE_MUMPS=YES -DMUMPS_DIR=<path/to/mumps>` or
+`-DMFEM_USE_CUDSS=YES -DCUDSS_DIR=<path/to/cudss>` to enable an AMGF filtered
+solver. The architecture number is hardware-specific (for example, `86` for
+an RTX A4000). For Make builds, enable `MFEM_USE_CUDA=YES`, set `CUDA_ARCH` and
+the dependency prefixes, and compile native device kernels with the CUDA
+compiler (`CUDA_CXX=nvcc`, with the compatible `MPICXX` host compiler).
+
+---
+
+## Accompanying presentation
+
+[MFEM Community workshop 2025 - AMG with Filtering](https://mfem.org/pdf/workshop25/29_Petrides_AMG_Filtering.pdf)
+
+---
+
+## References:
+S Petrides, T Hartland, T Kolev, CS Lee, M Puso, J Solberg, EB Chin, J Wang, C Petra.
+***AMG with Filtering: An Efficient Preconditioner for Interior Point Methods***
+***in Large-Scale Contact Mechanics Optimization***.
+In: (2025). [DOI: 10.48550/arXiv.2505.18576](https://arxiv.org/abs/2505.18576)
+
+---

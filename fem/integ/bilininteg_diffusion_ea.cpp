@@ -246,6 +246,9 @@ void DiffusionIntegrator::AssembleEA(const FiniteElementSpace &fes,
                                      Vector &ea_data,
                                      const bool add)
 {
+   MFEM_VERIFY(fes.GetVDim() == 1,
+               "DiffusionIntegrator::AssembleEA does not support "
+               "vector spaces (vdim > 1).");
    AssemblePA(fes);
    MFEM_VERIFY(maps->mode != DofToQuad::RAGGED_TENSOR,
                "AssembleEA not implemented for ragged tensor bases");
