@@ -15,6 +15,7 @@
 #include "nonlinearform.hpp"
 #include "../general/forall.hpp"
 #include "ceed/interface/util.hpp"
+#include "pgridfunc.hpp"
 
 namespace mfem
 {
@@ -40,9 +41,9 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
 
 void PANonlinearFormExtension::SetupRestrictionOperators()
 {
-   if (!DeviceCanUseCeed()) { return; }
+   if (DeviceCanUseCeed()) { return; }
    ElementDofOrdering ordering = GetEVectorOrdering(fes);
-   elemR = fes->GetElementRestriction(ordering);
+   elemR = const_cast<FiniteElementSpace&>(fes).GetElementRestriction(ordering);
    if (elemR)
    {
       xe.SetSize(elemR->Height(), Device::GetMemoryType());
@@ -67,7 +68,7 @@ void PANonlinearFormExtension::SetupRestrictionOperators()
       bdr_face_restrict_lex = fes.GetFaceRestriction(
                                           ElementDofOrdering::LEXICOGRAPHIC,
                                           FaceType::Boundary);
-      bdr_face_X.SetSize(bdr_face_restrict_lex>Height(), Device::GetMemoryType());
+      bdr_face_X.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       bdr_face_Y.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       bdr_face_Y.UseDevice(true); // ensure 'bdr_face_Y = 0.0' is done on device
 
@@ -152,13 +153,14 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
       const Vector *x_dg = &x;
 #ifdef MFEM_USE_MPI
       ParGridFunction x_pgf;
-      if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(&fes))
+      if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(
+                        const_cast<FiniteElementSpace*>(&fes)))
       {
          x_pgf.MakeRef(pfes, const_cast<Vector&>(x), 0);
          x_dg = &x_pgf;
       }
 #endif // MFEM_USE_MPI
-      int_face_restrict_lex->Mult(x_dg, int_face_X);
+      int_face_restrict_lex->Mult(*x_dg, int_face_X);
       if (int_face_X.Size() > 0)
       {
          int_face_Y = 0.0;
