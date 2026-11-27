@@ -15,6 +15,7 @@
 #include "../config/config.hpp"
 #include "fespace.hpp"
 #include "../general/device.hpp"
+#include <memory>
 
 namespace mfem
 {
@@ -22,6 +23,65 @@ namespace mfem
 class BilinearForm;
 class MixedBilinearForm;
 class DiscreteLinearOperator;
+
+namespace internal
+{
+
+/** @brief Equivalent copy, on a SubMesh, of a FiniteElementSpace defined on
+    the SubMesh's parent mesh.
+
+    Used for MixedBilinearForm assembly when one of the trial and test spaces
+    is defined on a SubMesh of the other space's mesh. Replacing the
+    parent-mesh space with this copy gives two spaces on the same mesh. */
+struct SubMeshRestrictedSpace
+{
+   /// True if the trial space is on the SubMesh, i.e. the copy replaces the
+   /// test space; false if the test space is on the SubMesh.
+   bool trial_on_submesh;
+   /// Copy of the parent-mesh space on the SubMesh.
+   std::unique_ptr<FiniteElementSpace> fes;
+   /// Map from @a fes vdofs to the parent-mesh space vdofs. A negative entry
+   /// -1-vdof encodes an orientation reversal.
+   Array<int> vdof_map;
+
+   SubMeshRestrictedSpace(const FiniteElementSpace &trial_fes,
+                          const FiniteElementSpace &test_fes);
+};
+
+}
+
+/** @brief Element restriction of a parent-mesh FiniteElementSpace onto the
+    elements of a SubMesh.
+
+    The parent L-vector is mapped to the L-vector of an equivalent space on
+    the SubMesh (see internal::SubMeshRestrictedSpace), then the element
+    restriction of that space is applied. */
+class SubMeshElementRestriction : public Operator
+{
+protected:
+   const Operator &sub_restrict; ///< Not owned
+   Array<int> vdof_map;
+   mutable Vector sub_vec;
+
+   /// y = map(x), ignoring orientation signs if @a use_abs is true
+   void Gather(const Vector &x, Vector &y, bool use_abs) const;
+   /// y += a*map^T(x), ignoring orientation signs if @a use_abs is true
+   void ScatterAdd(const Vector &x, Vector &y, real_t a, bool use_abs) const;
+
+public:
+   /** @a sub_restrict is the element restriction of the space on the SubMesh,
+       @a vdof_map maps its vdofs to the vdofs of the parent-mesh space, which
+       has size @a parent_vsize. */
+   SubMeshElementRestriction(const Operator &sub_restrict,
+                             const Array<int> &vdof_map, int parent_vsize);
+
+   void Mult(const Vector &x, Vector &y) const override;
+   void MultTranspose(const Vector &x, Vector &y) const override;
+   void AddMultTranspose(const Vector &x, Vector &y,
+                         const real_t a = 1.0) const override;
+   void AbsMult(const Vector &x, Vector &y) const override;
+   void AbsMultTranspose(const Vector &x, Vector &y) const override;
+};
 
 /// Class extending the BilinearForm class to support different AssemblyLevels.
 /**  FA - Full Assembly
@@ -295,6 +355,13 @@ protected:
    mutable Vector localTrial, localTest, tempY;
    const Operator *elem_restrict_trial; // Not owned
    const Operator *elem_restrict_test;  // Not owned
+
+   /// Set when one of the form's spaces is on a SubMesh of the other space's
+   /// mesh. The parent-mesh space is then replaced in trial_fes/test_fes by
+   /// its copy on the SubMesh, and its element restriction by
+   /// submesh_elem_restrict, which maps from the parent-mesh space.
+   std::unique_ptr<internal::SubMeshRestrictedSpace> submesh_space;
+   std::unique_ptr<SubMeshElementRestriction> submesh_elem_restrict;
 
    /// Helper function to set up inputs/outputs for Mult or MultTranspose
    void SetupMultInputs(const Operator *elem_restrict_x,
