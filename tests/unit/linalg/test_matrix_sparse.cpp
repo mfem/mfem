@@ -291,7 +291,7 @@ TEST_CASE("SparseMatrix cuSPARSE Bug", "[SparseMatrix][GPU]")
    REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
 }
 
-TEST_CASE("SparseMatrix Mult reuses a sorted output graph", "[SparseMatrix][GPU]")
+static void TestSparseMatrixMultReuse()
 {
    SparseMatrix left(2, 3), right(3, 3);
    left.Set(0, 0, 2.0);
@@ -344,7 +344,18 @@ TEST_CASE("SparseMatrix Mult reuses a sorted output graph", "[SparseMatrix][GPU]
    }
 }
 
-TEST_CASE("SparseMatrix Mult_AtDA with device-valid input", "[SparseMatrix][GPU]")
+TEST_CASE("SparseMatrix Mult reuses a sorted output graph", "[SparseMatrix][GPU]")
+{
+   TestSparseMatrixMultReuse();
+}
+
+TEST_CASE("Parallel SparseMatrix Mult reuses a sorted output graph",
+          "[SparseMatrix][Parallel][GPU]")
+{
+   TestSparseMatrixMultReuse();
+}
+
+static void TestSparseMatrixMultAtDA()
 {
    SparseMatrix matrix(3, 2);
    matrix.Set(0, 0, 1.0);
@@ -385,6 +396,17 @@ TEST_CASE("SparseMatrix Mult_AtDA with device-valid input", "[SparseMatrix][GPU]
          CHECK((*product)(row, column) == MFEM_Approx(expected(row, column)));
       }
    }
+}
+
+TEST_CASE("SparseMatrix Mult_AtDA with device-valid input", "[SparseMatrix][GPU]")
+{
+   TestSparseMatrixMultAtDA();
+}
+
+TEST_CASE("Parallel SparseMatrix Mult_AtDA with device-valid input",
+          "[SparseMatrix][Parallel][GPU]")
+{
+   TestSparseMatrixMultAtDA();
 }
 
 TEST_CASE("SparseMatrix device Mult and Transpose", "[SparseMatrix][GPU]")
