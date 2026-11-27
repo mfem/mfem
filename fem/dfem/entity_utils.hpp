@@ -264,6 +264,14 @@ public:
       restriction(infds, in_rcache, x_l, in_e, used_inputs);
    }
 
+   /// Reports whether restricting the input field @a i of @a infds makes its
+   /// E-vector alias (share the memory of) its L-vector.
+   bool AliasesInput(const std::vector<FieldDescriptor> &infds, size_t i)
+   {
+      in_rcache.EnsureSetup(infds, used_inputs);
+      return used_inputs[i] && in_rcache.IsPassthrough(i);
+   }
+
    /// Size out_e for the fields @a outfds and zero it.
    void ZeroOutputs(const std::vector<FieldDescriptor> &outfds)
    {

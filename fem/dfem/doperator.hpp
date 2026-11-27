@@ -686,14 +686,19 @@ public:
       }
       else
       {
-         // The derivative is evaluated at this state,
-         // so the L-vectors must not alias the input T-vectors,
-         // as they do with an identity prolongation
-         for (Vector *field_l : infields_l)
+         // Copy the L-vectors that alias the input T-vectors only where the
+         // E-vectors alias them too; the others are read once, below.
+         for (size_t i = 0; i < infields_l.size(); i++)
          {
-            if (field_l->OwnsData()) { continue; }
-            Vector state(*field_l);
-            field_l->Swap(state);
+            if (infields_l[i]->OwnsData()) { continue; }
+            bool e_aliases_l = false;
+            for (auto *k : AllIntegrators())
+            {
+               e_aliases_l = e_aliases_l || k->ev.AliasesInput(infds, i);
+            }
+            if (!e_aliases_l) { continue; }
+            Vector state(*infields_l[i]);
+            infields_l[i]->Swap(state);
          }
       }
 
@@ -705,6 +710,15 @@ public:
             continue;
          }
          k->ev.RestrictInputs(infds, infields_l);
+      }
+
+      // Drop the L-vectors that still alias the input T-vectors.
+      if (!lvector_mode)
+      {
+         for (Vector *field_l : infields_l)
+         {
+            if (!field_l->OwnsData()) { field_l->Destroy(); }
+         }
       }
    }
 
