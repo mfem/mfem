@@ -9,11 +9,13 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// Implementations of classes FABilinearFormExtension, EABilinearFormExtension,
-// PABilinearFormExtension and MFBilinearFormExtension.
+// Implementations of classes NonlinearFormExtension, PANonlinearFormExtension
+// and MFNonlinearFormExtension.
 
 #include "nonlinearform.hpp"
+#include "../general/forall.hpp"
 #include "ceed/interface/util.hpp"
+#include "pgridfunc.hpp"
 
 namespace mfem
 {
@@ -25,17 +27,53 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
    NonlinearFormExtension(nlf),
    fes(*nlf->FESpace()),
    dnfi(*nlf->GetDNFI()),
+   fnfi(nlf->GetInteriorFaceIntegrators()),
+   bfnfi(nlf->GetBdrFaceIntegrators()),
+   bfnfi_marker(nlf->GetBdrFaceIntegratorMarkers()),
    elemR(nullptr),
+   int_face_restrict_lex(nullptr),
+   bdr_face_restrict_lex(nullptr),
+   bdr_face_attributes(nullptr),
    Grad(*this)
 {
-   if (!DeviceCanUseCeed())
+
+}
+
+void PANonlinearFormExtension::SetupRestrictionOperators()
+{
+   if (DeviceCanUseCeed()) { return; }
+   ElementDofOrdering ordering = GetEVectorOrdering(fes);
+   elemR = fes.GetElementRestriction(ordering);
+   if (elemR)
    {
-      elemR = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-      // TODO: optimize for the case when 'elemR' is identity
       xe.SetSize(elemR->Height(), Device::GetMemoryType());
       ye.SetSize(elemR->Height(), Device::GetMemoryType());
+      ye.UseDevice(true);
    }
-   ye.UseDevice(true);
+
+   // Construct the face restriction operators only if the nonlinear form has
+   // interior or boundary face integrators.
+   if (int_face_restrict_lex == nullptr && fnfi.Size() > 0)
+   {
+      int_face_restrict_lex = fes.GetFaceRestriction(
+                                 ElementDofOrdering::LEXICOGRAPHIC,
+                                 FaceType::Interior);
+      int_face_X.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
+      int_face_Y.SetSize(int_face_restrict_lex->Height(), Device::GetMemoryType());
+      int_face_Y.UseDevice(true); // ensure 'int_face_Y = 0.0' is done on device
+   }
+
+   if (bdr_face_restrict_lex == nullptr && bfnfi.Size() > 0)
+   {
+      bdr_face_restrict_lex = fes.GetFaceRestriction(
+                                 ElementDofOrdering::LEXICOGRAPHIC,
+                                 FaceType::Boundary);
+      bdr_face_X.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
+      bdr_face_Y.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
+      bdr_face_Y.UseDevice(true); // ensure 'bdr_face_Y = 0.0' is done on device
+
+      bdr_face_attributes = &fes.GetMesh()->GetBdrFaceAttributes();
+   }
 }
 
 real_t PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
@@ -52,11 +90,42 @@ real_t PANonlinearFormExtension::GetGridFunctionEnergy(const Vector &x) const
 
 void PANonlinearFormExtension::Assemble()
 {
-   MFEM_VERIFY(nlf->GetInteriorFaceIntegrators().Size() == 0 &&
-               nlf->GetBdrFaceIntegrators().Size() == 0,
-               "face integrators are not supported yet");
+   SetupRestrictionOperators();
 
    for (int i = 0; i < dnfi.Size(); ++i) { dnfi[i]->AssemblePA(fes); }
+   for (int i = 0; i < fnfi.Size(); ++i)
+   {
+      fnfi[i]->AssemblePAInteriorFaces(fes);
+   }
+   for (int i = 0; i < bfnfi.Size(); ++i)
+   {
+      bfnfi[i]->AssemblePABoundaryFaces(fes);
+   }
+}
+
+// Copied directly from PABilinearFormExtension implementation.
+// See bilinearform_ext.cpp.
+static void AddWithMarkers_(
+   const int ne,
+   const int nd,
+   const Vector &x,
+   const Array<int> &markers,
+   const Array<int> &attributes,
+   Vector &y)
+{
+   const auto d_x = Reshape(x.Read(), nd, ne);
+   const auto d_m = Reshape(markers.Read(), markers.Size());
+   const auto d_attr = Reshape(attributes.Read(), ne);
+   auto d_y = Reshape(y.ReadWrite(), nd, ne);
+   mfem::forall(ne, [=] MFEM_HOST_DEVICE (int e)
+   {
+      const int attr = d_attr[e];
+      if (attr <= 0 || d_m[attr - 1] == 0) { return; }
+      for (int i = 0; i < nd; ++i)
+      {
+         d_y(i, e) += d_x(i, e);
+      }
+   });
 }
 
 void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
@@ -77,6 +146,59 @@ void PANonlinearFormExtension::Mult(const Vector &x, Vector &y) const
          dnfi[i]->AddMultPA(x, y);
       }
    }
+
+   if (int_face_restrict_lex && fnfi.Size() > 0)
+   {
+      // See PABilinearFormExtension::MultInternal
+      const Vector *x_dg = &x;
+#ifdef MFEM_USE_MPI
+      ParGridFunction x_pgf;
+      if (auto *pfes = dynamic_cast<ParFiniteElementSpace*>(
+                          const_cast<FiniteElementSpace*>(&fes)))
+      {
+         x_pgf.MakeRef(pfes, const_cast<Vector&>(x), 0);
+         x_dg = &x_pgf;
+      }
+#endif // MFEM_USE_MPI
+      int_face_restrict_lex->Mult(*x_dg, int_face_X);
+      if (int_face_X.Size() > 0)
+      {
+         int_face_Y = 0.0;
+
+         for (int i = 0; i < fnfi.Size(); ++i)
+         {
+            fnfi[i]->AddMultPA(int_face_X, int_face_Y);
+         }
+         int_face_restrict_lex->AddMultTransposeInPlace(int_face_Y, y);
+      }
+   }
+
+   if (bdr_face_restrict_lex && bfnfi.Size() > 0)
+   {
+      bdr_face_restrict_lex->Mult(x, bdr_face_X);
+      if (bdr_face_X.Size() > 0)
+      {
+         bdr_face_Y = 0.0;
+         for (int i = 0; i < bfnfi.Size(); ++i)
+         {
+            if (bfnfi_marker[i])
+            {
+               tmp_evec.SetSize(bdr_face_Y.Size());
+               tmp_evec = 0.0;
+               bfnfi[i]->AddMultPA(bdr_face_X, tmp_evec);
+               const int ne = bdr_face_attributes->Size();
+               const int nd = bdr_face_X.Size() / ne;
+               AddWithMarkers_(ne, nd, tmp_evec, *bfnfi_marker[i], *bdr_face_attributes,
+                               bdr_face_Y);
+            }
+            else
+            {
+               bfnfi[i]->AddMultPA(bdr_face_X, bdr_face_Y);
+            }
+         }
+         bdr_face_restrict_lex->AddMultTransposeInPlace(bdr_face_Y, y);
+      }
+   }
 }
 
 Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
@@ -88,9 +210,10 @@ Operator &PANonlinearFormExtension::GetGradient(const Vector &x) const
 void PANonlinearFormExtension::Update()
 {
    height = width = fes.GetVSize();
-   elemR = fes.GetElementRestriction(ElementDofOrdering::LEXICOGRAPHIC);
-   xe.SetSize(elemR->Height());
-   ye.SetSize(elemR->Height());
+   elemR = nullptr;
+   int_face_restrict_lex = nullptr;
+   bdr_face_restrict_lex = nullptr;
+   bdr_face_attributes = nullptr;
    Grad.Update();
 }
 
