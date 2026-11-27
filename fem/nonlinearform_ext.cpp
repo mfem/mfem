@@ -9,8 +9,8 @@
 // terms of the BSD-3 license. We welcome feedback and contributions, see file
 // CONTRIBUTING.md for details.
 
-// Implementations of classes FABilinearFormExtension, EABilinearFormExtension,
-// PABilinearFormExtension and MFBilinearFormExtension.
+// Implementations of classes NonlinearFormExtension, PANonlinearFormExtension
+// and MFNonlinearFormExtension.
 
 #include "nonlinearform.hpp"
 #include "../general/forall.hpp"
