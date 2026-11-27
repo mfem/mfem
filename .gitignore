@@ -366,7 +366,6 @@ miniapps/shifted/diffusion
 miniapps/shifted/diffusion.mesh
 miniapps/shifted/diffusion.gf
 miniapps/shifted/ParaViewDiffusion
-miniapps/shifted/lsf_integral
 
 miniapps/tools/display-basis
 miniapps/tools/load-dc

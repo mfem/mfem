@@ -20,17 +20,35 @@ CONFIG_MK = $(or $(wildcard $(MFEM_BUILD_DIR)/config/config.mk),\
 MFEM_LIB_FILE = mfem_is_not_built
 -include $(CONFIG_MK)
 
+CUT_DIFFUSION_ALGOIM := $(MFEM_USE_ALGOIM)
+ifeq ($(CUT_DIFFUSION_ALGOIM),)
+   CUT_DIFFUSION_CONFIG := $(firstword $(wildcard \
+      $(MFEM_INC_DIR)/config/_config.hpp \
+      $(MFEM_INC_DIR)/mfem/config/_config.hpp))
+   ifneq ($(CUT_DIFFUSION_CONFIG),)
+      CUT_DIFFUSION_ALGOIM := $(shell sed -n \
+         's/^\#define MFEM_USE_ALGOIM[[:space:]]*$$/YES/p' $(CUT_DIFFUSION_CONFIG))
+   endif
+endif
+
 MTOP_COMMON_SRC = mtop_solvers.cpp
 
 MTOP_COMMON_OBJ = $(MTOP_COMMON_SRC:.cpp=.o)
 
 SEQ_MINIAPPS =
 PAR_MINIAPPS = mtop_test_iso_elasticity
-ifeq ($(MFEM_USE_MPI),NO)
-#   MINIAPPS = $(SEQ_MINIAPPS)
-else
-   MINIAPPS = $(PAR_MINIAPPS)
-   # $(SEQ_MINIAPPS)
+ifeq ($(MFEM_USE_LAPACK),YES)
+   SEQ_MINIAPPS += projection_ghost_penalty_serial
+   ifeq ($(MFEM_USE_MPI),YES)
+      PAR_MINIAPPS += projection_ghost_penalty_parallel
+   endif
+endif
+ifeq ($(MFEM_USE_MPI):$(MFEM_USE_DOUBLE):$(MFEM_USE_LAPACK):$(CUT_DIFFUSION_ALGOIM),YES:YES:YES:YES)
+   PAR_MINIAPPS += cut_diffusion_parallel
+endif
+MINIAPPS = $(SEQ_MINIAPPS)
+ifneq ($(MFEM_USE_MPI),NO)
+   MINIAPPS += $(PAR_MINIAPPS)
 endif
 
 .SUFFIXES:
@@ -49,12 +67,35 @@ endif
 
 all: $(MINIAPPS)
 
+ifeq ($(MFEM_USE_MPI):$(MFEM_USE_DOUBLE):$(MFEM_USE_LAPACK):$(CUT_DIFFUSION_ALGOIM),YES:YES:YES:YES)
+cut_diffusion_parallel: cut_diffusion_parallel.o $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(MFEM_LIBS)
+endif
+
+ifeq ($(MFEM_USE_LAPACK),YES)
+projection_ghost_penalty_serial: projection_ghost_penalty_serial.o $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(MFEM_LIBS)
+ifeq ($(MFEM_USE_MPI),YES)
+projection_ghost_penalty_parallel: projection_ghost_penalty_parallel.o $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(MFEM_CXX) $(MFEM_LINK_FLAGS) $< -o $@ $(MFEM_LIBS)
+endif
+endif
+
 MFEM_TESTS = MINIAPPS
 include $(MFEM_TEST_MK)
 
 # Testing: Parallel vs. serial runs
 RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
 TEST_NAME := MTop miniapp
+ifeq ($(MFEM_USE_LAPACK),YES)
+projection_ghost_penalty_serial-test-seq: projection_ghost_penalty_serial
+	@$(call mfem-test,$<,,Projection ghost penalty,,YES)
+ifeq ($(MFEM_USE_MPI),YES)
+projection_ghost_penalty_parallel-test-par: projection_ghost_penalty_parallel
+	@$(call mfem-test,$<,$(RUN_MPI),Parallel projection ghost penalty,,YES)
+endif
+endif
+
 %-test-par: %
 	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
 %-test-seq: %

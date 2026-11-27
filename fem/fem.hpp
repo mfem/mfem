@@ -13,7 +13,7 @@
 #define MFEM_FEM_HPP
 
 #include "intrules.hpp"
-#include "intrules_cut.hpp"
+#include "cut_quadrature.hpp"
 #include "geom.hpp"
 #include "fe.hpp"
 #include "fe_coll.hpp"
@@ -27,6 +27,7 @@
 #include "bilininteg.hpp"
 #include "fespace.hpp"
 #include "gridfunc.hpp"
+#include "ghost_penalty.hpp"
 #include "kdtree.hpp"
 #include "linearform.hpp"
 #include "nonlinearform.hpp"

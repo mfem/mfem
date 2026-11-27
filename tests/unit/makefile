@@ -30,7 +30,8 @@ SOURCE_FILES := $(sort $(wildcard $(SRC)*/*.cpp))
 CEED_SOURCE_FILES = $(sort $(wildcard $(SRC)ceed/*.cpp))
 MINI_SOURCE_FILES = $(sort $(wildcard $(SRC)miniapps/*.cpp))
 SOURCE_FILES := $(filter-out \
-   $(CEED_SOURCE_FILES) $(MINI_SOURCE_FILES), $(SOURCE_FILES))
+   $(CEED_SOURCE_FILES) $(MINI_SOURCE_FILES) \
+   $(SRC)fem/ghost_penalty_failure.cpp, $(SOURCE_FILES))
 HEADER_FILES = $(SRC)catch.hpp $(SRC)unit_tests.hpp
 OBJECT_FILES = $(SOURCE_FILES:$(SRC)%.cpp=%.o)
 LIBTESTS_O = libtests.o
@@ -104,7 +105,17 @@ else
    UNIT_TESTS = $(PAR_UNIT_TESTS) $(SEQ_UNIT_TESTS)
 endif
 
-all: $(UNIT_TESTS)
+ifeq ($(MFEM_USE_LAPACK),YES)
+GHOST_FAILURE_TEST = ghost_penalty_failure
+GHOST_FAILURE_OBJ = fem/ghost_penalty_failure.o
+endif
+
+all: $(UNIT_TESTS) $(GHOST_FAILURE_TEST)
+
+ifeq ($(MFEM_USE_LAPACK),YES)
+ghost_penalty_failure: $(GHOST_FAILURE_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK)
+	$(CCC) $(GHOST_FAILURE_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
+endif
 
 .SUFFIXES:
 .SUFFIXES: .cpp .o
@@ -128,13 +139,14 @@ ceed_tests: $(CEED_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK) $(DATA_DIR)
 $(DEBUG_DEVICE_TEST): $(DEBUG_DEVICE_OBJ) $(MFEM_LIB_FILE) $(CONFIG_MK)
 	$(CCC) $(DEBUG_DEVICE_OBJ) $(MFEM_LINK_FLAGS) $(MFEM_LIBS) -o $(@)
 
-$(LIBTESTS_O): $(OBJECT_FILES)
+$(LIBTESTS_O): $(OBJECT_FILES) $(SRC)makefile
 	$(LD) -r $(OBJECT_FILES) -o $(@)
 
 # Note: in this rule, we always use the full path to the source file as a
 # workaround for an issue with coveralls.
 $(OBJECT_FILES) $(SEQ_MAIN_OBJ) $(PAR_MAIN_OBJ) $(GPU_MAIN_OBJ) \
- $(PGPU_MAIN_OBJ) $(DEBUG_DEVICE_OBJ): %.o: $(SRC)%.cpp $(HEADER_FILES) \
+ $(PGPU_MAIN_OBJ) $(DEBUG_DEVICE_OBJ) $(GHOST_FAILURE_OBJ): %.o: \
+ $(SRC)%.cpp $(HEADER_FILES) \
  $(CONFIG_MK)
 	@mkdir -p $(@D)
 	$(CCC) $(MFEM_FLAGS) $(INCLUDES) -c $(abspath $(<)) -o $(@)
@@ -276,5 +288,5 @@ clean-exec:
 	@rm -rf output_meshes parallel_in_serial.mesh parallel_in_serial.gf
 
 clean: clean-exec
-	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) *.o */*.o */*~ *~
+	rm -f $(SEQ_UNIT_TESTS) $(PAR_UNIT_TESTS) ghost_penalty_failure *.o */*.o */*~ *~
 	rm -rf *.dSYM
