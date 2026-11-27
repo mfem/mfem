@@ -48,14 +48,14 @@
 
 #ifdef MFEM_USE_CUDA_OR_HIP
 #define MFEM_CHECK_SPARSE(call)                                          \
-do {                                                                     \
-    auto sparse_status = (call);                                         \
-    if (sparse_status != MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS))          \
-    {                                                                    \
-      MFEM_VERIFY(sparse_status == MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS),\
-                  MFEM_cu_or_hip(sparseGetErrorString)(sparse_status));  \
-    }                                                                    \
-} while (0)
+   do {                                                                     \
+      auto sparse_status = (call);                                         \
+      if (sparse_status != MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS))          \
+      {                                                                    \
+         MFEM_VERIFY(sparse_status == MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS),\
+                     MFEM_cu_or_hip(sparseGetErrorString)(sparse_status));  \
+      }                                                                    \
+   } while (0)
 #endif // MFEM_USE_CUDA_OR_HIP
 
 
@@ -3711,7 +3711,7 @@ static SparseMatrix *NewDeviceCSR(int m, int n, int nnz)
 
 /// C = A^T, computed with cuSPARSE/hipSPARSE csr2csc on the device.
 static SparseMatrix *DeviceTranspose(const SparseMatrix &A,
-                                     MFEM_cu_or_hip(sparseHandle_t) handle)
+                                    MFEM_cu_or_hip(sparseHandle_t) handle)
 {
    const int m = A.Height(), n = A.Width(), nnz = DeviceNNZ(A);
    if (nnz == 0) { return nullptr; }
@@ -3747,7 +3747,7 @@ static SparseMatrix *DeviceTranspose(const SparseMatrix &A,
 
 /// C = A B, computed with cuSPARSE/hipSPARSE SpGEMM on the device.
 static SparseMatrix *DeviceMult(const SparseMatrix &A, const SparseMatrix &B,
-                                MFEM_cu_or_hip(sparseHandle_t) handle)
+                               MFEM_cu_or_hip(sparseHandle_t) handle)
 {
    const int m = A.Height(), k = A.Width(), n = B.Width();
    const int nnzA = DeviceNNZ(A), nnzB = DeviceNNZ(B);
