@@ -4061,9 +4061,31 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
                   << " ncolsB = " << ncolsB
                   << ", C->Width() = " << C->Width());
 
-      // C_i    = C->HostReadI(); // not used
-      C_j    = C->HostWriteJ();
+      const int *C_rows = C->HostReadI();
+      const int *C_columns = C->HostReadJ();
       C_data = C->HostWriteData();
+
+      for (ic = 0; ic < nrowsA; ic++)
+      {
+         for (int entry = C_rows[ic]; entry < C_rows[ic+1]; entry++)
+         {
+            B_marker[C_columns[entry]] = entry;
+            C_data[entry] = 0.0;
+         }
+         for (ia = A_i[ic]; ia < A_i[ic+1]; ia++)
+         {
+            ja = A_j[ia];
+            for (ib = B_i[ja]; ib < B_i[ja+1]; ib++)
+            {
+               const int entry = B_marker[B_j[ib]];
+               MFEM_VERIFY(entry >= C_rows[ic] && entry < C_rows[ic+1],
+                           "Pre-allocated output matrix has an incompatible graph");
+               C_data[entry] += A_data[ia]*B_data[ib];
+            }
+         }
+      }
+      delete [] B_marker;
+      return C;
    }
 
    counter = 0;
@@ -4082,10 +4104,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
             if (B_marker[jb] < row_start)
             {
                B_marker[jb] = counter;
-               if (OAB == NULL)
-               {
-                  C_j[counter] = jb;
-               }
+               C_j[counter] = jb;
                C_data[counter] = a_entry*b_entry;
                counter++;
             }
@@ -4096,13 +4115,6 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
          }
       }
    }
-
-   MFEM_VERIFY(
-      OAB == NULL || counter == OAB->NumNonZeroElems(),
-      "With pre-allocated output matrix, number of non-zeros ("
-      << OAB->NumNonZeroElems()
-      << ") did not match number of entries changed from matrix-matrix multiply, "
-      << counter);
 
    delete [] B_marker;
 
@@ -4275,13 +4287,14 @@ SparseMatrix *RAP(const SparseMatrix &Rt, const SparseMatrix &A,
 SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
                          SparseMatrix *OAtDA)
 {
-   int i, At_nnz, *At_j;
+   int i, At_nnz;
+   const int *At_j;
    real_t *At_data;
 
    SparseMatrix *At = Transpose (A);
    At_nnz  = At -> NumNonZeroElems();
-   At_j    = At -> GetJ();
-   At_data = At -> GetData();
+   At_j    = At -> HostReadJ();
+   At_data = At -> HostReadWriteData();
    for (i = 0; i < At_nnz; i++)
    {
       At_data[i] *= D(At_j[i]);
