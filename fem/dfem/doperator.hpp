@@ -1291,6 +1291,19 @@ private:
          captured_state[i]->SyncMemory(*infields_l[i]);
       }
       qp_cache_filled = true;
+
+      // Free state since information is in cache and not needed anymore.
+      if (cached_apply)
+      {
+         for (auto *k : AllIntegrators())
+         {
+            for (Vector *state_e : k->ev.in_e)
+            {
+               if (state_e) { state_e->Destroy(); }
+            }
+         }
+         for (Vector *state_l : infields_l) { state_l->Destroy(); }
+      }
    }
 
    /// @brief EnsureQpCache() for several derivatives at the state @a x,
