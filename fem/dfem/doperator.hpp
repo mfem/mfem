@@ -706,6 +706,16 @@ public:
             field_l->Swap(state);
          }
       }
+
+      // Restrict the state once.
+      for (auto *k : AllIntegrators())
+      {
+         if (k->callbacks.actions.empty() && k->callbacks.setup.empty())
+         {
+            continue;
+         }
+         k->ev.RestrictInputs(infds, infields_l);
+      }
    }
 
    /// Stateless constructor for first-derivative (gradient) operators.
@@ -808,11 +818,11 @@ public:
          if (lvector_mode)
          {
             // Apply transposed restriction straight into the output vector.
-            ApplyActions(&direction_l, !cached_apply, y);
+            ApplyActions(&direction_l, y);
             return;
          }
       }
-      ApplyActions(&direction_l, !cached_apply, daction_l);
+      ApplyActions(&direction_l, daction_l);
       prolongation_transpose(outfds, daction_l, y, lvector_mode);
    }
 
@@ -829,9 +839,17 @@ public:
    void Mult(const MultiVector &x, MultiVector &y) const
    {
       VerifyKernel(DerivativeKernels::Action);
+
       prolongation(infds, x, infields_l, lvector_mode);
+
+      for (auto *k : AllIntegrators())
+      {
+         if (k->callbacks.actions.empty()) { continue; }
+         k->ev.RestrictInputs(infds, infields_l);
+      }
+
       // The first-derivative (gradient) action ignores the direction.
-      ApplyActions(nullptr, true, daction_l);
+      ApplyActions(nullptr, daction_l);
       prolongation_transpose(outfds, daction_l, y, lvector_mode);
    }
 
@@ -903,7 +921,6 @@ public:
       for (auto *k : AllIntegrators())
       {
          if (k->callbacks.transpose.empty()) { continue; }
-         if (!cached_transpose) { k->ev.RestrictInputs(infds, infields_l); }
          k->ev.ZeroInputResults(infds);
          for (const auto &f : k->callbacks.transpose)
          {
@@ -1068,7 +1085,7 @@ public:
       // Every functional integrator registers its gradient as an action,
       // whatever kernels were requested, so there is no kernel to check.
       // The action ignores the direction.
-      ApplyActions(nullptr, true, daction_l);
+      ApplyActions(nullptr, daction_l);
       if (lvector_mode)
       {
          g = *daction_l[0];
@@ -1216,8 +1233,6 @@ private:
 
    /// Whether MultTranspose uses the cached apply.
    /// @note This is always true for now as ApplyTranspose is based on cached QP data.
-   ///       So some ops like state restriction can therefore be skipped for now,
-   ///       but will be needed in the future if cached apply gets a MF version.
    bool cached_transpose = true;
 
    mutable bool qp_cache_filled = false;
@@ -1239,12 +1254,10 @@ private:
       MFEM_VERIFY(pool, "the derivative is used after the "
                   "DifferentiableOperator it was taken from was destroyed");
 
-      // Per entity type: restrict the state, take the caches, run the
-      // setups.
+      // Per entity type: take the caches, run the setups.
       for (auto *k : AllIntegrators())
       {
          if (k->callbacks.setup.empty()) { continue; }
-         k->ev.RestrictInputs(infds, infields_l);
          for (size_t slot : k->callbacks.cache_slots)
          {
             pool->Take(slot, qp_caches[slot]);
@@ -1375,16 +1388,13 @@ private:
 
    /// Apply the derivative actions of every entity type in the direction
    /// @a dir_l and write the sum of their transposed restrictions to @a y,
-   /// a std::vector<Vector *> or a MultiVector. The input E-vectors are
-   /// restricted from infields_l first if @a restrict_inputs.
+   /// a std::vector<Vector *> or a MultiVector.
    template <typename lvectors_t>
-   void ApplyActions(const Vector *dir_l, bool restrict_inputs,
-                     lvectors_t &y) const
+   void ApplyActions(const Vector *dir_l, lvectors_t &y) const
    {
       for (auto *k : AllIntegrators())
       {
          if (k->callbacks.actions.empty()) { continue; }
-         if (restrict_inputs) { k->ev.RestrictInputs(infds, infields_l); }
          k->ev.ZeroOutputs(outfds);
          for (const auto &f : k->callbacks.actions)
          {
