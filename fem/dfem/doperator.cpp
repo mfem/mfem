@@ -292,7 +292,7 @@ void DifferentiableOperator::GetDerivatives(
    }
 
    // Fill the caches of all of them at once.
-   DerivativeOperator::EnsureQpCaches(derivatives, n, x);
+   EnsureQpCaches(derivatives, n, x);
 }
 
 void DifferentiableOperator::GetSecondDerivatives(
@@ -332,7 +332,50 @@ void DifferentiableOperator::GetSecondDerivatives(
    }
 
    // Fill the caches of all of them at once.
-   DerivativeOperator::EnsureQpCaches(derivatives, n, x);
+   EnsureQpCaches(derivatives, n, x);
+}
+
+void DifferentiableOperator::EnsureQpCaches(
+   const std::shared_ptr<DerivativeOperator> *derivatives, const size_t n,
+   const MultiVector &x)
+{
+   const bool lvector_mode = mult_level == MultLevel::LVECTOR;
+
+   // Prolong the state once.
+   prolongation(infds, x, infields_l, lvector_mode);
+
+   // Restrict it once per entity type, on first use.
+   std::array<bool, 2> restricted {};
+
+   // Take the caches of each derivative and run its setups.
+   for (size_t i = 0; i < n; i++)
+   {
+      const auto &d = derivatives[i];
+      for (auto *k : d->AllIntegrators())
+      {
+         if (k->callbacks.setup.empty()) { continue; }
+         // The entity type of k, in the order of AllIntegrators().
+         const size_t t = (k == &d->domain_integrators) ? 0 : 1;
+         auto &ev = AllIntegrators()[t]->ev;
+         if (!restricted[t])
+         {
+            ev.RestrictInputs(infds, infields_l);
+            restricted[t] = true;
+         }
+         for (size_t slot : k->callbacks.cache_slots)
+         {
+            qp_cache_pool->Take(slot, d->qp_caches[slot]);
+         }
+         for (const auto &setup_callback : k->callbacks.setup)
+         {
+            setup_callback(ev.in_e, d->qp_caches);
+         }
+      }
+      d->qp_cache_filled = true;
+   }
+
+   // Under LVECTOR, sync the user's state the L-vectors alias.
+   if (lvector_mode) { detail::SyncLVectorAliasMemory(x, infields_l); }
 }
 
 bool DifferentiableOperator::HasSecondDerivative(size_t gradient_id,

@@ -1183,7 +1183,7 @@ public:
    }
 
 private:
-   /// GetDerivatives() and GetSecondDerivatives() use EnsureQpCaches().
+   /// DifferentiableOperator::EnsureQpCaches() fills the qp caches.
    friend class DifferentiableOperator;
 
    /// The single non-null row block of @a blocks, for the scalar Assemble
@@ -1304,73 +1304,6 @@ private:
          }
          for (Vector *state_l : infields_l) { state_l->Destroy(); }
       }
-   }
-
-   /// @brief EnsureQpCache() for several derivatives at the state @a x,
-   /// prolonged and restricted once for all of them.
-   ///
-   /// Here the derivatives have no state, so the state is prolonged and
-   /// restricted once, used by the setups of all of them, and freed.
-   static void EnsureQpCaches(
-      const std::shared_ptr<DerivativeOperator> *derivatives, const size_t n,
-      const MultiVector &x)
-   {
-      // Pool and input fields, shared by all the derivatives.
-      const DerivativeOperator &first = *derivatives[0];
-      const auto pool = first.qp_cache_pool.lock();
-
-      // Prolong the state once.
-      std::vector<Vector *> state_l(first.infds.size());
-      for (size_t i = 0; i < first.infds.size(); i++)
-      {
-         state_l[i] = new Vector(GetVSize(first.infds[i]));
-         state_l[i]->UseDevice(true);
-      }
-      prolongation(first.infds, x, state_l, first.lvector_mode);
-
-      // E-vectors per entity type, restricted once, on first use.
-      std::array<detail::EntityEVectors, 2> state_e
-      {
-         {
-            detail::EntityEVectors(first.domain_integrators.ev, 0, false),
-            detail::EntityEVectors(first.boundary_integrators.ev, 0, false)
-         }
-      };
-      std::array<bool, 2> restricted {};
-
-      // Take the caches of each derivative and run its setups.
-      for (size_t i = 0; i < n; i++)
-      {
-         const auto &d = derivatives[i];
-         for (auto *k : d->AllIntegrators())
-         {
-            if (k->callbacks.setup.empty()) { continue; }
-            // The entity type of k, in the order of AllIntegrators().
-            const size_t t = (k == &d->domain_integrators) ? 0 : 1;
-            if (!restricted[t])
-            {
-               state_e[t].RestrictInputs(first.infds, state_l);
-               restricted[t] = true;
-            }
-            for (size_t slot : k->callbacks.cache_slots)
-            {
-               pool->Take(slot, d->qp_caches[slot]);
-            }
-            for (const auto &setup_callback : k->callbacks.setup)
-            {
-               setup_callback(state_e[t].in_e, d->qp_caches);
-            }
-         }
-         d->qp_cache_filled = true;
-      }
-
-      // Under LVECTOR, sync the user's state the L-vectors alias.
-      if (first.lvector_mode) { detail::SyncLVectorAliasMemory(x, state_l); }
-
-      // Free the state: the derivatives only keep their caches.
-      std::vector<Vector *> deleted;
-      detail::DeleteOwnedVectorPointersImpl(deleted, state_l);
-      for (auto &e : state_e) { e.DeleteOwned(deleted); }
    }
 
    /// The integrators of every entity type, the domain integrators first.
@@ -1939,6 +1872,13 @@ private:
                              const size_t n, const MultiVector &x,
                              const bool use_cached_setup,
                              std::shared_ptr<DerivativeOperator> *derivatives);
+
+   /// @brief DerivativeOperator::EnsureQpCache() for the @a n stateless
+   /// @a derivatives at the state @a x. The state is prolonged into
+   /// infields_l and restricted into the E-vectors of the integrators once,
+   /// and used by the setups of all of them.
+   void EnsureQpCaches(const std::shared_ptr<DerivativeOperator> *derivatives,
+                       const size_t n, const MultiVector &x);
 
    bool HasFunctionalIntegrator() const
    {
