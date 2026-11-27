@@ -30,6 +30,7 @@ PANonlinearFormExtension::PANonlinearFormExtension(const NonlinearForm *nlf):
    elemR(nullptr),
    int_face_restrict_lex(nullptr),
    bdr_face_restrict_lex(nullptr),
+   bdr_face_attributes(nullptr),
    Grad(*this)
 {
 
@@ -67,6 +68,8 @@ void PANonlinearFormExtension::SetupRestrictionOperators()
       bdr_face_X.SetSize(bdr_face_restrict_lex>Height(), Device::GetMemoryType());
       bdr_face_Y.SetSize(bdr_face_restrict_lex->Height(), Device::GetMemoryType());
       bdr_face_Y.UseDevice(true); // ensure 'bdr_face_Y = 0.0' is done on device
+
+      bdr_face_attributes = &fes.GetMesh()->GetBdrFaceAttributes();
    }
 }
 
@@ -154,6 +157,7 @@ void PANonlinearFormExtension::Update()
    elemR = nullptr;
    int_face_restrict_lex = nullptr;
    bdr_face_restrict_lex = nullptr;
+   bdr_face_attributes = nullptr;
    Grad.Update();
 }
 
