@@ -77,6 +77,16 @@ endif
 
 all: $(MINIAPPS)
 
+MFEM_TESTS = MINIAPPS
+include $(MFEM_TEST_MK)
+
+RUN_MPI = $(MFEM_MPIEXEC) $(MFEM_MPIEXEC_NP) $(MFEM_MPI_NP)
+TEST_NAME := Contact miniapp
+%-test-par: %
+	@$(call mfem-test,$<, $(RUN_MPI), $(TEST_NAME))
+%-test-seq: %
+	@$(call mfem-test,$<,, $(TEST_NAME))
+
 ip.o driver_output.o: $(SRC)contact_output.hpp
 contact_driver.o driver_output.o: $(SRC)driver_output.hpp
 driver_output.o: $(SRC)ip.hpp $(SRC)optcontactproblem.hpp $(SRC)elastoperator.hpp
