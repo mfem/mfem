@@ -28,6 +28,7 @@ option(MFEM_USE_EXCEPTIONS "Enable the use of exceptions" OFF)
 option(MFEM_USE_ZLIB "Enable zlib for compressed data streams." OFF)
 option(MFEM_USE_LIBUNWIND "Enable backtrace for errors." OFF)
 option(MFEM_USE_LAPACK "Enable LAPACK usage" OFF)
+option(MFEM_USE_LAPACKE "Enable LAPACKE and ALGOIM polynomial quadrature" OFF)
 option(MFEM_THREAD_SAFE "Enable thread safety" OFF)
 option(MFEM_USE_OPENMP "Enable the OpenMP backend" OFF)
 option(MFEM_USE_LEGACY_OPENMP "Enable legacy OpenMP usage" OFF)
@@ -37,6 +38,7 @@ option(MFEM_USE_SUITESPARSE "Enable SuiteSparse usage" OFF)
 option(MFEM_USE_SUPERLU "Enable SuperLU_DIST usage" OFF)
 option(MFEM_USE_SUPERLU5 "Use the old SuperLU_DIST 5.1 version" OFF)
 option(MFEM_USE_MUMPS "Enable MUMPS usage" OFF)
+option(MFEM_USE_COMPLEX_MUMPS "Enable COMPLEX_MUMPS usage" OFF)
 option(MFEM_USE_STRUMPACK "Enable STRUMPACK usage" OFF)
 option(MFEM_USE_CUDSS "Enable cuDSS usage" OFF)
 option(MFEM_USE_GINKGO "Enable Ginkgo usage" OFF)
@@ -154,7 +156,7 @@ set(SuperLUDist_REQUIRED_PACKAGES "MPI" "ParMETIS" "METIS"
 set(MUMPS_DIR "${MFEM_DIR}/../MUMPS_5.5.0" CACHE PATH
     "Path to the MUMPS library.")
 # MUMPS may also depend on "OpenMP", depending on how it was compiled.
-set(MUMPS_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "ParMETIS" "METIS"
+set(MUMPS_REQUIRED_PACKAGES "MPI" "MPI_Fortran" "METIS"
     "ScaLAPACK" "LAPACK" "BLAS" CACHE STRING
     "Additional packages required by MUMPS.")
 # If the MPI package does not find all required Fortran libraries:
@@ -251,7 +253,7 @@ set(UMPIRE_DIR "${MFEM_DIR}/../umpire" CACHE PATH "Path to Umpire")
 set(CALIPER_DIR "${MFEM_DIR}/../caliper" CACHE PATH "Path to Caliper")
 set(BLITZ_DIR "${MFEM_DIR}/../blitz" CACHE PATH "Path to Blitz")
 set(ALGOIM_DIR "${MFEM_DIR}/../algoim" CACHE PATH "Path to Algoim")
-set(Algoim_REQUIRED_PACKAGES "Blitz" CACHE STRING
+set(Algoim_REQUIRED_PACKAGES "" CACHE STRING
     "Packages that ALGOIM depends on.")
 
 set(BENCHMARK_DIR "${MFEM_DIR}/../google-benchmark" CACHE PATH

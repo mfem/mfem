@@ -47,6 +47,7 @@ list(APPEND ALL_EXE_SRCS
   ex39.cpp
   ex40.cpp
   ex41.cpp
+  ex42.cpp
   )
 
 if (MFEM_USE_MPI)
@@ -91,6 +92,7 @@ if (MFEM_USE_MPI)
     ex39p.cpp
     ex40p.cpp
     ex41p.cpp
+    ex42p.cpp
   )
 endif()
 
@@ -102,7 +104,7 @@ endif()
 if (MFEM_USE_SINGLE)
   list(APPEND SKIP_TESTS ex33.cpp ex33p.cpp)
 endif()
-if (NOT MFEM_USE_LAPACK)
+if (NOT MFEM_USE_ALGOIM)
   list(APPEND SKIP_TESTS ex38.cpp)
 endif()
 

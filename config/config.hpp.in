@@ -73,6 +73,8 @@
 // Use LAPACK routines for various dense linear algebra operations.
 // #define MFEM_USE_LAPACK
 
+// #define MFEM_USE_LAPACKE
+
 // Use thread-safe implementation. This comes at the cost of extra memory
 // allocation and de-allocation.
 // #define MFEM_THREAD_SAFE
@@ -103,6 +105,7 @@
 
 // Enable MFEM functionality based on the MUMPS library.
 // #define MFEM_USE_MUMPS
+// #define MFEM_USE_COMPLEX_MUMPS
 // #define MFEM_MUMPS_VERSION @MFEM_MUMPS_VERSION@
 
 // Enable MFEM functionality based on the STRUMPACK library.

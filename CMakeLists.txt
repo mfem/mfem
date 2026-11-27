@@ -75,14 +75,16 @@ set(XSDK_ENABLE_Fortran OFF)
 
 # Check if we need to enable C or Fortran.
 if (MFEM_USE_CONDUIT OR
-    MFEM_USE_PETSC)
+    MFEM_USE_PETSC OR
+    MFEM_USE_MUMPS OR
+    MFEM_USE_COMPLEX_MUMPS)
    # This seems to be needed by:
    #  * find_package(BLAS REQUIRED) and
    #  * find_package(HDF5 REQUIRED) and
    #  * find_package(PETSc REQUIRED)
    set(XSDK_ENABLE_C ON)
 endif()
-if (MFEM_USE_STRUMPACK OR MFEM_USE_MUMPS)
+if (MFEM_USE_STRUMPACK OR MFEM_USE_MUMPS OR MFEM_USE_COMPLEX_MUMPS)
   # Just needed to find the MPI_Fortran libraries to link with
   set(XSDK_ENABLE_Fortran ON)
 endif()
@@ -338,7 +340,7 @@ if (MFEM_USE_MPI)
     endif()
   endif()
 else()
-  set(PKGS_NEED_MPI SUPERLU MUMPS PETSC SLEPC STRUMPACK PUMI)
+  set(PKGS_NEED_MPI SUPERLU MUMPS COMPLEX_MUMPS PETSC SLEPC STRUMPACK PUMI)
   foreach(PKG IN LISTS PKGS_NEED_MPI)
     if (MFEM_USE_${PKG})
       message(STATUS "Disabling package ${PKG} - requires MPI")
@@ -372,9 +374,12 @@ if (MFEM_USE_LIBUNWIND)
 endif()
 
 # BLAS, LAPACK
-if (MFEM_USE_LAPACK)
+if (MFEM_USE_LAPACK OR MFEM_USE_LAPACKE)
   find_package(BLAS REQUIRED)
   find_package(LAPACK REQUIRED)
+endif()
+if (MFEM_USE_LAPACKE)
+  find_package(LAPACKE REQUIRED)
 endif()
 
 # SuiteSparse (before SUNDIALS which may depend on KLU)
@@ -411,7 +416,7 @@ if (MFEM_USE_SUPERLU)
 endif()
 
 # MUMPS can only be enabled in parallel
-if (MFEM_USE_MUMPS)
+if (MFEM_USE_MUMPS OR MFEM_USE_COMPLEX_MUMPS)
   if (MFEM_USE_MPI)
     find_package(MUMPS REQUIRED mumps_common pord)
     set(MFEM_MUMPS_VERSION ${MUMPS_VERSION})
@@ -567,6 +572,9 @@ endif()
 
 # Algoim
 if (MFEM_USE_ALGOIM)
+  if (NOT MFEM_USE_DOUBLE)
+    message(FATAL_ERROR "ALGOIM currently requires double precision.")
+  endif()
   find_package(Algoim REQUIRED)
 endif()
 
@@ -648,7 +656,7 @@ find_package(Threads REQUIRED)
 #    With newer versions of SuiteSparse which include METIS header using 64-bit
 #    integers, the METIS header (with 32-bit indices, as used by mfem) needs to
 #    be before SuiteSparse.
-set(MFEM_TPLS OPENMP HYPRE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
+set(MFEM_TPLS OPENMP HYPRE LAPACKE LAPACK BLAS SuperLUDist STRUMPACK METIS SuiteSparse
     SUNDIALS PETSC SLEPC MUMPS FMS CONDUIT Ginkgo GNUTLS GSLIB HDF5
     NETCDF MPFR PUMI HIOP POSIXCLOCKS MFEMBacktrace ZLIB OCCA CEED RAJA UMPIRE
     ADIOS2 MKL_CPARDISO MKL_PARDISO AMGX MAGMA CUSPARSE CUBLAS CUDSS CALIPER CODIPACK

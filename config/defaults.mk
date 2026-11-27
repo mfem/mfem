@@ -161,6 +161,7 @@ MFEM_USE_EXCEPTIONS    = NO
 MFEM_USE_ZLIB          = NO
 MFEM_USE_LIBUNWIND     = NO
 MFEM_USE_LAPACK        = NO
+MFEM_USE_LAPACKE       = NO
 MFEM_THREAD_SAFE       = NO
 MFEM_USE_OPENMP        = NO
 MFEM_USE_LEGACY_OPENMP = NO
@@ -171,6 +172,7 @@ MFEM_USE_SUITESPARSE   = NO
 MFEM_USE_SUPERLU       = NO
 MFEM_USE_SUPERLU5      = NO
 MFEM_USE_MUMPS         = NO
+MFEM_USE_COMPLEX_MUMPS = NO
 MFEM_USE_STRUMPACK     = NO
 MFEM_USE_CUDSS         = NO
 MFEM_USE_GINKGO        = NO
@@ -275,7 +277,7 @@ ifeq (YES,$(MFEM_USE_HIP))
 endif
 
 # METIS library configuration
-ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK)$(MFEM_USE_MUMPS),NONONO)
+ifeq ($(MFEM_USE_SUPERLU)$(MFEM_USE_STRUMPACK),NONO)
    ifeq ($(MFEM_USE_METIS_5),NO)
      METIS_DIR = @MFEM_DIR@/../metis-4.0
      METIS_OPT =
@@ -299,6 +301,8 @@ endif
 # LAPACK library configuration
 LAPACK_OPT =
 LAPACK_LIB = $(if $(NOTMAC),-llapack -lblas,-framework Accelerate)
+LAPACKE_OPT =
+LAPACKE_LIB = -llapacke $(LAPACK_LIB)
 
 # OpenMP configuration
 OPENMP_OPT = $(XCOMPILER)-fopenmp
@@ -379,13 +383,19 @@ MPI_FORTRAN_LIB = -lmpifort
 # MUMPS library configuration
 MUMPS_DIR = @MFEM_DIR@/../MUMPS_5.5.0
 MUMPS_OPT = -I$(MUMPS_DIR)/include
-MUMPS_LIB = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib
+COMPLEX_MUMPS_OPT = $(MUMPS_OPT)
+
+MUMPS_COMMON_PATH = $(XLINKER)-rpath,$(MUMPS_DIR)/lib -L$(MUMPS_DIR)/lib
+MUMPS_COMMON_LIB = -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
 ifeq ($(MFEM_USE_SINGLE),YES)
-   MUMPS_LIB += -lsmumps
+  MUMPS_SOLVER_LIB         = -lsmumps
+  COMPLEX_MUMPS_SOLVER_LIB = -lcmumps
 else
-   MUMPS_LIB += -ldmumps
+  MUMPS_SOLVER_LIB         = -ldmumps
+  COMPLEX_MUMPS_SOLVER_LIB = -lzmumps
 endif
-MUMPS_LIB += -lmumps_common -lpord $(SCALAPACK_LIB) $(LAPACK_LIB) $(MPI_FORTRAN_LIB)
+MUMPS_LIB         = $(MUMPS_COMMON_PATH) $(MUMPS_SOLVER_LIB) $(MUMPS_COMMON_LIB)
+COMPLEX_MUMPS_LIB = $(MUMPS_COMMON_PATH) $(COMPLEX_MUMPS_SOLVER_LIB) $(MUMPS_COMMON_LIB)
 
 # STRUMPACK library configuration
 STRUMPACK_DIR = @MFEM_DIR@/../STRUMPACK-build
@@ -594,8 +604,8 @@ BLITZ_LIB = $(XLINKER)-rpath,$(BLITZ_DIR)/lib -L$(BLITZ_DIR)/lib -lblitz
 
 # ALGOIM library configuration
 ALGOIM_DIR = @MFEM_DIR@/../algoim
-ALGOIM_OPT = -I$(ALGOIM_DIR)/src $(BLITZ_OPT)
-ALGOIM_LIB = $(BLITZ_LIB)
+ALGOIM_OPT = -I$(ALGOIM_DIR)
+ALGOIM_LIB =
 
 # BENCHMARK library configuration
 BENCHMARK_DIR = @MFEM_DIR@/../google-benchmark

@@ -92,7 +92,9 @@ set(SRCS
   hybridization.cpp
   hybridization_ext.cpp
   intrules.cpp
-  intrules_cut.cpp
+  cut_quadrature.cpp
+  cut_quadrature_algoim.cpp
+  cut_quadrature_moment.cpp
   ceed/interface/basis.cpp
   ceed/interface/restriction.cpp
   ceed/interface/operator.cpp
@@ -251,7 +253,8 @@ set(HDRS
   hybridization.hpp
   hybridization_ext.hpp
   intrules.hpp
-  intrules_cut.hpp
+  cut_quadrature.hpp
+  cut_quadrature_algoim.hpp
   kernel_dispatch.hpp
   kernel_reporter.hpp
   kernels.hpp

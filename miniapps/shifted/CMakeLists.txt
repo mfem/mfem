@@ -9,21 +9,6 @@
 # terms of the BSD-3 license. We welcome feedback and contributions, see file
 # CONTRIBUTING.md for details.
 
-# Serial miniapps
-add_mfem_miniapp(lsf_integral
-  MAIN lsf_integral.cpp
-  LIBRARIES mfem-common)
-
-# Serial tests
-if (MFEM_ENABLE_TESTING)
-  set(SERIAL_TESTS
-    lsf_integral
-  )
-  foreach(test ${SERIAL_TESTS})
-    add_test(NAME ${test} COMMAND ${test} -no-vis)
-  endforeach()
-endif()
-
 # Parallel miniapps and tests
 if (MFEM_USE_MPI)
   list(APPEND DIST_COMMON_SOURCES
