@@ -125,8 +125,8 @@ real_t Mesh::GetElementSize(int i, const Vector &dir)
 real_t Mesh::GetElementVolume(int i)
 {
    ElementTransformation *et = GetElementTransformation(i);
-   const IntegrationRule &ir = IntRules.Get(GetElementBaseGeometry(i),
-                                            et->OrderJ());
+   const int order = std::max(et->OrderJ(), et->OrderW());
+   const IntegrationRule &ir = IntRules.Get(GetElementBaseGeometry(i), order);
    real_t volume = 0.0;
    for (int j = 0; j < ir.GetNPoints(); j++)
    {

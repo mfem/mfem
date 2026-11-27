@@ -214,6 +214,29 @@ TEST_CASE("Hilbert reordering boundary element consistency", "[Mesh]")
    }
 }
 
+TEST_CASE("Volume of a square frustum", "[Mesh]")
+{
+   Mesh mesh = Mesh::MakeCartesian3D(1, 1, 1, Element::HEXAHEDRON);
+   mesh.Transform([](const Vector &p, Vector &x)
+   {
+      x[0] = (1 + p[2])*p[0];
+      x[1] = (1 + p[2])*p[1];
+      x[2] = p[2];
+   });
+
+   // The cross-sectional area at height z is (1+z)^2.
+   const auto expected = Approx(7.0/3.0);
+   CHECK(mesh.GetElementVolume(0) == expected);
+
+   mesh.UniformRefinement();
+   real_t volume = 0.0;
+   for (int i = 0; i < mesh.GetNE(); i++)
+   {
+      volume += mesh.GetElementVolume(i);
+   }
+   CHECK(volume == expected);
+}
+
 TEST_CASE("MakeSimplicial", "[Mesh]")
 {
    auto mesh_fname = GENERATE("../../data/star.mesh",
