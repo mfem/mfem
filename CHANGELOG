@@ -21,6 +21,9 @@ GPU computing
 - Fixed the Umpire device memory types, which allocated on the device 0 when
   the configured device was another one.
 
+- Accelerated SparseMatrix products and transposes of device-resident matrices
+  with cuSPARSE/hipSPARSE.
+
 Discretization improvements
 ---------------------------
 - Fixed H1 transfer in L2ProjectionGridTransfer on non-conforming meshes in

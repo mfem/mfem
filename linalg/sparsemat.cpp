@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <limits>
 #include <cstring>
+#include <memory>
 
 #if defined(MFEM_USE_CUDA)
 #define MFEM_cu_or_hip(stub) cu##stub
@@ -47,15 +48,15 @@
 #endif // defined(MFEM_USE_CUDA)
 
 #ifdef MFEM_USE_CUDA_OR_HIP
-#define MFEM_CHECK_SPARSE(call)                                          \
-do {                                                                     \
-    auto sparse_status = (call);                                         \
-    if (sparse_status != MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS))          \
-    {                                                                    \
-      MFEM_VERIFY(sparse_status == MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS),\
-                  MFEM_cu_or_hip(sparseGetErrorString)(sparse_status));  \
-    }                                                                    \
-} while (0)
+#define MFEM_CHECK_SPARSE(call)                                             \
+   do {                                                                     \
+      auto sparse_status = (call);                                          \
+      if (sparse_status != MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS))           \
+      {                                                                     \
+         MFEM_VERIFY(sparse_status == MFEM_CU_or_HIP(SPARSE_STATUS_SUCCESS),\
+                     MFEM_cu_or_hip(sparseGetErrorString)(sparse_status));  \
+      }                                                                     \
+   } while (0)
 #endif // MFEM_USE_CUDA_OR_HIP
 
 
@@ -487,6 +488,14 @@ void SparseMatrix::SortColumnIndices()
       return;
    }
 
+   // A matrix without entries is sorted. The cuSPARSE/hipSPARSE buffer-size
+   // query below is not meaningful for nnz == 0.
+   if (J.Capacity() == 0)
+   {
+      isSorted = true;
+      return;
+   }
+
 #ifdef MFEM_USE_CUDA_OR_HIP
    if ((Device::Allows(Backend::CUDA_MASK) || Device::Allows(Backend::HIP_MASK)) &&
        useGPUSparse)
@@ -499,7 +508,7 @@ void SparseMatrix::SortColumnIndices()
 
       // Get size of temporary buffer needed to sort the column indices,
       // allocate the temporary buffer.
-      size_t pBufferSizeInBytes;
+      size_t pBufferSizeInBytes = 0;
       MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseXcsrsort_bufferSizeExt)(handle, m, n,
                                                                      nnzA, d_ia,
                                                                      d_ja, &pBufferSizeInBytes));
@@ -3663,11 +3672,196 @@ void SparseMatrixFunction (SparseMatrix & S, real_t (*f)(real_t))
    }
 }
 
+#ifdef MFEM_USE_CUDA_OR_HIP
+#if !defined(MFEM_USE_CUDA) || (CUDA_VERSION >= 11000)
+// Device implementations of the free functions Transpose() and Mult() below.
+// They return NULL when an operand has no entries, so the host implementation
+// is used for such matrices.
+
+/// Whether @a A is a finalized CSR matrix with device-valid arrays.
+static bool HasDeviceCSR(const SparseMatrix &A)
+{
+   return Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK) &&
+          A.Finalized() &&
+          A.GetMemoryI().DeviceIsValid() &&
+          A.GetMemoryJ().DeviceIsValid() &&
+          A.GetMemoryData().DeviceIsValid();
+}
+
+/// The number of stored entries: the last entry of the device row-offset
+/// array, transferred as a single integer.
+static int DeviceNNZ(const SparseMatrix &A)
+{
+   int nnz = 0;
+   MFEM_Cu_or_Hip(MemcpyDtoH)(&nnz, A.ReadI() + A.Height(), sizeof(int));
+   return nnz;
+}
+
+/// A finalized CSR matrix of @a m rows, @a n columns and @a nnz entries,
+/// allocated in device memory.
+static SparseMatrix *NewDeviceCSR(int m, int n, int nnz)
+{
+   SparseMatrix *C = new SparseMatrix;
+   C->OverrideSize(m, n);
+   const MemoryType mt = Device::GetDeviceMemoryType();
+   C->GetMemoryI().New(m + 1, mt);
+   C->GetMemoryJ().New(nnz, mt);
+   C->GetMemoryData().New(nnz, mt);
+   return C;
+}
+
+/// Owner of the vendor sparse descriptors and device buffers of one device
+/// call, released when it goes out of scope, also when a vendor call throws.
+struct DeviceSparseDescriptors
+{
+   MFEM_cu_or_hip(sparseSpMatDescr_t) mat[3] = {};
+   MFEM_cu_or_hip(sparseSpGEMMDescr_t) gemm = nullptr;
+   void *buf[2] = {};
+
+   /// Allocate @a bytes of device workspace in slot @a i, if nonzero.
+   void *Alloc(int i, size_t bytes)
+   {
+      if (bytes > 0) { MFEM_Cu_or_Hip(MemAlloc)(&buf[i], bytes); }
+      return buf[i];
+   }
+
+   ~DeviceSparseDescriptors()
+   {
+      if (gemm) { MFEM_cu_or_hip(sparseSpGEMM_destroyDescr)(gemm); }
+      for (auto m : mat) { if (m) { MFEM_cu_or_hip(sparseDestroySpMat)(m); } }
+      for (void *b : buf) { if (b) { MFEM_Cu_or_Hip(MemFree)(b); } }
+   }
+};
+
+/// C = A^T, computed with cuSPARSE/hipSPARSE csr2csc on the device.
+static SparseMatrix *DeviceTranspose(const SparseMatrix &A,
+                                     MFEM_cu_or_hip(sparseHandle_t) handle)
+{
+   const int m = A.Height(), n = A.Width(), nnz = DeviceNNZ(A);
+   if (nnz == 0) { return nullptr; }
+   const int *d_I = A.ReadI();
+   const int *d_J = A.ReadJ();
+   const real_t *d_A = A.ReadData();
+
+   std::unique_ptr<SparseMatrix> At(NewDeviceCSR(n, m, nnz));
+   int *d_AtI = At->WriteI();
+   int *d_AtJ = At->WriteJ();
+   real_t *d_AtA = At->WriteData();
+
+   size_t buf = 0;
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCsr2cscEx2_bufferSize)(
+                        handle, m, n, nnz, d_A, d_I, d_J, d_AtA, d_AtI, d_AtJ,
+                        MFEM_CUDA_or_HIP_REAL_T,
+                        MFEM_CU_or_HIP(SPARSE_ACTION_NUMERIC),
+                        MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
+                        MFEM_CU_or_HIP(SPARSE_CSR2CSC_ALG1), &buf));
+   DeviceSparseDescriptors descrs;
+   void *dBuf = descrs.Alloc(0, buf);
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCsr2cscEx2)(
+                        handle, m, n, nnz, d_A, d_I, d_J, d_AtA, d_AtI, d_AtJ,
+                        MFEM_CUDA_or_HIP_REAL_T,
+                        MFEM_CU_or_HIP(SPARSE_ACTION_NUMERIC),
+                        MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO),
+                        MFEM_CU_or_HIP(SPARSE_CSR2CSC_ALG1), dBuf));
+   MFEM_STREAM_SYNC;
+   At->SortColumnIndices();
+   return At.release();
+}
+
+/// C = A B, computed with cuSPARSE/hipSPARSE SpGEMM on the device.
+static SparseMatrix *DeviceMult(const SparseMatrix &A, const SparseMatrix &B,
+                                MFEM_cu_or_hip(sparseHandle_t) handle)
+{
+   const int m = A.Height(), k = A.Width(), n = B.Width();
+   const int nnzA = DeviceNNZ(A), nnzB = DeviceNNZ(B);
+   if (nnzA == 0 || nnzB == 0) { return nullptr; }
+   const auto op = MFEM_CU_or_HIP(SPARSE_OPERATION_NON_TRANSPOSE);
+   const auto idx = MFEM_CU_or_HIP(SPARSE_INDEX_32I);
+   const auto base = MFEM_CU_or_HIP(SPARSE_INDEX_BASE_ZERO);
+   const auto typ = MFEM_CUDA_or_HIP_REAL_T;
+   const auto alg = MFEM_CU_or_HIP(SPARSE_SPGEMM_DEFAULT);
+
+   DeviceSparseDescriptors descrs;
+   auto &matA = descrs.mat[0], &matB = descrs.mat[1], &matC = descrs.mat[2];
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreateCsr)(
+                        &matA, m, k, nnzA,
+                        const_cast<int*>(A.ReadI()),
+                        const_cast<int*>(A.ReadJ()),
+                        const_cast<real_t*>(A.ReadData()),
+                        idx, idx, base, typ));
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreateCsr)(
+                        &matB, k, n, nnzB,
+                        const_cast<int*>(B.ReadI()),
+                        const_cast<int*>(B.ReadJ()),
+                        const_cast<real_t*>(B.ReadData()),
+                        idx, idx, base, typ));
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCreateCsr)(
+                        &matC, m, n, 0, nullptr, nullptr, nullptr,
+                        idx, idx, base, typ));
+
+   auto &desc = descrs.gemm;
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_createDescr)(&desc));
+
+   const real_t alpha = 1.0, beta = 0.0;
+   size_t buf1 = 0;
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_workEstimation)(
+                        handle, op, op, &alpha, matA, matB, &beta, matC,
+                        typ, alg, desc, &buf1, nullptr));
+   void *dBuf1 = descrs.Alloc(0, buf1);
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_workEstimation)(
+                        handle, op, op, &alpha, matA, matB, &beta, matC,
+                        typ, alg, desc, &buf1, dBuf1));
+
+   size_t buf2 = 0;
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_compute)(
+                        handle, op, op, &alpha, matA, matB, &beta, matC,
+                        typ, alg, desc, &buf2, nullptr));
+   void *dBuf2 = descrs.Alloc(1, buf2);
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_compute)(
+                        handle, op, op, &alpha, matA, matB, &beta, matC,
+                        typ, alg, desc, &buf2, dBuf2));
+
+   int64_t cr = 0, cc = 0, cnnz = 0;
+   MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpMatGetSize)(matC, &cr, &cc, &cnnz));
+   MFEM_VERIFY(cnnz <= (int64_t) std::numeric_limits<int>::max(),
+               "SparseMatrix::Mult overflow: SpGEMM nnz exceeds 32-bit I");
+
+   std::unique_ptr<SparseMatrix> C(NewDeviceCSR(m, n, (int) cnnz));
+   if (cnnz > 0)
+   {
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseCsrSetPointers)(
+                           matC, C->WriteI(), C->WriteJ(), C->WriteData()));
+      MFEM_CHECK_SPARSE(MFEM_cu_or_hip(sparseSpGEMM_copy)(
+                           handle, op, op, &alpha, matA, matB, &beta, matC,
+                           typ, alg, desc));
+   }
+   else
+   {
+      int *d_CI = C->WriteI();
+      mfem::forall(m + 1, [=] MFEM_HOST_DEVICE (int i) { d_CI[i] = 0; });
+   }
+   MFEM_STREAM_SYNC;
+
+   if (cnnz > 0) { C->SortColumnIndices(); }
+   return C.release();
+}
+#endif // !defined(MFEM_USE_CUDA) || (CUDA_VERSION >= 11000)
+#endif // MFEM_USE_CUDA_OR_HIP
+
 SparseMatrix *Transpose (const SparseMatrix &A)
 {
    MFEM_VERIFY(
       A.Finalized(),
       "Finalize must be called before Transpose. Use TransposeRowMatrix instead");
+
+#ifdef MFEM_USE_CUDA_OR_HIP
+#if !defined(MFEM_USE_CUDA) || (CUDA_VERSION >= 11000)
+   if (A.useGPUSparse && SparseMatrix::handle && HasDeviceCSR(A))
+   {
+      if (auto *At = DeviceTranspose(A, SparseMatrix::handle)) { return At; }
+   }
+#endif
+#endif
 
    int i, j, end;
    const int *A_i, *A_j;
@@ -3799,9 +3993,19 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
 SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
                     SparseMatrix *OAB)
 {
+#ifdef MFEM_USE_CUDA_OR_HIP
+#if !defined(MFEM_USE_CUDA) || (CUDA_VERSION >= 11000)
+   if (OAB == NULL && A.useGPUSparse && B.useGPUSparse &&
+       SparseMatrix::handle && HasDeviceCSR(A) && HasDeviceCSR(B))
+   {
+      MFEM_VERIFY(A.Width() == B.Height(), "Incompatible matrix dimensions");
+      if (auto *C = DeviceMult(A, B, SparseMatrix::handle)) { return C; }
+   }
+#endif
+#endif
    int nrowsA, ncolsA, nrowsB, ncolsB;
    const int *A_i, *A_j, *B_i, *B_j;
-   int *C_i, *C_j, *B_marker;
+   int *C_i, *C_j;
    const real_t *A_data, *B_data;
    real_t *C_data;
    int ia, ib, ic, ja, jb, num_nonzeros;
@@ -3825,7 +4029,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
    B_j    = B.HostReadJ();
    B_data = B.HostReadData();
 
-   B_marker = new int[ncolsB];
+   Array<int> B_marker(ncolsB);
 
    for (ib = 0; ib < ncolsB; ib++)
    {
@@ -3876,9 +4080,31 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
                   << " ncolsB = " << ncolsB
                   << ", C->Width() = " << C->Width());
 
-      // C_i    = C->HostReadI(); // not used
-      C_j    = C->HostWriteJ();
+      const int *C_rows = C->HostReadI();
+      const int *C_columns = C->HostReadJ();
       C_data = C->HostWriteData();
+
+      for (ic = 0; ic < nrowsA; ic++)
+      {
+         for (int entry = C_rows[ic]; entry < C_rows[ic+1]; entry++)
+         {
+            B_marker[C_columns[entry]] = entry;
+            C_data[entry] = 0.0;
+         }
+         for (ia = A_i[ic]; ia < A_i[ic+1]; ia++)
+         {
+            ja = A_j[ia];
+            for (ib = B_i[ja]; ib < B_i[ja+1]; ib++)
+            {
+               const int entry = B_marker[B_j[ib]];
+               MFEM_VERIFY(entry >= C_rows[ic] && entry < C_rows[ic+1],
+                           "Pre-allocated output matrix has an "
+                           "incompatible graph");
+               C_data[entry] += A_data[ia]*B_data[ib];
+            }
+         }
+      }
+      return C;
    }
 
    counter = 0;
@@ -3897,10 +4123,7 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
             if (B_marker[jb] < row_start)
             {
                B_marker[jb] = counter;
-               if (OAB == NULL)
-               {
-                  C_j[counter] = jb;
-               }
+               C_j[counter] = jb;
                C_data[counter] = a_entry*b_entry;
                counter++;
             }
@@ -3911,15 +4134,6 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
          }
       }
    }
-
-   MFEM_VERIFY(
-      OAB == NULL || counter == OAB->NumNonZeroElems(),
-      "With pre-allocated output matrix, number of non-zeros ("
-      << OAB->NumNonZeroElems()
-      << ") did not match number of entries changed from matrix-matrix multiply, "
-      << counter);
-
-   delete [] B_marker;
 
    return C;
 }
@@ -4090,16 +4304,18 @@ SparseMatrix *RAP(const SparseMatrix &Rt, const SparseMatrix &A,
 SparseMatrix *Mult_AtDA (const SparseMatrix &A, const Vector &D,
                          SparseMatrix *OAtDA)
 {
-   int i, At_nnz, *At_j;
+   int i, At_nnz;
+   const int *At_j;
    real_t *At_data;
+   const real_t *D_data = D.HostRead();
 
    SparseMatrix *At = Transpose (A);
    At_nnz  = At -> NumNonZeroElems();
-   At_j    = At -> GetJ();
-   At_data = At -> GetData();
+   At_j    = At -> HostReadJ();
+   At_data = At -> HostReadWriteData();
    for (i = 0; i < At_nnz; i++)
    {
-      At_data[i] *= D(At_j[i]);
+      At_data[i] *= D_data[At_j[i]];
    }
    SparseMatrix *AtDA = Mult (*At, A, OAtDA);
    delete At;

@@ -12,6 +12,7 @@
 #include "mfem.hpp"
 #include "unit_tests.hpp"
 #include <sstream>
+#include <memory>
 
 namespace mfem
 {
@@ -288,6 +289,184 @@ TEST_CASE("SparseMatrix cuSPARSE Bug", "[SparseMatrix][GPU]")
 
    y -= d;
    REQUIRE(y.Normlinf() == MFEM_Approx(0.0));
+}
+
+static void TestSparseMatrixMultReuse()
+{
+   SparseMatrix left(2, 3), right(3, 3);
+   left.Set(0, 0, 2.0);
+   left.Set(0, 1, 3.0);
+   left.Set(1, 1, -1.0);
+   left.Set(1, 2, 4.0);
+   right.Set(0, 2, 5.0);
+   right.Set(1, 0, 7.0);
+   right.Set(1, 2, 11.0);
+   right.Set(2, 1, 13.0);
+   left.Finalize();
+   right.Finalize();
+   left.SortColumnIndices();
+   right.SortColumnIndices();
+   left.ReadI(); left.ReadJ(); left.ReadData();
+   right.ReadI(); right.ReadJ(); right.ReadData();
+
+   std::unique_ptr<SparseMatrix> product(Mult(left, right));
+   product->SortColumnIndices();
+   product->ReadWriteI();
+   product->ReadWriteJ();
+   product->ReadWriteData();
+   if (Device::GetDeviceMemoryClass() == MemoryClass::DEVICE)
+   {
+      REQUIRE(product->GetMemoryI().DeviceIsValid());
+      REQUIRE(product->GetMemoryJ().DeviceIsValid());
+      REQUIRE(product->GetMemoryData().DeviceIsValid());
+      REQUIRE_FALSE(product->GetMemoryI().HostIsValid());
+      REQUIRE_FALSE(product->GetMemoryJ().HostIsValid());
+      REQUIRE_FALSE(product->GetMemoryData().HostIsValid());
+   }
+
+   REQUIRE(Mult(left, right, product.get()) == product.get());
+
+   const int expected_offsets[] = {0, 2, 5};
+   const int expected_columns[] = {0, 2, 0, 1, 2};
+   const real_t expected_values[] = {21.0, 43.0, -7.0, 52.0, -11.0};
+   const int *offsets = product->HostReadI();
+   const int *columns = product->HostReadJ();
+   const real_t *values = product->HostReadData();
+   for (int row = 0; row <= product->Height(); row++)
+   {
+      CHECK(offsets[row] == expected_offsets[row]);
+   }
+   for (int entry = 0; entry < 5; entry++)
+   {
+      CAPTURE(entry);
+      CHECK(columns[entry] == expected_columns[entry]);
+      CHECK(values[entry] == MFEM_Approx(expected_values[entry]));
+   }
+}
+
+TEST_CASE("SparseMatrix Mult reuses a sorted output graph",
+          "[SparseMatrix][GPU]")
+{
+   TestSparseMatrixMultReuse();
+}
+
+TEST_CASE("Parallel SparseMatrix Mult reuses a sorted output graph",
+          "[SparseMatrix][Parallel][GPU]")
+{
+   TestSparseMatrixMultReuse();
+}
+
+static void TestSparseMatrixMultAtDA()
+{
+   SparseMatrix matrix(3, 2);
+   matrix.Set(0, 0, 1.0);
+   matrix.Set(0, 1, 2.0);
+   matrix.Set(1, 1, 3.0);
+   matrix.Set(2, 0, -2.0);
+   matrix.Set(2, 1, 4.0);
+   matrix.Finalize();
+   matrix.SortColumnIndices();
+
+   Vector diagonal(3);
+   diagonal(0) = 2.0;
+   diagonal(1) = 3.0;
+   diagonal(2) = 5.0;
+
+   matrix.ReadWriteI();
+   matrix.ReadWriteJ();
+   matrix.ReadWriteData();
+   if (Device::GetDeviceMemoryClass() == MemoryClass::DEVICE)
+   {
+      REQUIRE(matrix.GetMemoryI().DeviceIsValid());
+      REQUIRE(matrix.GetMemoryJ().DeviceIsValid());
+      REQUIRE(matrix.GetMemoryData().DeviceIsValid());
+   }
+
+   std::unique_ptr<SparseMatrix> product(Mult_AtDA(matrix, diagonal));
+   REQUIRE(product->Height() == 2);
+   REQUIRE(product->Width() == 2);
+   product->HostReadI();
+   product->HostReadJ();
+   product->HostReadData();
+   const DenseMatrix expected({{22.0, -36.0}, {-36.0, 115.0}});
+   for (int row = 0; row < 2; row++)
+   {
+      for (int column = 0; column < 2; column++)
+      {
+         CAPTURE(row, column);
+         CHECK((*product)(row, column) == MFEM_Approx(expected(row, column)));
+      }
+   }
+}
+
+TEST_CASE("SparseMatrix Mult_AtDA with device-valid input",
+          "[SparseMatrix][GPU]")
+{
+   TestSparseMatrixMultAtDA();
+}
+
+TEST_CASE("Parallel SparseMatrix Mult_AtDA with device-valid input",
+          "[SparseMatrix][Parallel][GPU]")
+{
+   TestSparseMatrixMultAtDA();
+}
+
+TEST_CASE("SparseMatrix device Mult and Transpose", "[SparseMatrix][GPU]")
+{
+   // 0: general rectangular case; 1: A has no entries; 2: A*B has no entries.
+   const int test = GENERATE(0, 1, 2);
+   const int m = 5, k = 3, n = 4;
+   SparseMatrix A(m, k), B(k, n);
+   for (int i = 0; i < m && test != 1; i++)
+   {
+      A.Set(i, test == 2 ? 0 : i % k, 1.0 + i);
+   }
+   for (int i = (test == 2) ? 1 : 0; i < k; i++)
+   {
+      B.Set(i, (i + 1) % n, -0.5);
+      B.Set(i, i % n, 2.0);
+   }
+   A.Finalize();
+   B.Finalize();
+
+   // Host results, computed before the operands are moved to the device.
+   std::unique_ptr<SparseMatrix> Ch(Mult(A, B)), Ath(Transpose(A));
+   Ch->SortColumnIndices();
+
+   A.ReadI(); A.ReadJ(); A.ReadData();
+   B.ReadI(); B.ReadJ(); B.ReadData();
+   std::unique_ptr<SparseMatrix> Cd(Mult(A, B)), Atd(Transpose(A));
+
+#if defined(MFEM_USE_HIP) || (defined(MFEM_USE_CUDA) && CUDA_VERSION >= 11000)
+   if (test != 1 && Device::Allows(Backend::CUDA_MASK | Backend::HIP_MASK) &&
+       SparseMatrix::use_gpu_vendor_sparse_if_available)
+   {
+      for (const SparseMatrix *X : {Cd.get(), Atd.get()})
+      {
+         REQUIRE(X->GetMemoryI().DeviceIsValid());
+         REQUIRE(X->GetMemoryJ().DeviceIsValid());
+         REQUIRE(X->GetMemoryData().DeviceIsValid());
+      }
+   }
+#endif
+
+   auto equal = [](const SparseMatrix &X, const SparseMatrix &Y)
+   {
+      REQUIRE(Y.Finalized());
+      REQUIRE(X.Height() == Y.Height());
+      REQUIRE(X.Width() == Y.Width());
+      const int *XI = X.HostReadI(), *YI = Y.HostReadI();
+      const int *XJ = X.HostReadJ(), *YJ = Y.HostReadJ();
+      const real_t *XA = X.HostReadData(), *YA = Y.HostReadData();
+      for (int i = 0; i <= X.Height(); i++) { REQUIRE(XI[i] == YI[i]); }
+      for (int j = 0; j < XI[X.Height()]; j++)
+      {
+         REQUIRE(XJ[j] == YJ[j]);
+         REQUIRE(XA[j] == MFEM_Approx(YA[j]));
+      }
+   };
+   equal(*Ch, *Cd);
+   equal(*Ath, *Atd);
 }
 
 } // namespace mfem

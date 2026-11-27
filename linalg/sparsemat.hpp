@@ -140,6 +140,11 @@ protected:
    mutable hipsparseDnVecDescr_t vecX_descr;
    mutable hipsparseDnVecDescr_t vecY_descr;
 #endif // defined(MFEM_USE_CUDA)
+
+   // Device implementations of these use the cuSPARSE/hipSPARSE handle.
+   friend SparseMatrix *Transpose(const SparseMatrix &A);
+   friend SparseMatrix *Mult(const SparseMatrix &A, const SparseMatrix &B,
+                             SparseMatrix *OAB);
 #endif // MFEM_USE_CUDA_OR_HIP
 
 public:
@@ -753,6 +758,12 @@ void SparseMatrixFunction(SparseMatrix &S, real_t (*f)(real_t));
 
 
 /// Transpose of a sparse matrix. A must be finalized.
+/** With the CUDA (CUDA 11 or newer) or HIP backend and GPU vendor sparse
+    operations enabled, device-valid CSR arrays in @a A select the
+    cuSPARSE/hipSPARSE implementation. A nonempty device result has device-only
+    valid CSR arrays; use HostReadI(), HostReadJ(), and HostReadData() before
+    accessing it on the host. Empty results and other inputs use the host
+    implementation. */
 SparseMatrix *Transpose(const SparseMatrix &A);
 /// Transpose of a sparse matrix. A does not need to be a CSR matrix.
 SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
@@ -763,7 +774,14 @@ SparseMatrix *TransposeAbstractSparseMatrix (const AbstractSparseMatrix &A,
     result in @a OAB. If @a OAB is NULL, we create a new SparseMatrix to store
     the result and return a pointer to it.
 
-    All matrices must be finalized. */
+    All matrices must be finalized.
+
+    With the CUDA (CUDA 11 or newer) or HIP backend and GPU vendor sparse
+    operations enabled, device-valid CSR arrays in both inputs select the
+    cuSPARSE/hipSPARSE implementation when @a OAB is NULL and both inputs have
+    entries. The device result, also when empty, has device-only valid CSR
+    arrays; use HostReadI(), HostReadJ(), and HostReadData() before accessing
+    it on the host. Other inputs use the host implementation. */
 SparseMatrix *Mult(const SparseMatrix &A, const SparseMatrix &B,
                    SparseMatrix *OAB = NULL);
 
