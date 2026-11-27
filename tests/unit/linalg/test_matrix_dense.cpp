@@ -35,6 +35,40 @@ TEST_CASE("DenseMatrix init-list construction", "[DenseMatrix]")
    }
 }
 
+TEST_CASE("DenseMatrix embedded weights avoid Gram determinant cancellation",
+          "[DenseMatrix]")
+{
+   const real_t epsilon = std::numeric_limits<real_t>::epsilon();
+   const real_t small_scale =
+      std::sqrt(std::sqrt(std::numeric_limits<real_t>::min())) / 2;
+   const real_t large_scale =
+      2 * std::sqrt(std::sqrt(std::numeric_limits<real_t>::max()));
+   const real_t thin = std::sqrt(epsilon);
+   const real_t tolerance = 64 * epsilon;
+   for (real_t scale : {small_scale, real_t(1), large_scale})
+   {
+      for (real_t thickness : {real_t(1e-4), thin, thin / 16})
+      {
+         DenseMatrix jacobian(
+            {{real_t(1), real_t(1)}, {real_t(0), thickness},
+             {real_t(0), 2 * thickness}});
+         jacobian *= scale;
+         const real_t expected =
+            std::sqrt(real_t(5)) * thickness * (scale * scale);
+         REQUIRE(jacobian.Weight() / expected ==
+                 MFEM_Approx(1, tolerance, tolerance));
+         for (int row = 0; row < jacobian.Height(); ++row)
+         {
+            std::swap(jacobian(row, 0), jacobian(row, 1));
+         }
+         REQUIRE(jacobian.Weight() / expected ==
+                 MFEM_Approx(1, tolerance, tolerance));
+      }
+   }
+   DenseMatrix singular({{1., 2.}, {2., 4.}, {3., 6.}});
+   REQUIRE(singular.Weight() == 0);
+}
+
 TEST_CASE("DenseMatrix LinearSolve methods",
           "[DenseMatrix]")
 {
