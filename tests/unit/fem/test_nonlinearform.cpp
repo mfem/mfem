@@ -96,3 +96,125 @@ TEST_CASE("NonlinearForm Boundary Integrator", "[NonlinearForm]")
    u2 -= u1;
    REQUIRE(u2.Norml2() == MFEM_Approx(0.0, 1e-5));
 }
+
+TEST_CASE("NonlinearForm PA Face Integrators",
+          "[NonlinearForm][PartialAssembly]")
+{
+   // Mult of BilinearFormIntegrator completed using BilinearForm + NonlinearForm,
+   // and then compared.
+
+   Mesh mesh("../../data/star.mesh", 1, 1);
+   // Alternate the boundary attributes, to test the boundary markers.
+   for (int i = 0; i < mesh.GetNBE(); i++)
+   {
+      mesh.SetBdrAttribute(i, 1 + (i % 2));
+   }
+   mesh.SetAttributes();
+
+   L2_FECollection fec(2, mesh.Dimension(), BasisType::GaussLobatto);
+   FiniteElementSpace fespace(&mesh, &fec);
+
+   Vector velocity_vector(mesh.Dimension());
+   velocity_vector(0) = 1.0;
+   velocity_vector(1) = 2.0;
+   VectorConstantCoefficient velocity(velocity_vector);
+
+   Array<int> bdr_marker(mesh.bdr_attributes.Max());
+   bdr_marker = 0;
+   bdr_marker[0] = 1;
+
+   BilinearForm a(&fespace);
+   a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   a.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+   a.AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   a.AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   a.AddBdrFaceIntegrator(new DGTraceIntegrator(velocity, 1.0, 0.5),
+                          bdr_marker);
+   a.Assemble();
+
+   NonlinearForm a_nf(&fespace);
+   a_nf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   a_nf.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+   a_nf.AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   a_nf.AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   a_nf.AddBdrFaceIntegrator(new DGTraceIntegrator(velocity, 1.0, 0.5),
+                             bdr_marker);
+   a_nf.Setup();
+
+   const int n = fespace.GetVSize();
+   Vector x(n), y(n), y_nf(n);
+   x.Randomize(1);
+   a.Mult(x, y);
+   a_nf.Mult(x, y_nf);
+
+   y_nf -= y;
+   REQUIRE(y_nf.Normlinf() == MFEM_Approx(0.0, 1e-12));
+}
+
+#ifdef MFEM_USE_MPI
+
+TEST_CASE("Parallel NonlinearForm PA Face Integrators",
+          "[NonlinearForm][PartialAssembly][Parallel]")
+{
+   // Same as "NonlinearForm PA Face Integrators", in parallel.
+
+   Mesh serial_mesh("../../data/star.mesh", 1, 1);
+   // Alternate the boundary attributes, to test the boundary markers.
+   for (int i = 0; i < serial_mesh.GetNBE(); i++)
+   {
+      serial_mesh.SetBdrAttribute(i, 1 + (i % 2));
+   }
+   serial_mesh.SetAttributes();
+   ParMesh mesh(MPI_COMM_WORLD, serial_mesh);
+   serial_mesh.Clear();
+
+   L2_FECollection fec(2, mesh.Dimension(), BasisType::GaussLobatto);
+   ParFiniteElementSpace fespace(&mesh, &fec);
+
+   Vector velocity_vector(mesh.Dimension());
+   velocity_vector(0) = 1.0;
+   velocity_vector(1) = 2.0;
+   VectorConstantCoefficient velocity(velocity_vector);
+
+   Array<int> bdr_marker(mesh.bdr_attributes.Max());
+   bdr_marker = 0;
+   bdr_marker[0] = 1;
+
+   ParBilinearForm a(&fespace);
+   a.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   a.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+   a.AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   a.AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   a.AddBdrFaceIntegrator(new DGTraceIntegrator(velocity, 1.0, 0.5),
+                          bdr_marker);
+   a.Assemble();
+
+   ParNonlinearForm a_nf(&fespace);
+   a_nf.SetAssemblyLevel(AssemblyLevel::PARTIAL);
+   a_nf.AddDomainIntegrator(new ConvectionIntegrator(velocity, -1.0));
+   a_nf.AddInteriorFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   a_nf.AddBdrFaceIntegrator(
+      new TransposeIntegrator(new DGTraceIntegrator(velocity, 1.0, -0.5)));
+   a_nf.AddBdrFaceIntegrator(new DGTraceIntegrator(velocity, 1.0, 0.5),
+                             bdr_marker);
+   a_nf.Setup();
+
+   const int n = fespace.GetTrueVSize();
+   Vector x(n), y(n), y_nf(n);
+   x.Randomize(1);
+   y = 0.0;
+   a.TrueAddMult(x, y);
+   a_nf.Mult(x, y_nf);
+
+   y_nf -= y;
+   REQUIRE(y_nf.Normlinf() == MFEM_Approx(0.0, 1e-12));
+}
+
+#endif // MFEM_USE_MPI
