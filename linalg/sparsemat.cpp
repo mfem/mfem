@@ -4079,7 +4079,8 @@ SparseMatrix *Mult (const SparseMatrix &A, const SparseMatrix &B,
             {
                const int entry = B_marker[B_j[ib]];
                MFEM_VERIFY(entry >= C_rows[ic] && entry < C_rows[ic+1],
-                           "Pre-allocated output matrix has an incompatible graph");
+                           "Pre-allocated output matrix has an "
+                           "incompatible graph");
                C_data[entry] += A_data[ia]*B_data[ib];
             }
          }

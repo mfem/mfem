@@ -344,7 +344,8 @@ static void TestSparseMatrixMultReuse()
    }
 }
 
-TEST_CASE("SparseMatrix Mult reuses a sorted output graph", "[SparseMatrix][GPU]")
+TEST_CASE("SparseMatrix Mult reuses a sorted output graph",
+          "[SparseMatrix][GPU]")
 {
    TestSparseMatrixMultReuse();
 }
@@ -398,7 +399,8 @@ static void TestSparseMatrixMultAtDA()
    }
 }
 
-TEST_CASE("SparseMatrix Mult_AtDA with device-valid input", "[SparseMatrix][GPU]")
+TEST_CASE("SparseMatrix Mult_AtDA with device-valid input",
+          "[SparseMatrix][GPU]")
 {
    TestSparseMatrixMultAtDA();
 }
