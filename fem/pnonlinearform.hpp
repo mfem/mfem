@@ -85,11 +85,11 @@ protected:
 
    void GradientSharedFaces(const BlockVector &xs, int skip_zeros) const;
 
-   /// Add the terms over shared interior faces to the given L-Vector%s.
-   /** Entries of @a lx and @a ly may be NULL, in which case that block is
-       skipped and NULL is passed to the integrators in its place. */
-   void MultSharedFaces(const Array<const Vector *> &lx,
-                        const Array<Vector *> &ly) const;
+   /** @brief Add the terms over shared interior faces to the given
+    * L-Vector%s.
+    * @details Supports zero-sized blocks.
+    */
+   void MultSharedFaces(const MultiVector &lx, MultiVector &ly) const;
 
 public:
    /// Computes the energy of the system
@@ -149,13 +149,14 @@ public:
    /// Block T-Vector to Block T-Vector
    void Mult(const Vector &x, Vector &y) const override;
 
-   /** @brief Block T-Vector to Block T-Vector, with the blocks given as arrays
-       of pointers, one per space.
-
-       See BlockNonlinearForm::Mult(const Array<const Vector *> &,
-       const Array<Vector *> &) const. */
-   void Mult(const Array<const Vector *> &x,
-             const Array<Vector *> &y) const override;
+   /** @brief Block T-Vector to Block T-Vector, with the blocks given as
+     * MultiVector%s, one block per space.
+     *
+     * @details Blocks of \p x and/or \p y may be of zero size if not needed.
+     * Whether a block is needed is decided across all ranks, so a needed
+     * block may be of zero size on ranks that own none of its true dofs.
+     */
+   void MultMV(const MultiVector &x, MultiVector &y) const override;
 
    /// Return the local block gradient matrix for the given true-dof vector x
    const BlockOperator &GetLocalGradient(const Vector &x) const;
