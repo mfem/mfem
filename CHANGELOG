@@ -48,6 +48,13 @@ Meshing improvements
   of essential boundaries were not essential, and on serial meshes, those of
   all interior boundaries were.
 
+- Fixed reading Gmsh meshes whose boundary elements have a different order than
+  the volume elements, e.g. linear tetrahedra with second-order triangles, as
+  produced by Gmsh when optimizing a second-order mesh with Netgen. Such meshes
+  were supported before the Gmsh reader rewrite in MFEM 4.10. The mesh order is
+  again the order of the elements of highest dimension, and a warning is issued
+  when the high-order nodes of the boundary elements are ignored.
+
 - NURBS mesh HDF5 file I/O is now supported, by using mesh-explorer (option 'S')
   or Mesh::SaveNURBSHDF5 for writing and the usual Mesh constructors or loaders
   for reading.
