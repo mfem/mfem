@@ -102,15 +102,14 @@ public:
                               const Array<const Vector *> &elfun,
                               const Array<Vector *> &elvec) override
    {
-      if (elvec[0]) { elvec[0]->SetSize(0); }
       grad.AssembleElementMatrix2(*el[0], *el[1], trans, elmat);
       elvec[1]->SetSize(elmat.Height());
       elmat.Mult(*elfun[0], *elvec[1]);
    }
 };
 
-TEST_CASE("BlockNonlinearForm Array of Vectors Mult",
-          "[BlockNonlinearForm], [Mult]")
+TEST_CASE("BlockNonlinearForm MultMV",
+          "[BlockNonlinearForm]")
 {
    const bool nonconforming = GENERATE(false, true);
    const bool with_bc = GENERATE(false, true);
@@ -166,13 +165,11 @@ TEST_CASE("BlockNonlinearForm Array of Vectors Mult",
 
    Vector r(vfes.GetTrueVSize());
 
-   Array<const Vector *> x(2);
-   x[0] = &u_gf.GetTrueVector();
-   x[1] = nullptr;
-   Array<Vector *> y(2);
-   y[0] = nullptr;
-   y[1] = &r;
-   form.Mult(x, y);
+   MultiVector x(2), y(2);
+   x.MakeRef(0, u_gf.GetTrueVector());
+   y.MakeRef(1, r);
+   // Do not set x[1], y[0]
+   form.MultMV(x, y);
 
    for (int d : ess_tdofs)
    {
@@ -273,15 +270,14 @@ public:
                            const Array<const Vector *> &elfun,
                            const Array<Vector *> &elvect) override
    {
-      if (elvect[1]) { elvect[1]->SetSize(0); }
       dg.AssembleFaceMatrix(*el1[0], *el2[0], Tr, elmat);
       elvect[0]->SetSize(elmat.Height());
       elmat.Mult(*elfun[0], *elvect[0]);
    }
 };
 
-TEST_CASE("ParBlockNonlinearForm Array of Vectors Mult",
-          "[Parallel], [ParBlockNonlinearForm], [Mult]")
+TEST_CASE("ParBlockNonlinearForm MultMV",
+          "[Parallel], [ParBlockNonlinearForm]")
 {
    const bool nonconforming = GENERATE(false, true);
    const bool with_bc = GENERATE(false, true);
@@ -312,10 +308,8 @@ TEST_CASE("ParBlockNonlinearForm Array of Vectors Mult",
    u_gf.ProjectCoefficient(u_coeff);
    u_gf.SetTrueVector();
 
-   Array<const Vector *> x(2);
-   x[0] = &u_gf.GetTrueVector();
-   x[1] = nullptr;
-   Array<Vector *> y(2);
+   MultiVector x(2), y(2);
+   x.MakeRef(0, u_gf.GetTrueVector());
 
    SECTION("Domain integrator, input in space 0, output in space 1")
    {
@@ -345,9 +339,8 @@ TEST_CASE("ParBlockNonlinearForm Array of Vectors Mult",
       REQUIRE(ParNormlp(ref_y, infinity(), MPI_COMM_WORLD) > 0.0);
 
       Vector r(vfes.GetTrueVSize());
-      y[0] = nullptr;
-      y[1] = &r;
-      form.Mult(x, y);
+      y.MakeRef(1, r);
+      form.MultMV(x, y);
 
       for (int d : ess_tdofs)
       {
@@ -381,10 +374,9 @@ TEST_CASE("ParBlockNonlinearForm Array of Vectors Mult",
       REQUIRE(ParNormlp(ref_y, infinity(), MPI_COMM_WORLD) > 0.0);
 
       Vector r(dfes.GetTrueVSize());
-      x[0] = &d_gf.GetTrueVector();
-      y[0] = &r;
-      y[1] = nullptr;
-      form.Mult(x, y);
+      x.MakeRef(0, d_gf.GetTrueVector());
+      y.MakeRef(0, r);
+      form.MultMV(x, y);
 
       r -= ref_y;
       REQUIRE(r.Normlinf() == MFEM_Approx(0.0));
