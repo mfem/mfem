@@ -303,6 +303,8 @@ protected:
 
    mutable BlockVector aux1, aux2;
 
+   mutable MultiVector mv_aux1, mv_aux2;
+
    const BlockVector &Prolongate(const BlockVector &bx) const;
 
    /// Specialized version of GetEnergy() for BlockVectors
@@ -311,6 +313,12 @@ protected:
    /// Specialized version of Mult() for BlockVector%s
    /// Block L-Vector to Block L-Vector
    void MultBlocked(const BlockVector &bx, BlockVector &by) const;
+
+   /** @brief Specialized version of Mult() for MultiVector%s.
+    * @details Block L-Vector to Block L-Vector, with support for zero-sized
+    * blocks.
+    */
+   void MultBlocked(const MultiVector &lx, MultiVector &ly) const;
 
    /// Specialized version of GetGradient() for BlockVector
    void ComputeGradientBlocked(const BlockVector &bx, bool finalize = true) const;
@@ -407,6 +415,13 @@ public:
    /// Method is only called in serial, the parallel version calls MultBlocked
    /// directly.
    void Mult(const Vector &x, Vector &y) const override;
+
+   /** @brief Block T-Vector to Block T-Vector, with the blocks given as
+     * MultiVector%s, one block per space.
+     *
+     * @details Blocks of \p x and/or \p y may be of zero size if not needed.
+     */
+   void MultMV(const MultiVector &x, MultiVector &y) const override;
 
    /// Method is only called in serial, the parallel version calls
    /// GetGradientBlocked directly.

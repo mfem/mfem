@@ -85,6 +85,12 @@ protected:
 
    void GradientSharedFaces(const BlockVector &xs, int skip_zeros) const;
 
+   /** @brief Add the terms over shared interior faces to the given
+    * L-Vector%s.
+    * @details Supports zero-sized blocks.
+    */
+   void MultSharedFaces(const MultiVector &lx, MultiVector &ly) const;
+
 public:
    /// Computes the energy of the system
    real_t GetEnergy(const Vector &x) const override;
@@ -142,6 +148,15 @@ public:
 
    /// Block T-Vector to Block T-Vector
    void Mult(const Vector &x, Vector &y) const override;
+
+   /** @brief Block T-Vector to Block T-Vector, with the blocks given as
+     * MultiVector%s, one block per space.
+     *
+     * @details Blocks of \p x and/or \p y may be of zero size if not needed.
+     * Whether a block is needed is decided across all ranks, so a needed
+     * block may be of zero size on ranks that own none of its true dofs.
+     */
+   void MultMV(const MultiVector &x, MultiVector &y) const override;
 
    /// Return the local block gradient matrix for the given true-dof vector x
    const BlockOperator &GetLocalGradient(const Vector &x) const;
