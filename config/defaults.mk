@@ -30,7 +30,8 @@ OPTIM_FLAGS = -O3 $(BASE_FLAGS)
 
 # The variable WARNING_FLAGS depends on which compiler is used, and is defined
 # later in this file.
-DEBUG_FLAGS = $(strip -g $(addprefix $(XCOMPILER),$(WARNING_FLAGS)) $(BASE_FLAGS))
+DEBUG_FLAGS = $(strip -g -O0 \
+ $(addprefix $(XCOMPILER),$(WARNING_FLAGS)) $(BASE_FLAGS))
 
 # Prefixes for passing flags to the compiler and linker when using CXX or MPICXX
 CXX_XCOMPILER =
